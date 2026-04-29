@@ -1,8 +1,37 @@
-<script>
+<script lang="ts">
   import svelteLogo from "./assets/svelte.svg";
   import viteLogo from "./assets/vite.svg";
   import heroImg from "./assets/hero.png";
   import Counter from "./lib/Counter.svelte";
+
+  async function handleSubmit(event: SubmitEvent) {
+    const formData = new FormData(event.target as HTMLFormElement);
+
+    console.log(JSON.stringify({ topic: formData.get("topic") }));
+
+    try {
+      const response = await fetch("https://localhost:9999/create-topic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: formData.get("topic") }),
+      });
+      const result = await response.json();
+      console.log(result);
+
+      if (result.status === "OK") {
+        const host = window.location.host;
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const socketUrl = `${protocol}//${host}/ws`;
+        const socket = new WebSocket(socketUrl);
+
+        socket.onopen = () => {
+          socket.send(JSON.stringify({ action: "join", topic: result.topic }));
+        };
+      }
+    } catch (error) {
+      console.error("Errore durante il fetch:", error);
+    }
+  }
 </script>
 
 <section id="center">
@@ -18,18 +47,22 @@
   <Counter />
 </section>
 
-<section id="test-forn">
+<div class="ticks"></div>
+
+<section id="next-steps">
   <div>
-    <h1>Testing Form</h1>
-    <form method="get">
+    <h2>E' un test <br /> non si vede?</h2>
+  </div>
+  <div>
+    <h1>Form per il join</h1>
+    <form on:submit|preventDefault={handleSubmit}>
       <label>
-        Name:
-        <input name="submitted-name" autocomplete="name" />
+        Nome Topic:
+        <input class="counter" name="topic" id="topic" />
       </label>
-      <input type="submit" />
+      <button class="counter" type="submit">Join</button>
     </form>
   </div>
-  <Counter />
 </section>
 
 <div class="ticks"></div>

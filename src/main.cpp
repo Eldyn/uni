@@ -1,13 +1,23 @@
+#include "WebSocketData.h"
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <ostream>
 #include <string>
-#include <uWebSockets/src/App.h>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <nlohmann/json.hpp>
+#include <uWebSockets/src/App.h>
+
+// Ogni Client avrà sta roba
+struct PerSocketData {
+  int user_id;
+  std::string username;
+};
 
 namespace fs = std::filesystem;
+using AppWebSocket = uWS::WebSocket<true, true, PerSocketData>;
+using AppRequest = uWS::HttpRequest;
+using AppResponse = uWS::HttpResponse<true>;
 
 std::string readFile(std::string_view path) {
     std::ifstream is(path.data(), std::ios::binary);
@@ -27,12 +37,6 @@ std::string getMimeType(std::string path) {
 }
 using json = nlohmann::json;
 
-// Ogni Client avrà sta roba
-struct PerSocketData {
-  int user_id;
-  std::string username;
-};
-
 int main() {
   uWS::SocketContextOptions ssl_options;
   ssl_options.key_file_name = "key.pem";
@@ -40,8 +44,32 @@ int main() {
 
   const int PORT = 9999;
 
-  uWS::SSLApp(ssl_options)
-    .get("/*", [](uWS::HttpResponse<true> *response, uWS::HttpRequest *request) {
+  uWS::SSLApp app = uWS::SSLApp(ssl_options)
+    .post("/create-topic", [](AppResponse *response, AppRequest *request) {
+      response->onAborted([]() {});
+      std::string buffer;
+
+      std::cout << "[POST]: /create-topic RECEIVED" << std::endl;
+      response->onData([response, buffer = std::move(buffer)](std::string_view chunk, bool isLast) mutable {
+        buffer.append(chunk.data(), chunk.length());
+  
+        if (isLast) {
+          try {
+            auto data = nlohmann::json::parse(buffer);
+          
+            std::string topic = data.value("topic", "default");
+            std::cout << "[POST]: /create-topic DATA:" << topic << std::endl;
+    
+            response->writeHeader("Content-Type", "application/json")
+                    ->end("{\"status\": \"OK\", \"topic\": \"" + topic + "\"}");
+    
+          } catch (const std::exception &e) {
+            response->writeStatus("400 Bad Request")->end("Invalid JSON");
+          }
+        }
+      });
+    })
+    .get("/*", [](AppResponse *response, AppRequest *request) {
       response->onAborted([]() { /* Gestione cleanup */ });
 
       std::string url = std::string(request->getUrl());
@@ -64,14 +92,30 @@ int main() {
         response->writeStatus("404 Not Found")->end("File non trovato");
       }
     })
-    .ws<int>("/*", {
-    .open = [](auto *ws) {
-      std::cout << "Client connesso in WSS (Secure)!" << std::endl;
+    .ws<PerSocketData>("/*", {
+    .open = [](AppWebSocket *ws) {
+      std::cout << "Nuovo Socket Aperto!" << std::endl;
     },
-    .message = [](auto *ws, std::string_view message, uWS::OpCode opCode) {
-      ws->send(message, opCode);
-    }})
-    .listen(9999, [](auto *listen_socket) {
+    .message = [](AppWebSocket *ws, std::string_view message, uWS::OpCode opCode) {
+      try {
+        auto j = json::parse(message);
+        std::string action = j["action"];
+  
+        if (action == "join") {
+          std::string topic = j["topic"];
+          ws->subscribe(topic); // Il cuore del sistema!
+          std::cout << "Client iscritto al topic: " << topic << std::endl;
+        } 
+        else if (action == "broadcast") {
+          std::string topic = j["topic"];
+          std::string msg = j["msg"];
+          // Invia a tutti gli iscritti a quel topic, TRANNE chi invia
+          ws->publish(topic, message, opCode, false);
+        }
+      } catch (...) {}
+    }});
+
+    app.listen(9999, [](auto *listen_socket) {
       if (listen_socket) {
         std::cout << "Server HTTPS/WSS in ascolto su https://localhost:9999" << std::endl;
       }
