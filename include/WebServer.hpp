@@ -6,7 +6,7 @@
 #include <sstream>
 #include <sqlite3.h>
 #include <nlohmann/json.hpp>
-#include <uWebSockets/src/App.h>
+#include <App.h>
 #include <unordered_map>
 
 using json = nlohmann::json;

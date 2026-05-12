@@ -1,6 +1,0 @@
-[submodule "external/uWebSockets"]
-	path = external/uWebSockets
-	url = https://github.com/uNetworking/uWebSockets.git
-[submodule "external/jwt-cpp"]
-	path = external/jwt-cpp
-	url = https://github.com/Thalhammer/jwt-cpp

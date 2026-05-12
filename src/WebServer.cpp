@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <uWebSockets/src/App.h>
+#include <App.h>
 
 namespace fs = std::filesystem;
 using std::ios, std::exception, std::runtime_error, std::to_string;
