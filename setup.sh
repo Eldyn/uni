@@ -1,36 +1,43 @@
 #!/bin/bash
 set -e
 
-echo -e "\e[36mSetting up uni-uno for Linux...\e[0m"
+echo -e "\e[36mVerifica e installazione strumenti (Conan, Ninja)...\e[0m"
 
-# 1. Update submodules
-echo "Updating git submodules..."
-git submodule update --init --recursive
-
-# 2. Install system dependencies (Ubuntu/Debian based)
-echo "Installing OpenSSL, libuv, and build tools..."
-if command -v apt-get &> /dev/null; then
-    sudo apt-get update
-    sudo apt-get install -y build-essential cmake libssl-dev libuv1-dev pkg-config
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y gcc-c++ cmake openssl-devel libuv-devel pkgconf-pkg-config
-elif command -v pacman &> /dev/null; then
-    sudo pacman -S --needed base-devel cmake openssl libuv pkgconf
+# Trova la versione corretta di pip
+if command -v pip3 &> /dev/null; then
+    PIP_CMD="pip3"
+elif command -v pip &> /dev/null; then
+    PIP_CMD="pip"
 else
-    echo -e "\e[33mWarning: Unsupported package manager. Please manually install OpenSSL and libuv headers.\e[0m"
+    echo -e "\e[31mPython/pip non trovato! Installa Python prima di continuare.\e[0m"
+    exit 1
 fi
 
-# 3. Build the project
-echo "Configuring CMake..."
-mkdir -p build
-cd build
-cmake ..
+# Installa/Aggiorna Conan e Ninja automaticamente per l'utente corrente
+echo -e "\e[90mInstallazione/Aggiornamento di Conan e Ninja via pip...\e[0m"
+$PIP_CMD install --upgrade --user conan ninja
 
-echo "Compiling the project..."
-cmake --build . -j$(nproc)
+# Determina come chiamare Conan aggirando i problemi di PATH
+if command -v conan &> /dev/null; then
+    CONAN_CMD="conan"
+elif python3 -m conan --version &> /dev/null; then
+    CONAN_CMD="python3 -m conan"
+elif [ -x "$HOME/.local/bin/conan" ]; then
+    CONAN_CMD="$HOME/.local/bin/conan"
+else
+    echo -e "\e[31mImpossibile trovare l'eseguibile di Conan dopo l'installazione.\e[0m"
+    exit 1
+fi
 
-echo "Compiling frontend..."
-cd ..
-./deploy_frontend.sh
+echo -e "\n\e[36mConfigurazione profilo Conan...\e[0m"
+$CONAN_CMD profile detect --force
 
-echo -e "\e[32mSetup complete! Executable is located in the 'build' directory.\e[0m"
+echo -e "\n\e[36mInstallazione dipendenze in corso...\e[0m"
+# IMPORTANTE: Rimosso --output-folder. Ci pensa il cmake_layout del conanfile.
+$CONAN_CMD install . --build=missing -s build_type=Release -s compiler.cppstd=20 -c tools.cmake.cmaketoolchain:generator=Ninja
+
+echo -e "\e[32m\nSetup completato con successo!\e[0m"
+echo "I file di build sono stati generati correttamente in un'unica cartella."
+echo "Ora puoi compilare il progetto con:"
+echo "cmake --preset conan-default"
+echo "cmake --build --preset conan-default"

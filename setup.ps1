@@ -1,30 +1,43 @@
-Write-Host "Setting up UniUno for Windows..." -ForegroundColor Cyan
+# Setup script per Windows (PowerShell)
+Write-Host "Verifica e installazione strumenti (Conan, Ninja)..." -ForegroundColor Cyan
 
-# 1. Update submodules
-Write-Host "Updating git submodules..."
-git submodule update --init --recursive
-
-# 2. Setup local vcpkg if it doesn't exist
-$VCPKG_DIR = "$PSScriptRoot\external\vcpkg"
-if (-Not (Test-Path "$VCPKG_DIR")) {
-    Write-Host "Cloning vcpkg..."
-    git clone https://github.com/microsoft/vcpkg.git "$VCPKG_DIR"
-    Write-Host "Bootstrapping vcpkg..."
-    & "$VCPKG_DIR\bootstrap-vcpkg.bat" -disableMetrics
+# Verifica presenza di Python
+if (!(Get-Command python -ErrorAction SilentlyContinue)) {
+    Write-Error "Python non trovato! Devi installare Python prima di continuare."
+    exit 1
 }
 
-# 3. Install dependencies via vcpkg
-Write-Host "Installing OpenSSL and libuv via vcpkg (this might take a while)..."
-& "$VCPKG_DIR\vcpkg.exe" install openssl:x64-windows libuv:x64-windows
+# Installa/Aggiorna Conan e Ninja automaticamente
+Write-Host "Installazione/Aggiornamento di Conan e Ninja via pip..." -ForegroundColor DarkGray
+python -m pip install --upgrade pip conan ninja
 
-# 4. Run CMake using the vcpkg toolchain
-Write-Host "Configuring CMake..."
-New-Item -ItemType Directory -Force -Path "$PSScriptRoot\build" | Out-Null
-Set-Location -Path "$PSScriptRoot\build"
+# Funzione intelligente per aggirare il problema del PATH di Windows
+function Invoke-Conan {
+    if (Get-Command conan -ErrorAction SilentlyContinue) {
+        conan $args
+    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        $check = python -m conan --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            python -m conan $args
+        } else {
+            Write-Error "Modulo Conan non trovato. L'installazione di pip è fallita."
+            exit 1
+        }
+    } else {
+        Write-Error "Comando non trovato."
+        exit 1
+    }
+}
 
-cmake .. -DCMAKE_TOOLCHAIN_FILE="$VCPKG_DIR\scripts\buildsystems\vcpkg.cmake" -A x64
-cd ..
-./deploy_frontend.sh
+Write-Host "`nConfigurazione profilo Conan..." -ForegroundColor Cyan
+Invoke-Conan profile detect --force
 
-Write-Host "Setup complete! You can now open the Visual Studio solution in the 'build' folder or run 'cmake --build .' inside the build folder." -ForegroundColor Green
-Set-Location -Path "$PSScriptRoot"
+Write-Host "`nInstallazione dipendenze in corso..." -ForegroundColor Cyan
+# IMPORTANTE: Rimosso --output-folder. Ci pensa il cmake_layout del conanfile.
+Invoke-Conan install . --build=missing -s build_type=Release -s compiler.cppstd=20 -c tools.cmake.cmaketoolchain:generator=Ninja
+
+Write-Host "`nSetup completato con successo!" -ForegroundColor Green
+Write-Host "I file di build sono stati generati correttamente in un'unica cartella."
+Write-Host "Ora puoi compilare il progetto con:"
+Write-Host "cmake --preset conan-default"
+Write-Host "cmake --build --preset conan-default"
