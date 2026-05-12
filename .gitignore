@@ -1,3 +1,6 @@
+#individual configs
+.vs/
+
 # compilation
 build/
 bin/
