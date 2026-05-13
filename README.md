@@ -61,9 +61,10 @@ Una volta completato il setup, usa i preset di CMake (generati automaticamente d
 # Opzionale: se hai bisogno di preparare i file del frontend
 ./deploy_frontend.sh
 
-# Configura e compila il backend C++
+# Configura backend C++
 cmake --preset conan-release
-cmake --build --preset conan-release
+# Compila ed esegui
+cmake --build --preset conan-release && build\Release\uno_server.exe
 ```
 
 Nota per gli sviluppatori (clangd / LSP): Conan genera automaticamente il file compile_commands.json all'interno della cartella build/Release/generators/. Se il tuo editor lo richiede nella root del progetto, puoi collegarlo così:
