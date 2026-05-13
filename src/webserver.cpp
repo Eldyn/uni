@@ -31,11 +31,11 @@ WebServer::~WebServer() {
 void WebServer::run() {
     app_.listen(port_, [this](auto *socket) {
         if (socket) {
-        Logger::log("Server listening on https://localhost:", port_);
+            Logger::log("Server listening on https://localhost:", port_);
         } else {
-        Logger::error("Failed to bind to port " + to_string(port_));
+            Logger::error("Failed to bind to port " + to_string(port_));
         }
-    });
+   });
     app_.run();
 }
 
