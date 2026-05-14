@@ -1,49 +1,52 @@
-#include "../include/logger.hpp"
-#include "database.hpp"
-#include "result.hpp"
-#include "../include/webserver.hpp"
+#include "action_router.hpp"
+#include "http_router.hpp"
+#include "websocket_context.hpp"
 #include <cstdlib>
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
 #include <string>
 #include <string_view>
 #include <App.h>
+#include <webserver.hpp>
+#include <database.hpp>
+#include <logger.hpp>
 
-
-WebServer::WebServer(int port, string_view keyFile, string_view certFile, string_view dbFile)
-    : port_(port), dbFile_(dbFile), app_(uWS::SSLApp({.key_file_name = keyFile.data(), .cert_file_name = certFile.data()})) {
-    if (!initDB()) {
+WebServer::WebServer(int port, string_view key_file, string_view cert_file, string_view db_file)
+    : port_(port), db_file_(db_file), app_(uWS::SSLApp({.key_file_name = key_file.data(), .cert_file_name = cert_file.data()})) {
+    if (!InitDB()) {
         throw runtime_error("Failed to initialise database");
     }
-    registerRoutes();
-    Logger::info("Key file: " + string(keyFile) + " exists=" + (fs::exists(keyFile) ? "yes" : "NO"));
-    Logger::info("Cert file: " + string(certFile) + " exists=" + (fs::exists(certFile) ? "yes" : "NO"));
-    Logger::info("WebServer constructed");
+    RegisterRoutes();
+    Logger::Info("Key file: " + string(key_file) + " exists=" + (fs::exists(key_file) ? "yes" : "NO"));
+    Logger::Info("Cert file: " + string(cert_file) + " exists=" + (fs::exists(cert_file) ? "yes" : "NO"));
+    Logger::Info("WebServer constructed");
 }
 
 WebServer::~WebServer() {
     if (Database::Get().IsOpen()) {
         Database::Get().Close();
-        Logger::info("Database closed");
+        Logger::Info("Database closed");
     }
 }
 
-void WebServer::run() {
+void WebServer::Run() {
+    http_router_.Attach(app_);
+
     app_.listen(port_, [this](auto *socket) {
         if (socket) {
-            Logger::log("Server listening on https://localhost:", port_);
+            Logger::Log("Server listening on https://localhost:", port_);
         } else {
-            Logger::error("Failed to bind to port " + to_string(port_));
+            Logger::Error("Failed to bind to port " + to_string(port_));
         }
-   });
+    });
     app_.run();
 }
 
-bool WebServer::initDB() {
-    VoidResult openResult = Database::Get().Open(dbFile_); 
+bool WebServer::InitDB() {
+    VoidResult openResult = Database::Get().Open(db_file_); 
     
     if (!openResult) {
-        Logger::error("Database opening failed: " + openResult.error().message);
+        Logger::Error("Database opening failed: " + openResult.error().message);
         return false;
     }
 
@@ -54,45 +57,138 @@ bool WebServer::initDB() {
             last_clicker TEXT,
             created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT    NOT NULL UNIQUE,
+            pass_hash  TEXT    NOT NULL,
+            salt       TEXT    NOT NULL,
+            email      TEXT    UNIQUE
+        );
     )";
 
     VoidResult schemaResult = Database::Get().ApplySchema(schema);
 
     if (!schemaResult) {
-        Logger::error("Schema failed: " + schemaResult.error().message);
+        Logger::Error("Schema failed: " + schemaResult.error().message);
         return false;
     }
 
     return true;
 }
 
-void WebServer::registerRoutes() {
-    app_.post("/room", [this](AppResponse *res, AppRequest *req) {
-        handlePost(res, req);
+void WebServer::RegisterRoutes() {
+    ws_router_.On("query", [this](WsContext context, const json& msg) {
+        if (context.socket_data->room.empty()) {
+            Logger::Warn("User tried do query a room while not being in one!");
+            return false;
+        };
+        context.socket->send(json({
+            {"action", "queried"},
+            {"clicks", to_string(GetClicks(context.socket_data->room))},
+            {"lastClicker", GetLastClicker(context.socket_data->room)}
+        }).dump(), context.op_code);
+        return true;
+    });
+
+    ws_router_.On("join", [this](WsContext context, const json& msg) {
+        if (!msg.contains("topic")) {
+            return false;
+        }
+    
+        if (!context.socket_data->room.empty()) {
+            Logger::Warn("[WS] " + context.socket_data->username + " tried to join whilst already in a room");
+            return false;
+        }
+    
+        string topic = msg["topic"];
+        context.socket_data->room = topic;
+        context.socket->subscribe(topic);
+        EnsureRoom(topic);
+
+        context.socket->send(json({
+            {"action", "sync_data"},
+            {"username", context.socket_data->username},
+            {"room", context.socket_data->room}
+        }).dump(), uWS::OpCode::TEXT);
+        return true;
+    });
+
+    ws_router_.On("click", [this](WsContext context, const json& msg) {
+        if (context.socket_data->room.empty()) {
+            Logger::Warn("[WS] Click from " + context.socket_data->username + " who is not in a room");
+            return false;
+        }
+    
+        IncrementClicks(context.socket_data->room);
+        SetLastClicker(context.socket_data->room, context.socket_data->username);
+        int total = GetClicks(context.socket_data->room);
+    
+        app_.publish(context.socket_data->room, json({
+            {"action", "sync_count"},
+            {"count", total},
+            {"last_clicker", GetLastClicker(context.socket_data->room)}
+        }).dump(), context.op_code, true);
+        return true;
+    });
+
+    http_router_.Post("/room", [this](auto *response, auto *request) {
+        HandlePost(response, request);
     });
 
     app_.get("/*", [this](AppResponse *res, AppRequest *req) { 
-        handleGet(res, req);
+        HandleGet(res, req);
     });
 
     app_.ws<PerSocketData>("/*", {
-        .open = [this](AppWebSocket *ws) { handleSocketOpen(ws); },
-        .message = [this](AppWebSocket *ws, string_view msg, uWS::OpCode op) { handleSocketMessage(ws, msg, op); },
-        .close = [this](AppWebSocket *ws, int code, string_view message) { handleSocketClosed(ws); }
+        // .upgrade = [this](AppResponse* res,
+        //                   AppRequest*  req,
+        //                   us_socket_context_t* ctx) {
+
+            // string token = string(req->getQuery("token"));
+            // auto payload = Auth::VerifyToken(token);
+            //
+            // if (!payload) {
+            //     Logger::Warn("[WS] Rejected upgrade — invalid token");
+            //     res->WriteStatus("401 Unauthorized")->End();
+            //     return;
+            // }
+            //
+            // PerSocketData sd;
+            // sd.username = payload->username;
+            //
+            // res->upgrade(std::move(sd),
+            //     req->getHeader("sec-websocket-key"),
+            //     req->getHeader("sec-websocket-protocol"),
+            //     req->getHeader("sec-websocket-extensions"),
+            //     ctx);
+        // },
+        .open = [this](AppWebSocket *ws) {
+            OnSocketOpen(ws);
+        },
+        .message = [this](AppWebSocket *ws, string_view msg, uWS::OpCode op) {
+            OnSocketMessage(ws, msg, op);
+        },
+        .close = [this](AppWebSocket *ws, int code, string_view message) {
+            OnSocketClosed(ws);
+        }
     });
 }
 
-void WebServer::handlePost(AppResponse *res, AppRequest *req) {
-    res->onAborted([]() {});
+void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
+    auto is_alive = std::make_shared<bool>(true);
+    response->onAborted([is_alive]() {
+        *is_alive = false;
+    });
 
     string buffer;
-    Logger::info("[POST] /room received");
 
-    res->onData([res, buffer = move(buffer)](string_view chunk, bool isLast) mutable {
+    response->onData([is_alive, response, buffer = move(buffer)](string_view chunk, bool isLast) mutable {
+        if (!*is_alive) return;
         buffer.append(chunk.data(), chunk.length());
 
         if (buffer.size() > 4096) {
-            res->writeStatus("413 Payload Too Large")->end();
+            response->writeStatus("413 Payload Too Large")->end();
             return;
         }
 
@@ -101,29 +197,29 @@ void WebServer::handlePost(AppResponse *res, AppRequest *req) {
                 auto data = json::parse(buffer);
                 string topic = data.value("topic", "default");
                 if (topic.empty() || topic.size() > 64) {    
-                    res->writeStatus("422 Unprocessable Entity")->end();
+                    response->writeStatus("422 Unprocessable Entity")->end();
+                    return;
                 }
                 
-                if (!all_of(topic.begin(), topic.end(), [](char c) {
-                    return isalnum(c) || c == '-' || c == '_';
+                if (!std::ranges::all_of(topic, [](unsigned char c) { 
+                    return std::isalnum(c) || c == '-' || c == '_'; 
                 })) {
-                    res->writeStatus("422 Unprocessable Entity")->end();
-                };
-
-                Logger::log("[POST] /room topic: ", topic);
-        
-                res->writeHeader("Content-Type", "application/json")
+                    response->writeStatus("422 Unprocessable Entity")->end();
+                    return;
+                }
+            
+                response->writeHeader("Content-Type", "application/json")
                    ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
         
             } catch (const exception &e) {
-                Logger::warn(string("[POST] JSON parse error: ") + e.what());
-                res->writeStatus("400 Bad Request")->end("Invalid JSON");
+                Logger::Warn(string("[POST] JSON parse error: ") + e.what());
+                response->writeStatus("400 Bad Request")->end("Invalid JSON");
             }
         }
     });
 }
 
-void WebServer::handleGet(AppResponse *res, AppRequest *req) {
+void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     res->onAborted([]() {});
     
     string url = string(req->getUrl());
@@ -132,14 +228,14 @@ void WebServer::handleGet(AppResponse *res, AppRequest *req) {
     
     if (fs::exists(filePath) && !fs::is_directory(filePath)) {
         string pathStr = filePath.string();
-        res->writeHeader("Content-Type", getMimeType(pathStr))
+        res->writeHeader("Content-Type", GetMimeType(pathStr))
             ->writeHeader("Cache-Control", "no-cache, no-store, must-revalidate")
             ->writeHeader("Pragma", "no-cache")
             ->writeHeader("Expires", "0")
             ->writeHeader("X-Content-Type-Options", "nosniff")
-            ->end(readFile(pathStr));
+            ->end(ReadFile(pathStr));
     } else {
-        Logger::log("[GET] 404 – ", filePath.string());
+        Logger::Log("[GET] 404 – ", filePath.string());
         res->writeStatus("404 Not Found")->end("File not found");
     }
 }
@@ -148,130 +244,66 @@ void WebServer::handleGet(AppResponse *res, AppRequest *req) {
 //  WebSocket – open
 // ────────────────────────────────────────────────────────────────
 
-void WebServer::handleSocketOpen(AppWebSocket* ws) {
+void WebServer::OnSocketOpen(AppWebSocket* ws) {
     PerSocketData *sd = ws->getUserData();
-    sd->username = makeUsername();
+    sd->username = MakeUsername();
 
     connections_[sd->username] = ws;
-    Logger::log("[WS] Connection upgraded: ", sd->username);
+    Logger::Log("[WS] Connection upgraded: ", sd->username);
 }
 
-void WebServer::handleSocketClosed(AppWebSocket* ws) {
+void WebServer::OnSocketClosed(AppWebSocket* ws) {
     PerSocketData *sd = ws->getUserData();
     connections_.erase(sd->username);
 
-    Logger::log("[WS] Connection closed: ", sd->username);
+    Logger::Log("[WS] Connection closed: ", sd->username);
 }
 
-void WebServer::handleSocketMessage(AppWebSocket *ws, string_view message, uWS::OpCode opCode) {
-    PerSocketData *socketData = ws->getUserData();
+void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::OpCode op_code) {
+    json message_json = json::parse(message);
     
-    try {
-        json message_json = json::parse(message);
-    
-        if (!message_json.contains("action")) {
-        Logger::warn("[WS] Message missing 'action' field");
+    if (!message_json.contains("action")) {
+        Logger::Warn("[WS] Message missing 'action' field");
         return;
-        }
-    
-        string action = message_json["action"];
-    
-        if (action == "query") {
-            if (socketData->room.empty()) {
-                Logger::warn("User tried do query a room while not being in one!");
-                return;
-            };
+    }
 
-            ws->send(json({
-                            {"action", "queried"},
-                            {"clicks", to_string(getClicks(socketData->room))},
-                            {"lastClicker", getLastClicker(socketData->room)}
-                          }
-                         ).dump(),
-                    opCode);
-        }
+    WsContext context = { .socket = socket, .socket_data = socket->getUserData(), .op_code = op_code};
     
-        // ── join ───────────────────────────────────────────
-        if (action == "join") {
-        if (!message_json.contains("topic"))
-            return;
-        string topic = message_json["topic"];
-    
-        if (!socketData->room.empty()) {
-            Logger::warn("[WS] " + socketData->username + " tried to join whilst already in a room");
-            return;
-        }
-    
-        socketData->room = topic;
-        ws->subscribe(topic);
-        ensureRoom(topic);
-    
-        Logger::log("[WS] ", socketData->username, " joined room: ", topic);
-    
-        ws->send(json({{"action", "sync_data"},
-                        {"username", socketData->username},
-                        {"room", socketData->room}})
-                    .dump(),
-                uWS::OpCode::TEXT);
-        }
-    
-        else if (action == "click") {
-        if (socketData->room.empty()) {
-            Logger::warn("[WS] Click from " + socketData->username + " who is not in a room");
-            return;
-        }
-    
-        incrementClicks(socketData->room);
-        setLastClicker(socketData->room, socketData->username);
-        int total = getClicks(socketData->room);
-    
-        app_.publish(socketData->room,
-                    json({{"action", "sync_count"},
-                            {"count", total},
-                            {"last_clicker", getLastClicker(socketData->room)}
-                         }
-                        ).dump(),
-                    opCode, true);
-        }
-
-    } catch (const json::exception &e) {
-        Logger::warn(string("[WS] JSON error: ") + e.what());
-    } catch (const exception &e) {
-        Logger::error(string("[WS] Unexpected error: ") + e.what());
+    if (!ws_router_.Dispatch(context, message_json)) {
+        Logger::Warn("No handler found for action: " + message_json.value("action", "UNKNOWN"));
     }
 }
 
-
-void WebServer::ensureRoom(const string &topic) {
+void WebServer::EnsureRoom(const string &topic) {
     VoidResult result = Database::Get().Exec("INSERT OR IGNORE INTO rooms (topic, clicks) VALUES (?, 0);", {topic});
     if (!result) {
         Error error = result.error();
-        Logger::error("DB error in ensureRoom: " + error.message);
+        Logger::Error("DB error in ensureRoom: " + error.message);
     }
 }
 
-void WebServer::incrementClicks(const string &topic) {
+void WebServer::IncrementClicks(const string &topic) {
     VoidResult result = Database::Get().Exec("UPDATE rooms SET clicks = clicks + 1 WHERE topic = ?;", {topic});
     if (!result) {
         Error error = result.error();
-        Logger::error("DB error in incrementClicks: " + error.message);
+        Logger::Error("DB error in incrementClicks: " + error.message);
     }
 }
 
-void WebServer::setLastClicker(const string &topic, const string &username) {
+void WebServer::SetLastClicker(const string &topic, const string &username) {
     VoidResult result = Database::Get().Exec("UPDATE rooms SET last_clicker = ? WHERE topic = ?;", {username, topic});
     if (!result) {
         Error error = result.error();
-        Logger::error("DB error in setLastClicker: " + error.message);
+        Logger::Error("DB error in setLastClicker: " + error.message);
     }
 }
 
-int WebServer::getClicks(const string& topic) {
+int WebServer::GetClicks(const string& topic) {
     auto result = Database::Get().QueryOne("SELECT clicks FROM rooms WHERE topic = ?;", {topic});
 
     // 1. Check if the Database operation itself failed
     if (!result) {
-        Logger::error("DB error in getClicks: " + result.error().message);
+        Logger::Error("DB error in getClicks: " + result.error().message);
         return -1; // Fallback
     }
 
@@ -280,7 +312,7 @@ int WebServer::getClicks(const string& topic) {
     auto& maybe_row = result.value(); 
 
     if (!maybe_row.has_value()) {
-        Logger::warn("Room not found: " + topic);
+        Logger::Warn("Room not found: " + topic);
         return -1; // Fallback if room doesn't exist
     }
 
@@ -288,24 +320,24 @@ int WebServer::getClicks(const string& topic) {
     return maybe_row->GetOr<int>("clicks", 0);
 }
 
-string WebServer::getLastClicker(const string &topic) {
+string WebServer::GetLastClicker(const string &topic) {
     auto result = Database::Get().QueryOne("SELECT last_clicker FROM rooms WHERE topic = ?;", {topic});
     if (!result) {
-        Logger::error("DB error in getLastClicker: " + result.error().message);
+        Logger::Error("DB error in getLastClicker: " + result.error().message);
         return "unknown";
     }
 
     auto& maybe_row = result.value();
 
     if (!maybe_row.has_value()) {
-        Logger::warn("Room not found: " + topic);
+        Logger::Warn("Room not found: " + topic);
         return "unknown";
     }
 
     return maybe_row->GetOr<string>("last_clicker", "unknown");
 }
 
-string WebServer::readFile(string_view path) {
+string WebServer::ReadFile(string_view path) {
     ifstream is(path.data(), ios::binary);
 
     if (!is) {
@@ -317,7 +349,7 @@ string WebServer::readFile(string_view path) {
     return buf.str();
 }
 
-string WebServer::getMimeType(const string &path) {
+string WebServer::GetMimeType(const string &path) {
     if (path.ends_with(".html"))   return "text/html";
     if (path.ends_with(".js"))     return "text/javascript";
     if (path.ends_with(".css"))    return "text/css";
@@ -326,6 +358,6 @@ string WebServer::getMimeType(const string &path) {
     return "application/octet-stream";
 }
 
-string WebServer::makeUsername() {
+string WebServer::MakeUsername() {
     return "player_" + to_string(rand() % 100);
 }

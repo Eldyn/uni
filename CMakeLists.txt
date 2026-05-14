@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# --- Trova i pacchetti forniti da Conan ---
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libuv REQUIRED)
@@ -15,19 +14,12 @@ find_package(jwt-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
 # --- Main Executable ---
-# We keep the updated source list (including Database), taking care of correct casing
-set(SOURCES 
-    src/main.cpp 
-    src/webserver.cpp 
-    src/database.cpp
-)
-
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(uno_server ${SOURCES})
 
 target_include_directories(uno_server PRIVATE include src)
 
 # --- Linking ---
-# Usa esclusivamente i target esportati da Conan. 
 target_link_libraries(uno_server PRIVATE 
     OpenSSL::SSL 
     OpenSSL::Crypto

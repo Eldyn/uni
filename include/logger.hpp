@@ -26,18 +26,18 @@ private:
     }
 
 public:
-    static void info(std::string_view msg) {
+    static void Info(std::string_view msg) {
         std::cout << "[" << timestamp() << "] [INFO]  " << msg << "\n";
     }
-    static void warn(std::string_view msg) {
+    static void Warn(std::string_view msg) {
         std::cout << "[" << timestamp() << "] [WARN]  " << msg << "\n";
     }
-    static void error(std::string_view msg) {
+    static void Error(std::string_view msg) {
         std::cout << "[" << timestamp() << "] [ERROR] " << msg << "\n";
     }
 
     template<typename... Args>
-    static void log(Args&&... args) {
+    static void Log(Args&&... args) {
         std::cout << "[" << timestamp() << "] ";
         (std::cout << ... << args);
         std::cout << "\n";

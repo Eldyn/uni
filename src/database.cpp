@@ -34,7 +34,16 @@ bool Database::IsOpen() const {
 }
 
 VoidResult Database::ApplySchema(const char* sql) {
-    return Exec(sql);
+    char* zErrMsg = nullptr;
+    // sqlite3_exec runs everything in the string until the end
+    int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &zErrMsg);
+    
+    if (rc != SQLITE_OK) {
+        std::string err = zErrMsg ? zErrMsg : "Unknown error";
+        sqlite3_free(zErrMsg); // Must free this!
+        return std::unexpected(Error::DatabaseFail(err));
+    }
+    return {};
 }
 
 sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
@@ -85,6 +94,7 @@ DbRow Database::ReadRow(sqlite3_stmt* stmt) {
     }
     return row;
 }
+
 
 VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
     sqlite3_stmt* stmt = Prepare(sql, params);
