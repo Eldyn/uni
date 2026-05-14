@@ -56,6 +56,47 @@
             console.error("Fetch error:", error);
         }
     }
+
+    async function handleRegister(event: SubmitEvent) {
+        const formData = new FormData(event.target as HTMLFormElement);
+
+        try {
+            const response = await fetch(
+                `${window.location.origin}/auth/register`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: formData.get("username"),
+                        email: formData.get("email"),
+                        password: formData.get("password"),
+                    }),
+                },
+            );
+        } catch (error) {
+            console.error("Fetch error:", error);
+        }
+    }
+
+    async function handleLogin(event: SubmitEvent) {
+        const formData = new FormData(event.target as HTMLFormElement);
+
+        try {
+            const response = await fetch(
+                `${window.location.origin}/auth/login`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: formData.get("email"),
+                        password: formData.get("password"),
+                    }),
+                },
+            );
+        } catch (error) {
+            console.error("Fetch error:", error);
+        }
+    }
 </script>
 
 <div>
@@ -112,6 +153,71 @@
         </section>
         <div class="ticks"></div>
     {/if}
+
+    <div class="ticks"></div>
+    <section id="spacer"></section>
+    <div class="ticks"></div>
+
+    <section id="next-steps">
+        <div id="docs">
+            <h1>Form per Registrarsi</h1>
+            <form on:submit|preventDefault={handleRegister}>
+                <label>
+                    username:
+                    <input class="counter" name="topic" id="topic" />
+                </label>
+                <br />
+                <label>
+                    email:
+                    <input
+                        class="counter"
+                        name="topic"
+                        id="topic"
+                        type="email"
+                    />
+                </label>
+                <br />
+                <label>
+                    password:
+                    <input
+                        class="counter"
+                        name="topic"
+                        id="topic"
+                        type="password"
+                    />
+                </label>
+                <br />
+                <button class="counter" type="submit">Registrati!</button>
+            </form>
+        </div>
+
+        <div>
+            <h1>Form per Login</h1>
+            <form on:submit|preventDefault={handleLogin}>
+                <label>
+                    email:
+                    <input
+                        class="counter"
+                        name="topic"
+                        id="topic"
+                        type="email"
+                    />
+                </label>
+                <br />
+                <label>
+                    password:
+                    <input
+                        class="counter"
+                        name="topic"
+                        id="topic"
+                        type="password"
+                    />
+                </label>
+                <br />
+                <button class="counter" type="submit">Login!</button>
+            </form>
+        </div>
+    </section>
 
     <div class="ticks"></div>
     <section id="spacer"></section>
