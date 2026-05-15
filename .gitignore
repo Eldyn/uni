@@ -1,7 +1,5 @@
-#individual configs
 .vs/
 
-# compilation
 build/
 bin/
 *.o
@@ -10,11 +8,9 @@ bin/
 compile_commands.json
 CMakeUserPresets.json
 
-# server files
 *.db
 public/*
 
-# Certificati e chiavi private (generico)
 *.pem
 *.crt
 *.key
@@ -22,6 +18,7 @@ public/*
 *.pfx
 *.csr
 
-# Specifici per il tuo progetto uWebSockets
 key.pem
 cert.pem
+
+.env
