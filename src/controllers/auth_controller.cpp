@@ -1,5 +1,7 @@
+#include <common/base64.hpp>
+#include <common/http.hpp>
 #include <controllers/auth_controller.hpp>
-#include <env.hpp>
+#include <common/env.hpp>
 #include <logger.hpp>
 #include <protocol.hpp>
 #include <openssl/evp.h>
@@ -8,15 +10,10 @@
 #include <jwt-cpp/traits/nlohmann-json/traits.h>
 #include <nlohmann/json.hpp>
 #include <chrono>
-#include <sstream>
 #include <stdexcept>
 #include <vector>
 
 using json = nlohmann::json;
-
-// ---------------------------------------------------------------------------
-//  Constructor — register HTTP routes
-// ---------------------------------------------------------------------------
 
 AuthController::AuthController(HttpRouter& router) {
     router.Post("/auth/register", [this](AppResponse* res, AppRequest* req) {
@@ -28,9 +25,7 @@ AuthController::AuthController(HttpRouter& router) {
     });
 }
 
-// ---------------------------------------------------------------------------
 //  ReadBody  —  async body accumulation helper
-// ---------------------------------------------------------------------------
 //
 //  uWS delivers HTTP bodies in chunks via an onData callback.  The bool
 //  `isLast` tells us when the final chunk has arrived.  We accumulate all
@@ -41,38 +36,8 @@ AuthController::AuthController(HttpRouter& router) {
 //  the flag to false, so the onData callback can bail out safely without
 //  touching a dangling `res` pointer.
 
-void AuthController::ReadBody(AppResponse* res, std::function<void(const std::string&)> callback) {
-    auto is_alive = std::make_shared<bool>(true);
-    auto buffer   = std::make_shared<std::string>();
-
-    res->onAborted([is_alive] {
-        *is_alive = false;
-    });
-
-    res->onData([is_alive, buffer, callback = std::move(callback), res](std::string_view chunk, bool isLast) mutable {
-        if (!*is_alive) return;
-
-        buffer->append(chunk.data(), chunk.size());
-
-        // Hard cap — reject bodies that are suspiciously large before we
-        // even try to parse them.
-        if (buffer->size() > static_cast<size_t>(kMaxBodyBytes)) {
-            res->writeStatus("413 Payload Too Large")->end();
-            return;
-        }
-
-        if (isLast) {
-            callback(*buffer);
-        }
-    });
-}
-
-// ---------------------------------------------------------------------------
-//  HandleRegister
-// ---------------------------------------------------------------------------
-
 void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
-    ReadBody(res, [res](const std::string& body) {
+    http::ReadBody(res, kMaxBodyBytes, [res](const std::string& body) { 
         json data;
         try {
             data = json::parse(body);
@@ -83,9 +48,6 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
             return;
         }
 
-        // --- Input validation ---
-        // .value(key, default) safely extracts a field or returns the default
-        // if the key is missing or the type doesn't match — avoids exceptions.
         std::string username = data.value("username", "");
         std::string email    = data.value("email",    "");
         std::string password = data.value("password", "");
@@ -104,19 +66,18 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
             return;
         }
 
-        // --- Check for duplicate username ---
-        auto existing = Database::Get().QueryOne(
+        auto duplicate = Database::Get().QueryOne(
             "SELECT id FROM users WHERE username = ? OR email = ?;",
             {username, email}
         );
 
-        if (!existing) {
-            Logger::Error("[Auth] DB error during register: " + existing.error().message);
+        if (!duplicate) {
+            Logger::Error("[Auth] DB error during register: " + duplicate.error().message);
             res->writeStatus("500 Internal Server Error")->end();
             return;
         }
 
-        if (existing->has_value()) {
+        if (duplicate->has_value()) {
             res->writeStatus("409 Conflict")
                ->writeHeader("Content-Type", "application/json")
                ->end(json({{"error", "Username or email already taken"}}).dump());
@@ -133,7 +94,8 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
 
         auto result = Database::Get().Exec(
             "INSERT INTO users (username, pass_hash, salt, email) VALUES (?, ?, ?, ?);",
-            {username, hash_b64, salt_b64, email.empty() ? DbValue(nullptr) : DbValue(email)});
+            {username, hash_b64, salt_b64, email.empty() ? DbValue(nullptr) : DbValue(email)}
+        );
 
         if (!result) {
             Logger::Error("[Auth] DB insert failed: " + result.error().message);
@@ -150,9 +112,8 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
 // ---------------------------------------------------------------------------
 //  HandleLogin
 // ---------------------------------------------------------------------------
-
 void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
-    ReadBody(res, [res](const std::string& body) {
+    http::ReadBody(res, kMaxBodyBytes, [res](const std::string& body) {
         json data;
         try {
             data = json::parse(body);
@@ -173,10 +134,10 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
             return;
         }
 
-        // --- Fetch the stored record ---
         auto row_result = Database::Get().QueryOne(
             "SELECT username, pass_hash, salt FROM users WHERE email = ?;",
-            {email});
+            {email}
+        );
 
         if (!row_result) {
             Logger::Error("[Auth] DB error during login: " + row_result.error().message);
@@ -206,7 +167,6 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
             return;
         }
 
-        // --- Issue JWT ---
         std::string token = IssueToken(username);
 
         Logger::Info("[Auth] Login successful: " + username);
@@ -228,60 +188,6 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
 //  *not* stored anywhere — it lives only in memory, loaded from the env at
 //  startup.  An attacker who steals the DB but not the server config cannot
 //  run offline dictionary attacks even with the salts in hand.
-
-// ---- small base64 helpers (no external dep needed) ----
-
-static const std::string kB64Chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static std::string Base64Encode(const std::vector<unsigned char>& data) {
-    std::string out;
-    out.reserve(((data.size() + 2) / 3) * 4);  // pre-allocate exact size
-
-    // Process 3 bytes at a time, emit 4 base64 characters.
-    // Each group of 3 bytes = 24 bits, split into four 6-bit indices.
-    for (size_t i = 0; i < data.size(); i += 3) {
-        unsigned int b = (data[i] << 16);
-        if (i + 1 < data.size()) b |= (data[i + 1] << 8);
-        if (i + 2 < data.size()) b |= data[i + 2];
-
-        out += kB64Chars[(b >> 18) & 0x3F];
-        out += kB64Chars[(b >> 12) & 0x3F];
-        out += (i + 1 < data.size()) ? kB64Chars[(b >> 6) & 0x3F] : '=';
-        out += (i + 2 < data.size()) ? kB64Chars[b & 0x3F]        : '=';
-    }
-    return out;
-}
-
-static std::vector<unsigned char> Base64Decode(const std::string& encoded) {
-    // Build a reverse lookup table: ASCII value → 6-bit index.
-    // Values not in the alphabet map to 0xFF as a sentinel.
-    std::vector<unsigned char> table(256, 0xFF);
-    for (size_t i = 0; i < kB64Chars.size(); ++i) {
-        table[static_cast<unsigned char>(kB64Chars[i])] = static_cast<unsigned char>(i);
-    }
-
-    std::vector<unsigned char> out;
-    out.reserve((encoded.size() / 4) * 3);
-
-    // Decode 4 characters at a time back into 3 bytes.
-    for (size_t i = 0; i < encoded.size(); i += 4) {
-        // Treat '=' padding as zero index — it gets trimmed below.
-        auto idx = [&](size_t pos) -> unsigned int {
-            char c = (pos < encoded.size()) ? encoded[pos] : '=';
-            return (c == '=') ? 0u : static_cast<unsigned int>(table[static_cast<unsigned char>(c)]);
-        };
-
-        unsigned int b = (idx(i) << 18) | (idx(i+1) << 12) | (idx(i+2) << 6) | idx(i+3);
-        out.push_back((b >> 16) & 0xFF);
-        if (i + 2 < encoded.size() && encoded[i + 2] != '=') out.push_back((b >> 8) & 0xFF);
-        if (i + 3 < encoded.size() && encoded[i + 3] != '=') out.push_back(b & 0xFF);
-    }
-    return out;
-}
-
-// ---- actual hash / verify ----
-
 std::string AuthController::HashPassword(const std::string& password) {
     // 1. Generate a cryptographically random salt.
     //    RAND_bytes fills the buffer with random bytes from OpenSSL's CSPRNG.
@@ -317,7 +223,7 @@ std::string AuthController::HashPassword(const std::string& password) {
 
     // 4. Encode both salt and hash to base64 and return as "<salt>:<hash>".
     //    Storing them together makes retrieval a single DB read.
-    return Base64Encode(salt) + ":" + Base64Encode(hash);
+    return Base64::Encode(salt) + ":" + Base64::Encode(hash);
 }
 
 bool AuthController::VerifyPassword(const std::string& password,
@@ -325,8 +231,8 @@ bool AuthController::VerifyPassword(const std::string& password,
     auto colon = stored.find(':');
     if (colon == std::string::npos) return false;
 
-    std::vector<unsigned char> salt      = Base64Decode(stored.substr(0, colon));
-    std::vector<unsigned char> ref_hash  = Base64Decode(stored.substr(colon + 1));
+    std::vector<unsigned char> salt      = Base64::Decode(stored.substr(0, colon));
+    std::vector<unsigned char> ref_hash  = Base64::Decode(stored.substr(colon + 1));
 
     std::string pepper        = Env::Get("PASSWORD_PEPPER", "");
     std::string peppered_pass = password + pepper;

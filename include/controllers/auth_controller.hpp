@@ -4,10 +4,10 @@
 #include <database.hpp>
 #include <http_router.hpp>
 
-// ---------------------------------------------------------------------------
-//  AuthController
-// ---------------------------------------------------------------------------
-//
+struct JwtPayload {
+    std::string username;
+};
+
 //  Responsibilities:
 //    • POST /auth/register  — validate input, hash password, persist user
 //    • POST /auth/login     — verify password, issue a signed JWT
@@ -25,12 +25,6 @@
 //    Tokens are HS256-signed using jwt-cpp.
 //    Payload carries: sub (username), iat (issued-at), exp (expiry, 24 h).
 //    The secret is read from the JWT_SECRET environment variable.
-// ---------------------------------------------------------------------------
-
-struct JwtPayload {
-    std::string username;
-};
-
 class AuthController {
 public:
     // Registers HTTP routes on the supplied router.
@@ -42,24 +36,15 @@ public:
     static Result<JwtPayload> VerifyToken(const std::string& token);
 
 private:
-    // ---- HTTP handlers ----
     void HandleRegister(AppResponse* res, AppRequest* req);
     void HandleLogin   (AppResponse* res, AppRequest* req);
 
-    // ---- Password helpers ----
     // Returns "<base64_salt>:<base64_hash>"
     static std::string HashPassword (const std::string& password);
     // Returns true if `password` matches the stored "<salt>:<hash>" record
-    static bool        VerifyPassword(const std::string& password,
-                                      const std::string& stored);
+    static bool        VerifyPassword(const std::string& password, const std::string& stored);
 
-    // ---- JWT helpers ----
     static std::string IssueToken(const std::string& username);
-
-    // ---- Misc ----
-    // Read the full HTTP body then call `callback(body)`.
-    // Handles the async uWS onData pattern uniformly.
-    static void ReadBody(AppResponse* res, std::function<void(const std::string&)> callback);
 
     // Minimum acceptable lengths to reject trivially bad inputs early.
     static constexpr int kMinUsernameLen = 3;
