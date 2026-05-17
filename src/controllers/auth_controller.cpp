@@ -1,3 +1,4 @@
+#include "websocket_context.hpp"
 #include <common/base64.hpp>
 #include <common/http.hpp>
 #include <controllers/auth_controller.hpp>
@@ -22,6 +23,10 @@ AuthController::AuthController(HttpRouter& router) {
 
     router.Post("/auth/login", [this](AppResponse* res, AppRequest* req) {
         HandleLogin(res, req);
+    });
+
+    router.Post("/auth/me", [this](AppResponse* res, AppRequest* req) {
+        // TODO: Implement auto-auth on page load with an available token
     });
 }
 
@@ -112,13 +117,13 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
 // ---------------------------------------------------------------------------
 //  HandleLogin
 // ---------------------------------------------------------------------------
-void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
-    http::ReadBody(res, kMaxBodyBytes, [res](const std::string& body) {
+void AuthController::HandleLogin(AppResponse* response, AppRequest* /*req*/) {
+    http::ReadBody(response, kMaxBodyBytes, [response](const std::string& body) {
         json data;
         try {
             data = json::parse(body);
         } catch (...) {
-            res->writeStatus("400 Bad Request")
+            response->writeStatus("400 Bad Request")
                ->writeHeader("Content-Type", "application/json")
                ->end(json({{"error", "Invalid JSON"}}).dump());
             return;
@@ -128,7 +133,7 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
         std::string password = data.value("password", "");
 
         if (email.empty() || password.empty()) {
-            res->writeStatus("422 Unprocessable Entity")
+            response->writeStatus("422 Unprocessable Entity")
                ->writeHeader("Content-Type", "application/json")
                ->end(json({{"error", "email and password are required"}}).dump());
             return;
@@ -141,12 +146,12 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
 
         if (!row_result) {
             Logger::Error("[Auth] DB error during login: " + row_result.error().message);
-            res->writeStatus("500 Internal Server Error")->end();
+            response->writeStatus("500 Internal Server Error")->end();
             return;
         }
 
         if (!row_result->has_value()) {
-            res->writeStatus("401 Unauthorized")
+            response->writeStatus("401 Unauthorized")
                ->writeHeader("Content-Type", "application/json")
                ->end(json({{"error", "Invalid credentials"}}).dump());
             return;
@@ -161,7 +166,7 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
         std::string stored = salt_b64 + ":" + hash_b64;
 
         if (!VerifyPassword(password, stored)) {
-            res->writeStatus("401 Unauthorized")
+            response->writeStatus("401 Unauthorized")
                ->writeHeader("Content-Type", "application/json")
                ->end(json({{"error", "Invalid credentials"}}).dump());
             return;
@@ -170,8 +175,9 @@ void AuthController::HandleLogin(AppResponse* res, AppRequest* /*req*/) {
         std::string token = IssueToken(username);
 
         Logger::Info("[Auth] Login successful: " + username);
-        res->writeHeader("Content-Type", "application/json")
-           ->end(json({{"status", "ok"}, {"token", token}}).dump());
+        response->writeHeader("Set-Cookie", "auth_token=" + token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
+                ->writeHeader("Content-Type", "application/json")
+                ->end("{\"username\": \"" + username + "\"}");
     });
 }
 

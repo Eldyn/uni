@@ -144,7 +144,17 @@ void WebServer::RegisterRoutes() {
 
     app_.ws<PerSocketData>("/*", {
         .upgrade = [this](AppResponse* res, AppRequest*  req, us_socket_context_t* ctx) {
-            string token = string(req->getQuery("token"));
+            std::string_view cookies = req->getHeader("cookie");
+            std::string token = "";
+        
+            // INFO: noobie parser, might need to refactor it later on
+            size_t pos = cookies.find("auth_token=");
+            if (pos != std::string_view::npos) {
+                size_t start = pos + 11;
+                size_t end = cookies.find(';', start);
+                token = std::string(cookies.substr(start, end - start));
+            }
+
             auto payload = AuthController::VerifyToken(token);
 
             if (!payload) {
