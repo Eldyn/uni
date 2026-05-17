@@ -1,4 +1,5 @@
 #include "action_router.hpp"
+#include "common/http.hpp"
 #include "controllers/auth_controller.hpp"
 #include "http_router.hpp"
 #include "websocket_context.hpp"
@@ -174,51 +175,41 @@ void WebServer::RegisterRoutes() {
 }
 
 void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
-    auto is_alive = std::make_shared<bool>(true);
-    response->onAborted([is_alive]() {
-        *is_alive = false;
-    });
-
-    string buffer;
-
-    response->onData([is_alive, response, buffer = move(buffer)](string_view chunk, bool isLast) mutable {
-        if (!*is_alive) return;
-        buffer.append(chunk.data(), chunk.length());
-
-        if (buffer.size() > 4096) {
-            response->writeStatus("413 Payload Too Large")->end();
-            return;
-        }
-
-        if (isLast) {
+    http::ReadBody(response, 4096, [response](const std::string body) {
+            json data;
             try {
-                auto data = json::parse(buffer);
-                string topic = data.value("topic", "default");
-                if (topic.empty() || topic.size() > 64) {    
-                    response->writeStatus("422 Unprocessable Entity")->end();
-                    return;
-                }
-                
-                if (!std::ranges::all_of(topic, [](unsigned char c) { 
-                    return std::isalnum(c) || c == '-' || c == '_'; 
-                })) {
-                    response->writeStatus("422 Unprocessable Entity")->end();
-                    return;
-                }
-            
-                response->writeHeader("Content-Type", "application/json")
-                   ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
-        
-            } catch (const exception &e) {
-                Logger::Warn(string("[POST] JSON parse error: ") + e.what());
-                response->writeStatus("400 Bad Request")->end("Invalid JSON");
+                data = json::parse(body);
+            } catch (...) {
+                response->writeStatus("400 Bad Request")
+                        ->writeHeader("Content-Type", "application/json")
+                        ->end(json({{"error", "Invalid JSON"}}).dump());
+                return;
             }
-        }
+            string topic = data.value("topic", "default");
+            if (topic.empty() || topic.size() > 64) {    
+                response->writeStatus("422 Unprocessable Entity")->end();
+                return;
+            }
+
+            const bool valid = std::ranges::all_of(topic, [](unsigned char c) { 
+                return std::isalnum(c) || c == '-' || c == '_'; 
+            });
+
+            if (!valid) {
+                response->writeStatus("422 Unprocessable Entity")->end();
+                return;
+            }
+        
+            response->writeHeader("Content-Type", "application/json")
+                    ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
     });
 }
 
 void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
-    res->onAborted([]() {});
+    auto is_alive = std::make_shared<bool>(true);
+    res->onAborted([is_alive]() {*is_alive = false;});
+
+    if (!*is_alive) return;
     
     string url = string(req->getUrl());
     string relativePath = (url == "/") ? "index.html" : url.substr(1);
