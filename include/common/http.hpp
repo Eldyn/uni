@@ -51,4 +51,43 @@ inline void ReadBody(AppResponse* res, size_t max_bytes, std::function<void(cons
     });
 }
 
+constexpr std::string_view TrimWhitespace(std::string_view str) {
+    size_t first = str.find_first_not_of(" \t\r\n");
+    if (first == std::string_view::npos) {
+        return {};
+    }
+    size_t last = str.find_last_not_of(" \t\r\n");
+    return str.substr(first, (last - first + 1));
+}
+
+inline std::optional<std::string> GetCookieValue(std::string_view cookie_header, std::string_view target_key) {
+    size_t start = 0;
+    
+    while (start < cookie_header.size()) {
+        size_t end = cookie_header.find(';', start);
+        
+        std::string_view pair = (end == std::string_view::npos) 
+                                ? cookie_header.substr(start) 
+                                : cookie_header.substr(start, end - start);
+
+        // Split the pair into key and value
+        size_t eq_pos = pair.find('=');
+        if (eq_pos != std::string_view::npos) {
+            std::string_view key = TrimWhitespace(pair.substr(0, eq_pos));
+            
+            if (key == target_key) {
+                return std::string(TrimWhitespace(pair.substr(eq_pos + 1)));
+            }
+        }
+
+        if (end == std::string_view::npos) {
+            break;
+        }
+        
+        start = end + 1;
+    }
+
+    return "";
+}
+
 }

@@ -38,6 +38,9 @@ public:
 private:
     void HandleRegister(AppResponse* res, AppRequest* req);
     void HandleLogin   (AppResponse* res, AppRequest* req);
+    void HandleLogout  (AppResponse* res, AppRequest* req);
+    void HandleMe      (AppResponse* res, AppRequest* req);
+
 
     // Returns "<base64_salt>:<base64_hash>"
     static std::string HashPassword (const std::string& password);

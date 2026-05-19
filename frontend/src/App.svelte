@@ -6,14 +6,50 @@
     import viteLogo from "./assets/vite.svg";
     import heroImg from "./assets/hero.png";
 
-    // Gestione delle pagine ! Temporaneo
-    let currentScreen: "auth" | "index" | "game" = "auth";
-    let syncedData = { clicks: 0, lastClicker: "Nessuno" };
+    let screen: "auth" | "index" | "game" | "buttonTest" = $state("auth");
+    let data = { clicks: 0, lastClicker: "Nessuno" };
+    let username: string | "login" = $state("login");
 
-    // Stato del colore in game
-    let gameColor = "blue";
+    // INFO: Stato del colore in game
+    let gameColor = "green";
 
-    // REGISTRAZIONE
+    async function logout() {
+        const response = await fetch(`${window.location.origin}/auth/logout`, {
+            method: "POST",
+            credentials: "include",
+        });
+
+        if (response.ok) {
+            screen = "auth";
+            username = "Login";
+        }
+    }
+
+    // INFO: Auth-me request
+    (async () => {
+        try {
+            const response = await fetch(`${window.location.origin}/auth/me`, {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                screen = "index";
+                username = data.username;
+
+                console.log("my name is:", data.username);
+            } else {
+                logout();
+            }
+        } catch (err) {
+            console.log("Token expired");
+        }
+    })();
+
     async function handleRegister(event: SubmitEvent) {
         const formData = new FormData(event.target as HTMLFormElement);
         try {
@@ -40,7 +76,6 @@
         }
     }
 
-    // LOGIN
     async function handleLogin(event: SubmitEvent) {
         const formData = new FormData(event.target as HTMLFormElement);
         try {
@@ -57,7 +92,8 @@
             );
 
             if (response.ok) {
-                currentScreen = "index";
+                screen = "index";
+                username = (await response.json()).username;
             } else {
                 alert("Credenziali errate");
             }
@@ -66,26 +102,28 @@
         }
     }
 
-    // ACCESSO ALLA STANZA
     async function handleSubmit(event: SubmitEvent) {
         const formData = new FormData(event.target as HTMLFormElement);
         try {
             const response = await fetch(`${window.location.origin}/room`, {
                 method: "POST",
+                credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ topic: formData.get("topic") }),
             });
 
             if (response.status === 422) {
                 throw new Error(
-                    "Input used illegal characters (or was too long)",
+                    "Input used illegal characters or was too long",
                 );
             }
+            if (response.status === 401) {
+                alert("fai il login prima");
+            }
 
-            const result = await response.json();
-
-            if (result.status === "OK") {
-                await connect("TODO_JWT_token");
+            if (response.ok) {
+                const result = await response.json();
+                await connect();
 
                 const myData = await emitAndWait(
                     "join",
@@ -100,12 +138,12 @@
                         "queried",
                     );
 
-                    syncedData = {
+                    data = {
                         clicks: queriedData.clicks as number,
                         lastClicker: queriedData.lastClicker as string,
                     };
 
-                    currentScreen = "game";
+                    screen = "buttonTest";
                 }
             }
         } catch (error) {
@@ -114,21 +152,25 @@
     }
 </script>
 
-<!-- Div per non vedere l'errore in main.js -->
-<div id="app"></div>
-
 <div>
     <section id="center">
         <div class="hero">
+            <button class="counter" on:click={logout}>{username}</button>
             <img src={heroImg} class="base" width="170" height="179" alt="" />
             <img src={svelteLogo} class="framework" alt="Svelte logo" />
             <img src={viteLogo} class="vite" alt="Vite logo" />
+            <button
+                class="counter"
+                on:click={() => {
+                    screen = "index";
+                }}>vai all'index</button
+            >
         </div>
     </section>
 
     <div class="ticks"></div>
 
-    {#if currentScreen === "auth"}
+    {#if screen === "auth"}
         <section id="next-steps">
             <div id="docs">
                 <h1>Form per Registrarsi</h1>
@@ -189,7 +231,10 @@
                 </form>
             </div>
         </section>
-    {:else if currentScreen === "index"}
+        <div class="ticks"></div>
+        <section id="spacer"></section>
+        <div class="ticks"></div>
+    {:else if screen === "index"}
         <section id="next-steps">
             <div id="docs">
                 <h1>Benvenuto!</h1>
@@ -207,13 +252,56 @@
                             required
                         />
                     </label>
-                    <button class="counter" type="submit"
-                        >Accedi alla Stanza!</button
-                    >
+                    <button class="counter" type="submit">
+                        Accedi alla Stanza!
+                    </button>
                 </form>
+                <button
+                    class="counter"
+                    on:click={() => {
+                        screen = "game";
+                    }}
+                >
+                    Game UI
+                </button>
             </div>
         </section>
-    {:else if currentScreen === "game"}
+        <div class="ticks"></div>
+        <section id="spacer"></section>
+        <div class="ticks"></div>
+    {:else if screen === "buttonTest"}
+        <section id="next-steps">
+            <div id="docs">
+                <h1>{socketState.room}</h1>
+                <h2>E' la stanza corrente.</h2>
+            </div>
+            <div>
+                <h1>Clicca!</h1>
+                <h2>Aumenterà a tutti 😉</h2>
+                <Counter
+                    initialCount={data.clicks}
+                    initialLastClicker={data.lastClicker}
+                />
+            </div>
+        </section>
+        <div class="ticks"></div>
+        <section id="spacer"></section>
+        <ul>
+            <li>ciao</li>
+            <li>sono</li>
+            <li>Alessandro</li>
+            <li>Borghese</li>
+            <li>diesci</li>
+        </ul>
+    {:else if screen === "game"}
+        <button
+            class="counter"
+            on:click={() => {
+                screen = "index";
+            }}
+        >
+            Back
+        </button>
         <section id="next-steps"></section>
         <div class="game-field perspective {gameColor}">
             <div id="player">
@@ -285,9 +373,8 @@
                 </div>
             </div>
         </div>
+        <div class="ticks"></div>
+        <section id="spacer"></section>
+        <div class="ticks"></div>
     {/if}
-
-    <div class="ticks"></div>
-    <section id="spacer"></section>
-    <div class="ticks"></div>
 </div>

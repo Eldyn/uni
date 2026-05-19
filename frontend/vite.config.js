@@ -6,10 +6,7 @@ export default defineConfig({
     plugins: [svelte()],
     base: "./",
     build: {
-        outDir: "../public",
-        emptyOutDir: true,
-    },
-    "build-watch": {
+        watch: {},
         outDir: "../public",
         emptyOutDir: true,
     },

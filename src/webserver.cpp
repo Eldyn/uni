@@ -65,7 +65,7 @@ bool WebServer::InitDB() {
             username   TEXT    NOT NULL UNIQUE,
             pass_hash  TEXT    NOT NULL,
             salt       TEXT    NOT NULL,
-            email      TEXT    UNIQUE
+            email      TEXT    NOT NULL UNIQUE
         );
     )";
 
@@ -85,6 +85,7 @@ void WebServer::RegisterRoutes() {
             Logger::Warn("User tried do query a room while not being in one!");
             return false;
         };
+
         context.socket->send(json({
             {"action", "queried"},
             {"clicks", to_string(GetClicks(context.socket_data->room))},
@@ -145,17 +146,9 @@ void WebServer::RegisterRoutes() {
     app_.ws<PerSocketData>("/*", {
         .upgrade = [this](AppResponse* res, AppRequest*  req, us_socket_context_t* ctx) {
             std::string_view cookies = req->getHeader("cookie");
-            std::string token = "";
-        
-            // INFO: noobie parser, might need to refactor it later on
-            size_t pos = cookies.find("auth_token=");
-            if (pos != std::string_view::npos) {
-                size_t start = pos + 11;
-                size_t end = cookies.find(';', start);
-                token = std::string(cookies.substr(start, end - start));
-            }
+            auto token = http::GetCookieValue(cookies, "auth_token");
 
-            auto payload = AuthController::VerifyToken(token);
+            auto payload = AuthController::VerifyToken(*token);
 
             if (!payload) {
                 Logger::Warn("[WS] Rejected upgrade — invalid token");
@@ -185,7 +178,7 @@ void WebServer::RegisterRoutes() {
 }
 
 void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
-    http::ReadBody(response, 4096, [response](const std::string body) {
+    http::ReadBody(response, 4096, [response, request](const std::string body) {
             json data;
             try {
                 data = json::parse(body);
@@ -195,6 +188,16 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
                         ->end(json({{"error", "Invalid JSON"}}).dump());
                 return;
             }
+
+            std::string_view cookies = request->getHeader("cookie");
+            auto token = http::GetCookieValue(cookies, "auth_token");
+            auto payload = AuthController::VerifyToken(*token);
+
+            if (!payload) {
+                response->writeStatus("401 Unauthorized")->end();
+                return;
+            }
+
             string topic = data.value("topic", "default");
             if (topic.empty() || topic.size() > 64) {    
                 response->writeStatus("422 Unprocessable Entity")->end();
@@ -245,7 +248,7 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
 void WebServer::OnSocketOpen(AppWebSocket* ws) {
     PerSocketData *sd = ws->getUserData();
-    sd->username = MakeUsername();
+    sd->username = sd->username.length() > 0 ? sd->username : MakeUsername();
 
     connections_[sd->username] = ws;
     Logger::Log("[WS] Connection upgraded: ", sd->username);

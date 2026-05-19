@@ -26,11 +26,11 @@ export function on(action: ServerAction | "*", handler: MessageHandler) {
     return () => handlers.get(action)?.delete(handler);
 }
 
-export async function connect(token: string): Promise<void> {
+export async function connect(): Promise<void> {
     if (ws?.readyState === WebSocket.OPEN) return;
 
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${location.host}/?token=${token}`;
+    const url = `${protocol}//${location.host}`;
 
     ws = new WebSocket(url);
     _status = "connecting";

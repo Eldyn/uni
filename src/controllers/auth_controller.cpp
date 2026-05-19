@@ -1,4 +1,4 @@
-#include "websocket_context.hpp"
+#include <websocket_context.hpp>
 #include <common/base64.hpp>
 #include <common/http.hpp>
 #include <controllers/auth_controller.hpp>
@@ -25,8 +25,29 @@ AuthController::AuthController(HttpRouter& router) {
         HandleLogin(res, req);
     });
 
-    router.Post("/auth/me", [this](AppResponse* res, AppRequest* req) {
-        // TODO: Implement auto-auth on page load with an available token
+    router.Post("/auth/logout", [this](AppResponse* res, AppRequest* req) {
+        res->writeStatus("200 OK")
+           ->writeHeader("Set-Cookie", "auth_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict; Path=/")
+           ->end();
+    });
+
+    router.Get("/auth/me", [this](AppResponse* res, AppRequest* req) {
+        std::string_view cookies = req->getHeader("cookie");
+        auto token = http::GetCookieValue(cookies, "auth_token");
+
+
+        auto payload = AuthController::VerifyToken(*token);
+
+        if (!payload) {
+            Logger::Warn("[HTTP] Rejected auth-me — invalid token");
+            res->writeStatus("401 Unauthorized")->end();
+            return;
+        }
+
+        Logger::Info("[Auth] Login successful: " + payload->username);
+        res->writeHeader("Set-Cookie", "auth_token=" + *token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
+           ->writeHeader("Content-Type", "application/json")
+           ->end("{\"username\": \"" + payload->username + "\"}");
     });
 }
 
@@ -181,10 +202,6 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* /*req*/) {
     });
 }
 
-// ---------------------------------------------------------------------------
-//  Password hashing — PBKDF2-HMAC-SHA256
-// ---------------------------------------------------------------------------
-//
 //  Why PBKDF2?  It is battle-tested, available directly in OpenSSL (already
 //  linked), and acceptable for this project scale.  The main knob is
 //  kIterations: more iterations = more CPU per guess = slower brute force.
@@ -292,7 +309,6 @@ std::string AuthController::IssueToken(const std::string& username) {
     return jwt::create<jwt::traits::nlohmann_json>()
         .set_type("JWT")
         .set_subject(username)
-        // system_clock::time_point is the type jwt-cpp expects for dates
         .set_issued_at(now)
         .set_expires_at(expiry)
         .sign(jwt::algorithm::hs256{secret});
