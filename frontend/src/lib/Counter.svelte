@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { on, emit } from "./socket.svelte";
+    import { on, emit } from "./ws";
     import { onDestroy } from "svelte";
 
     let {
