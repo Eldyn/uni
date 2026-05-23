@@ -1,21 +1,30 @@
 <script lang="ts">
 	export interface Card {
 		id: string;
-		color: 'red' | 'yellow' | 'green' | 'blue' | 'black' | 'wild';
+		color: "red" | "yellow" | "green" | "blue" | "black" | "wild";
 		value: string;
 	}
 
-	let { cards = [], position = 'bottom' }: { cards?: Card[]; position?: 'bottom' | 'top' | 'left' | 'right' } = $props();
+	let {
+		cards = [],
+		position = "bottom"
+	}: { cards?: Card[]; position?: "bottom" | "top" | "left" | "right" } = $props();
 
 	function handleCardClick(card: Card) {
 		// To be implemented with game logic
-		console.log('Card clicked:', card);
+		console.log("Card clicked:", card);
 	}
 </script>
 
 <div class="player_hand" class:position-{position}>
 	{#each cards as card (card.id)}
-		<div class="card {card.color}" role="button" tabindex="0" onclick={() => handleCardClick(card)} onkeydown={(e) => e.key === 'Enter' && handleCardClick(card)}>
+		<div
+			class="card {card.color}"
+			role="button"
+			tabindex="0"
+			onclick={() => handleCardClick(card)}
+			onkeydown={(e) => e.key === "Enter" && handleCardClick(card)}
+		>
 			<div class="bckg"></div>
 			<div class="card-value">{card.value}</div>
 		</div>
@@ -86,7 +95,7 @@
 	}
 
 	.card .bckg::before {
-		content: '';
+		content: "";
 		width: 100%;
 		height: 100%;
 		background-color: white;

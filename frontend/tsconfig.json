@@ -1,15 +1,26 @@
 {
-  "compilerOptions": {
-    "target": "ES2015",
-    "module": "commonjs",
-    "strict": true,
-    "types": ["svelte", "vite/client"],
-    "baseUrl": ".",
-    "paths": {
-      "$lib/*": ["src/lib/*"],
-      "$stores/*": ["src/lib/stores/*"],
-      "$utils/*": ["src/lib/utils/*"],
-      "$common/*": ["src/lib/components/common/*"]
+    "compilerOptions": {
+        "target": "ES2015",
+        "module": "commonjs",
+        "strict": true,
+        "types": [
+            "svelte",
+            "vite/client"
+        ],
+        "baseUrl": ".",
+        "paths": {
+            "$lib/*": [
+                "src/lib/*"
+            ],
+            "$stores/*": [
+                "src/lib/stores/*"
+            ],
+            "$utils/*": [
+                "src/lib/utils/*"
+            ],
+            "$common/*": [
+                "src/lib/components/common/*"
+            ]
+        }
     }
-  }
 }

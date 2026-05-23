@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { navigationStore, toastStore } from "$stores/ui.svelte";
 	import { getAuthState } from "$stores/auth.svelte";
-	import { disconnect, emitAndWait, on } from "$lib/ws.svelte";
-	import { ClientAction, ServerAction } from "$lib/ws.svelte";
+	import { ClientAction, ServerAction, ws } from "$lib/ws.svelte";
 	import { gameStore } from "$lib/stores/game.svelte";
 	import type { Lobby } from "$lib/stores/game.svelte";
 	import { onMount } from "svelte";
@@ -18,9 +17,7 @@
 	onMount(() => {
 		loadLobbies();
 
-		// Listen for real-time lobby updates
-		const unsubscribe = on(ServerAction.LobbyUpdated, (data) => {
-			// Refresh lobbies when any lobby updates
+		const unsubscribe = ws.on(ServerAction.LobbyUpdated, (data) => {
 			loadLobbies();
 		});
 
@@ -30,28 +27,30 @@
 	async function loadLobbies() {
 		gameStore.loadingLobbies = true;
 
-		try {
-			const response = await emitAndWait(ClientAction.LobbyList, {}, ServerAction.LobbyList, 5000);
+		const response = await ws.emitAndWait(ClientAction.LobbyList);
 
-			console.log("received lobby list");
-			gameStore.loadingLobbies = false;
+		gameStore.loadingLobbies = false;
 
-			if (response.lobbies && Array.isArray(response.lobbies)) {
-				// Convert from backend format to game store format
-				const lobbies: Lobby[] = response.lobbies.map((lobby: Lobby) => ({
-					lobby_id: String(lobby.lobby_id),
-					name: `${lobby.host}'s lobby`,
-					host: lobby.host,
-					player_count: lobby.player_count,
-					max_players: lobby.max_players
-				}));
-				gameStore.availableLobbies = lobbies;
-			}
-		} catch (error) {
-			toastStore.showError("Failed to load lobbies. Check your connection.");
-		} finally {
-			gameStore.loadingLobbies = false;
+		if (!response.ok) {
+			toastStore.showError(response.reason);
+			return;
 		}
+
+		let lobbies = response.getOr<Lobby[] | undefined>("lobbies", undefined);
+
+		if (!lobbies) {
+			toastStore.showError("Unknown Server Error");
+			return;
+		}
+
+		// INFO: Convert from backend format to game store format
+		gameStore.availableLobbies = lobbies.map((lobby: Lobby) => ({
+			lobby_id: String(lobby.lobby_id),
+			name: `${lobby.host}'s lobby`,
+			host: lobby.host,
+			player_count: lobby.player_count,
+			max_players: lobby.max_players
+		}));
 	}
 
 	async function handleRefresh() {
@@ -65,9 +64,8 @@
 		loadLobbies();
 	}
 
-	function handleJoinLobby(lobby: Lobby) {
-		console.log("Joining lobby:", lobby);
-	}
+	// Attempts to join a lobby.
+	function handleJoinLobby(lobby: Lobby) {}
 
 	async function handleLogout() {
 		try {
@@ -77,7 +75,7 @@
 			});
 
 			if (response.ok) {
-				disconnect(1000, "User Logout");
+				ws.disconnect(1000, "User Logout");
 				navigationStore.screen = "auth";
 			}
 		} catch (error) {

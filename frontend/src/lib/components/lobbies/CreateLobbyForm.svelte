@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { validateRoomName } from "$utils/validation";
-	import { emitAndWait } from "$lib/ws.svelte";
-	import { ClientAction, ServerAction } from "$lib/ws.svelte";
+	import { ws } from "$lib/ws.svelte";
+	import { ClientAction } from "$lib/ws.svelte";
 	import { gameStore } from "$stores/game.svelte";
 	import type { Lobby } from "$lib/stores/game.svelte";
 	import { toastStore } from "$lib/stores/ui.svelte";
@@ -34,44 +34,39 @@
 		isLoading = true;
 
 		try {
-			const response = await emitAndWait(
-				ClientAction.LobbyCreate,
-				{},
-				ServerAction.LobbyJoined,
-				5000
-			);
+			const response = await ws.emitAndWait(ClientAction.LobbyCreate);
 
-			if (!!response.reason) {
-				toastStore.showError(response.reason as string);
+			if (!response.ok) {
+				toastStore.showError(response.reason);
 				return;
 			}
 
-			const inviteCode = response.invite_code as string;
-			const members = (response.members as unknown[]) || [];
+			const inviteCode = response.get<string>("invite_code");
+			const members = response.getOr<unknown[]>("members", []);
 
-			// Handle successful lobby creation
-			if (response.invite_code && response.lobby_id) {
-				// Store invite code in sessionStorage for reconnection
-				sessionStorage.setItem("lobby_code", inviteCode);
-
-				// Update game store with current lobby
-				const lobby: Lobby = {
-					lobby_id: String(response.lobby_id),
-					name: roomNameInput,
-					host: "", // Will get from response members if needed
-					players: members,
-					max_players: 4,
-					player_count: 1
-					// status: "waiting" as const,
-					// createdAt: Date.now(),
-				};
-
-				gameStore.currentLobby = lobby;
-
-				toastStore.showSuccess("Lobby created successfully!");
-				onCreateSuccess(inviteCode);
-				roomNameInput = "";
+			if (!inviteCode || !(members.length > 0)) {
+				toastStore.showError("Unknown Server Error");
 			}
+
+			const lobbyId = response.get<string>("lobby_id");
+
+			sessionStorage.setItem("lobby_code", inviteCode!);
+
+			// Update game store with current lobby
+			const lobby: Lobby = {
+				lobby_id: lobbyId!,
+				name: roomNameInput,
+				host: "",
+				players: members,
+				max_players: 4,
+				player_count: 1
+			};
+
+			gameStore.currentLobby = lobby;
+
+			toastStore.showSuccess("Lobby created successfully!");
+			onCreateSuccess(inviteCode!);
+			roomNameInput = "";
 		} catch (error) {
 			toastStore.showError("Failed to create lobby. Check your connection.");
 		} finally {

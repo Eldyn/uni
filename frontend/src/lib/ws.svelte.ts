@@ -1,6 +1,6 @@
 /**
  * WebSocket communication utilities
- * Manages connection, message handlers, and emit/wait patterns
+ * Manages connection, message handlers, and emit/wait patterns using Svelte 5 state.
  */
 
 export const ClientAction = {
@@ -61,200 +61,273 @@ export const ServerAction = {
 export type ClientActionType = (typeof ClientAction)[keyof typeof ClientAction];
 export type ServerActionType = (typeof ServerAction)[keyof typeof ServerAction];
 
-type ServerAction = ServerActionType | string;
-type MessageHandler = (data: Record<string, unknown>) => void;
+export type ServerActionDef = ServerActionType | string;
+export type MessageHandler = (data: Record<string, unknown>) => void;
 
-interface ConnectionStatus {
+/**
+ * Represents the reactive state of the WebSocket connection.
+ */
+export interface ConnectionStatus {
     status: "disconnected" | "connecting" | "connected";
     username: string;
     room: string;
 }
 
-let ws = $state<WebSocket | null>(null);
-let connectionStatus = $state<ConnectionStatus>({
-    status: "disconnected",
-    username: "",
-    room: ""
-});
+/**
+ * Unified response wrapper for WebSocket messages.
+ * Mimics the HTTP Fetch Response API to provide a linear, predictable control flow.
+ */
+export class WsResponse {
+    /** True if the server action is NOT an error. */
+    public readonly ok: boolean;
+    /** The server action returned. */
+    public readonly action: string;
+    /** The original request ID, if provided. */
+    public readonly request_id?: string;
+    /** The raw JSON data dictionary returned by the server. */
+    public readonly data: Record<string, unknown>;
 
-let _nextRequestId = 1;
-function nextRequestId(): string {
-    return String(_nextRequestId++);
+    constructor(rawData: Record<string, unknown>) {
+        this.data = rawData;
+        this.action = (rawData.action as string) || "";
+        this.request_id = rawData.request_id as string;
+
+        this.ok = this.action !== "error";
+    }
+
+    /**
+     * Safely extracts the server's error reason, falling back to a default string.
+     */
+    get reason(): string {
+        return (this.data.reason as string) || "Unknown Server Error";
+    }
+
+    /**
+     * Utility to extract a strongly-typed value from the payload, or null if it does not exist.
+     * @param key The key to look up in the payload.
+     */
+    get<T>(key: string): T | null {
+        return key in this.data ? (this.data[key] as T) : null;
+    }
+
+    /**
+     * Utility to extract a strongly-typed value from the payload with a fallback.
+     * @param key The key to look up in the payload.
+     * @param fallback The fallback value if the key does not exist.
+     */
+    getOr<T>(key: string, fallback: T): T {
+        return key in this.data ? (this.data[key] as T) : fallback;
+    }
 }
 
-// Maps actions to sets of unique callbacks to call when receiving said action
-const handlers = new Map<string, Set<MessageHandler>>();
-
-interface PendingRequests {
-    resolve: (data: Record<string, unknown>) => void;
+/**
+ * Internal interface for tracking unresolved emitAndWait calls.
+ */
+interface PendingRequest {
+    resolve: (res: WsResponse) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
 }
 
-const pendingRequests = new Map<string, PendingRequests>();
+/**
+ * Stateful WebSocket Client
+ * Manages automatic reconnections, request/response correlation, and Svelte 5 reactive connection states.
+ */
+export class WebSocketClient {
+    /** The raw WebSocket instance (reactive). */
+    socket = $state<WebSocket | null>(null);
 
-function dispatch(data: Record<string, unknown>) {
-    const action = data.action as string;
-    const requestId = data.request_id as string;
+    /** Connection metadata and status (reactive). */
+    connectionStatus = $state<ConnectionStatus>({
+        status: "disconnected",
+        username: "",
+        room: ""
+    });
 
-    if (requestId && pendingRequests.has(requestId)) {
-        const pending = pendingRequests.get(requestId)!;
-        pendingRequests.delete(requestId);
-        clearTimeout(pending.timer);
+    private _nextRequestId = 1;
+    private handlers = new Map<string, Set<MessageHandler>>();
+    private pendingRequests = new Map<string, PendingRequest>();
 
-        if (action === "error") {
-            pending.reject(new Error(data.reason as string)) ?? "Server Error";
-        } else {
-            pending.resolve(data);
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private reconnectDelayMs = 1000;
+    private intentionalClose = false;
+
+    /**
+     * Checks if the WebSocket is currently open and active.
+     */
+    get isConnected(): boolean {
+        return this.socket?.readyState === WebSocket.OPEN;
+    }
+
+    /**
+     * Establishes the WebSocket connection. Safe to call multiple times.
+     */
+    async connect(): Promise<void> {
+        if (this.isConnected) return;
+
+        this.intentionalClose = false;
+        await this._connectOnce();
+    }
+
+    /**
+     * Intentionally disconnects the WebSocket and halts exponential backoff reconnections.
+     */
+    disconnect(code: number, reason: string): void {
+        this.intentionalClose = true;
+
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
+        this.socket?.close(code, reason);
+        this.socket = null;
+        this.connectionStatus.status = "disconnected";
+    }
+
+    /**
+     * Fires a message to the server without expecting a correlated response.
+     * Does NOT attach a request_id.
+     *
+     * @param action The ClientAction to send
+     * @param payload Optional data payload
+     */
+    emit(action: string, payload: Record<string, unknown> = {}): void {
+        if (this.isConnected) {
+            this.socket!.send(JSON.stringify({ action, ...payload }));
         }
     }
 
-    if (action) {
-        handlers.get(action)?.forEach((handler) => handler(data));
-        handlers.get("*")?.forEach((handler) => handler(data));
-    }
-}
+    /**
+     * Sends a message and awaits a correlated response from the server via a request_id.
+     * Resolves with a WsResponse (even for server logic errors), but rejects on infrastructure/timeout failures.
+     *
+     * @param action The ClientAction to send
+     * @param payload Optional data payload
+     * @param timeoutMs How long to wait before aborting (default 5000ms)
+     */
+    emitAndWait(
+        action: string,
+        payload: Record<string, unknown> = {},
+        timeoutMs: number = 5000
+    ): Promise<WsResponse> {
+        return new Promise((resolve, reject) => {
+            const requestId = String(this._nextRequestId++);
 
-/**
- * Register a handler for a specific action or all actions
- * Returns cleanup function
- */
-export function on(action: ServerAction | "*", handler: MessageHandler) {
-    if (!handlers.has(action)) handlers.set(action, new Set());
-    handlers.get(action)!.add(handler);
+            const timer = setTimeout(() => {
+                this.pendingRequests.delete(requestId);
+                reject(new Error(`Timeout: no response for "${action}" (request_id=${requestId})`));
+            }, timeoutMs);
 
-    return () => handlers.get(action)?.delete(handler);
-}
+            this.pendingRequests.set(requestId, { resolve, reject, timer });
 
-let reconnectTimer: ReturnType<typeof setTimeout> | null;
-let reconnectDelayMs = 1000;
-let intentionalClose = false;
-
-function scheduleReconect() {
-    if (intentionalClose) return;
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-
-    reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        reconnectDelayMs = Math.min(reconnectDelayMs * 2, 16_000);
-
-        connectOnce().catch(() => {
-            scheduleReconect();
+            if (this.isConnected) {
+                this.socket!.send(JSON.stringify({ action, request_id: requestId, ...payload }));
+            } else {
+                this.pendingRequests.delete(requestId);
+                clearTimeout(timer);
+                reject(new Error("WebSocket not connected"));
+            }
         });
-    });
-}
-
-function connectOnce(): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const socket = new WebSocket(`${protocol}//${location.host}`);
-        connectionStatus.status = "connecting";
-
-        socket.onopen = () => {
-            ws = socket;
-            connectionStatus.status = "connected";
-            reconnectDelayMs = 1000;
-            resolve();
-
-            // Re-join lobby if we were in one before the disconnect.
-            const savedCode = sessionStorage.getItem("lobby_code");
-            if (savedCode) emit("lobby_rejoin", { code: savedCode });
-        };
-
-        socket.onerror = (e) => reject(e);
-
-        socket.onclose = () => {
-            if (ws === socket) {
-                ws = null;
-                connectionStatus.status = "disconnected";
-            }
-            scheduleReconect();
-        };
-
-        socket.onmessage = (e: MessageEvent) => {
-            try {
-                const data = JSON.parse(e.data as string) as Record<string, unknown>;
-                if (data.action === "sync_data") connectionStatus.username = data.username as string;
-                dispatch(data);
-            } catch {
-                /* ignore non-JSON */
-            }
-        };
-    });
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-export async function connect(): Promise<void> {
-    if (ws?.readyState === WebSocket.OPEN) return;
-    intentionalClose = false;
-    await connectOnce();
-}
-
-export function disconnect(): void {
-    intentionalClose = true;
-    if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
     }
-    ws?.close();
-    ws = null;
-    connectionStatus.status = "disconnected";
-}
 
-// emit — fire and forget, no response expected.
-// Does NOT attach a request_id so the server won't try to correlate it.
-export function emit(action: string, payload: object = {}): void {
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action, ...payload }));
-}
+    /**
+     * Registers a listener for specific server actions, or "*" for all actions.
+     *
+     * @param action The ServerAction to listen for.
+     * @param handler Callback triggered when the action is received.
+     * @returns A cleanup function to remove the listener.
+     */
+    on(action: ServerActionDef | "*", handler: MessageHandler): () => void {
+        if (!this.handlers.has(action)) this.handlers.set(action, new Set());
+        this.handlers.get(action)!.add(handler);
 
-// emitAndWait — send a message and wait for the correlated response.
-//
-// Attaches a unique request_id.  The server must echo it back.
-// Rejects if:
-//   - The server sends an "error" response with the same request_id
-//   - No response arrives within timeoutMs
-//
-// The `expectedAction` parameter is now OPTIONAL documentation — it is no
-// longer used for matching.  Matching is done exclusively on request_id.
-// You can still pass it for clarity, but removing it won't break anything.
-export function emitAndWait(
-    action: string,
-    payload: object = {},
-    _expectedAction?: string, // kept for API compatibility, not used for matching
-    timeoutMs = 5000
-): Promise<Record<string, unknown>> {
-    return new Promise((resolve, reject) => {
-        const requestId = nextRequestId();
+        return () => this.handlers.get(action)?.delete(handler);
+    }
 
-        const timer = setTimeout(() => {
-            pendingRequests.delete(requestId);
-            reject(new Error(`Timeout: no response for "${action}" (request_id=${requestId})`));
-        }, timeoutMs);
+    /**
+     * Internal routine to establish the connection and bind events.
+     */
+    private _connectOnce(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+            const wsInstance = new WebSocket(`${protocol}//${location.host}`);
+            this.connectionStatus.status = "connecting";
 
-        pendingRequests.set(requestId, { resolve, reject, timer });
+            wsInstance.onopen = () => {
+                this.socket = wsInstance;
+                this.connectionStatus.status = "connected";
+                this.reconnectDelayMs = 1000;
 
-        if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action, request_id: requestId, ...payload }));
-        } else {
-            // Socket not open — reject immediately rather than silently timing out.
-            pendingRequests.delete(requestId);
-            clearTimeout(timer);
-            reject(new Error("WebSocket not connected"));
+                resolve();
+            };
+
+            wsInstance.onerror = (e) => reject(e);
+
+            wsInstance.onclose = () => {
+                if (this.socket === wsInstance) {
+                    this.socket = null;
+                    this.connectionStatus.status = "disconnected";
+                }
+                this._scheduleReconnect();
+            };
+
+            wsInstance.onmessage = (e: MessageEvent) => {
+                try {
+                    const data = JSON.parse(e.data as string) as Record<string, unknown>;
+                    if (data.action === "sync_data") {
+                        this.connectionStatus.username = data.username as string;
+                    }
+                    this._dispatch(data);
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+        });
+    }
+
+    /**
+     * Handles routing the incoming message to pending requests and global listeners.
+     */
+    private _dispatch(data: Record<string, unknown>) {
+        const action = data.action as string;
+        const requestId = data.request_id as string;
+
+        // 1. Resolve pending request promises if a request_id matches
+        if (requestId && this.pendingRequests.has(requestId)) {
+            const pending = this.pendingRequests.get(requestId)!;
+            this.pendingRequests.delete(requestId);
+            clearTimeout(pending.timer);
+
+            // Wrap in our HTTP-like envelope and resolve
+            const response = new WsResponse(data);
+            pending.resolve(response);
         }
-    });
+
+        // 2. Fire standard global listeners
+        if (action) {
+            this.handlers.get(action)?.forEach((handler) => handler(data));
+            this.handlers.get("*")?.forEach((handler) => handler(data));
+        }
+    }
+
+    /**
+     * Implements an exponential backoff strategy for reconnections.
+     */
+    private _scheduleReconnect() {
+        if (this.intentionalClose) return;
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 16_000);
+
+            this._connectOnce().catch(() => {
+                this._scheduleReconnect();
+            });
+        }, this.reconnectDelayMs);
+    }
 }
 
-/**
- * Check if WebSocket is connected
- */
-export function isConnected(): boolean {
-    return ws?.readyState === WebSocket.OPEN;
-}
-
-/**
- * Get current connection status (reactive)
- */
-export function getConnectionStatus(): Readonly<ConnectionStatus> {
-    return connectionStatus;
-}
+// Export a global singleton instance for use across the Svelte application
+export const ws = new WebSocketClient();

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import GameBoard from './GameBoard.svelte';
+	import GameBoard from "./GameBoard.svelte";
 
-	let gameColor = $state('green');
+	let gameColor = $state("green");
 
 	let { onBack }: { onBack?: () => void } = $props();
 
@@ -14,7 +14,7 @@
 	<div class="game-controls">
 		<button type="button" class="back-button" onclick={onBack}>← Back to Lobbies</button>
 		<div class="color-buttons">
-			{#each ['red', 'yellow', 'green', 'blue'] as color}
+			{#each ["red", "yellow", "green", "blue"] as color}
 				<button
 					type="button"
 					class="color-button color-{color}"
@@ -105,7 +105,9 @@
 
 	.color-button.active {
 		border-color: var(--text-h);
-		box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text-h);
+		box-shadow:
+			0 0 0 2px var(--bg),
+			0 0 0 4px var(--text-h);
 	}
 
 	.color-button:hover {

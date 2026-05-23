@@ -18,7 +18,7 @@ export interface UIState {
 
 let uiState = $state<UIState>({
     toasts: [],
-    isLoadingGlobal: false,
+    isLoadingGlobal: false
 });
 
 let toastCounter = 0;
@@ -67,12 +67,12 @@ export const toastStore = {
 
     setLoadingGlobal(loading: boolean): void {
         uiState.isLoadingGlobal = loading;
-    },
+    }
 };
 
 // Scren State
 
-export type AppScreen = "auth" | "lobbies" | "game";
+export type AppScreen = "auth" | "lobbies" | "lobby" | "game";
 
 let currentScreen = $state<AppScreen>("auth");
 
@@ -82,5 +82,5 @@ export const navigationStore = {
     },
     set screen(screen: AppScreen) {
         currentScreen = screen;
-    },
+    }
 };
