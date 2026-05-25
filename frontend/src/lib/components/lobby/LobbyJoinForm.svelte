@@ -2,7 +2,7 @@
 	import { toastStore } from "$stores/ui.svelte";
 	import { gameStore } from "$stores/game.svelte";
 	import type { Lobby } from "$stores/game.svelte";
-	import { ClientAction, ws } from "$lib/ws.svelte";
+	import { ClientAction, ws } from "$stores/ws.svelte";
 
 	let roomCodeInput = $state("");
 	let roomCodeError = $state("");

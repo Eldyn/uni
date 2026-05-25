@@ -2,7 +2,7 @@
 	import { gameStore } from "$lib/stores/game.svelte";
 	import type { Lobby } from "$lib/stores/game.svelte";
 	import { navigationStore, toastStore } from "$lib/stores/ui.svelte";
-	import { ClientAction, ServerAction, ws } from "$lib/ws.svelte";
+	import { ClientAction, ServerAction, ws } from "$stores/ws.svelte";
 
 	console.log(gameStore.state.currentLobby);
 
