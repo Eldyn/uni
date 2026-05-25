@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { validateLobbyName } from "$utils/validation";
-	import { ws } from "$lib/ws.svelte";
-	import { ClientAction } from "$lib/ws.svelte";
+	import { ws, ClientAction } from "$stores/ws.svelte";
 	import { gameStore } from "$stores/game.svelte";
 	import type { Lobby } from "$lib/stores/game.svelte";
 	import { navigationStore, toastStore } from "$lib/stores/ui.svelte";

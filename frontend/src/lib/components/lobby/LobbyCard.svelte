@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { navigationStore, toastStore } from "$lib/stores/ui.svelte";
-	import { ClientAction, ws } from "$lib/ws.svelte";
+	import { ClientAction, ws } from "$stores/ws.svelte";
 	import { gameStore, type Lobby } from "$stores/game.svelte";
 
 	let { lobby }: { lobby: Lobby } = $props();

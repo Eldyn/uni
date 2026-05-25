@@ -1,17 +1,14 @@
 <script lang="ts">
+	import { onMount } from "svelte";
 	import Toast from "$common/Toast.svelte";
 	import AuthScreen from "$lib/components/auth/AuthScreen.svelte";
 	import GameScreen from "$lib/components/game/GameScreen.svelte";
-	import { navigationStore } from "./lib/stores/ui.svelte";
-	import { onMount } from "svelte";
-	import { ws } from "$lib/ws.svelte";
-	import { getAuthState, setLoggedIn } from "./lib/stores/auth.svelte";
-	import { toastStore } from "./lib/stores/ui.svelte";
-	import LobbyJoinForm from "$lib/components/lobby/LobbyJoinForm.svelte";
 	import LobbyScreen from "$lib/components/lobby/LobbyScreen.svelte";
 	import LobbiesScreen from "$lib/components/lobby/LobbiesScreen.svelte";
-
-	const authState = getAuthState();
+	import { navigationStore } from "$stores/ui.svelte";
+	import { ws } from "$stores/ws.svelte";
+	import { setLoggedIn } from "$stores/auth.svelte";
+	import { toastStore } from "$stores/ui.svelte";
 
 	onMount(async () => {
 		// Check if user is already logged in
@@ -66,8 +63,6 @@
 		<LobbiesScreen />
 	{:else if navigationStore.screen === "lobby"}
 		<LobbyScreen />
-	{:else if navigationStore.screen === "lobbyJoinForm"}
-		<LobbyJoinForm />
 	{:else if navigationStore.screen === "game"}
 		<GameScreen onBack={handleBackToLobbies} />
 	{/if}
