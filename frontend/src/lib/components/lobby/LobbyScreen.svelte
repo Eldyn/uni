@@ -6,7 +6,6 @@
 
 	console.log(gameStore.state.currentLobby);
 
-	// BUG: This currently crashes the server if the client then attempts a rejoin std::unordered_map.at
 	async function leaveLobby() {
 		const response = await ws.emitAndWait(ClientAction.LobbyLeave);
 

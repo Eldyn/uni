@@ -114,8 +114,7 @@
 		color: var(--text-h);
 	}
 
-	input,
-	select {
+	input {
 		padding: 10px 12px;
 		border: 2px solid var(--border);
 		border-radius: 6px;
@@ -125,14 +124,12 @@
 		transition: border-color 0.2s;
 	}
 
-	input:focus,
-	select:focus {
+	input:focus {
 		outline: none;
 		border-color: var(--accent);
 	}
 
-	input:disabled,
-	select:disabled {
+	input:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
 	}

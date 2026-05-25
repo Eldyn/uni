@@ -156,8 +156,7 @@
 		margin-bottom: 24px;
 	}
 
-	.refresh-button,
-	.create-button {
+	.refresh-button {
 		padding: 10px 16px;
 		background: var(--accent);
 		color: white;
@@ -169,8 +168,7 @@
 		transition: opacity 0.2s;
 	}
 
-	.refresh-button:hover:not(:disabled),
-	.create-button:hover {
+	.refresh-button:hover:not(:disabled) {
 		opacity: 0.9;
 	}
 

@@ -89,24 +89,6 @@
 		word-break: break-word;
 	}
 
-	.lobby-status {
-		padding: 4px 8px;
-		border-radius: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		white-space: nowrap;
-	}
-
-	.status-waiting {
-		background: rgba(34, 197, 94, 0.1);
-		color: #16a34a;
-	}
-
-	.status-in-progress {
-		background: rgba(59, 130, 246, 0.1);
-		color: #2563eb;
-	}
-
 	.lobby-info {
 		display: flex;
 		flex-direction: column;
