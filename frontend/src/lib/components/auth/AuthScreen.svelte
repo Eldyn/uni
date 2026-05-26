@@ -4,11 +4,7 @@
 
 	let activeTab = $state<"login" | "register">("login");
 
-	let { onAuthSuccess }: { onAuthSuccess?: () => void } = $props();
-
-	function handleSuccess() {
-		onAuthSuccess?.();
-	}
+	let { onAuthSuccess }: { onAuthSuccess: () => void } = $props();
 </script>
 
 <div class="auth-screen">
@@ -34,7 +30,7 @@
 
 		<div class="auth-content">
 			{#if activeTab === "login"}
-				<LoginForm onLoginSuccess={handleSuccess} />
+				<LoginForm onLoginSuccess={onAuthSuccess} />
 			{:else}
 				<RegisterForm
 					onRegisterSuccess={() => {

@@ -1,5 +1,13 @@
 /**
- * Input validation utilities
+ * Rules here must stay in sync with the C++ backend constraints:
+ *   kMinUsernameLen = 3, kMaxUsernameLen = 32  (auth_controller.hpp)
+ *   kMinPasswordLen = 8                        (auth_controller.hpp)
+ *   topic max 64 chars, alphanumeric/-/_        (webserver.cpp)
+ *
+ * The backend does NOT require uppercase/lowercase/numbers in passwords —
+ * the previous validatePassword rule was stricter than the server and would
+ * reject valid passwords. Removed. If you later add server-side complexity
+ * rules, add them here at the same time.
  */
 
 export interface ValidationResult {
@@ -7,115 +15,77 @@ export interface ValidationResult {
     error?: string;
 }
 
-const PASSWORD_MIN_LENGTH = 8;
-const USERNAME_MIN_LENGTH = 3;
-const USERNAME_MAX_LENGTH = 20;
-const ROOM_NAME_MAX_LENGTH = 50;
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 32; // matches kMaxUsernameLen
+const PASSWORD_MIN = 8; // matches kMinPasswordLen
+const LOBBY_NAME_MAX = 50;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
 
 /**
- * Validate email format
+ * Validates an email string.
+ * @returns ValidationResult whether the email is valid, or the reason if invalid.
  */
 export function validateEmail(email: string): ValidationResult {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        return {
-            valid: false,
-            error: "Please enter a valid email address."
-        };
+    if (!EMAIL_RE.test(email.trim())) {
+        return { valid: false, error: "Please enter a valid email address." };
     }
     return { valid: true };
 }
 
 /**
- * Validate password strength
+ * Validates a password string.
+ * @returns ValidationResult whether the password is valid, or the reason if invalid.
  */
 export function validatePassword(password: string): ValidationResult {
-    if (password.length < PASSWORD_MIN_LENGTH) {
+    if (password.length < PASSWORD_MIN) {
         return {
             valid: false,
-            error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`
+            error: `Password must be at least ${PASSWORD_MIN} characters.`
         };
     }
-
-    // Check for at least one uppercase letter, one lowercase letter, and one number
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
-        return {
-            valid: false,
-            error: "Password must contain uppercase, lowercase, and numbers."
-        };
-    }
-
     return { valid: true };
 }
 
 /**
- * Validate username format
+ * Validates a username string.
+ * @returns ValidationResult whether the username is valid, or the reason if invalid.
  */
 export function validateUsername(username: string): ValidationResult {
-    const trimmed = username.trim();
-
-    if (trimmed.length < USERNAME_MIN_LENGTH) {
-        return {
-            valid: false,
-            error: `Username must be at least ${USERNAME_MIN_LENGTH} characters long.`
-        };
+    const t = username.trim();
+    if (t.length < USERNAME_MIN) {
+        return { valid: false, error: `Username must be at least ${USERNAME_MIN} characters.` };
     }
-
-    if (trimmed.length > USERNAME_MAX_LENGTH) {
-        return {
-            valid: false,
-            error: `Username must not exceed ${USERNAME_MAX_LENGTH} characters.`
-        };
+    if (t.length > USERNAME_MAX) {
+        return { valid: false, error: `Username must not exceed ${USERNAME_MAX} characters.` };
     }
-
-    // Allow only alphanumeric and underscore
-    const usernameRegex = /^[a-zA-Z0-9_]+$/;
-    if (!usernameRegex.test(trimmed)) {
-        return {
-            valid: false,
-            error: "Username can only contain letters, numbers, and underscores."
-        };
+    if (!USERNAME_RE.test(t)) {
+        return { valid: false, error: "Username can only contain letters, numbers, and underscores." };
     }
-
     return { valid: true };
 }
 
 /**
- * Validate room/lobby name
- */
-export function validateLobbyName(name: string): ValidationResult {
-    const trimmed = name.trim();
-
-    if (trimmed.length === 0) {
-        return {
-            valid: false,
-            error: "Room name cannot be empty."
-        };
-    }
-
-    if (trimmed.length > ROOM_NAME_MAX_LENGTH) {
-        return {
-            valid: false,
-            error: `Room name must not exceed ${ROOM_NAME_MAX_LENGTH} characters.`
-        };
-    }
-
-    return { valid: true };
-}
-
-/**
- * Validate password match
+ * Validates whether two password strings match.
+ * @returns ValidationResult whether they match, or the reason if invalid.
  */
 export function validatePasswordMatch(password: string, confirm: string): ValidationResult {
     if (password !== confirm) {
-        return {
-            valid: false,
-            error: "Passwords do not match."
-        };
+        return { valid: false, error: "Passwords do not match." };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validates a lobby string.
+ * @returns ValidationResult whether the lobby is valid, or the reason if invalid.
+ */
+export function validateLobbyName(name: string): ValidationResult {
+    const t = name.trim();
+    if (t.length === 0) return { valid: false, error: "Lobby name cannot be empty." };
+    if (t.length > LOBBY_NAME_MAX) {
+        return { valid: false, error: `Lobby name must not exceed ${LOBBY_NAME_MAX} characters.` };
     }
     return { valid: true };
 }
