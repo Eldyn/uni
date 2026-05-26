@@ -1,15 +1,14 @@
 <script lang="ts">
 	import { navigationStore, toastStore } from "$stores/ui.svelte";
-	import { getAuthState } from "$stores/auth.svelte";
 	import { ClientAction, ws } from "$stores/ws.svelte";
 	import { gameStore } from "$lib/stores/game.svelte";
 	import type { Lobby } from "$lib/stores/game.svelte";
 	import { onMount } from "svelte";
 	import LobbyList from "./LobbyList.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
+	import { storeAuth } from "$lib/stores/auth.svelte";
 
 	const gameState = gameStore.state;
-	const authState = getAuthState();
 
 	let showCreateForm = $state(false);
 	let canCreate = $derived<boolean>(!gameStore.state.currentLobby);
@@ -66,7 +65,7 @@
 	<div class="lobbies-header">
 		<div class="header-content">
 			<h1>Lobbies</h1>
-			<p class="user-info">Welcome, {authState.username}</p>
+			<p class="user-info">Welcome, {storeAuth.username}</p>
 		</div>
 		<button type="button" class="logout-button" onclick={handleLogout}>Logout</button>
 	</div>

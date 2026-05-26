@@ -7,40 +7,21 @@
 	import LobbiesScreen from "$lib/components/lobby/LobbiesScreen.svelte";
 	import { navigationStore } from "$stores/ui.svelte";
 	import { ws } from "$stores/ws.svelte";
-	import { setLoggedIn } from "$stores/auth.svelte";
 	import { toastStore } from "$stores/ui.svelte";
+	import { storeAuth } from "$lib/stores/auth.svelte";
 
 	onMount(async () => {
-		// Check if user is already logged in
-		try {
-			const response = await fetch(`${window.location.origin}/auth/me`, {
-				method: "GET",
-				credentials: "include",
-				headers: {
-					"Content-Type": "application/json"
-				}
-			});
+		await storeAuth.checkSession();
 
-			if (response.ok) {
-				const data = await response.json();
-				setLoggedIn(data.username, data.email);
+		if (storeAuth.isLoggedIn) {
+			await ws.connect();
 
-				await ws.connect();
-
-				// NOTE: Hacky.. we guard agains't a rejoin
-				if (navigationStore.screen === "auth") {
-					navigationStore.screen = "lobbies";
-				}
+			if (navigationStore.screen === "auth") {
+				navigationStore.screen = "lobbies";
 			}
-		} catch (error) {
-			// Not logged in, stay on auth screen
 		}
 	});
 
-	// NOTE: async since we need to wait for the connection,
-	//       otherwise we could get in a race condition. Also,
-	//       we navigate only AFTER connecting, since onMount
-	//       tries emitting a websocket message.
 	async function handleAuthSuccess() {
 		await ws.connect().catch((error) => {
 			toastStore.showError(`Failed to connect to server. Please try again. (${error})`);
