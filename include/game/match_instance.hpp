@@ -27,6 +27,7 @@ namespace game {
         std::string GetCurrentPlayerUsername() const;
     
         bool IsWaitingForInput() const { return !state_.pending_player.empty(); }
+        void SetTurnEndTime(std::chrono::steady_clock::time_point end_time) { state_.turn_end_time = end_time; }
         std::string GetPendingPlayer() const { return state_.pending_player; }
         std::string GetPendingInputType() const { return state_.pending_input_type; }
         std::string GetPendingInputContext() const { return state_.pending_input_context; }

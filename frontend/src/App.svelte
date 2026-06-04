@@ -20,6 +20,10 @@
 				storeNavigation.goto("lobbies");
 			}
 		}
+
+		ws.on("error", (data) => {
+			console.error(data);
+		});
 	});
 
 	async function handleAuthSuccess() {

@@ -96,6 +96,22 @@ void GameController::HandleProvideInput(WsContext context, const json& message) 
 }
 
 void GameController::BroadcastGameState(Lobby* current_lobby) {
+    if (current_lobby->match->IsGameOver()) {
+        json game_over_payload = ws::MakeResponse(ws::ServerAction::kGameOver);
+
+        game_over_payload["winner"] = current_lobby->match->GetCurrentPlayerUsername(); 
+            
+        std::string serialized = game_over_payload.dump();
+            
+        for (const auto& lobby_member : current_lobby->members) {
+            if (lobby_member.is_connected && lobby_member.socket) {
+                lobby_member.socket->send(serialized, uWS::OpCode::TEXT);
+            }
+        }
+
+        return;
+    }
+
     bool is_waiting_for_input = current_lobby->match->IsWaitingForInput();
     std::string pending_player_username = current_lobby->match->GetPendingPlayer();
     std::string required_input_type = current_lobby->match->GetPendingInputType();
@@ -144,7 +160,6 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
         }
     }
 
-    // AI MODE 1: Play Instantly if the human is disconnected
     if (active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly && !is_player_connected) {
         Logger::Info("[Bot] Taking instant turn for disconnected player: ", current_player_username);
         
@@ -156,13 +171,16 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
         return;
     }
 
-    // AI MODE 2: Wait for Timer (AFK Protection)
     if (active_lobby->settings.bot_mode == BotTakeoverMode::kWaitUntilTurnEnd) {
+        auto end_time = std::chrono::steady_clock::now() + 
+                        std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+        active_lobby->match->SetTurnEndTime(end_time);
+
         uint32_t current_lobby_id = active_lobby->id;
-        
         SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms, [this, current_lobby_id, current_player_username]() {
-            // Note: This lambda executes asynchronously in the future.
-            // We must re-fetch the lobby to ensure it wasn't deleted while we waited.
+            // NOTE: This lambda executes asynchronously in the future.
+            //       We must re-fetch the lobby to ensure it was not 
+            //       deleted while we waited.
             Lobby* verified_lobby = lobby_controller_.GetLobbyById(current_lobby_id);
             
             if (verified_lobby && verified_lobby->match) {
@@ -190,17 +208,19 @@ struct TurnTimerData {
 void GameController::SetTurnTimer(uint32_t lobby_id, int timeout_ms, std::function<void()> callback) {
     ClearTurnTimer(lobby_id);
     struct us_loop_t* loop = (struct us_loop_t*) uWS::Loop::get();
-    struct us_timer_t* timer = us_create_timer(loop, 0, sizeof(TurnTimerData));
+    
+    // INFO: Allocate space for a POINTER, not the struct itself
+    struct us_timer_t* timer = us_create_timer(loop, 0, sizeof(TurnTimerData*));
 
-    TurnTimerData* timer_data = (TurnTimerData*) us_timer_ext(timer);
+    auto* timer_data = new TurnTimerData{std::move(callback), lobby_id, this};
     *(TurnTimerData**)us_timer_ext(timer) = timer_data;
 
-    us_timer_set(timer, [](us_timer_t* t) {
-        auto* data = *(TurnTimerData**)us_timer_ext(t);
-        data->callback();
-    
-        delete data; 
-        us_timer_close(t);
+    us_timer_set(timer, [](struct us_timer_t* fired_timer) {
+        TurnTimerData* data = *(TurnTimerData**)us_timer_ext(fired_timer);
+        if (data->callback) data->callback();
+        
+        // This will call delete data and us_timer_close!
+        data->controller->ClearTurnTimer(data->lobby_id); 
     }, timeout_ms, 0);
 
     active_turn_timers_[lobby_id] = timer;
@@ -210,9 +230,11 @@ void GameController::ClearTurnTimer(uint32_t lobby_id) {
     auto timer_iterator = active_turn_timers_.find(lobby_id);
     if (timer_iterator != active_turn_timers_.end()) {
         struct us_timer_t* timer = timer_iterator->second;
-        TurnTimerData* timer_data = (TurnTimerData*) us_timer_ext(timer);
-        timer_data->~TurnTimerData();
+        TurnTimerData* data = *(TurnTimerData**)us_timer_ext(timer);
+        
+        delete data;
         us_timer_close(timer);
+        
         active_turn_timers_.erase(timer_iterator);
     }
 }

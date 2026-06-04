@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <chrono>
 
 namespace game {
     
@@ -39,6 +40,8 @@ namespace game {
         std::string pending_input_type;
         std::string pending_input_context; // The JSON payload string
         std::string provided_input; 
+
+        std::chrono::steady_clock::time_point turn_end_time;
     };
 
     void ReshuffleDiscardIntoDraw(GameState* game_state);

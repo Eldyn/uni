@@ -1,3 +1,4 @@
+#include "common/game/card_types.hpp"
 #include <game/match_instance.hpp>
 #include <game/rules/standard.hpp>
 #include <game/effects/standard.hpp>
@@ -37,28 +38,41 @@ namespace game {
     
     void MatchInstance::Start() {
         GenerateDeck();
-        
+
         for (auto& player : state_.players) {
             for (int index = 0; index < settings_.starting_cards; ++index) {
                 player.hand.push_back(state_.draw_pile.back());
                 state_.draw_pile.pop_back();
             }
         }
-    
-        state_.discard_pile.push_back(state_.draw_pile.back());
-        state_.draw_pile.pop_back();
+
+        bool found_starter = false;
+
+        for (int i = state_.draw_pile.size() - 1; i >= 0; --i) {
+            int card_val = static_cast<int>(GetValue(state_.draw_pile[i]));
+
+            if (card_val >= 0 && card_val <= 9) {
+                state_.discard_pile.push_back(state_.draw_pile[i]);
+                state_.draw_pile.erase(state_.draw_pile.begin() + i);
+                found_starter = true;
+                break;
+            }
+        }
+
+        if (!found_starter) {
+            state_.discard_pile.push_back(state_.draw_pile.back());
+            state_.draw_pile.pop_back();
+        }
+
         state_.active_color = GetColor(state_.discard_pile.back());
-    
         state_.status = MatchStatus::kPlaying;
     }
     
     void MatchInstance::Tick() {
         while (!state_.effect_queue.empty()) {
-            // 1. EXTRACT the effect completely so push_front doesn't mess up the pop order!
             auto current_effect = std::move(state_.effect_queue.front());
             state_.effect_queue.pop_front();
             
-            // 2. Resolve the extracted effect
             EffectResult result = current_effect->Resolve(&state_, this); 
     
             if (result.status == EffectStatus::kNeedsInput) {
@@ -66,7 +80,6 @@ namespace game {
                 state_.pending_input_type = result.input_type;
                 state_.pending_input_context = result.input_context;
                 
-                // 3. Put it back at the front of the queue so it resumes when the player clicks a button
                 state_.effect_queue.push_front(std::move(current_effect));
                 return; 
             }
@@ -79,8 +92,8 @@ namespace game {
         Player* current_player = GetPlayer(username);
         if (!current_player) return false;
     
-        if (state_.players[state_.current_player_index].username != username) return false;
-    
+        if (GetCurrentPlayerUsername() != username) return false;
+     
         auto card_iterator = std::ranges::find(current_player->hand, card_id, GetId);
         if (card_iterator == current_player->hand.end()) return false;
     
@@ -105,7 +118,6 @@ namespace game {
     
         state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
     
-        // TODO: propagate to players the game end
         if (current_player->hand.empty()) {
             state_.status = MatchStatus::kFinished;
             state_.winner = username;
@@ -121,7 +133,7 @@ namespace game {
         Player* current_player = GetPlayer(username);
         if (!current_player) return false;
     
-        if (state_.players[state_.current_player_index].username != username) return false;
+        if (GetCurrentPlayerUsername() != username) return false;
     
         if (state_.draw_pile.empty()) {
             ReshuffleDiscardIntoDraw(&state_);
@@ -134,7 +146,7 @@ namespace game {
         
         current_player->has_called_uno = false; 
     
-        // Check if the card is playable
+        // INFO: check if the card is playable
         CardPlayedEvent dummy_event = { username, drawn_card, true, false };
         for (auto& rule : active_rules_) {
             rule->ValidatePlay(&state_, dummy_event);
@@ -142,7 +154,6 @@ namespace game {
         }
     
         if (dummy_event.is_valid_play) {
-            // Push the effect that prompts the user and awaits their decision!
             state_.effect_queue.push_front(std::make_unique<DecideDrawnCardEffect>(username, GetId(drawn_card)));
         } else {
             state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
@@ -155,7 +166,6 @@ namespace game {
         if (username == state_.pending_player) {
             state_.provided_input = input;
             
-            // Instantly unlock the engine so Effects can execute methods safely
             state_.pending_player.clear();
             state_.pending_input_type.clear();
             state_.pending_input_context.clear();
@@ -180,7 +190,27 @@ namespace game {
                 if (state_.pending_input_type == "play_drawn_card") {
                     ProvideInput(state_.pending_player, "PLAY");
                 } else {
-                    ProvideInput(state_.pending_player, "RED");
+                    // INFO: Provide the best color for this player, R G B Y
+                    int counts[4] = {0, 0, 0, 0};
+    
+                    for (const auto& card : state_.players[state_.current_player_index].hand) {
+                        const Color color = GetColor(card);
+                        if      (color == Color::kWild) continue;
+
+                        if      (color == Color::kRed) counts[0]++;
+                        else if (color == Color::kBlue) counts[1]++;
+                        else if (color == Color::kGreen) counts[2]++;
+                        else if (color == Color::kYellow) counts[3]++;
+                    }
+    
+                    int max_idx = 0;
+                    for (int i = 1; i < 4; i++) {
+                        if (counts[i] > counts[max_idx]) max_idx = i;
+                    }
+    
+                    const char* colors[] = {"RED", "BLUE", "GREEN", "YELLOW"};
+
+                    ProvideInput(state_.pending_player, colors[max_idx]);
                 }
 
                 Tick();
@@ -279,12 +309,23 @@ namespace game {
     
     nlohmann::json MatchInstance::SerializePlayerState(const std::string& username) const {
         nlohmann::json root;
-        root["match_status"] = static_cast<int>(state_.status);
+        auto now = std::chrono::steady_clock::now();
+        int remaining_ms = 0;
+
+        if (state_.turn_end_time > now) {
+            remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(state_.turn_end_time - now).count();
+        }
+
+        root["turn_time_remaining_ms"] = remaining_ms;
+
         if (IsGameOver()) root["winner"] = state_.winner;
     
+        root["match_status"] = static_cast<int>(state_.status);
+
         root["active_color"] = static_cast<int>(state_.active_color);
-        root["current_turn"] = state_.players[state_.current_player_index].username;
+        root["current_turn"] = GetCurrentPlayerUsername();
         root["play_direction"] = state_.play_direction;
+        root["discard_pile_size"] = state_.discard_pile.size();
     
         if (!state_.discard_pile.empty()) {
             CompactCard top = state_.discard_pile.back();
@@ -292,7 +333,6 @@ namespace game {
                 {"id", GetId(top)}, 
                 {"color", static_cast<int>(GetColor(top))}, 
                 {"value", static_cast<int>(GetValue(top))},
-                {"discard_pile_size", state_.discard_pile.size()}
             };
         }
     
