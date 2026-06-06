@@ -82,6 +82,10 @@
 					<span style="color: gold"> 󱟜 </span>
 				{/if}
 
+				{#if member.is_bot}
+					<span style="color: lightblue"> 󱚣 </span>
+				{/if}
+
 				{#if isHost && !member.is_host}
 					<button class="transfer-button" onclick={() => storeLobby.promote(member.username)}>
 						<span style="color: lightgoldenrodyellow">Promote</span>
