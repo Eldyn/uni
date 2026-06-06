@@ -740,7 +740,8 @@ void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
         {"invite_code", lobby.invite_code},
         {"host", lobby.host},
         {"members", MemberListJson(lobby)},
-        {"name", lobby.name}
+        {"name", lobby.name},
+        {"turn_time_limit_ms", lobby.settings.turn_time_limit_ms}
     };
 
     app_.publish("lobby_" + lobby.invite_code, notification.dump(), uWS::OpCode::TEXT);

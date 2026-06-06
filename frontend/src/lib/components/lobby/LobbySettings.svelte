@@ -5,18 +5,22 @@
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
 	let showSettings = $state(false);
 	
-	// Stato locale per far muovere il numero in tempo reale mentre si trascina lo slider
-	let localTimerValue = $state(storeLobby.current?.turn_timer ?? 15);
+	// Leggi la chiave corretta (turn_time_limit_ms) e converti i ms in secondi per lo slider
+	let localTimerValue = $state(
+        storeLobby.current?.turn_time_limit_ms 
+            ? storeLobby.current.turn_time_limit_ms / 1000 
+            : 15
+    );
 
-	// Se un altro giocatore riceve un aggiornamento dal server, sincronizza il valore
+	// Sincronizza il valore usando la chiave che ora il backend invierà
 	$effect(() => {
-		if (storeLobby.current?.turn_timer) {
-			localTimerValue = storeLobby.current.turn_timer;
+		if (storeLobby.current?.turn_time_limit_ms) {
+			localTimerValue = storeLobby.current.turn_time_limit_ms / 1000;
 		}
 	});
 
 	function togglePublic(e: Event) {
-		if (!isHost) return; // Sicurezza extra client-side
+		if (!isHost) return;
 
 		const target = e.target as HTMLInputElement;
 		storeLobby.updateSettings({ is_public: target.checked });
@@ -31,9 +35,7 @@
 
 	function commitSliderChange() {
 		if (!isHost) return;
-
-		// Invia il salvataggio al server solo quando si rilascia il mouse
-		storeLobby.updateSettings({ turn_timer: localTimerValue });
+		storeLobby.updateSettings({ turn_time_limit_ms: localTimerValue * 1000 });
 	}
 </script>
 
