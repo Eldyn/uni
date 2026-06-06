@@ -2,7 +2,7 @@
 	import { storeLobby } from "../../stores/lobby.svelte";
 	import { storeAuth } from "../../stores/auth.svelte";
 	import { ws } from "../../stores/ws.svelte";
-	
+
 	import LobbySettings from "./LobbySettings.svelte";
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
@@ -84,6 +84,10 @@
 
 				{#if member.is_bot}
 					<span style="color: lightblue"> 󱚣 </span>
+				{:else}
+					<span class:off={!member.is_connected} class:on={member.is_connected}>
+						{member.is_connected ? "\uf14a" : "\uf2d3"}
+					</span>
 				{/if}
 
 				{#if isHost && !member.is_host}
@@ -94,9 +98,6 @@
 						<span style="color: lightsalmon">Kick</span>
 					</button>
 				{/if}
-				<span class:off={!member.is_connected} class:on={member.is_connected}>
-					{member.is_connected ? "\uf14a" : "\uf2d3"}
-				</span>
 			</li>
 		{/each}
 	</ul>
