@@ -20,6 +20,9 @@ public/*
 *.pfx
 *.csr
 
+docs/
+frontend/docs
+
 key.pem
 cert.pem
 
