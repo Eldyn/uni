@@ -48,6 +48,7 @@ namespace game {
     }
     
     EffectResult ChooseColorEffect::Resolve(GameState* state, MatchInstance* match) {
+        // TODO: switch from "COLOR" to Color::kColor input
         if (!state->provided_input.empty()) {
             if (state->provided_input == "RED") state->active_color = Color::kRed;
             else if (state->provided_input == "BLUE") state->active_color = Color::kBlue;

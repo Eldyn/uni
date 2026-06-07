@@ -59,13 +59,6 @@ bool WebServer::InitDB() {
     }
 
     const char *schema = R"(
-        CREATE TABLE IF NOT EXISTS rooms (
-            topic        TEXT     PRIMARY KEY,
-            clicks       INTEGER  NOT NULL DEFAULT 0,
-            last_clicker TEXT,
-            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
         CREATE TABLE IF NOT EXISTS users (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             username   TEXT    NOT NULL UNIQUE,
@@ -96,7 +89,7 @@ bool WebServer::InitDB() {
             cards_played_blue INTEGER DEFAULT 0,
             cards_played_green INTEGER DEFAULT 0,
             cards_played_yellow INTEGER DEFAULT 0,
-            cards_played_wild_color INTEGER DEFAULT 0, 
+            cards_played_wild INTEGER DEFAULT 0, 
             
             cards_played_0 INTEGER DEFAULT 0,
             cards_played_1 INTEGER DEFAULT 0,

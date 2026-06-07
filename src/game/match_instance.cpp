@@ -1,7 +1,9 @@
-#include "database.hpp"
-#include "common/game/card_types.hpp"
-#include "common/lobby.hpp"
-#include "game/game_state.hpp"
+#include "game/rule_registry.hpp"
+#include "logger.hpp"
+#include <database.hpp>
+#include <common/game/card_types.hpp>
+#include <common/lobby.hpp>
+#include <game/game_state.hpp>
 #include <game/match_instance.hpp>
 #include <game/rules/standard.hpp>
 #include <game/effects/standard.hpp>
@@ -33,12 +35,20 @@ namespace game {
             state_.players.emplace_back(player_info.first, player_info.second, false);
         }
 
-        for (const auto& mod_name : settings.active_mods) {
-            // e.g., if (mod_name == "seven_swap_mod") {
-            //     active_rules_.push_back(std::make_unique<SevenSwapMod>());
-            // }
-        }
+        // for (const auto& mod_name : settings.active_mods) {
+        //     // TESTING
+        //     auto new_rule = RuleRegistry::Create("seven_zero");
+        //     if (new_rule) {
+        //         active_rules_.push_back(std::move(new_rule));
+        //         Logger::Info("[Match] Loaded mod: ", mod_name);
+        //     }
+        // }
 
+        auto new_rule = RuleRegistry::Create("seven_zero");
+        if (new_rule) {
+            active_rules_.push_back(std::move(new_rule));
+            Logger::Info("[Match] Loaded mod: ", "seven_zero");
+        }
         active_rules_.push_back(std::make_unique<StandardRule>());
     }
 
@@ -205,12 +215,12 @@ namespace game {
                 
                 auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)", {username});
                 if (!match_status) {
-                    throw std::runtime_error("Failed to execute INSERT for matches table.");
+                    throw std::runtime_error(match_status.error().message);
                 }
                 
                 auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
                 if (!match_row) {
-                    throw std::runtime_error("Failed to retrieve last_insert_rowid() for match.");
+                    throw std::runtime_error(match_row.error().message);
                 }
 
                 int match_id = match_row->value().Get<int>("id");
@@ -220,12 +230,12 @@ namespace game {
 
                     auto part_status = db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)", {match_id, p.username});
                     if (!part_status) {
-                        throw std::runtime_error("Failed to link participant to match: " + p.username);
+                        throw std::runtime_error(part_status.error().message);
                     }
                     
                     auto profile_status = db.Exec("INSERT OR IGNORE INTO player_stats (username) VALUES (?)", {p.username});
                     if (!profile_status) {
-                        throw std::runtime_error("Failed to ensure player_stats row for: " + p.username);
+                        throw std::runtime_error(profile_status.error().message);
                     }
 
                     bool is_winner = (p.username == username);
@@ -240,7 +250,7 @@ namespace game {
                             cards_played_blue = cards_played_blue + ?,
                             cards_played_green = cards_played_green + ?,
                             cards_played_yellow = cards_played_yellow + ?,
-                            cards_played_wild_color = cards_played_wild_color + ?,
+                            cards_played_wild = cards_played_wild + ?,
                             
                             cards_played_0 = cards_played_0 + ?,
                             cards_played_1 = cards_played_1 + ?,
@@ -255,8 +265,8 @@ namespace game {
                             cards_played_skip = cards_played_skip + ?,
                             cards_played_reverse = cards_played_reverse + ?,
                             cards_played_draw2 = cards_played_draw2 + ?,
-                            cards_played_draw4 = cards_played_wilddraw4 + ?,
-                            cards_played_colorswitch = cards_played_wild + ?
+                            cards_played_draw4 = cards_played_draw4 + ?,
+                            cards_played_colorswitch = cards_played_colorswitch + ?
                         WHERE username = ?
                     )", {
                         is_winner ? 1 : 0, 
@@ -272,7 +282,7 @@ namespace game {
                     });
 
                     if (!update_status) {
-                        throw std::runtime_error("Failed to update player_stats bulk counters for: " + p.username);
+                        throw std::runtime_error(update_status.error().message);
                     }
                 }
                 Logger::Info("[Match] Saved match stats to DB securely.");
@@ -379,15 +389,28 @@ namespace game {
                 return;
             }
 
+            int next_idx = (state_.current_player_index + state_.play_direction + state_.players.size()) % state_.players.size();
+            int next_player_hand_size = state_.players[next_idx].hand.size();
+            std::string winning_player = "";
+
+            size_t lowest_card_count = 999;
+            for (const auto& p : state_.players) {
+                if (p.username != bot_username) {
+                    if (p.hand.size() < lowest_card_count) {
+                        lowest_card_count = p.hand.size();
+                        winning_player = p.username;
+                    }
+                }
+            }
+
             // INFO: Action 1
             //       If we are waiting for input, based on the type we
             //       provide the best decision that we can "think" of.
             if (IsWaitingForInput()) {
-                if (state_.pending_input_type == "play_drawn_card") {
-                    ProvideInput(state_.pending_player, "PLAY");
-                } else {
-                    ProvideInput(state_.pending_player, greatestColor());
-                }
+                if (state_.pending_input_type == "play_drawn_card") ProvideInput(state_.pending_player, "PLAY");
+                else if (state_.pending_input_type == "choose_color") ProvideInput(state_.pending_player, greatestColor());
+                else if (state_.pending_input_type == "choose_target") ProvideInput(state_.pending_player, winning_player);
+                else Logger::Error("[MATCH] Bot did not know how to provide input for: ", state_.pending_input_type);
 
                 Tick();
                 steps++;
@@ -406,9 +429,6 @@ namespace game {
             if (dominant_color_str == "BLUE") dominant_color = Color::kBlue;
             if (dominant_color_str == "GREEN") dominant_color = Color::kGreen;
             if (dominant_color_str == "YELLOW") dominant_color = Color::kYellow;
-
-            int next_idx = (state_.current_player_index + state_.play_direction + state_.players.size()) % state_.players.size();
-            int next_player_hand_size = state_.players[next_idx].hand.size();
 
             bool found_playable = false;
             int best_score = -9999;

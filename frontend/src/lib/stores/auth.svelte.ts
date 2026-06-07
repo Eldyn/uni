@@ -176,12 +176,10 @@ class StoreAuth {
      * @remarks even if the server request fails, the client logs out.
      */
     async logout(): Promise<void> {
-        try {
-            await fetch("/auth/logout", { method: "POST", credentials: "include" });
-        } finally {
-            this.#setLoggedOut();
-            storeNavigation.goto("auth");
-        }
+        await fetch("/auth/logout", { method: "POST", credentials: "include" });
+        // BUG: this does not work
+        this.#setLoggedOut();
+        storeNavigation.goto("auth");
     }
 
     #setLoggedIn(username: string, avatar: string = ""): void {

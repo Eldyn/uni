@@ -5,6 +5,7 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <chrono>
 
@@ -30,6 +31,16 @@ namespace game {
         kPlaying,
         kFinished
     };
+
+    // enum class InputType {
+    //    kPlayDraw,
+    //    kChooseColor
+    // };
+
+    // inline const std::unordered_map<InputType, std::string> kInputTypeStr {
+    //     { game::InputType::kPlayDraw,    "play_drawn_card" },
+    //     { game::InputType::kChooseColor, "choose_color"    }
+    // };
         
     struct GameState {
         MatchStatus status = MatchStatus::kWaitingToStart;
