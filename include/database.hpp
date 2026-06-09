@@ -1,4 +1,5 @@
 #pragma once
+#include "logger.hpp"
 #include <sqlite3.h>
 #include <stdexcept>
 #include <variant>
@@ -60,4 +61,38 @@ private:
 
     sqlite3_stmt* Prepare(const char* sql, const std::vector<DbValue>& params);
     DbRow         ReadRow(sqlite3_stmt* stmt);
+};
+
+class TransactionGuard {
+public:
+    explicit TransactionGuard(Database& db) : db_(db), committed_(false) {
+        auto res = db_.Exec("BEGIN TRANSACTION;");
+        if (!res) {
+            throw std::runtime_error("Failed to begin transaction: " + res.error().message);
+        }
+    }
+
+    ~TransactionGuard() {
+        if (!committed_) {
+            auto _ = db_.Exec("ROLLBACK;");
+            Logger::Error("[DB] Transaction failed, rolling back...");
+        }
+    }
+
+    void Commit() {
+        if (!committed_) {
+            auto res = db_.Exec("COMMIT;");
+            if (!res) {
+                throw std::runtime_error("Failed to COMMIT transaction: " + res.error().message);
+            }
+            committed_ = true;
+        }
+    }
+
+    TransactionGuard(const TransactionGuard&) = delete;
+    TransactionGuard& operator=(const TransactionGuard&) = delete;
+
+private:
+    Database& db_;
+    bool committed_;
 };

@@ -126,8 +126,12 @@ private:
     // or if the match has not already started.
     void HandleKick(WsContext ctx, const json& msg);
 
-    // lobby_update_settings  { "settings": SettingsJson }
+    // lobby_update_settings  { "keyof LobbySettings": value }
     void HandleUpdateSettings(WsContext ctx, const json& msg);
+
+    void HandleGetSavedGames(WsContext ctx, const json& msg);
+
+    void HandleResumeGame(WsContext ctx, const json& msg);
 
     // lobby_start_game {}
     // starts the game by populating the match object and routing players
@@ -138,9 +142,6 @@ private:
     // Serialise the member list for a lobby_updated / lobby_joined payload.
     // Each entry: { "username": "...", "connected": true/false, "host": bool }
     static json MemberListJson(const Lobby& lobby);
-
-    // Serialise the settings list for a lobby_updated / lobby_joined payload.
-    static json SettingsJson(const Lobby& lobby);
 
     // Broadcast lobby_updated to every CONNECTED member of a lobby.
     void BroadcastUpdate(const Lobby& lobby) const;

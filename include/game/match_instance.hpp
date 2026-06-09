@@ -21,13 +21,17 @@ namespace game {
         
         bool PlayCard(const std::string& username, uint16_t card_id);
         bool DrawCard(const std::string& username);
+
         void ProvideInput(const std::string& username, const std::string& input);
+
         void CallUno(const std::string& username);
     
         void TakeBotTurn();
 
         std::string GetCurrentPlayerUsername() const;
-        void AddPlayerMidGame(const std::string& username, bool is_bot);
+
+        void AddPlayerMidGame   (const std::string& username, bool is_bot);
+        void RemovePlayerMidGame(const std::string& username);
     
         json ExportState() const;
 
@@ -43,9 +47,14 @@ namespace game {
         std::string GetWinner() const { return state_.winner; }
     
         nlohmann::json SerializePlayerState(const std::string& username) const;
+
+        std::string GetMatchId() const { return match_id_; }
+        void SetMatchId(const std::string& id) { match_id_ = id; }
     private:
         GameState state_;
         LobbySettings settings_;
+        std::string match_id_;
+
         std::unordered_map<std::string, PlayerSessionStats> session_stats_;
         std::vector<std::unique_ptr<GameRule>> active_rules_;
     

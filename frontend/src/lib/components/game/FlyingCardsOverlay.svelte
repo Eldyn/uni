@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { storeGame } from "../../stores/game.svelte";
 	import { untrack } from "svelte";
-	import GameCard from "./GameCards.svelte";
+	import GameCard from "./GameCard.svelte";
 
 	interface FlyingCard {
 		id: number;
@@ -78,8 +78,13 @@
 					}, 550);
 
 					launchCard({
-						id, color: card.color, value: card.value, turned: true,
-						srcRect: src, dstRect: dst, key: k
+						id,
+						color: card.color,
+						value: card.value,
+						turned: true,
+						srcRect: src,
+						dstRect: dst,
+						key: k
 					});
 				}
 			}
@@ -105,8 +110,13 @@
 					const k = ++flyKey;
 
 					launchCard({
-						id: playedCard.id, color: playedCard.color, value: playedCard.value,
-						turned: false, srcRect: src, dstRect: dst, key: k
+						id: playedCard.id,
+						color: playedCard.color,
+						value: playedCard.value,
+						turned: false,
+						srcRect: src,
+						dstRect: dst,
+						key: k
 					});
 				}
 				prevTopCardId = top.id;
@@ -138,8 +148,13 @@
 						const k = ++flyKey;
 						setTimeout(() => {
 							launchCard({
-								id: -k, color: "black", value: "", turned: true,
-								srcRect: src, dstRect: dst, key: k
+								id: -k,
+								color: "black",
+								value: "",
+								turned: true,
+								srcRect: src,
+								dstRect: dst,
+								key: k
 							});
 						}, i * 80);
 					}
@@ -182,8 +197,24 @@
 	}
 
 	@keyframes fly-to-dest {
-		0% { left: var(--src-x); top: var(--src-y); transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-		50% { left: calc((var(--src-x) + var(--dst-x)) / 2); top: calc((var(--src-y) + var(--dst-y)) / 2 - 60px); transform: translate(-50%, -50%) scale(1.1) rotate(8deg); opacity: 1; }
-		100% { left: var(--dst-x); top: var(--dst-y); transform: translate(-50%, -50%) scale(0.85) rotate(0deg); opacity: 0; }
+		0% {
+			left: var(--src-x);
+			top: var(--src-y);
+			transform: translate(-50%, -50%) scale(1) rotate(0deg);
+			opacity: 1;
+		}
+		50% {
+			left: calc((var(--src-x) + var(--dst-x)) / 2);
+			top: calc((var(--src-y) + var(--dst-y)) / 2 - 60px);
+			transform: translate(-50%, -50%) scale(1.1) rotate(8deg);
+			opacity: 1;
+		}
+		100% {
+			left: var(--dst-x);
+			top: var(--dst-y);
+			transform: translate(-50%, -50%) scale(0.85) rotate(0deg);
+			opacity: 0;
+		}
 	}
 </style>
+

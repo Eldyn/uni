@@ -1,26 +1,43 @@
 <script lang="ts">
+	import Tooltip from "../../common/Tooltip.svelte";
+
 	let {
 		label,
+		description,
 		checked,
 		disabled = false,
 		oncommit
 	}: {
 		label: string;
+		description?: string;
 		checked: boolean;
 		disabled?: boolean;
 		oncommit: (value: boolean) => void;
 	} = $props();
 </script>
 
-<label class="toggle-label" class:disabled>
-	<input
-		type="checkbox"
-		{checked}
-		{disabled}
-		onchange={(e) => oncommit((e.target as HTMLInputElement).checked)}
-	/>
-	<span>{label}</span>
-</label>
+{#snippet toggle()}
+	<label class="toggle-label" class:disabled>
+		<input
+			type="checkbox"
+			{checked}
+			{disabled}
+			onchange={(e) => oncommit((e.target as HTMLInputElement).checked)}
+		/>
+		<span>{label}</span>
+	</label>
+{/snippet}
+
+{#if (description?.length ?? 0) > 0}
+	<Tooltip>
+		{#snippet tooltipContent()}
+			<span>{description}</span>
+		{/snippet}
+		{@render toggle()}
+	</Tooltip>
+{:else}
+	{@render toggle()}
+{/if}
 
 <style>
 	.toggle-label {

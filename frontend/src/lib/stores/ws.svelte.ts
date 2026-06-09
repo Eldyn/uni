@@ -10,6 +10,8 @@ export const ClientAction = {
     GameSubmitInput: "game_submit_input",
     GameCallUno: "game_call_uno",
     GameExit: "game_exit",
+    LobbySavedGames: "lobby_saved_games",
+    LobbyResumeGame: "lobby_resume_game",
     LobbyList: "lobby_list",
     LobbyCreate: "lobby_create",
     LobbyJoin: "lobby_join",

@@ -107,6 +107,20 @@ bool WebServer::InitDB() {
             cards_played_draw4 INTEGER DEFAULT 0,
             cards_played_colorswitch INTEGER DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS saved_matches (
+            id TEXT PRIMARY KEY,
+            state_json TEXT NOT NULL,
+            saved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT (datetime('now', '+1 day'))
+        );
+
+        CREATE TABLE IF NOT EXISTS saved_match_participants (
+            match_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            FOREIGN KEY(match_id) REFERENCES saved_matches(id) ON DELETE CASCADE,
+            PRIMARY KEY(match_id, username)
+        );
     )";
 
     VoidResult schema_result = Database::Get().ApplySchema(schema);

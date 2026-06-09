@@ -1,7 +1,10 @@
 <script lang="ts">
+	import Tooltip from "../../common/Tooltip.svelte";
+
 	let {
 		id,
 		label,
+		description,
 		value,
 		min,
 		max,
@@ -11,6 +14,7 @@
 	}: {
 		id: string;
 		label: string;
+		description?: string;
 		value: number;
 		min: number;
 		max: number;
@@ -29,24 +33,37 @@
 	});
 </script>
 
-<div class="slider-row">
-	<div class="slider-header">
-		<label for={id} class="slider-label">{label}</label>
-		<span class="slider-value">{format(localValue)}</span>
+{#snippet slider()}
+	<div class="slider-row">
+		<div class="slider-header">
+			<label for={id} class="slider-label">{label}</label>
+			<span class="slider-value">{format(localValue)}</span>
+		</div>
+		<input
+			{id}
+			type="range"
+			{min}
+			{max}
+			bind:value={localValue}
+			{disabled}
+			oninput={(e) => (localValue = parseInt((e.target as HTMLInputElement).value, 10))}
+			onchange={() => oncommit(localValue)}
+			class="custom-slider"
+			class:disabled
+		/>
 	</div>
-	<input
-		{id}
-		type="range"
-		{min}
-		{max}
-		bind:value={localValue}
-		{disabled}
-		oninput={(e) => (localValue = parseInt((e.target as HTMLInputElement).value, 10))}
-		onchange={() => oncommit(localValue)}
-		class="custom-slider"
-		class:disabled
-	/>
-</div>
+{/snippet}
+
+{#if (description?.length ?? 0) > 0}
+	<Tooltip>
+		{#snippet tooltipContent()}
+			<span>{description}</span>
+		{/snippet}
+		{@render slider()}
+	</Tooltip>
+{:else}
+	{@render slider()}
+{/if}
 
 <style>
 	.slider-row {

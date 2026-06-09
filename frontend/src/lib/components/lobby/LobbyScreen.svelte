@@ -57,6 +57,7 @@
 			{/if}
 		</div>
 		<div>
+			<LobbySettings />
 			<button
 				class="join-button"
 				onclick={() => {
@@ -70,37 +71,48 @@
 			<button class="join-button" onclick={storeLobby.leave}>Leave</button>
 		</div>
 	</div>
+	<div class="lobby-content">
+		<div>
+			<ul class="members">
+				{#each storeLobby.current!.members as member}
+					<li class="member">
+						<span class="member-name">{member.username}</span>
 
-	<LobbySettings />
+						{#if member.is_host}
+							<span style="color: gold"> 󱟜 </span>
+						{/if}
 
-	<ul class="members">
-		{#each storeLobby.current!.members as member}
-			<li class="member">
-				<span class="member-name">{member.username}</span>
+						{#if member.is_bot}
+							<span style="color: lightblue"> 󱚣 </span>
+						{:else}
+							<span class:off={!member.is_connected} class:on={member.is_connected}>
+								{member.is_connected ? "\uf14a" : "\uf2d3"}
+							</span>
+						{/if}
 
-				{#if member.is_host}
-					<span style="color: gold"> 󱟜 </span>
-				{/if}
-
-				{#if member.is_bot}
-					<span style="color: lightblue"> 󱚣 </span>
-				{:else}
-					<span class:off={!member.is_connected} class:on={member.is_connected}>
-						{member.is_connected ? "\uf14a" : "\uf2d3"}
-					</span>
-				{/if}
-
-				{#if isHost && !member.is_host}
-					<button class="transfer-button" onclick={() => storeLobby.promote(member.username)}>
-						<span style="color: lightgoldenrodyellow">Promote</span>
-					</button>
-					<button class="transfer-button" onclick={() => storeLobby.kick(member.username)}>
-						<span style="color: lightsalmon">Kick</span>
-					</button>
-				{/if}
-			</li>
-		{/each}
-	</ul>
+						{#if isHost && !member.is_host}
+							<button class="transfer-button" onclick={() => storeLobby.promote(member.username)}>
+								<span style="color: lightgoldenrodyellow">Promote</span>
+							</button>
+							<button class="transfer-button" onclick={() => storeLobby.kick(member.username)}>
+								<span style="color: lightsalmon">Kick</span>
+							</button>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</div>
+		<div>
+			<h3>Saved matches with the same players:</h3>
+			<ul>
+				{#each storeLobby.savedMatches as save}
+					<li>
+						<span>{save.match_id}</span>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	</div>
 </div>
 
 <style>
@@ -110,6 +122,12 @@
 		flex-direction: column;
 		min-height: 100vh;
 		background: var(--bg);
+	}
+
+	.lobby-content {
+		flex-direction: row;
+		display: flex;
+		justify-content: space-between;
 	}
 
 	.lobby-header {

@@ -40,26 +40,26 @@ namespace game {
         ChooseSwapTargetEffect(std::string username) : username_(std::move(username)) {}
 
         EffectResult Resolve(GameState* state, MatchInstance* match) override {
-            // 2. If the player provided a target username, execute the swap!
             if (!state->provided_input.empty()) {
                 std::string target_username = state->provided_input;
                 state->provided_input.clear();
 
+                Logger::Info("[Effect] 7-Swap received target: '", target_username, "' from player: '", username_, "'");
+
                 auto p1 = std::ranges::find(state->players, username_, &Player::username);
                 auto p2 = std::ranges::find(state->players, target_username, &Player::username);
 
-                // Ensure both players exist and aren't the same person
                 if (p1 != state->players.end() && p2 != state->players.end() && p1 != p2) {
+                    Logger::Info("[Effect] Executing swap between ", p1->username, " and ", p2->username);
                     std::swap(p1->hand, p2->hand);
                     std::swap(p1->has_called_uno, p2->has_called_uno);
+                    
+                    return {EffectStatus::kResolved, "", ""};
                 }
 
-                Logger::Warn("Tried resolving 7");
-                return {EffectStatus::kResolved, "", ""};
+                Logger::Warn("Invalid target for 7 swap: ", target_username);
             }
 
-            // 1. Ask the frontend who they want to swap with.
-            // We pass the list of valid opponents in the action context.
             nlohmann::json action_context = nlohmann::json::array();
             for (const auto& p : state->players) {
                 if (p.username != username_) {

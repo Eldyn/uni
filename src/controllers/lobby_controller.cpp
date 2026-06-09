@@ -58,6 +58,16 @@ LobbyController::LobbyController(WebServer& server) : action_router_(server.GetA
         return true;
     });
 
+    action_router_.On("lobby_saved_games", [this](WsContext ctx, const json& msg) {
+        HandleGetSavedGames(ctx, msg);
+        return true;
+    });
+
+    action_router_.On("lobby_resume_game", [this](WsContext ctx, const json& msg) {
+        HandleResumeGame(ctx, msg);
+        return true;
+    });
+
     action_router_.On("lobby_update_settings", [this](WsContext ctx, const json& msg) {
         HandleUpdateSettings(ctx, msg);
         return true;
@@ -141,16 +151,49 @@ LobbyController::~LobbyController() {
 
 void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
     if (!lobby.match || lobby.match->IsGameOver()) return;
+    if (!lobby.settings.save_state) return;
 
-    nlohmann::json saved_state = lobby.match->ExportState();
+    json saved_state = lobby.match->ExportState();
     std::string json_payload = saved_state.dump();
+    std::string match_id = lobby.match->GetMatchId();
 
-    // The user requested: "Save it to all the non-bot players that were in the lobby"
-    for (const auto& member : lobby.members) {
-        if (!member.is_bot) {
-            // Database::UpsertSavedMatch(member.username, lobby.id, json_payload);
-            Logger::Info("Saved match state for human player: ", member.username);
+    try {
+        auto& db = Database::Get();
+        if (!db.IsOpen()) return;
+
+        TransactionGuard tx(db);
+
+        auto res_upsert = db.Exec(R"(
+            INSERT INTO saved_matches (id, state_json) VALUES (?, ?)
+            ON CONFLICT(id) DO UPDATE SET 
+                state_json = excluded.state_json, 
+                saved_at = CURRENT_TIMESTAMP, 
+                expires_at = datetime('now', '+1 day')
+        )", {match_id, json_payload});
+        
+        if (!res_upsert) {
+            throw std::runtime_error("Upsert saved_matches failed: " + res_upsert.error().message);
         }
+
+        auto res_del = db.Exec("DELETE FROM saved_match_participants WHERE match_id = ?", {match_id});
+        if (!res_del) {
+            throw std::runtime_error("Delete participants failed: " + res_del.error().message);
+        }
+
+        for (const auto& member : lobby.members) {
+            if (!member.is_bot) {
+                auto res_insert = db.Exec("INSERT INTO saved_match_participants (match_id, username) VALUES (?, ?)", {match_id, member.username});
+                if (!res_insert) {
+                    throw std::runtime_error("Insert participant failed for " + member.username + ": " + res_insert.error().message);
+                }
+            }
+        }
+
+        tx.Commit();
+        Logger::Info("[Lobby] Safely upserted match state to DB: ", match_id);
+
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] Failed to save state: ", e.what());
     }
 }
 
@@ -236,11 +279,11 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     uint32_t id = next_id_.fetch_add(1, memory_order_relaxed);
 
     Lobby& lobby = lobbies_[id];
-    lobby.id          = id;
-    lobby.is_public   = ws::GetOr<bool>(message, "is_public", false);
-    lobby.invite_code = code;
-    lobby.host        = username;
-    lobby.name        = ws::GetOr<string>(message, "name", username+"'s lobby");
+    lobby.id                   = id;
+    lobby.settings.is_public   = ws::GetOr<bool>(message, "is_public", false);
+    lobby.invite_code          = code;
+    lobby.host                 = username;
+    lobby.name                 = ws::GetOr<string>(message, "name", username+"'s lobby");
     lobby.members.emplace_back(username, ctx.socket, true, false);
 
     code_to_id_[code] = id;
@@ -254,11 +297,10 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
 
     auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
     resp["lobby"] = json{
-        {"is_public", lobby.is_public},
         {"invite_code", code},
         {"host", lobby.host},
         {"members", MemberListJson(lobby)},
-        {"settings", SettingsJson(lobby)},
+        {"settings", lobby.settings},
         {"name", lobby.name}
     };
     ctx.socket->send(resp.dump(), ctx.op_code);
@@ -302,6 +344,11 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
 
+    if (lobby.match && !lobby.settings.allow_bot_takeover) {
+        ws::SendError(ctx.socket, ctx.op_code, "The host disabled joining during a match.", request_id);
+        return;
+    }
+
     bool joined = false;
 
     if (lobby.members.size() < kMaxMembers) {
@@ -313,7 +360,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
         joined = true;
         Logger::Info("[Lobby] '", username, "' joined an empty slot.");
-    } else {
+    } else if (lobby.settings.allow_bot_takeover) {
         for (auto& member : lobby.members) {
             if (member.is_bot) {
                 std::string old_bot_name = member.username;
@@ -351,11 +398,11 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
     resp["lobby"] = json({
-        {"members",     MemberListJson(lobby)},
         {"invite_code", code},
-        {"host",        lobby.host},
         {"name",        lobby.name},
-        {"is_public",   lobby.is_public}
+        {"host",        lobby.host},
+        {"members",     MemberListJson(lobby)},
+        {"settings",    lobby.settings}
     });
     ctx.socket->send(resp.dump(), ctx.op_code);
 
@@ -408,7 +455,7 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
             {"invite_code", code},
             {"host",        lobby.host},
             {"members",     MemberListJson(lobby)},
-            {"settings",    SettingsJson(lobby)},
+            {"settings",    lobby.settings},
             {"name",        lobby.name}
         });
 
@@ -473,7 +520,7 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 
     // BUG: Will hang the entire server if there are too many lobbies
     for (const auto& [id, lobby] : lobbies_) {
-        if (!lobby.is_public) continue;
+        if (!lobby.settings.is_public) continue;
         bool any_connected = std::ranges::any_of(lobby.members, &LobbyMember::is_connected);
 
         int humans = std::ranges::count_if(lobby.members, [](const auto& member) {
@@ -622,34 +669,159 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     bool changed = false;
 
-    if (message.contains("is_public")) {
-        lobby.is_public = ws::GetOr<bool>(message, "is_public", false);
+    if (message.contains("is_public")) { lobby.settings.is_public = ws::GetOr<bool>(message, "is_public", false); changed = true; }
+    if (message.contains("name"))      { lobby.name = ws::GetOr<string>(message, "name", lobby.name); changed = true; }
+
+    int old_bot_count = lobby.settings.bot_count;
+
+    json current_settings = lobby.settings; 
+    json original_settings = current_settings;
+
+    current_settings.merge_patch(message); 
+
+    lobby.settings = current_settings.get<LobbySettings>();
+
+    if (current_settings != original_settings) {
         changed = true;
     }
 
-    if (message.contains("name")) {
-        auto tentative_name = ws::Get<string>(message, "name");
-        if (tentative_name && tentative_name.value().length() <= 32) {
-            lobby.name = tentative_name.value();
-            changed = true;
-        }
-    }
-
-    if (message.contains("bot_count")) {
-        lobby.settings.bot_count = ws::GetOr<int>(message, "bot_count", 0);
+    if (old_bot_count != lobby.settings.bot_count) {
         SyncBots(lobby);
-        changed = true;
-    }
-
-    if (message.contains("turn_time_limit_ms")) {
-        lobby.settings.turn_time_limit_ms = ws::GetOr<int>(message, "turn_time_limit_ms", 15'000);
-        changed = true;
     }
 
     if (changed) {
         auto response = ws::MakeResponse(ws::ServerAction::kSuccess, request_id);
         ctx.socket->send(response.dump(), uWS::OpCode::TEXT);
         BroadcastUpdate(lobby);
+    }
+}
+
+void LobbyController::HandleGetSavedGames(WsContext ctx, const json& message) {
+    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    const string& username = ctx.socket_data->username;
+    const string& code = ctx.socket_data->lobby_code;
+
+    if (code.empty()) {
+        ws::SendError(ctx.socket, ctx.op_code, "Not in a lobby", request_id);
+        return;
+    }
+
+    auto it = code_to_id_.find(code);
+    if (it == code_to_id_.end()) {
+        ws::SendError(ctx.socket, ctx.op_code, "Lobby not found", request_id);
+        return;
+    }
+
+    auto lobby_it = lobbies_.find(it->second);
+    if (lobby_it == lobbies_.end()) {
+        ws::SendError(ctx.socket, ctx.op_code, "Lobby not found", request_id);
+        return;
+    }
+
+    Lobby& lobby = lobbies_.at(it->second);
+
+    std::vector<std::string> current_humans;
+    for (const auto& m : lobby.members) {
+        if (!m.is_bot) {
+            current_humans.push_back(m.username);
+        }
+    }
+
+    std::sort(current_humans.begin(), current_humans.end());
+
+    auto& db = Database::Get();
+    auto _ = db.Exec("DELETE FROM saved_matches WHERE expires_at <= CURRENT_TIMESTAMP", {});
+
+    auto rows_result = db.Query(R"(
+        SELECT m.id, m.saved_at 
+        FROM saved_matches m 
+        JOIN saved_match_participants p ON m.id = p.match_id 
+        WHERE p.username = ?
+        ORDER BY m.saved_at DESC
+    )", {username});
+
+    json list = json::array();
+    if (rows_result) {
+        for (const auto& row : rows_result.value()) {
+            std::string match_id = row.Get<std::string>("id");
+            std::string saved_at = row.Get<std::string>("saved_at");
+            
+            auto players_res = db.Query("SELECT username FROM saved_match_participants WHERE match_id = ?", {match_id});
+            
+            std::vector<std::string> match_humans;
+            if (players_res) {
+                for(const auto& p_row : players_res.value()) {
+                    match_humans.push_back(p_row.Get<std::string>("username"));
+                }
+            }
+            
+            std::sort(match_humans.begin(), match_humans.end());
+
+            if (current_humans == match_humans) {
+                list.push_back({
+                    {"match_id", match_id},
+                    {"saved_at", saved_at},
+                    {"players", match_humans}
+                    // TODO: pass from the backend more data
+                });
+            }
+        }
+    }
+
+    // TODO: instead of Success, use specifier kSavedMatchesList
+    auto resp = MakeResponse(ws::ServerAction::kSuccess, request_id);
+    resp["saved_matches"] = list; 
+    ctx.socket->send(resp.dump(), ctx.op_code);
+}
+
+void LobbyController::HandleResumeGame(WsContext context, const json& message) {
+    const string& code = context.socket_data->lobby_code;
+    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    auto match_id_opt = ws::Get<string>(message, "match_id");
+
+    if (!match_id_opt) return;
+    std::string match_id = match_id_opt.value();
+
+    auto it = code_to_id_.find(code);
+    if (it == code_to_id_.end()) return;
+
+    Lobby& lobby = lobbies_.at(it->second);
+
+    // Only host can load a save state
+    if (lobby.host != context.socket_data->username) {
+        ws::SendError(context.socket, context.op_code, "Only host can resume games.", request_id);
+        return;
+    }
+
+    auto& db = Database::Get();
+    auto row = db.QueryOne("SELECT state_json FROM saved_matches WHERE id = ?", {match_id});
+    
+    if (!row || !row->has_value()) {
+        ws::SendError(context.socket, context.op_code, "Match expired or not found.", request_id);
+        return;
+    }
+
+    // 1. Rehydrate the JSON into the Engine!
+    std::string state_json_str = row->value().Get<std::string>("state_json");
+    lobby.match = std::make_unique<game::MatchInstance>(json::parse(state_json_str), lobby.settings);
+    
+    // 2. Retain the same DB ID so future saves overwrite this entry instead of duplicating!
+    lobby.match->SetMatchId(match_id); 
+
+    // 3. Trigger GameController turn timers
+    if (game_started_callback_) {
+        game_started_callback_(&lobby);
+    }
+
+    Logger::Info("[Lobby] Match successfully resumed by host in lobby ", lobby.id);
+
+    // 4. Blast the perfectly restored board state down to the clients
+    for (const auto& lobby_member : lobby.members) {
+        if (!lobby_member.is_connected || !lobby_member.socket) continue;
+        
+        json response_payload = ws::MakeResponse(ws::ServerAction::kGameStateUpdated);
+        response_payload["game_state"] = lobby.match->SerializePlayerState(lobby_member.username);
+        lobby_member.socket->send(response_payload.dump(), uWS::OpCode::TEXT);
     }
 }
 
@@ -687,6 +859,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     lobby.match = std::make_unique<game::MatchInstance>(players_info, lobby.settings);
+    lobby.match->SetMatchId("match_" + GenerateInviteCode() + GenerateInviteCode()); 
     lobby.match->Start();
 
     if (game_started_callback_) {
@@ -731,28 +904,14 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
     return arr;
 }
 
-json LobbyController::SettingsJson(const Lobby& lobby) {
-    json json;
-
-    json["turn_time_limit_ms"] = lobby.settings.turn_time_limit_ms;
-    json["active_mods"] = lobby.settings.active_mods;
-    json["bot_count"] = lobby.settings.bot_count;
-    json["bot_mode"] =  static_cast<int>(lobby.settings.bot_mode);
-    json["starting_cards"] = lobby.settings.starting_cards;
-    json["is_public"] = lobby.is_public;
-
-    return json;
-}
-
 void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
     auto notification = MakeResponse(ws::ServerAction::kLobbyUpdated);
     notification["lobby"] = json{
         {"name", lobby.name},
         {"host", lobby.host},
-        {"is_public", lobby.is_public},
         {"invite_code", lobby.invite_code},
         {"members", MemberListJson(lobby)},
-        {"settings", SettingsJson(lobby)}
+        {"settings", lobby.settings}
     };
 
     app_.publish("lobby_" + lobby.invite_code, notification.dump(), uWS::OpCode::TEXT);
@@ -764,7 +923,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bo
 
     Lobby& lobby = it->second;
 
-auto member_it = std::ranges::find(lobby.members, username, &LobbyMember::username);
+    auto member_it = std::ranges::find(lobby.members, username, &LobbyMember::username);
     if (member_it != lobby.members.end()) {
         if (member_it->is_connected && member_it->socket) {
             PerSocketData* sd = member_it->socket->getUserData();
@@ -782,10 +941,27 @@ auto member_it = std::ranges::find(lobby.members, username, &LobbyMember::userna
             member_it->socket->send(response.dump(), uWS::OpCode::TEXT);
         }
 
-        if (lobby.match) {
-            std::string old_name = member_it->username;
-            bool was_their_turn = (lobby.match->GetCurrentPlayerUsername() == old_name);
+    if (lobby.match) {
+        std::string old_name = member_it->username;
+        bool was_their_turn = (lobby.match->GetCurrentPlayerUsername() == old_name);
 
+        if (lobby.settings.quit_deletes_match) {
+            Logger::Info("[Match] Human '", old_name, "' quit. Aborting and saving game.");
+            SaveMatchStateToDB(lobby);
+            
+            json game_over_payload = ws::MakeResponse(ws::ServerAction::kGameOver);
+            game_over_payload["winner"] = ""; 
+            game_over_payload["reason"] = "A player left. The game state has been safely saved.";
+            
+            for (const auto& m : lobby.members) {
+                if (m.is_connected && m.socket && m.username != old_name) {
+                    m.socket->send(game_over_payload.dump(), uWS::OpCode::TEXT);
+                }
+            }
+            
+            lobby.match.reset();
+            lobby.members.erase(member_it); // Ensure we drop them from the lobby
+        } else if (lobby.settings.allow_bot_replacement) {
             static int bot_id = 1;
             std::string new_bot_name = "Bot_" + std::to_string(bot_id++);
 
@@ -805,12 +981,26 @@ auto member_it = std::ranges::find(lobby.members, username, &LobbyMember::userna
                 player_replaced_callback_(&lobby);
             }
         } else {
+            lobby.match->RemovePlayerMidGame(old_name);
             lobby.members.erase(member_it);
+            Logger::Info("[Match] Human '", old_name, "' evicted mid-game. Dropped from engine.");
+
+            if (was_their_turn && player_replaced_callback_) {
+                // This callback fires OnTurnStarted in the GameController.
+                // Because we adjusted the turn index mathematically, this natively 
+                // starts the timer for the *next* player perfectly!
+                player_replaced_callback_(&lobby);
+            }
         }
+    } else {
+        lobby.members.erase(member_it);
+    }
 
         CheckMatchIntegrity(lobby);
     }
 
+    // INFO: Save state when someone leaves. This may need to be somewhere else since we 
+    //       want to save only when the last player quits, so they have the save state.
     SaveMatchStateToDB(lobby);
 
     bool has_humans = std::ranges::any_of(lobby.members, [](const LobbyMember& m) {

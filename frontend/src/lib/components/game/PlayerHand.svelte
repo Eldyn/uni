@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { storeGame } from "../../stores/game.svelte";
 	import { untrack } from "svelte";
-	import GameCard from "./GameCards.svelte";
+	import GameCard from "./GameCard.svelte";
 
 	let {
 		hand = [],
@@ -185,3 +185,4 @@
 		position: relative;
 	}
 </style>
+

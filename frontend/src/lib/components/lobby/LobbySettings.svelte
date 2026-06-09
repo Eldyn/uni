@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { storeLobby } from "../../stores/lobby.svelte";
-	import { storeAuth } from "../../stores/auth.svelte";
 	import Toggle from "./settings/Toggle.svelte";
 	import Slider from "./settings/Slider.svelte";
+	import EnumSelector from "./settings/EnumSelector.svelte";
 	import RulesGrid from "./settings/RulesGrid.svelte";
 	import type { RuleDef } from "./settings/RulesGrid.svelte";
+	import { BotTakeoverMode, LobbySettings, Rule, storeLobby } from "../../stores/lobby.svelte";
+	import { storeAuth } from "../../stores/auth.svelte";
 
 	/**
 	 * The subset of lobby settings keys this panel can modify.
 	 * Kept explicit so updateSettings retains type safety.
 	 */
-	type SettingsKey = "is_public" | "turn_time_limit_ms" | "bot_count";
+	type SettingsKey = keyof LobbySettings;
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
 	let showSettings = $state(false);
@@ -20,8 +21,17 @@
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
+		save_state: storeLobby.current?.settings.save_state ?? false,
+
+		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
+		allow_bot_takeover: storeLobby.current?.settings.allow_bot_takeover ?? false,
+
+		quit_deletes_match: storeLobby.current?.settings.quit_deletes_match ?? false,
+
+		bot_mode: storeLobby.current?.settings.bot_mode ?? BotTakeoverMode.WaitUntilTurnEnd,
+
 		bot_count: storeLobby.current?.settings.bot_count ?? 0
-	});
+	} as LobbySettings);
 
 	// Rules are separate because they're not yet wired to the backend
 	let rules = $state<RuleDef[]>([
@@ -63,16 +73,25 @@
 		}
 	]);
 
+	$effect(() => {
+		rules.forEach((rule) => {
+			rule.enabled = storeLobby.current?.settings.active_mods.indexOf(rule.id as Rule) !== -1;
+		});
+	});
+
 	function commit(key: SettingsKey, value: boolean | number) {
 		if (!isHost) return;
 		storeLobby.updateSettings({ [key]: value });
+		console.warn(key, value);
 	}
 
 	function handleRuleChange(id: string, enabled: boolean) {
 		if (!isHost) return;
 		const idx = rules.findIndex((r) => r.id === id);
 		if (idx !== -1) rules[idx].enabled = enabled;
-		// TODO: storeLobby.updateSettings({ active_mods: rules });
+		const activeRuleIds = rules.filter((rule) => rule.enabled).map((rule) => rule.id);
+
+		storeLobby.updateSettings({ active_mods: activeRuleIds as Rule[] });
 	}
 </script>
 
@@ -94,6 +113,22 @@
 				checked={settings.is_public}
 				disabled={!isHost}
 				oncommit={(v) => commit("is_public", v)}
+			/>
+
+			<Toggle
+				label="Quitting stops the Match"
+				description="When a player quits, all players return to lobby."
+				checked={settings.quit_deletes_match}
+				disabled={!isHost}
+				oncommit={(v) => commit("quit_deletes_match", v)}
+			/>
+
+			<Toggle
+				label="Save Match"
+				description="When you quit, the match will be saved (must enable 'Quitting stops the Match')"
+				checked={settings.save_state}
+				disabled={!isHost}
+				oncommit={(v) => commit("save_state", v)}
 			/>
 
 			<hr class="settings-divider" />
@@ -119,6 +154,19 @@
 				max={3}
 				disabled={!isHost}
 				oncommit={(v) => commit("bot_count", v)}
+			/>
+
+			<hr class="settings-divider" />
+
+			<EnumSelector
+				label="Bot Mode"
+				description="Decide how bots play their turn"
+				value={settings.bot_mode}
+				options={[
+					{ value: 0, label: "Play Instantly" },
+					{ value: 1, label: "Wait For Turn End Timer" }
+				]}
+				oncommit={(v) => commit("bot_mode", v)}
 			/>
 
 			<hr class="settings-divider" />

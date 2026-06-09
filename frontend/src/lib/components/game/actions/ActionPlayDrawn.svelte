@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { storeGame } from "../../../stores/game.svelte";
-	import GameCards from "../GameCards.svelte"; 
+	import GameCard from "../GameCard.svelte";
 </script>
 
 {#if storeGame.actionRequired && storeGame.actionContext}
@@ -16,10 +16,7 @@
 
 					{#if drawnCard}
 						<div class="card-wrapper">
-							<GameCards 
-								card={drawnCard} 
-								style="position: relative; left: 0;" 
-							/>
+							<GameCard card={drawnCard} style="position: relative; left: 0;" />
 						</div>
 
 						<div class="action-buttons-group">
@@ -87,12 +84,12 @@
 		margin-top: 20px;
 	}
 
-	/* Semplice wrapper per centrare e ingrandire la carta delegando tutto a GameCards */
+	/* Semplice wrapper per centrare e ingrandire la carta delegando tutto a GameCard */
 	.card-wrapper {
 		display: flex;
 		justify-content: center;
 		margin: 30px 0;
 		transform: scale(1.5);
 	}
-	
 </style>
+

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -35,20 +36,14 @@ namespace game {
             state_.players.emplace_back(player_info.first, player_info.second, false);
         }
 
-        // for (const auto& mod_name : settings.active_mods) {
-        //     // TESTING
-        //     auto new_rule = RuleRegistry::Create("seven_zero");
-        //     if (new_rule) {
-        //         active_rules_.push_back(std::move(new_rule));
-        //         Logger::Info("[Match] Loaded mod: ", mod_name);
-        //     }
-        // }
-
-        auto new_rule = RuleRegistry::Create("seven_zero");
-        if (new_rule) {
-            active_rules_.push_back(std::move(new_rule));
-            Logger::Info("[Match] Loaded mod: ", "seven_zero");
+        for (const auto& mod_name : settings.active_mods) {
+            auto new_rule = RuleRegistry::Create(mod_name);
+            if (new_rule) {
+                active_rules_.push_back(std::move(new_rule));
+                Logger::Info("[Match] Loaded mod: ", mod_name);
+            }
         }
+
         active_rules_.push_back(std::make_unique<StandardRule>());
     }
 
@@ -113,6 +108,33 @@ namespace game {
 
         state_.players.push_back(p);
         Logger::Info("[Match] Hot-joined player ", username, " with ", p.hand.size(), " cards.");
+    }
+
+    void MatchInstance::RemovePlayerMidGame(const std::string& username) {
+        auto it = std::ranges::find(state_.players, username, &Player::username);
+        if (it != state_.players.end()) {
+            int index_to_remove = std::distance(state_.players.begin(), it);
+
+            // INFO: Safely dump their hand back into the draw pile so the cards aren't lost
+            state_.draw_pile.insert(state_.draw_pile.end(), it->hand.begin(), it->hand.end());
+            std::random_device rd;
+            std::mt19937 g(rd());
+            std::shuffle(state_.draw_pile.begin(), state_.draw_pile.end(), g);
+
+            state_.players.erase(it);
+
+            if (state_.players.empty()) {
+                state_.status = MatchStatus::kFinished;
+                return;
+            }
+
+            // INFO: Shift the current turn index so the game doesn't skip a player!
+            if (state_.current_player_index >= state_.players.size()) {
+                state_.current_player_index %= state_.players.size();
+            } else if (index_to_remove < state_.current_player_index) {
+                state_.current_player_index--;
+            }
+        }
     }
     
     void MatchInstance::Start() {
@@ -212,6 +234,10 @@ namespace game {
             try {
                 auto& db = Database::Get();
                 if (db.IsOpen()) {
+                    throw std::runtime_error("DB is not open");
+                }
+
+                TransactionGuard tx(db);
                 
                 auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)", {username});
                 if (!match_status) {
@@ -285,14 +311,10 @@ namespace game {
                         throw std::runtime_error(update_status.error().message);
                     }
                 }
+
+                tx.Commit();
                 Logger::Info("[Match] Saved match stats to DB securely.");
-            } else {
-                Logger::Error("[Match] Could not save stats: Database is not open.");
-            }
         } catch (const std::exception& e) {
-            // Because we throw std::runtime_error on failure, this catch block 
-            // acts as a single point of failure reporting. It safely aborts the 
-            // save sequence without crashing the rest of the game engine!
             Logger::Error("[Match DB Error] ", e.what());
         }
 
@@ -634,4 +656,5 @@ namespace game {
     
         return root;
     }  
+
 }

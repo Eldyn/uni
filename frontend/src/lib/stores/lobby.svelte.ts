@@ -7,18 +7,34 @@ export enum BotTakeoverMode {
     WaitUntilTurnEnd
 }
 
-export enum Rules { }
+export enum Rule {
+    SevenZero = "seven_zero"
+}
 
+export interface SavedMatch {
+    match_id: string;
+    saved_at: string;
+    players: string[];
+    // TODO: pass from the backend more data
+}
 /**
  * Represents a lobby's settings
+ *
  */
 export interface LobbySettings {
     is_public: boolean;
-    bot_count: number;
-    bot_mode: BotTakeoverMode;
-    active_mods: Rules[];
+    active_mods: Rule[];
+    turn_time_limit_ms: number;
+
+    save_state: boolean;
+    quit_deletes_match: boolean;
 
     starting_cards: number;
+
+    bot_count: number;
+    bot_mode: BotTakeoverMode;
+    allow_bot_takeover: boolean;
+    allow_bot_replacement: boolean;
 
     count_zeros: number;
     count_numbered: number;
@@ -27,8 +43,6 @@ export interface LobbySettings {
     count_draw_two: number;
     count_wild: number;
     count_wild_draw_four: number;
-
-    turn_time_limit_ms: number;
 }
 
 /**
@@ -77,6 +91,8 @@ export interface ListedLobby {
  * Singleton store managing all Lobby-related state and WebSocket interactions.
  */
 class StoreLobby {
+    /** The saved matches that match the current player list. Null if not in a lobby. */
+    savedMatches = $state<SavedMatch[] | null>(null);
     /** The lobby the user is currently inside. Null if not in a lobby. */
     current = $state<Lobby | null>(null);
 
@@ -88,6 +104,9 @@ class StoreLobby {
 
     /** True when a create or join request is pending. */
     isLoadingJoin = $state(false);
+
+    /** True when a list of saved matches is pending  */
+    isLoadingSavedMatchList = $state(false);
 
     /**
      * Computed property to quickly check if the user is currently in a lobby.
@@ -127,7 +146,9 @@ class StoreLobby {
      * Updates the lobby settings (name and visibility).
      * @param settings - The settings fields to modify.
      */
-    async updateSettings(settings: Partial<LobbySettings>): Promise<void> {
+    async updateSettings(
+        settings: Partial<LobbySettings> & Partial<{ name: string }>
+    ): Promise<void> {
         try {
             await ws.connect();
             const response = await ws.emitAndWait(ClientAction.LobbyUpdateSettings, settings);
@@ -246,9 +267,13 @@ class StoreLobby {
             storeNavigation.goto("lobby");
         });
 
-        ws.on(ServerAction.LobbyUpdated, (data) => {
+        ws.on(ServerAction.LobbyUpdated, async (data) => {
             const updatedLobby = data.lobby as Lobby;
             if (!updatedLobby) return;
+
+            // const membersChanged = !updatedLobby.members.every((member) =>
+            //     this.current?.members.some((m) => m.username === member.username)
+            // );
 
             if (this.current) {
                 this.current = updatedLobby;
@@ -261,6 +286,16 @@ class StoreLobby {
                 this.available[idx].bot_count = updatedLobby.settings.bot_count;
                 this.available[idx].name = updatedLobby.name;
             }
+
+            // if (!membersChanged) return;
+
+            this.isLoadingSavedMatchList = true;
+            const result = await ws.emitAndWait(ClientAction.LobbySavedGames);
+            if (!result.ok) {
+                this.isLoadingSavedMatchList = false;
+                storeToast.error("Saved games list error");
+            }
+            this.savedMatches = result.getOr<SavedMatch[]>("saved_matches", []);
         });
 
         const handleDisconnection = () => {

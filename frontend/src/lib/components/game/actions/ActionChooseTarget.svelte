@@ -13,7 +13,7 @@
 					<button
 						type="button"
 						class="color-button color-red"
-						onclick={() => storeGame.submitInput(member.username.toUpperCase())}
+						onclick={() => storeGame.submitInput(member.username)}
 					>
 						{member.username}
 					</button>
