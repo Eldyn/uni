@@ -177,7 +177,6 @@ class StoreAuth {
      */
     async logout(): Promise<void> {
         await fetch("/auth/logout", { method: "POST", credentials: "include" });
-        // BUG: this does not work
         this.#setLoggedOut();
         storeNavigation.goto("auth");
     }

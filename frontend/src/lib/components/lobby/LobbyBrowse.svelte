@@ -40,7 +40,7 @@
 					>← Torna alle Lobbies</button
 				>
 			{/if}
-			<button type="button" class="logout-button" onclick={storeAuth.logout}>Logout</button>
+			<button type="button" class="logout-button" onclick={() => storeAuth.logout}>Logout</button>
 		</div>
 	</div>
 
@@ -191,4 +191,3 @@
 		}
 	}
 </style>
-
