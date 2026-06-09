@@ -53,7 +53,9 @@ class StoreGame {
     turnTimeRemaining = $state<number>(15);
     #timerInterval: number | null = null;
 
-    localPlayer = $derived(this.state?.players.find((p) => p.username === storeAuth.username));
+    localPlayer = $derived(
+        this.state?.players.find((p) => p.username === storeAuth.username) ?? null
+    );
 
     constructor() {
         ws.onOpen(() => this.#registerListeners());
@@ -152,7 +154,6 @@ class StoreGame {
 
     submitInput(value: string) {
         ws.emit("game_submit_input", { value: value.toUpperCase() });
-        this.actionRequired = null;
     }
 }
 
