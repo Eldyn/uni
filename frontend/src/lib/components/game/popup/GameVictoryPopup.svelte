@@ -10,7 +10,7 @@
 		</h2>
 		<p>Tutte le carte in mano sono state esaurite correttamente.</p>
 		<button type="button" class="action-btn back-to-lobby-btn" onclick={storeGame.returnToLobby}>
-			Back (ancora no destroy match instance + frontend data)
+			Back to Lobby
 		</button>
 	</div>
 </div>
@@ -80,4 +80,3 @@
 		transform: scale(1.03);
 	}
 </style>
-
