@@ -9,7 +9,11 @@
 			Ha vinto: <span class="winner-highlight">{storeGame.state?.winner ?? "Sconosciuto"}</span>
 		</h2>
 		<p>Tutte le carte in mano sono state esaurite correttamente.</p>
-		<button type="button" class="action-btn back-to-lobby-btn" onclick={storeGame.returnToLobby}>
+		<button
+			type="button"
+			class="action-btn back-to-lobby-btn"
+			onclick={() => storeGame.returnToLobby}
+		>
 			Back to Lobby
 		</button>
 	</div>

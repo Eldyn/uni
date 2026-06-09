@@ -107,7 +107,7 @@
 			<ul>
 				{#each storeLobby.savedMatches as save}
 					<li>
-						<span>{save.match_id}</span>
+						<LobbySave {save} />
 					</li>
 				{/each}
 			</ul>

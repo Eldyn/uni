@@ -5,14 +5,12 @@
 <div class="modal-overlay interrupted-overlay">
 	<div class="modal-content interrupted-content">
 		<h1>⚠️ Partita Interrotta ⚠️</h1>
-		<h2>
-			Qualcosa è andato storto.
-		</h2>
+		<h2>Qualcosa è andato storto.</h2>
 		<p>Un giocatore si è disconnesso o la partita è stata annullata forzatamente.</p>
 		<button
 			type="button"
 			class="action-btn back-to-lobby-btn"
-			onclick={storeGame.returnToLobby}
+			onclick={() => storeGame.returnToLobby}
 		>
 			Torna alla Lobby
 		</button>
@@ -79,7 +77,9 @@
 		font-weight: bold;
 		font-size: 1.1rem;
 		cursor: pointer;
-		transition: background 0.2s, transform 0.1s;
+		transition:
+			background 0.2s,
+			transform 0.1s;
 		box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3);
 	}
 
@@ -88,3 +88,4 @@
 		transform: scale(1.03);
 	}
 </style>
+
