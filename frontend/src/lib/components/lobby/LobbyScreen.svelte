@@ -104,14 +104,19 @@
 			</ul>
 		</div>
 		<div>
-			<h3>Saved matches with the same players:</h3>
-			<ul>
-				{#each storeLobby.savedMatches as save}
-					<li>
-						<LobbySave {save} />
-					</li>
-				{/each}
-			</ul>
+			<details class="saved-matches-dropdown">
+				<summary class="dropdown-summary">
+					<h3 style="display: inline; margin-left: 8px;">Saved matches with the same players</h3>
+				</summary>
+				<ul class="saved-matches-list">
+					{#each storeLobby.savedMatches as save}
+						<li class="saved-match-item">
+							<LobbySave {save} />
+							<button class="delete-btn" title="Delete Match">🗑️</button>
+						</li>
+					{/each}
+				</ul>
+			</details>
 		</div>
 	</div>
 </div>
@@ -248,5 +253,75 @@
 
 	.on {
 		color: lightgreen;
+	}
+
+	.saved-matches-dropdown {
+		background: var(--bg-secondary, rgba(0, 0, 0, 0.1));
+		padding: 10px;
+		border-radius: 6px;
+	}
+
+	.dropdown-summary {
+		cursor: pointer;
+		list-style: none; 
+		display: flex;
+		align-items: center;
+		user-select: none;
+	}
+
+	.dropdown-summary::-webkit-details-marker {
+		display: none; 
+	}
+
+	.dropdown-summary::before {
+		content: "▶";
+		font-size: 12px;
+		transition: transform 0.2s ease;
+	}
+
+	details[open] .dropdown-summary::before {
+		transform: rotate(90deg);
+	}
+
+	.saved-matches-list {
+		list-style-type: none;
+		padding: 0;
+		margin-top: 15px;
+	}
+
+	.saved-match-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 15px;
+		margin-bottom: 10px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--accent-border, #444);
+	}
+
+	.saved-match-item:last-child {
+		border-bottom: none;
+		margin-bottom: 0;
+		padding-bottom: 0;
+	}
+
+	.delete-btn {
+		background: transparent;
+		border: 1px solid salmon;
+		border-radius: 4px;
+		cursor: pointer;
+		padding: 6px 8px;
+		font-size: 14px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition:
+			background 0.2s,
+			opacity 0.2s;
+	}
+
+	.delete-btn:hover {
+		background: rgba(250, 128, 114, 0.2);
+		opacity: 0.8;
 	}
 </style>
