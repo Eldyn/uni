@@ -6,14 +6,10 @@
 	<div class="modal-content victory-content">
 		<h1>🏆 Partita Terminata!</h1>
 		<h2>
-			Ha vinto: <span class="winner-highlight">{storeGame.state.winner || "Sconosciuto"}</span>
+			Ha vinto: <span class="winner-highlight">{storeGame.state?.winner ?? "Sconosciuto"}</span>
 		</h2>
 		<p>Tutte le carte in mano sono state esaurite correttamente.</p>
-		<button
-			type="button"
-			class="action-btn back-to-lobby-btn"
-			onclick={storeGame.returnToLobby}
-		>
+		<button type="button" class="action-btn back-to-lobby-btn" onclick={storeGame.returnToLobby}>
 			Back (ancora no destroy match instance + frontend data)
 		</button>
 	</div>
@@ -73,7 +69,9 @@
 		font-weight: bold;
 		font-size: 1.1rem;
 		cursor: pointer;
-		transition: background 0.2s, transform 0.1s;
+		transition:
+			background 0.2s,
+			transform 0.1s;
 		box-shadow: 0 4px 15px rgba(255, 204, 0, 0.3);
 	}
 
@@ -82,3 +80,4 @@
 		transform: scale(1.03);
 	}
 </style>
+
