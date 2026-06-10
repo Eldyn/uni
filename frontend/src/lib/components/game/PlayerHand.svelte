@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { dndzone, type DndEvent, SHADOW_ITEM_MARKER_PROPERTY_NAME } from "svelte-dnd-action";
+	import { DragDropProvider } from "@dnd-kit-svelte/svelte";
 	import { storeGame, type Card } from "../../stores/game.svelte";
-	import GameCard from "./GameCard.svelte";
 	import { useCardBus } from "./card-bus.svelte";
+	import GameCard from "./GameCard.svelte";
 
 	let { playableCardIds = new Set<number>() }: { playableCardIds?: Set<number> } = $props();
 
@@ -17,15 +17,12 @@
 
 	let hand = $derived(storeGame.localPlayer?.hand ?? []);
 	let items = $state<Card[]>([]);
-	let dragging = $state(false);
 
+	// Sync with game hand when not dragging
 	$effect(() => {
 		const current = hand;
-		if (dragging) return;
-
 		const currentIds = new Set(current.map((c) => c.id));
-		const itemIds = new Set(items.map((c) => c.id));
-		const incoming = current.filter((c) => !itemIds.has(c.id));
+		const incoming = current.filter((c) => !items.some((item) => item.id === c.id));
 		const surviving = items.filter((c) => currentIds.has(c.id));
 
 		if (incoming.length > 0 || surviving.length !== items.length) {
@@ -33,51 +30,39 @@
 		}
 	});
 
-	function onConsider(e: CustomEvent<DndEvent<Card>>) {
-		dragging = true;
-		items = e.detail.items;
-	}
+	function handleDragEnd(event: any) {
+		const { active, over } = event;
 
-	function onFinalize(e: CustomEvent<DndEvent<Card>>) {
-		items = e.detail.items.filter((item) => !(SHADOW_ITEM_MARKER_PROPERTY_NAME in item));
-		dragging = false;
+		if (!over || active.id === over.id) return;
+
+		const activeIndex = items.findIndex((item) => item.id === active.id);
+		const overIndex = items.findIndex((item) => item.id === over.id);
+
+		if (activeIndex !== -1 && overIndex !== -1) {
+			const newItems = [...items];
+			[newItems[activeIndex], newItems[overIndex]] = [newItems[overIndex], newItems[activeIndex]];
+			items = newItems;
+		}
 	}
 
 	function handleCardClick(cardId: number) {
-		if (!dragging) storeGame.playCard(cardId);
+		storeGame.playCard(cardId);
 	}
 </script>
 
-<!--
-    NOTE: The hand uses flexbox so svelte-dnd-action can measure real layout boxes.
-          With position:absolute every card stacks at the same origin — the library
-          can't tell which slot the pointer is over, so drops fail and the shadow
-          never appears.
-
-    NOTE: With flexbox each card is a normal flow item. We recover the overlapping
-          fan with a negative margin-left on every card (set in the style block
-          below). The card width (--cardSize = 5em) minus the desired step (2.2em)
-          gives us the overlap amount.
--->
-<div
-	bind:this={handEl}
-	class="player_hand"
-	use:dndzone={{ items, flipDurationMs: 200, dropTargetStyle: {} }}
-	onconsider={onConsider}
-	onfinalize={onFinalize}
->
-	{#each items as card, i (card.id)}
-		<div class="card-slot" style="z-index: {i};">
+<DragDropProvider onCollision={closestCenter} onDragEnd={handleDragEnd}>
+	<div bind:this={handEl} class="player_hand">
+		{#each items as card, i (card.id)}
 			<GameCard
 				{card}
-				isHidden={bus.hiddenCardIds.has(card.id)}
+				index={i}
 				isPlayable={playableCardIds.has(card.id)}
-				onCardClick={handleCardClick}
-				style="position: relative; left: 0;"
+				isHidden={bus.hiddenCardIds.has(card.id)}
+				onCardClick={() => handleCardClick(card.id)}
 			/>
-		</div>
-	{/each}
-</div>
+		{/each}
+	</div>
+</DragDropProvider>
 
 <style>
 	.player_hand {
@@ -92,25 +77,15 @@
 
 		overflow: visible;
 		height: calc(var(--cardSize) * 1.5357 + 1em);
+		outline: none;
 	}
 
-	.card-slot {
-		position: relative;
-		flex-shrink: 0;
-		width: 2.2em;
-		height: calc(var(--cardSize) * 1.5357);
-	}
-
-	.card-slot:hover {
+	.player_hand :hover {
 		z-index: 50 !important;
 	}
 
-	.card-slot:hover ~ .card-slot {
+	.player_hand :hover ~ :global(*) {
 		transform: translateX(1em);
-		transition: transform 150ms ease;
-	}
-
-	.card-slot {
 		transition: transform 150ms ease;
 	}
 </style>

@@ -11,14 +11,7 @@
 		turned = false,
 		style = "",
 		extraClass = "",
-		onCardClick = () => {},
-		onDragStart = () => {},
-		onDragOver = () => {},
-		onDragLeave = () => {},
-		onDrop = () => {},
-		onDragEnd = () => {},
-		onTouchStart = () => {},
-		onTouchEnd = () => {}
+		onCardClick = () => {}
 	}: {
 		card: Card;
 		index?: number;
