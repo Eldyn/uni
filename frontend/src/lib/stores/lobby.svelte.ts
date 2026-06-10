@@ -260,21 +260,19 @@ class StoreLobby {
      * **Code Number:** #LOBBY-005
      */
     #registerListeners(): void {
-        ws.on(ServerAction.LobbyJoined, (data) => {
+        ws.on(ServerAction.LobbyJoined, async (data) => {
             const lobby = data.lobby as Lobby;
             this.current = lobby;
 
             localStorage.setItem("lobby_code", lobby.invite_code);
             storeNavigation.goto("lobby");
+
+            await this.#fetchSavedMatches();
         });
 
         ws.on(ServerAction.LobbyUpdated, async (data) => {
             const updatedLobby = data.lobby as Lobby;
             if (!updatedLobby) return;
-
-            // const membersChanged = !updatedLobby.members.every((member) =>
-            //     this.current?.members.some((m) => m.username === member.username)
-            // );
 
             if (this.current) {
                 this.current = updatedLobby;
@@ -288,15 +286,7 @@ class StoreLobby {
                 this.available[idx].name = updatedLobby.name;
             }
 
-            // if (!membersChanged) return;
-
-            this.isLoadingSavedMatchList = true;
-            const result = await ws.emitAndWait(ClientAction.LobbySavedGames);
-            if (!result.ok) {
-                this.isLoadingSavedMatchList = false;
-                storeToast.error("Saved games list error");
-            }
-            this.savedMatches = result.getOr<SavedMatch[]>("saved_matches", []);
+            await this.#fetchSavedMatches();
         });
 
         const handleDisconnection = () => {
@@ -306,6 +296,24 @@ class StoreLobby {
 
         ws.on(ServerAction.LobbyLeft, handleDisconnection);
         ws.on(ServerAction.LobbyEvicted, handleDisconnection);
+    }
+
+    async #fetchSavedMatches(): Promise<void> {
+        if (!this.current) return;
+
+        this.isLoadingSavedMatchList = true;
+        try {
+            const result = await ws.emitAndWait(ClientAction.LobbyListSavedMatches);
+            if (result.ok) {
+                this.savedMatches = result.getOr<SavedMatch[]>("saved_matches", []);
+            } else {
+                storeToast.error("Saved games list error");
+            }
+        } catch (err) {
+            console.error("Failed to parse saved rooms details:", err);
+        } finally {
+            this.isLoadingSavedMatchList = false;
+        }
     }
 
     /**
@@ -342,6 +350,8 @@ class StoreLobby {
 
             this.current = lobby;
             storeNavigation.goto("lobby");
+
+            await this.#fetchSavedMatches();
         } catch (error) {
             this.#reset();
         }

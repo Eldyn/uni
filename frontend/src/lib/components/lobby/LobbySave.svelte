@@ -29,7 +29,12 @@
 		</div>
 
 		<div class="card-actions">
-			<button type="button" class="join-button">Start</button>
+			<button
+				type="button"
+				class="join-button"
+				onclick={() => ws.emit(ClientAction.LobbyResumeSavedMatch, { match_id: save.match_id })}
+				>Start</button
+			>
 			<button class="delete-btn" title="Delete Match" onclick={deleteMatch}>🗑️</button>
 		</div>
 	</div>

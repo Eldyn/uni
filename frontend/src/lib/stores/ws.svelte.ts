@@ -10,9 +10,9 @@ export const ClientAction = {
     GameCallUno: "game_call_uno",
     GameExit: "game_exit",
 
-    LobbyDeleteSavedMatch: "lobby_delete_saved_match",
     LobbyListSavedMatches: "lobby_list_saved_matches",
-    LobbyResumeSavedMatch: "lobby_resume_saved_matches",
+    LobbyDeleteSavedMatch: "lobby_delete_saved_match",
+    LobbyResumeSavedMatch: "lobby_resume_saved_match",
 
     LobbyList: "lobby_list",
     LobbyCreate: "lobby_create",

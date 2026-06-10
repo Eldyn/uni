@@ -34,7 +34,7 @@ export interface GamePlayer {
     username: string;
     card_count: number;
     has_called_uno: boolean;
-    hand?: Card[]; // Only populated for the local player!
+    hand?: Card[];
 }
 
 export interface GameState {
@@ -50,7 +50,6 @@ export interface GameState {
 class StoreGame {
     state = $state<GameState | null>(null);
     actionRequired = $state<string | null>(null);
-
     actionContext = $state<any>(null);
 
     turnTimeRemaining = $state<number>(15);
@@ -61,7 +60,9 @@ class StoreGame {
     );
 
     constructor() {
-        ws.onOpen(() => this.#registerListeners());
+        // FIXED: Register handlers exactly once at store initialization.
+        // They will safely survive any underlying WebSocket re-connections.
+        this.#registerListeners();
     }
 
     returnToLobby() {
@@ -111,11 +112,6 @@ class StoreGame {
                 storeNavigation.goto("game");
             }
         });
-
-        // INFO: we don't really care about sending toasts since too many errors would be sent
-        // ws.on("error", (data: any) => {
-        //     storeToast.error(data.reason || "Invalid move!");
-        // });
     }
 
     #clearTimer() {
@@ -127,7 +123,6 @@ class StoreGame {
 
     #syncTurnTimer(remainingMs: number) {
         this.#clearTimer();
-
         this.turnTimeRemaining = Math.ceil(remainingMs / 1000);
 
         this.#timerInterval = window.setInterval(() => {
@@ -135,7 +130,6 @@ class StoreGame {
                 this.#clearTimer();
                 return;
             }
-
             this.turnTimeRemaining -= 1;
         }, 1000);
     }
