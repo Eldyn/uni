@@ -64,14 +64,9 @@ namespace ws {
     };
 
     inline const std::unordered_map<ClientAction, std::string> kClientActionStr {
-        { ClientAction::kLobbyList,              "lobby_list"               },
-        { ClientAction::kLobbyCreate,            "lobby_create"             },
-        { ClientAction::kLobbyJoin,              "lobby_join"               },
-        { ClientAction::kLobbyLeave,             "lobby_leave"              },
-
-        { ClientAction::kGamePlayCard,           "play_card"                },
-        { ClientAction::kGameDrawCard,           "draw_card"                },
-        { ClientAction::kGameCallUno,            "call_uno"                 },
+        { ClientAction::kGamePlayCard,           "game_play_card"           },
+        { ClientAction::kGameDrawCard,           "game_draw_card"           },
+        { ClientAction::kGameCallUno,            "game_call_uno"            },
 
         { ClientAction::kChatSend,               "chat_send"                },
 

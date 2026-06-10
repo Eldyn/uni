@@ -1,5 +1,5 @@
 import { storeNavigation } from "./navigation.svelte";
-import { ServerAction, ws } from "./ws.svelte";
+import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 
 const COLOR_MAP = ["red", "blue", "green", "yellow", "wild"] as const;
@@ -143,19 +143,19 @@ class StoreGame {
     }
 
     playCard(cardId: number) {
-        ws.emit("game_play_card", { card_id: cardId });
+        ws.emit(ClientAction.GamePlayCard, { card_id: cardId });
     }
 
     drawCard() {
-        ws.emit("game_draw_card");
+        ws.emit(ClientAction.GameDrawCard);
     }
 
     callUno() {
-        ws.emit("game_call_uno");
+        ws.emit(ClientAction.GameDrawCard);
     }
 
     submitInput(value: string) {
-        ws.emit("game_submit_input", { value: value });
+        ws.emit(ClientAction.GameSubmitInput, { value: value });
     }
 }
 
