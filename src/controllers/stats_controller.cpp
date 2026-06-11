@@ -35,11 +35,12 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
     std::string username = payload->username;
 
     auto row_result = Database::Get().QueryOne(R"(
-        SELECT * FROM (
+        WITH RankedPlayers AS (
             SELECT *,
                    RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank 
             FROM player_stats
-        ) WHERE username = ?;
+        )
+        SELECT * FROM RankedPlayers WHERE username = ?;
     )", {username});
 
     if (!row_result) {
@@ -57,7 +58,6 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
             {"total_losses", row.Get<int>("total_losses")},
             {"rank", row.GetOr<int>("rank", 0)},
             
-            // Add detailed card metrics
             {"cards_played_red", row.GetOr<int>("cards_played_red", 0)},
             {"cards_played_blue", row.GetOr<int>("cards_played_blue", 0)},
             {"cards_played_green", row.GetOr<int>("cards_played_green", 0)},

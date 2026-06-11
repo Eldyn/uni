@@ -69,7 +69,12 @@
 							class="leaderboard-row pixel-corners"
 							class:is-me={player.username === storeStats.myStats?.username}
 						>
-							<div class="rank-col" class:first={index === 0} class:second>
+							<div
+								class="rank-col"
+								class:first={index === 0}
+								class:second={index === 1}
+								class:third={index === 2}
+							>
 								#{player.rank}
 							</div>
 							<div class="name-col">{player.username}</div>
@@ -327,11 +332,32 @@
 	}
 
 	.rank-col {
-		width: 50px;
+		width: 75px;
 		font-weight: bold;
 		color: #8e8e93;
 		font-size: 1.2rem;
 	}
+	.rank-col.first {
+		width: 75px;
+		font-weight: bold;
+		color: gold;
+		font-size: 1.2rem;
+	}
+
+	.rank-col.second {
+		width: 75px;
+		font-weight: bold;
+		color: white;
+		font-size: 1.2rem;
+	}
+
+	.rank-col.third {
+		width: 75px;
+		font-weight: bold;
+		color: orange;
+		font-size: 1.2rem;
+	}
+
 	.name-col {
 		flex: 1;
 		font-weight: 600;
