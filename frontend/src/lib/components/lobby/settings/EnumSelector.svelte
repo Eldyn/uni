@@ -44,13 +44,12 @@
 {/snippet}
 
 {#if (description?.length ?? 0) > 0}
-	<Tooltip>
+	<!-- <Tooltip>
 		{#snippet tooltipContent()}
 			<span>{description}</span>
 		{/snippet}
 		{@render selectorControl()}
-	</Tooltip>
-{:else}
+	</Tooltip> -->
 	{@render selectorControl()}
 {/if}
 
@@ -80,6 +79,9 @@
 		font-size: 13px;
 		cursor: pointer;
 		outline: none;
+		font-family: 'Pixel';
+		font-size: 10px;
+		font-weight: 500;
 	}
 
 	select:disabled {
@@ -88,6 +90,6 @@
 
 	.enum-selector {
 		color: var(--text);
-		background-color: var(--bg);
+		background-color: var(--bg);	
 	}
 </style>

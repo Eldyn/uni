@@ -14,10 +14,8 @@
 	type SettingsKey = keyof LobbySettings;
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
-	let showSettings = $state(false);
 
 	// INFO: Each entry maps directly to a storeLobby.updateSettings key.
-	//       To add a new slider: add one object here. Nothing else changes.
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
@@ -95,134 +93,94 @@
 	}
 </script>
 
-<div class="lobby-settings-container">
-	<button
-		class="settings-toggle-btn"
-		class:active={showSettings}
-		onclick={() => (showSettings = !showSettings)}
-		aria-expanded={showSettings}
-	>
-		<span>⚙️ Lobby Settings</span>
-		<span class="arrow">{showSettings ? "▲" : "▼"}</span>
-	</button>
+<div class="lobby-settings-panel" role="region" aria-label="Lobby Settings">
+	<h3 class="settings-title">⚙️ Lobby Settings</h3>
 
-	{#if showSettings}
-		<div class="settings-dropdown" role="region" aria-label="Lobby Settings">
-			<Toggle
-				label="Public Lobby"
-				checked={settings.is_public}
-				disabled={!isHost}
-				oncommit={(v) => commit("is_public", v)}
-			/>
+	<Toggle
+		label="Public Lobby"
+		checked={settings.is_public}
+		disabled={!isHost}
+		oncommit={(v) => commit("is_public", v)}
+	/>
 
-			<Toggle
-				label="Quitting stops the Match"
-				description="When a player quits, all players return to lobby."
-				checked={settings.quit_deletes_match}
-				disabled={!isHost}
-				oncommit={(v) => commit("quit_deletes_match", v)}
-			/>
+	<Toggle
+		label="Quitting stops the Match"
+		description="When a player quits, all players return to lobby."
+		checked={settings.quit_deletes_match}
+		disabled={!isHost}
+		oncommit={(v) => commit("quit_deletes_match", v)}
+	/>
 
-			<Toggle
-				label="Save Match"
-				description="When you quit, the match will be saved (must enable 'Quitting stops the Match')"
-				checked={settings.save_state}
-				disabled={!isHost}
-				oncommit={(v) => commit("save_state", v)}
-			/>
+	<Toggle
+		label="Save Match"
+		description="When you quit, the match will be saved (must enable 'Quitting stops the Match')"
+		checked={settings.save_state}
+		disabled={!isHost}
+		oncommit={(v) => commit("save_state", v)}
+	/>
 
-			<hr class="settings-divider" />
+	<hr class="settings-divider" />
 
-			<Slider
-				id="turn-timer"
-				label="Turn Timer"
-				value={settings.turn_time_limit_ms / 1000}
-				min={1}
-				max={30}
-				disabled={!isHost}
-				format={(v) => `${v}s`}
-				oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
-			/>
+	<Slider
+		id="turn-timer"
+		label="Turn Timer"
+		value={settings.turn_time_limit_ms / 1000}
+		min={1}
+		max={30}
+		disabled={!isHost}
+		format={(v) => `${v}s`}
+		oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
+	/>
 
-			<hr class="settings-divider" />
+	<hr class="settings-divider" />
 
-			<Slider
-				id="bot-count"
-				label="Bot Count"
-				value={settings.bot_count}
-				min={0}
-				max={3}
-				disabled={!isHost}
-				oncommit={(v) => commit("bot_count", v)}
-			/>
+	<Slider
+		id="bot-count"
+		label="Bot Count"
+		value={settings.bot_count}
+		min={0}
+		max={3}
+		disabled={!isHost}
+		oncommit={(v) => commit("bot_count", v)}
+	/>
 
-			<hr class="settings-divider" />
+	<hr class="settings-divider" />
 
-			<EnumSelector
-				label="Bot Mode"
-				description="Decide how bots play their turn"
-				value={settings.bot_mode}
-				options={[
-					{ value: 0, label: "Play Instantly" },
-					{ value: 1, label: "Wait For Turn End Timer" }
-				]}
-				oncommit={(v) => commit("bot_mode", v)}
-			/>
+	<EnumSelector
+		class="bot-mode"
+		label="Bot Mode"
+		description="Decide how bots play their turn"
+		value={settings.bot_mode}
+		options={[
+			{ value: 0, label: "Play Instantly" },
+			{ value: 1, label: "Wait For Turn End Timer" }
+		]}
+		oncommit={(v) => commit("bot_mode", v)}
+	/>
 
-			<hr class="settings-divider" />
+	<hr class="settings-divider" />
 
-			<RulesGrid {rules} disabled={!isHost} onrulechange={handleRuleChange} />
-		</div>
-	{/if}
+	<RulesGrid {rules} disabled={!isHost} onrulechange={handleRuleChange} />
 </div>
 
 <style>
-	.lobby-settings-container {
-		position: relative;
-		display: inline-block;
-		margin-bottom: 25px;
-	}
-
-	.settings-toggle-btn {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 10px 12px;
-		background: var(--bg);
-		color: var(--text-h);
-		border: 2px solid var(--border);
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-		transition: border-color 0.2s;
-	}
-
-	.settings-toggle-btn:hover,
-	.settings-toggle-btn.active {
-		outline: none;
-		border-color: var(--accent);
-	}
-
-	.settings-toggle-btn .arrow {
-		font-size: 10px;
-		opacity: 0.8;
-	}
-
-	.settings-dropdown {
-		position: absolute;
-		top: calc(100% + 6px);
-		left: 0;
-		z-index: 10;
-		min-width: 240px;
+	.lobby-settings-panel {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		padding: 12px 16px;
+		padding: 16px;
 		background: var(--bg);
 		border: 2px solid var(--border);
 		border-radius: 6px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+		width: 100%;
+		box-sizing: border-box;
+	}
+
+	.settings-title {
+		margin: 0 0 4px 0;
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: var(--text-h);
 	}
 
 	.settings-divider {

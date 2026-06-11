@@ -20,126 +20,131 @@
 </script>
 
 <li class="saved-match-item">
-	<div class="lobby-card">
-		<div class="lobby-info">
-			<p class="info-item">
-				<span class="info-label">Saved Match</span>
-				<span class="info-value">{save.match_id}</span>
-			</p>
+	<div class="match-content">
+		<div class="match-info">
+			<span class="label">Match</span>
+			<span class="id">{save.match_id}</span>
 		</div>
 
-		<div class="card-actions">
+		<div class="actions">
 			<button
 				type="button"
-				class="join-button"
+				class="resume-btn"
 				onclick={() => ws.emit(ClientAction.LobbyResumeSavedMatch, { match_id: save.match_id })}
-				>Start</button
 			>
-			<button class="delete-btn" title="Delete Match" onclick={deleteMatch}>🗑️</button>
+				Start
+			</button>
+
+			<button class="delete-btn" title="Delete Match" onclick={deleteMatch}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="3 6 5 6 21 6"></polyline>
+					<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+					></path>
+					<line x1="10" y1="11" x2="10" y2="17"></line>
+					<line x1="14" y1="11" x2="14" y2="17"></line>
+				</svg>
+			</button>
 		</div>
 	</div>
 </li>
 
 <style>
 	.saved-match-item {
+		list-style: none;
+		margin-bottom: 8px;
+	}
+
+	.match-content {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 10px;
-		padding-bottom: 10px;
-		border-bottom: 1px solid var(--accent-border, #444);
-	}
-
-	.saved-match-item:last-child {
-		border-bottom: none;
-		margin-bottom: 0;
-		padding-bottom: 0;
-	}
-
-	.lobby-card {
-		background: var(--bg);
-		border: 1px solid var(--border);
+		background: rgba(255, 255, 255, 0.05);
+		padding: 8px 12px;
 		border-radius: 8px;
-		padding: 16px;
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		transition: all 0.2s;
-		flex-grow: 1;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		transition: border-color 0.2s;
 	}
 
-	.lobby-card:hover:not(.full) {
+	.match-content:hover {
 		border-color: var(--accent);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 	}
 
-	.lobby-info {
+	.match-info {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 2px;
 	}
 
-	.info-item {
-		margin: 0;
-		display: flex;
-		justify-content: space-between;
-		font-size: 14px;
+	.label {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		color: #888;
+		font-weight: bold;
 	}
 
-	.info-label {
+	.id {
+		font-family: var(--mono);
+		font-size: 13px;
 		color: var(--text);
-		font-weight: 500;
 	}
 
-	.info-value {
-		color: var(--text-h);
-	}
-
-	.card-actions {
+	.actions {
 		display: flex;
-		gap: 10px;
+		align-items: center;
+		gap: 8px;
 	}
 
-	.join-button {
-		flex-grow: 1;
-		padding: 8px 16px;
+	.resume-btn {
+		padding: 6px 14px;
 		background: var(--accent);
 		color: white;
 		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
+		border-radius: 4px;
+		font-size: 12px;
+		font-weight: bold;
 		cursor: pointer;
-		transition: opacity 0.2s;
+		transition:
+			transform 0.1s,
+			opacity 0.2s;
 	}
 
-	.join-button:hover:not(:disabled) {
+	.resume-btn:hover {
 		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
-	.join-button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+	.resume-btn:active {
+		transform: translateY(1px);
 	}
 
 	.delete-btn {
-		background: #ff5650;
+		background: none;
 		border: none;
-		border-radius: 6px;
+		color: #ff5650;
 		cursor: pointer;
-		padding: 8px 12px;
-		font-size: 14px;
+		padding: 6px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition:
-			background 0.2s,
-			opacity 0.2s;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		border-radius: 4px;
+		transition: all 0.2s;
+		opacity: 0.6;
 	}
 
 	.delete-btn:hover {
-		background: #ff3f31;
-		opacity: 0.9;
+		background: rgba(255, 86, 80, 0.1);
+		opacity: 1;
+		transform: scale(1.1);
 	}
 </style>
