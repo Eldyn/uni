@@ -26,7 +26,6 @@
 
 	let handEl = $state<HTMLElement | null>(null);
 
-	// NOTE: Register/unregister with the bus whenever the element ref changes
 	$effect(() => {
 		if (handEl) {
 			bus.register(role, handEl);
@@ -39,10 +38,12 @@
 </script>
 
 <div class="opponent-slot">
-	<div class="player-label" style={labelPos}>
-		{player ? player.username : "Waiting..."}
+	<div class="box" style={boxPos}>
+		<div class="player-label" class:is-top={index === 2}>
+			{player ? player.username : "Waiting..."}
+		</div>
 	</div>
-	<div class="box" style={boxPos}></div>
+
 	<div
 		bind:this={handEl}
 		class="player_hand"
@@ -65,17 +66,6 @@
 		height: 100%;
 	}
 
-	.player-label {
-		position: absolute;
-		font-weight: bold;
-		color: white;
-		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-		font-size: 0.95em;
-		letter-spacing: 0.04em;
-		white-space: nowrap;
-		z-index: 110;
-	}
-
 	.box {
 		position: absolute;
 		width: 50px;
@@ -84,10 +74,31 @@
 		z-index: 100;
 	}
 
+	.player-label {
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		white-space: nowrap;
+		font-weight: bold;
+		color: white;
+		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+		font-size: 0.95em;
+		letter-spacing: 0.04em;
+		z-index: 110;
+
+		/* Di base (Left e Right player): posizionato SOPRA la box */
+		bottom: calc(100% + 0.4em);
+	}
+
+	/* Per il top player (index 2): posizionato SOTTO la box */
+	.player-label.is-top {
+		bottom: auto;
+		top: calc(100% + 0.4em);
+	}
+
 	.player_hand {
 		position: absolute;
 		top: 45%;
 		left: 50%;
-		/* transform is set inline from the handTransform prop */
 	}
 </style>
