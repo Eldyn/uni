@@ -4,11 +4,11 @@
  * Keeps one level of history for a simple "back" action.
  */
 
-export type AppScreen = "auth" | "lobbies" | "lobby" | "game" | "settings";
+export type AppScreen = "main" | "auth" | "lobbies" | "lobby" | "game" | "settings";
 
 class StoreNavigation {
     // ── Reactive state ──────────────────────────────────────────────────────
-    current = $state<AppScreen>("auth");
+    current = $state<AppScreen>("main");
     #previous: AppScreen | null = null;
 
     // ── Public API ───────────────────────────────────────────────────────────

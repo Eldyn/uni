@@ -6,6 +6,7 @@
 	import LobbyScreen from "./lib/components/lobby/LobbyScreen.svelte";
 	import LobbyBrowse from "./lib/components/lobby/LobbyBrowse.svelte";
 	import UserSettingsForm from "./lib/components/StatisticsScreen.svelte"; 
+	import MainScreen from "./lib/components/MainScreen.svelte";
 
 	import { storeNavigation } from "./lib/stores/navigation.svelte";
 	import { ws } from "./lib/stores/ws.svelte";
@@ -43,8 +44,10 @@
 
 <div id="app">
 	<Toast />
-
-	{#if storeNavigation.current === "auth"}
+	
+	{#if storeNavigation.current === "main"}
+		<MainScreen />
+	{:else if storeNavigation.current === "auth"}
 		<AuthScreen onAuthSuccess={handleAuthSuccess} />
 	{:else if storeNavigation.current === "lobbies"}
 		<LobbyBrowse />
