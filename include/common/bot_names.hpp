@@ -106,6 +106,7 @@ namespace game {
         "Dante", "Dante Goons", "Elle of the Nether", "Game Agent", "Malmar", 
         "Minikloon", "Nitroholic_", "Potato King", "Raffle Box", "Relenter", 
         "Resistance Generals", "Rezzus", "Technoblade", "Technoshop", 
-        "The Lost Adventurer", "Warren", "Worker Emma"
+        "The Lost Adventurer", "Warren", "Worker Emma", "Dean", "Garrett", "Hannah", "Allie", 
+        "Tucker", "jhon" 
     };
 }
