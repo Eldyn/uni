@@ -87,8 +87,6 @@
 		padding: 0;
 		overflow: hidden;
 		background-color: transparent;
-		-webkit-user-select: none;
-        user-select: none;
 	}
 
 	:root {
@@ -108,6 +106,8 @@
 		grid-gap: 0.5em;
 		grid-template-columns: var(--playerSpace) var(--fieldSize) var(--playerSpace);
 		grid-template-rows: var(--playerSpace) var(--fieldSize) var(--playerSpace);
+		-webkit-user-select: none;
+        user-select: none;
 	}
 
 	.game-field.perspective {
