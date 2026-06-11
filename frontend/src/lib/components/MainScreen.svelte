@@ -101,7 +101,7 @@
 	</header>
 
 	<main class="button-container">
-		<button onclick={() => storeNavigation.goto("auth")}> Login / Register </button>
+		<button onclick={() => storeNavigation.goto("auth")}> Login </button>
 	</main>
 </div>
 
@@ -243,11 +243,8 @@
 		align-items: center;
 	}
 
-	/* ==========================================================================
-     STILE RETRO POP / ARCADE
-     ========================================================================== */
 	button {
-		padding: 1.1rem;
+		padding: 1.5rem 5rem;
 		font-size: 1.35rem;
 		font-family: "Pixel", sans-serif;
 		font-weight: 900;
