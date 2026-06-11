@@ -111,7 +111,7 @@
 				</button>
 				<div class="secondary-buttons">
 					<button onclick={() => storeNavigation.goto("stats")}> Stats </button>
-					<button onclick={() => storeNavigation.goto("settings")}> Settings </button>
+					<button onclick={() => storeAuth.logout()}>Logout</button>
 				</div>
 			</div>
 		{/if}

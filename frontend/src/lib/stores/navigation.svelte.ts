@@ -4,7 +4,7 @@
  * Keeps one level of history for a simple "back" action.
  */
 
-export type AppScreen = "main" | "auth" | "lobbies" | "lobby" | "game" | "settings" | "stats";
+export type AppScreen = "main" | "auth" | "lobbies" | "lobby" | "game" | "stats";
 
 class StoreNavigation {
     // ── Reactive state ──────────────────────────────────────────────────────

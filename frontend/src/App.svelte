@@ -57,12 +57,6 @@
 		<GameScreen />
 	{:else if storeNavigation.current === "stats"}
 		<StatsScreen />
-	{:else if storeNavigation.current === "settings"}
-		<div class="settings-header">
-			<button class="back-btn" onclick={handleBackToLobbies}> ← Torna alle Lobbies </button>
-		</div>
-
-		<!-- <UserSettingsForm /> -->
 	{/if}
 </div>
 

@@ -2,7 +2,6 @@
 	import LobbyList from "./LobbyList.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
 	import LobbyJoinForm from "./LobbyJoinForm.svelte";
-	import UserSettingsForm from "../user/UserSettingsForm.svelte";
 
 	import { onMount } from "svelte";
 	import { storeAuth } from "../../stores/auth.svelte";
