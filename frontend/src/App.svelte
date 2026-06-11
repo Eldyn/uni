@@ -1,9 +1,10 @@
 <script lang="ts">
+	import DetailedStatsScreen from "./lib/components/stats/DetailedStatsScreen.svelte";
 	import AuthScreen from "./lib/components/auth/AuthScreen.svelte";
 	import GameScreen from "./lib/components/game/GameScreen.svelte";
 	import LobbyScreen from "./lib/components/lobby/LobbyScreen.svelte";
 	import LobbyBrowse from "./lib/components/lobby/LobbyBrowse.svelte";
-	import StatsScreen from "./lib/components/StatsScreen.svelte";
+	import StatsScreen from "./lib/components/stats/StatsScreen.svelte";
 	import MainScreen from "./lib/components/MainScreen.svelte";
 	import Toast from "./lib/components/common/Toast.svelte";
 
@@ -57,6 +58,8 @@
 		<GameScreen />
 	{:else if storeNavigation.current === "stats"}
 		<StatsScreen />
+	{:else if storeNavigation.current === "detailedStats"}
+		<DetailedStatsScreen />
 	{/if}
 </div>
 

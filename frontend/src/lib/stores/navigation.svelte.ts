@@ -4,12 +4,36 @@
  * Keeps one level of history for a simple "back" action.
  */
 
-export type AppScreen = "main" | "auth" | "lobbies" | "lobby" | "game" | "stats";
+import { storeAuth } from "./auth.svelte";
+import { ws } from "./ws.svelte";
+
+export type AppScreen =
+    | "main"
+    | "auth"
+    | "lobbies"
+    | "lobby"
+    | "game"
+    | "settings"
+    | "stats"
+    | "detailedStats";
 
 class StoreNavigation {
     // ── Reactive state ──────────────────────────────────────────────────────
     current = $state<AppScreen>("main");
     #previous: AppScreen | null = null;
+
+    constructor() {
+        ws.onOpen(() => {
+            const localScreen = localStorage.getItem("currentScreen");
+            if (!localScreen) return;
+            if (!storeAuth.isLoggedIn) {
+                localStorage.removeItem("currentScreen");
+                return;
+            }
+
+            this.goto(localScreen as AppScreen);
+        });
+    }
 
     // ── Public API ───────────────────────────────────────────────────────────
 
@@ -17,6 +41,7 @@ class StoreNavigation {
         if (screen === this.current) return;
         this.#previous = this.current;
         this.current = screen;
+        localStorage.setItem("currentScreen", screen);
     }
 
     back(): void {

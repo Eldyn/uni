@@ -36,7 +36,7 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
 
     auto row_result = Database::Get().QueryOne(R"(
         SELECT * FROM (
-            SELECT username, total_wins, total_losses, 
+            SELECT *,
                    RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank 
             FROM player_stats
         ) WHERE username = ?;
@@ -55,7 +55,28 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
             {"username", row.Get<std::string>("username")},
             {"total_wins", row.Get<int>("total_wins")},
             {"total_losses", row.Get<int>("total_losses")},
-            {"rank", row.Get<int>("rank")}
+            {"rank", row.GetOr<int>("rank", 0)},
+            
+            // Add detailed card metrics
+            {"cards_played_red", row.GetOr<int>("cards_played_red", 0)},
+            {"cards_played_blue", row.GetOr<int>("cards_played_blue", 0)},
+            {"cards_played_green", row.GetOr<int>("cards_played_green", 0)},
+            {"cards_played_yellow", row.GetOr<int>("cards_played_yellow", 0)},
+            {"cards_played_0", row.GetOr<int>("cards_played_0", 0)},
+            {"cards_played_1", row.GetOr<int>("cards_played_1", 0)},
+            {"cards_played_2", row.GetOr<int>("cards_played_2", 0)},
+            {"cards_played_3", row.GetOr<int>("cards_played_3", 0)},
+            {"cards_played_4", row.GetOr<int>("cards_played_4", 0)},
+            {"cards_played_5", row.GetOr<int>("cards_played_5", 0)},
+            {"cards_played_6", row.GetOr<int>("cards_played_6", 0)},
+            {"cards_played_7", row.GetOr<int>("cards_played_7", 0)},
+            {"cards_played_8", row.GetOr<int>("cards_played_8", 0)},
+            {"cards_played_9", row.GetOr<int>("cards_played_9", 0)},
+            {"cards_played_skip", row.GetOr<int>("cards_played_skip", 0)},
+            {"cards_played_reverse", row.GetOr<int>("cards_played_reverse", 0)},
+            {"cards_played_draw2", row.GetOr<int>("cards_played_draw2", 0)},
+            {"cards_played_draw4", row.GetOr<int>("cards_played_draw4", 0)},
+            {"cards_played_colorswitch", row.GetOr<int>("cards_played_colorswitch", 0)}
         };
     } else {
         response_data = {

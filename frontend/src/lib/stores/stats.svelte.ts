@@ -5,6 +5,26 @@ export interface PlayerStats {
     total_wins: number;
     total_losses: number;
     rank: number | null;
+
+    cards_played_red?: number;
+    cards_played_blue?: number;
+    cards_played_green?: number;
+    cards_played_yellow?: number;
+    cards_played_0?: number;
+    cards_played_1?: number;
+    cards_played_2?: number;
+    cards_played_3?: number;
+    cards_played_4?: number;
+    cards_played_5?: number;
+    cards_played_6?: number;
+    cards_played_7?: number;
+    cards_played_8?: number;
+    cards_played_9?: number;
+    cards_played_skip?: number;
+    cards_played_reverse?: number;
+    cards_played_draw2?: number;
+    cards_played_draw4?: number;
+    cards_played_colorswitch?: number;
 }
 
 class StoreStats {

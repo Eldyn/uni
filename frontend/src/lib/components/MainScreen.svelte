@@ -131,8 +131,8 @@
 		overflow: hidden;
 
 		-webkit-font-smoothing: none;
-        -moz-osx-font-smoothing: grayscale;
-        font-smooth: never;
+		-moz-osx-font-smoothing: grayscale;
+		font-smooth: never;
 	}
 
 	.background-overlay {
@@ -223,24 +223,27 @@
 		color: #ffffff;
 		margin: 0;
 		text-align: center;
-
-		/* Flexbox mantiene le lettere allineate in orizzontale */
 		display: flex;
+		align-items: center; /* Centers the newly expanded children */
+		justify-content: center;
 		gap: 0.4rem;
 
-		line-height: 1.3; 
-        padding-top: 4px;
+		/* REMOVE line-height: 1.3; It is squashing the children's boxes */
 	}
 
 	.logo-char {
-		/* inline-block permette l'uso di transform */
-		display: inline-block;
+		/* Use block instead of inline-block inside a flex container */
+		display: block;
+
+		/* Force the content box to be massive so the broken font fits inside */
+		line-height: 1.8;
+
 		-webkit-text-stroke: 2px #1a1a1a;
 
-		/* Applica l'animazione ondulatoria */
-		animation: waveBounce 1s ease-in-out infinite;
+		/* Tell the browser to allocate the GPU layer properly from the start */
+		will-change: transform;
 
-		/* Calcola il ritardo dinamicamente: 0s per U, 0.15s per N, 0.30s per I */
+		animation: waveBounce 1s ease-in-out infinite;
 		animation-delay: calc(var(--i) * 0.15s);
 	}
 
@@ -281,26 +284,26 @@
 	}
 
 	button {
-        padding: 1.5rem 2.5rem; 
-        font-size: 1.35rem;
-        font-family: "Pixel", sans-serif;
-        font-weight: 900;
-        letter-spacing: 1.5px;
+		padding: 1.5rem 2.5rem;
+		font-size: 1.35rem;
+		font-family: "Pixel", sans-serif;
+		font-weight: 900;
+		letter-spacing: 1.5px;
 
-        line-height: 1.3; 
+		line-height: 1.3;
 
-        color: #ffffff;
-        background-color: #8d42d3;
+		color: #ffffff;
+		background-color: #8d42d3;
 
-        border: 3px solid #1a1a1a;
-        border-radius: 12px;
+		border: 3px solid #1a1a1a;
+		border-radius: 12px;
 
-        cursor: pointer;
-        box-shadow: 5px 5px 0px #1a1a1a;
-        transition:
-            transform 0.08s ease,
-            box-shadow 0.08s ease,
-            background-color 0.2s ease;
+		cursor: pointer;
+		box-shadow: 5px 5px 0px #1a1a1a;
+		transition:
+			transform 0.08s ease,
+			box-shadow 0.08s ease,
+			background-color 0.2s ease;
 	}
 
 	button:hover {
