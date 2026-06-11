@@ -95,7 +95,6 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 16px;
-		background: rgba(0, 0, 0, 0.5);
 	}
 
 	.game-board-container {

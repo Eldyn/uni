@@ -92,12 +92,11 @@
 </DragDropProvider>
 
 <style>
-	/* ... Keep your exact existing styles here ... */
 	.player_hand {
 		position: absolute;
 		top: 20%;
 		left: 50%;
-		transform: translate(-50%, -30%);
+		transform: translate(-50%, -40%);
 
 		display: flex;
 		flex-direction: row;

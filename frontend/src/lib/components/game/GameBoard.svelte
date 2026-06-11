@@ -22,7 +22,7 @@
 	const LAYOUT_TOP = {
 		gridArea: "1 / 2",
 		wrapperTransform: "translateY(-2.5em)",
-		handTransform: "translate(-50%, -50%) scaleY(-1)",
+		handTransform: "translate(-50%, -75%) scaleY(-1)",
 		labelPos: "bottom: -3em; left: 50%; transform: translateX(-50%);",
 		boxPos: "bottom: -1.2em; left: 50%; transform: translateX(-50%);",
 		isTop: true
@@ -111,7 +111,6 @@
 </div>
 
 <style>
-	/* ... keep all existing styles exactly as they are ... */
 	:global(body) {
 		margin: 0;
 		padding: 0;
