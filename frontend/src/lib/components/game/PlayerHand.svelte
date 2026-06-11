@@ -1,70 +1,98 @@
 <script lang="ts">
-	import { DragDropProvider } from "@dnd-kit-svelte/svelte";
+	import { DragDropProvider } from "@dnd-kit/svelte";
+	import { isSortable } from "@dnd-kit/svelte/sortable";
+	import { untrack } from "svelte"; // <-- Add untrack back
+
 	import { storeGame, type Card } from "../../stores/game.svelte";
+	import SortableCardSlot from "./SortableCardSlot.svelte";
 	import { useCardBus } from "./card-bus.svelte";
-	import GameCard from "./GameCard.svelte";
 
 	let { playableCardIds = new Set<number>() }: { playableCardIds?: Set<number> } = $props();
 
 	const bus = useCardBus();
-
 	let handEl = $state<HTMLElement | null>(null);
+	let dragging = $state(false);
+
+	let items = $state<Card[]>(storeGame.localPlayer?.hand ?? []);
+	let snapshot = $state<Card[]>([]);
+
+	// 1. Reactively track the true hand from the server store
+	let hand = $derived(storeGame.localPlayer?.hand ?? []);
 
 	$effect(() => {
 		if (handEl) bus.register("hand-local", handEl);
 		return () => bus.unregister("hand-local");
 	});
 
-	let hand = $derived(storeGame.localPlayer?.hand ?? []);
-	let items = $state<Card[]>([]);
-
-	// Sync with game hand when not dragging
+	// 2. Safely sync the server hand with the local draggable items
 	$effect(() => {
 		const current = hand;
-		const currentIds = new Set(current.map((c) => c.id));
-		const incoming = current.filter((c) => !items.some((item) => item.id === c.id));
-		const surviving = items.filter((c) => currentIds.has(c.id));
 
-		if (incoming.length > 0 || surviving.length !== items.length) {
-			items = [...surviving, ...incoming];
-		}
+		// Don't interrupt if the player is actively dragging a card
+		if (dragging) return;
+
+		untrack(() => {
+			const currentIds = new Set(current.map((c) => c.id));
+			const incoming = current.filter((c) => !items.some((item) => item.id === c.id));
+			const surviving = items.filter((c) => currentIds.has(c.id));
+
+			// Only overwrite local state if the actual inventory of cards changed (draw/play)
+			if (incoming.length > 0 || surviving.length !== items.length) {
+				items = [...surviving, ...incoming];
+			}
+		});
 	});
 
-	function handleDragEnd(event: any) {
-		const { active, over } = event;
+	function onDragStart() {
+		dragging = true;
+		snapshot = items.slice();
+	}
 
-		if (!over || active.id === over.id) return;
+	function onDragOver(event: any) {
+		const { source, target } = event.operation;
 
-		const activeIndex = items.findIndex((item) => item.id === active.id);
-		const overIndex = items.findIndex((item) => item.id === over.id);
+		if (isSortable(source) && isSortable(target)) {
+			const fromIndex = source.index;
+			const toIndex = target.index;
 
-		if (activeIndex !== -1 && overIndex !== -1) {
-			const newItems = [...items];
-			[newItems[activeIndex], newItems[overIndex]] = [newItems[overIndex], newItems[activeIndex]];
-			items = newItems;
+			if (fromIndex !== toIndex) {
+				const newItems = [...items];
+				const [removed] = newItems.splice(fromIndex, 1);
+				newItems.splice(toIndex, 0, removed);
+				items = newItems;
+			}
+		}
+	}
+
+	function onDragEnd(event: any) {
+		dragging = false;
+
+		if (event.canceled) {
+			items = snapshot;
 		}
 	}
 
 	function handleCardClick(cardId: number) {
-		storeGame.playCard(cardId);
+		if (!dragging) storeGame.playCard(cardId);
 	}
 </script>
 
-<DragDropProvider onCollision={closestCenter} onDragEnd={handleDragEnd}>
-	<div bind:this={handEl} class="player_hand">
-		{#each items as card, i (card.id)}
-			<GameCard
+<DragDropProvider {onDragStart} {onDragOver} {onDragEnd}>
+	<div bind:this={handEl} class="player_hand" class:is-active-drag={dragging}>
+		{#each items as card, index (card.id)}
+			<SortableCardSlot
 				{card}
-				index={i}
-				isPlayable={playableCardIds.has(card.id)}
+				{index}
 				isHidden={bus.hiddenCardIds.has(card.id)}
-				onCardClick={() => handleCardClick(card.id)}
+				isPlayable={playableCardIds.has(card.id)}
+				onCardClick={handleCardClick}
 			/>
 		{/each}
 	</div>
 </DragDropProvider>
 
 <style>
+	/* ... Keep your exact existing styles here ... */
 	.player_hand {
 		position: absolute;
 		top: 20%;
@@ -80,12 +108,8 @@
 		outline: none;
 	}
 
-	.player_hand :hover {
+	.player_hand:not(.is-active-drag) :global(.card-slot:hover) {
+		transform: translateY(-1em);
 		z-index: 50 !important;
-	}
-
-	.player_hand :hover ~ :global(*) {
-		transform: translateX(1em);
-		transition: transform 150ms ease;
 	}
 </style>
