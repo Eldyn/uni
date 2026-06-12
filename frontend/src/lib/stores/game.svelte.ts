@@ -35,6 +35,7 @@ export interface GamePlayer {
     card_count: number;
     has_called_uno: boolean;
     hand?: Card[];
+    is_bot: boolean;
 }
 
 export interface GameState {

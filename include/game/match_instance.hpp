@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 /**
  * @file match_instance.hpp
@@ -213,8 +214,19 @@ namespace game {
         std::vector<std::unique_ptr<GameRule>> active_rules_;              /**< Set di regole attive. */
     
         /**
+         * @brief Checks whether a given optional rule mod is currently active for this match.
+         * @param name The mod identifier (e.g. "seven_zero", "draw_stacking", "no_bluffing").
+         * @return true if the mod is enabled in this lobby's settings.
+         * @tag MATCH-INST-PRIV-001
+         */
+        bool HasMod(const std::string& name) const {
+            return std::find(settings_.active_mods.begin(), settings_.active_mods.end(), name)
+                   != settings_.active_mods.end();
+        }
+
+        /**
          * @brief Inizializza il mazzo di carte basandosi sulle LobbySettings fornite.
-         * @tag MATCH-INST-025
+         * @tag MATCH-PRIV-002
          */
         void GenerateDeck();
     };

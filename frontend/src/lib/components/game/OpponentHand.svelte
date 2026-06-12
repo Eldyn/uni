@@ -41,7 +41,7 @@
 	);
 
 	let playerColor = $derived(playerIdx !== -1 ? PLAYER_COLORS[playerIdx % 4] : "#0493de");
-	let isBot = $derived(!(player?.is_bot || player?.username?.toLowerCase().includes("bot")));
+	let isBot = $derived(player?.is_bot || player?.username?.toLowerCase().includes("bot"));
 
 	let isValidTarget = $derived(
 		storeGame.actionRequired === "choose_target" &&
