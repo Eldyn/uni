@@ -7,9 +7,24 @@
     let hasTwoCards = $derived(storeGame.localPlayer?.hand?.length === 2);
 
     let alreadyCalled = $derived(storeGame.localPlayer?.has_called_uno ?? false);
+
+    // Ottieni la carta attualmente in cima agli scarti
+    let topCard = $derived(storeGame.state?.top_card); 
+
+    // Controlla se almeno una delle due carte in mano può essere giocata
+    let canPlayCard = $derived((storeGame.localPlayer?.hand || []).some(card => {
+        if (!topCard) return false;
+        
+        // Verifica le regole di base (colore, valore o jolly)
+        const matchesColor = card.color === topCard.color;
+        const matchesValue = card.value === topCard.value;
+        const isWildCard = card.color === 'wild' || card.is_wild; 
+
+        return matchesColor || matchesValue || isWildCard;
+    }));
 </script>
 
-{#if isMyTurn && hasTwoCards}
+{#if isMyTurn && hasTwoCards && canPlayCard}
     {#if !alreadyCalled}
         <button
             type="button"
@@ -27,8 +42,6 @@
 {/if}
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
     .uno-floating-button {
         position: fixed;
         bottom: 10%;
@@ -43,7 +56,7 @@
         
         /* Applichiamo il font pixel */
         font-family: 'Pixel', system-ui, monospace; 
-        font-size: 14px; /* Ridotto leggermente per bilanciare la larghezza del font */
+        font-size: 20px; /* Ridotto leggermente per bilanciare la larghezza del font */
         letter-spacing: 1px;
         cursor: pointer;
         

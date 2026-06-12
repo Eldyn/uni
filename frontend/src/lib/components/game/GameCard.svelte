@@ -54,12 +54,15 @@
 	const imgSrc = $derived(getCardImage(card.value));
 	const tint = $derived(card.value !== "colorswitch");
 	function playRandomCardSound() {
-		// Genera un numero casuale tra 1 e 3
-		const randomNum = Math.floor(Math.random() * 3) + 1;
-		const audio = new Audio(`assets/music/card${randomNum}.mp3`);
+        // Genera un numero casuale tra 1 e 3
+        const randomNum = Math.floor(Math.random() * 3) + 1;
+        const audio = new Audio(`assets/music/card${randomNum}.mp3`);
 
-		audio.play().catch((err) => console.warn("Impossibile riprodurre l'audio:", err));
-	}
+        // Abbassa il volume (es. 0.2 equivale al 20% del volume massimo)
+        audio.volume = 0.2; 
+
+        audio.play().catch((err) => console.warn("Impossibile riprodurre l'audio:", err));
+    }
 </script>
 
 <div
