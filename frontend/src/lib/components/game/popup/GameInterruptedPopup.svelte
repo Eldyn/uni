@@ -3,22 +3,17 @@
 </script>
 
 <div class="modal-overlay interrupted-overlay">
-	<div class="modal-content interrupted-content">
-		<h1>⚠️ Partita Interrotta ⚠️</h1>
-		<h2>Qualcosa è andato storto.</h2>
-		<p>Un giocatore si è disconnesso o la partita è stata annullata forzatamente.</p>
-		<button
-			type="button"
-			class="action-btn back-to-lobby-btn"
-			onclick={() => storeGame.returnToLobby()}
-		>
-			Torna alla Lobby
+	<div class="cute-modal-content">
+		<h1>Interrupted</h1>
+		<h2>Something went wrong.</h2>
+		<p>A player disconnected or the match was forcefully cancelled.</p>
+		<button type="button" class="action-btn pixel-btn" onclick={() => storeGame.returnToLobby()}>
+			Back to Lobby
 		</button>
 	</div>
 </div>
 
 <style>
-	/* DESIGN OVERLAY DI INTERRUZIONE (STILE MODALE BLOCCANTE) */
 	.modal-overlay {
 		position: fixed;
 		top: 0;
@@ -28,63 +23,90 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		z-index: 200;
-	}
-
-	.interrupted-overlay {
-		background: rgba(0, 0, 0, 0.92);
 		z-index: 300;
+		background: rgba(0, 0, 0, 0.75);
+		backdrop-filter: blur(4px);
 	}
 
-	.interrupted-content {
+	.cute-modal-content {
 		text-align: center;
-		background: #1c1c1e;
-		padding: 40px;
+		background: var(--bg);
+		padding: 30px;
 		border-radius: 16px;
-		border: 3px solid #ff3b30;
-		box-shadow: 0 0 40px rgba(255, 59, 48, 0.4);
-		color: white;
-		max-width: 450px;
+		border: 4px solid var(--accent);
+		box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.6);
+		color: var(--text-h);
+		max-width: 380px;
 		width: 90%;
+		box-sizing: border-box; /* <-- ADD THIS */
+		animation: shakeIn 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
 	}
 
-	.interrupted-content h1 {
-		font-size: 2.2rem;
-		margin-bottom: 15px;
-		color: #ff3b30;
-		font-weight: 900;
+	@keyframes shakeIn {
+		0% {
+			transform: scale(0.9);
+			opacity: 0;
+		}
+		30% {
+			transform: scale(1.02) rotate(-2deg);
+			opacity: 1;
+		}
+		60% {
+			transform: scale(1) rotate(2deg);
+		}
+		100% {
+			transform: scale(1) rotate(0deg);
+		}
 	}
 
-	.interrupted-content h2 {
-		font-size: 1.5rem;
-		color: #ffffff;
+	.cute-modal-content h1 {
+		font-family: "FatPixel", sans-serif;
+		font-size: 2rem;
+		margin: 0 0 10px 0;
+		color: var(--accent);
+		text-shadow: 2px 2px 0px #1a1a1a;
+	}
+
+	.cute-modal-content h2 {
+		font-family: "Pixel", sans-serif;
+		font-size: 1.1rem;
 		margin-bottom: 10px;
 	}
 
-	.interrupted-content p {
-		color: #a1a1a6;
+	.cute-modal-content p {
+		font-family: var(--sans);
+		color: var(--text);
 		margin-bottom: 25px;
-		line-height: 1.4;
+		font-size: 0.95rem;
 	}
 
-	.back-to-lobby-btn {
-		margin-top: 15px;
-		padding: 14px 28px;
-		background: #ff3b30;
-		color: #ffffff;
-		border: none;
+	.pixel-btn {
+		padding: 12px 24px;
+		background: var(--accent);
+		color: #fff;
+		border: 3px solid #1a1a1a;
 		border-radius: 8px;
+		font-family: "Pixel", sans-serif;
 		font-weight: bold;
-		font-size: 1.1rem;
+		font-size: 1rem;
 		cursor: pointer;
+		box-shadow: 4px 4px 0px #1a1a1a;
 		transition:
-			background 0.2s,
-			transform 0.1s;
-		box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3);
+			transform 0.1s,
+			box-shadow 0.1s;
 	}
 
-	.back-to-lobby-btn:hover {
-		background: #d62828;
-		transform: scale(1.03);
+	.pixel-btn:hover {
+		transform: translate(-2px, -2px);
+		box-shadow: 6px 6px 0px #1a1a1a;
+		filter: brightness(1.1);
+	}
+
+	.pixel-btn:active {
+		transform: translate(4px, 4px);
+		box-shadow: 0px 0px 0px #1a1a1a;
 	}
 </style>

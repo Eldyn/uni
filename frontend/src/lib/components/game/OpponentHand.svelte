@@ -30,18 +30,38 @@
 		}
 		return () => bus.unregister(role);
 	});
-
 	let cardCount = $derived(player?.card_count ?? 0);
 	let handWidth = $derived(`calc(${cardCount} * 2.2em + 7.2em)`);
 
 	// Logica per determinare colore e tipologia di giocatore (Umano o Bot)
-	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"]; // Blu, Verde, Rosso, Giallo
-	let playerIdx = $derived(storeGame.state?.players?.findIndex(p => p.username === player?.username) ?? -1);
+	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"];
+
+	let playerIdx = $derived(
+		storeGame.state?.players?.findIndex((p) => p.username === player?.username) ?? -1
+	);
+
 	let playerColor = $derived(playerIdx !== -1 ? PLAYER_COLORS[playerIdx % 4] : "#0493de");
 	let isBot = $derived(!(player?.is_bot || player?.username?.toLowerCase().includes("bot")));
+
+	let isValidTarget = $derived(
+		storeGame.actionRequired === "choose_target" &&
+			player &&
+			Array.isArray(storeGame.actionContext) &&
+			storeGame.actionContext.includes(player.username)
+	);
 </script>
 
-<div class="opponent-slot">
+<div
+	class="opponent-slot"
+	class:is-targetable={isValidTarget}
+	onclick={() => {
+		if (isValidTarget && player) {
+			storeGame.submitInput(player.username);
+		}
+	}}
+	role={isValidTarget ? "button" : "region"}
+	tabindex={isValidTarget ? 0 : -1}
+>
 	<div
 		class="box"
 		class:is-turn={player && storeGame.state?.current_turn === player.username}
@@ -51,7 +71,10 @@
 			{#if isBot}
 				<img src="/assets/bot_animated.gif" alt="Bot" class="box-avatar" />
 			{:else}
-				<div class="box-mask" style="--mask-img: url('/assets/base_player.gif'); --mask-color: {playerColor};"></div>
+				<div
+					class="box-mask"
+					style="--mask-img: url('/assets/base_player.gif'); --mask-color: {playerColor};"
+				></div>
 			{/if}
 		{/if}
 		<div class="player-label" class:is-top={isTop}>
@@ -79,6 +102,29 @@
 		position: relative;
 		width: 100%;
 		height: 100%;
+	}
+
+	.opponent-slot.is-targetable {
+		cursor: pointer;
+		pointer-events: auto; /* <-- Forces clicks to register */
+		animation: pulseTarget 1.5s infinite;
+		z-index: 200; /* <-- Pops it above the game board grid and overlay layers */
+	}
+
+	.opponent-slot.is-targetable:hover {
+		filter: drop-shadow(0 0 10px var(--accent));
+	}
+
+	@keyframes pulseTarget {
+		0% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(1.05);
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 
 	.box {

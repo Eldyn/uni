@@ -51,11 +51,12 @@
 		background: var(--bg);
 		overflow: hidden;
 
+		padding-top: 10vh;
+
 		-webkit-font-smoothing: none;
 		-moz-osx-font-smoothing: grayscale;
 		font-smooth: never;
 	}
-
 
 	@keyframes fallAndFade {
 		0% {

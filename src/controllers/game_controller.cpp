@@ -4,6 +4,7 @@
  */
 
 #include "controllers/game_controller.hpp"
+#include "common/lobby.hpp"
 #include "common/ws.hpp"
 #include "logger.hpp"
 #include <App.h>
@@ -195,7 +196,7 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
     game::Player* current_player = active_lobby->match->GetPlayer(current_player_username);
 
     if (current_player->is_bot) {
-        int bot_thinking_ms = 1500 + (std::rand() % 3000);
+        int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly ? 1 : 1500 + (std::rand() % 3000);
         
         auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
         active_lobby->match->SetTurnEndTime(end_time);

@@ -1,86 +1,59 @@
 <script lang="ts">
 	import { storeGame } from "../../../stores/game.svelte";
-	import { storeLobby } from "../../../stores/lobby.svelte";
 </script>
 
 {#if storeGame.actionRequired === "choose_target"}
-	<div class="modal-overlay">
-		<div class="modal-content">
-			<h2 class="choose-color-text">Choose Target:</h2>
-
-			<div class="color-buttons">
-				{#each storeLobby.current?.members as member}
-					<button
-						type="button"
-						class="color-button"
-						onclick={() => storeGame.submitInput(member.username)}
-					>
-						{member.username}
-					</button>
-				{/each}
-			</div>
+	<div class="inline-action-container">
+		<div class="cute-bubble">
+			<h2 class="choose-target-text">Select a Target!</h2>
 		</div>
 	</div>
 {/if}
 
 <style>
-	.modal-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.6);
-		display: flex;
-		justify-content: center;
-		align-items: center;
+	.inline-action-container {
+		position: absolute;
+		top: 60%;
+		left: 50%;
+		transform: translateX(-50%);
 		z-index: 200;
+		pointer-events: none; /* Let clicks pass through if needed, though it's positioned away from players */
 	}
 
-	.modal-content {
-		background: #2a2a2a;
-		padding: 30px;
-		border-radius: 12px;
+	.cute-bubble {
+		background: var(--bg);
+		padding: 15px 25px;
+		border-radius: 16px;
+		border: 4px solid var(--accent);
 		text-align: center;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-		color: white;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 20px;
+		box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.4);
+		animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 	}
 
-	.choose-color-text {
-		color: white;
-		font-weight: bold;
+	@keyframes bounceIn {
+		0% {
+			transform: scale(0.8) translateY(20px);
+			opacity: 0;
+		}
+		100% {
+			transform: scale(1) translateY(0);
+			opacity: 1;
+		}
+	}
+
+	.choose-target-text {
+		color: var(--accent);
+		font-family: "FatPixel", sans-serif;
+		margin: 0 0 5px 0;
+		font-size: 1.2rem;
+		text-transform: uppercase;
+		text-shadow: 2px 2px 0px #1a1a1a;
+	}
+
+	.instruction-text {
+		font-family: "Pixel", sans-serif;
+		color: var(--text-h);
+		font-size: 0.9rem;
 		margin: 0;
-		font-size: 1.5rem;
-	}
-
-	.color-buttons {
-		display: flex;
-		gap: 15px;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.color-button {
-		width: 80px;
-		height: 50px;
-		border: 2px solid transparent;
-		border-radius: 8px;
-		font-weight: bold;
-		cursor: pointer;
-		transition:
-			transform 0.2s ease,
-			filter 0.2s ease;
-		font-size: 18px;
-		color: var(--text);
-		background-color: var(--bg);
-	}
-
-	.color-button:hover {
-		transform: scale(1.1);
-		filter: brightness(1.2);
 	}
 </style>

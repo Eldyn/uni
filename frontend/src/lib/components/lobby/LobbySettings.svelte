@@ -24,6 +24,8 @@
 		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
 		allow_bot_takeover: storeLobby.current?.settings.allow_bot_takeover ?? false,
 
+		starting_cards: storeLobby.current?.settings.starting_cards ?? 7,
+
 		quit_deletes_match: storeLobby.current?.settings.quit_deletes_match ?? false,
 
 		bot_mode: storeLobby.current?.settings.bot_mode ?? BotTakeoverMode.WaitUntilTurnEnd,
@@ -121,6 +123,37 @@
 
 	<hr class="settings-divider" />
 
+	<Toggle
+		label="Allow Bot Takeover"
+		description="When a player wants to join the lobby and a bot is present, the player takes the bot's place"
+		checked={settings.allow_bot_takeover}
+		disabled={!isHost}
+		oncommit={(v) => commit("allow_bot_takeover", v)}
+	/>
+
+	<Toggle
+		label="Allow Player Replacement"
+		description="When a Player leave (and quitting does not stop the match), a bot takes the player's place"
+		checked={settings.allow_bot_replacement}
+		disabled={!isHost}
+		oncommit={(v) => commit("allow_bot_replacement", v)}
+	/>
+
+	<hr class="settings-divider" />
+
+	<Slider
+		id="card-count"
+		label="Starting Hand Size"
+		value={settings.starting_cards}
+		min={2}
+		max={20}
+		disabled={!isHost}
+		format={(v) => `${v} cards`}
+		oncommit={(v) => commit("starting_cards", v)}
+	/>
+
+	<hr class="settings-divider" />
+
 	<Slider
 		id="turn-timer"
 		label="Turn Timer"
@@ -152,8 +185,13 @@
 		description="Decide how bots play their turn"
 		value={settings.bot_mode}
 		options={[
-			{ value: 0, label: "Play Instantly" },
-			{ value: 1, label: "Wait For Turn End Timer" }
+			{ value: 0, label: "Play Instantly", description: "The bot plays its turn instantaneously" },
+			{
+				value: 1,
+				label: "Wait For Turn End Timer",
+				description:
+					"The bot plays its own turn after at most 5 seconds, and waits for the turn end for players."
+			}
 		]}
 		oncommit={(v) => commit("bot_mode", v)}
 	/>

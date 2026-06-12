@@ -1,10 +1,13 @@
-<script lang="ts" generics="T">
-	import Tooltip from "../../common/Tooltip.svelte";
-
+<script module>
 	export type EnumOption<T> = {
 		value: T;
 		label: string;
+		description: string;
 	};
+</script>
+
+<script lang="ts" generics="T">
+	import Tooltip from "../../common/Tooltip.svelte";
 
 	let {
 		label,
@@ -44,13 +47,12 @@
 {/snippet}
 
 {#if (description?.length ?? 0) > 0}
-	<!-- <Tooltip>
+	<Tooltip>
 		{#snippet tooltipContent()}
 			<span>{description}</span>
 		{/snippet}
 		{@render selectorControl()}
-	</Tooltip> -->
-	{@render selectorControl()}
+	</Tooltip>
 {/if}
 
 <style>
@@ -79,7 +81,7 @@
 		font-size: 13px;
 		cursor: pointer;
 		outline: none;
-		font-family: 'Pixel';
+		font-family: "Pixel";
 		font-size: 10px;
 		font-weight: 500;
 	}
@@ -90,6 +92,6 @@
 
 	.enum-selector {
 		color: var(--text);
-		background-color: var(--bg);	
+		background-color: var(--bg);
 	}
 </style>

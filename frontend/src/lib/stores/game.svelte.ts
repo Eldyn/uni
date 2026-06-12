@@ -102,7 +102,17 @@ class StoreGame {
             };
 
             this.actionRequired = data.action_required || null;
-            this.actionContext = data.action_context || null;
+            this.actionRequired = data.action_required || null;
+
+            let parsedContext = data.action_context || null;
+            if (typeof parsedContext === "string") {
+                try {
+                    parsedContext = JSON.parse(parsedContext);
+                } catch (e) {
+                    console.error("Failed to parse action_context", e);
+                }
+            }
+            this.actionContext = parsedContext;
 
             console.log(stateJson);
             const remainingMs = stateJson.turn_time_remaining_ms ?? 15000;
