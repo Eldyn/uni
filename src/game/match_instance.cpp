@@ -54,6 +54,7 @@ namespace game {
         state_json["active_color"] = state_.active_color;
         state_json["current_player_index"] = state_.current_player_index;
         state_json["play_direction"] = state_.play_direction;
+        state_json["rules"] = settings_.active_mods;
 
         state_json["discard_pile"] = state_.discard_pile;
         state_json["draw_pile"] = state_.draw_pile;
@@ -76,6 +77,14 @@ namespace game {
     }
 
     MatchInstance::MatchInstance(const json& saved_state, const LobbySettings& settings) : settings_(settings) {
+        std::vector<string> rules; saved_state["rules"].get_to(rules);
+        for (const auto& rule : rules) {
+            auto new_rule = RuleRegistry::Create(rule);
+            if (new_rule) {
+                active_rules_.push_back(std::move(new_rule));
+                Logger::Info("[Match] Loaded mod: ", rule);
+            }
+        }
         active_rules_.push_back(std::make_unique<StandardRule>());
 
         state_.status = static_cast<MatchStatus>(saved_state["status"].get<int>());
