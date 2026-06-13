@@ -18,7 +18,6 @@ export type AppScreen =
     | "detailedStats";
 
 class StoreNavigation {
-    // ── Reactive state ──────────────────────────────────────────────────────
     current = $state<AppScreen>("main");
     #previous: AppScreen | null = null;
 
@@ -34,8 +33,6 @@ class StoreNavigation {
             this.goto(localScreen as AppScreen);
         });
     }
-
-    // ── Public API ───────────────────────────────────────────────────────────
 
     goto(screen: AppScreen): void {
         if (screen === this.current) return;

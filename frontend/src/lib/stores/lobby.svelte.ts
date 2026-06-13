@@ -250,8 +250,6 @@ class StoreLobby {
         ws.emit(ClientAction.LobbyLeave);
     }
 
-    // ── Listeners & Private Methods ─────────────────────────────────────────
-
     /**
      * Subscribes to all server-pushed WebSocket events related to lobbies.
      * @remarks

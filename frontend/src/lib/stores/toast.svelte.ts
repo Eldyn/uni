@@ -11,13 +11,9 @@ export interface Toast {
 }
 
 class StoreToast {
-    // ── Reactive state ──────────────────────────────────────────────────────
     items = $state<Toast[]>([]);
 
-    // ── Private ─────────────────────────────────────────────────────────────
     #nextId = 0;
-
-    // ── Public API ───────────────────────────────────────────────────────────
 
     add(message: string, type: ToastType = "info", durationMs = 5_000): () => void {
         const id = this.#nextId++;

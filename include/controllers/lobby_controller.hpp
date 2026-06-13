@@ -293,8 +293,6 @@ private:
      */
     Lobby* FindLobbyForUser(const std::string& username);
 
-    // ── Variabili di Stato ──────────────────────────────────────────────────
-
     GameStartedCallback game_started_callback_;     /**< Callback per l'avvio partita. */
     PlayerReplacedCallback player_replaced_callback_;/**< Callback per sostituzione giocatori. */
 
