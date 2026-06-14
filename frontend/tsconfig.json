@@ -8,7 +8,7 @@
 		"strict": true,
 		"types": ["svelte", "vite/client"],
 		"ignoreDeprecations": "6.0",
-		"baseUrl": ".",
-		"exclude": ["node_modules/"]
+		"baseUrl": "."
+		// "exclude": ["node_modules/"]
 	}
 }

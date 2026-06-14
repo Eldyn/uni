@@ -1,29 +1,33 @@
 {
-    "name": "uni-uno-frontend",
-    "private": true,
-    "version": "0.0.1",
-    "type": "module",
-    "scripts": {
-        "build": "vite build",
-        "watch": "vite build --watch --mode development",
-        "preview": "vite preview",
-        "lint": "prettier --check .",
-        "format": "prettier --write ."
-    },
-    "devDependencies": {
-        "@sveltejs/vite-plugin-svelte": "^5.0.3",
-        "prettier": "^3.8.1",
-        "prettier-plugin-svelte": "^3.5.1",
-        "svelte": "^5.55.4",
-        "typedoc": "^0.28.19",
-        "typedoc-plugin-markdown": "^4.12.0",
-        "typescript-svelte-plugin": "^0.3.52",
-        "vite": "^6.3.0"
-    },
-    "dependencies": {
-        "@dnd-kit-svelte/svelte": "^0.1.6",
-        "@dnd-kit/svelte": "^0.4.0",
-        "esbuild": "^0.28.0",
-        "svelte-dnd-action": "^0.9.69"
-    }
+	"name": "uni-uno-frontend",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"watch": "vite build --watch --mode development",
+		"preview": "vite preview",
+		"lint": "prettier --check .",
+		"format": "prettier --write .",
+		"docs": "typedoc",
+		"pdf": "cat docs/markdown/**/*.md | npx md-to-pdf > frontend-manual.pdf"
+	},
+	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "^5.0.3",
+		"md-to-pdf": "^5.2.5",
+		"prettier": "^3.8.1",
+		"prettier-plugin-svelte": "^3.5.1",
+		"svelte": "^5.55.4",
+		"sveltedoc-parser": "^4.2.1",
+		"typedoc": "^0.28.19",
+		"typedoc-plugin-markdown": "^4.12.0",
+		"typescript-svelte-plugin": "^0.3.52",
+		"vite": "^6.3.0"
+	},
+	"dependencies": {
+		"@dnd-kit-svelte/svelte": "^0.1.6",
+		"@dnd-kit/svelte": "^0.4.0",
+		"esbuild": "^0.28.0",
+		"svelte-dnd-action": "^0.9.69"
+	}
 }

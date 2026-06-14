@@ -1,0 +1,10 @@
+{
+	"entryPoints": ["src/docs.ts"],
+	"entryPointStrategy": "expand",
+	"out": "docs/markdown",
+	"plugin": ["typedoc-plugin-markdown"],
+	"name": "UNI - Documentazione Frontend",
+	"readme": "none",
+	"excludePrivate": false,
+	"hideGenerator": true
+}

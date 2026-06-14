@@ -75,7 +75,7 @@
 
 	$effect(() => {
 		rules.forEach((rule) => {
-			rule.enabled = storeLobby.current?.settings.active_mods.indexOf(rule.id as Rule) !== -1;
+			rule.enabled = storeLobby.current?.settings.active_mods.indexOf(rule.id) !== -1;
 		});
 	});
 

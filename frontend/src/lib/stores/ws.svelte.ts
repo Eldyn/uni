@@ -1,8 +1,13 @@
 /**
- * WebSocket communication utilities
- * Manages connection, message handlers, and emit/wait patterns using Svelte 5 state.
+ * @file ws.svelte.ts
+ * @brief Utility di comunicazione e wrapper per il protocollo WebSocket.
+ * Gestisce la connessione, l'instradamento dei messaggi (handler) e implementa un pattern
+ * Sincrono/Asincrono (emit/wait) utilizzando lo stato reattivo di Svelte 5.
  */
 
+/**
+ * @brief Dizionario delle costanti per le azioni inviate dal Client verso il Server.
+ */
 export const ClientAction = {
     GamePlayCard: "game_play_card",
     GameDrawCard: "game_draw_card",
@@ -27,6 +32,9 @@ export const ClientAction = {
     ChatSend: "chat_send"
 } as const;
 
+/**
+ * @brief Dizionario delle costanti per le azioni inviate dal Server verso il Client.
+ */
 export const ServerAction = {
     Success: "success",
     Error: "error",
@@ -47,30 +55,43 @@ export type ClientActionType = (typeof ClientAction)[keyof typeof ClientAction];
 export type ServerActionType = (typeof ServerAction)[keyof typeof ServerAction];
 
 export type ServerActionDef = ServerActionType | string;
+
+/**
+ * @typedef MessageHandler
+ * @brief Firma della funzione di callback per intercettare i messaggi WebSocket.
+ */
 export type MessageHandler = (data: Record<string, unknown>) => void;
 
 /**
- * Represents the reactive state of the WebSocket connection.
+ * @interface ConnectionStatus
+ * @brief Rappresenta lo stato reattivo della connessione WebSocket utile per la UI.
  */
 export interface ConnectionStatus {
+    /** Stato attuale della connessione. */
     status: "disconnected" | "connecting" | "connected";
+    /** Username sincronizzato dal server. */
     username: string;
+    /** Nome della stanza corrente. */
     room: string;
+    /** Codice invito della lobby attuale. */
     lobby_code: string;
 }
 
 /**
- * Unified response wrapper for WebSocket messages.
- * Mimics the HTTP Fetch Response API to provide a linear, predictable control flow.
+ * @class WsResponse
+ * @brief Wrapper unificato per le risposte dei messaggi WebSocket.
+ * Mima l'API HTTP Fetch per fornire un flusso di controllo lineare e prevedibile
+ * quando si attendono risposte dal server.
+ * @tag FRONT-WS-001
  */
 export class WsResponse {
-    /** True if the server action is NOT an error. */
+    /** True se l'azione ritornata dal server NON è un errore. */
     public readonly ok: boolean;
-    /** The server action returned. */
+    /** Il comando ServerAction ritornato nel pacchetto. */
     public readonly action: string;
-    /** The original request ID, if provided. */
+    /** L'ID univoco della richiesta originaria inoltrata dal client, se presente. */
     public readonly request_id?: string;
-    /** The raw JSON data dictionary returned by the server. */
+    /** Il dizionario JSON grezzo coi dati restituiti dal server. */
     public readonly data: Record<string, unknown>;
 
     constructor(rawData: Record<string, unknown>) {
@@ -82,24 +103,26 @@ export class WsResponse {
     }
 
     /**
-     * Safely extracts the server's error reason, falling back to a default string.
+     * @brief Estrae in sicurezza il motivo dell'errore (reason) restituito dal server.
+     * @returns Il messaggio di errore o un fallback predefinito.
      */
     get reason(): string {
         return (this.data.reason as string) || "Unknown Server Error";
     }
 
     /**
-     * Utility to extract a strongly-typed value from the payload, or null if it does not exist.
-     * @param key The key to look up in the payload.
+     * @brief Estrae un valore tipizzato dal payload.
+     * @param key La chiave da cercare nel dizionario JSON.
+     * @returns Il valore tipizzato o null se la chiave non esiste.
      */
     get<T>(key: string): T | null {
         return key in this.data ? (this.data[key] as T) : null;
     }
 
     /**
-     * Utility to extract a strongly-typed value from the payload with a fallback.
-     * @param key The key to look up in the payload.
-     * @param fallback The fallback value if the key does not exist.
+     * @brief Estrae un valore tipizzato dal payload fornendo un fallback in caso di assenza.
+     * @param key La chiave da cercare nel payload JSON.
+     * @param fallback Il valore di sicurezza da restituire.
      */
     getOr<T>(key: string, fallback: T): T {
         return key in this.data ? (this.data[key] as T) : fallback;
@@ -107,7 +130,8 @@ export class WsResponse {
 }
 
 /**
- * Internal interface for tracking unresolved emitAndWait calls.
+ * @interface PendingRequest
+ * @brief Interfaccia ad uso interno per tracciare le richieste in attesa di risposta (emitAndWait).
  */
 interface PendingRequest {
     resolve: (res: WsResponse) => void;
@@ -116,14 +140,17 @@ interface PendingRequest {
 }
 
 /**
- * Stateful WebSocket Client
- * Manages automatic reconnections, request/response correlation, and Svelte 5 reactive connection states.
+ * @class WebSocketClient
+ * @brief Client WebSocket Stateful e Reattivo.
+ * Gestisce riconnessioni automatiche (Exponential Backoff), correlazione tra richieste
+ * e risposte, e incapsula gli stati della connessione sfruttando Svelte 5 (`$state`).
+ * @tag FRONT-WS-002
  */
 export class WebSocketClient {
-    /** The raw WebSocket instance (reactive). */
+    /** Istanza nativa del WebSocket (reattiva). */
     socket = $state<WebSocket | null>(null);
 
-    /** Connection metadata and status (reactive). */
+    /** Metadati e stato della connessione (reattivi per interfacciarsi con l'UI). */
     connectionStatus = $state<ConnectionStatus>({
         status: "disconnected",
         username: "",
@@ -145,14 +172,15 @@ export class WebSocketClient {
     private intentionalClose = false;
 
     /**
-     * Checks if the WebSocket is currently open and active.
+     * @brief Verifica se il WebSocket è attualmente aperto e attivo.
      */
     get isConnected(): boolean {
         return this.socket?.readyState === WebSocket.OPEN;
     }
 
     /**
-     * Establishes the WebSocket connection. Safe to call multiple times.
+     * @brief Installa e stabilisce la connessione WebSocket. Sicuro da chiamare più volte.
+     * @returns Promise risolta quando la connessione si apre con successo.
      */
     async connect(): Promise<void> {
         if (this.isConnected) return;
@@ -163,7 +191,9 @@ export class WebSocketClient {
     }
 
     /**
-     * Intentionally disconnects the WebSocket and halts exponential backoff reconnections.
+     * @brief Disconnette intenzionalmente il WebSocket bloccando il sistema di auto-riconnessione.
+     * @param code Il codice di chiusura WebSocket.
+     * @param reason La motivazione testuale per la chiusura.
      */
     disconnect(code: number, reason: string): void {
         this.intentionalClose = true;
@@ -187,11 +217,10 @@ export class WebSocketClient {
     }
 
     /**
-     * Fires a message to the server without expecting a correlated response.
-     * Does NOT attach a request_id.
-     *
-     * @param action The ClientAction to send
-     * @param payload Optional data payload
+     * @brief Invia un messaggio asincrono al server senza attendere alcuna risposta (Fire and Forget).
+     * Non allega nessun `request_id` al pacchetto.
+     * @param action L'azione da compiere (ClientAction).
+     * @param payload Dati opzionali da allegare in formato JSON.
      */
     emit(action: string, payload: Record<string, unknown> = {}): void {
         if (this.isConnected) {
@@ -200,12 +229,13 @@ export class WebSocketClient {
     }
 
     /**
-     * Sends a message and awaits a correlated response from the server via a request_id.
-     * Resolves with a WsResponse (even for server logic errors), but rejects on infrastructure/timeout failures.
-     *
-     * @param action The ClientAction to send
-     * @param payload Optional data payload
-     * @param timeoutMs How long to wait before aborting (default 5000ms)
+     * @brief Invia un messaggio e attende la risposta correlata dal server generando un `request_id`.
+     * Risolve in una `WsResponse` anche per errori logici generati dal server, ma rigetta
+     * in caso di fallimenti infrastrutturali (es. caduta rete o Timeout).
+     * @param action L'azione da compiere (ClientAction).
+     * @param payload Dati opzionali da allegare.
+     * @param timeoutMs Tempo massimo di attesa prima di abortire (Default: 5000ms).
+     * @returns Promise risolta col pacchetto di risposta del server.
      */
     emitAndWait(
         action: string,
@@ -233,11 +263,10 @@ export class WebSocketClient {
     }
 
     /**
-     * Registers a listener for specific server actions, or "*" for all actions.
-     *
-     * @param action The ServerAction to listen for.
-     * @param handler Callback triggered when the action is received.
-     * @returns A cleanup function to remove the listener.
+     * @brief Registra un Listener globale per intercettare specifiche Server Action.
+     * @param action L'azione del server da ascoltare (usa "*" per ascoltare tutto).
+     * @param handler La funzione di callback innescata alla ricezione del messaggio.
+     * @returns Una lambda per rimuovere l'iscrizione all'evento.
      */
     on(action: ServerActionDef | "*", handler: MessageHandler): () => void {
         if (!this.onHandlers.has(action)) this.onHandlers.set(action, new Set());
@@ -247,33 +276,33 @@ export class WebSocketClient {
     }
 
     /**
-     * Register a callback to fire immediately when the socket opens.
-     * @returns A cleanup function to remove the hook.
+     * @brief Registra un Listener innescato immediatamente all'apertura del socket.
+     * @returns Funzione per rimuovere l'hook.
      */
     onOpen(handler: () => void | Promise<void>): () => void {
         this.openHandlers.push(handler);
 
-        // Return the unsubscriber
+        // Ritorna la funzione di cancellazione (unsubscriber)
         return () => {
             this.openHandlers = this.openHandlers.filter((h) => h !== handler);
         };
     }
 
     /**
-     * Register a callback to fire immediately when the socket closes.
-     * @returns A cleanup function to remove the hook.
+     * @brief Registra un Listener innescato alla chiusura del socket.
+     * @returns Funzione per rimuovere l'hook.
      */
     onClose(handler: () => void | Promise<void>): () => void {
         this.closeHandlers.push(handler);
 
-        // Return the unsubscriber
+        // Ritorna la funzione di cancellazione (unsubscriber)
         return () => {
             this.closeHandlers = this.closeHandlers.filter((h) => h !== handler);
         };
     }
 
     /**
-     * Internal routine to establish the connection and bind events.
+     * @brief Routine interna per stabilire una singola connessione grezza e legare gli eventi nativi.
      */
     private async _connectOnce(): Promise<void> {
         return new Promise(async (resolve, reject) => {
@@ -322,24 +351,24 @@ export class WebSocketClient {
     }
 
     /**
-     * Handles routing the incoming message to pending requests and global listeners.
+     * @brief Smista il messaggio in ingresso risolvendo eventuali richieste pendenti o innescando Listener globali.
      */
     private _dispatch(data: Record<string, unknown>) {
         const action = data.action as string;
         const requestId = data.request_id as string;
 
-        // INFO: Resolve pending request promises if a request_id matches
+        // INFO: Risolve le promise pendenti se è presente una corrispondenza con l'ID
         if (requestId && this.pendingRequests.has(requestId)) {
             const pending = this.pendingRequests.get(requestId)!;
             this.pendingRequests.delete(requestId);
             clearTimeout(pending.timer);
 
-            // INFO: Wrap in our HTTP-like envelope and resolve
+            // INFO: Inserisce il payload nel nostro inviluppo simile all'HTTP e risolve
             const response = new WsResponse(data);
             pending.resolve(response);
         }
 
-        // INFO: Fire standard global listeners
+        // INFO: Innesca i listener globali standard
         if (action) {
             this.onHandlers.get(action)?.forEach((handler) => handler(data));
             this.onHandlers.get("*")?.forEach((handler) => handler(data));
@@ -347,7 +376,8 @@ export class WebSocketClient {
     }
 
     /**
-     * Implements an exponential backoff strategy for reconnections.
+     * @brief Implementa un algoritmo di Exponential Backoff per tentare le riconnessioni.
+     * Raddoppia il ritardo ad ogni tentativo fallito fino a un cap massimo.
      */
     private _scheduleReconnect() {
         if (this.intentionalClose) return;
@@ -367,9 +397,8 @@ export class WebSocketClient {
     }
 
     /**
-     * Registers a single visibilitychange listener on the document.
-     * When the tab becomes visible and we're not connected, immediately
-     * attempt a reconnect (bypassing the backoff timer).
+     * @brief Registra un Listener sul documento per rilevare il rientro dell'utente sulla scheda (tab).
+     * Disattiva il timer di backoff forzando una riconnessione immediata qualora la scheda torni visibile.
      */
     #attachVisibilityListener() {
         if (this.visibilityListenerAttached) return;
@@ -377,18 +406,18 @@ export class WebSocketClient {
 
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "visible" && !this.isConnected && !this.intentionalClose) {
-                // Cancel any pending backoff timer and reconnect now.
+                // Annulla i timer pendenti e forza una connessione
                 if (this.reconnectTimer) {
                     clearTimeout(this.reconnectTimer);
                     this.reconnectTimer = null;
                 }
 
-                this.reconnectDelayMs = 1000; // reset backoff on manual tab-return
+                this.reconnectDelayMs = 1000; // Reset del backoff
                 this._connectOnce().catch(() => this._scheduleReconnect());
             }
         });
     }
 }
 
-// Export a global singleton instance for use across the Svelte application
+// Esporta un'istanza singleton globale per l'utilizzo in tutta l'applicazione Svelte
 export const ws = new WebSocketClient();
