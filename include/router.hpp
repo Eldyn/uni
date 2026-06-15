@@ -2,28 +2,28 @@
 
 /**
  * @file router.hpp
- * @brief Classe base per l'implementazione dei router (HTTP e WebSocket).
+ * @brief Base class for the router implementations (HTTP and WebSocket).
  */
 
 /**
  * @class Router
- * @brief Interfaccia base non istanziabile per tutti i router dell'applicazione.
- * * Questa classe impone la regola di non-copiabilità. Dato che sia `ActionRouter`
- * che `HttpRouter` possiedono lo stato interno degli handler, duplicarli porterebbe
- * a comportamenti indefiniti e corruzione della memoria.
+ * @brief Non-instantiable base interface for all the application's routers.
+ * * This class enforces the non-copyability rule. Since both `ActionRouter`
+ * and `HttpRouter` own the internal state of the handlers, duplicating them would lead
+ * to undefined behaviour and memory corruption.
  * @tag RTR-CLS-001
  */
 class Router {
 public:
     virtual ~Router() = default;
 
-    /** @brief Elimina il costruttore di copia. */
+    /** @brief Deletes the copy constructor. */
     Router(const Router&)            = delete;
-    
-    /** @brief Elimina l'operatore di assegnamento. */
+
+    /** @brief Deletes the assignment operator. */
     Router& operator=(const Router&) = delete;
 
 protected:
-    /** @brief Costruttore protetto, istanziabile solo dalle classi derivate. */
+    /** @brief Protected constructor, instantiable only by derived classes. */
     Router() = default;
 };

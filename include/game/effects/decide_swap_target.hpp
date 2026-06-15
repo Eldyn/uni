@@ -5,48 +5,48 @@
 
 /**
  * @file decide_swap_target.hpp
- * @brief Effetto interattivo per la scelta del bersaglio per lo scambio delle carte.
- * * Richiede un'azione esplicita da parte di un giocatore per decidere con quale 
- * avversario scambiare la propria intera mano di carte (tipico della carta "7").
+ * @brief Interactive effect for choosing the target for swapping cards.
+ * * Requires an explicit action from a player to decide which
+ * opponent to swap their entire hand of cards with (typical of the "7" card).
  */
 
 namespace game {
 
     /**
      * @class DecideSwapTargetEffect
-     * @brief Sospende il gioco per chiedere a un utente con chi desidera scambiare le carte.
-     * * Questo effetto non scambia fisicamente le carte, ma raccoglie l'input dell'utente.
-     * Una volta ricevuto l'input (il nome del target), tipicamente accoda un `PassHandsEffect` 
-     * o un effetto simile mirato ai due giocatori coinvolti.
+     * @brief Suspends the game to ask a user who they wish to swap cards with.
+     * * This effect does not physically swap the cards, but collects the user's input.
+     * Once the input (the target's name) is received, it typically enqueues a `PassHandsEffect`
+     * or a similar effect targeted at the two players involved.
      * @tag EFFECT-SWAP-001
      */
     class DecideSwapTargetEffect : public Effect {
     public:
         /**
-         * @brief Costruttore dell'effetto interattivo.
-         * @param username Nome del giocatore a cui spetta la decisione.
+         * @brief Constructor of the interactive effect.
+         * @param username Name of the player who must make the decision.
          */
         explicit DecideSwapTargetEffect(std::string username) : username_(std::move(username)) {}
 
         /**
-         * @brief Sospende l'esecuzione in attesa dell'input dal giocatore.
-         * Se l'input (username avversario) è già stato fornito e memorizzato nello stato,
-         * convalida la mossa e procede.
-         * @param state Lo stato del gioco.
-         * @param match Istanza della partita.
-         * @return EffectResult Restituisce kNeedsInput per interrogare il client.
+         * @brief Suspends execution while waiting for input from the player.
+         * If the input (opponent's username) has already been provided and stored in the state,
+         * it validates the move and proceeds.
+         * @param state The game state.
+         * @param match The match instance.
+         * @return EffectResult Returns kNeedsInput to query the client.
          * @tag EFFECT-SWAP-MTH-001
          */
         EffectResult Resolve(GameState* state, MatchInstance* match) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kDecideSwapTarget.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kDecideSwapTarget.
          * @tag EFFECT-SWAP-MTH-002
          */
         EffectType GetType() const override { return EffectType::kDecideSwapTarget; }
 
     private:
-        std::string username_; /**< L'utente che deve selezionare il target. */
+        std::string username_; /**< The user who must select the target. */
     };
 }

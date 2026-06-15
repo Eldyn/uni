@@ -5,57 +5,57 @@ using std::string;
 
 /**
  * @file error.hpp
- * @brief Definizione degli errori standard di sistema e protocollo.
+ * @brief Definition of the standard system and protocol errors.
  */
 
 /**
  * @struct Error
- * @brief Incapsula le informazioni riguardanti un errore verificatosi nel sistema.
- * * Contiene un codice standard interno ed un messaggio descrittivo per un facile 
- * instradamento e risposta verso il client.
+ * @brief Encapsulates the information concerning an error that occurred in the system.
+ * * Contains a standard internal code and a descriptive message for easy
+ * routing and response to the client.
  * @tag ERR-STR-001
  */
 struct Error {
-    
+
     /**
      * @enum Code
-     * @brief Codici generici che classificano la tipologia di errore.
+     * @brief Generic codes that classify the type of error.
      * @tag ERR-ENUM-001
      */
     enum class Code {
-        kBadRequest,        /**< Richiesta malformata. */
-        kInvalidInput,      /**< Dati in ingresso non validi (es. Type mismatch in JSON). */
-        kNotFound,          /**< Risorsa non trovata (es. file o lobby inesistente). */
-        kUnauthorised,      /**< Mancanza di permessi o token JWT non valido. */
-        kConflict,          /**< Conflitto nello stato delle risorse (es. utente già presente). */
-        kDatabaseFailure,   /**< Errore interno al driver SQLite. */
-        kInternalError,     /**< Eccezione non gestita o errore di logica del server. */
+        kBadRequest,        /**< Malformed request. */
+        kInvalidInput,      /**< Invalid input data (e.g. type mismatch in JSON). */
+        kNotFound,          /**< Resource not found (e.g. non-existent file or lobby). */
+        kUnauthorised,      /**< Lack of permissions or invalid JWT token. */
+        kConflict,          /**< Conflict in the resource state (e.g. user already present). */
+        kDatabaseFailure,   /**< Internal error in the SQLite driver. */
+        kInternalError,     /**< Unhandled exception or server logic error. */
     };
 
-    Code   code;            /**< Tipologia dell'errore. */
-    string message;         /**< Dettaglio testuale umano/leggibile. */
+    Code   code;            /**< Type of the error. */
+    string message;         /**< Human-readable textual detail. */
 
     // --- Factory Methods ---
 
-    /** @brief Crea un errore di tipo kBadRequest. @tag ERR-MTH-001 */
+    /** @brief Creates an error of type kBadRequest. @tag ERR-MTH-001 */
     static Error BadRequest   (const string& msg) { return {Code::kBadRequest,       msg}; }
-    /** @brief Crea un errore di tipo kInvalidInput. @tag ERR-MTH-002 */
+    /** @brief Creates an error of type kInvalidInput. @tag ERR-MTH-002 */
     static Error InvalidInput (const string& msg) { return {Code::kInvalidInput,     msg}; }
-    /** @brief Crea un errore di tipo kNotFound. @tag ERR-MTH-003 */
+    /** @brief Creates an error of type kNotFound. @tag ERR-MTH-003 */
     static Error NotFound     (const string& msg) { return {Code::kNotFound,         msg}; }
-    /** @brief Crea un errore di tipo kUnauthorised. @tag ERR-MTH-004 */
+    /** @brief Creates an error of type kUnauthorised. @tag ERR-MTH-004 */
     static Error Unauthorised (const string& msg) { return {Code::kUnauthorised,     msg}; }
-    /** @brief Crea un errore di tipo kConflict. @tag ERR-MTH-005 */
+    /** @brief Creates an error of type kConflict. @tag ERR-MTH-005 */
     static Error Conflict     (const string& msg) { return {Code::kConflict,         msg}; }
-    /** @brief Crea un errore di DB kDatabaseFailure. @tag ERR-MTH-006 */
+    /** @brief Creates a DB error kDatabaseFailure. @tag ERR-MTH-006 */
     static Error DatabaseFail (const string& msg) { return {Code::kDatabaseFailure,  msg}; }
-    /** @brief Crea un errore generico kInternalError. @tag ERR-MTH-007 */
+    /** @brief Creates a generic error kInternalError. @tag ERR-MTH-007 */
     static Error Internal     (const string& msg) { return {Code::kInternalError,    msg}; }
 
     /**
-     * @brief Mappa il codice di errore interno al corrispondente Status Code HTTP.
-     * Utile per rispondere automaticamente al client in modo standard (es. nelle REST API).
-     * @return std::string Status code formattato (es. "404 Not Found").
+     * @brief Maps the internal error code to the corresponding HTTP Status Code.
+     * Useful for automatically responding to the client in a standard way (e.g. in REST APIs).
+     * @return std::string Formatted status code (e.g. "404 Not Found").
      * @tag ERR-MTH-008
      */
     std::string HttpStatus() const {

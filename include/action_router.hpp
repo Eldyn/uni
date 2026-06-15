@@ -9,29 +9,29 @@
 
 /**
  * @file action_router.hpp
- * @brief Implementazione del router per lo smistamento dei messaggi WebSocket.
- * * Indirizza i messaggi JSON in arrivo ai gestori appropriati ispezionando
- * il campo "action" all'interno del payload.
+ * @brief Implementation of the router for dispatching WebSocket messages.
+ * * Routes incoming JSON messages to the appropriate handlers by inspecting
+ * the "action" field within the payload.
  */
 
 using json = nlohmann::json;
 
 /**
  * @typedef ActionHandler
- * @brief Firma per i gestori delle azioni WebSocket.
- * * Restituisce un booleano:
- * - `true`: Continua il dispatch (passa al gestore specifico successivo).
- * - `false`: Interrompe il dispatch (usato dai middleware/wildcard per bloccare l'azione, es. guardia di autenticazione).
+ * @brief Signature for WebSocket action handlers.
+ * * Returns a boolean:
+ * - `true`: Continue the dispatch (pass to the next specific handler).
+ * - `false`: Stop the dispatch (used by middleware/wildcards to block the action, e.g. authentication guard).
  * @tag ACT-RTR-TYP-001
  */
 using ActionHandler = std::function<bool(WsContext, const json&)>;
 
 /**
  * @class ActionRouter
- * @brief Smista i messaggi WebSocket ai vari controller in base al tipo di azione.
- * * Supporta l'uso di "wildcard" (middleware) che vengono eseguiti prima di ogni azione
- * specifica. Se una wildcard restituisce `false`, il gestore specifico non viene mai chiamato.
- * Eredita da `Router` per disabilitare la copia.
+ * @brief Dispatches WebSocket messages to the various controllers based on the action type.
+ * * Supports the use of "wildcards" (middleware) that are executed before every specific
+ * action. If a wildcard returns `false`, the specific handler is never called.
+ * Inherits from `Router` to disable copying.
  * @tag ACT-RTR-CLS-001
  */
 class ActionRouter : public Router {
@@ -39,36 +39,36 @@ public:
     ActionRouter() = default;
 
     /**
-     * @brief Registra un gestore per una specifica azione.
-     * @param action Il nome dell'azione (es. "play_card").
-     * @param handler La funzione da eseguire quando si riceve l'azione.
-     * @return ActionRouter& Riferimento a se stesso per il concatenamento (chaining).
+     * @brief Registers a handler for a specific action.
+     * @param action The name of the action (e.g. "play_card").
+     * @param handler The function to execute when the action is received.
+     * @return ActionRouter& Reference to itself for chaining.
      * @tag ACT-RTR-MTH-001
      */
     ActionRouter& On(const std::string& action, ActionHandler handler);
 
     /**
-     * @brief Registra un gestore "wildcard" (middleware).
-     * I middleware vengono eseguiti nell'ordine di registrazione prima di ogni handler specifico.
-     * @param handler La funzione da eseguire. Se restituisce false, blocca la catena.
-     * @return ActionRouter& Riferimento a se stesso.
+     * @brief Registers a "wildcard" handler (middleware).
+     * Middleware are executed in registration order before every specific handler.
+     * @param handler The function to execute. If it returns false, it blocks the chain.
+     * @return ActionRouter& Reference to itself.
      * @tag ACT-RTR-MTH-002
      */
     ActionRouter& OnAny(ActionHandler handler);
 
     /**
-     * @brief Avvia lo smistamento di un messaggio in arrivo.
-     * * Viene chiamato internamente dal `WebServer` su ogni frame WebSocket ricevuto.
-     * Esegue prima le wildcard; se tutte restituiscono true, cerca ed esegue il gestore specifico.
-     * @param ctx Il contesto della connessione WebSocket.
-     * @param msg Il payload JSON ricevuto dal client.
-     * @return true se un gestore specifico è stato trovato ed eseguito, false se non esiste alcun gestore (dopo aver eseguito le wildcard).
+     * @brief Starts the dispatch of an incoming message.
+     * * Called internally by the `WebServer` on every received WebSocket frame.
+     * Executes the wildcards first; if they all return true, it looks up and executes the specific handler.
+     * @param ctx The context of the WebSocket connection.
+     * @param msg The JSON payload received from the client.
+     * @return true if a specific handler was found and executed, false if no handler exists (after running the wildcards).
      * @tag ACT-RTR-MTH-003
      */
     bool Dispatch(WsContext ctx, const json& msg) const;
 
 private:
-    std::unordered_map<std::string, ActionHandler> handlers_; /**< Mappa delle azioni ai relativi handler specifici. */
+    std::unordered_map<std::string, ActionHandler> handlers_; /**< Map of actions to their specific handlers. */
 
-    std::vector<ActionHandler> wildcards_; /**< Lista dei middleware eseguiti prima di ogni azione specifica. */
+    std::vector<ActionHandler> wildcards_; /**< List of middleware executed before every specific action. */
 };

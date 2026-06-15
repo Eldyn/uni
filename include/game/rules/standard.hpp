@@ -3,21 +3,21 @@
 
 /**
  * @file standard.hpp
- * @brief Implementazione del set di regole classiche di base del gioco UNO.
- * * Questa regola è responsabile della validazione primaria (colore su colore,
- * valore su valore) e dell'inserimento nella coda di risoluzione degli effetti
- * associati ad ogni tipo di carta speciale giocata.
+ * @brief Implementation of the classic base rule set of the UNO game.
+ * * This rule is responsible for the primary validation (colour on colour,
+ * value on value) and for inserting into the effect resolution queue the effects
+ * associated with each type of special card played.
  */
 
 namespace game {
 
    /**
     * @class StandardRule
-    * @brief Validatore e processore principale delle meccaniche standard del gioco.
-    * * Assicura che la mossa sia legale rispetto allo stato attuale del tavolo e,
-    * se convalidata, decodifica il valore della carta instanziando gli Effetti 
-    * corrispondenti (es. se la carta è un "Pesca Due", accoda un `DrawEffect` e 
-    * un `AdvanceTurnEffect`).
+    * @brief Main validator and processor of the game's standard mechanics.
+    * * Ensures the move is legal with respect to the current state of the table and,
+    * if validated, decodes the card's value by instantiating the corresponding Effects
+    * (e.g. if the card is a "Draw Two", it enqueues a `DrawEffect` and
+    * an `AdvanceTurnEffect`).
     * @tag RULE-STD-001
     */
    class StandardRule : public GameRule {
@@ -25,31 +25,31 @@ namespace game {
         ~StandardRule() override = default;
 
         /**
-         * @brief Intercetta il tentativo di giocata valutandone la legalità.
-         * Verifica se la carta giocata corrisponde in colore o in valore/simbolo alla carta 
-         * in cima agli scarti (o al colore attivo per i Jolly). Modifica `event.is_valid_play` in caso negativo.
-         * @param state Puntatore allo stato di gioco attuale.
-         * @param event Struttura evento contenente i dettagli della giocata.
+         * @brief Intercepts the play attempt, evaluating its legality.
+         * Checks whether the played card matches in colour or in value/symbol the card
+         * on top of the discard pile (or the active colour for Wilds). Sets `event.is_valid_play` to false otherwise.
+         * @param state Pointer to the current game state.
+         * @param event Event struct containing the details of the play.
          * @tag RULE-STD-MTH-001
          */
         void ValidatePlay(GameState* state, CardPlayedEvent& event) override;
 
         /**
-         * @brief Esegue le conseguenze di una giocata confermata valida.
-         * Mette in coda in `GameState::effect_queue` le classi `Effect` pertinenti basate
-         * sull'enumeratore `Value` estratto dalla carta compatta giocata.
-         * @param state Puntatore allo stato di gioco.
-         * @param event L'evento della carta giocata.
+         * @brief Executes the consequences of a play confirmed as valid.
+         * Enqueues into `GameState::effect_queue` the relevant `Effect` classes based
+         * on the `Value` enumerator extracted from the compact card played.
+         * @param state Pointer to the game state.
+         * @param event The event of the played card.
          * @tag RULE-STD-MTH-002
          */
         void OnCardPlayed(GameState* state, CardPlayedEvent& event) override;
 
     private:
         /**
-         * @brief Calcola chi sarà il giocatore a subire le penalità o il prossimo a giocare.
-         * Metodo di supporto utilizzato internamente per determinare il target (es. per `SkipEffect` o `DrawEffect`).
-         * * @param state Puntatore allo stato del gioco.
-         * @return std::string Username del giocatore bersaglio calcolato seguendo la direzione di gioco.
+         * @brief Computes who will be the player to suffer the penalties or the next to play.
+         * Support method used internally to determine the target (e.g. for `SkipEffect` or `DrawEffect`).
+         * * @param state Pointer to the game state.
+         * @return std::string Username of the target player computed following the direction of play.
          * @tag RULE-STD-PRIV-001
          */
         std::string GetNextPlayer(GameState* state);

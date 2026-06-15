@@ -4,55 +4,55 @@
 
 /**
  * @file websocket_context.hpp
- * @brief Definisce i tipi e le strutture di contesto associati alle connessioni WebSocket.
- * * Questo file fa da ponte tra la libreria uWebSockets e la logica applicativa,
- * definendo i dati che vengono mantenuti in memoria per ogni singolo socket connesso.
+ * @brief Defines the types and context structures associated with WebSocket connections.
+ * * This file bridges the uWebSockets library and the application logic,
+ * defining the data kept in memory for each individual connected socket.
  */
 
 /**
  * @struct PerSocketData
- * @brief Dati di stato mantenuti all'interno di ciascuna connessione uWS.
- * * La libreria uWebSockets detiene la proprietà della memoria di questa struttura
- * per l'intera durata della vita del socket. Viene usata per tracciare l'identità
- * dell'utente connesso senza dover usare mappe di lookup esterne.
+ * @brief State data kept inside each uWS connection.
+ * * The uWebSockets library owns the memory of this structure
+ * for the entire lifetime of the socket. It is used to track the identity
+ * of the connected user without having to use external lookup maps.
  * @tag WS-CTX-STR-001
  */
 struct PerSocketData {
-    std::string username;   /**< Username impostato post-upgrade dopo la verifica del JWT. */
-    std::string room;       /**< Stanza di broadcast uWS corrente (es. ID della lobby). */
-    std::string lobby_code; /**< Il codice invito della lobby in cui si trova l'utente. */
+    std::string username;   /**< Username set post-upgrade after JWT verification. */
+    std::string room;       /**< Current uWS broadcast room (e.g. the lobby ID). */
+    std::string lobby_code; /**< The invite code of the lobby the user is in. */
 };
 
 /**
  * @typedef AppWebSocket
- * @brief Alias per il tipo complesso di socket uWebSockets configurato per SSL e routing.
+ * @brief Alias for the complex uWebSockets socket type configured for SSL and routing.
  * @tag WS-CTX-TYP-001
  */
 using AppWebSocket = uWS::WebSocket<true, true, PerSocketData>;
 
 /**
  * @typedef AppRequest
- * @brief Alias per la richiesta HTTP in ingresso di uWebSockets.
+ * @brief Alias for the incoming uWebSockets HTTP request.
  * @tag WS-CTX-TYP-002
  */
 using AppRequest   = uWS::HttpRequest;
 
 /**
  * @typedef AppResponse
- * @brief Alias per la risposta HTTP in uscita di uWebSockets (con supporto SSL).
+ * @brief Alias for the outgoing uWebSockets HTTP response (with SSL support).
  * @tag WS-CTX-TYP-003
  */
 using AppResponse  = uWS::HttpResponse<true>;
 
 /**
  * @struct WsContext
- * @brief Contesto di esecuzione passato ad ogni gestore del `ActionRouter`.
- * * Incapsula tutto ciò di cui un handler ha bisogno per processare un messaggio e
- * rispondere, eliminando la necessità di accedere a stati globali.
+ * @brief Execution context passed to every handler of the `ActionRouter`.
+ * * Encapsulates everything a handler needs to process a message and
+ * respond, removing the need to access global state.
  * @tag WS-CTX-STR-002
  */
 struct WsContext {
-    AppWebSocket* socket;       /**< Puntatore al socket che ha inviato il messaggio. */
-    PerSocketData* socket_data;  /**< Dati di sessione associati al socket chiamante. */
-    uWS::OpCode    op_code;      /**< Codice operativo del frame WebSocket (Es. Testo o Binario). */
+    AppWebSocket* socket;       /**< Pointer to the socket that sent the message. */
+    PerSocketData* socket_data;  /**< Session data associated with the calling socket. */
+    uWS::OpCode    op_code;      /**< Operation code of the WebSocket frame (e.g. Text or Binary). */
 };
