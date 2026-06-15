@@ -10,40 +10,40 @@
 
 /**
  * @file database.hpp
- * @brief Astrazione leggera e sicura (Type-Safe) attorno alla libreria SQLite3.
- * * Fornisce accesso Singleton al database, con un sistema di query basato 
- * su `std::variant` per prevenire SQL Injection, ed un costrutto RAII per le transazioni.
+ * @brief Lightweight, type-safe abstraction around the SQLite3 library.
+ * * Provides Singleton access to the database, with a query system based
+ * on `std::variant` to prevent SQL Injection, and a RAII construct for transactions.
  */
 
 /**
  * @typedef DbValue
- * @brief Variante che incapsula i tipi di dati base ammessi nel database SQLite.
+ * @brief Variant that encapsulates the base data types allowed in the SQLite database.
  * @tag DB-TYP-001
  */
 using DbValue = std::variant<int, double, std::string, std::nullptr_t>;
 
 /**
  * @class DbRow
- * @brief Rappresenta una singola riga restituita da una query SQL.
- * Memorizza i dati usando le chiavi di colonna come indici della mappa interna.
+ * @brief Represents a single row returned by a SQL query.
+ * Stores the data using the column keys as indices of the internal map.
  * @tag DB-ROW-001
  */
 class DbRow {
 public:
     /**
-     * @brief Imposta un valore nella riga per una specifica colonna.
-     * @param col Il nome della colonna.
-     * @param val Il valore tipizzato.
+     * @brief Sets a value in the row for a specific column.
+     * @param col The name of the column.
+     * @param val The typed value.
      * @tag DB-ROW-MTH-001
      */
     void Set(const std::string& col, DbValue val);
 
     /**
-     * @brief Estrae un valore forzandone il tipo previsto (Lancia eccezione se la colonna manca).
-     * @tparam T Tipo di dato atteso (es. int, std::string).
-     * @param col Nome della colonna.
-     * @return T Valore estratto.
-     * @throws std::runtime_error se la colonna non esiste.
+     * @brief Extracts a value, forcing its expected type (throws an exception if the column is missing).
+     * @tparam T Expected data type (e.g. int, std::string).
+     * @param col Name of the column.
+     * @return T Extracted value.
+     * @throws std::runtime_error if the column does not exist.
      * @tag DB-ROW-MTH-002
      */
     template<typename T>
@@ -55,11 +55,11 @@ public:
     };
 
     /**
-     * @brief Estrae un valore in modo sicuro fornendo un fallback nel caso sia assente o NULL.
-     * @tparam T Tipo di dato atteso.
-     * @param col Nome della colonna.
-     * @param fallback Valore di default in caso di colonna NULL/mancante.
-     * @return T Il valore estratto o il fallback.
+     * @brief Safely extracts a value, providing a fallback if it is absent or NULL.
+     * @tparam T Expected data type.
+     * @param col Name of the column.
+     * @param fallback Default value in case of a NULL/missing column.
+     * @return T The extracted value or the fallback.
      * @tag DB-ROW-MTH-003
      */
     template<typename T>
@@ -71,9 +71,9 @@ public:
     };
 
     /**
-     * @brief Verifica se la riga possiede la colonna specificata.
-     * @param col Nome della colonna.
-     * @return true se presente, false altrimenti.
+     * @brief Checks whether the row possesses the specified column.
+     * @param col Name of the column.
+     * @return true if present, false otherwise.
      * @tag DB-ROW-MTH-004
      */
     bool Has(const std::string& col) const;
@@ -84,72 +84,72 @@ private:
 
 /**
  * @class Database
- * @brief Pattern Singleton che incapsula la connessione univoca e condivisa al DB SQLite.
- * * Tutti i metodi di query sono "No-Throw" e ritornano risultati monadici (Result) per una
- * corretta gestione degli errori senza eccezioni C++.
+ * @brief Singleton pattern that encapsulates the unique, shared connection to the SQLite DB.
+ * * All the query methods are "No-Throw" and return monadic results (Result) for
+ * proper error handling without C++ exceptions.
  * @tag DB-CLS-001
  */
 class Database {
 public:
     /**
-     * @brief Recupera l'unica istanza attiva del Database.
-     * @return Database& Riferimento al Singleton.
+     * @brief Retrieves the single active instance of the Database.
+     * @return Database& Reference to the Singleton.
      * @tag DB-MTH-001
      */
     static Database& Get();
 
     /**
-     * @brief Apre o crea il file del database SQLite nel percorso fornito.
-     * @param path Percorso su disco.
-     * @return VoidResult Risultato del tentativo di apertura.
+     * @brief Opens or creates the SQLite database file at the provided path.
+     * @param path Path on disk.
+     * @return VoidResult Result of the open attempt.
      * @tag DB-MTH-002
      */
     VoidResult Open(std::string_view path);
 
     /**
-     * @brief Applica comandi SQL diretti al database (utilizzato prevalentemente per i file di Schema).
-     * @param sql Stringa query SQL raw.
+     * @brief Applies direct SQL commands to the database (used mainly for Schema files).
+     * @param sql Raw SQL query string.
      * @return VoidResult.
      * @tag DB-MTH-003
      */
     VoidResult ApplySchema(const char* sql);
 
     /**
-     * @brief Chiude esplicitamente la connessione SQLite attiva.
+     * @brief Explicitly closes the active SQLite connection.
      * @tag DB-MTH-004
      */
     void       Close();
 
     /**
-     * @brief Verifica se il DB è attualmente pronto all'uso.
-     * @return true se aperto.
+     * @brief Checks whether the DB is currently ready for use.
+     * @return true if open.
      * @tag DB-MTH-005
      */
     bool       IsOpen() const;
 
     /**
-     * @brief Esegue una query che non restituisce righe (es. INSERT, UPDATE, DELETE).
-     * @param sql La stringa SQL (che può contenere segnaposto `?`).
-     * @param params I parametri tipizzati opzionali da bindare sulla query.
-     * @return VoidResult Errore in caso di fallimento della query o violazione constraint.
+     * @brief Executes a query that does not return rows (e.g. INSERT, UPDATE, DELETE).
+     * @param sql The SQL string (which may contain `?` placeholders).
+     * @param params The optional typed parameters to bind to the query.
+     * @return VoidResult Error in case of query failure or constraint violation.
      * @tag DB-MTH-006
      */
     VoidResult                          Exec     (const char* sql, std::vector<DbValue> params = {});
 
     /**
-     * @brief Esegue una query che restituisce una lista di risultati (es. SELECT generiche).
-     * @param sql Stringa query parametrizzata.
-     * @param params Lista di parametri associati ai segnaposto.
-     * @return Result<std::vector<DbRow>> Il vettore di righe risultanti.
+     * @brief Executes a query that returns a list of results (e.g. generic SELECTs).
+     * @param sql Parametrized query string.
+     * @param params List of parameters associated with the placeholders.
+     * @return Result<std::vector<DbRow>> The vector of resulting rows.
      * @tag DB-MTH-007
      */
     Result<std::vector<DbRow>>          Query    (const char* sql, std::vector<DbValue> params = {});
 
     /**
-     * @brief Esegue una query mirata alla restituzione di al massimo 1 record (es. SELECT con LIMIT 1).
-     * @param sql Stringa query parametrizzata.
-     * @param params Lista di parametri.
-     * @return Result<std::optional<DbRow>> Risultato contenente il record o vuoto (std::nullopt).
+     * @brief Executes a query aimed at returning at most 1 record (e.g. SELECT with LIMIT 1).
+     * @param sql Parametrized query string.
+     * @param params List of parameters.
+     * @return Result<std::optional<DbRow>> Result containing the record or empty (std::nullopt).
      * @tag DB-MTH-008
      */
     Result<std::optional<DbRow>>        QueryOne (const char* sql, std::vector<DbValue> params = {});
@@ -168,17 +168,17 @@ private:
 
 /**
  * @class TransactionGuard
- * @brief Implementa l'esecuzione sicura di transazioni database tramite il paradigma RAII.
- * * Garantisce che un eventuale fallimento bloccante all'interno del suo scope C++ 
- * scateni automaticamente un ROLLBACK (se non è stato chiamato esplicitamente `Commit()`),
- * evitando inconsistenze nel database.
+ * @brief Implements the safe execution of database transactions through the RAII paradigm.
+ * * Ensures that any blocking failure within its C++ scope
+ * automatically triggers a ROLLBACK (if `Commit()` was not called explicitly),
+ * avoiding inconsistencies in the database.
  * @tag DB-TX-001
  */
 class TransactionGuard {
 public:
     /**
-     * @brief Inizia la transazione eseguendo "BEGIN TRANSACTION".
-     * @param db Il database su cui operare.
+     * @brief Begins the transaction by executing "BEGIN TRANSACTION".
+     * @param db The database to operate on.
      * @tag DB-TX-MTH-001
      */
     explicit TransactionGuard(Database& db) : db_(db), committed_(false) {
@@ -189,7 +189,7 @@ public:
     }
 
     /**
-     * @brief Distruttore: Esegue "ROLLBACK" se la transazione non è stata completata regolarmente.
+     * @brief Destructor: Executes "ROLLBACK" if the transaction was not completed normally.
      * @tag DB-TX-MTH-002
      */
     ~TransactionGuard() {
@@ -200,8 +200,8 @@ public:
     }
 
     /**
-     * @brief Marca la transazione per un completamento vincente (esegue "COMMIT").
-     * Se chiamato, annulla l'effetto di rollback alla distruzione del Guard.
+     * @brief Marks the transaction for a successful completion (executes "COMMIT").
+     * If called, it cancels the rollback effect upon destruction of the Guard.
      * @tag DB-TX-MTH-003
      */
     void Commit() {
