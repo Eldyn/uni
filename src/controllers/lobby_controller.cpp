@@ -769,38 +769,31 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         return;
     }
 
-    auto payload_res = ws::ParsePayload<ws::LobbyUpdateSettingsPayload>(message);
-    if (!payload_res) {
-        ws::SendError(ctx.socket, ctx.op_code, "Invalid settings payload", request_id);
-        return;
+    int old_bot_count = lobby.settings.bot_count;
+
+    // Strip envelope fields then apply the patch. Fields not present in the
+    // message are left unchanged; unknown fields are ignored by nlohmann when
+    // deserializing back into LobbySettings, so the struct is always correct.
+    json patch = message;
+    patch.erase("action");
+    patch.erase("request_id");
+
+    if (patch.contains("name")) {
+        lobby.name = patch.value("name", lobby.name);
+        patch.erase("name");  // name lives on Lobby, not LobbySettings
     }
-    const auto& p = *payload_res;
 
-    bool changed        = false;
-    int  old_bot_count  = lobby.settings.bot_count;
-
-    if (p.is_public.has_value())             { lobby.settings.is_public            = *p.is_public;                              changed = true; }
-    if (p.name.has_value())                  { lobby.name                           = *p.name;                                   changed = true; }
-    if (p.bot_count.has_value())             { lobby.settings.bot_count             = *p.bot_count;                              changed = true; }
-    if (p.turn_time_limit_ms.has_value())    { lobby.settings.turn_time_limit_ms    = *p.turn_time_limit_ms;                     changed = true; }
-    if (p.allow_bot_takeover.has_value())    { lobby.settings.allow_bot_takeover    = *p.allow_bot_takeover;                     changed = true; }
-    if (p.allow_bot_replacement.has_value()) { lobby.settings.allow_bot_replacement = *p.allow_bot_replacement;                  changed = true; }
-    if (p.save_state.has_value())            { lobby.settings.save_state            = *p.save_state;                             changed = true; }
-    if (p.quit_deletes_match.has_value())    { lobby.settings.quit_deletes_match    = *p.quit_deletes_match;                     changed = true; }
-    if (p.bot_mode.has_value())              { lobby.settings.bot_mode              = static_cast<BotTakeoverMode>(*p.bot_mode); changed = true; }
-    if (p.starting_cards.has_value())        { lobby.settings.starting_cards        = *p.starting_cards;                         changed = true; }
-    // active_mods is a plain vector (not optional) — use raw JSON check to distinguish "not sent" from "sent as []"
-    if (message.contains("active_mods"))     { lobby.settings.active_mods           = p.active_mods;                             changed = true; }
+    json current_settings = lobby.settings;
+    current_settings.merge_patch(patch);
+    lobby.settings = current_settings.get<LobbySettings>();
 
     if (old_bot_count != lobby.settings.bot_count) {
         SyncBots(lobby);
     }
 
-    if (changed) {
-        auto response = ws::MakeResponse(ws::ServerAction::kSuccess, request_id);
-        ctx.socket->send(response.dump(), uWS::OpCode::TEXT);
-        BroadcastUpdate(lobby);
-    }
+    auto response = ws::MakeResponse(ws::ServerAction::kSuccess, request_id);
+    ctx.socket->send(response.dump(), uWS::OpCode::TEXT);
+    BroadcastUpdate(lobby);
 }
 
 /**
