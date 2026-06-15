@@ -13,6 +13,7 @@
 	import { ws } from "./lib/stores/ws.svelte";
 	import { storeToast } from "./lib/stores/toast.svelte";
 	import { storeAuth } from "./lib/stores/auth.svelte";
+	import { storeLobby as _storeLobby } from "./lib/stores/lobby.svelte";
 
 	// 1. Variables for audio management
 	let volume = 0.05;
