@@ -5,33 +5,33 @@
 
 /**
  * @file standard.hpp
- * @brief Implementazione degli effetti standard associati alle carte di base.
- * * Questo file definisce l'insieme degli effetti classici (es. Salto del turno, Inversione,
- * Pesca carte, Scelta colore) che vengono accodati e risolti dal motore di gioco durante una partita.
+ * @brief Implementation of the standard effects associated with the base cards.
+ * * This file defines the set of classic effects (e.g. Skip turn, Reverse,
+ * Draw cards, Choose colour) that are enqueued and resolved by the game engine during a match.
  */
 
 namespace game {
 
     /**
      * @class AdvanceTurnEffect
-     * @brief Effetto base che avanza il turno al giocatore successivo.
-     * Viene solitamente accodato alla fine di una giocata standard o dopo la risoluzione degli altri effetti.
+     * @brief Base effect that advances the turn to the next player.
+     * Usually enqueued at the end of a standard play or after the resolution of the other effects.
      * @tag EFFECT-STD-001
      */
     class AdvanceTurnEffect : public Effect {
     public:
         /**
-         * @brief Risolve l'effetto aggiornando l'indice del giocatore corrente nello stato di gioco.
-         * @param game_state Lo stato attuale del gioco.
-         * @param match_instance Istanza della partita.
-         * @return EffectResult L'esito della risoluzione (sempre kResolved in assenza di errori).
+         * @brief Resolves the effect by updating the index of the current player in the game state.
+         * @param game_state The current game state.
+         * @param match_instance The match instance.
+         * @return EffectResult The outcome of the resolution (always kResolved in the absence of errors).
          * @tag EFFECT-STD-MTH-001
          */
         EffectResult Resolve(GameState* game_state, MatchInstance* match_instance) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kAdvanceTurn.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kAdvanceTurn.
          * @tag EFFECT-STD-MTH-002
          */
         EffectType GetType() const override { return EffectType::kAdvanceTurn; }
@@ -39,153 +39,153 @@ namespace game {
 
     /**
      * @class DecideDrawnCardEffect
-     * @brief Effetto interattivo che chiede al giocatore se vuole giocare la carta appena pescata.
-     * * Si innesca quando un giocatore pesca una carta dal mazzo (non per penalità) e 
-     * questa risulta essere giocabile secondo le regole correnti.
+     * @brief Interactive effect that asks the player whether they want to play the just-drawn card.
+     * * Triggered when a player draws a card from the deck (not as a penalty) and
+     * it turns out to be playable according to the current rules.
      * @tag EFFECT-STD-002
      */
     class DecideDrawnCardEffect : public Effect {
     public:
         /**
-         * @brief Costruttore dell'effetto.
-         * @param username Nome del giocatore che ha appena pescato.
-         * @param card_id L'ID a 16-bit della carta appena pescata.
+         * @brief Constructor of the effect.
+         * @param username Name of the player who has just drawn.
+         * @param card_id The 16-bit ID of the just-drawn card.
          */
         explicit DecideDrawnCardEffect(const std::string& username, uint16_t card_id) : username_(username), card_id_(card_id) {}
-            
+
         /**
-         * @brief Sospende il motore di gioco in attesa dell'input dell'utente.
-         * @param state Lo stato del gioco.
-         * @param match Istanza della partita.
-         * @return EffectResult Restituisce uno stato kNeedsInput per chiedere al client cosa fare.
+         * @brief Suspends the game engine while waiting for the user's input.
+         * @param state The game state.
+         * @param match The match instance.
+         * @return EffectResult Returns a kNeedsInput status to ask the client what to do.
          * @tag EFFECT-STD-MTH-003
          */
         EffectResult Resolve(GameState* state, MatchInstance* match) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kDecideDrawnCard.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kDecideDrawnCard.
          * @tag EFFECT-STD-MTH-004
          */
         EffectType GetType() const override { return EffectType::kDecideDrawnCard; }
     private:
-        std::string username_; /**< L'utente che deve prendere la decisione. */
-        uint16_t card_id_;     /**< L'ID della carta su cui decidere. */
+        std::string username_; /**< The user who must make the decision. */
+        uint16_t card_id_;     /**< The ID of the card to decide on. */
     };
 
     /**
      * @class DrawEffect
-     * @brief Effetto penalità/obbligo che fa pescare un numero di carte a un giocatore.
-     * Usato per l'inizio del turno, le carte +2, +4, o per penalità da mod.
+     * @brief Penalty/obligation effect that makes a player draw a number of cards.
+     * Used for the start of the turn, the +2, +4 cards, or for penalties from mods.
      * @tag EFFECT-STD-003
      */
     class DrawEffect : public Effect {
     public:
         /**
-         * @brief Costruttore dell'effetto di pescaggio.
-         * @param count Il numero di carte da far pescare.
-         * @param target_username L'utente che subirà l'effetto.
+         * @brief Constructor of the draw effect.
+         * @param count The number of cards to draw.
+         * @param target_username The user who will undergo the effect.
          */
-        explicit DrawEffect(int count, const std::string& target_username) : count_(count), target_username_(target_username) {} 
+        explicit DrawEffect(int count, const std::string& target_username) : count_(count), target_username_(target_username) {}
 
         /**
-         * @brief Risolve l'effetto prelevando le carte dal mazzo e aggiungendole alla mano del bersaglio.
-         * Gestisce automaticamente il rimescolamento del mazzo degli scarti se necessario.
-         * @param state Lo stato del gioco.
-         * @param match_instance Istanza della partita.
-         * @return EffectResult Esito dell'operazione.
+         * @brief Resolves the effect by taking the cards from the deck and adding them to the target's hand.
+         * Automatically handles the reshuffling of the discard pile if necessary.
+         * @param state The game state.
+         * @param match_instance The match instance.
+         * @return EffectResult Outcome of the operation.
          * @tag EFFECT-STD-MTH-005
          */
         EffectResult Resolve(GameState* state, MatchInstance* match_instance) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kDraw.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kDraw.
          * @tag EFFECT-STD-MTH-006
          */
         EffectType GetType() const override { return EffectType::kDraw; }
     private:
-        int count_;                     /**< Quantità di carte. */
-        std::string target_username_;   /**< Bersaglio dell'effetto. */
+        int count_;                     /**< Quantity of cards. */
+        std::string target_username_;   /**< Target of the effect. */
     };
-    
+
     /**
      * @class SkipEffect
-     * @brief Effetto che salta il turno del giocatore successivo (Carta Divieto).
+     * @brief Effect that skips the next player's turn (Skip card).
      * @tag EFFECT-STD-004
      */
     class SkipEffect : public Effect {
     public:
         /**
-         * @brief Avanza l'indice del giocatore di un passo addizionale, di fatto saltandolo.
-         * @param state Lo stato del gioco.
-         * @param match_instance Istanza della partita.
-         * @return EffectResult Esito dell'operazione.
+         * @brief Advances the player index by one additional step, effectively skipping them.
+         * @param state The game state.
+         * @param match_instance The match instance.
+         * @return EffectResult Outcome of the operation.
          * @tag EFFECT-STD-MTH-007
          */
         EffectResult Resolve(GameState* state, MatchInstance* match_instance) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kSkip.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kSkip.
          * @tag EFFECT-STD-MTH-008
          */
         EffectType GetType() const override { return EffectType::kSkip; }
     };
-    
+
     /**
      * @class ReverseEffect
-     * @brief Effetto che inverte il senso di rotazione dei turni (Carta Inverti).
+     * @brief Effect that reverses the direction of turn rotation (Reverse card).
      * @tag EFFECT-STD-005
      */
     class ReverseEffect : public Effect {
     public:
         /**
-         * @brief Inverte la direzione di gioco (es. da 1 a -1 o viceversa). In 2 giocatori funge da Skip.
-         * @param state Lo stato del gioco.
-         * @param match_instance Istanza della partita.
-         * @return EffectResult Esito dell'operazione.
+         * @brief Reverses the play direction (e.g. from 1 to -1 or vice versa). With 2 players it acts as a Skip.
+         * @param state The game state.
+         * @param match_instance The match instance.
+         * @return EffectResult Outcome of the operation.
          * @tag EFFECT-STD-MTH-009
          */
         EffectResult Resolve(GameState* state, MatchInstance* match_instance) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kReverse.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kReverse.
          * @tag EFFECT-STD-MTH-010
          */
         EffectType GetType() const override { return EffectType::kReverse; }
     };
-    
+
     /**
      * @class ChooseColorEffect
-     * @brief Effetto interattivo che impone la selezione del nuovo colore attivo (Carte Jolly).
+     * @brief Interactive effect that requires the selection of the new active colour (Wild cards).
      * @tag EFFECT-STD-006
      */
     class ChooseColorEffect : public Effect {
     public:
         /**
-         * @brief Costruttore dell'effetto.
-         * @param target_username Il giocatore che ha giocato il Jolly e deve scegliere il colore.
+         * @brief Constructor of the effect.
+         * @param target_username The player who played the Wild and must choose the colour.
          */
         explicit ChooseColorEffect(const std::string& target_username) : target_username_(target_username) {}
 
         /**
-         * @brief Sospende l'esecuzione in attesa dell'input dal target. Se l'input è già presente, aggiorna il colore globale.
-         * @param state Lo stato del gioco.
-         * @param match_instance Istanza della partita.
-         * @return EffectResult Esito dell'operazione o kNeedsInput.
+         * @brief Suspends execution while waiting for input from the target. If the input is already present, it updates the global colour.
+         * @param state The game state.
+         * @param match_instance The match instance.
+         * @return EffectResult Outcome of the operation or kNeedsInput.
          * @tag EFFECT-STD-MTH-011
          */
         EffectResult Resolve(GameState* state, MatchInstance* match_instance) override;
 
         /**
-         * @brief Restituisce il tipo enumerativo dell'effetto.
-         * @return EffectType Identificatore kChooseColor.
+         * @brief Returns the enumerative type of the effect.
+         * @return EffectType Identifier kChooseColor.
          * @tag EFFECT-STD-MTH-012
          */
         EffectType GetType() const override { return EffectType::kChooseColor; }
     private:
-        std::string target_username_; /**< Utente che deve fornire la scelta del colore. */
+        std::string target_username_; /**< User who must provide the colour choice. */
     };
 }

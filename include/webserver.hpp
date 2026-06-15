@@ -11,28 +11,28 @@
 
 /**
  * @file webserver.hpp
- * @brief Definizione della classe principale WebServer che gestisce l'intero ciclo di vita dell'applicazione di rete.
+ * @brief Definition of the main WebServer class that manages the entire lifecycle of the network application.
  *
- * Questo file contiene l'infrastruttura base per l'avvio del server HTTP e WebSocket
- * basato su uWebSockets. Gestisce le rotte, l'inizializzazione del database e le connessioni attive.
+ * This file contains the base infrastructure for starting the HTTP and WebSocket server
+ * based on uWebSockets. It manages the routes, the database initialization and the active connections.
  */
 
 /**
  * @class WebServer
- * @brief Motore principale dell'applicazione backend.
- * * Inizializza l'applicazione SSL (se configurata), configura i router HTTP e WebSocket,
- * mantiene un registro delle connessioni attive e fornisce hook per eventi di apertura/chiusura connessione.
- * Non supporta copia o assegnamento (classe non copiabile).
+ * @brief Main engine of the backend application.
+ * * Initializes the SSL application (if configured), configures the HTTP and WebSocket routers,
+ * maintains a registry of the active connections and provides hooks for connection open/close events.
+ * Does not support copying or assignment (non-copyable class).
  * * @tag SRV-CORE-000
  */
 class WebServer {
 public:
     /**
-     * @brief Costruttore del WebServer.
-     * @param port La porta su cui il server starà in ascolto (es. 443 o 8080).
-     * @param keyFile Percorso al file della chiave privata SSL.
-     * @param certFile Percorso al file del certificato SSL.
-     * @param dbFile Percorso al file del database SQLite.
+     * @brief Constructor of the WebServer.
+     * @param port The port on which the server will listen (e.g. 443 or 8080).
+     * @param keyFile Path to the SSL private key file.
+     * @param certFile Path to the SSL certificate file.
+     * @param dbFile Path to the SQLite database file.
      * @tag SRV-CORE-001
      */
     explicit WebServer(int port,
@@ -41,7 +41,7 @@ public:
                        std::string_view dbFile   = "game.db");
 
     /**
-     * @brief Distruttore. Si occupa di rilasciare eventuali risorse pendenti.
+     * @brief Destructor. Takes care of releasing any pending resources.
      * @tag SRV-CORE-002
      */
     ~WebServer();
@@ -50,123 +50,123 @@ public:
     WebServer& operator=(const WebServer&) = delete;
 
     /**
-     * @brief Avvia il loop di ascolto del server (metodo bloccante).
-     * Mette in ascolto uWebSockets sulla porta specificata.
+     * @brief Starts the server's listening loop (blocking method).
+     * Puts uWebSockets into listening mode on the specified port.
      * @tag SRV-CORE-003
      */
     void Run();
 
     /**
-     * @brief Recupera un riferimento al router delle azioni WebSocket.
-     * @return ActionRouter& Router per registrare gli handler dei messaggi WS.
+     * @brief Retrieves a reference to the WebSocket action router.
+     * @return ActionRouter& Router to register the WS message handlers.
      * @tag SRV-CORE-004
      */
     ActionRouter& GetActionRouter()   { return ws_router_;   }
 
     /**
-     * @brief Recupera un riferimento al router delle richieste HTTP.
-     * @return HttpRouter& Router per registrare le rotte REST/HTTP.
+     * @brief Retrieves a reference to the HTTP request router.
+     * @return HttpRouter& Router to register the REST/HTTP routes.
      * @tag SRV-CORE-005
      */
     HttpRouter&   GetHTTPRouter()     { return http_router_; }
 
     /**
-     * @brief Recupera l'istanza sottostante dell'applicazione uWebSockets.
-     * @return uWS::SSLApp& L'applicazione uWS.
+     * @brief Retrieves the underlying instance of the uWebSockets application.
+     * @return uWS::SSLApp& The uWS application.
      * @tag SRV-CORE-006
      */
     uWS::SSLApp&  GetApp()            { return app_;         }
 
     /**
      * @typedef ConnectionHandler
-     * @brief Callback invocata quando un WebSocket viene aperto o chiuso.
+     * @brief Callback invoked when a WebSocket is opened or closed.
      * @tag SRV-TYP-001
      */
     using ConnectionHandler = std::function<void(AppWebSocket*, PerSocketData*)>;
 
     /**
-     * @brief Aggiunge una callback da eseguire all'apertura di una nuova connessione WS.
-     * @param handler La funzione da registrare.
+     * @brief Adds a callback to execute when a new WS connection opens.
+     * @param handler The function to register.
      * @tag SRV-CORE-007
      */
     void OnConnectionOpen(ConnectionHandler handler);
 
     /**
-     * @brief Aggiunge una callback da eseguire alla chiusura di una connessione WS.
-     * @param handler La funzione da registrare.
+     * @brief Adds a callback to execute when a WS connection closes.
+     * @param handler The function to register.
      * @tag SRV-CORE-008
      */
     void OnConnectionClose(ConnectionHandler handler);
 
 private:
-    int    port_;           /**< Porta di ascolto del server. */
-    string db_file_;        /**< Percorso del file DB sqlite. */
+    int    port_;           /**< Listening port of the server. */
+    string db_file_;        /**< Path of the sqlite DB file. */
 
-    uWS::SSLApp app_;       /**< Istanza principale di uWebSockets (SSL/TLS). */
-    std::map<string, AppWebSocket*> connections_; /**< Mappa degli utenti connessi (Username -> Socket). */
+    uWS::SSLApp app_;       /**< Main uWebSockets instance (SSL/TLS). */
+    std::map<string, AppWebSocket*> connections_; /**< Map of connected users (Username -> Socket). */
 
-    ActionRouter ws_router_;    /**< Gestore del dispatching dei messaggi WebSocket. */
-    HttpRouter   http_router_;  /**< Gestore del dispatching delle richieste HTTP. */
+    ActionRouter ws_router_;    /**< Handler for dispatching WebSocket messages. */
+    HttpRouter   http_router_;  /**< Handler for dispatching HTTP requests. */
 
     /**
-     * @brief Inizializza la connessione al database e ne applica lo schema se necessario.
-     * @return true se l'inizializzazione ha avuto successo, false altrimenti.
+     * @brief Initializes the database connection and applies the schema if necessary.
+     * @return true if the initialization succeeded, false otherwise.
      * @tag SRV-PRIV-001
      */
     bool InitDB();
 
     /**
-     * @brief Registra le rotte interne, applica i wildcard (middleware) all'app uWS.
+     * @brief Registers the internal routes and applies the wildcards (middleware) to the uWS app.
      * @tag SRV-PRIV-002
      */
     void RegisterRoutes();
 
     /**
-     * @brief Handler generico per richieste HTTP POST (delegeto all'HttpRouter).
+     * @brief Generic handler for HTTP POST requests (delegated to the HttpRouter).
      * @tag SRV-PRIV-003
      */
     void HandlePost(AppResponse*, AppRequest*);
 
     /**
-     * @brief Handler generico per richieste HTTP GET (delegato all'HttpRouter).
+     * @brief Generic handler for HTTP GET requests (delegated to the HttpRouter).
      * @tag SRV-PRIV-004
      */
     void HandleGet (AppResponse*, AppRequest*);
 
     /**
-     * @brief Gestisce l'evento di upgrade WebSocket andato a buon fine.
+     * @brief Handles the successful WebSocket upgrade event.
      * @tag SRV-PRIV-005
      */
     void OnSocketOpen   (AppWebSocket*);
 
     /**
-     * @brief Riceve i frame WebSocket in ingresso e li inoltra all'ActionRouter.
+     * @brief Receives the incoming WebSocket frames and forwards them to the ActionRouter.
      * @tag SRV-PRIV-006
      */
     void OnSocketMessage(AppWebSocket*, std::string_view, uWS::OpCode);
 
     /**
-     * @brief Gestisce l'evento di disconnessione di un socket.
+     * @brief Handles the disconnection event of a socket.
      * @tag SRV-PRIV-007
      */
     void OnSocketClosed (AppWebSocket*);
 
     /**
-     * @brief Utilità interna per leggere il contenuto completo di un file (es. per risorse statiche).
-     * @param path Percorso del file.
-     * @return std::string Il contenuto del file.
+     * @brief Internal utility to read the entire content of a file (e.g. for static resources).
+     * @param path Path of the file.
+     * @return std::string The content of the file.
      * @tag SRV-UTIL-001
      */
     static std::string     ReadFile    (std::string_view path);
 
     /**
-     * @brief Deduce il MimeType di un file basandosi sull'estensione.
-     * @param path Percorso del file.
-     * @return std::string Il MIME Type (es. "text/html").
+     * @brief Deduces the MimeType of a file based on its extension.
+     * @param path Path of the file.
+     * @return std::string The MIME Type (e.g. "text/html").
      * @tag SRV-UTIL-002
      */
     static std::string     GetMimeType (const string& path);
 
-    std::vector<ConnectionHandler> on_open_hooks_;   /**< Lista di hook di apertura connessione. */
-    std::vector<ConnectionHandler> on_close_hooks_;  /**< Lista di hook di chiusura connessione. */
+    std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
+    std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */
 };
