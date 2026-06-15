@@ -8,27 +8,27 @@
 
 /**
  * @file env.hpp
- * @brief Gestione delle variabili d'ambiente e caricamento dal file di configurazione locale `.env`.
- * * Formato del file supportato:
- * - `KEY=VALUE` (Assegnamento base)
- * - `KEY="VALUE"` (I doppi apici circostanti vengono rimossi automaticamente)
- * - `# commento` (Le righe che iniziano con '#' vengono ignorate)
- * - Righe vuote saltate silenziosamente
- * * Tutti i valori vengono iniettati nell'ambiente di processo nativo del sistema operativo 
- * (tramite `setenv` o `_putenv_s`), rendendoli visibili anche a processi figli o librerie 
- * di terze parti che chiamano direttamente `std::getenv()`.
+ * @brief Management of environment variables and loading from the local `.env` configuration file.
+ * * Supported file format:
+ * - `KEY=VALUE` (Basic assignment)
+ * - `KEY="VALUE"` (The surrounding double quotes are removed automatically)
+ * - `# comment` (Lines starting with '#' are ignored)
+ * - Empty lines are silently skipped
+ * * All values are injected into the operating system's native process environment
+ * (via `setenv` or `_putenv_s`), making them visible also to child processes or third-party
+ * libraries that call `std::getenv()` directly.
  */
 
 namespace Env {
 
 /**
- * @brief Recupera il valore di una variabile d'ambiente obbligatoria.
- * * Da utilizzare per valori fondamentali senza i quali il server non può funzionare 
- * correttamente (es. `JWT_SECRET`). Fallire rapidamente (fail-fast) all'avvio è 
- * preferibile rispetto a un errore criptico generato in profondità nello stack di chiamate.
- * * @param key Il nome della variabile d'ambiente da leggere.
- * @return std::string Il valore estratto dall'ambiente operativo.
- * @throws std::runtime_error Se la variabile richiesta non è definita nell'ambiente.
+ * @brief Retrieves the value of a mandatory environment variable.
+ * * To be used for fundamental values without which the server cannot function
+ * correctly (e.g. `JWT_SECRET`). Failing fast at startup is
+ * preferable to a cryptic error generated deep in the call stack.
+ * * @param key The name of the environment variable to read.
+ * @return std::string The value extracted from the operating environment.
+ * @throws std::runtime_error If the required variable is not defined in the environment.
  * @tag CMN-ENV-MTH-001
  */
 inline std::string Require(const std::string& key) {
@@ -40,12 +40,12 @@ inline std::string Require(const std::string& key) {
 }
 
 /**
- * @brief Recupera il valore di una variabile d'ambiente, fornendo un fallback opzionale.
- * * Sicuro da chiamare anche prima dell'esecuzione di `Load()`, poiché interagisce 
- * direttamente con le variabili di sistema fornite dalla shell o dal SO.
- * * @param key Il nome della variabile d'ambiente da leggere.
- * @param fallback Il valore di default da restituire se la variabile non esiste.
- * @return std::string Il valore estratto o la stringa di fallback.
+ * @brief Retrieves the value of an environment variable, providing an optional fallback.
+ * * Safe to call even before `Load()` runs, since it interacts
+ * directly with the system variables provided by the shell or the OS.
+ * * @param key The name of the environment variable to read.
+ * @param fallback The default value to return if the variable does not exist.
+ * @return std::string The extracted value or the fallback string.
  * @tag CMN-ENV-MTH-002
  */
 inline std::string Get(const std::string& key,
@@ -55,11 +55,11 @@ inline std::string Get(const std::string& key,
 }
 
 /**
- * @brief Funzione interna helper per impostare una variabile d'ambiente in modo cross-platform.
- * * POSIX: Utilizza `setenv(key, value, 1)` dove '1' forza la sovrascrittura se esiste già.
- * Windows: Utilizza `_putenv_s` che sovrascrive per comportamento predefinito.
- * * @param key Il nome della variabile da impostare.
- * @param value Il valore da assegnare alla variabile.
+ * @brief Internal helper function to set an environment variable in a cross-platform way.
+ * * POSIX: Uses `setenv(key, value, 1)` where '1' forces overwriting if it already exists.
+ * Windows: Uses `_putenv_s` which overwrites by default behaviour.
+ * * @param key The name of the variable to set.
+ * @param value The value to assign to the variable.
  * @tag CMN-ENV-MTH-003
  */
 inline void SetEnv(const std::string& key, const std::string& value) {
@@ -71,11 +71,11 @@ inline void SetEnv(const std::string& key, const std::string& value) {
 }
 
 /**
- * @brief Funzione interna helper per rimuovere gli spazi bianchi ASCII all'inizio e alla fine di una stringa.
- * Rimuove i caratteri ' ', '\t', '\r', '\n'. Previene comportamenti indefiniti (UB) restituendo 
- * una stringa vuota qualora la stringa d'ingresso sia composta interamente da spazi.
- * * @param s La stringa da ripulire.
- * @return std::string La stringa ripulita ("trimmata").
+ * @brief Internal helper function to remove ASCII whitespace from the beginning and end of a string.
+ * Removes the characters ' ', '\t', '\r', '\n'. Prevents undefined behaviour (UB) by returning
+ * an empty string if the input string is composed entirely of whitespace.
+ * * @param s The string to clean up.
+ * @return std::string The trimmed string.
  * @tag CMN-ENV-MTH-004
  */
 inline std::string Trim(const std::string& s) {
@@ -87,12 +87,12 @@ inline std::string Trim(const std::string& s) {
 }
 
 /**
- * @brief Legge il file riga per riga e inietta ogni coppia CHIAVE=VALORE nell'ambiente di processo.
- * * Non genera errori fatali se il file non esiste: gli ambienti di produzione moderni (Docker, 
- * systemd, CI) iniettano spesso le variabili d'ambiente in modo diretto senza creare alcun file 
- * `.env` sul disco.
- * * @param path Il percorso del file da leggere (default: ".env").
- * @return int Il numero esatto di variabili d'ambiente lette ed iniettate con successo.
+ * @brief Reads the file line by line and injects each KEY=VALUE pair into the process environment.
+ * * Does not raise fatal errors if the file does not exist: modern production environments (Docker,
+ * systemd, CI) often inject the environment variables directly without creating any `.env`
+ * file on disk.
+ * * @param path The path of the file to read (default: ".env").
+ * @return int The exact number of environment variables read and injected successfully.
  * @tag CMN-ENV-MTH-005
  */
 inline int Load(std::string_view path = ".env") {
@@ -106,18 +106,18 @@ inline int Load(std::string_view path = ".env") {
     int count = 0;
     std::string line;
 
-    // std::getline estrae i caratteri fino al '\\n', scartando il delimitatore stesso.
+    // std::getline extracts the characters up to '\\n', discarding the delimiter itself.
     while (std::getline(file, line)) {
-        // Ignora le righe vuote e i commenti (primo carattere non vuoto è '#').
+        // Ignore empty lines and comments (first non-empty character is '#').
         if (line.empty() || line[0] == '#') continue;
 
         auto eq = line.find('=');
-        if (eq == std::string::npos) continue;   // nessuna '=' → malformata, salta
+        if (eq == std::string::npos) continue;   // no '=' → malformed, skip
 
         std::string key   = Trim(line.substr(0, eq));
         std::string value = Trim(line.substr(eq + 1));
 
-        // Rimuove eventuali doppi apici circostanti opzionali: "value" → value
+        // Remove any optional surrounding double quotes: "value" → value
         if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
             value = value.substr(1, value.size() - 2);
         }
