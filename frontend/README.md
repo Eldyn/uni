@@ -1,16 +1,42 @@
-# 🃏 Uni-Uno FRONTEND
+# 🃏 Uni-Uno — Frontend
 
-Frontend in Svelte per il progetto Uni-Uno
+Frontend del progetto **Uni-Uno**, realizzato con **Svelte 5** (runes) e **TypeScript**,
+buildato con **Vite**. Comunica con il backend C++ tramite un client **WebSocket**
+centralizzato (canale fire-and-forget `emit` e canale richiesta/risposta `emitAndWait`),
+con riconnessione automatica.
 
-## Dipendenze del Sistema
+## 🧩 Struttura
 
-Le unciche dipendenze sono node e npm
+- `src/lib/stores/` — store singleton reattivi, uno per dominio: `auth`, `lobby`, `game`,
+  `navigation`, `toast`, `stats`, `ws`.
+- `src/lib/components/game/` — il tavolo di gioco: `GameBoard`, `PlayerHand`,
+  `OpponentHand`, `GamePiles`, `GameCard`, `FlyingCardsOverlay` (animazioni), `card-bus`.
+- `src/lib/components/lobby/` — schermate e controlli di lobby e impostazioni.
+- `public/` — asset statici (immagini delle carte, audio, font pixel-art).
 
-poi: `npm install` e hai fatto :)
+Il riordino delle carte in mano usa il **drag-and-drop** (`@dnd-kit/svelte`).
 
-comandi utili:
+## 📦 Dipendenze di sistema
+
+Servono solo **Node.js** e **npm**:
 
 ```bash
-npm run dev # preview del sito con refresh automatico
-../deploy_frontend.sh # compila il sito per l'utilizzo assieme al server
+npm install
 ```
+
+## 🛠️ Comandi utili
+
+```bash
+npm run watch    # rebuild automatico ad ogni modifica (output in ../public), da usare col server
+npm run preview  # anteprima locale del build con il dev server di Vite
+npm run build    # build di produzione (output in ../public)
+npm run docs     # genera la documentazione TSDoc (Markdown) in docs/markdown
+npm run pdf      # converte la documentazione TSDoc in frontend-manual.pdf
+npm run format   # formatta il codice con Prettier
+npm run lint     # verifica la formattazione
+
+../deploy_frontend.sh   # build + copia del sito nella cartella servita dal server
+```
+
+> Per eseguire il gioco completo (server HTTPS + frontend) e per generare i certificati
+> TLS, fai riferimento al [README principale](../README.md).

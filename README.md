@@ -1,78 +1,172 @@
 # 🃏 Uni-Uno
 
-Un'implementazione sicura (HTTPS/WSS) del gioco UNO, con backend in C++, database SQLite per la persistenza e frontend in Svelte.
+Un'implementazione multigiocatore in tempo reale del gioco di carte **UNO**, sicura
+(HTTPS/WSS), con **backend in C++23** (uWebSockets), persistenza su **SQLite** e
+**frontend in Svelte 5**.
+
+I giocatori possono registrarsi, creare o unirsi a lobby (anche tramite codice di
+invito a 6 caratteri), configurare le regole della partita e giocare contro altri
+utenti o contro dei bot.
+
+### ✨ Funzionalità principali
+
+- **Autenticazione** con email/password, sessione via cookie HttpOnly e token JWT (HS256).
+- **Lobby** pubbliche/private, gestione dei membri (host, promozione, espulsione),
+  riconnessione automatica dopo una disconnessione.
+- **Motore di gioco** estendibile basato su una coda di _effetti_ e _regole_, con
+  supporto a mod opzionali: _Draw Stacking_, _Progressive_, _Force Play_, _Jump In_,
+  _No Bluffing_, _Seven-Zero_.
+- **Bot** con euristiche, usati anche per gestire i turni in caso di inattività (AFK).
+- **Animazioni** delle carte (volo dal mazzo alla mano e agli scarti, contatore `+N`
+  per le penalità accumulate).
+- **Salvataggio e ripresa** di partite interrotte, **statistiche** personali e
+  **classifica** globale.
 
 ---
 
 ## 🛠️ Prerequisiti di Sistema
 
-Scarica i tool:
+### Backend (C++)
 
-### 🐧 Linux (Fedora/Ubuntu)
-
-- Compilatore C++ (GCC o Clang)
-- **Python 3** (con `pip`)
+- Compilatore C++ con supporto a **C++23** (GCC o Clang)
+- **Python 3** (con `pip`) — usato per installare Conan e Ninja
 - **CMake**
+- **OpenSSL** — per generare i certificati TLS
 
-_Per installarli:_
+### Frontend (Svelte)
 
-- **Fedora/RHEL**: `sudo dnf install gcc-c++ python3 pip cmake`
-- **Ubuntu/Debian**: `sudo apt install g++ python3 python3-pip cmake`
+- **Node.js** e **npm**
 
-### 🪟 Windows
+_Installazione dei tool di base:_
 
-1. **Compilatore**: [Visual Studio 2022](https://visualstudio.microsoft.com/) (assicurati di aver installato il carico di lavoro "Sviluppo di applicazioni desktop con C++").
-2. **Python**: Scaricabile da [python.org](https://www.python.org/downloads/) o dal Microsoft Store.
-3. **CMake**: Scaricabile dal [sito ufficiale](https://cmake.org/download/).
+#### 🐧 Linux
+
+- **Fedora/RHEL**: `sudo dnf install gcc-c++ python3 pip cmake openssl nodejs npm`
+- **Ubuntu/Debian**: `sudo apt install g++ python3 python3-pip cmake openssl nodejs npm`
+
+#### 🪟 Windows
+
+1. **Compilatore**: [Visual Studio 2022](https://visualstudio.microsoft.com/) con il
+   carico di lavoro _"Sviluppo di applicazioni desktop con C++"_.
+2. **Python**: da [python.org](https://www.python.org/downloads/) o dal Microsoft Store.
+3. **CMake**: dal [sito ufficiale](https://cmake.org/download/).
+4. **Node.js** (include npm): da [nodejs.org](https://nodejs.org/).
+5. **OpenSSL**: incluso in **Git Bash**, oppure installabile con
+   `winget install ShiningLight.OpenSSL.Light` (o `choco install openssl`).
 
 ---
 
 ## 🚀 Setup e Build
 
-**1. Clona il repository**
+### 1. Clona il repository
 
 ```bash
-git clone [https://github.com/Eldyn/uni-uno.git](https://github.com/Eldyn/uni-uno.git)
+git clone https://github.com/Eldyn/uni-uno.git
 cd uni-uno
 ```
 
-**2. Genera i certificati SSL**
-Usa OpenSSL (su Windows puoi usare Git Bash o installarlo a parte) per generare i certificati necessari al server HTTPS/WSS.
-Esegui questo comando nella root del progetto:
+### 2. Genera i certificati SSL
+
+Il server usa HTTPS/WSS, quindi servono i file `key.pem` e `cert.pem` nella root del
+progetto. Per uno sviluppo locale è sufficiente un certificato self-signed per `localhost`.
+
+#### 🐧 Linux / macOS / Git Bash
 
 ```bash
-openssl req -newkey rsa:2048 -new -nodes -x509 -days 365 -keyout key.pem -out cert.pem -subj "/C=IT/ST=Italy/L=Uniba/O=uni-uno/CN=localhost"
+openssl req -newkey rsa:2048 -nodes -x509 -days 365 \
+  -keyout key.pem -out cert.pem \
+  -subj "/C=IT/ST=Italy/L=Uniba/O=uni-uno/CN=localhost"
 ```
 
-**3. Installazione Dipendenze (Automatico)**
-Esegui lo script di setup relativo al tuo sistema. Lo script verificherà la presenza di Python, installerà automaticamente Conan e Ninja, configurerà i profili di compilazione e scaricherà tutte le librerie necessarie.
+#### 🪟 Windows (PowerShell)
+
+Con **OpenSSL** installato e disponibile nel PATH (vedi prerequisiti), esegui nella
+root del progetto:
+
+```powershell
+openssl req -newkey rsa:2048 -nodes -x509 -days 365 `
+  -keyout key.pem -out cert.pem `
+  -subj "/C=IT/ST=Italy/L=Uniba/O=uni-uno/CN=localhost"
+```
+
+> In alternativa, apri **Git Bash** nella cartella del progetto e usa lo stesso comando
+> della sezione Linux.
+
+### 3. Installazione delle dipendenze (automatico)
+
+Esegui lo script di setup per il tuo sistema: verifica la presenza di Python, installa
+**Conan** e **Ninja**, rileva il profilo di compilazione e scarica tutte le librerie
+del backend.
+
+```powershell
+# Windows
+./setup.ps1
+```
 
 ```bash
-./setup.ps1 # Windows
-# Linux
+# Linux / macOS
 chmod +x setup.sh
 ./setup.sh
 ```
 
-**4. Compilazione**
-Una volta completato il setup, usa i preset di CMake (generati automaticamente da Conan) per compilare il progetto.
+### 4. Build del frontend
+
+Compila il frontend Svelte e copia il risultato nella cartella `public/` servita dal server:
 
 ```bash
-# Opzionale: se hai bisogno di preparare i file del frontend
 ./deploy_frontend.sh
-
-# Configura backend C++
-cmake --preset conan-release
-# Compila ed esegui
-cmake --build --preset conan-release && build\Release\uno_server.exe
 ```
 
-Nota per gli sviluppatori (clangd / LSP): Conan genera automaticamente il file compile_commands.json all'interno della cartella build/Release/generators/. Se il tuo editor lo richiede nella root del progetto, puoi collegarlo così:
-Linux: `ln -s build/Release/generators/compile_commands.json`
-Windows: `New-Item -ItemType SymbolLink -Path "compile_commands.json" -Target "build\Release\generators\compile_commands.json"`
+> Lo script esegue `npm install`/`npm run build` nella cartella `frontend/`. Vedi
+> [`frontend/README.md`](frontend/README.md) per i dettagli e per la modalità di sviluppo.
 
-## 🏃‍♂️ Esecuzione
+### 5. Build del backend
 
-L'eseguibile compilato si troverà all'interno della cartella di build (es. build/Release/uno_server o build/Release/uno_server.exe).
+Usa i preset CMake generati automaticamente da Conan:
 
-Importante: CMake si occuperà automaticamente di copiare i file cert.pem e key.pem nella cartella in cui risiede l'eseguibile. Assicurati che il file del database SQLite e la cartella del frontend siano accessibili dal percorso in cui avvii il server!
+```bash
+# Configura
+cmake --preset conan-release
+# Compila
+cmake --build --preset conan-release
+```
+
+> **Nota per gli sviluppatori (clangd / LSP):** Conan genera `compile_commands.json`
+> in `build/Release/generators/`. Se il tuo editor lo richiede nella root del progetto:
+>
+> - Linux: `ln -s build/Release/generators/compile_commands.json`
+> - Windows: `New-Item -ItemType SymbolicLink -Path "compile_commands.json" -Target "build\Release\generators\compile_commands.json"`
+
+---
+
+## 🏃 Esecuzione
+
+L'eseguibile compilato si trova nella cartella di build:
+
+```bash
+# Linux / macOS
+./build/Release/uno_server
+
+# Windows
+build\Release\uno_server.exe
+```
+
+CMake copia automaticamente `cert.pem` e `key.pem` accanto all'eseguibile. Assicurati
+che il database SQLite (`game.db`) e la cartella `public/` del frontend siano
+raggiungibili dal percorso in cui avvii il server. Per impostazione predefinita il
+server è raggiungibile su **https://localhost:9999** (accetta l'avviso del browser
+sul certificato self-signed).
+
+---
+
+## 📚 Documentazione
+
+La documentazione completa è già allegata come **`documentazione-completa.pdf`** (analisi,
+casi d'uso e test del frontend + manuale del backend Doxygen + API del frontend TypeDoc).
+
+Per **rigenerarla** servono `doxygen`, `xelatex` (TeX Live), `mutool` (MuPDF) e Node.js;
+quindi:
+
+```bash
+./docs/build-full-docs.sh
+```
