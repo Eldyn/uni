@@ -83,14 +83,14 @@
 				<div class="saved-matches-mini">
 					<details class="compact-dropdown">
 						<summary class="dropdown-summary">
-							<span class="summary-text">Saved Matches ({storeLobby.savedMatches.length})</span>
+							<span class="summary-text">Saved Matches ({storeLobby.savedMatches?.length ?? 0})</span>
 						</summary>
 						<div class="dropdown-content-wrapper">
 							<ul class="saved-matches-list">
-								{#each storeLobby.savedMatches as save}
+								{#each storeLobby.savedMatches ?? [] as save}
 									<LobbySave {save} />
 								{/each}
-								{#if storeLobby.savedMatches.length === 0}
+								{#if (storeLobby.savedMatches?.length ?? 0) === 0}
 									<li style="padding: 10px; color: #666; font-size: 12px;">No saved matches</li>
 								{/if}
 							</ul>
