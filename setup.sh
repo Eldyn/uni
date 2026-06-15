@@ -101,8 +101,9 @@ fi
 # 4. Frontend (deve esistere prima della configurazione di CMake)
 # -----------------------------------------------------------------------------
 c_step "Build del frontend Svelte..."
+# Vite è configurato con outDir "../public" ed emptyOutDir: la build scrive
+# direttamente nella cartella public/ alla root del progetto (e la ripulisce).
 ( cd frontend && npm install && npm run build )
-rm -rf public && mkdir public && cp -r frontend/dist/* public/
 c_ok "  Frontend compilato in public/."
 
 # -----------------------------------------------------------------------------
