@@ -5,15 +5,15 @@
 
  /**
  * @file bot_names.hpp
- * @brief Raccoglitore di costanti per l'inizializzazione del motore AI (Bot).
+ * @brief Collection of constants for initializing the AI engine (Bot).
  */
 
 namespace game {
 
     /**
-     * @brief Lista globale statica contenente nomi predefiniti per i bot guidati dalla CPU.
-     * Contiene references alla cultura pop, sci-fi e nomi casuali. Usata durante 
-     * il subentro automatico dei bot o l'inizializzazione della lobby.
+     * @brief Static global list containing predefined names for the CPU-driven bots.
+     * Contains references to pop culture, sci-fi and random names. Used during
+     * the automatic takeover of bots or the lobby initialization.
      * @tag CMN-BOT-001
      */
     inline const std::vector<std::string> kReservedBotNames = {

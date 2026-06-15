@@ -9,88 +9,88 @@
 
 /**
  * @file game_controller.hpp
- * @brief Controller per la gestione degli eventi in-game e del flusso dei turni.
- * * Smista i messaggi WebSocket riguardanti le azioni di gioco (giocare carte,
- * pescare, dichiarare UNO) alle rispettive istanze di MatchInstance.
+ * @brief Controller for handling in-game events and the flow of turns.
+ * * Dispatches the WebSocket messages concerning game actions (playing cards,
+ * drawing, declaring UNO) to the respective MatchInstance instances.
  */
 
 /**
  * @class GameController
- * @brief Riceve e processa l'input dei giocatori durante una partita attiva.
- * * Lavora a stretto contatto con il `LobbyController` per identificare la partita 
- * associata all'utente. Questa classe è anche responsabile del ciclo di vita dei 
- * timer dei turni (libuv) per gestire i giocatori AFK o il takeover dei bot.
+ * @brief Receives and processes player input during an active match.
+ * * Works closely with the `LobbyController` to identify the match
+ * associated with the user. This class is also responsible for the lifecycle of the
+ * turn timers (libuv) to handle AFK players or bot takeover.
  * @tag CTRL-GAME-001
  */
 class GameController {
 public:
     /**
-     * @brief Costruttore del controller di gioco.
-     * Registra gli handler delle azioni WebSocket `game_*` sull'ActionRouter.
-     * @param server L'istanza principale del WebServer.
-     * @param lobby_controller Riferimento al controller delle lobby per recuperare lo stato.
+     * @brief Constructor of the game controller.
+     * Registers the `game_*` WebSocket action handlers on the ActionRouter.
+     * @param server The main WebServer instance.
+     * @param lobby_controller Reference to the lobby controller to retrieve the state.
      * @tag CTRL-GAME-MTH-001
      */
     GameController(WebServer& server, LobbyController& lobby_controller);
 
 private:
-    ActionRouter& action_router_;       /**< Riferimento al router WebSocket. */
-    LobbyController& lobby_controller_; /**< Riferimento per accedere alle lobby in memoria. */
+    ActionRouter& action_router_;       /**< Reference to the WebSocket router. */
+    LobbyController& lobby_controller_; /**< Reference to access the in-memory lobbies. */
 
-    /** * @brief Mappa che associa l'ID di una Lobby al puntatore del timer libuv corrente.
-     * Utilizzato per attivare la protezione AFK (es. il bot subentra o la mossa viene saltata).
+    /** * @brief Map associating a Lobby ID with the pointer of the current libuv timer.
+     * Used to activate the AFK protection (e.g. the bot takes over or the move is skipped).
      */
     std::unordered_map<uint32_t, struct us_timer_t*> active_turn_timers_;
 
     // --- WebSocket Event Handlers ---
 
     /**
-     * @brief Gestisce la richiesta di giocare una carta.
-     * @param context Contesto del socket chiamante.
-     * @param message Payload JSON contenente il campo `card_id`.
+     * @brief Handles the request to play a card.
+     * @param context Context of the calling socket.
+     * @param message JSON payload containing the `card_id` field.
      * @tag CTRL-GAME-ACT-001
      */
     void HandlePlayCard(WsContext context, const nlohmann::json& message);
 
     /**
-     * @brief Gestisce la richiesta di pescare una carta dal mazzo.
-     * @param context Contesto del socket chiamante.
-     * @param message Payload JSON della richiesta.
+     * @brief Handles the request to draw a card from the deck.
+     * @param context Context of the calling socket.
+     * @param message JSON payload of the request.
      * @tag CTRL-GAME-ACT-002
      */
     void HandleDrawCard(WsContext context, const nlohmann::json& message);
 
     /**
-     * @brief Gestisce l'invio di un input da parte del client per un effetto in sospeso (es. scelta colore).
-     * @param context Contesto del socket chiamante.
-     * @param message Payload JSON contenente il dato scelto.
+     * @brief Handles the submission of input from the client for a pending effect (e.g. colour choice).
+     * @param context Context of the calling socket.
+     * @param message JSON payload containing the chosen data.
      * @tag CTRL-GAME-ACT-003
      */
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
     /**
-     * @brief Gestisce la dichiarazione di "UNO" da parte del giocatore.
-     * @param context Contesto del socket chiamante.
-     * @param message Payload JSON della richiesta.
+     * @brief Handles the "UNO" declaration by the player.
+     * @param context Context of the calling socket.
+     * @param message JSON payload of the request.
      * @tag CTRL-GAME-ACT-004
      */
     void HandleCallUno(WsContext context, const nlohmann::json& message);
-    
+
     // --- Core Game Flow ---
 
     /**
-     * @brief Callback/Hook scatenato all'inizio di ogni nuovo turno di un giocatore.
-     * Avvia/reimposta il timer per l'AFK in base alle impostazioni della lobby.
-     * @param active_lobby Puntatore alla lobby di cui è iniziato il turno.
+     * @brief Callback/Hook triggered at the start of each new player turn.
+     * Starts/resets the AFK timer based on the lobby settings.
+     * @param active_lobby Pointer to the lobby whose turn has started.
      * @tag CTRL-GAME-FLW-001
      */
     void OnTurnStarted(Lobby* active_lobby);
 
     /**
-     * @brief Invia lo stato del gioco censurato a tutti i membri connessi.
-     * Iterando su ogni utente, usa `MatchInstance::SerializePlayerState` per
-     * nascondere le mani avversarie e inoltra il messaggio WS.
-     * @param current_lobby Puntatore alla lobby da aggiornare.
+     * @brief Sends the censored game state to all connected members.
+     * Iterating over each user, it uses `MatchInstance::SerializePlayerState` to
+     * hide opponents' hands and forwards the WS message.
+     * @param current_lobby Pointer to the lobby to update.
      * @tag CTRL-GAME-FLW-002
      */
     void BroadcastGameState(Lobby* current_lobby);
@@ -98,18 +98,18 @@ private:
     // --- Timer Management Helpers ---
 
     /**
-     * @brief Crea o aggiorna il timer del turno per la protezione AFK.
-     * @param lobby_id ID della lobby in corso.
-     * @param timeout_ms Millisecondi prima dello scatto del timeout (es. 15000ms).
-     * @param callback Funzione da eseguire alla scadenza del timer (es. auto-play o bot).
+     * @brief Creates or updates the turn timer for AFK protection.
+     * @param lobby_id ID of the ongoing lobby.
+     * @param timeout_ms Milliseconds before the timeout fires (e.g. 15000ms).
+     * @param callback Function to execute when the timer expires (e.g. auto-play or bot).
      * @tag CTRL-GAME-TMR-001
      */
     void SetTurnTimer(uint32_t lobby_id, int timeout_ms, std::function<void()> callback);
 
     /**
-     * @brief Ferma e distrugge il timer attivo per una determinata lobby.
-     * Usato quando un giocatore esegue un'azione valida in tempo o la partita finisce.
-     * @param lobby_id ID della lobby di cui cancellare il timer.
+     * @brief Stops and destroys the active timer for a given lobby.
+     * Used when a player performs a valid action in time or the match ends.
+     * @param lobby_id ID of the lobby whose timer to cancel.
      * @tag CTRL-GAME-TMR-002
      */
     void ClearTurnTimer(uint32_t lobby_id);
