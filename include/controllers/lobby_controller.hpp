@@ -12,74 +12,74 @@
 
 /**
  * @file lobby_controller.hpp
- * @brief Definizione del controller per la gestione delle Lobby. Gestisce l'intero I/O tra
- * Client e Server per quanto riguarda l'inizializzazione di Lobby, e l'inizio di Partite di Gioco,
- * a cui successivamente passa il controllo.
+ * @brief Definition of the controller for managing Lobbies. Handles all the I/O between
+ * Client and Server regarding the initialization of Lobbies, and the start of game Matches,
+ * to which it subsequently hands over control.
  */
 
 /**
  * @typedef GameStartedCallback
- * @brief Callback invocata all'avvio di una partita.
+ * @brief Callback invoked when a match starts.
  * @tag LOBBY-TYP-001
  */
 using GameStartedCallback = std::function<void(Lobby*)>;
 
 /**
  * @typedef PlayerReplacedCallback
- * @brief Callback invocata quando un giocatore viene sostituito (es. da un bot).
+ * @brief Callback invoked when a player is replaced (e.g. by a bot).
  * @tag LOBBY-TYP-002
  */
 using PlayerReplacedCallback = std::function<void(Lobby*)>;
 
 /**
  * @class LobbyController
- * @brief Gestisce lo stato in memoria di tutte le lobby attive.
- * * Questa classe non utilizza un database: le lobby sono effimere e vivono solo
- * per la durata della sessione del server. Gestisce la creazione, l'unione, 
- * le disconnessioni temporanee e la riconnessione dei client tramite WebSocket.
+ * @brief Manages the in-memory state of all the active lobbies.
+ * * This class does not use a database: the lobbies are ephemeral and live only
+ * for the duration of the server session. It handles creation, joining,
+ * temporary disconnections and reconnection of clients via WebSocket.
  * * @tag LOBBY-CTRL-000
  */
 class LobbyController {
 public:
     /**
-     * @brief Costruttore del LobbyController.
-     * Registra gli handler delle azioni WebSocket sul router fornito.
-     * Mantiene un riferimento a `app` per i broadcast pub/sub e il timer di sfratto.
-     * * @param webserver Riferimento al WebServer principale.
+     * @brief Constructor of the LobbyController.
+     * Registers the WebSocket action handlers on the provided router.
+     * Keeps a reference to `app` for pub/sub broadcasts and the eviction timer.
+     * * @param webserver Reference to the main WebServer.
      * @tag LOBBY-CTRL-001
      */
     LobbyController(WebServer& webserver);
 
     /**
-     * @brief Distruttore. Si occupa di ripulire i timer libuv associati.
+     * @brief Destructor. Takes care of cleaning up the associated libuv timers.
      * @tag LOBBY-CTRL-002
      */
     ~LobbyController();
 
     /**
-     * @brief Handler chiamato quando un client stabilisce una nuova connessione WebSocket.
-     * Se l'utente era già in una lobby (scenario di riconnessione), aggiorna il puntatore
-     * del socket e ripristina la sua presenza.
-     * * @param ws Puntatore al socket WebSocket.
-     * @param sd Dati associati al socket (contiene username, ecc.).
+     * @brief Handler called when a client establishes a new WebSocket connection.
+     * If the user was already in a lobby (reconnection scenario), it updates the socket
+     * pointer and restores their presence.
+     * * @param ws Pointer to the WebSocket socket.
+     * @param sd Data associated with the socket (contains username, etc.).
      * @tag LOBBY-CTRL-003
      */
     void OnOpen(AppWebSocket* ws, PerSocketData* sd);
 
     /**
-     * @brief Handler chiamato quando un client chiude la connessione.
-     * Segna il membro come disconnesso e registra il timestamp. Non rimuove immediatamente
-     * l'utente, ma avvia un periodo di tolleranza (grace period).
-     * * @param ws Puntatore al socket WebSocket disconnesso.
-     * @param sd Dati associati al socket.
+     * @brief Handler called when a client closes the connection.
+     * Marks the member as disconnected and records the timestamp. Does not immediately remove
+     * the user, but starts a grace period.
+     * * @param ws Pointer to the disconnected WebSocket socket.
+     * @param sd Data associated with the socket.
      * @tag LOBBY-CTRL-004
      */
     void OnClose(AppWebSocket* ws, PerSocketData* sd);
 
     /**
-     * @brief Recupera un puntatore a una lobby tramite il suo codice di invito.
-     * * @param code Codice alfanumerico di 6 caratteri (es. "XK4F9Z").
-     * @return Lobby* Puntatore alla lobby, o nullptr se non trovata.
+     * @brief Retrieves a pointer to a lobby by its invite code.
+     * * @param code 6-character alphanumeric code (e.g. "XK4F9Z").
+     * @return Lobby* Pointer to the lobby, or nullptr if not found.
      * @tag LOBBY-CTRL-005
      */
     Lobby* GetLobbyByCode(const std::string& code) {
@@ -91,9 +91,9 @@ public:
     }
 
     /**
-     * @brief Recupera un puntatore a una lobby tramite il suo ID numerico interno.
-     * * @param id ID univoco generato dal server.
-     * @return Lobby* Puntatore alla lobby, o nullptr se non trovata.
+     * @brief Retrieves a pointer to a lobby by its internal numeric ID.
+     * * @param id Unique ID generated by the server.
+     * @return Lobby* Pointer to the lobby, or nullptr if not found.
      * @tag LOBBY-CTRL-006
      */
     Lobby* GetLobbyById(const uint32_t id) {
@@ -105,8 +105,8 @@ public:
     }
 
     /**
-     * @brief Registra una callback da eseguire all'inizio di una partita.
-     * @param callback La funzione da invocare.
+     * @brief Registers a callback to execute when a match starts.
+     * @param callback The function to invoke.
      * @tag LOBBY-CTRL-007
      */
     void OnGameStarted(GameStartedCallback callback) {
@@ -114,8 +114,8 @@ public:
     }
 
     /**
-     * @brief Registra una callback da eseguire quando un giocatore viene sostituito.
-     * @param callback La funzione da invocare.
+     * @brief Registers a callback to execute when a player is replaced.
+     * @param callback The function to invoke.
      * @tag LOBBY-CTRL-008
      */
     void OnPlayerReplaced(PlayerReplacedCallback callback) {
@@ -123,185 +123,185 @@ public:
     }
 
     /**
-     * @brief Salva lo stato corrente della partita associata alla lobby nel database.
-     * @param lobby Riferimento alla lobby di cui salvare lo stato.
+     * @brief Saves the current state of the match associated with the lobby to the database.
+     * @param lobby Reference to the lobby whose state to save.
      * @tag LOBBY-CTRL-009
      */
     void SaveMatchStateToDB(Lobby& lobby);
 
     /**
-     * @brief Tempo di tolleranza (grace period) prima che un utente disconnesso venga espulso.
+     * @brief Grace period before a disconnected user is evicted.
      * @tag LOBBY-CFG-001
      */
     static constexpr int kReconnectGraceMs = 1'000 * 30;
 
     /**
-     * @brief Numero massimo di giocatori consentiti in una singola lobby.
+     * @brief Maximum number of players allowed in a single lobby.
      * @tag LOBBY-CFG-002
      */
     static constexpr int kMaxMembers = 4;
 
 private:
     /**
-     * @brief Sincronizza lo stato dei bot all'interno della lobby.
-     * @param lobby La lobby da aggiornare.
+     * @brief Synchronizes the state of the bots within the lobby.
+     * @param lobby The lobby to update.
      * @tag LOBBY-PRIV-001
      */
     void SyncBots(Lobby& lobby);
 
     /**
-     * @brief Verifica l'integrità dei dati della partita corrente (es. riallineamento host).
-     * @param lobby La lobby da verificare.
+     * @brief Verifies the integrity of the current match data (e.g. host realignment).
+     * @param lobby The lobby to verify.
      * @tag LOBBY-PRIV-002
      */
     void CheckMatchIntegrity(Lobby& lobby);
 
     /**
-     * @brief Gestisce la richiesta di creazione di una nuova lobby.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Handles the request to create a new lobby.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-001
      */
     void HandleCreate(WsContext ctx, const json& msg);
 
     /**
-     * @brief Gestisce la richiesta di unione a una lobby tramite codice.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Handles the request to join a lobby via code.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-002
      */
     void HandleJoin(WsContext ctx, const json& msg);
 
     /**
-     * @brief Gestisce la richiesta di riconnessione a una lobby.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Handles the request to reconnect to a lobby.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-003
      */
     void HandleRejoin(WsContext ctx, const json& msg);
 
     /**
-     * @brief Gestisce l'uscita volontaria di un utente dalla lobby.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Handles a user's voluntary departure from the lobby.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-004
      */
     void HandleLeave(WsContext ctx, const json& msg);
 
     /**
-     * @brief Gestisce la richiesta della lista di lobby pubbliche attive.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Handles the request for the list of active public lobbies.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-005
      */
     void HandleList(WsContext ctx, const json& msg);
 
     /**
-     * @brief Promuove un giocatore specifico al ruolo di Host della lobby.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Promotes a specific player to the Host role of the lobby.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-006
      */
     void HandlePromote(WsContext ctx, const json& msg);
 
     /**
-     * @brief Espelle un giocatore dalla lobby (eseguibile solo dall'Host).
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Kicks a player from the lobby (only executable by the Host).
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-007
      */
     void HandleKick(WsContext ctx, const json& msg);
 
     /**
-     * @brief Aggiorna le impostazioni della lobby (eseguibile solo dall'Host).
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Updates the lobby settings (only executable by the Host).
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-008
      */
     void HandleUpdateSettings(WsContext ctx, const json& msg);
 
     /**
-     * @brief Richiede la lista delle partite salvate precedentemente.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Requests the list of previously saved matches.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-009
      */
     void HandleGetSavedMatchesList(WsContext ctx, const json& msg);
 
     /**
-     * @brief Riprende una partita salvata a partire dal suo ID.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Resumes a saved match from its ID.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-010
      */
     void HandleResumeSavedMatch(WsContext ctx, const json& msg);
 
     /**
-     * @brief Elimina in modo permanente una partita salvata dal DB.
-     * @param ctx Contesto WebSocket della richiesta.
-     * @param msg Payload JSON associato.
+     * @brief Permanently deletes a saved match from the DB.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-011
      */
     void HandleDeleteSavedMatch(WsContext ctx, const json& msg);
 
     /**
-     * @brief Avvia la partita per la lobby corrente. Inizializza l'istanza di gioco.
-     * @param context Contesto WebSocket della richiesta.
-     * @param message Payload JSON associato.
+     * @brief Starts the match for the current lobby. Initializes the game instance.
+     * @param context WebSocket context of the request.
+     * @param message Associated JSON payload.
      * @tag LOBBY-ACT-012
      */
     void HandleStartGame(WsContext context, const nlohmann::json& message);
 
     /**
-     * @brief Genera un codice alfanumerico univoco di 6 caratteri (Invite Code).
-     * @return std::string Il codice di invito generato.
+     * @brief Generates a unique 6-character alphanumeric code (Invite Code).
+     * @return std::string The generated invite code.
      * @tag LOBBY-UTIL-001
      */
     static std::string GenerateInviteCode();
 
     /**
-     * @brief Serializza la lista dei membri in formato JSON per l'invio via WebSocket.
-     * @param lobby La lobby di cui serializzare i membri.
-     * @return json Oggetto JSON rappresentante i membri.
+     * @brief Serializes the member list into JSON format for sending via WebSocket.
+     * @param lobby The lobby whose members to serialize.
+     * @return json JSON object representing the members.
      * @tag LOBBY-UTIL-002
      */
     static json MemberListJson(const Lobby& lobby);
 
     /**
-     * @brief Invia in broadcast l'evento `lobby_updated` a tutti i membri connessi.
-     * @param lobby La lobby da cui inviare il broadcast.
+     * @brief Broadcasts the `lobby_updated` event to all connected members.
+     * @param lobby The lobby to broadcast from.
      * @tag LOBBY-UTIL-003
      */
     void BroadcastUpdate(const Lobby& lobby) const;
 
     /**
-     * @brief Rimuove un membro dalla lobby. Distrugge la lobby se risulta vuota.
-     * @param lobby_id ID della lobby.
-     * @param username Username del giocatore da rimuovere.
-     * @param explicit_leave True se l'utente ha abbandonato volontariamente.
-     * @param request_id ID della richiesta (opzionale, per tracciamento).
-     * @return true se la lobby esiste ancora, false se è stata distrutta.
+     * @brief Removes a member from the lobby. Destroys the lobby if it becomes empty.
+     * @param lobby_id ID of the lobby.
+     * @param username Username of the player to remove.
+     * @param explicit_leave True if the user left voluntarily.
+     * @param request_id ID of the request (optional, for tracking).
+     * @return true if the lobby still exists, false if it was destroyed.
      * @tag LOBBY-PRIV-003
      */
     bool RemoveMember(uint32_t lobby_id, const string& username, bool explicit_leave = true, const string& request_id = "");
 
     /**
-     * @brief Trova a quale lobby appartiene attualmente un dato utente.
-     * @param username L'username da cercare.
-     * @return Lobby* Puntatore alla lobby, nullptr se non si trova in nessuna lobby.
+     * @brief Finds which lobby a given user currently belongs to.
+     * @param username The username to look up.
+     * @return Lobby* Pointer to the lobby, nullptr if not in any lobby.
      * @tag LOBBY-PRIV-004
      */
     Lobby* FindLobbyForUser(const std::string& username);
 
-    GameStartedCallback game_started_callback_;     /**< Callback per l'avvio partita. */
-    PlayerReplacedCallback player_replaced_callback_;/**< Callback per sostituzione giocatori. */
+    GameStartedCallback game_started_callback_;     /**< Callback for match start. */
+    PlayerReplacedCallback player_replaced_callback_;/**< Callback for player replacement. */
 
-    ActionRouter& action_router_;                   /**< Riferimento al router di azioni WS. */
-    uWS::SSLApp& app_;                              /**< Riferimento all'istanza uWebSockets. */
+    ActionRouter& action_router_;                   /**< Reference to the WS action router. */
+    uWS::SSLApp& app_;                              /**< Reference to the uWebSockets instance. */
 
-    std::unordered_map<uint32_t, Lobby> lobbies_;   /**< Memorizzazione primaria delle lobby. */
-    std::unordered_map<std::string, uint32_t> code_to_id_; /**< Indice secondario per ricerca rapida. */
+    std::unordered_map<uint32_t, Lobby> lobbies_;   /**< Primary storage of the lobbies. */
+    std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */
 
-    std::atomic<uint32_t> next_id_{1};              /**< Contatore thread-safe per gli ID delle lobby. */
-    us_timer_t* eviction_timer_ = nullptr;          /**< Timer libuv per l'eviction dei disconnessi. */
+    std::atomic<uint32_t> next_id_{1};              /**< Thread-safe counter for the lobby IDs. */
+    us_timer_t* eviction_timer_ = nullptr;          /**< libuv timer for evicting disconnected users. */
 };

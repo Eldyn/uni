@@ -9,60 +9,60 @@
 
 /**
  * @file ws.hpp
- * @brief Definizione del protocollo di messaggistica WebSocket bidirezionale.
- * * Contiene le enumerazioni delle azioni (Client -> Server e Server -> Client), 
- * costanti di mappatura stringa/enum e funzioni di utilità per l'estrazione sicura 
- * dei payload dai JSON in ingresso.
+ * @brief Definition of the bidirectional WebSocket messaging protocol.
+ * * Contains the enumerations of the actions (Client -> Server and Server -> Client),
+ * string/enum mapping constants and utility functions for safely extracting
+ * the payloads from incoming JSON.
  */
 
 namespace ws {
     /**
      * @enum ServerAction
-     * @brief Azioni inviate dal Server ai Client connessi.
+     * @brief Actions sent from the Server to the connected Clients.
      * @tag WS-ENUM-001
      */
     enum class ServerAction {
-        kSuccess,           /**< Successo generico con dati arbitrari allegati. */
-        kError,             /**< Errore generico contenente una motivazione (reason). */
-    
-        kLobbyList,         /**< Invio della lista delle lobby pubbliche disponibili. */
-        kLobbyUpdated,      /**< Broadcast: lo stato della lobby è cambiato. */
-        kLobbyJoined,       /**< Successo: il destinatario è entrato nella lobby. */
-        kLobbyLeft,         /**< Successo: il destinatario è uscito dalla lobby. */
-        kLobbyEvicted,      /**< Evizione: lobby chiusa perché senza giocatori umani. */
-    
-        kGameStateUpdated,  /**< Broadcast: lo stato della partita in corso è cambiato. */
-        kGameOver,          /**< Broadcast: la partita è terminata. */
+        kSuccess,           /**< Generic success with arbitrary data attached. */
+        kError,             /**< Generic error containing a reason. */
 
-        kChatMessage,       /**< Broadcast: un nuovo messaggio in chat. */
+        kLobbyList,         /**< Sending the list of available public lobbies. */
+        kLobbyUpdated,      /**< Broadcast: the lobby state has changed. */
+        kLobbyJoined,       /**< Success: the recipient has joined the lobby. */
+        kLobbyLeft,         /**< Success: the recipient has left the lobby. */
+        kLobbyEvicted,      /**< Eviction: lobby closed because it has no human players. */
+
+        kGameStateUpdated,  /**< Broadcast: the state of the ongoing match has changed. */
+        kGameOver,          /**< Broadcast: the match has ended. */
+
+        kChatMessage,       /**< Broadcast: a new chat message. */
     };
 
     /**
      * @enum ClientAction
-     * @brief Azioni (richieste) inviate dai Client verso il Server.
+     * @brief Actions (requests) sent from the Clients to the Server.
      * @tag WS-ENUM-002
      */
     enum class ClientAction {
-        kLobbyStartMatch,        /**< Richiesta: Avvia la partita nella lobby corrente. */
-        kLobbyList,              /**< Richiesta: Ottieni le lobby pubbliche. */
-        kLobbyCreate,            /**< Richiesta: Crea una nuova lobby con impostazioni. */
-        kLobbyRejoin,            /**< Richiesta: Riconnettiti a una lobby post-disconnessione. */
-        kLobbyJoin,              /**< Richiesta: Unisciti a una lobby tramite codice. */
-        kLobbyLeave,             /**< Richiesta: Abbandona la lobby corrente. */
-        kLobbyUpdateSettings,    /**< Richiesta: Aggiorna i settings (solo Host). */
-        kLobbyDeleteSavedMatch,  /**< Richiesta: Elimina partita salvata. */
-        kLobbyListSavedMatches,  /**< Richiesta: Ottieni partite salvate per il gruppo attuale. */
-        kLobbyResumeSavedMatch,  /**< Richiesta: Riprendi una partita salvata. */
-        kLobbyPromote,           /**< Richiesta: Cedi il ruolo di Host a un altro giocatore. */
-        kLobbyKick,              /**< Richiesta: Espelli un giocatore (solo Host). */
-    
-        kGameSubmitInput,        /**< Richiesta: Invia un input obbligatorio (es. scelta colore). */
-        kGamePlayCard,           /**< Richiesta: Gioca una carta specifica. */
-        kGameDrawCard,           /**< Richiesta: Pesca una carta dal mazzo. */
-        kGameCallUno,            /**< Richiesta: Dichiara "UNO". */
-        kGameExit,               /**< Richiesta: Esci dalla partita in corso. */
-    
-        kChatSend,               /**< Richiesta: Invia un messaggio nella chat della lobby. */
+        kLobbyStartMatch,        /**< Request: Start the match in the current lobby. */
+        kLobbyList,              /**< Request: Get the public lobbies. */
+        kLobbyCreate,            /**< Request: Create a new lobby with settings. */
+        kLobbyRejoin,            /**< Request: Reconnect to a lobby after a disconnection. */
+        kLobbyJoin,              /**< Request: Join a lobby via code. */
+        kLobbyLeave,             /**< Request: Leave the current lobby. */
+        kLobbyUpdateSettings,    /**< Request: Update the settings (Host only). */
+        kLobbyDeleteSavedMatch,  /**< Request: Delete a saved match. */
+        kLobbyListSavedMatches,  /**< Request: Get saved matches for the current group. */
+        kLobbyResumeSavedMatch,  /**< Request: Resume a saved match. */
+        kLobbyPromote,           /**< Request: Hand over the Host role to another player. */
+        kLobbyKick,              /**< Request: Kick a player (Host only). */
+
+        kGameSubmitInput,        /**< Request: Submit a mandatory input (e.g. colour choice). */
+        kGamePlayCard,           /**< Request: Play a specific card. */
+        kGameDrawCard,           /**< Request: Draw a card from the deck. */
+        kGameCallUno,            /**< Request: Declare "UNO". */
+        kGameExit,               /**< Request: Exit the ongoing match. */
+
+        kChatSend,               /**< Request: Send a message in the lobby chat. */
     };
     
     inline const std::unordered_map<ServerAction, std::string> kServerActionStr {
@@ -145,13 +145,13 @@ namespace ws {
     };
 
     /**
-     * @brief Estrae un campo obbligatorio da un payload JSON, ritornando un Result monadico.
-     * * Esegue validazione del tipo. Se manca il campo o il tipo è errato, restituisce 
-     * un errore di tipo Error::InvalidInput.
-     * * @tparam T Tipo di dato atteso (es. int, std::string).
-     * @param json Payload JSON in ingresso (non fidato).
-     * @param key Chiave dell'attributo da cercare.
-     * @return Result<T> Il valore estratto oppure uno stato di errore incapsulato.
+     * @brief Extracts a mandatory field from a JSON payload, returning a monadic Result.
+     * * Performs type validation. If the field is missing or the type is wrong, returns
+     * an error of type Error::InvalidInput.
+     * * @tparam T Expected data type (e.g. int, std::string).
+     * @param json Incoming JSON payload (untrusted).
+     * @param key Key of the attribute to look up.
+     * @return Result<T> The extracted value or an encapsulated error state.
      * @tag WS-UTIL-001
      */
     template <typename T>
@@ -188,12 +188,12 @@ namespace ws {
     }
 
     /**
-     * @brief Estrae un campo opzionale da un JSON, applicando un fallback in caso di assenza/errore.
-     * * @tparam T Tipo di dato atteso.
-     * @param json Payload JSON.
-     * @param key Chiave dell'attributo da cercare.
-     * @param default_value Valore di fallback restituito se il dato è assente/non valido.
-     * @return T Il valore estratto o il fallback fornito.
+     * @brief Extracts an optional field from a JSON, applying a fallback in case of absence/error.
+     * * @tparam T Expected data type.
+     * @param json JSON payload.
+     * @param key Key of the attribute to look up.
+     * @param default_value Fallback value returned if the data is absent/invalid.
+     * @return T The extracted value or the provided fallback.
      * @tag WS-UTIL-002
      */
     template <typename T>
@@ -203,10 +203,10 @@ namespace ws {
     }
 
     /**
-     * @brief Costruisce l'intelaiatura di base per un messaggio JSON di risposta del server.
-     * @param action Il tipo di azione (ServerAction) da inserire nel payload.
-     * @param request_id (Opzionale) ID della richiesta originale per il tracciamento frontend.
-     * @return nlohmann::json Struttura JSON pronta per essere popolata con altri campi.
+     * @brief Builds the base scaffolding for a server response JSON message.
+     * @param action The type of action (ServerAction) to insert into the payload.
+     * @param request_id (Optional) ID of the original request for frontend tracking.
+     * @return nlohmann::json JSON structure ready to be populated with other fields.
      * @tag WS-UTIL-003
      */
     inline nlohmann::json MakeResponse(ws::ServerAction action, const std::string& request_id = "") {
@@ -224,11 +224,11 @@ namespace ws {
     }
 
     /**
-     * @brief Invia un payload JSON formattato come errore sul socket specifo.
-     * @param ws Puntatore al socket destinatario.
-     * @param op L'OpCode di uWebSockets (es. testo).
-     * @param reason La stringa descrittiva dell'errore (motivo).
-     * @param request_id (Opzionale) L'ID del pacchetto che ha scatenato l'errore.
+     * @brief Sends a JSON payload formatted as an error on the specific socket.
+     * @param ws Pointer to the recipient socket.
+     * @param op The uWebSockets OpCode (e.g. text).
+     * @param reason The descriptive error string (reason).
+     * @param request_id (Optional) The ID of the packet that triggered the error.
      * @tag WS-UTIL-004
      */
     inline void SendError(AppWebSocket* ws, uWS::OpCode op, const std::string& reason, const std::string& request_id) {
