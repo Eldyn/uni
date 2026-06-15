@@ -15,7 +15,6 @@ using json = nlohmann::json;
 int main() {
     try {
         Env::Load(".env");
-        ContractConstants::Get().Load("contract.json");
         WebServer server(9999);
 
         AuthController  auth(server.GetHTTPRouter());

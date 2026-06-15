@@ -3,160 +3,102 @@
  * @brief Communication utility and wrapper for the WebSocket protocol.
  * Handles the connection, message routing (handlers) and implements a
  * synchronous/asynchronous pattern (emit/wait) using Svelte 5 reactive state.
+ *
+ * Action constants and payload types are generated from contract/asyncapi.yaml.
+ * Run `npm run generate:contract` to regenerate after schema changes.
  */
 
-/**
- * @brief Dictionary of constants for the actions sent from the Client to the Server.
- */
-export const ClientAction = {
-    GamePlayCard: "game_play_card",
-    GameDrawCard: "game_draw_card",
-    GameSubmitInput: "game_submit_input",
-    GameCallUno: "game_call_uno",
-    GameExit: "game_exit",
+export {
+    ClientAction,
+    ServerAction,
+    type ClientActionType,
+    type ServerActionType,
+    type ClientPayloads
+} from '$lib/generated/schemas';
 
-    LobbyListSavedMatches: "lobby_list_saved_matches",
-    LobbyDeleteSavedMatch: "lobby_delete_saved_match",
-    LobbyResumeSavedMatch: "lobby_resume_saved_match",
+import type { ClientPayloads, ServerActionType } from '$lib/generated/schemas';
+import { z } from 'zod';
+import {
+    GamePlayCardMessageSchema,
+    GameSubmitInputMessageSchema,
+    LobbyCreateMessageSchema,
+    LobbyJoinMessageSchema,
+    LobbyRejoinMessageSchema,
+    LobbyPromoteMessageSchema,
+    LobbyKickMessageSchema,
+    LobbyUpdateSettingsMessageSchema,
+    LobbyDeleteSavedMatchMessageSchema,
+    LobbyResumeSavedMatchMessageSchema,
+    ChatSendMessageSchema,
+} from '$lib/generated/schemas';
 
-    LobbyList: "lobby_list",
-    LobbyCreate: "lobby_create",
-    LobbyJoin: "lobby_join",
-    LobbyRejoin: "lobby_rejoin",
-    LobbyLeave: "lobby_leave",
-    LobbyPromote: "lobby_promote",
-    LobbyKick: "lobby_kick",
-    LobbyUpdateSettings: "lobby_update_settings",
-    LobbyStartMatch: "lobby_start_match",
+/** Lookup map: action string → its outgoing message Zod schema. */
+const outgoingSchemas: Partial<Record<string, z.ZodTypeAny>> = {
+    'game_play_card':           GamePlayCardMessageSchema,
+    'game_submit_input':        GameSubmitInputMessageSchema,
+    'lobby_create':             LobbyCreateMessageSchema,
+    'lobby_join':               LobbyJoinMessageSchema,
+    'lobby_rejoin':             LobbyRejoinMessageSchema,
+    'lobby_promote':            LobbyPromoteMessageSchema,
+    'lobby_kick':               LobbyKickMessageSchema,
+    'lobby_update_settings':    LobbyUpdateSettingsMessageSchema,
+    'lobby_delete_saved_match': LobbyDeleteSavedMatchMessageSchema,
+    'lobby_resume_saved_match': LobbyResumeSavedMatchMessageSchema,
+    'chat_send':                ChatSendMessageSchema,
+};
 
-    ChatSend: "chat_send"
-} as const;
-
-/**
- * @brief Dictionary of constants for the actions sent from the Server to the Client.
- */
-export const ServerAction = {
-    Success: "success",
-    Error: "error",
-
-    GameStateUpdated: "game_state_updated",
-    GameOver: "game_over",
-
-    LobbyEvicted: "lobby_evicted",
-    LobbyList: "lobby_list",
-    LobbyUpdated: "lobby_updated",
-    LobbyJoined: "lobby_joined",
-    LobbyLeft: "lobby_left",
-
-    ChatMessage: "chat_message"
-} as const;
-
-export type ClientActionType = (typeof ClientAction)[keyof typeof ClientAction];
-export type ServerActionType = (typeof ServerAction)[keyof typeof ServerAction];
+/** Base schema for parsing incoming server frames. */
+const IncomingMessageSchema = z.looseObject({
+    action: z.string(),
+    request_id: z.string().optional()
+});
 
 export type ServerActionDef = ServerActionType | string;
 
-export interface ClientPayloads {
-    [ClientAction.GamePlayCard]: { card_id: number };
-    [ClientAction.GameDrawCard]: Record<string, never>;
-    [ClientAction.GameSubmitInput]: { value: string };
-    [ClientAction.GameCallUno]: Record<string, never>;
-    [ClientAction.GameExit]: Record<string, never>;
-
-    [ClientAction.LobbyListSavedMatches]: Record<string, never>;
-    [ClientAction.LobbyDeleteSavedMatch]: { match_id: string };
-    [ClientAction.LobbyResumeSavedMatch]: { match_id: string };
-
-    [ClientAction.LobbyList]: Record<string, never>;
-    [ClientAction.LobbyCreate]: { is_public?: boolean; name?: string };
-    [ClientAction.LobbyJoin]: { code: string };
-    [ClientAction.LobbyRejoin]: { code: string };
-    [ClientAction.LobbyLeave]: Record<string, never>;
-    [ClientAction.LobbyPromote]: { username: string };
-    [ClientAction.LobbyKick]: { username: string };
-    [ClientAction.LobbyUpdateSettings]: { is_public?: boolean; name?: string; bot_count?: number; max_score?: number; turn_time_limit_ms?: number; allow_bot_takeover?: boolean; allow_bot_replacement?: boolean; save_state?: boolean; quit_deletes_match?: boolean; bot_mode?: number };
-    [ClientAction.LobbyStartMatch]: Record<string, never>;
-
-    [ClientAction.ChatSend]: { message: string };
-}
-
-/**
- * @typedef MessageHandler
- * @brief Signature of the callback function for intercepting WebSocket messages.
- */
 export type MessageHandler = (data: Record<string, unknown>) => void;
 
 /**
  * @interface ConnectionStatus
- * @brief Represents the reactive state of the WebSocket connection, useful for the UI.
+ * @brief Represents the reactive state of the WebSocket connection.
  */
 export interface ConnectionStatus {
-    /** Current state of the connection. */
-    status: "disconnected" | "connecting" | "connected";
-    /** Username synchronized from the server. */
+    status: 'disconnected' | 'connecting' | 'connected';
     username: string;
-    /** Name of the current room. */
     room: string;
-    /** Invite code of the current lobby. */
     lobby_code: string;
 }
 
 /**
  * @class WsResponse
  * @brief Unified wrapper for WebSocket message responses.
- * Mimics the HTTP Fetch API to provide a linear and predictable control flow
- * when awaiting responses from the server.
  * @tag FRONT-WS-001
  */
-export class WsResponse {
-    /** True if the action returned by the server is NOT an error. */
+export class WsResponse<T extends Record<string, unknown> = Record<string, unknown>> {
     public readonly ok: boolean;
-    /** The ServerAction command returned in the packet. */
     public readonly action: string;
-    /** The unique ID of the original request forwarded by the client, if present. */
     public readonly request_id?: string;
-    /** The raw JSON dictionary with the data returned by the server. */
-    public readonly data: Record<string, unknown>;
+    public readonly data: T;
 
-    constructor(rawData: Record<string, unknown>) {
+    constructor(rawData: T) {
         this.data = rawData;
-        this.action = (rawData.action as string) || "";
+        this.action = (rawData.action as string) || '';
         this.request_id = rawData.request_id as string;
-
-        this.ok = this.action !== "error";
+        this.ok = this.action !== 'error';
     }
 
-    /**
-     * @brief Safely extracts the error reason returned by the server.
-     * @returns The error message or a default fallback.
-     */
     get reason(): string {
-        return (this.data.reason as string) || "Unknown Server Error";
+        return (this.data.reason as string) || 'Unknown Server Error';
     }
 
-    /**
-     * @brief Extracts a typed value from the payload.
-     * @param key The key to look up in the JSON dictionary.
-     * @returns The typed value or null if the key does not exist.
-     */
-    get<T>(key: string): T | null {
-        return key in this.data ? (this.data[key] as T) : null;
+    get<V>(key: string): V | null {
+        return key in this.data ? (this.data[key] as V) : null;
     }
 
-    /**
-     * @brief Extracts a typed value from the payload, providing a fallback when absent.
-     * @param key The key to look up in the JSON payload.
-     * @param fallback The safe value to return.
-     */
-    getOr<T>(key: string, fallback: T): T {
-        return key in this.data ? (this.data[key] as T) : fallback;
+    getOr<V>(key: string, fallback: V): V {
+        return key in this.data ? (this.data[key] as V) : fallback;
     }
 }
 
-/**
- * @interface PendingRequest
- * @brief Internal interface used to track requests awaiting a response (emitAndWait).
- */
 interface PendingRequest {
     resolve: (res: WsResponse) => void;
     reject: (err: Error) => void;
@@ -165,60 +107,40 @@ interface PendingRequest {
 
 /**
  * @class WebSocketClient
- * @brief Stateful and reactive WebSocket client.
- * Handles automatic reconnections (Exponential Backoff), correlation between requests
- * and responses, and encapsulates the connection states using Svelte 5 (`$state`).
+ * @brief Stateful and reactive WebSocket client with Zod-validated boundaries.
  * @tag FRONT-WS-002
  */
 export class WebSocketClient {
-    /** Native WebSocket instance (reactive). */
     socket = $state<WebSocket | null>(null);
 
-    /** Connection metadata and state (reactive to interface with the UI). */
     connectionStatus = $state<ConnectionStatus>({
-        status: "disconnected",
-        username: "",
-        room: "",
-        lobby_code: ""
+        status: 'disconnected',
+        username: '',
+        room: '',
+        lobby_code: ''
     });
 
     private _nextRequestId = 1;
     private pendingRequests = new Map<string, PendingRequest>();
-
     private onHandlers = new Map<string, Set<MessageHandler>>();
     private openHandlers: Array<() => void | Promise<void>> = [];
     private closeHandlers: Array<() => void | Promise<void>> = [];
-
     private visibilityListenerAttached = false;
-
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectDelayMs = 1000;
     private intentionalClose = false;
 
-    /**
-     * @brief Checks whether the WebSocket is currently open and active.
-     */
     get isConnected(): boolean {
         return this.socket?.readyState === WebSocket.OPEN;
     }
 
-    /**
-     * @brief Installs and establishes the WebSocket connection. Safe to call multiple times.
-     * @returns Promise resolved when the connection opens successfully.
-     */
     async connect(): Promise<void> {
         if (this.isConnected) return;
-
         this.intentionalClose = false;
         this.#attachVisibilityListener();
         await this._connectOnce();
     }
 
-    /**
-     * @brief Intentionally disconnects the WebSocket, blocking the auto-reconnection system.
-     * @param code The WebSocket close code.
-     * @param reason The textual reason for the closure.
-     */
     disconnect(code: number, reason: string): void {
         this.intentionalClose = true;
 
@@ -229,124 +151,107 @@ export class WebSocketClient {
 
         this.socket?.close(code, reason);
         this.socket = null;
-        this.connectionStatus.status = "disconnected";
+        this.connectionStatus.status = 'disconnected';
 
         for (const handler of this.closeHandlers) {
-            try {
-                handler();
-            } catch (error) {
-                console.error("onClose Handler failed:", error);
-            }
+            try { handler(); } catch (e) { console.error('onClose handler failed:', e); }
         }
     }
 
     /**
-     * @brief Sends an asynchronous message to the server without awaiting any response (Fire and Forget).
-     * Does not attach any `request_id` to the packet.
-     * @param action The action to perform (ClientAction).
-     * @param payload Optional data to attach in JSON format.
+     * @brief Fire-and-forget send. Validates the outgoing payload with Zod in dev mode.
      */
-    emit<K extends keyof ClientPayloads>(action: K, ...args: ClientPayloads[K] extends Record<string, never> ? [payload?: Record<string, never>] : [payload: ClientPayloads[K]]): void {
-        const payload = args[0] || {};
-        if (this.isConnected) {
-            this.socket!.send(JSON.stringify({ action, ...payload }));
-        }
+    emit<K extends keyof ClientPayloads>(
+        action: K,
+        ...args: ClientPayloads[K] extends Record<string, never>
+            ? [payload?: Record<string, never>]
+            : [payload: ClientPayloads[K]]
+    ): void {
+        const payload = args[0] ?? {};
+        const frame = { action, ...payload };
+        this.#validateAndSend(String(action), frame);
     }
 
     /**
-     * @brief Sends a message and awaits the correlated response from the server by generating a `request_id`.
-     * Resolves to a `WsResponse` even for logical errors generated by the server, but rejects
-     * on infrastructure failures (e.g. network drop or Timeout).
-     * @param action The action to perform (ClientAction).
-     * @param payload Optional data to attach.
-     * @param timeoutMs Maximum wait time before aborting (Default: 5000ms).
-     * @returns Promise resolved with the server's response packet.
+     * @brief Sends a message and awaits the correlated server response.
      */
     emitAndWait<K extends keyof ClientPayloads>(
         action: K,
         payload?: ClientPayloads[K],
         timeoutMs: number = 5000
     ): Promise<WsResponse> {
-        const actualPayload = payload || {};
+        const actualPayload = payload ?? {};
         return new Promise((resolve, reject) => {
             const requestId = String(this._nextRequestId++);
 
             const timer = setTimeout(() => {
                 this.pendingRequests.delete(requestId);
-                reject(new Error(`Timeout: no response for "${action}" (request_id=${requestId})`));
+                reject(new Error(`Timeout: no response for "${String(action)}" (request_id=${requestId})`));
             }, timeoutMs);
 
             this.pendingRequests.set(requestId, { resolve, reject, timer });
 
             if (this.isConnected) {
-                this.socket!.send(JSON.stringify({ action, request_id: requestId, ...actualPayload }));
+                const frame = { action, request_id: requestId, ...actualPayload };
+                this.#validateAndSend(String(action), frame);
             } else {
                 this.pendingRequests.delete(requestId);
                 clearTimeout(timer);
-                reject(new Error("WebSocket not connected"));
+                reject(new Error('WebSocket not connected'));
             }
         });
     }
 
-    /**
-     * @brief Registers a global listener to intercept specific Server Actions.
-     * @param action The server action to listen for (use "*" to listen to everything).
-     * @param handler The callback function triggered upon receiving the message.
-     * @returns A lambda to remove the event subscription.
-     */
-    on(action: ServerActionDef | "*", handler: MessageHandler): () => void {
+    on(action: ServerActionDef | '*', handler: MessageHandler): () => void {
         if (!this.onHandlers.has(action)) this.onHandlers.set(action, new Set());
         this.onHandlers.get(action)!.add(handler);
-
         return () => this.onHandlers.get(action)?.delete(handler);
     }
 
-    /**
-     * @brief Registers a listener triggered immediately when the socket opens.
-     * @returns Function to remove the hook.
-     */
     onOpen(handler: () => void | Promise<void>): () => void {
         this.openHandlers.push(handler);
-
-        // Returns the cancellation function (unsubscriber)
-        return () => {
-            this.openHandlers = this.openHandlers.filter((h) => h !== handler);
-        };
+        return () => { this.openHandlers = this.openHandlers.filter(h => h !== handler); };
     }
 
-    /**
-     * @brief Registers a listener triggered when the socket closes.
-     * @returns Function to remove the hook.
-     */
     onClose(handler: () => void | Promise<void>): () => void {
         this.closeHandlers.push(handler);
-
-        // Returns the cancellation function (unsubscriber)
-        return () => {
-            this.closeHandlers = this.closeHandlers.filter((h) => h !== handler);
-        };
+        return () => { this.closeHandlers = this.closeHandlers.filter(h => h !== handler); };
     }
 
-    /**
-     * @brief Internal routine to establish a single raw connection and bind the native events.
-     */
+    // --- Private ---
+
+    /** Validates an outgoing frame with its Zod message schema (if one exists), then sends. */
+    #validateAndSend(action: string, frame: Record<string, unknown>): void {
+        if (!this.isConnected) return;
+
+        const schema = outgoingSchemas[action];
+        if (schema) {
+            const result = schema.safeParse(frame);
+            if (!result.success) {
+                console.error(
+                    `[ws] Outgoing validation failed for action "${action}":`,
+                    result.error.issues
+                );
+                return;   // Block malformed frames from reaching the server
+            }
+        }
+
+        this.socket!.send(JSON.stringify(frame));
+    }
+
     private async _connectOnce(): Promise<void> {
         return new Promise(async (resolve, reject) => {
-            const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsInstance = new WebSocket(`${protocol}//${location.host}`);
-            this.connectionStatus.status = "connecting";
+            this.connectionStatus.status = 'connecting';
 
             wsInstance.onopen = async () => {
                 this.socket = wsInstance;
-                this.connectionStatus.status = "connected";
+                this.connectionStatus.status = 'connected';
                 this.reconnectDelayMs = 1000;
 
                 for (const handler of this.openHandlers) {
-                    try {
-                        handler();
-                    } catch (error) {
-                        console.error("onOpen Handler failed:", error);
-                    }
+                    try { await handler(); } catch (e) { console.error('onOpen handler failed:', e); }
                 }
 
                 resolve();
@@ -357,93 +262,73 @@ export class WebSocketClient {
             wsInstance.onclose = () => {
                 if (this.socket === wsInstance) {
                     this.socket = null;
-                    this.connectionStatus.status = "disconnected";
+                    this.connectionStatus.status = 'disconnected';
                 }
                 this._scheduleReconnect();
             };
 
             wsInstance.onmessage = (e: MessageEvent) => {
-                try {
-                    const data = JSON.parse(e.data as string) as Record<string, unknown>;
-                    if (data.action === "sync_data") {
-                        this.connectionStatus.username = data.username as string;
-                    }
-                    this._dispatch(data);
-                } catch (err) {
-                    console.error(err);
+                const parsed = IncomingMessageSchema.safeParse(
+                    JSON.parse(e.data as string)
+                );
+                if (!parsed.success) {
+                    console.error('[ws] Incoming frame failed schema check:', parsed.error.issues);
+                    return;
                 }
+                const data = parsed.data as Record<string, unknown>;
+
+                if (data.action === 'sync_data') {
+                    this.connectionStatus.username = data.username as string;
+                }
+                this._dispatch(data);
             };
         });
     }
 
-    /**
-     * @brief Routes the incoming message, resolving any pending requests or triggering global listeners.
-     */
-    private _dispatch(data: Record<string, unknown>) {
+    private _dispatch(data: Record<string, unknown>): void {
         const action = data.action as string;
         const requestId = data.request_id as string;
 
-        // INFO: Resolve the pending promises if there is a match with the ID
         if (requestId && this.pendingRequests.has(requestId)) {
             const pending = this.pendingRequests.get(requestId)!;
             this.pendingRequests.delete(requestId);
             clearTimeout(pending.timer);
-
-            // INFO: Wrap the payload in our HTTP-like envelope and resolve
-            const response = new WsResponse(data);
-            pending.resolve(response);
+            pending.resolve(new WsResponse(data));
         }
 
-        // INFO: Trigger the standard global listeners
         if (action) {
-            this.onHandlers.get(action)?.forEach((handler) => handler(data));
-            this.onHandlers.get("*")?.forEach((handler) => handler(data));
+            this.onHandlers.get(action)?.forEach(h => h(data));
+            this.onHandlers.get('*')?.forEach(h => h(data));
         }
     }
 
-    /**
-     * @brief Implements an Exponential Backoff algorithm to attempt reconnections.
-     * Doubles the delay on every failed attempt up to a maximum cap.
-     */
-    private _scheduleReconnect() {
+    private _scheduleReconnect(): void {
         if (this.intentionalClose) return;
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
-
-            if (document.visibilityState === "hidden") return;
-
+            if (document.visibilityState === 'hidden') return;
             this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 16_000);
-
-            this._connectOnce().catch(() => {
-                this._scheduleReconnect();
-            });
+            this._connectOnce().catch(() => this._scheduleReconnect());
         }, this.reconnectDelayMs);
     }
 
-    /**
-     * @brief Registers a listener on the document to detect the user returning to the tab.
-     * Disables the backoff timer, forcing an immediate reconnection when the tab becomes visible again.
-     */
-    #attachVisibilityListener() {
+    #attachVisibilityListener(): void {
         if (this.visibilityListenerAttached) return;
         this.visibilityListenerAttached = true;
 
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible" && !this.isConnected && !this.intentionalClose) {
-                // Cancel the pending timers and force a connection
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && !this.isConnected && !this.intentionalClose) {
                 if (this.reconnectTimer) {
                     clearTimeout(this.reconnectTimer);
                     this.reconnectTimer = null;
                 }
-
-                this.reconnectDelayMs = 1000; // Reset the backoff
+                this.reconnectDelayMs = 1000;
                 this._connectOnce().catch(() => this._scheduleReconnect());
             }
         });
     }
 }
 
-// Export a global singleton instance for use throughout the Svelte application
 export const ws = new WebSocketClient();

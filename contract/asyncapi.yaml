@@ -1,0 +1,553 @@
+asyncapi: "2.6.0"
+
+info:
+  title: Uni-Uno WebSocket API
+  version: "1.0.0"
+  description: >
+    Bidirectional WebSocket protocol between the Uni-Uno Svelte frontend and
+    the uWebSockets C++ backend. Every frame is a JSON object with at minimum
+    an `action` field. Client-originated frames may carry an optional
+    `request_id` that the server echoes back for request/response correlation.
+
+servers:
+  production:
+    url: "wss://{host}"
+    protocol: wss
+    variables:
+      host:
+        default: localhost
+
+# ---------------------------------------------------------------------------
+# Channels
+# ---------------------------------------------------------------------------
+channels:
+  /:
+    description: The root WebSocket endpoint — all messages flow through here.
+    subscribe:
+      summary: Messages sent from the Server to the Client.
+      message:
+        oneOf:
+          - $ref: "#/components/messages/Success"
+          - $ref: "#/components/messages/Error"
+          - $ref: "#/components/messages/LobbyList"
+          - $ref: "#/components/messages/LobbyJoined"
+          - $ref: "#/components/messages/LobbyUpdated"
+          - $ref: "#/components/messages/LobbyLeft"
+          - $ref: "#/components/messages/LobbyEvicted"
+          - $ref: "#/components/messages/GameStateUpdated"
+          - $ref: "#/components/messages/GameOver"
+          - $ref: "#/components/messages/ChatMessage"
+
+    publish:
+      summary: Messages sent from the Client to the Server.
+      message:
+        oneOf:
+          - $ref: "#/components/messages/GamePlayCard"
+          - $ref: "#/components/messages/GameDrawCard"
+          - $ref: "#/components/messages/GameSubmitInput"
+          - $ref: "#/components/messages/GameCallUno"
+          - $ref: "#/components/messages/GameExit"
+          - $ref: "#/components/messages/LobbyListRequest"
+          - $ref: "#/components/messages/LobbyCreate"
+          - $ref: "#/components/messages/LobbyJoin"
+          - $ref: "#/components/messages/LobbyRejoin"
+          - $ref: "#/components/messages/LobbyLeave"
+          - $ref: "#/components/messages/LobbyPromote"
+          - $ref: "#/components/messages/LobbyKick"
+          - $ref: "#/components/messages/LobbyUpdateSettings"
+          - $ref: "#/components/messages/LobbyStartMatch"
+          - $ref: "#/components/messages/LobbyListSavedMatches"
+          - $ref: "#/components/messages/LobbyDeleteSavedMatch"
+          - $ref: "#/components/messages/LobbyResumeSavedMatch"
+          - $ref: "#/components/messages/ChatSend"
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+
+  # -------------------------------------------------------------------------
+  # Messages
+  # -------------------------------------------------------------------------
+  messages:
+
+    # --- Server → Client (payloads described inline — not code-generated) ---
+
+    Success:
+      name: success
+      title: Generic Success
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["success"]
+          request_id:
+            type: string
+
+    Error:
+      name: error
+      title: Generic Error
+      payload:
+        type: object
+        required: [action, reason]
+        properties:
+          action:
+            type: string
+            enum: ["error"]
+          request_id:
+            type: string
+          reason:
+            type: string
+
+    LobbyList:
+      name: lobby_list
+      title: Public Lobby List (server push)
+      payload:
+        type: object
+        required: [action, lobbies]
+        properties:
+          action:
+            type: string
+            enum: ["lobby_list"]
+          request_id:
+            type: string
+          lobbies:
+            type: array
+            items:
+              type: object
+              required: [invite_code, host, members, settings, name]
+              properties:
+                invite_code:
+                  $ref: "#/components/schemas/LobbyCode"
+                host:
+                  $ref: "#/components/schemas/Username"
+                name:
+                  $ref: "#/components/schemas/LobbyName"
+                members:
+                  type: array
+                  maxItems: 10   # MAX_LOBBY_MEMBERS
+                  items:
+                    type: object
+                    required: [username, is_bot]
+                    properties:
+                      username:
+                        $ref: "#/components/schemas/Username"
+                      is_bot:
+                        type: boolean
+                settings:
+                  type: object
+
+    LobbyJoined:
+      name: lobby_joined
+      title: Lobby Joined
+      payload:
+        type: object
+        required: [action, lobby]
+        properties:
+          action:
+            type: string
+            enum: ["lobby_joined"]
+          request_id:
+            type: string
+          lobby:
+            type: object
+            description: Full lobby state.
+
+    LobbyUpdated:
+      name: lobby_updated
+      title: Lobby State Broadcast
+      payload:
+        type: object
+        required: [action, lobby]
+        properties:
+          action:
+            type: string
+            enum: ["lobby_updated"]
+          lobby:
+            type: object
+            description: Full lobby state.
+
+    LobbyLeft:
+      name: lobby_left
+      title: Successfully Left Lobby
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_left"]
+          request_id:
+            type: string
+
+    LobbyEvicted:
+      name: lobby_evicted
+      title: Evicted — Lobby Closed
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_evicted"]
+          reason:
+            type: string
+
+    GameStateUpdated:
+      name: game_state_updated
+      title: Game State Broadcast
+      payload:
+        type: object
+        required: [action, game_state]
+        properties:
+          action:
+            type: string
+            enum: ["game_state_updated"]
+          game_state:
+            type: object
+            description: >
+              Opaque per-player serialized game state produced by
+              MatchInstance::SerializePlayerState(). Structure owned by the game engine.
+          action_required:
+            type: string
+            description: Non-empty when the server awaits a game_submit_input from this player.
+          action_context:
+            type: object
+            description: Additional context for the required action (e.g. available colours).
+
+    GameOver:
+      name: game_over
+      title: Match Ended
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["game_over"]
+          winner:
+            type: string
+            description: Username of the winning player, or empty string if game was abandoned.
+          reason:
+            type: string
+
+    ChatMessage:
+      name: chat_message
+      title: Incoming Chat Message
+      payload:
+        type: object
+        required: [action, username, message]
+        properties:
+          action:
+            type: string
+            enum: ["chat_message"]
+          username:
+            $ref: "#/components/schemas/Username"
+          message:
+            type: string
+            maxLength: 512
+
+    # --- Client → Server (payloads reference components/schemas for code generation) ---
+
+    GamePlayCard:
+      name: game_play_card
+      title: Play a Card
+      payload:
+        $ref: "#/components/schemas/GamePlayCardPayload"
+
+    GameDrawCard:
+      name: game_draw_card
+      title: Draw a Card
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["game_draw_card"]
+          request_id:
+            type: string
+
+    GameSubmitInput:
+      name: game_submit_input
+      title: Submit Mandatory Input (e.g. colour choice)
+      payload:
+        $ref: "#/components/schemas/GameSubmitInputPayload"
+
+    GameCallUno:
+      name: game_call_uno
+      title: Declare UNO
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["game_call_uno"]
+          request_id:
+            type: string
+
+    GameExit:
+      name: game_exit
+      title: Exit Match
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["game_exit"]
+          request_id:
+            type: string
+
+    LobbyListRequest:
+      name: lobby_list
+      title: Request Public Lobby List
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_list"]
+          request_id:
+            type: string
+
+    LobbyCreate:
+      name: lobby_create
+      title: Create a Lobby
+      payload:
+        $ref: "#/components/schemas/LobbyCreatePayload"
+
+    LobbyJoin:
+      name: lobby_join
+      title: Join a Lobby via Invite Code
+      payload:
+        $ref: "#/components/schemas/LobbyJoinPayload"
+
+    LobbyRejoin:
+      name: lobby_rejoin
+      title: Rejoin After Disconnection
+      payload:
+        $ref: "#/components/schemas/LobbyRejoinPayload"
+
+    LobbyLeave:
+      name: lobby_leave
+      title: Leave Current Lobby
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_leave"]
+          request_id:
+            type: string
+
+    LobbyPromote:
+      name: lobby_promote
+      title: Hand Host Role to Another Player
+      payload:
+        $ref: "#/components/schemas/LobbyPromotePayload"
+
+    LobbyKick:
+      name: lobby_kick
+      title: Kick a Player (Host Only)
+      payload:
+        $ref: "#/components/schemas/LobbyKickPayload"
+
+    LobbyUpdateSettings:
+      name: lobby_update_settings
+      title: Update Lobby Settings (Host Only)
+      payload:
+        $ref: "#/components/schemas/LobbyUpdateSettingsPayload"
+
+    LobbyStartMatch:
+      name: lobby_start_match
+      title: Start the Match
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_start_match"]
+          request_id:
+            type: string
+
+    LobbyListSavedMatches:
+      name: lobby_list_saved_matches
+      title: List Saved Matches for the Group
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_list_saved_matches"]
+          request_id:
+            type: string
+
+    LobbyDeleteSavedMatch:
+      name: lobby_delete_saved_match
+      title: Delete a Saved Match
+      payload:
+        $ref: "#/components/schemas/LobbyDeleteSavedMatchPayload"
+
+    LobbyResumeSavedMatch:
+      name: lobby_resume_saved_match
+      title: Resume a Saved Match
+      payload:
+        $ref: "#/components/schemas/LobbyResumeSavedMatchPayload"
+
+    ChatSend:
+      name: chat_send
+      title: Send a Chat Message
+      payload:
+        $ref: "#/components/schemas/ChatSendPayload"
+
+  # -------------------------------------------------------------------------
+  # Schemas
+  # -------------------------------------------------------------------------
+  # Only client → server payload schemas live here; they are used for C++ code
+  # generation via hatchbed/asyncapi_gencpp. Server response payloads are
+  # described inline in their message definitions above.
+  #
+  # Constraint schemas (Username, Password, etc.) are included for frontend
+  # Zod generation (Phase 3) and are referenced by the payload schemas below.
+  # -------------------------------------------------------------------------
+  schemas:
+
+    # --- Constraint schemas (single source of truth for validation limits) ---
+
+    Username:
+      type: string
+      minLength: 3    # kMinUsernameLen  (auth_controller.hpp)
+      maxLength: 32   # kMaxUsernameLen  (auth_controller.hpp)
+      pattern: "^[a-zA-Z0-9_]+$"
+
+    Password:
+      type: string
+      minLength: 8    # kMinPasswordLen  (auth_controller.hpp)
+
+    LobbyName:
+      type: string
+      minLength: 1
+      maxLength: 50   # LOBBY_NAME_MAX   (contract.json)
+
+    LobbyCode:
+      type: string
+      minLength: 6    # LOBBY_CODE_LEN   (contract.json)
+      maxLength: 6
+      pattern: "^[A-Z0-9]+$"
+
+    # --- Client → Server payload schemas (C++ structs generated from these) ---
+    # Fields 'action' and 'request_id' are envelope fields handled by the router
+    # and are intentionally excluded from these struct definitions.
+
+    GamePlayCardPayload:
+      type: object
+      required:
+        - card_id
+      properties:
+        card_id:
+          type: integer
+          minimum: 0
+          maximum: 65535
+          description: Numeric identifier of the card to play (maps to uint16_t on the wire).
+
+    GameSubmitInputPayload:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: string
+          description: The player's response to a mandatory game prompt (e.g. colour selection).
+
+    LobbyCreatePayload:
+      type: object
+      properties:
+        is_public:
+          type: boolean
+        name:
+          $ref: "#/components/schemas/LobbyName"
+
+    LobbyJoinPayload:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          $ref: "#/components/schemas/LobbyCode"
+
+    LobbyRejoinPayload:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          $ref: "#/components/schemas/LobbyCode"
+
+    LobbyPromotePayload:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          $ref: "#/components/schemas/Username"
+
+    LobbyKickPayload:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          $ref: "#/components/schemas/Username"
+
+    LobbyUpdateSettingsPayload:
+      type: object
+      properties:
+        is_public:
+          type: boolean
+        name:
+          $ref: "#/components/schemas/LobbyName"
+        bot_count:
+          type: integer
+          minimum: 0
+          maximum: 9
+        max_score:
+          type: integer
+          minimum: 1
+        turn_time_limit_ms:
+          type: integer
+          minimum: 0
+          description: Turn time limit in milliseconds. 0 means no limit.
+        allow_bot_takeover:
+          type: boolean
+        allow_bot_replacement:
+          type: boolean
+        save_state:
+          type: boolean
+        quit_deletes_match:
+          type: boolean
+        bot_mode:
+          type: integer
+          minimum: 0
+
+    LobbyDeleteSavedMatchPayload:
+      type: object
+      required:
+        - match_id
+      properties:
+        match_id:
+          type: string
+
+    LobbyResumeSavedMatchPayload:
+      type: object
+      required:
+        - match_id
+      properties:
+        match_id:
+          type: string
+
+    ChatSendPayload:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512

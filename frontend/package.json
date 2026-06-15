@@ -4,7 +4,8 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"build": "vite build",
+		"generate:contract": "node scripts/generate-schemas.js",
+		"build": "node scripts/generate-schemas.js && vite build",
 		"watch": "vite build --watch --mode development",
 		"preview": "vite preview",
 		"lint": "prettier --check .",
@@ -28,6 +29,7 @@
 		"@dnd-kit-svelte/svelte": "^0.1.6",
 		"@dnd-kit/svelte": "^0.4.0",
 		"esbuild": "^0.28.0",
-		"svelte-dnd-action": "^0.9.69"
+		"svelte-dnd-action": "^0.9.69",
+		"zod": "^4.4.3"
 	}
 }

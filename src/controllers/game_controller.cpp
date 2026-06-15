@@ -20,22 +20,22 @@ using json = nlohmann::json;
 GameController::GameController(WebServer& server, LobbyController& lobby_controller)
     : action_router_(server.GetActionRouter()), lobby_controller_(lobby_controller) {
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kGamePlayCard), [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kGamePlayCard, [this](WsContext context, const json& message) {
         HandlePlayCard(context, message);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kGameDrawCard), [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kGameDrawCard, [this](WsContext context, const json& message) {
         HandleDrawCard(context, message);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kGameSubmitInput), [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kGameSubmitInput, [this](WsContext context, const json& message) {
         HandleProvideInput(context, message);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kGameCallUno), [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kGameCallUno, [this](WsContext context, const json& message) {
         HandleCallUno(context, message);
         return true;
     });

@@ -5,6 +5,40 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# --- Contract code generation (hatchbed/asyncapi_gencpp) ---
+# Fetches the generator at configure time, then runs it as a pre-build step.
+# Source of truth: contract/asyncapi.yaml
+# Output:          ${CMAKE_BINARY_DIR}/generated/ws/messages.h  (namespace ws::)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+include(FetchContent)
+FetchContent_Declare(
+    asyncapi_gencpp
+    GIT_REPOSITORY https://github.com/hatchbed/asyncapi_gencpp.git
+    GIT_TAG        main
+    GIT_SHALLOW    TRUE
+)
+# Populate only (no add_subdirectory) — the package is ROS-specific and only
+# the Python generator script is needed here.
+FetchContent_GetProperties(asyncapi_gencpp)
+if(NOT asyncapi_gencpp_POPULATED)
+    FetchContent_Populate(asyncapi_gencpp)
+endif()
+
+set(WS_CONTRACT_YAML   "${CMAKE_SOURCE_DIR}/contract/asyncapi.yaml")
+set(WS_GEN_SCRIPT      "${asyncapi_gencpp_SOURCE_DIR}/src/asyncapi_gencpp.py")
+# The script writes: {outdir}/{prefix}/messages.h  (one .h per schema + master messages.h)
+set(WS_MESSAGES_H      "${CMAKE_BINARY_DIR}/generated/ws/messages.h")
+
+add_custom_command(
+    OUTPUT  "${WS_MESSAGES_H}"
+    COMMAND "${Python3_EXECUTABLE}" "${WS_GEN_SCRIPT}"
+            "${WS_CONTRACT_YAML}" "ws" "${CMAKE_BINARY_DIR}/generated"
+    DEPENDS "${WS_CONTRACT_YAML}" "${WS_GEN_SCRIPT}"
+    COMMENT "Generating WebSocket payload structs from asyncapi.yaml (hatchbed/asyncapi_gencpp)"
+)
+add_custom_target(gen_ws_messages DEPENDS "${WS_MESSAGES_H}")
+
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libuv REQUIRED)
@@ -22,7 +56,8 @@ if(WIN32)
     target_compile_definitions(uno_server PRIVATE WIN32_LEAN_AND_MEAN)
 endif()
 
-target_include_directories(uno_server PRIVATE include src)
+target_include_directories(uno_server PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
+add_dependencies(uno_server gen_ws_messages)
 
 # --- Linking ---
 target_link_libraries(uno_server PRIVATE 
@@ -45,7 +80,7 @@ target_link_libraries(uno_server PRIVATE
 # Note: the presence of the files is evaluated at configuration time (CMake), so
 # the certificates, .env and public/ must be generated BEFORE `cmake --preset`. The setup
 # script creates them in the correct order.
-set(RUNTIME_FILES cert.pem key.pem .env contract.json)
+set(RUNTIME_FILES cert.pem key.pem .env)
 foreach(asset IN LISTS RUNTIME_FILES)
     if(EXISTS "${CMAKE_SOURCE_DIR}/${asset}")
         add_custom_command(TARGET uno_server POST_BUILD

@@ -1,13 +1,7 @@
 /**
- * Rules here must stay in sync with the C++ backend constraints:
- *   kMinUsernameLen = 3, kMaxUsernameLen = 32  (auth_controller.hpp)
- *   kMinPasswordLen = 8                        (auth_controller.hpp)
- *   topic max 64 chars, alphanumeric/-/_        (webserver.cpp)
- *
- * The backend does NOT require uppercase/lowercase/numbers in passwords —
- * the previous validatePassword rule was stricter than the server and would
- * reject valid passwords. Removed. If you later add server-side complexity
- * rules, add them here at the same time.
+ * Validation rules derived from contract/asyncapi.yaml (single source of truth).
+ * Constants are imported from the generated $lib/generated/schemas module.
+ * Regenerate with: npm run generate:contract
  */
 
 export interface ValidationResult {
@@ -15,12 +9,7 @@ export interface ValidationResult {
     error?: string;
 }
 
-import contract from '../../../../contract.json';
-
-const USERNAME_MIN = contract.USERNAME_MIN;
-const USERNAME_MAX = contract.USERNAME_MAX;
-const PASSWORD_MIN = contract.PASSWORD_MIN;
-const LOBBY_NAME_MAX = contract.LOBBY_NAME_MAX;
+import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, LOBBY_NAME_MAX } from '$lib/generated/schemas';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-zA-Z0-9_]+$/;

@@ -32,6 +32,9 @@ export default defineConfig(({ mode }) => {
     return {
         // Only run the watch plugin when running in development/watch mode
         plugins: [svelte(), isDev && watchPublicDirPlugin].filter(Boolean),
+        resolve: {
+            alias: { '$lib': path.resolve('./src/lib') }
+        },
         base: "./",
         build: {
             outDir: "../public",

@@ -66,62 +66,62 @@ std::string GetRandomBotName(const Lobby& lobby) {
  */
 LobbyController::LobbyController(WebServer& server) : action_router_(server.GetActionRouter()), app_(server.GetApp()) {
     
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyCreate), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
         HandleCreate(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyJoin), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyJoin, [this](WsContext ctx, const json& msg) {
         HandleJoin(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyRejoin), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyRejoin, [this](WsContext ctx, const json& msg) {
         HandleRejoin(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyLeave), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyLeave, [this](WsContext ctx, const json& msg) {
         HandleLeave(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyList), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyList, [this](WsContext ctx, const json& msg) {
         HandleList(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyKick), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyKick, [this](WsContext ctx, const json& msg) {
         HandleKick(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyPromote), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyPromote, [this](WsContext ctx, const json& msg) {
         HandlePromote(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyListSavedMatches), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyListSavedMatches, [this](WsContext ctx, const json& msg) {
         HandleGetSavedMatchesList(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyDeleteSavedMatch), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyDeleteSavedMatch, [this](WsContext ctx, const json& msg) {
         HandleDeleteSavedMatch(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyResumeSavedMatch), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyResumeSavedMatch, [this](WsContext ctx, const json& msg) {
         HandleResumeSavedMatch(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyUpdateSettings), [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyUpdateSettings, [this](WsContext ctx, const json& msg) {
         HandleUpdateSettings(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::kClientActionStr.at(ws::ClientAction::kLobbyStartMatch), [this](WsContext context, const nlohmann::json& message) {
+    action_router_.On(ws::ClientAction::kLobbyStartMatch, [this](WsContext context, const nlohmann::json& message) {
         HandleStartGame(context, message);
         return true;
     });
@@ -356,10 +356,10 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
 
     Lobby& lobby = lobbies_[id];
     lobby.id                   = id;
-    lobby.settings.is_public   = payload_res->is_public;
+    lobby.settings.is_public   = payload_res->is_public.value_or(false);
     lobby.invite_code          = code;
     lobby.host                 = username;
-    lobby.name                 = payload_res->name.empty() ? username+"'s lobby" : payload_res->name;
+    lobby.name                 = payload_res->name.value_or(username + "'s lobby");
     lobby.members.emplace_back(username, ctx.socket, true, false);
 
     code_to_id_[code] = id;
@@ -769,22 +769,25 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         return;
     }
 
-    bool changed = false;
-
-    if (message.contains("is_public")) { lobby.settings.is_public = ws::GetOr<bool>(message, "is_public", false); changed = true; }
-    if (message.contains("name"))      { lobby.name = ws::GetOr<string>(message, "name", lobby.name); changed = true; }
-
-    int old_bot_count = lobby.settings.bot_count;
-
-    json current_settings = lobby.settings; 
-    json original_settings = current_settings;
-
-    current_settings.merge_patch(message); 
-    lobby.settings = current_settings.get<LobbySettings>();
-
-    if (current_settings != original_settings) {
-        changed = true;
+    auto payload_res = ws::ParsePayload<ws::LobbyUpdateSettingsPayload>(message);
+    if (!payload_res) {
+        ws::SendError(ctx.socket, ctx.op_code, "Invalid settings payload", request_id);
+        return;
     }
+    const auto& p = *payload_res;
+
+    bool changed        = false;
+    int  old_bot_count  = lobby.settings.bot_count;
+
+    if (p.is_public.has_value())           { lobby.settings.is_public            = *p.is_public;                              changed = true; }
+    if (p.name.has_value())                { lobby.name                           = *p.name;                                   changed = true; }
+    if (p.bot_count.has_value())           { lobby.settings.bot_count             = *p.bot_count;                              changed = true; }
+    if (p.turn_time_limit_ms.has_value())  { lobby.settings.turn_time_limit_ms    = *p.turn_time_limit_ms;                     changed = true; }
+    if (p.allow_bot_takeover.has_value())  { lobby.settings.allow_bot_takeover    = *p.allow_bot_takeover;                     changed = true; }
+    if (p.allow_bot_replacement.has_value()) { lobby.settings.allow_bot_replacement = *p.allow_bot_replacement;               changed = true; }
+    if (p.save_state.has_value())          { lobby.settings.save_state            = *p.save_state;                             changed = true; }
+    if (p.quit_deletes_match.has_value())  { lobby.settings.quit_deletes_match    = *p.quit_deletes_match;                     changed = true; }
+    if (p.bot_mode.has_value())            { lobby.settings.bot_mode              = static_cast<BotTakeoverMode>(*p.bot_mode); changed = true; }
 
     if (old_bot_count != lobby.settings.bot_count) {
         SyncBots(lobby);
