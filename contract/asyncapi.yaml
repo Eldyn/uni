@@ -507,9 +507,6 @@ components:
           type: integer
           minimum: 0
           maximum: 9
-        max_score:
-          type: integer
-          minimum: 1
         turn_time_limit_ms:
           type: integer
           minimum: 0
@@ -525,6 +522,14 @@ components:
         bot_mode:
           type: integer
           minimum: 0
+        starting_cards:
+          type: integer
+          minimum: 2
+          maximum: 20
+        active_mods:
+          type: array
+          items:
+            type: string
 
     LobbyDeleteSavedMatchPayload:
       type: object

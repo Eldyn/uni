@@ -106,13 +106,14 @@ export const LobbyUpdateSettingsPayloadSchema = z.object({
     is_public: z.boolean().optional(),
     name: z.string().min(1).max(50).optional(),
     bot_count: z.number().int().min(0).max(9).optional(),
-    max_score: z.number().int().min(1).optional(),
     turn_time_limit_ms: z.number().int().min(0).optional(),
     allow_bot_takeover: z.boolean().optional(),
     allow_bot_replacement: z.boolean().optional(),
     save_state: z.boolean().optional(),
     quit_deletes_match: z.boolean().optional(),
-    bot_mode: z.number().int().min(0).optional()
+    bot_mode: z.number().int().min(0).optional(),
+    starting_cards: z.number().int().min(2).max(20).optional(),
+    active_mods: z.array(z.string()).optional()
 });
 export type LobbyUpdateSettingsPayload = z.infer<typeof LobbyUpdateSettingsPayloadSchema>;
 

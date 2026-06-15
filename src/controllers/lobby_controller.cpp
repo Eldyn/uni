@@ -779,15 +779,18 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     bool changed        = false;
     int  old_bot_count  = lobby.settings.bot_count;
 
-    if (p.is_public.has_value())           { lobby.settings.is_public            = *p.is_public;                              changed = true; }
-    if (p.name.has_value())                { lobby.name                           = *p.name;                                   changed = true; }
-    if (p.bot_count.has_value())           { lobby.settings.bot_count             = *p.bot_count;                              changed = true; }
-    if (p.turn_time_limit_ms.has_value())  { lobby.settings.turn_time_limit_ms    = *p.turn_time_limit_ms;                     changed = true; }
-    if (p.allow_bot_takeover.has_value())  { lobby.settings.allow_bot_takeover    = *p.allow_bot_takeover;                     changed = true; }
-    if (p.allow_bot_replacement.has_value()) { lobby.settings.allow_bot_replacement = *p.allow_bot_replacement;               changed = true; }
-    if (p.save_state.has_value())          { lobby.settings.save_state            = *p.save_state;                             changed = true; }
-    if (p.quit_deletes_match.has_value())  { lobby.settings.quit_deletes_match    = *p.quit_deletes_match;                     changed = true; }
-    if (p.bot_mode.has_value())            { lobby.settings.bot_mode              = static_cast<BotTakeoverMode>(*p.bot_mode); changed = true; }
+    if (p.is_public.has_value())             { lobby.settings.is_public            = *p.is_public;                              changed = true; }
+    if (p.name.has_value())                  { lobby.name                           = *p.name;                                   changed = true; }
+    if (p.bot_count.has_value())             { lobby.settings.bot_count             = *p.bot_count;                              changed = true; }
+    if (p.turn_time_limit_ms.has_value())    { lobby.settings.turn_time_limit_ms    = *p.turn_time_limit_ms;                     changed = true; }
+    if (p.allow_bot_takeover.has_value())    { lobby.settings.allow_bot_takeover    = *p.allow_bot_takeover;                     changed = true; }
+    if (p.allow_bot_replacement.has_value()) { lobby.settings.allow_bot_replacement = *p.allow_bot_replacement;                  changed = true; }
+    if (p.save_state.has_value())            { lobby.settings.save_state            = *p.save_state;                             changed = true; }
+    if (p.quit_deletes_match.has_value())    { lobby.settings.quit_deletes_match    = *p.quit_deletes_match;                     changed = true; }
+    if (p.bot_mode.has_value())              { lobby.settings.bot_mode              = static_cast<BotTakeoverMode>(*p.bot_mode); changed = true; }
+    if (p.starting_cards.has_value())        { lobby.settings.starting_cards        = *p.starting_cards;                         changed = true; }
+    // active_mods is a plain vector (not optional) — use raw JSON check to distinguish "not sent" from "sent as []"
+    if (message.contains("active_mods"))     { lobby.settings.active_mods           = p.active_mods;                             changed = true; }
 
     if (old_bot_count != lobby.settings.bot_count) {
         SyncBots(lobby);

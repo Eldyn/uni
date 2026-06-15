@@ -3,7 +3,6 @@
 #include <controllers/auth_controller.hpp>
 #include <controllers/stats_controller.hpp>
 #include <common/env.hpp>
-#include <common/contract.hpp>
 #include <logger.hpp>
 #include <common/ws.hpp>
 #include <nlohmann/json_fwd.hpp>
