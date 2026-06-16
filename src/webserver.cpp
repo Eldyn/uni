@@ -307,14 +307,58 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
     });
 }
 
+namespace {
+
+// Cache policy for a static asset, keyed on its path within the served root.
+//
+//   *.html              -> "no-cache": always revalidate. index.html is the
+//                          entry point that names the content-hashed bundles,
+//                          so a returning client must re-check it or a redeploy
+//                          would stay invisible. "no-cache" still allows storing
+//                          the copy; paired with the ETag below the recheck is a
+//                          cheap 304 when nothing changed.
+//   assets/*            -> immutable for a year. Vite content-hashes these
+//                          (e.g. assets/index-8FzcvdAa.js); a new build yields a
+//                          new name, so the old URL can be trusted forever.
+//   fonts/*             -> 30 days. Stable filenames whose bytes effectively
+//                          never change; long TTL avoids re-fetching the ~1 MB
+//                          JetBrainsMono on every visit, ETag covers the rare edit.
+//   everything else     -> 1 day (favicon, icons, root images).
+std::string CacheControlFor(string_view relative_path) {
+    if (relative_path.ends_with(".html"))   return "no-cache";
+    if (relative_path.starts_with("assets/")) return "public, max-age=31536000, immutable";
+    if (relative_path.starts_with("fonts/"))  return "public, max-age=2592000";
+    return "public, max-age=86400";
+}
+
+// Weak ETag derived from the file's size and last-write time. It is an opaque
+// validator (RFC 7232) that only has to change when the file does — size+mtime
+// captures that without hashing the contents. Empty return means the file could
+// not be stat'd, in which case the caller simply omits the header.
+std::string MakeETag(const fs::path& file) {
+    std::error_code ec;
+    const auto size = fs::file_size(file, ec);
+    if (ec) return "";
+    const auto mtime = fs::last_write_time(file, ec);
+    if (ec) return "";
+    return "W/\"" + to_string(size) + "-" + to_string(mtime.time_since_epoch().count()) + "\"";
+}
+
+}  // namespace
+
 void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     auto is_alive = std::make_shared<bool>(true);
     res->onAborted([is_alive]() {*is_alive = false;});
 
     if (!*is_alive) return;
-    
+
     string url = string(req->getUrl());
     string relativePath = (url == "/") ? "index.html" : url.substr(1);
+
+    // Capture the conditional-request header now: uWebSockets recycles the
+    // request object as soon as the response is written, so it cannot be read
+    // afterwards.
+    string if_none_match = string(req->getHeader("if-none-match"));
 
     // Resolve both the served root and the requested file to canonical form so
     // that "../" segments and symlinks are collapsed, then confirm the result
@@ -328,12 +372,27 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
     if (within_root && fs::exists(filePath) && !fs::is_directory(filePath)) {
         string pathStr = filePath.string();
+        string etag = MakeETag(filePath);
+
+        // Conditional request: the client already holds this exact version, so
+        // skip resending the body. This is what makes revalidation of the large
+        // unhashed font cheap once its max-age lapses — an empty 304 instead of
+        // ~1 MB on the wire.
+        if (!etag.empty() && if_none_match == etag) {
+            res->writeStatus("304 Not Modified")
+                ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+                ->writeHeader("ETag", etag)
+                ->end();
+            return;
+        }
+
         res->writeHeader("Content-Type", GetMimeType(pathStr))
-            ->writeHeader("Cache-Control", "no-cache, no-store, must-revalidate")
-            ->writeHeader("Pragma", "no-cache")
-            ->writeHeader("Expires", "0")
-            ->writeHeader("X-Content-Type-Options", "nosniff")
-            ->end(ReadFile(pathStr));
+            ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+            ->writeHeader("X-Content-Type-Options", "nosniff");
+        if (!etag.empty()) {
+            res->writeHeader("ETag", etag);
+        }
+        res->end(ReadFile(pathStr));
     } else {
         Logger::Log("[GET] 404 – ", filePath.string());
         res->writeStatus("404 Not Found")->end("File not found");
