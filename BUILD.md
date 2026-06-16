@@ -65,11 +65,18 @@ by default (`FRONTEND_PATH`, see below).
 ## 3. Backend dependencies (Conan)
 
 ```bash
-conan install . --build=missing -s compiler.cppstd=23
+conan install . -pr:a conan/release --build=missing
 ```
 
 This resolves and (if needed) builds the C++ dependencies and generates the
 toolchain at `build/Release/generators/conan_toolchain.cmake`.
+
+The committed `conan/release` profile (it `include(default)`s your detected
+profile) pins `build_type=Release`, `compiler.cppstd=23` and the Ninja generator
+for the **whole** dependency graph. Without it, a machine whose default profile
+has a lower `compiler.cppstd` (e.g. `gnu20`) would build the dependencies at the
+wrong standard, and CMake would warn that `conan_toolchain.cmake`'s
+`CMAKE_CXX_STANDARD` was overridden by `CMakeLists.txt`.
 
 > The committed `CMakePresets.json` owns the `conan-release` preset, so the Conan
 > recipe disables `CMakeUserPresets.json` generation (`user_presets_path = False`)

@@ -75,10 +75,10 @@ In short:
 cd frontend && npm install && npm run build && cd ..
 
 # Backend
-conan profile detect                                  # one time — NO --force
-conan install . --build=missing -s compiler.cppstd=23
-cmake --preset conan-release                           # configure
-cmake --build --preset release                         # build
+conan profile detect                              # one time — NO --force
+conan install . -pr:a conan/release --build=missing
+cmake --preset conan-release                       # configure
+cmake --build --preset release                     # build
 ```
 
 > ⚠️ Use `conan profile detect` **without** `--force`: the previous setup scripts

@@ -1,0 +1,17 @@
+# Uni-Uno release profile.
+#
+# Pins the project-wide settings so the whole dependency graph (deps + the
+# backend itself) is built consistently as C++23. This avoids relying on the
+# machine's default profile (whose compiler.cppstd may be lower, e.g. gnu20),
+# which would build dependencies at the wrong standard and make CMake warn that
+# conan_toolchain.cmake's CMAKE_CXX_STANDARD was overridden by CMakeLists.txt.
+#
+# Usage:  conan install . -pr:a conan/release --build=missing
+include(default)
+
+[settings]
+build_type=Release
+compiler.cppstd=23
+
+[conf]
+tools.cmake.cmaketoolchain:generator=Ninja
