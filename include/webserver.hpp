@@ -39,7 +39,7 @@ public:
     explicit WebServer(int port,
                        std::string_view keyFile      = "key.pem",
                        std::string_view certFile     = "cert.pem",
-                       std::string_view dbFile       = "game.db",
+                       std::string_view dbFile       = "uni.sqlite",
                        std::string_view frontendPath = "public");
 
     /**

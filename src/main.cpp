@@ -16,7 +16,7 @@ int main() {
         Env::Load(".env");
 
         const int    port          = std::stoi(Env::Get("PORT", "9999"));
-        const string db_path       = Env::Get("DB_PATH",       "./build/uni.sqlite");
+        const string db_path       = Env::Get("DB_PATH",       "uni.sqlite");
         const string frontend_path = Env::Get("FRONTEND_PATH", "public");
         const string ssl_cert      = Env::Get("SSL_CERT_PATH", "cert.pem");
         const string ssl_key       = Env::Get("SSL_KEY_PATH",  "key.pem");

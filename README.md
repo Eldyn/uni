@@ -96,10 +96,9 @@ the full list of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PAT
 
 The server reads its paths from environment variables (`DB_PATH`, `FRONTEND_PATH`,
 `SSL_CERT_PATH`, `SSL_KEY_PATH`, `PORT`) with sensible local defaults — by default it
-looks for the certificates, `.env` and the `public/` folder in the **current working
-directory** and creates the SQLite database at `./build/uni.sqlite`. Since the
-build copies the runtime assets next to the executable, you can start it in two
-equivalent ways:
+looks for the certificates, `.env`, the `public/` folder and the SQLite database
+(`uni.sqlite`) in the **current working directory**. Since the build copies the
+runtime assets next to the executable, you can start it in two equivalent ways:
 
 ```bash
 # Linux / macOS — from the project root
@@ -118,7 +117,7 @@ cd build\Release; .\uni_server.exe
 ```
 
 The SQLite database is created automatically on first launch if it does not exist
-(default `./build/uni.sqlite`, override with `DB_PATH`). By default the server is
+(default `uni.sqlite` in the working directory, override with `DB_PATH`). By default the server is
 reachable at **https://localhost:9999** (accept the browser warning about the
 self-signed certificate).
 

@@ -106,7 +106,7 @@ The backend reads all paths from the environment, with local-friendly defaults:
 | Variable        | Default                  | Purpose                           |
 | --------------- | ------------------------ | --------------------------------- |
 | `PORT`          | `9999`                   | listening port                    |
-| `DB_PATH`       | `./build/uni.sqlite`     | SQLite database file              |
+| `DB_PATH`       | `uni.sqlite`             | SQLite database file (cwd-relative) |
 | `FRONTEND_PATH` | `public`                 | directory with the built frontend |
 | `SSL_CERT_PATH` | `cert.pem`               | TLS certificate                   |
 | `SSL_KEY_PATH`  | `key.pem`                | TLS private key                   |
