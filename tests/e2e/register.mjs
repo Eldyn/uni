@@ -4,16 +4,19 @@
  *
  * Hits POST /auth/register on the running backend (Docker container or local
  * server) and asserts a 2xx response. Cross-platform: pure Node (>=18), no
- * dependencies. Uses node:https with rejectUnauthorized:false so the server's
- * self-signed development certificate is accepted.
+ * dependencies. The transport (http/https) follows the BASE_URL scheme, so it
+ * works against the plain-HTTP container, a TLS local build, or a Render URL.
+ * With https, rejectUnauthorized:false accepts self-signed dev certificates.
  *
  * Usage:
- *   node tests/e2e/register.mjs                  # defaults to https://localhost:3000
+ *   node tests/e2e/register.mjs                       # http://localhost:3000
  *   BASE_URL=https://localhost:9999 node tests/e2e/register.mjs
+ *   BASE_URL=https://uni.onrender.com node tests/e2e/register.mjs
  */
+import http from 'node:http';
 import https from 'node:https';
 
-const BASE_URL = process.env.BASE_URL ?? 'https://localhost:3000';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
 
 // Unique identity per run so re-runs don't collide on the UNIQUE constraints.
 const stamp = Date.now().toString(36);
@@ -26,6 +29,7 @@ const payload = {
 
 function post(urlString, body) {
     const url = new URL(urlString);
+    const client = url.protocol === 'https:' ? https : http;
     const data = JSON.stringify(body);
     const options = {
         method: 'POST',
@@ -33,10 +37,10 @@ function post(urlString, body) {
         port: url.port,
         path: url.pathname,
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
-        rejectUnauthorized: false, // self-signed dev cert
+        rejectUnauthorized: false, // accept self-signed dev cert (https only)
     };
     return new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
+        const req = client.request(options, (res) => {
             let chunks = '';
             res.on('data', (c) => (chunks += c));
             res.on('end', () => resolve({ status: res.statusCode, body: chunks }));
