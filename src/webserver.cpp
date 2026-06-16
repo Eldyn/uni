@@ -1,5 +1,6 @@
 #include "action_router.hpp"
 #include "common/http.hpp"
+#include "common/env.hpp"
 #include <fstream>
 #include "controllers/auth_controller.hpp"
 #include "http_router.hpp"
@@ -146,7 +147,19 @@ void WebServer::RegisterRoutes() {
         HandleGet(res, req);
     });
 
+    // WebSocket transport limits (env-overridable). Capping the frame size,
+    // idle time and server-side backpressure stops oversized frames, slow-loris
+    // sockets and unbounded outbound buffering from exhausting memory.
+    const unsigned int   ws_max_payload      = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));        // 16 KB
+    const unsigned int   ws_max_backpressure = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576"))); // 1 MB
+    const unsigned short ws_idle_timeout     = static_cast<unsigned short>(std::stoi(Env::Get("WS_IDLE_TIMEOUT", "120")));         // seconds
+
     app_.ws<PerSocketData>("/*", {
+        .maxPayloadLength = ws_max_payload,
+        .idleTimeout = ws_idle_timeout,
+        .maxBackpressure = ws_max_backpressure,
+        .closeOnBackpressureLimit = true,
+        .sendPingsAutomatically = true,
         .upgrade = [this](AppResponse* res, AppRequest*  req, us_socket_context_t* ctx) {
             std::string_view cookies = req->getHeader("cookie");
             auto token = http::GetCookieValue(cookies, "auth_token");
