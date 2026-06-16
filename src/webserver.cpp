@@ -269,9 +269,19 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
 }
 
 void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::OpCode op_code) {
-    json message_json = json::parse(message);
-    
-    if (!message_json.contains("action")) {
+    // A malformed frame must never escape this callback: an exception thrown
+    // through uWebSockets' C event loop terminates the whole process, so a
+    // single junk frame from any connected client would be a remote DoS.
+    json message_json = json::parse(message, nullptr, /*allow_exceptions=*/false);
+
+    if (message_json.is_discarded()) {
+        Logger::Warn("[WS] Dropping malformed JSON frame");
+        return;
+    }
+
+    // Downstream helpers call json::value(), which throws on non-objects, so a
+    // well-formed but non-object payload (e.g. "5" or "[]") must be rejected too.
+    if (!message_json.is_object() || !message_json.contains("action")) {
         Logger::Warn("[WS] Message missing 'action' field");
         return;
     }
