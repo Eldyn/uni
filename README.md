@@ -64,117 +64,42 @@ git clone https://github.com/Eldyn/uni-uno.git
 cd uni-uno  # or your chosen folder name
 ```
 
-### Automatic setup (recommended)
+The build is fully standardized and cross-platform — pure **Conan** + **CMake
+presets** + **npm**, with no OS-specific setup scripts. The complete step-by-step
+instructions live in **[`BUILD.md`](BUILD.md)**.
 
-Once the [prerequisites](#️-system-prerequisites) are installed, a single script takes
-the project from a clean checkout to a ready-to-use executable. The script:
-
-1. checks the system prerequisites and clearly reports what is missing;
-2. generates self-signed TLS certificates for `localhost` (`cert.pem` / `key.pem`) if absent;
-3. generates a `.env` file with random secrets (`JWT_SECRET`, `PASSWORD_PEPPER`) if absent;
-4. builds the Svelte frontend into the `public/` folder;
-5. installs **Conan** + **Ninja** and downloads the backend dependencies;
-6. configures and compiles the backend;
-7. lets CMake copy `cert.pem`, `key.pem`, `.env` and `public/` **next to the executable**.
+In short:
 
 ```bash
-# Linux / macOS
-chmod +x setup.sh
-./setup.sh
+# Frontend (npm lives strictly in frontend/)
+cd frontend && npm install && npm run build && cd ..
+
+# Backend
+conan profile detect                                  # one time — NO --force
+conan install . --build=missing -s compiler.cppstd=23
+cmake --preset conan-release                           # configure
+cmake --build --preset release                         # build
 ```
 
-```powershell
-# Windows (PowerShell)
-./setup.ps1
-# If PowerShell blocks the script due to execution policy:
-#   powershell -ExecutionPolicy Bypass -File .\setup.ps1
-```
+> ⚠️ Use `conan profile detect` **without** `--force`: the previous setup scripts
+> passed `--force`, which silently overwrote any existing default profile. Plain
+> `detect` preserves a profile you already have.
 
-When it finishes, the script prints the command to start the server (see
-[Running](#-running)).
-
----
-
-### Manual build (step by step)
-
-If you prefer to control every stage — or the automatic script fails — you can
-reproduce its steps manually.
-
-#### 1. TLS certificates
-
-The server uses HTTPS/WSS, so it needs `key.pem` and `cert.pem` in the project root.
-For local development a self-signed certificate for `localhost` is enough:
-
-```bash
-# Linux / macOS / Git Bash
-openssl req -newkey rsa:2048 -nodes -x509 -days 365 \
-  -keyout key.pem -out cert.pem \
-  -subj "/C=IT/ST=Italy/L=Uniba/O=uni/CN=localhost"
-```
-
-```powershell
-# Windows (PowerShell, with OpenSSL in the PATH)
-openssl req -newkey rsa:2048 -nodes -x509 -days 365 `
-  -keyout key.pem -out cert.pem `
-  -subj "/C=IT/ST=Italy/L=Uniba/O=uni/CN=localhost"
-```
-
-#### 2. `.env` file
-
-The backend requires `JWT_SECRET` and `PASSWORD_PEPPER`. Create a `.env` file in the root:
-
-```bash
-printf 'JWT_SECRET=%s\nPASSWORD_PEPPER=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
-```
-
-#### 3. Frontend
-
-Build the Svelte frontend and copy it into the `public/` folder served by the server:
-
-```bash
-./deploy_frontend.sh
-```
-
-> The script runs `npm install`/`npm run build` in the `frontend/` folder. See
-> [`frontend/README.md`](frontend/README.md) for details and for development mode.
-> **Important:** `public/` must be generated _before_ configuring CMake, because the
-> automatic asset copy (step 5) detects its presence at configuration time.
-
-#### 4. Backend dependencies (Conan + Ninja)
-
-```bash
-pip install --upgrade --user conan ninja
-conan profile detect --force
-conan install . --build=missing -s build_type=Release -s compiler.cppstd=20 \
-  -c tools.cmake.cmaketoolchain:generator=Ninja
-```
-
-#### 5. Building the backend
-
-Use the CMake presets generated automatically by Conan:
-
-```bash
-cmake --preset conan-release
-cmake --build --preset conan-release
-```
-
-During the build CMake copies `cert.pem`, `key.pem`, `.env` and the `public/` folder
-next to the executable, so the binary can also be launched directly from its build
-folder.
-
-> **Note for developers (clangd / LSP):** Conan generates `compile_commands.json`
-> in `build/Release/generators/`. If your editor requires it in the project root:
->
-> - Linux: `ln -s build/Release/generators/compile_commands.json`
-> - Windows: `New-Item -ItemType SymbolicLink -Path "compile_commands.json" -Target "build\Release\generators\compile_commands.json"`
+The build copies `cert.pem`, `key.pem`, `.env` and the `public/` folder next to the
+executable. See [`BUILD.md`](BUILD.md) for prerequisites, TLS/`.env` generation, and
+the full list of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PATH`,
+`SSL_CERT_PATH`, `SSL_KEY_PATH`).
 
 ---
 
 ## 🏃 Running
 
-The server looks for the certificates, `.env`, the `game.db` database and the `public/`
-folder in the **current working directory**. Since the build copies the runtime assets
-next to the executable, you can start it in two equivalent ways:
+The server reads its paths from environment variables (`DB_PATH`, `FRONTEND_PATH`,
+`SSL_CERT_PATH`, `SSL_KEY_PATH`, `PORT`) with sensible local defaults — by default it
+looks for the certificates, `.env` and the `public/` folder in the **current working
+directory** and creates the SQLite database at `./build/uni_uno.sqlite`. Since the
+build copies the runtime assets next to the executable, you can start it in two
+equivalent ways:
 
 ```bash
 # Linux / macOS — from the project root
@@ -192,9 +117,10 @@ build\Release\uni_server.exe
 cd build\Release; .\uni_server.exe
 ```
 
-The SQLite database (`game.db`) is created automatically on first launch if it does
-not exist. By default the server is reachable at **https://localhost:9999** (accept the
-browser warning about the self-signed certificate).
+The SQLite database is created automatically on first launch if it does not exist
+(default `./build/uni_uno.sqlite`, override with `DB_PATH`). By default the server is
+reachable at **https://localhost:9999** (accept the browser warning about the
+self-signed certificate).
 
 ---
 
