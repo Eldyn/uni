@@ -84,10 +84,12 @@ if [ ! -f .env ]; then
 		printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)"
 		printf 'PASSWORD_PEPPER=%s\n' "$(openssl rand -hex 32)"
 		printf 'DOMAIN=%s\n' "$DOMAIN"
+		printf 'ACME_EMAIL=%s\n' "${ACME_EMAIL:-}"
 	} > .env
 	chmod 600 .env
 else
 	grep -q '^DOMAIN=' .env || printf 'DOMAIN=%s\n' "$DOMAIN" >> .env
+	grep -q '^ACME_EMAIL=' .env || printf 'ACME_EMAIL=%s\n' "${ACME_EMAIL:-}" >> .env
 fi
 mkdir -p db_data
 
@@ -115,6 +117,6 @@ cat <<EOF
 
 Next:
   * Ensure the OCI Security List allows ingress TCP 80 and 443 from 0.0.0.0/0.
-  * Browse to https://${DOMAIN}  (Caddy fetches a Let's Encrypt cert on first hit;
-    give it ~30s and watch 'sudo docker logs caddy' if it stalls).
+  * Browse to https://${DOMAIN}  (Traefik fetches a Let's Encrypt cert on first hit;
+    give it ~30s and watch 'sudo docker logs traefik' if it stalls).
 EOF

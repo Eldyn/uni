@@ -1,0 +1,31 @@
+# Static configuration for Traefik v3, mounted read-only at the default path
+# (/etc/traefik/traefik.yml). Environment-specific values are injected at runtime
+# because this static file does NOT interpolate ${VARS}:
+#   * the ACME email  -> TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL env
+#   * the domain      -> the Host(...) router label on the uni service
+
+global:
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      # Send all plain HTTP straight to HTTPS.
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false   # only containers with traefik.enable=true are routed
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      storage: /acme/acme.json
+      httpChallenge:
+        entryPoint: web

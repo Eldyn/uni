@@ -1,16 +1,17 @@
 # OCI ARM (Ampere A1) deployment stack.
 #
 # Differs from the root docker-compose.yml in one way: instead of publishing the
-# backend on the host, it puts a Caddy reverse proxy in front that terminates TLS
-# (Let's Encrypt) for a DuckDNS subdomain and proxies plain HTTP to the backend
-# over an internal network. The backend itself stays UNI_ENABLE_SSL=OFF (the
-# Dockerfile default) because Caddy owns TLS — same edge-termination shape as
-# Render/Cloud Run, just self-hosted.
+# backend on the host, it puts a Traefik reverse proxy in front that terminates
+# TLS (Let's Encrypt) for a DuckDNS subdomain and proxies plain HTTP to the
+# backend over an internal network. The backend itself stays UNI_ENABLE_SSL=OFF
+# (the Dockerfile default) because Traefik owns TLS — same edge-termination shape
+# as Render/Cloud Run, just self-hosted.
 #
 # Run from the repo root so relative paths (build context, ./db_data) resolve there:
 #   docker compose --project-directory . -f deploy/docker-compose.oci.yml up -d --build
 #
 # Required env (host .env at repo root): JWT_SECRET, PASSWORD_PEPPER, DOMAIN.
+# Optional: ACME_EMAIL (Let's Encrypt expiry notices).
 
 services:
   uni:
@@ -18,11 +19,11 @@ services:
       context: ..            # relative to this file → repo root
       dockerfile: Dockerfile
       args:
-        UNI_ENABLE_SSL: "OFF"  # Caddy terminates TLS; backend speaks plain HTTP
+        UNI_ENABLE_SSL: "OFF"  # Traefik terminates TLS; backend speaks plain HTTP
     image: uni:latest
     container_name: uni
     expose:
-      - "3000"               # internal only — never published to the host
+      - "3000"               # internal only — reached by Traefik over the network
     environment:
       PORT: "3000"
       DB_PATH: /app/data/uni.sqlite
@@ -34,19 +35,27 @@ services:
     restart: unless-stopped
     networks:
       - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uni.rule=Host(`${DOMAIN:?set DOMAIN (e.g. yourname.duckdns.org) in .env}`)"
+      - "traefik.http.routers.uni.entrypoints=websecure"
+      - "traefik.http.routers.uni.tls.certresolver=letsencrypt"
+      # WebSocket upgrades pass through transparently; only the backend port is needed.
+      - "traefik.http.services.uni.loadbalancer.server.port=3000"
 
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
+  traefik:
+    image: traefik:v3
+    container_name: traefik
     ports:
       - "80:80"              # HTTP-01 ACME challenge + redirect to HTTPS
       - "443:443"            # HTTPS
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN (e.g. yourname.duckdns.org) in .env}
+      # Static file can't interpolate env vars, so the ACME email is injected here.
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL: "${ACME_EMAIL:-}"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data     # persisted certs — avoids Let's Encrypt rate limits
-      - caddy_config:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # read-only service discovery
+      - ./deploy/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik_acme:/acme   # persisted certs — avoids Let's Encrypt rate limits
     depends_on:
       - uni
     restart: unless-stopped
@@ -57,5 +66,4 @@ networks:
   web:
 
 volumes:
-  caddy_data:
-  caddy_config:
+  traefik_acme:

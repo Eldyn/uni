@@ -1,15 +1,20 @@
 # Deploying UNI on an OCI ARM (Ampere A1) VM
 
-Self-hosted deployment for Oracle Cloud's Always Free ARM instance. Caddy
+Self-hosted deployment for Oracle Cloud's Always Free ARM instance. Traefik
 terminates TLS for a free DuckDNS subdomain and reverse-proxies to the backend
 (plain HTTP, `UNI_ENABLE_SSL=OFF` — same edge-termination shape as Render). The
 SQLite database lives on the VM's persistent disk via a bind mount, so it
 survives container recreation and reboots.
 
 ```
-internet ──443──> Caddy (Let's Encrypt) ──3000──> uni backend ──> ./db_data/uni.sqlite
-                  yourname.duckdns.org              (internal docker network)
+internet ──443──> Traefik (Let's Encrypt) ──3000──> uni backend ──> ./db_data/uni.sqlite
+                  yourname.duckdns.org               (internal docker network)
 ```
+
+Traefik discovers the backend through container labels via the Docker socket
+(mounted read-only), so routing is wired in `docker-compose.oci.yml`, not a
+separate proxy config. `deploy/traefik.yml` holds only the static setup
+(entrypoints + ACME resolver).
 
 ## What you do in a browser (I can't automate these)
 
@@ -38,7 +43,7 @@ DUCKDNS_SUBDOMAIN=yourname DUCKDNS_TOKEN=xxxxxxxx ./deploy/bootstrap.sh
 
 ```bash
 sudo docker compose --project-directory . -f deploy/docker-compose.oci.yml ps
-sudo docker logs caddy   # watch the first cert issuance
+sudo docker logs traefik   # watch the first cert issuance
 curl -fsS https://yourname.duckdns.org/   # should return the frontend
 ```
 
@@ -53,7 +58,7 @@ git pull && sudo docker compose --project-directory . -f deploy/docker-compose.o
 
 # Logs
 sudo docker logs -f uni
-sudo docker logs -f caddy
+sudo docker logs -f traefik
 
 # Back up the database
 sudo docker exec uni sqlite3 /app/data/uni.sqlite ".backup /app/data/backup.db"
@@ -71,3 +76,10 @@ sudo docker exec uni sqlite3 /app/data/uni.sqlite ".backup /app/data/backup.db"
   cloud-side and host-side.
 - **Backups aren't automatic.** The boot volume persists, but enable an OCI
   backup policy or cron the `.backup` above if the data matters.
+- **Traefik reads the Docker socket.** It's mounted read-only for service
+  discovery. On Oracle Linux with SELinux *enforcing*, the container may be
+  denied access to the socket — if Traefik logs a permission error on
+  `/var/run/docker.sock`, check `getenforce` and the audit log (`ausearch -m avc`).
+- **ACME email is optional.** Set `ACME_EMAIL` in `.env` (or export it before
+  running `bootstrap.sh`) to receive Let's Encrypt expiry notices; left empty,
+  registration still works.
