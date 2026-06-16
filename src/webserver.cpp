@@ -1,5 +1,6 @@
 #include "action_router.hpp"
 #include "common/http.hpp"
+#include "common/ws.hpp"
 #include "common/env.hpp"
 #include <fstream>
 #include "controllers/auth_controller.hpp"
@@ -189,14 +190,17 @@ void WebServer::RegisterRoutes() {
     // Per-connection WebSocket action rate limiting (runs before dispatch).
     // Keyed by client IP, falling back to username, so an authenticated client
     // cannot flood the action router. Returning false aborts the dispatch chain.
-    ws_router_.OnAny([this](WsContext ctx, const json& /*msg*/) {
+    ws_router_.OnAny([this](WsContext ctx, const json& msg) {
         MaybeEvict();
         const std::string& key = !ctx.socket_data->ip.empty()
                                      ? ctx.socket_data->ip
                                      : ctx.socket_data->username;
         if (!ws_limiter_.Allow(key)) {
             Logger::Warn("[WS] rate limited: " + ctx.socket_data->username);
-            ctx.socket->send(R"({"error":"rate_limited"})", uWS::OpCode::TEXT);
+            // Standard error envelope (contract: {action:"error", reason}), echoing
+            // the request_id so the client can tie it back to the throttled action.
+            const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
+            ws::SendError(ctx.socket, uWS::OpCode::TEXT, "rate_limited", request_id);
             return false;
         }
         return true;

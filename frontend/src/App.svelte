@@ -53,6 +53,15 @@
 
 		ws.on("error", (data) => {
 			console.error(data);
+			// Surface server-pushed errors not tied to a pending request
+			// (request-bound errors are handled by their caller). The rate
+			// limiter sends reason "rate_limited" — translate it for the user.
+			const reason = data.reason as string | undefined;
+			if (reason === "rate_limited") {
+				storeToast.warning("You're going too fast — please slow down.");
+			} else if (reason) {
+				storeToast.error(reason);
+			}
 		});
 	});
 
