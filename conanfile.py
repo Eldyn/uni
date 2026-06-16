@@ -27,6 +27,11 @@ class UniConan(ConanFile):
 
     tool_requires = "ninja/1.13.2"
 
+    def build_requirements(self):
+        # Lightest single-header C++ test framework; only consumed by the
+        # optional uni_tests target (configure with -DUNI_BUILD_TESTS=ON).
+        self.test_requires("doctest/2.4.11")
+
     default_options = {
         "sqlite3/*:omit_load_extension": True,
         "sqlite3/*:threadsafe": 1,

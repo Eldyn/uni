@@ -115,4 +115,25 @@ else()
     message(WARNING "Folder 'public/' not found: build the frontend first (cd frontend && npm run build).")
 endif()
 
+# --- Unit tests (doctest) ---
+# Optional: configure with -DUNI_BUILD_TESTS=ON. Each tested module is compiled
+# into uni_tests alongside the test sources (the main executable's TU carries
+# main(), so it cannot be linked here).
+option(UNI_BUILD_TESTS "Build the C++ unit tests (doctest)" OFF)
+if(UNI_BUILD_TESTS)
+    find_package(doctest REQUIRED)
+    enable_testing()
+
+    file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/unit/*.cpp")
+    add_executable(uni_tests ${TEST_SOURCES})
+    target_include_directories(uni_tests PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(uni_tests PRIVATE
+        doctest::doctest
+        nlohmann_json::nlohmann_json
+    )
+    add_dependencies(uni_tests gen_ws_messages)
+
+    add_test(NAME unit COMMAND uni_tests)
+endif()
+
 message(STATUS "Configuration complete for system: ${CMAKE_SYSTEM_NAME}")
