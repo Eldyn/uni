@@ -189,7 +189,7 @@ void WebServer::RegisterRoutes() {
     // Per-connection WebSocket action rate limiting (runs before dispatch).
     // Keyed by client IP, falling back to username, so an authenticated client
     // cannot flood the action router. Returning false aborts the dispatch chain.
-    ws_router_.OnAny([this](WsContext ctx, const json& /*msg*/) -> bool {
+    ws_router_.OnAny([this](WsContext ctx, const json& /*msg*/) {
         MaybeEvict();
         const std::string& key = !ctx.socket_data->ip.empty()
                                      ? ctx.socket_data->ip
