@@ -97,6 +97,22 @@ frontend adapts automatically (`wss://` over HTTPS pages, `ws://` over HTTP).
 The Docker image builds with `UNI_ENABLE_SSL=OFF` by default for this reason
 (override via `--build-arg UNI_ENABLE_SSL=ON`).
 
+### Unit tests (`UNI_BUILD_TESTS`)
+
+Defaults to **ON**: configuring builds the `uni_tests` target (doctest) and
+registers it with CTest. Keeping it on also writes the test translation units
+into `compile_commands.json`, so clangd/LSP can resolve `<doctest/doctest.h>`
+and give full diagnostics on the files under `tests/unit/`.
+
+```bash
+ctest --test-dir build/Release            # run the unit tests
+cmake --preset conan-release -DUNI_BUILD_TESTS=OFF   # lighter build, no tests
+```
+
+Turn it **OFF** for a leaner build: it skips the doctest dependency and the
+`uni_tests` target entirely. The trade-off is that editors lose IntelliSense on
+the test sources, since those files no longer appear in the compile database.
+
 ---
 
 ## 5. Runtime configuration (environment variables)

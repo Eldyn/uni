@@ -116,10 +116,12 @@ else()
 endif()
 
 # --- Unit tests (doctest) ---
-# Optional: configure with -DUNI_BUILD_TESTS=ON. Each tested module is compiled
-# into uni_tests alongside the test sources (the main executable's TU carries
-# main(), so it cannot be linked here).
-option(UNI_BUILD_TESTS "Build the C++ unit tests (doctest)" OFF)
+# On by default so the test TUs land in compile_commands.json and clangd/LSP can
+# resolve <doctest/doctest.h>. Configure with -DUNI_BUILD_TESTS=OFF for a lighter
+# build (skips the doctest dependency and the uni_tests target). Each tested
+# module is compiled into uni_tests alongside the test sources (the main
+# executable's TU carries main(), so it cannot be linked here).
+option(UNI_BUILD_TESTS "Build the C++ unit tests (doctest)" ON)
 if(UNI_BUILD_TESTS)
     find_package(doctest REQUIRED)
     enable_testing()
