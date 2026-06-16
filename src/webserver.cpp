@@ -28,6 +28,8 @@ WebServer::WebServer(int port, string_view key_file, string_view cert_file, stri
                     std::stod(Env::Get("RATE_HTTP_RPS",   "50"))),
       auth_limiter_(std::stod(Env::Get("RATE_AUTH_BURST", "10")),
                     std::stod(Env::Get("RATE_AUTH_RPS",   "0.5"))),
+      ws_limiter_(std::stod(Env::Get("RATE_WS_BURST", "30")),
+                  std::stod(Env::Get("RATE_WS_RPS",   "15"))),
       last_evict_(RateLimiter::Clock::now()) {
     if (!InitDB()) {
         throw runtime_error("Failed to initialise database");
@@ -151,6 +153,7 @@ void WebServer::MaybeEvict() {
     last_evict_ = now;
     http_limiter_.Evict();
     auth_limiter_.Evict();
+    ws_limiter_.Evict();
 }
 
 void WebServer::RegisterRoutes() {
@@ -178,8 +181,24 @@ void WebServer::RegisterRoutes() {
         HandlePost(response, request);
     });
 
-    app_.get("/*", [this](AppResponse *res, AppRequest *req) { 
+    app_.get("/*", [this](AppResponse *res, AppRequest *req) {
         HandleGet(res, req);
+    });
+
+    // Per-connection WebSocket action rate limiting (runs before dispatch).
+    // Keyed by client IP, falling back to username, so an authenticated client
+    // cannot flood the action router. Returning false aborts the dispatch chain.
+    ws_router_.OnAny([this](WsContext ctx, const json& /*msg*/) -> bool {
+        MaybeEvict();
+        const std::string& key = !ctx.socket_data->ip.empty()
+                                     ? ctx.socket_data->ip
+                                     : ctx.socket_data->username;
+        if (!ws_limiter_.Allow(key)) {
+            Logger::Warn("[WS] rate limited: " + ctx.socket_data->username);
+            ctx.socket->send(R"({"error":"rate_limited"})", uWS::OpCode::TEXT);
+            return false;
+        }
+        return true;
     });
 
     // WebSocket transport limits (env-overridable). Capping the frame size,

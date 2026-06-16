@@ -115,6 +115,7 @@ private:
 
     RateLimiter http_limiter_; /**< Per-IP limiter for general HTTP/API routes. */
     RateLimiter auth_limiter_; /**< Stricter per-IP limiter for the auth routes. */
+    RateLimiter ws_limiter_;   /**< Per-connection limiter for WebSocket actions. */
     RateLimiter::Clock::time_point last_evict_; /**< Last idle-bucket sweep. */
 
     /**
