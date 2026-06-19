@@ -41,6 +41,8 @@ export interface Card {
 	color: CardColor;
 	/** The value or action associated with the card. */
 	value: CardValue;
+	/** Whether this card is currently playable (set by the server, only present in the local player's hand). */
+	can_play?: boolean;
 }
 
 /**
@@ -234,11 +236,12 @@ class StoreGame {
 	 * @returns A formatted object of type Card.
 	 * @tag FRONT-GAME-MTH-005
 	 */
-	#parseCard(rawCard: { id: number; color: number; value: number }): Card {
+	#parseCard(rawCard: { id: number; color: number; value: number; can_play?: boolean }): Card {
 		return {
 			id: rawCard.id,
 			color: COLOR_MAP[rawCard.color] || "wild",
-			value: VALUE_MAP[rawCard.value] || ""
+			value: VALUE_MAP[rawCard.value] || "",
+			can_play: rawCard.can_play
 		};
 	}
 
@@ -264,7 +267,7 @@ class StoreGame {
 	 * @tag FRONT-GAME-MTH-008
 	 */
 	callUno() {
-		ws.emit(ClientAction.GameDrawCard); // Note: your original implementation has been preserved
+		ws.emit(ClientAction.GameCallUno);
 	}
 
 	/**

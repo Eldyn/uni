@@ -8,21 +8,8 @@
 
 	let alreadyCalled = $derived(storeGame.localPlayer?.has_called_uno ?? false);
 
-	// Get the card currently on top of the discard pile
-	let topCard = $derived(storeGame.state?.top_card);
-
-	// Check whether at least one of the cards in hand can be played
 	let canPlayCard = $derived(
-		(storeGame.localPlayer?.hand || []).some((card) => {
-			if (!topCard) return false;
-
-			// Check the basic rules (colour, value or wild)
-			const matchesColor = card.color === topCard.color;
-			const matchesValue = card.value === topCard.value;
-			const isWildCard = card.color === "wild" || card.is_wild;
-
-			return matchesColor || matchesValue || isWildCard;
-		})
+		(storeGame.localPlayer?.hand || []).some((card) => card.can_play)
 	);
 </script>
 
