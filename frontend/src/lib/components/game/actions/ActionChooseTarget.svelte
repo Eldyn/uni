@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { storeGame } from "../../../stores/game.svelte";
+	import { storeGame, Action } from "../../../stores/game.svelte";
 </script>
 
-{#if storeGame.actionRequired === "choose_target"}
+{#if storeGame.actionRequired === Action.ChooseTarget}
 	<div class="inline-action-container">
 		<div class="cute-bubble">
 			<h2 class="choose-target-text">Select a Target!</h2>

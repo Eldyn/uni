@@ -1,20 +1,27 @@
 <script lang="ts">
-	import { storeGame } from "../../../stores/game.svelte";
+	import { storeGame, Action, TYPE_MAP } from "../../../stores/game.svelte";
+
+	const TYPE_BUTTONS = [
+		{ name: "red",    typeIndex: 0 },
+		{ name: "yellow", typeIndex: 3 },
+		{ name: "green",  typeIndex: 2 },
+		{ name: "blue",   typeIndex: 1 },
+	] as const;
 </script>
 
-{#if storeGame.actionRequired === "choose_color"}
+{#if storeGame.actionRequired === Action.ChooseType}
 	<div class="inline-action-container">
 		<div class="cute-bubble">
-			<h2 class="choose-color-text">Choose Color</h2>
+			<h2 class="choose-color-text">Choose Type</h2>
 			<br />
 			<div class="color-buttons">
-				{#each ["red", "yellow", "green", "blue"] as color}
+				{#each TYPE_BUTTONS as { name, typeIndex }}
 					<button
 						type="button"
-						class="color-button color-{color}"
-						onclick={() => storeGame.submitInput(color.toUpperCase())}
+						class="color-button color-{name}"
+						onclick={() => storeGame.submitInput(String(typeIndex))}
 					>
-						{color.charAt(0).toUpperCase()}
+						{name.charAt(0).toUpperCase()}
 					</button>
 				{/each}
 			</div>

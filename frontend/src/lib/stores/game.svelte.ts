@@ -7,8 +7,9 @@
 import { storeNavigation } from "./navigation.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
+import { Action, Type } from "../generated/schemas";
 
-const COLOR_MAP = ["red", "blue", "green", "yellow", "wild"] as const;
+export const TYPE_MAP = ["red", "blue", "green", "yellow", "wild"] as const;
 const VALUE_MAP = [
 	"0",
 	"1",
@@ -27,7 +28,7 @@ const VALUE_MAP = [
 	"+4"
 ] as const;
 
-export type CardColor = (typeof COLOR_MAP)[number];
+export type CardType = (typeof TYPE_MAP)[number];
 export type CardValue = (typeof VALUE_MAP)[number];
 
 /**
@@ -37,8 +38,8 @@ export type CardValue = (typeof VALUE_MAP)[number];
 export interface Card {
 	/** The unique 16-bit identifier of the card. */
 	id: number;
-	/** The decoded colour of the card. */
-	color: CardColor;
+	/** The decoded type of the card (maps to CSS class). */
+	type: CardType;
 	/** The value or action associated with the card. */
 	value: CardValue;
 	/** Whether this card is currently playable (set by the server, only present in the local player's hand). */
@@ -68,8 +69,8 @@ export interface GamePlayer {
  * @brief Snapshot of the complete table state at a precise instant.
  */
 export interface GameState {
-	/** Colour currently active for plays. */
-	active_color: string;
+	/** Type currently active for plays. */
+	active_type: string;
 	/** Username of the player whose turn it currently is. */
 	current_turn: string;
 	/** Direction of play (1 for clockwise, -1 for counter-clockwise). */
@@ -107,8 +108,8 @@ export interface LastPlay {
 class StoreGame {
 	/** The current state of the match (players, deck, cards on the table). */
 	state = $state<GameState | null>(null);
-	/** Indicates whether the game engine is suspended waiting for input. */
-	actionRequired = $state<string | null>(null);
+	/** Action the engine is waiting for (Action enum value), or null if none. */
+	actionRequired = $state<number | null>(null);
 	/** Contextual data attached to the input request. */
 	actionContext = $state<any>(null);
 
@@ -160,7 +161,7 @@ class StoreGame {
 			const stateJson = data.game_state;
 
 			this.state = {
-				active_color: COLOR_MAP[stateJson.active_color] || "green",
+				active_type: TYPE_MAP[stateJson.active_type] || "green",
 				current_turn: stateJson.current_turn,
 				play_direction: stateJson.play_direction,
 				top_card: stateJson.top_card ? this.#parseCard(stateJson.top_card) : undefined,
@@ -179,7 +180,7 @@ class StoreGame {
 				winner: undefined
 			};
 
-			this.actionRequired = data.action_required || null;
+			this.actionRequired = data.action_required ?? null;
 
 			let parsedContext = data.action_context || null;
 			if (typeof parsedContext === "string") {
@@ -232,14 +233,14 @@ class StoreGame {
 
 	/**
 	 * @brief Helper function to map the compact numeric output of a card to the textual enum values.
-	 * @param rawCard The raw payload containing id, color (int) and value (int).
+	 * @param rawCard The raw payload containing id, type (int) and value (int).
 	 * @returns A formatted object of type Card.
 	 * @tag FRONT-GAME-MTH-005
 	 */
-	#parseCard(rawCard: { id: number; color: number; value: number; can_play?: boolean }): Card {
+	#parseCard(rawCard: { id: number; type: number; value: number; can_play?: boolean }): Card {
 		return {
 			id: rawCard.id,
-			color: COLOR_MAP[rawCard.color] || "wild",
+			type: TYPE_MAP[rawCard.type] || "wild",
 			value: VALUE_MAP[rawCard.value] || "",
 			can_play: rawCard.can_play
 		};
@@ -272,7 +273,7 @@ class StoreGame {
 
 	/**
 	 * @brief Resolves a currently suspended effect by forwarding the user input.
-	 * @param value The value chosen by the user via modal (e.g. the colour for the Wild).
+	 * @param value The value chosen by the user via modal (e.g. the type index for the Wild).
 	 * @tag FRONT-GAME-MTH-009
 	 */
 	submitInput(value: string) {
@@ -281,3 +282,4 @@ class StoreGame {
 }
 
 export const storeGame = new StoreGame();
+export { Action, Type };

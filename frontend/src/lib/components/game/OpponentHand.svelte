@@ -1,7 +1,7 @@
 <script lang="ts">
 	import GameCard from "./GameCard.svelte";
 	import { useCardBus, type ElementRole } from "./card-bus.svelte";
-	import { storeGame, type GamePlayer } from "../../stores/game.svelte";
+	import { storeGame, Action, type GamePlayer } from "../../stores/game.svelte";
 
 	let {
 		player,
@@ -44,7 +44,7 @@
 	let isBot = $derived(player?.is_bot || player?.username?.toLowerCase().includes("bot"));
 
 	let isValidTarget = $derived(
-		storeGame.actionRequired === "choose_target" &&
+		storeGame.actionRequired === Action.ChooseTarget &&
 			player &&
 			Array.isArray(storeGame.actionContext) &&
 			storeGame.actionContext.includes(player.username)

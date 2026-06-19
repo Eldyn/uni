@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type Card, type CardValue } from "../../stores/game.svelte";
+	import { type Card, type CardValue, type CardType } from "../../stores/game.svelte";
 
 	let {
 		card,
@@ -60,7 +60,7 @@
 </script>
 
 <div
-	class="card {card.color} {extraClass}"
+	class="card {card.type} {extraClass}"
 	class:card--playable={isPlayable}
 	class:card--dragging={isDragged}
 	class:card--drag-target={isDragTarget}

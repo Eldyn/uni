@@ -1,31 +1,29 @@
 <script lang="ts">
-	import { storeGame } from "../../../stores/game.svelte";
+	import { storeGame, Action } from "../../../stores/game.svelte";
 	import GameCard from "../GameCard.svelte";
 </script>
 
-{#if storeGame.actionRequired && storeGame.actionContext}
-	{#if storeGame.actionRequired === "play_drawn_card"}
-		{@const drawnCard = storeGame.localPlayer?.hand?.find(
-			(c) => c.id === storeGame.actionContext.card_id
-		)}
-		<div class="inline-action-container">
-			<div class="prompt-badge">You drew a playable card!</div>
-			{#if drawnCard}
-				<div class="card-wrapper animate-flip">
-					<GameCard card={drawnCard} style="position: relative; left: 0;" />
-				</div>
+{#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
+	{@const drawnCard = storeGame.localPlayer?.hand?.find(
+		(c) => c.id === storeGame.actionContext.card_id
+	)}
+	<div class="inline-action-container">
+		<div class="prompt-badge">You drew a playable card!</div>
+		{#if drawnCard}
+			<div class="card-wrapper animate-flip">
+				<GameCard card={drawnCard} style="position: relative; left: 0;" />
+			</div>
 
-				<div class="action-buttons-group">
-					<button class="pixel-btn play-btn" onclick={() => storeGame.submitInput("PLAY")}>
-						Play It
-					</button>
-					<button class="pixel-btn keep-btn" onclick={() => storeGame.submitInput("KEEP")}>
-						Keep It
-					</button>
-				</div>
-			{/if}
-		</div>
-	{/if}
+			<div class="action-buttons-group">
+				<button class="pixel-btn play-btn" onclick={() => storeGame.submitInput("0")}>
+					Play It
+				</button>
+				<button class="pixel-btn keep-btn" onclick={() => storeGame.submitInput("1")}>
+					Keep It
+				</button>
+			</div>
+		{/if}
+	</div>
 {/if}
 
 <style>

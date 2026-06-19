@@ -12,14 +12,14 @@
 	<div class="bg-layer playmat-layout">
 		<TintedSprite
 			src="/assets/playmat.png"
-			color="var(--{storeGame.state?.active_color ?? 'white'})"
+			color="var(--{storeGame.state?.active_type ?? 'white'})"
 		/>
 	</div>
 
 	<div class="bg-layer arrows-layout">
 		<TintedSprite
 			src="/assets/{storeGame.state?.play_direction > 0 ? 'cw.png' : 'ccw.png'}"
-			color="var(--{storeGame.state?.active_color ?? 'white'})"
+			color="var(--{storeGame.state?.active_type ?? 'white'})"
 		/>
 	</div>
 

@@ -69,7 +69,7 @@
 				bus.hide(card.id);
 				setTimeout(() => {
 					bus.launch({
-						color: card.color,
+						color: card.type,
 						value: card.value,
 						turned: true,
 						from: { role: "draw-pile" },
