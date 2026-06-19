@@ -682,10 +682,12 @@ bool MatchInstance::DrawCard(const std::string& username) {
     
             if (p.username == username) {
                 nlohmann::json hand_json = nlohmann::json::array();
+                // ValidatePlay takes non-const GameState* but only reads it here.
+                GameState* mutable_state = const_cast<GameState*>(&state_);
                 for (CompactCard c : p.hand) {
                     CardPlayedEvent play_check = { username, c, true, false };
                     for (auto& rule : active_rules_) {
-                        rule->ValidatePlay(&state_, play_check);
+                        rule->ValidatePlay(mutable_state, play_check);
                         if (play_check.is_handled) break;
                     }
                     hand_json.push_back({
