@@ -74,7 +74,7 @@ void GameController::HandlePlayCard(WsContext context, const json& message) {
     bool was_play_successful = active_lobby->match->PlayCard(context.socket_data->username, card_identifier);
     
     if (!was_play_successful) {
-        ws::SendError(context.socket, context.op_code, "Invalid move", request_identifier);
+        ws::SendError(context.socket, context.op_code, "invalid_move", request_identifier);
         return;
     }
 

@@ -20,26 +20,17 @@
 	let audioPlayer: HTMLAudioElement;
 
 	onMount(async () => {
-		// --- AUDIO AUTOPLAY LOGIC ---
 		if (audioPlayer) {
-			// will only work if the user has already interacted with the site in the past or reloads the page
 			audioPlayer.play().catch(() => {
-				console.warn("Autoplay blocked. The music will start on the first click.");
-
-				// If blocked, we create a function that starts the audio on the very first click on the page
 				const startAudioOnInteraction = () => {
 					audioPlayer.play();
-					// Once started, we remove the event so as not to overload the browser
 					document.removeEventListener("click", startAudioOnInteraction);
 					document.removeEventListener("keydown", startAudioOnInteraction);
 				};
-
-				// We make the site "listen" for the first click or key press
 				document.addEventListener("click", startAudioOnInteraction);
 				document.addEventListener("keydown", startAudioOnInteraction);
 			});
 		}
-		// -----------------------------
 
 		await storeAuth.checkSession();
 
@@ -53,17 +44,19 @@
 
 		ws.on("error", (data) => {
 			console.error(data);
-			// Surface server-pushed errors not tied to a pending request
-			// (request-bound errors are handled by their caller). The rate
-			// limiter sends reason "rate_limited" — translate it for the user.
 			const reason = data.reason as string | undefined;
-			if (reason === "rate_limited") {
-				storeToast.warning("You're going too fast — please slow down.");
-			} else if (reason) {
-				// NOTE: we don't wanna send invalid move every time they click
-				//       a card. let em chill... For now this is a tape fix.
-				if (reason === "Invalid move") return;
-				storeToast.error(reason);
+
+			if (!reason) return;
+
+			switch (reason) {
+				case "rate_limited":
+					storeToast.warning("You're going too fast — please slow down.");
+					break;
+				case "invalid_move":
+					break;
+				default:
+					storeToast.error(reason);
+					break;
 			}
 		});
 	});
@@ -73,10 +66,6 @@
 			storeToast.error(`Failed to connect to server. Please try again. (${error})`);
 		});
 
-		storeNavigation.goto("lobbies");
-	}
-
-	function handleBackToLobbies() {
 		storeNavigation.goto("lobbies");
 	}
 
@@ -129,25 +118,5 @@
 		z-index: 5;
 		pointer-events: none;
 		user-select: none;
-	}
-
-	:global(button) {
-		/* Removes native smooth rounding */
-		border-radius: 0 !important;
-		/* Cuts the corners in 4-pixel blocky steps */
-		clip-path: polygon(
-			0 4px,
-			4px 4px,
-			4px 0,
-			calc(100% - 4px) 0,
-			calc(100% - 4px) 4px,
-			100% 4px,
-			100% calc(100% - 4px),
-			calc(100% - 4px) calc(100% - 4px),
-			calc(100% - 4px) 100%,
-			4px 100%,
-			4px calc(100% - 4px),
-			0 calc(100% - 4px)
-		);
 	}
 </style>
