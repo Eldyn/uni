@@ -9,6 +9,7 @@
 #include <WebSocketProtocol.h>
 #include <controllers/lobby_controller.hpp>
 #include <common/bot_names.hpp>
+#include <common/env.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
 #include <game/rule_registry.hpp>
@@ -88,7 +89,8 @@ static void ClampSettings(LobbySettings& settings) {
  * @param server Reference to the hosting asynchronous web server infrastructure.
  */
 LobbyController::LobbyController(WebServer& server) : action_router_(server.GetActionRouter()), app_(server.GetApp()) {
-    
+    reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 30'000));
+
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
         HandleCreate(ctx, msg);
         return true;
@@ -172,7 +174,7 @@ LobbyController::LobbyController(WebServer& server) : action_router_(server.GetA
             for (const auto& m : lobby.members) {
                 if (!m.is_connected && !m.is_bot) {
                     auto elapsed = duration_cast<milliseconds>(now - m.disconnected_at).count();
-                    if (elapsed > kReconnectGraceMs) {
+                    if (elapsed > self->reconnect_grace_ms_) {
                         to_evict.push_back({id, m.username});
                     }
                 }
@@ -212,7 +214,7 @@ LobbyController::LobbyController(WebServer& server) : action_router_(server.GetA
 
     }, 1000, 1000);
 
-    Logger::Info("[Lobby] Registered — grace window: " + to_string(kReconnectGraceMs / 1000) + "s");
+    Logger::Info("[Lobby] Registered — grace window: " + to_string(reconnect_grace_ms_ / 1000) + "s");
 }
 
 /**
@@ -389,6 +391,8 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     Lobby& lobby = lobbies_[id];
     lobby.id                   = id;
     lobby.settings.is_public   = payload_res->is_public.value_or(false);
+    lobby.settings.turn_time_limit_ms = Env::GetInt("DEFAULT_TURN_TIME_MS", lobby.settings.turn_time_limit_ms);
+    lobby.settings.starting_cards     = Env::GetInt("DEFAULT_STARTING_CARDS", lobby.settings.starting_cards);
     lobby.invite_code          = code;
     lobby.host                 = username;
     lobby.name                 = payload_res->name.value_or(username + "'s lobby");

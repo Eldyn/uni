@@ -138,12 +138,6 @@ public:
     std::size_t ActiveMatchCount() const;
 
     /**
-     * @brief Grace period before a disconnected user is evicted.
-     * @tag LOBBY-CFG-001
-     */
-    static constexpr int kReconnectGraceMs = 1'000 * 30;
-
-    /**
      * @brief Maximum number of players allowed in a single lobby.
      * @tag LOBBY-CFG-002
      */
@@ -312,4 +306,5 @@ private:
 
     std::atomic<uint32_t> next_id_{1};              /**< Thread-safe counter for the lobby IDs. */
     us_timer_t* eviction_timer_ = nullptr;          /**< libuv timer for evicting disconnected users. */
+    int reconnect_grace_ms_ = 1'000 * 30;           /**< Grace period (ms) before a disconnected user is evicted (env: RECONNECT_GRACE_MS). */
 };

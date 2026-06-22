@@ -21,12 +21,12 @@ using json = nlohmann::json;
  */
 GameController::GameController(WebServer& server, LobbyController& lobby_controller)
     : action_router_(server.GetActionRouter()), lobby_controller_(lobby_controller) {
-    try {
-        bot_instant_delay_ms_ = std::max(0, std::stoi(Env::Get("BOT_TURN_DELAY_MS", "1000")));
-    } catch (...) {
-        bot_instant_delay_ms_ = 1000;
-    }
-    Logger::Info("[Game] Bot instant turn delay: ", bot_instant_delay_ms_, "ms");
+    bot_instant_delay_ms_  = std::max(0, Env::GetInt("BOT_TURN_DELAY_MS", 1000));
+    bot_wait_min_ms_       = std::max(0, Env::GetInt("BOT_WAIT_MIN_MS", 500));
+    bot_wait_max_ms_       = std::max(bot_wait_min_ms_ + 1, Env::GetInt("BOT_WAIT_MAX_MS", 3500));
+    max_instant_bot_steps_ = std::max(1, Env::GetInt("MAX_INSTANT_BOT_STEPS", 20));
+    Logger::Info("[Game] Bot instant delay: ", bot_instant_delay_ms_, "ms, wait spread: ",
+                 bot_wait_min_ms_, "-", bot_wait_max_ms_, "ms");
 
     action_router_.On(ws::ClientAction::kGamePlayCard, [this](WsContext context, const json& message) {
         HandlePlayCard(context, message);
@@ -216,7 +216,13 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
     game::Player* current_player = active_lobby->match->GetPlayer(current_player_username);
 
     if (current_player->is_bot) {
-        int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly ? bot_instant_delay_ms_ : 1500 + (std::rand() % 3000);
+        int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly
+            ? bot_instant_delay_ms_
+            : bot_wait_min_ms_ + (std::rand() % (bot_wait_max_ms_ - bot_wait_min_ms_));
+
+        // NOTE: Waiting for each input is tiresome. "Pending Color" -> ~2 seconds,
+        //       "Draw or Play" -> ~2 seconds. This stacks up. Let's be instantaneous!
+        if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
 
         auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
         active_lobby->match->SetTurnEndTime(end_time);
@@ -252,8 +258,7 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
         // Guard against infinite recursion: if TakeBotTurn failed to change state
         // (e.g., a rule bug made PlayCard return false with IsWaitingForInput still
         // false), stop rather than stack-overflow.
-        constexpr int kMaxInstantSteps = 20;
-        for (int step = 0; step < kMaxInstantSteps; ++step) {
+        for (int step = 0; step < max_instant_bot_steps_; ++step) {
             if (active_lobby->match->IsGameOver()) break;
 
             std::string before = active_lobby->match->GetCurrentPlayerUsername();

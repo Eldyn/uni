@@ -41,7 +41,10 @@ private:
      * Used to activate the AFK protection (e.g. the bot takes over or the move is skipped).
      */
     std::unordered_map<uint32_t, struct us_timer_t*> active_turn_timers_;
-    int bot_instant_delay_ms_; /**< Minimum ms between consecutive bot turns in kPlayInstantly mode. */
+    int bot_instant_delay_ms_;   /**< Minimum ms between consecutive bot turns in kPlayInstantly mode. */
+    int bot_wait_min_ms_;        /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
+    int bot_wait_max_ms_;        /**< Upper bound (exclusive) of the randomised "thinking" delay. */
+    int max_instant_bot_steps_;  /**< Safety cap on consecutive bot moves in a single kPlayInstantly burst. */
 
     // --- WebSocket Event Handlers ---
 

@@ -55,6 +55,25 @@ inline std::string Get(const std::string& key,
 }
 
 /**
+ * @brief Retrieves an integer environment variable, with a fallback on absence or parse error.
+ * * Centralises the "read, try-parse, fall back" pattern so numeric tunables can
+ * be declared in one line instead of a repeated try/catch around std::stoi.
+ * * @param key The name of the environment variable to read.
+ * @param fallback The default returned if the variable is missing or not an integer.
+ * @return int The parsed value, or the fallback.
+ * @tag CMN-ENV-MTH-002B
+ */
+inline int GetInt(const std::string& key, int fallback) {
+    const char* val = std::getenv(key.c_str());
+    if (!val) return fallback;
+    try {
+        return std::stoi(val);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+/**
  * @brief Internal helper function to set an environment variable in a cross-platform way.
  * * POSIX: Uses `setenv(key, value, 1)` where '1' forces overwriting if it already exists.
  * Windows: Uses `_putenv_s` which overwrites by default behaviour.
