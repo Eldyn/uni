@@ -74,7 +74,7 @@ void GameController::HandlePlayCard(WsContext context, const json& message) {
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::GamePlayCardPayload>(message);
     if (!payload_res) {
-        ws::SendError(context.socket, context.op_code, payload_res.error().message, request_identifier);
+        ws::SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_identifier, payload_res.error().message);
         return;
     }
     uint16_t card_identifier = payload_res->card_id;
@@ -82,7 +82,7 @@ void GameController::HandlePlayCard(WsContext context, const json& message) {
     bool was_play_successful = active_lobby->match->PlayCard(context.socket_data->username, card_identifier);
     
     if (!was_play_successful) {
-        ws::SendError(context.socket, context.op_code, "invalid_move", request_identifier);
+        ws::SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidMove, request_identifier);
         return;
     }
 
@@ -108,7 +108,7 @@ void GameController::HandleDrawCard(WsContext context, const json& message) {
     bool was_draw_successful = active_lobby->match->DrawCard(context.socket_data->username);
     
     if (!was_draw_successful) {
-        ws::SendError(context.socket, context.op_code, "Cannot draw card", request_identifier);
+        ws::SendError(context.socket, context.op_code, contract::ErrorCode::kCannotDraw, request_identifier);
         return;
     }
 
@@ -130,7 +130,7 @@ void GameController::HandleProvideInput(WsContext context, const json& message) 
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::GameSubmitInputPayload>(message);
     if (!payload_res) {
-        ws::SendError(context.socket, context.op_code, payload_res.error().message, request_identifier);
+        ws::SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_identifier, payload_res.error().message);
         return;
     }
     std::string input_value = payload_res->value;
@@ -217,7 +217,7 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
 
     if (current_player->is_bot) {
         int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly ? bot_instant_delay_ms_ : 1500 + (std::rand() % 3000);
-        
+
         auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
         active_lobby->match->SetTurnEndTime(end_time);
         

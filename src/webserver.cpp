@@ -216,7 +216,7 @@ void WebServer::RegisterRoutes() {
             // Standard error envelope (contract: {action:"error", reason}), echoing
             // the request_id so the client can tie it back to the throttled action.
             const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
-            ws::SendError(ctx.socket, uWS::OpCode::TEXT, "rate_limited", request_id);
+            ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited, request_id);
             return false;
         }
         return true;

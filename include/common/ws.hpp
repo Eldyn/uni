@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <nlohmann/json.hpp>
+#include <common/contract.hpp>
 #include <logger.hpp>
 #include <result.hpp>
 #include <websocket_context.hpp>
@@ -165,16 +166,36 @@ namespace ws {
     }
 
     /**
-     * @brief Sends a JSON payload formatted as an error on the specific socket.
+     * @brief Sends a contract error frame on the specific socket.
      * @param ws Pointer to the recipient socket.
      * @param op The uWebSockets OpCode (e.g. text).
-     * @param reason The descriptive error string (reason).
-     * @param request_id (Optional) The ID of the packet that triggered the error.
+     * @param code A contract::ErrorCode identifying the failure. The frontend
+     *             owns the human-readable text; the backend sends only the code.
+     * @param request_id The ID of the packet that triggered the error.
+     * @param detail (Optional) supplementary context for dynamic errors (e.g. a
+     *               payload parse message). Never the primary user-facing string.
      * @tag WS-UTIL-004
      */
-    inline void SendError(AppWebSocket* ws, uWS::OpCode op, const std::string& reason, const std::string& request_id) {
+    inline void SendError(AppWebSocket* ws, uWS::OpCode op, contract::ErrorCode code,
+                          const std::string& request_id, const std::string& detail = "") {
         auto msg = MakeResponse(ServerAction::kError, request_id);
-        msg["reason"] = reason;
+        msg["code"] = contract::kErrorCodeStr.at(code);
+        if (!detail.empty()) msg["detail"] = detail;
+        ws->send(msg.dump(), op);
+    }
+
+    /**
+     * @brief Sends a generic success frame, optionally carrying extra fields.
+     * @param ws Pointer to the recipient socket.
+     * @param op The uWebSockets OpCode (e.g. text).
+     * @param request_id The ID of the request being acknowledged.
+     * @param data (Optional) JSON object merged into the response envelope.
+     * @tag WS-UTIL-005
+     */
+    inline void SendSuccess(AppWebSocket* ws, uWS::OpCode op, const std::string& request_id,
+                            nlohmann::json data = nlohmann::json::object()) {
+        auto msg = MakeResponse(ServerAction::kSuccess, request_id);
+        msg.merge_patch(std::move(data));
         ws->send(msg.dump(), op);
     }
 }
