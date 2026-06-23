@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
+## [Unreleased]
+
+### Fixed
+
+- Renamed the sitemap to `sitemap-index.xml` (and repointed `robots.txt`) to
+  recover from a stale Google Search Console fetch cache.
+
 ## [0.3.0] - 2026-06-23
 
 ### Added
@@ -131,6 +138,7 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/Eldyn/uni/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Eldyn/uni/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Eldyn/uni/compare/v0.1.1...v0.2.0
