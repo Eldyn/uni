@@ -1,7 +1,6 @@
 #pragma once
 #include <unordered_map>
 #include <vector>
-#include <router.hpp>
 #include <transport/iaction_router.hpp>
 
 /**
@@ -16,12 +15,14 @@
  * @brief Dispatches WebSocket messages to the various controllers based on the action type.
  * * Supports the use of "wildcards" (middleware) that are executed before every specific
  * action. If a wildcard returns `false`, the specific handler is never called.
- * Inherits from `IActionRouter` (DI interface) and `Router` (non-copyable mixin).
+ * Inherits from `IActionRouter` (DI interface).
  * @tag ACT-RTR-CLS-001
  */
-class ActionRouter : public IActionRouter, public Router {
+class ActionRouter : public IActionRouter {
 public:
     ActionRouter() = default;
+    ActionRouter(const ActionRouter&)            = delete;
+    ActionRouter& operator=(const ActionRouter&) = delete;
 
     /**
      * @brief Registers a handler for a specific action.

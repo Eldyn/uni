@@ -1,5 +1,4 @@
 #pragma once
-#include <router.hpp>
 #include <websocket_context.hpp>
 #include <functional>
 #include <string>
@@ -27,9 +26,11 @@ using HttpHandler = std::function<void(AppResponse*, AppRequest*)>;
  * HTTP routes to be registered explicitly directly on its native instance.
  * @tag HTTP-RTR-CLS-001
  */
-class HttpRouter : public Router {
+class HttpRouter {
 public:
-    HttpRouter() = default;
+    HttpRouter()                             = default;
+    HttpRouter(const HttpRouter&)            = delete;
+    HttpRouter& operator=(const HttpRouter&) = delete;
 
     /**
      * @brief Registers a handler for a GET route.
