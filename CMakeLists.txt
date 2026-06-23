@@ -155,17 +155,38 @@ if(UNI_BUILD_TESTS)
     enable_testing()
 
     file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/unit/*.cpp")
-    # Modules under test are compiled into uni_tests directly (the main
-    # executable's TU owns main(), so src cannot be linked wholesale).
     add_executable(uni_tests
         ${TEST_SOURCES}
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
+        src/game/match_instance.cpp
+        src/game/rules/standard.cpp
+        src/game/rules/70.cpp
+        src/game/rules/draw_stacking.cpp
+        src/game/rules/force_play.cpp
+        src/game/rules/jump_in.cpp
+        src/game/rules/no_bluffing.cpp
+        src/game/rules/progressive.cpp
+        src/game/effects/standard.cpp
+        src/game/effects/decide_swap_target.cpp
+        src/game/effects/pass_hands.cpp
+        src/controllers/lobby_controller.cpp
+        src/controllers/game_controller.cpp
+        src/action_router.cpp
+        src/database.cpp
+        src/transport/uws_broadcaster.cpp
+        src/transport/uws_timer_service.cpp
     )
     target_include_directories(uni_tests PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(uni_tests PRIVATE
         doctest::doctest
         nlohmann_json::nlohmann_json
+        uwebsockets::uwebsockets
+        usockets::usockets
+        libuv::uv_a
+        OpenSSL::SSL OpenSSL::Crypto
+        SQLite::SQLite3
+        ZLIB::ZLIB
     )
     add_dependencies(uni_tests gen_ws_messages gen_contract_hpp)
 
