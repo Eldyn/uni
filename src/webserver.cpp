@@ -159,10 +159,11 @@ void WebServer::MaybeEvict() {
 }
 
 void WebServer::RegisterRoutes() {
-    // Per-IP HTTP rate limiting (runs before every router-handled route).
-    // Auth endpoints get a much tighter bucket: they are the brute-force and
-    // PBKDF2 CPU-amplification surface. The static file catch-all is registered
-    // straight on the uWS app (below) and is intentionally left to the edge.
+    // INFO: Per-IP HTTP rate limiting (runs before every router-handled
+    //       route). Auth endpoints get a much tighter bucket: they are the
+    //       brute-force and PBKDF2 CPU-amplification surface. The static
+    //       file catch-all is registered straight on the uWS app (below)
+    //       and is intentionally left to the edge.
     http_router_.OnAny([this](AppResponse* res, AppRequest* req) -> bool {
         MaybeEvict();
         const std::string ip = http::GetClientIp(res, req, trust_proxy_);
@@ -183,11 +184,12 @@ void WebServer::RegisterRoutes() {
         HandlePost(response, request);
     });
 
-    // Internal operational endpoint: reports the number of in-progress matches so
-    // the deploy tooling can hold a redeploy until games drain (state is RAM-only).
-    // Gated by a shared secret (X-Deploy-Token == DEPLOY_STATUS_TOKEN); a missing
-    // or wrong token returns 404 so the endpoint isn't even discoverable, and
-    // Traefik additionally blocks the /internal prefix on the public router.
+    // INFO: Internal operational endpoint: reports the number of in-progress
+    //       matches so the deploy tooling can hold a redeploy until games
+    //       drain (state is RAM-only). Gated by a shared secret
+    //       (X-Deploy-Token == DEPLOY_STATUS_TOKEN); a missing or wrong token
+    //       returns 404 so the endpoint isn't even discoverable, and Traefik
+    //       additionally blocks the /internal prefix on the public router.
     app_.get("/internal/active-games", [this](AppResponse *res, AppRequest *req) {
         const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
         if (token.empty() || req->getHeader("x-deploy-token") != token) {
@@ -203,9 +205,10 @@ void WebServer::RegisterRoutes() {
         HandleGet(res, req);
     });
 
-    // Per-connection WebSocket action rate limiting (runs before dispatch).
-    // Keyed by client IP, falling back to username, so an authenticated client
-    // cannot flood the action router. Returning false aborts the dispatch chain.
+    // INFO: Per-connection WebSocket action rate limiting (runs before
+    //       dispatch). Keyed by client IP, falling back to username, so an
+    //       authenticated client cannot flood the action router. Returning
+    //       false aborts the dispatch chain.
     ws_router_.OnAny([this](WsContext ctx, const json& msg) {
         MaybeEvict();
         const std::string& key = !ctx.socket_data->ip.empty()
@@ -213,8 +216,9 @@ void WebServer::RegisterRoutes() {
                                      : ctx.socket_data->username;
         if (!ws_limiter_.Allow(key)) {
             Logger::Warn("[WS] rate limited: " + ctx.socket_data->username);
-            // Standard error envelope (contract: {action:"error", reason}), echoing
-            // the request_id so the client can tie it back to the throttled action.
+            // INFO: Standard error envelope (contract: {action:"error",
+            //       reason}), echoing the request_id so the client can tie
+            //       it back to the throttled action.
             const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
             ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited, request_id);
             return false;
@@ -222,9 +226,10 @@ void WebServer::RegisterRoutes() {
         return true;
     });
 
-    // WebSocket transport limits (env-overridable). Capping the frame size,
-    // idle time and server-side backpressure stops oversized frames, slow-loris
-    // sockets and unbounded outbound buffering from exhausting memory.
+    // INFO: WebSocket transport limits (env-overridable). Capping the frame
+    //       size, idle time and server-side backpressure stops oversized
+    //       frames, slow-loris sockets and unbounded outbound buffering from
+    //       exhausting memory.
     const unsigned int   ws_max_payload      = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));        // 16 KB
     const unsigned int   ws_max_backpressure = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576"))); // 1 MB
     const unsigned short ws_idle_timeout     = static_cast<unsigned short>(std::stoi(Env::Get("WS_IDLE_TIMEOUT", "120")));         // seconds
@@ -247,12 +252,13 @@ void WebServer::RegisterRoutes() {
                 return;
             }
 
-            // Capture the IP before upgrade() invalidates the request object.
+            // INFO: Capture the IP before upgrade() invalidates the request
+            //       object.
             const std::string ip = http::GetClientIp(res, req, trust_proxy_);
 
-            // Cap concurrent connections per IP so one host cannot exhaust the
-            // server's sockets. The counter is incremented here and decremented
-            // in OnSocketClosed.
+            // INFO: Cap concurrent connections per IP so one host cannot
+            //       exhaust the server's sockets. The counter is incremented
+            //       here and decremented in OnSocketClosed.
             if (max_conn_per_ip_ > 0 && conn_per_ip_[ip] >= max_conn_per_ip_) {
                 Logger::Warn("[WS] Rejected upgrade — connection cap reached for IP " + ip);
                 res->writeStatus("429 Too Many Requests")->end();
@@ -325,7 +331,8 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
 
 namespace {
 
-// Cache policy for a static asset, keyed on its path within the served root.
+// INFO: Cache policy for a static asset, keyed on its path within the
+//       served root.
 //
 //   *.html              -> "no-cache": always revalidate. index.html is the
 //                          entry point that names the content-hashed bundles,
@@ -347,10 +354,11 @@ std::string CacheControlFor(string_view relative_path) {
     return "public, max-age=86400";
 }
 
-// Weak ETag derived from the file's size and last-write time. It is an opaque
-// validator (RFC 7232) that only has to change when the file does — size+mtime
-// captures that without hashing the contents. Empty return means the file could
-// not be stat'd, in which case the caller simply omits the header.
+// INFO: Weak ETag derived from the file's size and last-write time. It is
+//       an opaque validator (RFC 7232) that only has to change when the
+//       file does — size+mtime captures that without hashing the contents.
+//       Empty return means the file could not be stat'd, in which case the
+//       caller simply omits the header.
 std::string MakeETag(const fs::path& file) {
     std::error_code ec;
     const auto size = fs::file_size(file, ec);
@@ -371,15 +379,16 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     string url = string(req->getUrl());
     string relativePath = (url == "/") ? "index.html" : url.substr(1);
 
-    // Capture the conditional-request header now: uWebSockets recycles the
-    // request object as soon as the response is written, so it cannot be read
-    // afterwards.
+    // INFO: Capture the conditional-request header now: uWebSockets recycles
+    //       the request object as soon as the response is written, so it
+    //       cannot be read afterwards.
     string if_none_match = string(req->getHeader("if-none-match"));
 
-    // Resolve both the served root and the requested file to canonical form so
-    // that "../" segments and symlinks are collapsed, then confirm the result
-    // stays inside the root. Without this, a raw request such as
-    // "GET /../../etc/passwd" would escape frontend_path_ and disclose host files.
+    // INFO: Resolve both the served root and the requested file to canonical
+    //       form so that "../" segments and symlinks are collapsed, then
+    //       confirm the result stays inside the root. Without this, a raw
+    //       request such as "GET /../../etc/passwd" would escape
+    //       frontend_path_ and disclose host files.
     std::error_code ec;
     fs::path root     = fs::weakly_canonical(fs::path(frontend_path_), ec);
     fs::path filePath = fs::weakly_canonical(root / relativePath, ec);
@@ -390,10 +399,10 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
         string pathStr = filePath.string();
         string etag = MakeETag(filePath);
 
-        // Conditional request: the client already holds this exact version, so
-        // skip resending the body. This is what makes revalidation of the large
-        // unhashed font cheap once its max-age lapses — an empty 304 instead of
-        // ~1 MB on the wire.
+        // INFO: Conditional request: the client already holds this exact
+        //       version, so skip resending the body. This is what makes
+        //       revalidation of the large unhashed font cheap once its
+        //       max-age lapses — an empty 304 instead of ~1 MB on the wire.
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
                 ->writeHeader("Cache-Control", CacheControlFor(relativePath))
@@ -435,7 +444,8 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
 
     connections_.erase(socket_data->username);
 
-    // Release this IP's connection slot; drop the entry once it reaches zero.
+    // INFO: Release this IP's connection slot; drop the entry once it
+    //       reaches zero.
     if (auto it = conn_per_ip_.find(socket_data->ip); it != conn_per_ip_.end()) {
         if (--it->second <= 0) {
             conn_per_ip_.erase(it);
@@ -446,9 +456,10 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
 }
 
 void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::OpCode op_code) {
-    // A malformed frame must never escape this callback: an exception thrown
-    // through uWebSockets' C event loop terminates the whole process, so a
-    // single junk frame from any connected client would be a remote DoS.
+    // INFO: A malformed frame must never escape this callback: an exception
+    //       thrown through uWebSockets' C event loop terminates the whole
+    //       process, so a single junk frame from any connected client would
+    //       be a remote DoS.
     json message_json = json::parse(message, nullptr, /*allow_exceptions=*/false);
 
     if (message_json.is_discarded()) {
@@ -456,8 +467,9 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::
         return;
     }
 
-    // Downstream helpers call json::value(), which throws on non-objects, so a
-    // well-formed but non-object payload (e.g. "5" or "[]") must be rejected too.
+    // INFO: Downstream helpers call json::value(), which throws on
+    //       non-objects, so a well-formed but non-object payload (e.g. "5"
+    //       or "[]") must be rejected too.
     if (!message_json.is_object() || !message_json.contains("action")) {
         Logger::Warn("[WS] Message missing 'action' field");
         return;

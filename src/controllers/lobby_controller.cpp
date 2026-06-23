@@ -813,9 +813,10 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     int old_bot_count = lobby.settings.bot_count;
 
-    // Strip envelope fields then apply the patch. Fields not present in the
-    // message are left unchanged; unknown fields are ignored by nlohmann when
-    // deserializing back into LobbySettings, so the struct is always correct.
+    // INFO: Strip envelope fields then apply the patch. Fields not present
+    //       in the message are left unchanged; unknown fields are ignored by
+    //       nlohmann when deserializing back into LobbySettings, so the
+    //       struct is always correct.
     json patch = message;
     patch.erase("action");
     patch.erase("request_id");

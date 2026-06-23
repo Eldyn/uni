@@ -6,8 +6,8 @@
 
 namespace ws {
 
-// ParsePayload<T> wraps the hatchbed-generated T::fromJson() into the project's
-// monadic Result<T> type so all call sites remain uniform.
+// INFO: ParsePayload<T> wraps the hatchbed-generated T::fromJson() into the
+//       project's monadic Result<T> type so all call sites remain uniform.
 template <typename T>
 inline Result<T> ParsePayload(const nlohmann::json& json) {
     auto opt = T::fromJson(json);

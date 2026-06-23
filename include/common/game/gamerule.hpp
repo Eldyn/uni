@@ -25,7 +25,6 @@ namespace game {
         bool is_out_of_turn = false;  /**< Flag indicating whether the play occurred out of turn (useful for special rules or penalties). */
     };
 
-// Add below CardPlayedEvent
     struct CardDrawnEvent {
         std::string player_username;
         CompactCard drawn_card;

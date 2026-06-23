@@ -17,8 +17,9 @@ HttpRouter& HttpRouter::OnAny(std::function<bool(AppResponse*, AppRequest*)> han
 }
 
 HttpHandler HttpRouter::WrapWithWildcards(HttpHandler handler) {
-    // Capture wildcards_ by reference — safe because HttpRouter outlives
-    // all uWS handlers (both owned by WebServer with the same lifetime).
+    // INFO: Capture wildcards_ by reference — safe because HttpRouter
+    //       outlives all uWS handlers (both owned by WebServer with the same
+    //       lifetime).
     return [this, handler = std::move(handler)](
             AppResponse* res, AppRequest* req) {
         for (const auto& wildcard : wildcards_) {

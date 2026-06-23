@@ -8,7 +8,7 @@ bool DbRow::Has(const std::string& col) const {
     return data_.contains(col);
 }
 
-// --- Database Implementation ---
+// Database implementation
 
 Database& Database::Get() {
     static Database instance;
@@ -20,10 +20,11 @@ VoidResult Database::Open(std::string_view path) {
         return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
     }
 
-    // WAL lets a backup reader take a consistent snapshot while the server keeps
-    // writing; the default rollback journal can tear a concurrent file copy.
-    // synchronous=NORMAL is the safe pairing with WAL, and busy_timeout avoids
-    // spurious SQLITE_BUSY when the backup reader and the server briefly overlap.
+    // INFO: WAL lets a backup reader take a consistent snapshot while the
+    //       server keeps writing; the default rollback journal can tear a
+    //       concurrent file copy. synchronous=NORMAL is the safe pairing
+    //       with WAL, and busy_timeout avoids spurious SQLITE_BUSY when the
+    //       backup reader and the server briefly overlap.
     const char* pragmas =
         "PRAGMA journal_mode=WAL;"
         "PRAGMA synchronous=NORMAL;"
@@ -50,7 +51,7 @@ bool Database::IsOpen() const {
 
 VoidResult Database::ApplySchema(const char* sql) {
     char* zErrMsg = nullptr;
-    // sqlite3_exec runs everything in the string until the end
+    // INFO: sqlite3_exec runs everything in the string until the end
     int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &zErrMsg);
     
     if (rc != SQLITE_OK) {
@@ -70,7 +71,7 @@ sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& par
     for (size_t i = 0; i < params.size(); ++i) {
         int index = static_cast<int>(i) + 1; // SQLite uses 1-based indexing for params
         
-        // C++23 std::visit: Handles the variant types safely
+        // INFO: C++23 std::visit handles the variant types safely
         std::visit([&](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, int>) {
@@ -101,7 +102,7 @@ DbRow Database::ReadRow(sqlite3_stmt* stmt) {
             row.Set(col_name, sqlite3_column_double(stmt, i));
         } else if (type == SQLITE_TEXT) {
             const unsigned char* text = sqlite3_column_text(stmt, i);
-            // Null guard for text columns
+            // INFO: Null guard for text columns
             row.Set(col_name, text ? std::string(reinterpret_cast<const char*>(text)) : DbValue(nullptr));
         } else {
             row.Set(col_name, nullptr);

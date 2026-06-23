@@ -220,8 +220,9 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
             ? bot_instant_delay_ms_
             : bot_wait_min_ms_ + (std::rand() % (bot_wait_max_ms_ - bot_wait_min_ms_));
 
-        // NOTE: Waiting for each input is tiresome. "Pending Color" -> ~2 seconds,
-        //       "Draw or Play" -> ~2 seconds. This stacks up. Let's be instantaneous!
+        // INFO: Waiting for each input is tiresome. "Pending Color" -> ~2
+        //       seconds, "Draw or Play" -> ~2 seconds. This stacks up. Let's
+        //       be instantaneous!
         if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
 
         auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
@@ -254,10 +255,11 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
     if (active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly && !is_player_connected) {
         Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
 
-        // Broadcast between each step so every action is visible to connected players.
-        // Guard against infinite recursion: if TakeBotTurn failed to change state
-        // (e.g., a rule bug made PlayCard return false with IsWaitingForInput still
-        // false), stop rather than stack-overflow.
+        // INFO: Broadcast between each step so every action is visible to
+        //       connected players. Guard against infinite recursion: if
+        //       TakeBotTurn failed to change state (e.g., a rule bug made
+        //       PlayCard return false with IsWaitingForInput still false),
+        //       stop rather than stack-overflow.
         for (int step = 0; step < max_instant_bot_steps_; ++step) {
             if (active_lobby->match->IsGameOver()) break;
 
@@ -267,7 +269,7 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
             active_lobby->match->TakeBotTurn();
             BroadcastGameState(active_lobby);
 
-            // Check whether a connected player's turn has arrived.
+            // INFO: Check whether a connected player's turn has arrived.
             std::string after = active_lobby->match->GetCurrentPlayerUsername();
             bool is_now_connected = false;
             for (const auto& m : active_lobby->members) {
@@ -278,7 +280,8 @@ void GameController::OnTurnStarted(Lobby* active_lobby) {
 
             if (is_now_connected || now_is_bot) break;
 
-            // Stall detection: if current player didn't change and waiting-state didn't change, stop.
+            // INFO: Stall detection: if current player didn't change and
+            //       waiting-state didn't change, stop.
             if (after == before && active_lobby->match->IsWaitingForInput() == was_waiting) {
                 Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
                 break;

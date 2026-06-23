@@ -124,7 +124,8 @@ namespace game {
         if (it != state_.players.end()) {
             int index_to_remove = std::distance(state_.players.begin(), it);
 
-            // INFO: Safely dump their hand back into the draw pile so the cards aren't lost
+            // INFO: Safely dump their hand back into the draw pile so the
+            //       cards aren't lost.
             state_.draw_pile.insert(state_.draw_pile.end(), it->hand.begin(), it->hand.end());
             std::random_device rd;
             std::mt19937 g(rd());
@@ -137,7 +138,8 @@ namespace game {
                 return;
             }
 
-            // INFO: Shift the current turn index so the game doesn't skip a player!
+            // INFO: Shift the current turn index so the game doesn't skip a
+            //       player!
             if (state_.current_player_index >= state_.players.size()) {
                 state_.current_player_index %= state_.players.size();
             } else if (index_to_remove < state_.current_player_index) {
@@ -217,8 +219,9 @@ namespace game {
         
         if (!play_event.is_valid_play) return false;
 
-        // INFO: Record provenance (who + which hand slot) so clients can animate
-        //       the card flying from the exact slot it left, onto the discard pile.
+        // INFO: Record provenance (who + which hand slot) so clients can
+        //       animate the card flying from the exact slot it left, onto the
+        //       discard pile.
         state_.last_play = {
             true,
             username,
@@ -231,13 +234,11 @@ namespace game {
         current_player->hand.erase(card_iterator);
 
         // INFO: we want to track user stats now :)
-        // if (!current_player->is_bot) {
-            Type c = GetType(played_card);
-            Value v = GetValue(played_card);
+        Type c = GetType(played_card);
+        Value v = GetValue(played_card);
 
-            session_stats_[username].color_counts[static_cast<int>(c)]++;
-            session_stats_[username].value_counts[static_cast<int>(v)]++;
-        // }
+        session_stats_[username].color_counts[static_cast<int>(c)]++;
+        session_stats_[username].value_counts[static_cast<int>(v)]++;
 
         play_event.is_handled = false;
 
@@ -280,8 +281,6 @@ namespace game {
                 int match_id = match_row->value().Get<int>("id");
 
                 for (const auto& p : state_.players) {
-                    // if (p.is_bot) continue;
-
                     auto part_status = db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)", {match_id, p.username});
                     if (!part_status) {
                         throw std::runtime_error(part_status.error().message);
@@ -360,7 +359,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     if (GetCurrentPlayerUsername() != username) return false;
 
-    // --- NEW: Draw Stacking Penalty Resolution ---
+    // Draw stacking penalty resolution
     if (state_.pending_draws > 0) {
         for (int draw_index = 0; draw_index < state_.pending_draws; ++draw_index) {
             if (state_.draw_pile.empty()) {
@@ -482,7 +481,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             }
         }
 
-        // Action 1: resolve any pending input (one response per call)
+        // INFO: Action 1: resolve any pending input (one response per call)
         if (IsWaitingForInput()) {
             if (state_.pending_action == Action::kPlayDrawn)
                 ProvideInput(state_.pending_player, "0");
@@ -497,7 +496,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             return;
         }
 
-        // Action 2: choose and play the best card (or draw)
+        // INFO: Action 2: choose and play the best card (or draw)
         Player* current_player = GetPlayer(bot_username);
 
         Type dominant_type = greatestType();
@@ -665,7 +664,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
         if (!state_.discard_pile.empty()) {
             CompactCard top = state_.discard_pile.back();
-            // Wild cards inherit active_type so the card visually shows the chosen type.
+            // INFO: Wild cards inherit active_type so the card visually shows
+            //       the chosen type.
             Type display_type = GetType(top);
             if (display_type == Type::kWild) display_type = state_.active_type;
             root["top_card"] = {

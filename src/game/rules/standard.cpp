@@ -17,9 +17,9 @@ namespace game {
             return;
         }
 
-        // NOTE: We check active_type since the top card might be a Wild.
-        //       since its inherent type is kWild and would return false,
-        //       we use the active_type which is whatever the player chose.
+        // INFO: We check active_type since the top card might be a Wild.
+        //       Since its inherent type is kWild and would return false, we
+        //       use the active_type which is whatever the player chose.
         if (played_type == state->active_type) {
             return; 
         }
