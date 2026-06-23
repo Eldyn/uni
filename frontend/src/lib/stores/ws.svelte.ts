@@ -17,36 +17,9 @@ export {
 } from "$lib/generated/schemas";
 
 import type { ClientPayloads, ServerActionType } from "$lib/generated/schemas";
+import { outgoingSchemas } from "$lib/generated/schemas";
 import { errorText } from "./errors";
 import { z } from "zod";
-import {
-	GamePlayCardMessageSchema,
-	GameSubmitInputMessageSchema,
-	LobbyCreateMessageSchema,
-	LobbyJoinMessageSchema,
-	LobbyRejoinMessageSchema,
-	LobbyPromoteMessageSchema,
-	LobbyKickMessageSchema,
-	LobbyUpdateSettingsMessageSchema,
-	LobbyDeleteSavedMatchMessageSchema,
-	LobbyResumeSavedMatchMessageSchema,
-	ChatSendMessageSchema
-} from "$lib/generated/schemas";
-
-/** Lookup map: action string → its outgoing message Zod schema. */
-const outgoingSchemas: Partial<Record<string, z.ZodTypeAny>> = {
-	game_play_card: GamePlayCardMessageSchema,
-	game_submit_input: GameSubmitInputMessageSchema,
-	lobby_create: LobbyCreateMessageSchema,
-	lobby_join: LobbyJoinMessageSchema,
-	lobby_rejoin: LobbyRejoinMessageSchema,
-	lobby_promote: LobbyPromoteMessageSchema,
-	lobby_kick: LobbyKickMessageSchema,
-	lobby_update_settings: LobbyUpdateSettingsMessageSchema,
-	lobby_delete_saved_match: LobbyDeleteSavedMatchMessageSchema,
-	lobby_resume_saved_match: LobbyResumeSavedMatchMessageSchema,
-	chat_send: ChatSendMessageSchema
-};
 
 /** Base schema for parsing incoming server frames. */
 const IncomingMessageSchema = z.looseObject({

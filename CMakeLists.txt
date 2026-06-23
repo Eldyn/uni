@@ -73,6 +73,24 @@ add_custom_command(
 )
 add_custom_target(gen_contract_hpp DEPENDS "${CONTRACT_HPP_OUT}")
 
+# --- WebSocket action constants (ws/actions.hpp) ---
+# Derives <ws/actions.hpp> (namespace ws::) from the channel publish/subscribe
+# lists in the AsyncAPI contract. Replaces the hand-maintained ClientAction
+# struct and ServerAction enum that previously lived in include/common/ws.hpp.
+# Source of truth: contract/asyncapi.yaml
+# Output:          ${CMAKE_BINARY_DIR}/generated/ws/actions.hpp
+set(WS_ACTIONS_HPP_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/generate_ws_hpp.py")
+set(WS_ACTIONS_HPP_OUT    "${CMAKE_BINARY_DIR}/generated/ws/actions.hpp")
+add_custom_command(
+    OUTPUT  "${WS_ACTIONS_HPP_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "-- Generating WebSocket action constants from asyncapi.yaml"
+    COMMAND "${Python3_EXECUTABLE}" "${WS_ACTIONS_HPP_SCRIPT}"
+            "${WS_CONTRACT_YAML}" "${WS_ACTIONS_HPP_OUT}"
+    DEPENDS "${WS_CONTRACT_YAML}" "${WS_ACTIONS_HPP_SCRIPT}"
+)
+add_custom_target(gen_ws_actions_hpp DEPENDS "${WS_ACTIONS_HPP_OUT}")
+
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libuv REQUIRED)
@@ -93,7 +111,7 @@ endif()
 target_compile_definitions(uni_server PRIVATE UNI_ENABLE_SSL=$<BOOL:${UNI_ENABLE_SSL}>)
 
 target_include_directories(uni_server PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
-add_dependencies(uni_server gen_ws_messages gen_contract_hpp)
+add_dependencies(uni_server gen_ws_messages gen_contract_hpp gen_ws_actions_hpp)
 
 # --- Linking ---
 target_link_libraries(uni_server PRIVATE 
@@ -188,7 +206,7 @@ if(UNI_BUILD_TESTS)
         SQLite::SQLite3
         ZLIB::ZLIB
     )
-    add_dependencies(uni_tests gen_ws_messages gen_contract_hpp)
+    add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp)
 
     add_test(NAME unit COMMAND uni_tests)
 endif()

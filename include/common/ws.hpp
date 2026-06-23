@@ -7,6 +7,7 @@
 #include <logger.hpp>
 #include <result.hpp>
 #include <websocket_context.hpp>
+#include <ws/actions.hpp>
 
 /**
  * @file ws.hpp
@@ -24,71 +25,6 @@
  */
 
 namespace ws {
-    /**
-     * @struct ClientAction
-     * @brief String constants for every action sent from Clients to the Server.
-     *
-     * Using a struct instead of an enum allows the constants to be used directly
-     * as std::string arguments without a separate lookup map.
-     * @tag WS-STR-001
-     */
-    struct ClientAction {
-        static constexpr const char* kLobbyStartMatch       = "lobby_start_match";
-        static constexpr const char* kLobbyList             = "lobby_list";
-        static constexpr const char* kLobbyCreate           = "lobby_create";
-        static constexpr const char* kLobbyRejoin           = "lobby_rejoin";
-        static constexpr const char* kLobbyJoin             = "lobby_join";
-        static constexpr const char* kLobbyLeave            = "lobby_leave";
-        static constexpr const char* kLobbyUpdateSettings   = "lobby_update_settings";
-        static constexpr const char* kLobbyDeleteSavedMatch = "lobby_delete_saved_match";
-        static constexpr const char* kLobbyListSavedMatches = "lobby_list_saved_matches";
-        static constexpr const char* kLobbyResumeSavedMatch = "lobby_resume_saved_match";
-        static constexpr const char* kLobbyPromote          = "lobby_promote";
-        static constexpr const char* kLobbyKick             = "lobby_kick";
-        static constexpr const char* kGameSubmitInput       = "game_submit_input";
-        static constexpr const char* kGamePlayCard          = "game_play_card";
-        static constexpr const char* kGameDrawCard          = "game_draw_card";
-        static constexpr const char* kGameCallUno           = "game_call_uno";
-        static constexpr const char* kGameExit              = "game_exit";
-        static constexpr const char* kChatSend              = "chat_send";
-
-        ClientAction() = delete;
-    };
-
-    /**
-     * @enum ServerAction
-     * @brief Actions sent from the Server to the connected Clients.
-     * @tag WS-ENUM-001
-     */
-    enum class ServerAction {
-        kSuccess,           /**< Generic success with arbitrary data attached. */
-        kError,             /**< Generic error containing a reason. */
-
-        kLobbyList,         /**< Sending the list of available public lobbies. */
-        kLobbyUpdated,      /**< Broadcast: the lobby state has changed. */
-        kLobbyJoined,       /**< Success: the recipient has joined the lobby. */
-        kLobbyLeft,         /**< Success: the recipient has left the lobby. */
-        kLobbyEvicted,      /**< Eviction: lobby closed because it has no human players. */
-
-        kGameStateUpdated,  /**< Broadcast: the state of the ongoing match has changed. */
-        kGameOver,          /**< Broadcast: the match has ended. */
-
-        kChatMessage,       /**< Broadcast: a new chat message. */
-    };
-
-    inline const std::unordered_map<ServerAction, std::string> kServerActionStr {
-        { ServerAction::kSuccess,          "success"            },
-        { ServerAction::kError,            "error"              },
-        { ServerAction::kLobbyList,        "lobby_list"         },
-        { ServerAction::kLobbyEvicted,     "lobby_evicted"      },
-        { ServerAction::kLobbyUpdated,     "lobby_updated"      },
-        { ServerAction::kLobbyJoined,      "lobby_joined"       },
-        { ServerAction::kLobbyLeft,        "lobby_left"         },
-        { ServerAction::kGameStateUpdated, "game_state_updated" },
-        { ServerAction::kGameOver,         "game_over"          },
-        { ServerAction::kChatMessage,      "chat_message"       },
-    };
-
     /**
      * @brief Extracts a mandatory field from a JSON payload, returning a monadic Result.
      * @tparam T Expected data type (e.g. int, std::string).
