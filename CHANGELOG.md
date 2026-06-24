@@ -9,6 +9,12 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-24
+
+### Fixed
+
+- Tooltips are now correctly rendered above the clipping space of their parent.
+
 ## [0.4.0] - 2026-06-24
 
 ### Changed
