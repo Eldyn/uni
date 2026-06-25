@@ -46,7 +46,7 @@
 		for (const type of CARD_TYPES) {
 			const key = `cards_played_${type}` as keyof typeof storeStats.myStats;
 
-			const count = (storeStats.myStats?.[key] as number) ?? 0;
+			const count = (storeStats.myStats?.[key] as unknown as number) ?? 0;
 
 			let color = "wild";
 			let value = type;
@@ -91,7 +91,7 @@
 				<div class="card-stat-box pixel-corners">
 					<div class="card-wrapper">
 						<GameCard
-							card={{ id: 0, color: stat.color as any, value: stat.value as any }}
+							card={{ id: 0, type: stat.color as any, value: stat.value as any }}
 							style="position: relative; left: 0;"
 						/>
 					</div>

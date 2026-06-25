@@ -6,6 +6,27 @@
 	import GameActions from "./GameActions.svelte";
 	import TintedSprite from "../common/TintedSprite.svelte";
 	import { storeGame } from "../../stores/game.svelte";
+	import AdInterstitial from "../common/AdInterstitial.svelte";
+
+	function shouldShowAd(isGuest: boolean): boolean {
+		if (isGuest) return true;
+		const n = parseInt(localStorage.getItem("uni_match_count") ?? "0") + 1;
+		localStorage.setItem("uni_match_count", String(n >= 3 ? "0" : String(n)));
+		return n >= 3;
+	}
+
+	let matchEnded = $state(false);
+	let showAd = $state(false);
+
+	$effect(() => {
+		if (storeGame.state?.is_over && !matchEnded) {
+			matchEnded = true;
+			showAd = shouldShowAd(false);
+		} else if (!storeGame.state?.is_over) {
+			matchEnded = false;
+			showAd = false;
+		}
+	});
 </script>
 
 <div class="game-screen">
@@ -18,13 +39,14 @@
 
 	<div class="bg-layer arrows-layout">
 		<TintedSprite
-			src="/assets/{storeGame.state?.play_direction > 0 ? 'cw.png' : 'ccw.png'}"
+			src="/assets/{(storeGame.state?.play_direction ?? 1) > 0 ? 'cw.png' : 'ccw.png'}"
 			color="var(--{storeGame.state?.active_type ?? 'white'})"
 		/>
 	</div>
 
 	<div class="ui-layer">
 		<GameOverPopup />
+		<AdInterstitial show={showAd} />
 
 		<div class="game-controls">
 			<GameHud />

@@ -153,7 +153,7 @@
 	<hr class="settings-divider" />
 
 	<EnumSelector
-		class="bot-mode"
+		extraClass="bot-mode"
 		label="Bot Mode"
 		description="Decide how bots play their turn"
 		value={settings.bot_mode}

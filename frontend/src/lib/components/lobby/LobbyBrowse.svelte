@@ -146,13 +146,7 @@
 		align-items: center;
 	}
 
-	.sidebar-form-title {
-		font-family: "FatPixel", sans-serif;
-		font-size: 15px;
-		color: var(--text-h);
-		margin: 0;
-		text-transform: uppercase;
-	}
+
 
 	.main-layout {
 		display: flex;

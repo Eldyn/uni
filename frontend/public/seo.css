@@ -4,21 +4,21 @@
 
 @font-face {
 	font-family: "FatPixel";
-	src: url("/fonts/fatpixel.woff2?v=2") format("woff2");
+	src: url("/fonts/fatpixel.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 }
 @font-face {
 	font-family: "Pixel";
-	src: url("/fonts/pixel.woff2?v=3") format("woff2");
+	src: url("/fonts/pixel.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 }
 @font-face {
-	font-family: "MonoPixel";
-	src: url("/fonts/monopixel.woff2?v=3") format("woff2");
+	font-family: "text";
+	src: url("/fonts/habbo.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -38,7 +38,8 @@
 	--greenCard: #018d41;
 
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
-	--body: "Pixel", "MonoPixel", system-ui, "Segoe UI", Roboto, sans-serif;
+	--body: "text", system-ui, "Segoe UI", Roboto, sans-serif;
+	--anchor: "Pixel", var(--body);
 
 	color-scheme: light dark;
 }
@@ -98,6 +99,11 @@ h2 {
 	padding-bottom: 0.3rem;
 }
 h3 {
+	font-family: var(--anchor);
+	font-size: 1.1rem;
+}
+h4 {
+	font-family: var(--anchor);
 	font-size: 1.1rem;
 }
 
@@ -120,6 +126,11 @@ ol {
 }
 li {
 	margin: 0.4rem 0;
+}
+
+strong {
+	font-family: var(--anchor);
+	font-size: 0.8rem;
 }
 
 /* Layout */
@@ -163,6 +174,7 @@ li {
 }
 .site-nav a {
 	color: var(--text);
+	font-family: var(--anchor);
 }
 .site-nav a:hover,
 .site-nav a[aria-current="page"] {

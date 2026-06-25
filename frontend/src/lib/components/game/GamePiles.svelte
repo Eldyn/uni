@@ -41,13 +41,13 @@
 		tabindex="0"
 	>
 		<GameCard
-			card={{ id: -1, color: "black", value: "" }}
+			card={{ id: -1, type: "wild", value: "0" }}
 			turned={true}
 			extraClass="top-card"
 			style="left: 0;"
 		/>
 		<GameCard
-			card={{ id: -1, color: "black", value: "" }}
+			card={{ id: -1, type: "wild", value: "0" }}
 			turned={true}
 			extraClass="pile"
 			style="left: 0;"
@@ -61,13 +61,13 @@
 			{/key}
 		{:else}
 			<GameCard
-				card={{ id: -1, color: gameColor, value: "" }}
+				card={{ id: -1, type: gameColor, value: "0" }}
 				extraClass="top-card"
 				style="left: 0;"
 			/>
 		{/if}
 		<GameCard
-			card={{ id: -1, color: "black", value: "" }}
+			card={{ id: -1, type: "wild", value: "0" }}
 			turned={true}
 			extraClass="pile"
 			style="left: 0;"

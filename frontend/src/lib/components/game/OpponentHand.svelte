@@ -97,7 +97,7 @@
 	>
 		{#each Array(cardCount) as _, n}
 			<GameCard
-				card={{ id: -1, color: "wild", value: "0" }}
+				card={{ id: -1, type: "wild", value: "0" }}
 				index={n}
 				turned={true}
 				attach={player ? bus.slotAttachment(`opp:${player.username}:${n}`) : undefined}

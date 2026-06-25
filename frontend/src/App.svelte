@@ -29,7 +29,7 @@
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
 
 	// 1. Variables for audio management
-	let volume = 0.05;
+	let volume = $state(0.05);
 	let audioPlayer: HTMLAudioElement;
 
 	let _audioInteractionHandler: (() => void) | null = null;
