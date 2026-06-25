@@ -127,7 +127,17 @@
 		<!-- FatPixel backs both the splash logo (the LCP element) and the in-app
 		     hero, so preload it. URL/query must match app.css's @font-face. -->
 		<link rel="preload" href="/fonts/fatpixel.woff2?v=2" as="font" type="font/woff2" crossorigin />
-	</head>
+	
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-DCRB2ENVJB"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-DCRB2ENVJB');
+  </script>
+</head>
 
 	<body>
 		<div id="app">
