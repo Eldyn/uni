@@ -6,7 +6,7 @@
 		tooltipContent: Snippet; // The floating item lore / text
 	}
 
-	let { children, tooltipContent } = $props<Props>();
+	let { children, tooltipContent }: Props = $props();
 
 	let isVisible = $state(false);
 	let mouseX = $state(0);
@@ -15,11 +15,17 @@
 	let shiftX = $state(0); // 0 = right of cursor, 1 = left of cursor
 	let shiftY = $state(0); // 0 = below cursor, 1 = above cursor
 
+	let tooltipWidth = $state(0);
+	let tooltipHeight = $state(0);
+
 	// INFO: clip-path on ancestor containers (e.g. .pixel-corners) clips position:fixed
-	// descendants. Moving the floating div to <body> escapes any clipped subtree while
-	// Svelte's scoped class keeps the <style> rules intact.
+	// descendants. Moving the floating div to the document body escapes any clipped subtree
+	// while Svelte's scoped class keeps the style rules intact.
+	// Measurement happens after appendChild so offsetWidth/offsetHeight reflect real layout.
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
+		tooltipWidth = node.offsetWidth;
+		tooltipHeight = node.offsetHeight;
 		return { destroy: () => node.remove() };
 	}
 
@@ -27,23 +33,8 @@
 		mouseX = e.clientX;
 		mouseY = e.clientY;
 
-		const windowWidth = window.innerWidth;
-		const windowHeight = window.innerHeight;
-
-		const safetyZoneX = 350;
-		const safetyZoneY = 200;
-
-		if (mouseX + safetyZoneX > windowWidth) {
-			shiftX = 1;
-		} else {
-			shiftX = 0;
-		}
-
-		if (mouseY + safetyZoneY > windowHeight) {
-			shiftY = 1;
-		} else {
-			shiftY = 0;
-		}
+		shiftX = mouseX + tooltipWidth > window.innerWidth ? 1 : 0;
+		shiftY = mouseY + tooltipHeight > window.innerHeight ? 1 : 0;
 	}
 </script>
 

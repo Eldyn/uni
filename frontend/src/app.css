@@ -10,7 +10,7 @@
 
 @font-face {
 	font-family: "FatPixel";
-	src: url("/fonts/fatpixel.woff2?v=2") format("woff2");
+	src: url("/fonts/fatpixel.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -18,7 +18,7 @@
 
 @font-face {
 	font-family: "MonoPixel";
-	src: url("/fonts/monopixel.woff2?v=3") format("woff2");
+	src: url("/fonts/monopixel.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -26,7 +26,25 @@
 
 @font-face {
 	font-family: "Pixel";
-	src: url("/fonts/pixel.woff2?v=3") format("woff2");
+	src: url("/fonts/pixel.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* Small-text pixel fonts (NB Pixel Font Bundle, Nimble Beasts Collective).
+   Habbo for compact UI labels, TinyUnicode for the tiniest QoL captions. */
+@font-face {
+	font-family: "Habbo";
+	src: url("/fonts/habbo.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "TinyUnicode";
+	src: url("/fonts/tinyunicode.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -77,6 +95,9 @@
 	--pixel: "Pixel", "MonoPixel", var(--sans);
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
 	--mono: "JetBrainsMono", ui-monospace, Consolas, monospace;
+	/* Compact pixel fonts for small UI labels / tiny captions. */
+	--tiny: "Habbo", var(--pixel);
+	--micro: "TinyUnicode", var(--pixel);
 
 	/* Card colours & shadows (theme-independent) */
 	--cardSize: 5em;
@@ -164,6 +185,8 @@
 	--font-heading: var(--heading);
 	--font-mono: var(--mono);
 	--font-sans: var(--sans);
+	--font-tiny: var(--tiny);
+	--font-micro: var(--micro);
 }
 
 @layer components {
@@ -258,7 +281,95 @@
 		box-shadow: var(--lowShadowHover);
 	}
 
+	/*
+	 * Pixel-notched corners WITH a border that follows the notch — one class, no
+	 * wrapper div, works with text or element content. Two clipped pseudos sit
+	 * behind the content (isolate keeps their negative z-index local): ::before
+	 * is the border colour (full box), ::after is the interior fill inset by the
+	 * border width, so the colour shows only as the notch-following ring. Where
+	 * the browser supports corner-shape it upgrades to a native border and drops
+	 * the clip + pseudos entirely.
+	 * Tunables (override on the element):
+	 *   --pc-border : border colour      (default --border)
+	 *   --pc-fill   : interior colour    (default --bg)
+	 *   --pc-width  : border thickness   (default 2px)
+	 * Keep --pc-fill opaque (a translucent fill lets the border colour bleed
+	 * through in the pseudo fallback). Don't add a bg-* utility — use --pc-fill.
+	 */
+	.pixel-bordered {
+		position: relative;
+		isolation: isolate;
+	}
+	.pixel-bordered::before,
+	.pixel-bordered::after {
+		content: "";
+		position: absolute;
+		transition: background-color 0.12s ease;
+		clip-path: polygon(
+			0 4px,
+			4px 4px,
+			4px 0,
+			calc(100% - 4px) 0,
+			calc(100% - 4px) 4px,
+			100% 4px,
+			100% calc(100% - 4px),
+			calc(100% - 4px) calc(100% - 4px),
+			calc(100% - 4px) 100%,
+			4px 100%,
+			4px calc(100% - 4px),
+			0 calc(100% - 4px)
+		);
+	}
+	.pixel-bordered::before {
+		inset: 0;
+		z-index: -2;
+		background: var(--pc-border, var(--border));
+	}
+	.pixel-bordered::after {
+		inset: var(--pc-width, 2px);
+		z-index: -1;
+		background: var(--pc-fill, var(--bg));
+	}
+
+	@supports (corner-shape: notch) {
+		.pixel-bordered {
+			isolation: auto;
+			background: var(--pc-fill, var(--bg));
+			border: var(--pc-width, 2px) solid var(--pc-border, var(--border));
+			border-radius: 4px;
+			corner-shape: notch;
+			transition: background-color 0.12s ease, border-color 0.12s ease;
+		}
+		.pixel-bordered::before,
+		.pixel-bordered::after {
+			content: none;
+		}
+	}
+
+	/* Optical centering for Nerd Font icon glyphs (JetBrains Mono MDI set): the
+	   icon ink sits ~0.065em high and ~0.05em right of its glyph box, so a
+	   uniform nudge re-centers it inside a fixed chip or against adjacent text.
+	   Lives in the components layer so responsive `hidden`/`inline` utilities
+	   still win over its default `display: inline-block`. */
+	.nf-icon {
+		display: inline-block;
+		transform: translate(-0.05em, 0.065em);
+	}
+
 	/* Modals */
+}
+
+/* HackerNoon Pixel Icon Library glyphs. Unlayered so it overrides the
+   library's own unlayered `.hn:before { vertical-align: top }`, which would
+   otherwise float the icon ink to the top of the line box; `middle` centres it
+   against adjacent text and inside fixed chips. Display lives here (not the
+   components layer) so responsive `hidden`/`inline-block` utilities still win. */
+.pix::before {
+	vertical-align: middle;
+}
+
+@layer components {
+	/* Modals (continued) */
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
@@ -266,8 +377,15 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(0, 0, 0, 0.75);
-		backdrop-filter: blur(4px);
+		/* Retro ordered-dither veil instead of a Gaussian blur: a 2px
+		   checkerboard of translucent black reads as pixel-art dithering and
+		   keeps the backdrop crisp. */
+		background-color: rgba(0, 0, 0, 0.55);
+		background-image: repeating-conic-gradient(
+			rgba(0, 0, 0, 0.5) 0% 25%,
+			transparent 0% 50%
+		);
+		background-size: 4px 4px;
 	}
 	.modal-content {
 		background: var(--bg);
@@ -334,7 +452,7 @@ svg {
 	shape-rendering: crispEdges;
 }
 
-button {
+button:not(.pixel-bordered) {
 	border-radius: 0 !important;
 	clip-path: polygon(
 		0 4px,

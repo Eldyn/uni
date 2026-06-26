@@ -26,60 +26,34 @@
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="join-form">
-	<div class="input-group">
-		<label for="invite-code">Invite Code:</label>
-		<input
-			id="invite-code"
-			type="text"
-			class="input-pixel input-dark uppercase"
-			bind:value={roomCodeInput}
-			placeholder="ABC123"
-			disabled={isLoading}
-			class:error={roomCodeError}
-			maxlength="6"
-		/>
+<form onsubmit={handleSubmit} class="flex flex-col gap-4">
+	<div class="flex flex-col gap-2">
+		<label for="invite-code" class="font-tiny text-sm uppercase text-text">Invite Code</label>
+		<div
+			class="pixel-bordered flex items-center px-3 py-2.5 [--pc-fill:var(--surface-deep)] focus-within:[--pc-border:var(--accent)] {roomCodeError
+				? '[--pc-border:var(--danger)]'
+				: ''}"
+		>
+			<input
+				id="invite-code"
+				type="text"
+				class="w-full min-w-0 bg-transparent font-pixel text-base uppercase tracking-[0.3em] text-text-h outline-none placeholder:tracking-normal placeholder:text-text/40"
+				bind:value={roomCodeInput}
+				placeholder="ABC123"
+				disabled={isLoading}
+				maxlength="6"
+			/>
+		</div>
 		{#if roomCodeError}
-			<span class="error-text">{roomCodeError}</span>
+			<span class="font-tiny text-xs uppercase text-danger">{roomCodeError}</span>
 		{/if}
 	</div>
 
-	<button type="submit" disabled={isLoading} class="btn pixel-corners submit-btn">
-		{isLoading ? "Joining..." : "JOIN LOBBY"}
+	<button
+		type="submit"
+		class="pixel-bordered px-5 py-3 font-pixel text-lg uppercase text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+		disabled={isLoading}
+	>
+		{isLoading ? "Joining…" : "Join Lobby"}
 	</button>
 </form>
-
-<style>
-	.join-form {
-		display: flex;
-		flex-direction: column;
-		gap: 25px;
-	}
-
-	.input-group {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	label {
-		font-family: "Pixel", sans-serif;
-		font-size: 14px;
-		color: var(--text-h);
-		text-transform: uppercase;
-	}
-
-	.error-text {
-		font-family: "Pixel", sans-serif;
-		font-size: 11px;
-		color: var(--danger);
-		margin-top: 4px;
-		text-transform: uppercase;
-	}
-
-	/* Size override on top of the shared flat .btn */
-	.submit-btn {
-		padding: 15px;
-		font-size: 20px;
-	}
-</style>
