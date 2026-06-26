@@ -8,6 +8,75 @@ bool DbRow::Has(const std::string& col) const {
     return data_.contains(col);
 }
 
+namespace {
+
+struct Migration {
+    int         version;
+    const char* sql;
+};
+
+static constexpr Migration MIGRATIONS[] = {
+    { 1, R"sql(
+        CREATE TABLE IF NOT EXISTS users (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            username  TEXT    NOT NULL UNIQUE,
+            pass_hash TEXT    NOT NULL,
+            salt      TEXT    NOT NULL,
+            email     TEXT    NOT NULL UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS matches (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            winner_username  TEXT    NOT NULL,
+            ended_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS match_participants (
+            match_id INTEGER NOT NULL,
+            username TEXT    NOT NULL,
+            FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE CASCADE,
+            PRIMARY KEY(match_id, username)
+        );
+        CREATE TABLE IF NOT EXISTS player_stats (
+            username          TEXT PRIMARY KEY,
+            total_wins        INTEGER DEFAULT 0,
+            total_losses      INTEGER DEFAULT 0,
+            cards_played_red     INTEGER DEFAULT 0,
+            cards_played_blue    INTEGER DEFAULT 0,
+            cards_played_green   INTEGER DEFAULT 0,
+            cards_played_yellow  INTEGER DEFAULT 0,
+            cards_played_0    INTEGER DEFAULT 0,
+            cards_played_1    INTEGER DEFAULT 0,
+            cards_played_2    INTEGER DEFAULT 0,
+            cards_played_3    INTEGER DEFAULT 0,
+            cards_played_4    INTEGER DEFAULT 0,
+            cards_played_5    INTEGER DEFAULT 0,
+            cards_played_6    INTEGER DEFAULT 0,
+            cards_played_7    INTEGER DEFAULT 0,
+            cards_played_8    INTEGER DEFAULT 0,
+            cards_played_9    INTEGER DEFAULT 0,
+            cards_played_skip        INTEGER DEFAULT 0,
+            cards_played_reverse     INTEGER DEFAULT 0,
+            cards_played_draw2       INTEGER DEFAULT 0,
+            cards_played_draw4       INTEGER DEFAULT 0,
+            cards_played_colorswitch INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS saved_matches (
+            id         TEXT PRIMARY KEY,
+            state_json TEXT     NOT NULL,
+            saved_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT (datetime('now', '+1 day'))
+        );
+        CREATE TABLE IF NOT EXISTS saved_match_participants (
+            match_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            FOREIGN KEY(match_id) REFERENCES saved_matches(id) ON DELETE CASCADE,
+            PRIMARY KEY(match_id, username)
+        );
+    )sql" },
+    { 2, "ALTER TABLE player_stats RENAME COLUMN cards_played_colorswitch TO cards_played_jolly;" },
+};
+
+} // namespace
+
 // Database implementation
 
 Database& Database::Get() {
@@ -150,4 +219,27 @@ Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbV
 
     sqlite3_finalize(stmt);
     return std::nullopt;
+}
+
+int Database::GetSchemaVersion() {
+    auto result = QueryOne("PRAGMA user_version;", {});
+    if (!result || !result.value()) return 0;
+    return result.value()->Get<int>("user_version");
+}
+
+VoidResult Database::SetSchemaVersion(int version) {
+    return ApplySchema(("PRAGMA user_version = " + std::to_string(version) + ";").c_str());
+}
+
+VoidResult Database::RunMigrations() {
+    int current = GetSchemaVersion();
+    for (const auto& m : MIGRATIONS) {
+        if (m.version <= current) continue;
+        TransactionGuard tx(*this);
+        if (auto r = ApplySchema(m.sql); !r) return r;
+        if (auto r = SetSchemaVersion(m.version); !r) return r;
+        tx.Commit();
+        Logger::Info("[DB] Migration v", m.version, " applied");
+    }
+    return {};
 }

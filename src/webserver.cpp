@@ -74,75 +74,10 @@ bool WebServer::InitDB() {
         return false;
     }
 
-    const char *schema = R"(
-        CREATE TABLE IF NOT EXISTS users (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            username   TEXT    NOT NULL UNIQUE,
-            pass_hash  TEXT    NOT NULL,
-            salt       TEXT    NOT NULL,
-            email      TEXT    NOT NULL UNIQUE
-        );
+    VoidResult migration_result = Database::Get().RunMigrations();
 
-        CREATE TABLE IF NOT EXISTS matches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            winner_username TEXT NOT NULL,
-            ended_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS match_participants (
-            match_id INTEGER NOT NULL,
-            username TEXT NOT NULL,
-            FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE CASCADE,
-            PRIMARY KEY(match_id, username)
-        );
-
-        CREATE TABLE IF NOT EXISTS player_stats (
-            username TEXT PRIMARY KEY,
-            total_wins INTEGER DEFAULT 0,
-            total_losses INTEGER DEFAULT 0,
-            
-            cards_played_red INTEGER DEFAULT 0,
-            cards_played_blue INTEGER DEFAULT 0,
-            cards_played_green INTEGER DEFAULT 0,
-            cards_played_yellow INTEGER DEFAULT 0,
-            cards_played_wild INTEGER DEFAULT 0, 
-            
-            cards_played_0 INTEGER DEFAULT 0,
-            cards_played_1 INTEGER DEFAULT 0,
-            cards_played_2 INTEGER DEFAULT 0,
-            cards_played_3 INTEGER DEFAULT 0,
-            cards_played_4 INTEGER DEFAULT 0,
-            cards_played_5 INTEGER DEFAULT 0,
-            cards_played_6 INTEGER DEFAULT 0,
-            cards_played_7 INTEGER DEFAULT 0,
-            cards_played_8 INTEGER DEFAULT 0,
-            cards_played_9 INTEGER DEFAULT 0,
-            cards_played_skip INTEGER DEFAULT 0,
-            cards_played_reverse INTEGER DEFAULT 0,
-            cards_played_draw2 INTEGER DEFAULT 0,
-            cards_played_draw4 INTEGER DEFAULT 0,
-            cards_played_colorswitch INTEGER DEFAULT 0
-        );
-
-        CREATE TABLE IF NOT EXISTS saved_matches (
-            id TEXT PRIMARY KEY,
-            state_json TEXT NOT NULL,
-            saved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            expires_at DATETIME DEFAULT (datetime('now', '+1 day'))
-        );
-
-        CREATE TABLE IF NOT EXISTS saved_match_participants (
-            match_id TEXT NOT NULL,
-            username TEXT NOT NULL,
-            FOREIGN KEY(match_id) REFERENCES saved_matches(id) ON DELETE CASCADE,
-            PRIMARY KEY(match_id, username)
-        );
-    )";
-
-    VoidResult schema_result = Database::Get().ApplySchema(schema);
-
-    if (!schema_result) {
-        Logger::Error("Schema failed: " + schema_result.error().message);
+    if (!migration_result) {
+        Logger::Error("Migration failed: " + migration_result.error().message);
         return false;
     }
 

@@ -154,6 +154,13 @@ public:
      */
     Result<std::optional<DbRow>>        QueryOne (const char* sql, std::vector<DbValue> params = {});
 
+    /**
+     * @brief Applies all pending schema migrations in version order.
+     * @return VoidResult Error if any migration or version update fails.
+     * @tag DB-MTH-009
+     */
+    VoidResult RunMigrations();
+
 private:
     Database()  = default;
     ~Database() { Close(); }
@@ -162,6 +169,8 @@ private:
 
     sqlite3* db_ = nullptr;
 
+    int        GetSchemaVersion();
+    VoidResult SetSchemaVersion(int version);
     sqlite3_stmt* Prepare(const char* sql, const std::vector<DbValue>& params);
     DbRow         ReadRow(sqlite3_stmt* stmt);
 };
