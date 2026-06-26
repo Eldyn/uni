@@ -1093,7 +1093,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bo
     if (member_it != lobby.members.end()) {
         if (member_it->is_connected && member_it->socket) {
             PerSocketData* sd = member_it->socket->getUserData();
-            if (sd) sd->lobby_code.clear();
+            if (sd) { sd->lobby_code.clear(); sd->lobby_id = 0; }
 
             string topic = "lobby_" + lobby.invite_code;
             broadcaster_.Unsubscribe(member_it->socket, topic);
