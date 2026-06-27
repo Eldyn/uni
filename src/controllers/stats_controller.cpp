@@ -19,7 +19,9 @@ StatsController::StatsController(HttpRouter& router) {
 
 void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
     std::string_view cookies = req->getHeader("cookie");
-    auto token = http::GetCookieValue(cookies, "auth_token");
+    // INFO: ws_token (SameSite=None) accepted for cross-origin embeds (e.g. itch.io)
+    auto token = http::GetCookieValue(cookies, "ws_token");
+    if (!token || token->empty()) token = http::GetCookieValue(cookies, "auth_token");
 
     if (!token) {
         res->writeStatus("401 Unauthorized")->end();
