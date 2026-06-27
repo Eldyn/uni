@@ -55,11 +55,11 @@
 
 			if (type in COLOR_HEX) {
 				color = type;
-				value = "";
+				value = "border";
 				textCol = COLOR_HEX[type];
 			} else if (type === "jolly" || type === "draw4") {
 				color = "white";
-				value = type === "draw4" ? "+4" : "jolly";
+				value = type === "draw4" ? "jolly_draw4" : "jolly";
 				label = type === "draw4" ? "JOLLY +4" : "JOLLY";
 				textCol = "var(--accent)";
 			} else if (type === "draw2") {
