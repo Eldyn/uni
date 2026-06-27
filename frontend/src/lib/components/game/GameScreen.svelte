@@ -17,6 +17,12 @@
 
 	let matchEnded = $state(false);
 	let showAd = $state(false);
+	let activeColor = $state('red');
+
+	$effect(() => {
+		const type = storeGame.state?.active_type;
+		if (type && type !== 'white') activeColor = type;
+	});
 
 	$effect(() => {
 		if (storeGame.state?.is_over && !matchEnded) {
@@ -33,14 +39,14 @@
 	<div class="bg-layer playmat-layout">
 		<TintedSprite
 			src="/assets/playmat.png"
-			color="var(--{storeGame.state?.active_type ?? 'white'})"
+			color="var(--{activeColor})"
 		/>
 	</div>
 
 	<div class="bg-layer arrows-layout">
 		<TintedSprite
 			src="/assets/{(storeGame.state?.play_direction ?? 1) > 0 ? 'cw.png' : 'ccw.png'}"
-			color="var(--{storeGame.state?.active_type ?? 'white'})"
+			color="var(--{activeColor})"
 		/>
 	</div>
 

@@ -303,6 +303,29 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         return;
     }
 
+    // If the game is waiting for action input (e.g. colour pick after a Jolly),
+    // always arm a timer regardless of bot mode — the pending player must respond
+    // within the turn time limit or a bot handles it for them.
+    if (active_lobby->match->IsWaitingForInput()) {
+        std::string pending = active_lobby->match->GetPendingPlayer();
+        auto end_time = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+        active_lobby->match->SetTurnEndTime(end_time);
+        uint32_t current_lobby_id = active_lobby->id;
+        SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
+            [this, current_lobby_id, pending]() {
+                Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
+                if (!verified_lobby || !verified_lobby->match) return;
+                if (!verified_lobby->match->IsWaitingForInput()) return;
+                if (verified_lobby->match->GetPendingPlayer() != pending) return;
+                Logger::Info("[MATCH] Action timeout for player: ", pending);
+                verified_lobby->match->TakeBotTurn();
+                OnTurnStarted(verified_lobby);
+                BroadcastMatchState(verified_lobby);
+            });
+        return;
+    }
+
     if (active_lobby->settings.bot_mode == BotTakeoverMode::kWaitUntilTurnEnd) {
         auto end_time = std::chrono::steady_clock::now() +
                         std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);

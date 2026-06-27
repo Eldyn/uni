@@ -172,6 +172,8 @@ class StoreGame {
 			const winner = data.winner;
 			this.state.is_over = true;
 			this.state.winner = winner as string;
+			this.actionRequired = null;
+			this.actionContext = null;
 
 			this.#clearTimer();
 		});
