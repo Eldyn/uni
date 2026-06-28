@@ -24,7 +24,7 @@ const ERROR_TEXT: Record<string, string> = {
 	[ErrorCode.NotInLobby]: "You're not in a lobby.",
 	[ErrorCode.AlreadyInLobby]: "You're already in a lobby.",
 	[ErrorCode.AlreadyMember]: "You're already a member of this lobby.",
-	[ErrorCode.LobbyNotFound]: "That lobby no longer exists.",
+	[ErrorCode.LobbyNotFound]: "This code has no lobby associated.",
 	[ErrorCode.LobbyFull]: "That lobby is full.",
 	[ErrorCode.LobbyExpired]: "That lobby has expired.",
 	[ErrorCode.NotHost]: "Only the host can do that.",
