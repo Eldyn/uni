@@ -22,7 +22,7 @@
 		</button>
 	{:else}
 		<div class="uno-button uno-button--called pixel-corners">
-			<span class="uno-glyph">󰄬</span>
+			<i class="hn pix hn-check-circle text-xl leading-none"></i>
 			UNO!
 		</div>
 	{/if}
@@ -52,12 +52,6 @@
 	.uno-button--called {
 		background: var(--success);
 		cursor: default;
-	}
-
-	.uno-glyph {
-		font-family: var(--mono);
-		font-size: 20px;
-		line-height: 1;
 	}
 
 	@keyframes pixel-jump {

@@ -31,7 +31,7 @@
 			{@const topPlayer = storeStats.leaderboard[0]}
 			<div class="top-player-card pixel-corners">
 				<div class="profile-section">
-					<h2><span class="crown-icon">󱟜</span> {topPlayer.username}</h2>
+					<h2><i class="hn pix hn-crown text-gold"></i> {topPlayer.username}</h2>
 					<span class="rank-badge pixel-corners">#1 In the world!</span>
 				</div>
 				<div class="stats-grid">
@@ -184,11 +184,6 @@
 		font-size: 1.8rem;
 		color: var(--accent);
 		text-shadow: 2px 2px 0px #000;
-	}
-
-	.crown-icon {
-		font-family: var(--mono);
-		color: var(--gold);
 	}
 
 	.rank-badge {

@@ -79,7 +79,7 @@
 <div class="stats-container">
 	<header class="top-bar">
 		<button class="btn pixel-corners" onclick={() => storeNavigation.back()}>
-			<span class="back-icon">󰁍</span> Back
+			<i class="hn pix hn-arrow-left"></i> Back
 		</button>
 		<h1>CARD ARSENAL</h1>
 		<div style="width: 80px;"></div>
@@ -141,10 +141,6 @@
 		color: var(--accent);
 		text-shadow: 2px 2px 0px #000;
 		font-family: "Pixel", sans-serif;
-	}
-
-	.back-icon {
-		font-family: var(--mono);
 	}
 
 	.content {

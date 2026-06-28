@@ -83,7 +83,7 @@
 		padding: 10px 12px;
 		border-radius: 4px;
 		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-		font-family: "JetBrainsMono", monospace;
+		font-family: var(--mono);
 		white-space: nowrap;
 	}
 </style>

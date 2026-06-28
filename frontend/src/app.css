@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
 @font-face {
-	font-family: "JetBrainsMono";
-	src: url("/fonts/JetBrainsMono.woff2") format("woff2");
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
 	font-family: "FatPixel";
 	src: url("/fonts/fatpixel.woff2") format("woff2");
 	font-weight: 400;
@@ -94,7 +86,8 @@
 	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
 	--pixel: "Pixel", "MonoPixel", var(--sans);
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
-	--mono: "JetBrainsMono", ui-monospace, Consolas, monospace;
+	--mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono",
+		"Liberation Mono", monospace;
 	/* Compact pixel fonts for small UI labels / tiny captions. */
 	--tiny: "Habbo", var(--pixel);
 	--micro: "TinyUnicode", var(--pixel);
@@ -344,16 +337,6 @@
 		.pixel-bordered::after {
 			content: none;
 		}
-	}
-
-	/* Optical centering for Nerd Font icon glyphs (JetBrains Mono MDI set): the
-	   icon ink sits ~0.065em high and ~0.05em right of its glyph box, so a
-	   uniform nudge re-centers it inside a fixed chip or against adjacent text.
-	   Lives in the components layer so responsive `hidden`/`inline` utilities
-	   still win over its default `display: inline-block`. */
-	.nf-icon {
-		display: inline-block;
-		transform: translate(-0.05em, 0.065em);
 	}
 
 	/* Modals */

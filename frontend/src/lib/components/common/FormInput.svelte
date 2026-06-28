@@ -36,7 +36,7 @@
 				disabled={rest.disabled}
 				aria-label={showPassword ? "Hide password" : "Show password"}
 			>
-				{showPassword ? "󰈈" : "󰈉"}
+				<i class="hn pix {showPassword ? 'hn-eye-cross' : 'hn-eye'}"></i>
 			</button>
 		</div>
 	{:else}
@@ -66,7 +66,6 @@
 		background: none;
 		border: none;
 		cursor: pointer;
-		font-family: var(--mono);
 		font-size: 18px;
 		padding: 4px 8px;
 		opacity: 0.6;

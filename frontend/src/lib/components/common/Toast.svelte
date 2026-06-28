@@ -6,15 +6,15 @@
 	{#each storeToast.items as toast (toast.id)}
 		<div class="toast toast-{toast.type} pixel-corners" role="alert">
 			<div class="toast-content">
-				<span class="toast-icon">
+				<span class="text-base shrink-0">
 					{#if toast.type === "success"}
-						󰄬
+						<i class="hn pix hn-check-circle"></i>
 					{:else if toast.type === "error"}
-						󰅖
+						<i class="hn pix hn-times-circle"></i>
 					{:else if toast.type === "warning"}
-						󰀪
+						<i class="hn pix hn-exclamation-triangle"></i>
 					{:else}
-						󰋽
+						<i class="hn pix hn-info-circle"></i>
 					{/if}
 				</span>
 				<span class="toast-message">{toast.message}</span>
@@ -95,13 +95,6 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-	}
-
-	.toast-icon {
-		font-family: var(--mono);
-		font-weight: bold;
-		font-size: 16px;
-		flex-shrink: 0;
 	}
 
 	.toast-message {

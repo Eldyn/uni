@@ -75,7 +75,7 @@
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
 				<button class="toggle-code-btn" onclick={() => (showInviteCode = !showInviteCode)}>
-					{showInviteCode ? "󰈉" : "󰈈"}
+					<i class="hn pix {showInviteCode ? 'hn-eye' : 'hn-eye-cross'}"></i>
 				</button>
 			</div>
 
@@ -122,15 +122,10 @@
 							<div class="member-details">
 								<div class="name-row">
 									{#if member.is_bot}
-										<span class="status-icon" style="color: lightblue"> 󱚣 </span>
-									{:else}
-										<span
-											class="status-icon"
-											class:on={member.is_connected}
-											class:off={!member.is_connected}
-										>
-											{member.is_connected ? "" : ""}
-										</span>
+										<i
+											class="hn pix hn-robot flex min-w-10 items-center justify-center text-[2rem]"
+											style="color: lightblue"
+										></i>
 									{/if}
 
 									<span class="member-name">{member.username}</span>
@@ -265,15 +260,6 @@
 		color: white;
 	}
 
-	.status-icon {
-		font-size: 2rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 40px;
-		font-family: var(--mono);
-	}
-
 	.header-controls {
 		display: flex;
 		align-items: center;
@@ -299,7 +285,6 @@
 		cursor: pointer;
 		color: white;
 		font-size: 1.5rem;
-		font-family: var(--mono);
 		display: flex;
 		align-items: center;
 		line-height: 1;
