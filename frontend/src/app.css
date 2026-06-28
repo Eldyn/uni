@@ -2,15 +2,7 @@
 
 @font-face {
 	font-family: "FatPixel";
-	src: url("/fonts/fatpixel.woff2") format("woff2");
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: "MonoPixel";
-	src: url("/fonts/monopixel.woff2") format("woff2");
+	src: url("/fonts/fatpixel.woff2?v=11") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -18,7 +10,7 @@
 
 @font-face {
 	font-family: "Pixel";
-	src: url("/fonts/pixel.woff2") format("woff2");
+	src: url("/fonts/pixel.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -28,7 +20,7 @@
    Habbo for compact UI labels, TinyUnicode for the tiniest QoL captions. */
 @font-face {
 	font-family: "Habbo";
-	src: url("/fonts/habbo.woff2") format("woff2");
+	src: url("/fonts/habbo.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -36,7 +28,7 @@
 
 @font-face {
 	font-family: "TinyUnicode";
-	src: url("/fonts/tinyunicode.woff2") format("woff2");
+	src: url("/fonts/tinyunicode.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -84,7 +76,7 @@
 
 	/* Fonts */
 	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
-	--pixel: "Pixel", "MonoPixel", var(--sans);
+	--pixel: "Pixel", var(--sans);
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
 	--mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono",
 		"Liberation Mono", monospace;
@@ -331,7 +323,9 @@
 			border: var(--pc-width, 2px) solid var(--pc-border, var(--border));
 			border-radius: 4px;
 			corner-shape: notch;
-			transition: background-color 0.12s ease, border-color 0.12s ease;
+			transition:
+				background-color 0.12s ease,
+				border-color 0.12s ease;
 		}
 		.pixel-bordered::before,
 		.pixel-bordered::after {
@@ -364,10 +358,7 @@
 		   checkerboard of translucent black reads as pixel-art dithering and
 		   keeps the backdrop crisp. */
 		background-color: rgba(0, 0, 0, 0.55);
-		background-image: repeating-conic-gradient(
-			rgba(0, 0, 0, 0.5) 0% 25%,
-			transparent 0% 50%
-		);
+		background-image: repeating-conic-gradient(rgba(0, 0, 0, 0.5) 0% 25%, transparent 0% 50%);
 		background-size: 4px 4px;
 	}
 	.modal-content {
@@ -405,10 +396,6 @@
 			0 calc(100% - 4px)
 		);
 	}
-}
-
-mono {
-	font-family: "MonoPixel";
 }
 
 /* Social icons are light glyphs — invert them onto the dark base theme,
