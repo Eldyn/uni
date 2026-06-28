@@ -485,7 +485,7 @@
 									{/if}
 								</div>
 								<span
-									class="pixel-bordered flex items-center gap-1.5 px-2 py-0.5 font-tiny text-xs text-text-h [--pc-fill:var(--surface-deep)] [--pc-width:1px]"
+									class="pixel-bordered flex items-center gap-1.5 px-2 py-0.5 font-micro text-xs text-text-h [--pc-fill:var(--surface-deep)] [--pc-width:1px]"
 									title="Deck: {lobby.deck}"
 								>
 									<i class="hn pix hn-credit-card text-xs text-accent"></i>{lobby.deck}

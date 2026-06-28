@@ -21,6 +21,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **Icons migrated to HackerNoon Pixel Icon Library**: The remaining JetBrains Mono Nerd Font (MDI) glyphs across `GameUnoButton`, `FormInput`, `Toast`, `StatsScreen`, `DetailedStatsScreen`, `LobbyScreen`, and `LobbySettings` are now rendered as `<i class="hn pix hn-…">` pixel icons, matching the convention already used in the lobby browse UI.
 - **`--mono` font stack**: Dropped the bundled `JetBrainsMono.woff2` (and its `@font-face`) now that it no longer provides icon glyphs. `--mono` resolves to a standard cross-platform monospace stack (`ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace`).
+- **Webfont cleanup**: Removed the unused `MonoPixel` webfont and the `mono` element rule that referenced it. Pixel webfont URLs now carry `?v=` cache-busting query strings so updated glyph files reach returning players.
 
 ### Removed
 
