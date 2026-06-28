@@ -42,7 +42,7 @@
 					class="btn menu-btn btn-wide pixel-corners"
 					onclick={() => storeNavigation.goto("lobbies")}
 				>
-					Entra in Stanza
+					Browse Lobbies
 				</button>
 				<div class="secondary-buttons">
 					<button class="btn menu-btn pixel-corners" onclick={() => storeNavigation.goto("stats")}>
