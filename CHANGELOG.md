@@ -42,6 +42,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 ### Removed
 
 - **Lobby connection-status icon**: The per-player connected/disconnected glyph is gone; disconnection will be conveyed by morphing the player's avatar instead. The dead `.nf-icon` optical-centering rule was also removed.
+- **Unused assets**: Deleted the Vite starter assets (`hero.png`, `svelte.svg`, `vite.svg`) and the unreferenced `icons.svg` social sprite.
 
 ## [0.4.6] - 2026-06-28
 
