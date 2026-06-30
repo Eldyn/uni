@@ -18,8 +18,24 @@ eligible for copyright protection.
 
 ### Fonts
 
-- **SNKRX font** — from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex,
+- **FatPixel font** (BigBoldPixel) — from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex
+  ([direct TTF](https://github.com/a327ex/SNKRX/blob/master/assets/fonts/FatPixelFont.ttf)),
   licensed under the MIT License (full text below).
+
+- **PixulBrush font** — by Mercyssh (<https://mercyssh.itch.io/pixulbrush-a-bitmap-font>).
+  Free for commercial use with accreditation.
+
+- **Monogram** — by datagoblin (<https://datagoblin.itch.io/monogram>).
+
+- **PyPx Fonts** — by Pyrious (<https://pyrious.itch.io/pypx-fonts>).
+
+- **Habbo** — by Omni.
+
+- **TinyUnicode** — by DuffsDevice.
+
+### Icons
+
+- **Social Connect Icons Pack** — by lunggolfs (<https://lunggolfs.itch.io/social-connect-icons-pack>).
 
 
 ### Backgrounds
