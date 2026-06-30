@@ -34,6 +34,48 @@
 	font-display: swap;
 }
 
+/* Monogram (normal + italic) and Pypx (regular/bold/thick) — one family each,
+   the browser fetches only the weight/style actually rendered. */
+@font-face {
+	font-family: "Monogram";
+	src: url("/fonts/monogram.woff2?v=10") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Monogram";
+	src: url("/fonts/monogram-italic.woff2?v=10") format("woff2");
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Pypx";
+	src: url("/fonts/pypx.woff2?v=10") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Pypx";
+	src: url("/fonts/pypx-bold.woff2?v=10") format("woff2");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Pypx";
+	src: url("/fonts/pypx-thick.woff2?v=10") format("woff2");
+	font-weight: 800;
+	font-style: normal;
+	font-display: swap;
+}
+
 /*
  * Dark is the primary theme — its values live in :root.
  * Light is the secondary theme, applied via the prefers-color-scheme: light
@@ -78,11 +120,13 @@
 	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
 	--pixel: "Pixel", var(--sans);
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
-	--mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono",
-		"Liberation Mono", monospace;
+	--mono:
+		ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
 	/* Compact pixel fonts for small UI labels / tiny captions. */
 	--tiny: "Habbo", var(--pixel);
 	--micro: "TinyUnicode", var(--pixel);
+	--monogram: "Monogram", var(--pixel);
+	--pypx: "Pypx", var(--pixel);
 
 	/* Card colours & shadows (theme-independent) */
 	--cardSize: 5em;
@@ -172,6 +216,8 @@
 	--font-sans: var(--sans);
 	--font-tiny: var(--tiny);
 	--font-micro: var(--micro);
+	--font-monogram: var(--monogram);
+	--font-pypx: var(--pypx);
 }
 
 @layer components {

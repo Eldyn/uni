@@ -144,7 +144,7 @@
 		left: 12px;
 		font-size: 0.65rem;
 		color: #888;
-		z-index: 5;
+		z-index: 15;
 		pointer-events: none;
 		user-select: none;
 	}
