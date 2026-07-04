@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url>
-  <loc>https://unii.duckdns.org/</loc>
+  <loc>https://playuni.app/</loc>
   <lastmod>2026-06-23T18:32:08+00:00</lastmod>
   <changefreq>monthly</changefreq>
   <priority>1.00</priority>
 </url>
 <url>
-  <loc>https://unii.duckdns.org/how-to-play.html</loc>
+  <loc>https://playuni.app/how-to-play.html</loc>
   <lastmod>2026-06-23T18:32:08+00:00</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
-  <loc>https://unii.duckdns.org/faq.html</loc>
+  <loc>https://playuni.app/faq.html</loc>
   <lastmod>2026-06-23T18:32:08+00:00</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
-  <loc>https://unii.duckdns.org/about.html</loc>
+  <loc>https://playuni.app/about.html</loc>
   <lastmod>2026-06-23T18:32:08+00:00</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
-  <loc>https://unii.duckdns.org/changelog.html</loc>
+  <loc>https://playuni.app/changelog.html</loc>
   <lastmod>2026-06-24T00:00:00+00:00</lastmod>
   <changefreq>weekly</changefreq>
   <priority>0.70</priority>

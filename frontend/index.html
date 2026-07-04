@@ -18,7 +18,11 @@
 		<!-- Google meta -->
 		<meta name="google-adsense-account" content="ca-pub-7899204097948216" />
 		<meta name="google-site-verification" content="pi5b9DDctNKSXtVT0-SsWRSCD_qtU-P-6EtLow_a5Rg" />
-		<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7899204097948216" crossorigin="anonymous"></script>
+		<script
+			async
+			src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7899204097948216"
+			crossorigin="anonymous"
+		></script>
 
 		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -30,7 +34,7 @@
 			content="Play a UNO®-style card game online. UNI! is a free multiplayer card game. Play with friends in real time, up to 4 players."
 		/>
 		<meta name="robots" content="index, follow" />
-		<link rel="canonical" href="https://unii.duckdns.org/" />
+		<link rel="canonical" href="https://playuni.app/" />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<meta name="theme-color" content="#aa3bff" />
 
@@ -91,8 +95,8 @@
 			content="Free online multiplayer card game. Play with friends in real time, up to 4 players."
 		/>
 		<meta property="og:type" content="website" />
-		<meta property="og:url" content="https://unii.duckdns.org" />
-		<meta property="og:image" content="https://unii.duckdns.org/assets/link_image.png" />
+		<meta property="og:url" content="https://playuni.app" />
+		<meta property="og:image" content="https://playuni.app/assets/link_image.png" />
 		<meta property="og:image:width" content="1200" />
 		<meta property="og:image:height" content="630" />
 
@@ -103,7 +107,7 @@
 			name="twitter:description"
 			content="Free online multiplayer card game. Play with friends in real time, up to 4 players."
 		/>
-		<meta name="twitter:image" content="https://unii.duckdns.org/assets/link_image.png" />
+		<meta name="twitter:image" content="https://playuni.app/assets/link_image.png" />
 
 		<!-- Structured data -->
 		<script type="application/ld+json">
@@ -111,7 +115,7 @@
 				"@context": "https://schema.org",
 				"@type": "WebApplication",
 				"name": "UNI!",
-				"url": "https://unii.duckdns.org",
+				"url": "https://playuni.app",
 				"description": "Free online multiplayer card game for up to 4 players.",
 				"applicationCategory": "Game",
 				"operatingSystem": "Web"
@@ -127,17 +131,19 @@
 		<!-- FatPixel backs both the splash logo (the LCP element) and the in-app
 		     hero, so preload it. URL/query must match app.css's @font-face. -->
 		<link rel="preload" href="/fonts/fatpixel.woff2?v=2" as="font" type="font/woff2" crossorigin />
-	
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-DCRB2ENVJB"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
 
-    gtag('config', 'G-DCRB2ENVJB', { cookie_domain: 'unii.duckdns.org' });
-  </script>
-</head>
+		<!-- Google tag (gtag.js) -->
+		<script async src="https://www.googletagmanager.com/gtag/js?id=G-DCRB2ENVJB"></script>
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag() {
+				dataLayer.push(arguments);
+			}
+			gtag("js", new Date());
+
+			gtag("config", "G-DCRB2ENVJB", { cookie_domain: "playuni.app" });
+		</script>
+	</head>
 
 	<body>
 		<div id="app">
@@ -147,30 +153,47 @@
 			     mounts, so the running app never stacks on top of it. -->
 			<div id="seo-splash">
 				<h1>Play a UNO&reg;-style card game online</h1>
-				<p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 1rem;">UNO&reg; is a registered trademark of Mattel. UNI is similar to UNO but not affiliated or endorsed.</p>
+				<p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 1rem">
+					UNO&reg; is a registered trademark of Mattel. UNI is similar to UNO but not affiliated or
+					endorsed.
+				</p>
 				<p>
 					UNI! is a free, open-source online multiplayer card game. Play in your browser with up to
 					4 players in real time — a fast, friendly take on the classic colour-and-number card game
 					genre.
 				</p>
-				<div style="display: flex; gap: 2rem; text-align: left; margin: 2rem 0; background: #222; padding: 1.5rem; border-radius: 8px; flex-wrap: wrap; justify-content: center; max-width: 800px;">
-					<div style="flex: 1; min-width: 250px;">
-						<h3 style="color: #c084fc; margin-top: 0;">UNI vs. UNO (what's similar)</h3>
-						<ul style="margin: 0; padding-left: 1rem; color: #cbd5e1; line-height: 1.5;">
+				<div
+					style="
+						display: flex;
+						gap: 2rem;
+						text-align: left;
+						margin: 2rem 0;
+						background: #222;
+						padding: 1.5rem;
+						border-radius: 8px;
+						flex-wrap: wrap;
+						justify-content: center;
+						max-width: 800px;
+					"
+				>
+					<div style="flex: 1; min-width: 250px">
+						<h3 style="color: #c084fc; margin-top: 0">UNI vs. UNO (what's similar)</h3>
+						<ul style="margin: 0; padding-left: 1rem; color: #cbd5e1; line-height: 1.5">
 							<li>Match cards by colour or number</li>
 							<li>Familiar action cards (Skip, Reverse, Draw Two)</li>
 							<li>Round ends when your hand is empty</li>
 						</ul>
 					</div>
-					<div style="flex: 1; min-width: 250px;">
-						<h3 style="color: #c084fc; margin-top: 0;">What's different (The Hook)</h3>
-						<ul style="margin: 0; padding-left: 1rem; color: #cbd5e1; line-height: 1.5;">
+					<div style="flex: 1; min-width: 250px">
+						<h3 style="color: #c084fc; margin-top: 0">What's different (The Hook)</h3>
+						<ul style="margin: 0; padding-left: 1rem; color: #cbd5e1; line-height: 1.5">
 							<li>Crazy UNI-specific cards and chaotic mechanics</li>
 							<li>Build and create your own deck to play with friends</li>
 							<li>Play with your favorite custom rules</li>
 						</ul>
-						<p style="margin-top: 1rem; font-style: italic; color: #94a3b8; font-size: 0.9rem;">
-							"It feels as if someone played modded Minecraft or Risk of Rain 2, and chugged down all of the mods existing."
+						<p style="margin-top: 1rem; font-style: italic; color: #94a3b8; font-size: 0.9rem">
+							"It feels as if someone played modded Minecraft or Risk of Rain 2, and chugged down
+							all of the mods existing."
 						</p>
 					</div>
 				</div>
