@@ -24,7 +24,7 @@
 
 	// The server pushes lobby updates only to lobby members, so the browse
 	// list has to poll to see new, closed or started lobbies.
-	const LIST_POLL_MS = 10000;
+	const LIST_POLL_MS = 8000;
 
 	onMount(() => {
 		storeLobby.fetchList();
