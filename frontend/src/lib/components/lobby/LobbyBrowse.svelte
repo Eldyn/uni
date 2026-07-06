@@ -5,6 +5,7 @@
 	// happens once the enriched projection ships. Glyphs are placeholders for   //
 	// real rule/deck icon art.                                                  //
 
+	import Modal from "../common/Modal.svelte";
 	import TintedSprite from "../common/TintedSprite.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
 	import LobbyJoinForm from "./LobbyJoinForm.svelte";
@@ -557,17 +558,17 @@
 
 <!-- Advanced search modal (darkening overlay, LobbySettings-style) --------- -->
 {#if advancedOpen}
-	<div class="modal-overlay" onclick={() => (advancedOpen = false)} role="presentation">
-		<div
-			class="modal-content pixel-corners flex max-h-[85vh] w-[680px] max-w-[92vw] flex-col gap-6 overflow-y-auto"
-			onclick={(e) => e.stopPropagation()}
-			role="presentation"
-		>
+	<Modal
+		bind:open={advancedOpen}
+		titleId="adv-search-title"
+		contentClass="pixel-corners flex max-h-[85vh] w-[680px] max-w-[92vw] flex-col gap-6 overflow-y-auto"
+	>
 			<div class="flex items-center justify-between">
-				<h2 class="m-0 font-heading text-2xl text-text-h">Advanced Search</h2>
+				<h2 id="adv-search-title" class="m-0 font-heading text-2xl text-text-h">Advanced Search</h2>
 				<button
 					class="text-2xl text-text hover:text-text-h"
 					title="Close"
+					aria-label="Close"
 					onclick={() => (advancedOpen = false)}><i class="hn pix hn-times"></i></button
 				>
 			</div>
@@ -686,21 +687,20 @@
 					onclick={() => (advancedOpen = false)}>Show {visible.length} lobbies</button
 				>
 			</div>
-		</div>
-	</div>
+	</Modal>
 {/if}
 
 <!-- Create / Join modal: two columns side-by-side on tablet+, stacked on phones -->
 {#if createOpen}
-	<div class="modal-overlay" onclick={() => (createOpen = false)} role="presentation">
-		<div
-			class="modal-content pixel-corners relative flex max-h-[90vh] w-full max-w-[44rem] flex-col overflow-y-auto p-5 sm:p-7.5"
-			onclick={(e) => e.stopPropagation()}
-			role="presentation"
-		>
+	<Modal
+		bind:open={createOpen}
+		ariaLabel="Create or join a lobby"
+		contentClass="pixel-corners relative flex max-h-[90vh] w-full max-w-[44rem] flex-col overflow-y-auto p-5 sm:p-7.5"
+	>
 			<button
 				class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
 				title="Close"
+				aria-label="Close"
 				onclick={() => (createOpen = false)}><i class="hn pix hn-times"></i></button
 			>
 
@@ -718,6 +718,5 @@
 					<LobbyJoinForm />
 				</section>
 			</div>
-		</div>
-	</div>
+	</Modal>
 {/if}

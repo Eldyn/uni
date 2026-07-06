@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Modal from "$lib/components/common/Modal.svelte";
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import { storeGame } from "../../../stores/game.svelte";
 
@@ -21,29 +22,27 @@
 	);
 </script>
 
-<div class="modal-overlay">
-	<div class="modal-content victory-content pixel-corners">
-		<h1 class="result {isMe ? 'result--win' : 'result--lose'}">
-			{isMe ? "VICTORY!" : "YOU LOST!"}
-		</h1>
+<Modal open={true} dismissible={false} titleId="victory-title" contentClass="victory-content pixel-corners">
+	<h1 id="victory-title" class="result {isMe ? 'result--win' : 'result--lose'}">
+		{isMe ? "VICTORY!" : "YOU LOST!"}
+	</h1>
 
-		<div class="avatar-stage">
-			<div class="avatar-glow"></div>
-			<div class="avatar-frame">
-				<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" />
-				<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
-			</div>
+	<div class="avatar-stage">
+		<div class="avatar-glow"></div>
+		<div class="avatar-frame">
+			<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" />
+			<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
 		</div>
-
-		<p class="winner-line">
-			Winner: <span class="winner-name">{winnerName}</span>
-		</p>
-
-		<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
-			Back to Lobby
-		</button>
 	</div>
-</div>
+
+	<p class="winner-line">
+		Winner: <span class="winner-name">{winnerName}</span>
+	</p>
+
+	<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
+		Back to Lobby
+	</button>
+</Modal>
 
 <style>
 	@keyframes slideDown {
@@ -57,7 +56,7 @@
 		}
 	}
 
-	.victory-content {
+	:global(.victory-content) {
 		text-align: center;
 		color: var(--text-h);
 		max-width: max-content;

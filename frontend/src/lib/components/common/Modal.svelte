@@ -5,6 +5,7 @@
 		open = $bindable(false),
 		onclose,
 		titleId,
+		ariaLabel,
 		overlayClass = "",
 		contentClass = "",
 		dismissible = true,
@@ -13,6 +14,7 @@
 		open?: boolean;
 		onclose?: () => void;
 		titleId?: string;
+		ariaLabel?: string;
 		overlayClass?: string;
 		contentClass?: string;
 		dismissible?: boolean;
@@ -87,6 +89,7 @@
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby={titleId}
+			aria-label={titleId ? undefined : ariaLabel}
 			tabindex="-1"
 			bind:this={contentEl}
 			onclick={(e) => e.stopPropagation()}
