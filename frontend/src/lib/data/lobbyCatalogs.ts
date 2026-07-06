@@ -8,16 +8,15 @@
 
 import type { RuleDefinition } from "$lib/stores/catalog.svelte";
 
-/** Icon class per rule id. Unknown ids fall back to DEFAULT_RULE_ICON. */
+/** Icon class per rule id (backend RuleRegistrar names). Unknown ids fall
+ *  back to DEFAULT_RULE_ICON. */
 export const RULE_ICONS: Record<string, string> = {
-	stacking: "hn-viewblocks",
+	draw_stacking: "hn-viewblocks",
 	seven_zero: "hn-shuffle",
 	jump_in: "hn-login",
-	force_draw: "hn-download",
-	reverse_chain: "hn-refresh",
-	no_mercy: "hn-hockey-mask",
-	speed: "hn-bolt",
-	skip_bonus: "hn-user-minus"
+	force_play: "hn-download",
+	no_bluffing: "hn-hockey-mask",
+	progressive: "hn-bolt"
 };
 
 export const DEFAULT_RULE_ICON = "hn-star";

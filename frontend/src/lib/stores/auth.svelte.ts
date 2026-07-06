@@ -38,6 +38,8 @@ class StoreAuth {
 	avatar = $state("");
 	/** Flag indicating whether the user holds a valid session. */
 	isLoggedIn = $state(false);
+	/** True when playing with an ephemeral guest session (no account). */
+	isGuest = $state(false);
 	/** Flag to show the loading indicators (spinners) during HTTP calls. */
 	isLoading = $state(false);
 
@@ -202,6 +204,35 @@ class StoreAuth {
 	}
 
 	/**
+	 * @brief Starts (or reuses) an ephemeral guest session.
+	 * The server issues a generated display name and the ws_token cookie
+	 * needed for the WebSocket upgrade; no account is created.
+	 * @returns True when a guest session is active.
+	 */
+	async loginAsGuest(): Promise<boolean> {
+		if (this.isGuest && this.username) return true;
+
+		this.isLoading = true;
+		try {
+			const res = await fetch("/auth/guest", { method: "POST", credentials: "include" });
+			if (!res.ok) {
+				storeToast.error("Could not start a guest session — please try again.");
+				return false;
+			}
+			const data = await res.json();
+			this.username = data.username;
+			this.isGuest = true;
+			storeAnalytics.track("guest_session");
+			return true;
+		} catch {
+			storeToast.error("Network error — check your connection.");
+			return false;
+		} finally {
+			this.isLoading = false;
+		}
+	}
+
+	/**
 	 * @brief Updates the avatar locally (e.g. Blob URL).
 	 * @param file The selected image file.
 	 * @returns True if the URL was created successfully.
@@ -237,12 +268,14 @@ class StoreAuth {
 		this.username = username;
 		this.avatar = avatar;
 		this.isLoggedIn = true;
+		this.isGuest = false;
 	}
 
 	#setLoggedOut(): void {
 		this.username = "";
 		this.avatar = "";
 		this.isLoggedIn = false;
+		this.isGuest = false;
 	}
 }
 

@@ -5,6 +5,10 @@
 
 	let logoutPending = $state(false);
 
+	async function playAsGuest() {
+		if (await storeAuth.loginAsGuest()) storeNavigation.goto("lobbies");
+	}
+
 	async function handleLogout() {
 		if (logoutPending) return;
 		logoutPending = true;
@@ -114,9 +118,10 @@
 				</p>
 				<button
 					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
-					onclick={() => storeNavigation.goto("lobbies")}
+					disabled={storeAuth.isLoading}
+					onclick={playAsGuest}
 				>
-					Play as Guest
+					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
 				</button>
 			{:else}
 				<!-- Logged-in: primary CTA -->
