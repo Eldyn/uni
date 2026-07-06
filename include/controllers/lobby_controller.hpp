@@ -199,6 +199,11 @@ private:
 
     /**
      * @brief Handles the request for the list of active public lobbies.
+     * Includes a derived `status` ("open"|"in-game"|"full"), the lobby's
+     * `active_mods` and `allow_bot_takeover` so the client can filter/sort
+     * without a dedicated query-param wire protocol.
+     * @todo If browse filtering grows further (server-side query params,
+     *       pagination), extract this into its own LobbyBrowseController.
      * @param ctx WebSocket context of the request.
      * @param msg Associated JSON payload.
      * @tag LOBBY-ACT-005

@@ -648,13 +648,19 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
         });
 
         if (!any_connected) continue;
-        if (humans >= kMaxMembers) continue;
-       
+
+        string status = lobby.match != nullptr ? "in-game"
+                       : humans >= kMaxMembers   ? "full"
+                       : "open";
+
         list.push_back({
             {"name", lobby.name},
             {"member_count", humans},
-            {"bot_count", lobby.members.size()}, 
-            {"invite_code", lobby.invite_code}
+            {"bot_count", lobby.members.size() - humans},
+            {"invite_code", lobby.invite_code},
+            {"status", status},
+            {"active_mods", lobby.settings.active_mods},
+            {"allow_bot_takeover", lobby.settings.allow_bot_takeover}
         });
     }
 

@@ -122,28 +122,34 @@ components:
             type: array
             items:
               type: object
-              required: [invite_code, host, members, settings, name]
+              required:
+                [
+                  name,
+                  member_count,
+                  bot_count,
+                  invite_code,
+                  status,
+                  active_mods,
+                  allow_bot_takeover
+                ]
               properties:
-                invite_code:
-                  $ref: "#/components/schemas/LobbyCode"
-                host:
-                  $ref: "#/components/schemas/Username"
                 name:
                   $ref: "#/components/schemas/LobbyName"
-                members:
+                member_count:
+                  type: integer
+                bot_count:
+                  type: integer
+                invite_code:
+                  $ref: "#/components/schemas/LobbyCode"
+                status:
+                  type: string
+                  enum: ["open", "in-game", "full"]
+                active_mods:
                   type: array
-                  maxItems: 4
-                  x-constants: { maxItems: MaxLobbyMembers }
                   items:
-                    type: object
-                    required: [username, is_bot]
-                    properties:
-                      username:
-                        $ref: "#/components/schemas/Username"
-                      is_bot:
-                        type: boolean
-                settings:
-                  type: object
+                    type: string
+                allow_bot_takeover:
+                  type: boolean
 
     LobbyJoined:
       name: lobby_joined
