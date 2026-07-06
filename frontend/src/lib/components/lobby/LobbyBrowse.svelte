@@ -1,11 +1,9 @@
 <script lang="ts">
-	// INFO: This is a VISUAL MOCK of the redesigned browse screen.            //
-	// The backend list projection does not yet carry rules/deck/status, so the //
-	// cards are fed from local MOCK_LOBBIES. Wiring to storeLobby.available     //
-	// happens once the enriched projection ships. Glyphs are placeholders for   //
-	// real rule/deck icon art.                                                  //
+	// INFO: Deck filtering/rendering is still mocked — the backend has no deck  //
+	// concept yet. Rule/status/bot-takeover data comes from storeLobby.available //
+	// (server-provided). Glyphs are placeholders for real rule/deck icon art.   //
 
-	import { tick } from "svelte";
+	import { onMount, tick } from "svelte";
 	import Modal from "../common/Modal.svelte";
 	import TintedSprite from "../common/TintedSprite.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
@@ -13,6 +11,7 @@
 
 	import { storeAuth } from "../../stores/auth.svelte";
 	import { storeNavigation } from "../../stores/navigation.svelte";
+	import { storeLobby } from "../../stores/lobby.svelte";
 	import TextEffects from "../common/TextEffects.svelte";
 
 	// --- Static catalogs (stand-ins for server-provided definitions) --------- //
@@ -59,12 +58,14 @@
 		{ value: "emptiest", label: "emptiest", filled: 1 }
 	];
 
-	// --- Mock data ----------------------------------------------------------- //
+	// --- Server-backed lobby list ---------------------------------------------- //
+
+	const MAX_MEMBERS = 4; // mirrors LobbyController::kMaxMembers — no server field for this
 
 	interface BrowseLobby {
 		invite_code: string;
 		name: string;
-		status: "open" | "in-game";
+		status: "open" | "in-game" | "full";
 		humans: number;
 		bots: number;
 		max: number;
@@ -73,74 +74,23 @@
 		rules: RuleId[];
 	}
 
-	const MOCK_LOBBIES: BrowseLobby[] = [
-		{
-			invite_code: "IDWIN1",
-			name: "I'd Win",
-			status: "in-game",
-			humans: 2,
-			bots: 2,
-			max: 4,
-			deck: "Default",
-			allowBotTakeover: true,
-			rules: ["stacking", "seven_zero"]
-		},
-		{
-			invite_code: "CASUAL",
-			name: "Casual Vibes",
-			status: "open",
-			humans: 2,
-			bots: 0,
-			max: 4,
-			deck: "Classic",
-			allowBotTakeover: false,
-			rules: []
-		},
-		{
-			invite_code: "SWEAT1",
-			name: "Sweat Lords Only",
-			status: "open",
-			humans: 3,
-			bots: 0,
-			max: 4,
-			deck: "Speed",
-			allowBotTakeover: true,
-			rules: ["seven_zero", "jump_in", "stacking", "force_draw", "reverse_chain", "no_mercy"]
-		},
-		{
-			invite_code: "BOTFRM",
-			name: "Bot Farm",
-			status: "in-game",
-			humans: 1,
-			bots: 3,
-			max: 4,
-			deck: "Chaos",
-			allowBotTakeover: false,
-			rules: ["stacking"]
-		},
-		{
-			invite_code: "TOURN4",
-			name: "Tournament #4",
-			status: "open",
-			humans: 4,
-			bots: 0,
-			max: 4,
-			deck: "Classic",
-			allowBotTakeover: false,
-			rules: ["seven_zero"]
-		},
-		{
-			invite_code: "NEWBIE",
-			name: "Newbies Welcome :)",
-			status: "open",
-			humans: 1,
-			bots: 0,
-			max: 4,
-			deck: "Starter",
-			allowBotTakeover: false,
-			rules: []
-		}
-	];
+	onMount(() => {
+		storeLobby.fetchList();
+	});
+
+	const lobbies = $derived.by((): BrowseLobby[] =>
+		storeLobby.available.map((l) => ({
+			invite_code: l.invite_code,
+			name: l.name,
+			status: l.status,
+			humans: l.member_count,
+			bots: l.bot_count,
+			max: MAX_MEMBERS,
+			deck: "Default", // TODO: no backend deck concept yet — stays mocked
+			allowBotTakeover: l.allow_bot_takeover,
+			rules: (l.active_mods ?? []).filter((id): id is RuleId => id in RULES)
+		}))
+	);
 
 	// --- Responsive measurement ---------------------------------------------- //
 
@@ -227,7 +177,8 @@
 
 	function category(l: BrowseLobby): "open" | "inGame" | "full" {
 		if (l.status === "in-game") return "inGame";
-		return openSlots(l) === 0 ? "full" : "open";
+		if (l.status === "full") return "full";
+		return "open";
 	}
 
 	function joinInfo(l: BrowseLobby) {
@@ -248,7 +199,7 @@
 				title: "Match in progress"
 			};
 		}
-		if (openSlots(l) === 0)
+		if (l.status === "full")
 			return {
 				dot: "bg-zinc-500",
 				label: "Full",
@@ -274,7 +225,7 @@
 
 	const visible = $derived.by(() => {
 		const q = nameQuery.trim().toLowerCase();
-		const list = MOCK_LOBBIES.filter((l) => {
+		const list = lobbies.filter((l) => {
 			if (q && !l.name.toLowerCase().includes(q)) return false;
 			if (quickHideInGame && l.status === "in-game") return false;
 			if (quickOpenOnly && (l.status !== "open" || openSlots(l) === 0)) return false;
@@ -576,7 +527,13 @@
 					</div>
 				{/each}
 
-				{#if visible.length === 0}
+				{#if storeLobby.isLoadingList && lobbies.length === 0}
+					<div
+						class="pixel-corners border-2 border-dashed border-border bg-bg/80 p-12 text-center md:col-span-2"
+					>
+						<p class="font-heading text-xl text-text-h">Loading lobbies…</p>
+					</div>
+				{:else if visible.length === 0}
 					<div
 						class="pixel-corners border-2 border-dashed border-border bg-bg/80 p-12 text-center md:col-span-2"
 					>

@@ -140,6 +140,12 @@ export interface ListedLobby {
 	bot_count: number;
 	/** The invite code allowing the client to join with one click. */
 	invite_code: string;
+	/** Derived lobby status: "open" | "in-game" | "full". */
+	status: "open" | "in-game" | "full";
+	/** Special rules (mods) currently active in this lobby. */
+	active_mods: string[];
+	/** If true, a human player can join an in-progress match by replacing a bot. */
+	allow_bot_takeover: boolean;
 }
 
 /**
@@ -429,6 +435,10 @@ class StoreLobby {
 				this.available[idx].member_count = updatedLobby.member_count;
 				this.available[idx].bot_count = updatedLobby.settings.bot_count;
 				this.available[idx].name = updatedLobby.name;
+				this.available[idx].active_mods = updatedLobby.settings.active_mods;
+				this.available[idx].allow_bot_takeover = updatedLobby.settings.allow_bot_takeover;
+				// `status` intentionally left untouched: BroadcastUpdate carries no
+				// match/status info, so it only refreshes on the next fetchList().
 			}
 
 			await this.#fetchSavedMatches();
