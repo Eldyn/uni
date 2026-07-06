@@ -5,6 +5,7 @@
 	// happens once the enriched projection ships. Glyphs are placeholders for   //
 	// real rule/deck icon art.                                                  //
 
+	import { tick } from "svelte";
 	import Modal from "../common/Modal.svelte";
 	import TintedSprite from "../common/TintedSprite.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
@@ -176,6 +177,27 @@
 	let quickHideInGame = $state(false);
 	let sortBy = $state<SortKey>("fullest");
 	let sortOpen = $state(false);
+	let listboxEl = $state<HTMLElement>();
+
+	function handleListboxKeydown(e: KeyboardEvent) {
+		if (!listboxEl) return;
+		const opts = Array.from(listboxEl.querySelectorAll<HTMLElement>('[role="option"]'));
+		const idx = opts.indexOf(document.activeElement as HTMLElement);
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			opts[(idx + 1) % opts.length]?.focus();
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			opts[(idx - 1 + opts.length) % opts.length]?.focus();
+		} else if (e.key === "Escape") {
+			e.preventDefault();
+			sortOpen = false;
+			document.getElementById("sort-trigger")?.focus();
+		} else if (e.key === "Enter" || e.key === " ") {
+			e.preventDefault();
+			(document.activeElement as HTMLElement)?.click();
+		}
+	}
 
 	let advancedOpen = $state(false);
 	let createOpen = $state(false);
@@ -382,10 +404,21 @@
 		<!-- sort: 4-player preview encodes the order at a glance -->
 		<div class="relative">
 			<button
+				id="sort-trigger"
 				class="pixel-bordered flex items-center gap-2 px-3 py-2 hover:[--pc-border:var(--accent)]"
+				aria-haspopup="listbox"
+				aria-expanded={sortOpen}
+				aria-controls="sort-listbox"
 				onclick={(e) => {
 					e.stopPropagation();
 					sortOpen = !sortOpen;
+				}}
+				onkeydown={(e) => {
+					if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						sortOpen = true;
+						tick().then(() => listboxEl?.querySelector<HTMLElement>('[role="option"]')?.focus());
+					}
 				}}
 			>
 				{@render sortPreview(currentSort.filled)}
@@ -394,12 +427,19 @@
 			</button>
 			{#if sortOpen}
 				<div
+					id="sort-listbox"
+					bind:this={listboxEl}
 					class="pixel-bordered absolute right-0 top-full z-50 mt-1 flex flex-col"
-					role="presentation"
+					role="listbox"
+					aria-label="Sort lobbies by"
 					onclick={(e) => e.stopPropagation()}
+					onkeydown={handleListboxKeydown}
 				>
 					{#each SORT_OPTIONS as opt}
 						<button
+							role="option"
+							aria-selected={opt.value === sortBy}
+							tabindex="0"
 							class="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-surface-deep {opt.value ===
 							sortBy
 								? 'bg-surface-deep'
@@ -407,6 +447,7 @@
 							onclick={() => {
 								sortBy = opt.value;
 								sortOpen = false;
+								document.getElementById("sort-trigger")?.focus();
 							}}
 						>
 							{@render sortPreview(opt.filled)}
