@@ -10,68 +10,25 @@
 	import LobbyJoinForm from "./LobbyJoinForm.svelte";
 
 	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
+	import { AVATAR_COLORS, DECKS, SORT_OPTIONS, ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
+	import type { SortKey } from "$lib/data/lobbyCatalogs";
+	import {
+		avatarColor,
+		category,
+		filterLobbies,
+		joinInfo,
+		openSlots,
+		sortLobbies,
+		toBrowseLobby,
+		type BrowseLobby
+	} from "$lib/utils/lobbyBrowse";
 	import { storeAuth } from "../../stores/auth.svelte";
+	import { storeCatalog } from "../../stores/catalog.svelte";
 	import { storeNavigation } from "../../stores/navigation.svelte";
 	import { storeLobby } from "../../stores/lobby.svelte";
 	import TextEffects from "../common/TextEffects.svelte";
 
-	// --- Static catalogs (stand-ins for server-provided definitions) --------- //
-
-	type RuleId =
-		| "stacking"
-		| "seven_zero"
-		| "jump_in"
-		| "force_draw"
-		| "reverse_chain"
-		| "no_mercy"
-		| "speed"
-		| "skip_bonus";
-
-	const RULES: Record<RuleId, { label: string; icon: string }> = {
-		stacking: { label: "Draw Stacking", icon: "hn-viewblocks" },
-		seven_zero: { label: "Seven-Zero (0 & 7 swap)", icon: "hn-shuffle" },
-		jump_in: { label: "Jump-In", icon: "hn-login" },
-		force_draw: { label: "Force Draw", icon: "hn-download" },
-		reverse_chain: { label: "Reverse Chain", icon: "hn-refresh" },
-		no_mercy: { label: "No Mercy", icon: "hn-hockey-mask" },
-		speed: { label: "Speed Mode", icon: "hn-bolt" },
-		skip_bonus: { label: "Skip Bonus", icon: "hn-user-minus" }
-	};
-	const RULE_IDS = Object.keys(RULES) as RuleId[];
-
-	const DECKS = ["Default", "Classic", "Speed", "Chaos", "Starter"];
-
-	const AVATAR_COLORS = [
-		"#0493de",
-		"#018d41",
-		"#dc251c",
-		"#fcf604",
-		"#c084fc",
-		"#ff9f43",
-		"#00d2d3",
-		"#ee5253"
-	];
-
-	type SortKey = "fullest" | "emptiest";
-	// `filled` drives the 4-slot player preview shown in the sort control.
-	const SORT_OPTIONS: { value: SortKey; label: string; filled: number }[] = [
-		{ value: "fullest", label: "fullest", filled: 3 },
-		{ value: "emptiest", label: "emptiest", filled: 1 }
-	];
-
 	// --- Server-backed lobby list ---------------------------------------------- //
-
-	interface BrowseLobby {
-		invite_code: string;
-		name: string;
-		status: "open" | "in-game" | "full";
-		humans: number;
-		bots: number;
-		max: number;
-		deck: string;
-		allowBotTakeover: boolean;
-		rules: RuleId[];
-	}
 
 	// The server pushes lobby updates only to lobby members, so the browse
 	// list has to poll to see new, closed or started lobbies.
@@ -79,23 +36,19 @@
 
 	onMount(() => {
 		storeLobby.fetchList();
+		storeCatalog.ensureLoaded();
 		const poll = setInterval(() => storeLobby.fetchList(), LIST_POLL_MS);
 		return () => clearInterval(poll);
 	});
 
-	const lobbies = $derived.by((): BrowseLobby[] =>
-		storeLobby.available.map((l) => ({
-			invite_code: l.invite_code,
-			name: l.name,
-			status: l.status,
-			humans: l.member_count || 0,
-			bots: l.bot_count || 0,
-			max: MAX_LOBBY_MEMBERS,
-			deck: "Default", // TODO: no backend deck concept yet — stays mocked
-			allowBotTakeover: l.allow_bot_takeover,
-			rules: (l.active_mods ?? []).filter((id): id is RuleId => id in RULES)
-		}))
-	);
+	const lobbies = $derived(storeLobby.available.map(toBrowseLobby));
+
+	// Rule id → server definition, for labels/tooltips of active-mod chips.
+	const ruleById = $derived(new Map(storeCatalog.rules.map((r) => [r.id, r])));
+	const ruleTitle = (id: string): string => {
+		const rule = ruleById.get(id);
+		return rule ? ruleLabel(rule) : id;
+	};
 
 	// --- Responsive measurement ---------------------------------------------- //
 
@@ -107,7 +60,7 @@
 	const cardW = $derived(gridW > 0 ? (gridW - (cols - 1) * 12) / cols : 9999);
 	// Header rules collapse into +N before the title ever shortens: reserve the
 	// title's full estimated width first, then fit as many rule icons as remain.
-	function rulesFor(l: BrowseLobby): { shown: RuleId[]; overflow: number } {
+	function rulesFor(l: BrowseLobby): { shown: string[]; overflow: number } {
 		const content = cardW - 40; // card inner width (px-4 both sides + border)
 		const reserved = 8 + 8 + l.name.length * 12 + 12 + (l.deck.length * 7 + 46) + 8;
 		const free = content - reserved;
@@ -163,7 +116,7 @@
 	let advRules = $state<Record<string, boolean>>({});
 	let advDecks = $state<Record<string, boolean>>({});
 
-	const selectedRules = $derived(RULE_IDS.filter((r) => advRules[r]));
+	const selectedRules = $derived(storeCatalog.rules.map((r) => r.id).filter((id) => advRules[id]));
 	const selectedDecks = $derived(DECKS.filter((d) => advDecks[d]));
 	const currentSort = $derived(SORT_OPTIONS.find((o) => o.value === sortBy)!);
 
@@ -175,80 +128,23 @@
 			selectedDecks.length
 	);
 
-	// --- Derived helpers ----------------------------------------------------- //
+	// --- Derived list (pure helpers live in $lib/utils/lobbyBrowse) ----------- //
 
-	const filled = (l: BrowseLobby) => l.humans + l.bots;
-	const openSlots = (l: BrowseLobby) => Math.max(0, l.max - filled(l));
-
-	function category(l: BrowseLobby): "open" | "inGame" | "full" {
-		if (l.status === "in-game") return "inGame";
-		if (l.status === "full") return "full";
-		return "open";
-	}
-
-	// `label: null` means the card renders no action button (in-game, not joinable).
-	function joinInfo(l: BrowseLobby) {
-		if (l.status === "in-game") {
-			if (l.allowBotTakeover && l.bots > 0)
-				return {
-					dot: "bg-orange-400",
-					label: "Join",
-					bg: "bg-orange-500",
-					disabled: false,
-					title: "In game — joinable by replacing a bot"
-				};
-			return {
-				dot: "bg-red-500",
-				label: null,
-				bg: "",
-				disabled: true,
-				title: "Match in progress"
-			};
-		}
-		if (l.status === "full")
-			return {
-				dot: "bg-zinc-500",
-				label: "Full",
-				bg: "bg-surface-2",
-				disabled: true,
-				title: "Lobby is full"
-			};
-		return {
-			dot: "bg-green-500",
-			label: "Play",
-			bg: "bg-accent",
-			disabled: false,
-			title: "Open — join now"
-		};
-	}
-
-	function avatarColor(seed: string, i: number): string {
-		let h = 0;
-		const s = `${seed}:${i}`;
-		for (let c = 0; c < s.length; c++) h = (h * 31 + s.charCodeAt(c)) >>> 0;
-		return AVATAR_COLORS[h % AVATAR_COLORS.length];
-	}
-
-	const visible = $derived.by(() => {
-		const q = nameQuery.trim().toLowerCase();
-		const list = lobbies.filter((l) => {
-			if (q && !l.name.toLowerCase().includes(q)) return false;
-			if (quickHideInGame && l.status === "in-game") return false;
-			if (quickOpenOnly && (l.status !== "open" || openSlots(l) === 0)) return false;
-
-			if (!advStatus[category(l)]) return false;
-			if (openSlots(l) < advMinOpenSlots) return false;
-			if (advTakeoverOnly && !l.allowBotTakeover) return false;
-			if (selectedDecks.length && !selectedDecks.includes(l.deck)) return false;
-			if (selectedRules.length && !selectedRules.every((r) => l.rules.includes(r))) return false;
-			return true;
-		});
-
-		return [...list].sort((a, b) => {
-			if (sortBy === "emptiest") return openSlots(b) - openSlots(a);
-			return filled(b) - filled(a);
-		});
-	});
+	const visible = $derived(
+		sortLobbies(
+			filterLobbies(lobbies, {
+				nameQuery,
+				quickOpenOnly,
+				quickHideInGame,
+				status: advStatus,
+				minOpenSlots: advMinOpenSlots,
+				takeoverOnly: advTakeoverOnly,
+				decks: selectedDecks,
+				rules: selectedRules
+			}),
+			sortBy
+		)
+	);
 
 	function clearFilters() {
 		advStatus = { open: true, inGame: true, full: true };
@@ -469,14 +365,13 @@
 									{#each ruleView.shown as rid}
 										<span
 											class="pixel-corners bg-surface-deep flex h-6 w-6 items-center justify-center text-sm text-accent"
-											title={RULES[rid].label}><i class="hn pix {RULES[rid].icon}"></i></span
+											title={ruleTitle(rid)}><i class="hn pix {ruleIcon(rid)}"></i></span
 										>
 									{/each}
 									{#if ruleView.overflow > 0}
 										<span
 											class="pixel-corners bg-surface-deep flex h-6 items-center justify-center px-1.5 font-mono text-xs text-text-h"
-											title={lobby.rules.map((r) => RULES[r].label).join(", ")}
-											>+{ruleView.overflow}</span
+											title={lobby.rules.map(ruleTitle).join(", ")}>+{ruleView.overflow}</span
 										>
 									{/if}
 								</div>
@@ -669,17 +564,18 @@
 		<section class="flex flex-col gap-2">
 			<span class="font-pixel text-sm uppercase text-text">Must include rules</span>
 			<div class="flex flex-wrap gap-2">
-				{#each RULE_IDS as rid}
+				{#each storeCatalog.rules as rule (rule.id)}
 					<button
 						class="pixel-bordered flex items-center gap-2 px-3 py-2 font-tiny text-sm transition-colors {advRules[
-							rid
+							rule.id
 						]
 							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-						aria-pressed={advRules[rid] ?? false}
-						onclick={() => (advRules = { ...advRules, [rid]: !advRules[rid] })}
+						aria-pressed={advRules[rule.id] ?? false}
+						title={rule.description}
+						onclick={() => (advRules = { ...advRules, [rule.id]: !advRules[rule.id] })}
 					>
-						<i class="hn pix {RULES[rid].icon} text-base"></i>{RULES[rid].label}
+						<i class="hn pix {ruleIcon(rule.id)} text-base"></i>{ruleLabel(rule)}
 					</button>
 				{/each}
 			</div>

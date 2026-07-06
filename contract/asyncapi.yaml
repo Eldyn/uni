@@ -37,6 +37,7 @@ channels:
           - $ref: "#/components/messages/MatchStateUpdated"
           - $ref: "#/components/messages/MatchOver"
           - $ref: "#/components/messages/ChatMessage"
+          - $ref: "#/components/messages/Metadata"
 
     publish:
       summary: Messages sent from the Client to the Server.
@@ -60,6 +61,7 @@ channels:
           - $ref: "#/components/messages/LobbyDeleteSavedMatch"
           - $ref: "#/components/messages/LobbyResumeSavedMatch"
           - $ref: "#/components/messages/ChatSend"
+          - $ref: "#/components/messages/MetadataRequest"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -166,6 +168,19 @@ components:
           lobby:
             type: object
             description: Full lobby state.
+
+    Metadata:
+      name: metadata
+      title: Server Metadata (rule catalog)
+      payload:
+        type: object
+        required: [action, available_rules]
+        properties:
+          action:
+            type: string
+            enum: ["metadata"]
+          request_id:
+            type: string
           available_rules:
             type: array
             description: List of rules supported by this server instance.
@@ -429,6 +444,18 @@ components:
       payload:
         $ref: "#/components/schemas/ChatSendPayload"
 
+    MetadataRequest:
+      name: metadata_request
+      title: Request Server Metadata (rule catalog)
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["metadata_request"]
+          request_id:
+            type: string
+
   # -------------------------------------------------------------------------
   # Schemas
   # -------------------------------------------------------------------------
@@ -474,6 +501,15 @@ components:
       maxLength: 6
       pattern: "^[A-Z0-9]+$"
       x-constants: { minLength: LobbyCodeLen }
+
+    LobbyMemberCap:
+      type: integer
+      minimum: 1
+      maximum: 4
+      description: >
+        Maximum players (humans + bots) per lobby. Single source of truth for
+        LobbyController::kMaxMembers and the frontend MAX_LOBBY_MEMBERS.
+      x-constants: { maximum: MaxLobbyMembers }
 
     # --- Client → Server payload schemas (C++ structs generated from these) ---
     # Fields 'action' and 'request_id' are envelope fields handled by the router

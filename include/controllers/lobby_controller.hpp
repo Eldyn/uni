@@ -211,6 +211,16 @@ private:
     void HandleList(WsContext ctx, const json& msg);
 
     /**
+     * @brief Returns static server metadata (the rule catalog) to the client.
+     * Fetched lazily once per session by the frontend catalog store instead of
+     * being attached to every join/create/rejoin response.
+     * @param ctx WebSocket context of the request.
+     * @param msg Associated JSON payload.
+     * @tag LOBBY-ACT-013
+     */
+    void HandleGetMetadata(WsContext ctx, const json& msg);
+
+    /**
      * @brief Promotes a specific player to the Host role of the lobby.
      * @param ctx WebSocket context of the request.
      * @param msg Associated JSON payload.

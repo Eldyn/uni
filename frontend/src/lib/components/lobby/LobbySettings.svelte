@@ -4,12 +4,9 @@
 	import EnumSelector from "./settings/EnumSelector.svelte";
 	import RulesGrid from "./settings/RulesGrid.svelte";
 	import type { RuleDef } from "./settings/RulesGrid.svelte";
-	import {
-		BotTakeoverMode,
-		type LobbySettings,
-		type RuleDefinition,
-		storeLobby
-	} from "../../stores/lobby.svelte";
+	import { onMount } from "svelte";
+	import { BotTakeoverMode, type LobbySettings, storeLobby } from "../../stores/lobby.svelte";
+	import { storeCatalog, type RuleDefinition } from "../../stores/catalog.svelte";
 	import { storeAuth } from "../../stores/auth.svelte";
 	import {
 		STARTING_CARDS_MIN,
@@ -46,8 +43,12 @@
 		bot_count: storeLobby.current?.settings.bot_count ?? 0
 	} as LobbySettings);
 
+	onMount(() => {
+		storeCatalog.ensureLoaded();
+	});
+
 	let rules = $derived<RuleDef[]>(
-		storeLobby.availableRules.map((rule: RuleDefinition) => ({
+		storeCatalog.rules.map((rule: RuleDefinition) => ({
 			id: rule.id,
 			label: rule.label,
 			description: rule.description,
