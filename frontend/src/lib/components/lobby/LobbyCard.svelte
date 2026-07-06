@@ -24,14 +24,29 @@
 		return rule ? ruleLabel(rule) : id;
 	};
 
+	// Estimated pixel metrics for the header row. Rough by design: they only
+	// decide how many rule icons fit before collapsing into a +N chip, and a
+	// one-icon error just collapses slightly early. Re-tune on font changes.
+	const CARD_CHROME_W = 40; // px-4 both sides + border
+	const ROW_GAPS_W = 8 + 8 + 12 + 8; // dot + name/rules/deck gaps
+	const TITLE_CHAR_W = 12; // font-heading text-base, worst case
+	const DECK_CHAR_W = 7; // font-micro text-xs
+	const DECK_CHIP_CHROME_W = 46; // deck chip icon + padding
+	const RULE_SLOT_W = 28; // 24px icon + 4px gap
+	const OVERFLOW_CHIP_W = 34; // the "+N" chip
+
 	// Header rules collapse into +N before the title ever shortens: reserve the
 	// title's full estimated width first, then fit as many rule icons as remain.
 	const ruleView = $derived.by((): { shown: string[]; overflow: number } => {
-		const content = cardW - 40; // card inner width (px-4 both sides + border)
-		const reserved = 8 + 8 + lobby.name.length * 12 + 12 + (lobby.deck.length * 7 + 46) + 8;
+		const content = cardW - CARD_CHROME_W;
+		const reserved =
+			ROW_GAPS_W +
+			lobby.name.length * TITLE_CHAR_W +
+			lobby.deck.length * DECK_CHAR_W +
+			DECK_CHIP_CHROME_W;
 		const free = content - reserved;
-		let fit = Math.floor(free / 28); // 24px icon + 4px gap
-		if (fit < lobby.rules.length) fit = Math.floor((free - 34) / 28); // room for +N chip
+		let fit = Math.floor(free / RULE_SLOT_W);
+		if (fit < lobby.rules.length) fit = Math.floor((free - OVERFLOW_CHIP_W) / RULE_SLOT_W);
 		let n = Math.max(0, Math.min(fit, lobby.rules.length));
 		// A "+1" chip is as wide as the icon it hides — only collapse 2 or more.
 		if (lobby.rules.length - n === 1) n = lobby.rules.length;

@@ -15,36 +15,47 @@
 		}
 	}
 
-	const HUB_TILES = [
+	interface HubTile {
+		label: string;
+		icon: string;
+		accent: string;
+		/** Absent = tile is a "coming soon" placeholder. */
+		action?: () => void;
+	}
+
+	const HUB_TILES: HubTile[] = [
 		{
 			label: "Stats",
 			icon: "hn-crown",
 			accent: "text-blue-card",
-			available: true,
 			action: () => storeNavigation.goto("stats")
 		},
-		{
-			label: "Decks",
-			icon: "hn-viewblocks",
-			accent: "text-green-card",
-			available: false,
-			action: () => {}
-		},
-		{
-			label: "Skins",
-			icon: "hn-credit-card",
-			accent: "text-red-card",
-			available: false,
-			action: () => {}
-		},
+		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card" },
+		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card" },
 		{
 			label: "Settings",
 			icon: "hn-cog",
 			accent: "text-accent",
-			available: true,
 			action: () => storeNavigation.goto("settings")
 		}
-	] as const;
+	];
+
+	const SOCIAL_LINKS = [
+		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
+		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
+		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" },
+		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
+		{
+			label: "Bluesky",
+			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
+			img: "bluesky_icon.png"
+		},
+		{
+			label: "Instagram",
+			href: "https://www.instagram.com/the.uni.game/",
+			img: "instagram_icon.png"
+		}
+	];
 </script>
 
 <div
@@ -121,18 +132,15 @@
 					{#each HUB_TILES as tile}
 						<button
 							class="hub-tile pixel-bordered flex flex-col items-center gap-1 py-3 text-center
-							       {tile.available ? '' : 'opacity-50'}"
+							       {tile.action ? '' : 'opacity-50'}"
 							style="--pc-fill: var(--surface); --pc-border: var(--border);"
-							aria-disabled={!tile.available}
-							onclick={() => {
-								if (!tile.available) return;
-								tile.action();
-							}}
-							aria-label="{tile.label}{tile.available ? '' : ' — coming soon'}"
+							aria-disabled={!tile.action}
+							onclick={() => tile.action?.()}
+							aria-label="{tile.label}{tile.action ? '' : ' — coming soon'}"
 						>
 							<i class="pix {tile.icon} text-xl {tile.accent}"></i>
 							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>
-							{#if !tile.available}
+							{#if !tile.action}
 								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">Soon</span>
 							{/if}
 						</button>
@@ -152,60 +160,17 @@
 					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
 				</nav>
 				<nav class="flex items-center gap-3" aria-label="Social links">
-					<a
-						href="https://github.com/Eldyn/uni"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="GitHub"
-					>
-						<img src="/assets/social/github_icon.png" alt="GitHub" width="32" height="32" />
-					</a>
-					<a
-						href="https://youtube.com/@play-uni"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="YouTube"
-					>
-						<img src="/assets/social/youtube_icon.png" alt="YouTube" width="32" height="32" />
-					</a>
-					<a
-						href="https://tiktok.com/@the.uni.game"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="TikTok"
-					>
-						<img src="/assets/social/tiktok_icon.png" alt="TikTok" width="32" height="32" />
-					</a>
-					<a
-						href="https://x.com/theunigamee"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="X"
-					>
-						<img src="/assets/social/x_icon.png" alt="X" width="32" height="32" />
-					</a>
-					<a
-						href="https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="Bluesky"
-					>
-						<img src="/assets/social/bluesky_icon.png" alt="Bluesky" width="32" height="32" />
-					</a>
-					<a
-						href="https://www.instagram.com/the.uni.game/"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label="Instagram"
-					>
-						<img src="/assets/social/instagram_icon.png" alt="Instagram" width="32" height="32" />
-					</a>
+					{#each SOCIAL_LINKS as link}
+						<a
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="social-icon"
+							aria-label={link.label}
+						>
+							<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
+						</a>
+					{/each}
 				</nav>
 			</footer>
 		</div>
