@@ -21,29 +21,29 @@
 			icon: "hn-crown",
 			accent: "text-blue-card",
 			available: true,
-			action: () => storeNavigation.goto("stats"),
+			action: () => storeNavigation.goto("stats")
 		},
 		{
 			label: "Decks",
 			icon: "hn-viewblocks",
 			accent: "text-green-card",
 			available: false,
-			action: () => {},
+			action: () => {}
 		},
 		{
 			label: "Skins",
 			icon: "hn-credit-card",
 			accent: "text-red-card",
 			available: false,
-			action: () => {},
+			action: () => {}
 		},
 		{
 			label: "Settings",
 			icon: "hn-cog",
 			accent: "text-accent",
 			available: true,
-			action: () => storeNavigation.goto("settings"),
-		},
+			action: () => storeNavigation.goto("settings")
+		}
 	] as const;
 </script>
 
@@ -78,8 +78,8 @@
 					class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
 					style="font-family: var(--pypx); font-weight: 800;"
 					onclick={handleLogout}
-					disabled={logoutPending}
-				>{logoutPending ? "Logging out…" : "Logout"}</button>
+					disabled={logoutPending}>{logoutPending ? "Logging out…" : "Logout"}</button
+				>
 			</p>
 		{/if}
 	</div>
@@ -95,8 +95,12 @@
 				>
 					Login
 				</button>
-				<p class="text-center font-extrabold uppercase tracking-widest text-text/30"
-				   style="font-family: var(--pypx);">- or -</p>
+				<p
+					class="text-center font-extrabold uppercase tracking-widest text-text/30"
+					style="font-family: var(--pypx);"
+				>
+					- or -
+				</p>
 				<button
 					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
 					onclick={() => storeNavigation.goto("lobbies")}
@@ -145,19 +149,58 @@
 					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
 				</nav>
 				<nav class="flex items-center gap-3" aria-label="Social links">
-					<a href="https://github.com/Eldyn/uni" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="GitHub">
+					<a
+						href="https://github.com/Eldyn/uni"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="GitHub"
+					>
 						<img src="/assets/social/github_icon.png" alt="GitHub" width="32" height="32" />
 					</a>
-					<a href="https://youtube.com" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="YouTube">
+					<a
+						href="https://youtube.com/@play-uni"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="YouTube"
+					>
 						<img src="/assets/social/youtube_icon.png" alt="YouTube" width="32" height="32" />
 					</a>
-					<a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="TikTok">
+					<a
+						href="https://tiktok.com/@the.uni.game"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="TikTok"
+					>
 						<img src="/assets/social/tiktok_icon.png" alt="TikTok" width="32" height="32" />
 					</a>
-					<a href="https://x.com" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="X">
-						<img src="/assets/social/xtwitter_icon.png" alt="X" width="32" height="32" />
+					<a
+						href="https://x.com/theunigamee"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="X"
+					>
+						<img src="/assets/social/x_icon.png" alt="X" width="32" height="32" />
 					</a>
-					<a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="Instagram">
+					<a
+						href="https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="Bluesky"
+					>
+						<img src="/assets/social/bluesky_icon.png" alt="Bluesky" width="32" height="32" />
+					</a>
+					<a
+						href="https://www.instagram.com/the.uni.game/"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label="Instagram"
+					>
 						<img src="/assets/social/instagram_icon.png" alt="Instagram" width="32" height="32" />
 					</a>
 				</nav>
