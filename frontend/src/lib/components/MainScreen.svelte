@@ -123,8 +123,11 @@
 							class="hub-tile pixel-bordered flex flex-col items-center gap-1 py-3 text-center
 							       {tile.available ? '' : 'opacity-50'}"
 							style="--pc-fill: var(--surface); --pc-border: var(--border);"
-							disabled={!tile.available}
-							onclick={tile.action}
+							aria-disabled={!tile.available}
+							onclick={() => {
+								if (!tile.available) return;
+								tile.action();
+							}}
 							aria-label="{tile.label}{tile.available ? '' : ' — coming soon'}"
 						>
 							<i class="pix {tile.icon} text-xl {tile.accent}"></i>
@@ -229,7 +232,7 @@
 		mask-image: linear-gradient(to top, black 35%, transparent 100%);
 	}
 
-	.hub-tile:not(:disabled):hover {
+	.hub-tile:not([aria-disabled="true"]):hover {
 		--pc-border: var(--accent);
 		cursor: pointer;
 	}

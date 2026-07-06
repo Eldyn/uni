@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
 @font-face {
 	font-family: "FatPixel";
 	src: url("/fonts/fatpixel.woff2?v=11") format("woff2");

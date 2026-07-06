@@ -299,6 +299,7 @@
 			<button
 				class="btn pixel-corners px-3 py-2 sm:px-5 sm:py-3"
 				title="Back"
+				aria-label="Back"
 				onclick={() => storeNavigation.goto("main")}
 			>
 				<i class="hn pix hn-arrow-left text-lg leading-none sm:hidden"></i>
@@ -307,6 +308,7 @@
 			<button
 				class="btn pixel-corners bg-danger px-3 py-2 sm:px-5 sm:py-3"
 				title="Logout"
+				aria-label="Logout"
 				onclick={() => storeAuth.logout()}
 			>
 				<i class="hn pix hn-logout text-lg leading-none sm:hidden"></i>
@@ -343,12 +345,14 @@
 			class="pixel-bordered hidden px-4 py-2 font-pixel text-sm lg:inline-flex {quickOpenOnly
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h hover:[--pc-border:var(--accent)]'}"
+			aria-pressed={quickOpenOnly}
 			onclick={() => (quickOpenOnly = !quickOpenOnly)}>Open slots</button
 		>
 		<button
 			class="pixel-bordered hidden px-4 py-2 font-pixel text-sm lg:inline-flex {quickHideInGame
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h hover:[--pc-border:var(--accent)]'}"
+			aria-pressed={quickHideInGame}
 			onclick={() => (quickHideInGame = !quickHideInGame)}>Hide in-game</button
 		>
 
@@ -458,7 +462,9 @@
 						<!-- Row 1: status + name (left) · rules + deck chip (right) -->
 						<div class="flex items-center justify-between gap-3">
 							<div class="flex min-w-0 items-center gap-2">
-								<span class="h-2 w-2 shrink-0 {join.dot}" title={join.title}></span>
+								<span class="h-2 w-2 shrink-0 {join.dot}" title={join.title} aria-hidden="true"
+								></span>
+								<span class="sr-only">{join.title}</span>
 								<span class="truncate font-heading text-base text-text-h">{lobby.name}</span>
 							</div>
 							<div class="flex shrink-0 items-center gap-1.5">
@@ -491,6 +497,7 @@
 							<div class="flex items-center gap-1.5">
 								{#each Array(lobby.humans) as _, i}
 									<div class={avatarCls} title="Player">
+										<span class="sr-only">Player</span>
 										<TintedSprite
 											src="/assets/base_player.gif"
 											color={avatarColor(lobby.invite_code, i)}
@@ -519,9 +526,16 @@
 							</div>
 
 							<button
-								class="pixel-corners whitespace-nowrap font-pixel uppercase text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 {buttonCls} {join.bg}"
-								disabled={join.disabled}
-								title={join.title}>{join.label}</button
+								class="pixel-corners whitespace-nowrap font-pixel uppercase text-white transition hover:brightness-110 {join.disabled
+									? 'cursor-not-allowed opacity-50'
+									: ''} {buttonCls} {join.bg}"
+								aria-disabled={join.disabled}
+								onclick={() => {
+									if (join.disabled) return;
+									storeLobby.join(lobby.invite_code);
+								}}
+								title={join.title}
+								aria-label="{join.label} — {join.title}">{join.label}</button
 							>
 						</div>
 					</div>
@@ -579,12 +593,14 @@
 						class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {quickOpenOnly
 							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+						aria-pressed={quickOpenOnly}
 						onclick={() => (quickOpenOnly = !quickOpenOnly)}>Open slots</button
 					>
 					<button
 						class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {quickHideInGame
 							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+						aria-pressed={quickHideInGame}
 						onclick={() => (quickHideInGame = !quickHideInGame)}>Hide in-game</button
 					>
 				</div>
@@ -603,6 +619,7 @@
 							]
 								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+							aria-pressed={advStatus[key as keyof typeof advStatus]}
 							onclick={() =>
 								(advStatus = {
 									...advStatus,
@@ -634,6 +651,7 @@
 							class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {advDecks[deck]
 								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+							aria-pressed={advDecks[deck] ?? false}
 							onclick={() => (advDecks = { ...advDecks, [deck]: !advDecks[deck] })}>{deck}</button
 						>
 					{/each}
@@ -653,6 +671,7 @@
 							]
 								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+							aria-pressed={advRules[rid] ?? false}
 							onclick={() => (advRules = { ...advRules, [rid]: !advRules[rid] })}
 						>
 							<i class="hn pix {RULES[rid].icon} text-base"></i>{RULES[rid].label}
@@ -670,6 +689,7 @@
 					class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {advTakeoverOnly
 						? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 						: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+					aria-pressed={advTakeoverOnly}
 					onclick={() => (advTakeoverOnly = !advTakeoverOnly)}
 					>{advTakeoverOnly ? "On" : "Off"}</button
 				>
