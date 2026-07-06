@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
+import { failureText } from "./errors";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
@@ -336,7 +337,7 @@ class StoreLobby {
 
 			storeToast.success("Settings updated!");
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
 		}
 	}
 
@@ -361,7 +362,7 @@ class StoreLobby {
 			storeAnalytics.track("lobby_create", { is_public: data.is_public });
 			return true;
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
 			return false;
 		} finally {
 			this.isLoadingJoin = false;
@@ -393,7 +394,7 @@ class StoreLobby {
 			storeAnalytics.track("lobby_join");
 			return true;
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
 			return false;
 		} finally {
 			this.isLoadingJoin = false;
@@ -425,7 +426,7 @@ class StoreLobby {
 			}
 			this.available = parsed.data as ListedLobby[];
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
 		} finally {
 			this.isLoadingList = false;
 		}

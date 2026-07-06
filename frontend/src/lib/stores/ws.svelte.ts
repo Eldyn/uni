@@ -257,7 +257,7 @@ export class WebSocketClient {
 				resolve();
 			};
 
-			wsInstance.onerror = (e) => reject(e);
+			wsInstance.onerror = () => reject(new Error("Could not connect to the server."));
 
 			wsInstance.onclose = () => {
 				if (this.socket === wsInstance) {

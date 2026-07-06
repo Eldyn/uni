@@ -81,26 +81,15 @@
 		}
 	}
 
-	/* Narrow notched accent bar — same corner-cut technique as the app's
-	   pixel-corners/pixel-bordered utilities, scaled down (2px cut vs. their
-	   4px) since this strip is only 6px wide. Inset from the toast's own
-	   pixel-corners clip so the two notches don't visually collide. */
+	/* Accent bar IS the toast's left side: a full-bleed strip whose corners
+	   are notched by the toast's own pixel-corners clip, so it reads as the
+	   edge of the notification rather than a chip floating inside it. */
 	.toast-accent {
 		position: absolute;
-		left: 6px;
-		top: 6px;
-		bottom: 6px;
-		width: 6px;
-		clip-path: polygon(
-			0 2px,
-			2px 2px,
-			2px 0,
-			100% 0,
-			100% 100%,
-			2px 100%,
-			2px calc(100% - 2px),
-			0 calc(100% - 2px)
-		);
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 8px;
 	}
 
 	.toast-success .toast-accent {
