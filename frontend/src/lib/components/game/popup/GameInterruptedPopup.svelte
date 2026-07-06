@@ -3,7 +3,12 @@
 	import { storeGame } from "../../../stores/game.svelte";
 </script>
 
-<Modal open={true} dismissible={false} titleId="interrupted-title" contentClass="interrupted-content">
+<Modal
+	open={true}
+	dismissible={false}
+	titleId="interrupted-title"
+	contentClass="interrupted-content"
+>
 	<h1 id="interrupted-title">Interrupted</h1>
 	<h2>Something went wrong.</h2>
 	<p>A player disconnected or the match was forcefully cancelled.</p>

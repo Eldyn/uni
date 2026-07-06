@@ -37,12 +37,12 @@
 	} = $props();
 
 	const COLOR_MAP: Record<string, string> = {
-		red:    "var(--redCard)",
-		blue:   "var(--blueCard)",
-		green:  "var(--greenCard)",
+		red: "var(--redCard)",
+		blue: "var(--blueCard)",
+		green: "var(--greenCard)",
 		yellow: "var(--yellowCard)",
-		white:  "var(--whiteCard)",
-		black:  "var(--blackCard)"
+		white: "var(--whiteCard)",
+		black: "var(--blackCard)"
 	};
 
 	function getCardImage(value: CardValue): string {

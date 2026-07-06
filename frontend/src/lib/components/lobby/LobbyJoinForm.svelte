@@ -3,7 +3,6 @@
 
 	let roomCodeInput = $state("");
 	let roomCodeError = $state("");
-	let isLoading = $state(false);
 
 	function validateForm(): boolean {
 		roomCodeError = "";
@@ -40,7 +39,7 @@
 				class="w-full min-w-0 bg-transparent font-pixel text-base uppercase tracking-[0.3em] text-text-h outline-none placeholder:tracking-normal placeholder:text-text/40"
 				bind:value={roomCodeInput}
 				placeholder="ABC123"
-				disabled={isLoading}
+				disabled={storeLobby.isLoadingJoin}
 				maxlength="6"
 			/>
 		</div>
@@ -52,8 +51,8 @@
 	<button
 		type="submit"
 		class="pixel-bordered px-5 py-3 font-pixel text-lg uppercase text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-		disabled={isLoading}
+		disabled={storeLobby.isLoadingJoin}
 	>
-		{isLoading ? "Joining…" : "Join Lobby"}
+		{storeLobby.isLoadingJoin ? "Joining…" : "Join Lobby"}
 	</button>
 </form>

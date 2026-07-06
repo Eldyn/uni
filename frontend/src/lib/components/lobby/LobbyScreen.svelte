@@ -194,7 +194,11 @@
 		</div>
 	</div>
 
-	<button class="leave-button-fixed pixel-corners" onclick={storeLobby.leave} title="Exit Lobby">
+	<button
+		class="leave-button-fixed pixel-corners"
+		onclick={() => storeLobby.leave()}
+		title="Exit Lobby"
+	>
 		<img src="/assets/exit.png" alt="Exit" class="exit-icon" />
 	</button>
 </div>

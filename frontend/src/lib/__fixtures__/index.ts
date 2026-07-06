@@ -62,7 +62,6 @@ export function makeLobby(overrides?: Partial<Lobby>): Lobby {
 		invite_code: "AAAAAA",
 		host: "player1",
 		name: "Test Lobby",
-		member_count: 2,
 		members,
 		settings,
 		...overrides

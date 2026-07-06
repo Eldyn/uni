@@ -40,7 +40,8 @@
 
 		const previouslyFocused = document.activeElement as HTMLElement | null;
 
-		const focusables = () => Array.from(contentEl!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+		const focusables = () =>
+			Array.from(contentEl!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 
 		const first = focusables()[0];
 		(first ?? contentEl).focus();

@@ -22,7 +22,12 @@
 	);
 </script>
 
-<Modal open={true} dismissible={false} titleId="victory-title" contentClass="victory-content pixel-corners">
+<Modal
+	open={true}
+	dismissible={false}
+	titleId="victory-title"
+	contentClass="victory-content pixel-corners"
+>
 	<h1 id="victory-title" class="result {isMe ? 'result--win' : 'result--lose'}">
 		{isMe ? "VICTORY!" : "YOU LOST!"}
 	</h1>

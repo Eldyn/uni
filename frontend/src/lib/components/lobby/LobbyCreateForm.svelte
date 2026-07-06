@@ -8,9 +8,12 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		await storeLobby.create({ name, is_public: !isPrivate });
-		name = "";
-		isPrivate = false;
+		const created = await storeLobby.create({ name, is_public: !isPrivate });
+		// Keep what the user typed when creation fails, so they can retry.
+		if (created) {
+			name = "";
+			isPrivate = false;
+		}
 	}
 </script>
 

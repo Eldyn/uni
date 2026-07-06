@@ -110,6 +110,9 @@ export class WebSocketClient {
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private reconnectDelayMs = 1000;
 	private intentionalClose = false;
+	/** In-flight connection attempt, shared so concurrent connect() calls
+	 *  never open a second socket while the first is still handshaking. */
+	private connectPromise: Promise<void> | null = null;
 
 	get isConnected(): boolean {
 		return this.socket?.readyState === WebSocket.OPEN;
@@ -117,9 +120,13 @@ export class WebSocketClient {
 
 	async connect(): Promise<void> {
 		if (this.isConnected) return;
+		if (this.connectPromise) return this.connectPromise;
 		this.intentionalClose = false;
 		this.#attachVisibilityListener();
-		await this._connectOnce();
+		this.connectPromise = this._connectOnce().finally(() => {
+			this.connectPromise = null;
+		});
+		await this.connectPromise;
 	}
 
 	disconnect(code: number, reason: string): void {
@@ -268,7 +275,14 @@ export class WebSocketClient {
 			};
 
 			wsInstance.onmessage = (e: MessageEvent) => {
-				const parsed = IncomingMessageSchema.safeParse(JSON.parse(e.data as string));
+				let raw: unknown;
+				try {
+					raw = JSON.parse(e.data as string);
+				} catch {
+					console.error("[ws] Incoming frame is not valid JSON");
+					return;
+				}
+				const parsed = IncomingMessageSchema.safeParse(raw);
 				if (!parsed.success) {
 					console.error("[ws] Incoming frame failed schema check:", parsed.error.issues);
 					return;
@@ -302,8 +316,16 @@ export class WebSocketClient {
 		if (action === "error" && consumedByRequest) return;
 
 		if (action) {
-			this.onHandlers.get(action)?.forEach((h) => h(data));
-			this.onHandlers.get("*")?.forEach((h) => h(data));
+			// Isolate handlers: one throwing listener must not starve the others.
+			const safeCall = (h: MessageHandler) => {
+				try {
+					h(data);
+				} catch (e) {
+					console.error(`[ws] Handler for "${action}" threw:`, e);
+				}
+			};
+			this.onHandlers.get(action)?.forEach(safeCall);
+			this.onHandlers.get("*")?.forEach(safeCall);
 		}
 	}
 

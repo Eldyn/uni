@@ -9,6 +9,7 @@
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
 	import LobbyJoinForm from "./LobbyJoinForm.svelte";
 
+	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { storeAuth } from "../../stores/auth.svelte";
 	import { storeNavigation } from "../../stores/navigation.svelte";
 	import { storeLobby } from "../../stores/lobby.svelte";
@@ -60,8 +61,6 @@
 
 	// --- Server-backed lobby list ---------------------------------------------- //
 
-	const MAX_MEMBERS = 4; // mirrors LobbyController::kMaxMembers — no server field for this
-
 	interface BrowseLobby {
 		invite_code: string;
 		name: string;
@@ -74,8 +73,14 @@
 		rules: RuleId[];
 	}
 
+	// The server pushes lobby updates only to lobby members, so the browse
+	// list has to poll to see new, closed or started lobbies.
+	const LIST_POLL_MS = 8000;
+
 	onMount(() => {
 		storeLobby.fetchList();
+		const poll = setInterval(() => storeLobby.fetchList(), LIST_POLL_MS);
+		return () => clearInterval(poll);
 	});
 
 	const lobbies = $derived.by((): BrowseLobby[] =>
@@ -83,9 +88,9 @@
 			invite_code: l.invite_code,
 			name: l.name,
 			status: l.status,
-			humans: l.member_count,
-			bots: l.bot_count,
-			max: MAX_MEMBERS,
+			humans: l.member_count || 0,
+			bots: l.bot_count || 0,
+			max: MAX_LOBBY_MEMBERS,
 			deck: "Default", // TODO: no backend deck concept yet — stays mocked
 			allowBotTakeover: l.allow_bot_takeover,
 			rules: (l.active_mods ?? []).filter((id): id is RuleId => id in RULES)
@@ -181,21 +186,22 @@
 		return "open";
 	}
 
+	// `label: null` means the card renders no action button (in-game, not joinable).
 	function joinInfo(l: BrowseLobby) {
 		if (l.status === "in-game") {
 			if (l.allowBotTakeover && l.bots > 0)
 				return {
 					dot: "bg-orange-400",
-					label: "Take Over",
+					label: "Join",
 					bg: "bg-orange-500",
 					disabled: false,
 					title: "In game — joinable by replacing a bot"
 				};
 			return {
 				dot: "bg-red-500",
-				label: "Spectate",
-				bg: "bg-surface-2",
-				disabled: false,
+				label: null,
+				bg: "",
+				disabled: true,
 				title: "Match in progress"
 			};
 		}
@@ -258,7 +264,7 @@
 <!-- 4-slot player preview used by the sort control -->
 {#snippet sortPreview(filledCount: number)}
 	<span class="flex items-center gap-0.5">
-		{#each Array(4) as _, i}
+		{#each Array(MAX_LOBBY_MEMBERS) as _, i}
 			<span class="h-4 w-4">
 				{#if i < filledCount}
 					<TintedSprite src="/assets/base_player.gif" color={AVATAR_COLORS[i]} fit="contain" />
@@ -305,15 +311,6 @@
 				<i class="hn pix hn-arrow-left text-lg leading-none sm:hidden"></i>
 				<span class="hidden text-base uppercase sm:inline">Back</span>
 			</button>
-			<button
-				class="btn pixel-corners bg-danger px-3 py-2 sm:px-5 sm:py-3"
-				title="Logout"
-				aria-label="Logout"
-				onclick={() => storeAuth.logout()}
-			>
-				<i class="hn pix hn-logout text-lg leading-none sm:hidden"></i>
-				<span class="hidden text-base uppercase sm:inline">Logout</span>
-			</button>
 		</div>
 	</header>
 
@@ -321,11 +318,11 @@
 		class="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:gap-3 sm:px-6 max-lg:landscape:py-1.5 lg:px-10"
 	>
 		<div
-			class="pixel-bordered flex w-full min-w-0 items-center gap-2 px-3 py-2 sm:w-auto sm:min-w-60 sm:flex-1"
+			class="pixel-bordered flex w-full min-w-0 items-center gap-2 px-3 py-2 focus-within:[--pc-border:var(--accent)] sm:w-auto sm:min-w-60 sm:flex-1"
 		>
 			<i class="hn pix hn-search text-lg text-text"></i>
 			<input
-				class="w-full min-w-0 bg-transparent font-pixel text-base text-text-h outline-none placeholder:text-text/60"
+				class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none placeholder:text-text/60"
 				placeholder="Search lobby name…"
 				bind:value={nameQuery}
 			/>
@@ -342,14 +339,14 @@
 		     for a single uncluttered row; on mobile (portrait and landscape) they
 		     collapse into the Advanced modal so the nav stays one short row. -->
 		<button
-			class="pixel-bordered hidden px-4 py-2 font-pixel text-sm lg:inline-flex {quickOpenOnly
+			class="pixel-bordered hidden px-4 py-2 font-tiny text-sm lg:inline-flex {quickOpenOnly
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h hover:[--pc-border:var(--accent)]'}"
 			aria-pressed={quickOpenOnly}
 			onclick={() => (quickOpenOnly = !quickOpenOnly)}>Open slots</button
 		>
 		<button
-			class="pixel-bordered hidden px-4 py-2 font-pixel text-sm lg:inline-flex {quickHideInGame
+			class="pixel-bordered hidden px-4 py-2 font-tiny text-sm lg:inline-flex {quickHideInGame
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h hover:[--pc-border:var(--accent)]'}"
 			aria-pressed={quickHideInGame}
@@ -471,20 +468,20 @@
 								<div class="flex items-center gap-1">
 									{#each ruleView.shown as rid}
 										<span
-											class="pixel-bordered flex h-6 w-6 items-center justify-center text-sm text-accent [--pc-fill:var(--surface-deep)] [--pc-width:1px]"
+											class="pixel-corners bg-surface-deep flex h-6 w-6 items-center justify-center text-sm text-accent"
 											title={RULES[rid].label}><i class="hn pix {RULES[rid].icon}"></i></span
 										>
 									{/each}
 									{#if ruleView.overflow > 0}
 										<span
-											class="pixel-bordered flex h-6 items-center justify-center px-1.5 font-mono text-xs text-text-h [--pc-fill:var(--surface-deep)] [--pc-width:1px]"
+											class="pixel-corners bg-surface-deep flex h-6 items-center justify-center px-1.5 font-mono text-xs text-text-h"
 											title={lobby.rules.map((r) => RULES[r].label).join(", ")}
 											>+{ruleView.overflow}</span
 										>
 									{/if}
 								</div>
 								<span
-									class="pixel-bordered flex items-center gap-1.5 px-2 py-0.5 font-micro text-xs text-text-h [--pc-fill:var(--surface-deep)] [--pc-width:1px]"
+									class="pixel-corners bg-surface-deep flex items-center gap-1.5 px-2 py-0.5 font-micro text-xs text-text-h"
 									title="Deck: {lobby.deck}"
 								>
 									<i class="hn pix hn-credit-card text-xs text-accent"></i>{lobby.deck}
@@ -525,18 +522,20 @@
 								{/each}
 							</div>
 
-							<button
-								class="pixel-corners whitespace-nowrap font-pixel uppercase text-white transition hover:brightness-110 {join.disabled
-									? 'cursor-not-allowed opacity-50'
-									: ''} {buttonCls} {join.bg}"
-								aria-disabled={join.disabled}
-								onclick={() => {
-									if (join.disabled) return;
-									storeLobby.join(lobby.invite_code);
-								}}
-								title={join.title}
-								aria-label="{join.label} — {join.title}">{join.label}</button
-							>
+							{#if join.label}
+								<button
+									class="pixel-corners whitespace-nowrap font-pixel uppercase text-white transition hover:brightness-110 {join.disabled
+										? 'cursor-not-allowed opacity-50'
+										: ''} {buttonCls} {join.bg}"
+									aria-disabled={join.disabled}
+									onclick={() => {
+										if (join.disabled) return;
+										storeLobby.join(lobby.invite_code);
+									}}
+									title={join.title}
+									aria-label="{join.label} — {join.title}">{join.label}</button
+								>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -575,136 +574,142 @@
 		titleId="adv-search-title"
 		contentClass="pixel-corners flex max-h-[85vh] w-[680px] max-w-[92vw] flex-col gap-6 overflow-y-auto"
 	>
-			<div class="flex items-center justify-between">
-				<h2 id="adv-search-title" class="m-0 font-heading text-2xl text-text-h">Advanced Search</h2>
+		<div class="flex items-center justify-between">
+			<h2 id="adv-search-title" class="m-0 font-heading text-2xl text-text-h">Advanced Search</h2>
+			<button
+				class="text-2xl text-text hover:text-text-h"
+				title="Close"
+				aria-label="Close"
+				onclick={() => (advancedOpen = false)}><i class="hn pix hn-times"></i></button
+			>
+		</div>
+
+		<!-- Quick toggles (mirrored here for small screens) -->
+		<section class="flex flex-col gap-2">
+			<span class="font-pixel text-sm uppercase text-text">Quick</span>
+			<div class="flex flex-wrap gap-2">
 				<button
-					class="text-2xl text-text hover:text-text-h"
-					title="Close"
-					aria-label="Close"
-					onclick={() => (advancedOpen = false)}><i class="hn pix hn-times"></i></button
-				>
-			</div>
-
-			<!-- Quick toggles (mirrored here for small screens) -->
-			<section class="flex flex-col gap-2">
-				<span class="font-pixel text-sm uppercase text-text">Quick</span>
-				<div class="flex flex-wrap gap-2">
-					<button
-						class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {quickOpenOnly
-							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
-							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-						aria-pressed={quickOpenOnly}
-						onclick={() => (quickOpenOnly = !quickOpenOnly)}>Open slots</button
-					>
-					<button
-						class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {quickHideInGame
-							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
-							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-						aria-pressed={quickHideInGame}
-						onclick={() => (quickHideInGame = !quickHideInGame)}>Hide in-game</button
-					>
-				</div>
-			</section>
-
-			<hr class="border-border opacity-60" />
-
-			<!-- Status -->
-			<section class="flex flex-col gap-2">
-				<span class="font-pixel text-sm uppercase text-text">Status</span>
-				<div class="flex flex-wrap gap-2">
-					{#each [["open", "Open"], ["inGame", "In Game"], ["full", "Full"]] as [key, label]}
-						<button
-							class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {advStatus[
-								key as keyof typeof advStatus
-							]
-								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
-								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-							aria-pressed={advStatus[key as keyof typeof advStatus]}
-							onclick={() =>
-								(advStatus = {
-									...advStatus,
-									[key]: !advStatus[key as keyof typeof advStatus]
-								})}>{label}</button
-						>
-					{/each}
-				</div>
-			</section>
-
-			<hr class="border-border opacity-60" />
-
-			<!-- Open slots -->
-			<section class="flex flex-col gap-2">
-				<span class="font-pixel text-sm uppercase text-text"
-					>Min. open slots: <span class="text-accent">{advMinOpenSlots}</span></span
-				>
-				<input type="range" min="0" max="4" bind:value={advMinOpenSlots} class="accent-accent" />
-			</section>
-
-			<hr class="border-border opacity-60" />
-
-			<!-- Deck -->
-			<section class="flex flex-col gap-2">
-				<span class="font-pixel text-sm uppercase text-text">Deck</span>
-				<div class="flex flex-wrap gap-2">
-					{#each DECKS as deck}
-						<button
-							class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {advDecks[deck]
-								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
-								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-							aria-pressed={advDecks[deck] ?? false}
-							onclick={() => (advDecks = { ...advDecks, [deck]: !advDecks[deck] })}>{deck}</button
-						>
-					{/each}
-				</div>
-			</section>
-
-			<hr class="border-border opacity-60" />
-
-			<!-- Rules (must include) -->
-			<section class="flex flex-col gap-2">
-				<span class="font-pixel text-sm uppercase text-text">Must include rules</span>
-				<div class="flex flex-wrap gap-2">
-					{#each RULE_IDS as rid}
-						<button
-							class="pixel-bordered flex items-center gap-2 px-3 py-2 font-pixel text-sm transition-colors {advRules[
-								rid
-							]
-								? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
-								: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-							aria-pressed={advRules[rid] ?? false}
-							onclick={() => (advRules = { ...advRules, [rid]: !advRules[rid] })}
-						>
-							<i class="hn pix {RULES[rid].icon} text-base"></i>{RULES[rid].label}
-						</button>
-					{/each}
-				</div>
-			</section>
-
-			<hr class="border-border opacity-60" />
-
-			<!-- Bots -->
-			<section class="flex items-center justify-between gap-4">
-				<span class="font-pixel text-sm text-text-h">Only lobbies that allow bot takeover</span>
-				<button
-					class="pixel-bordered px-4 py-2 font-pixel text-sm transition-colors {advTakeoverOnly
+					class="pixel-bordered px-4 py-2 font-tiny text-sm transition-colors {quickOpenOnly
 						? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 						: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-					aria-pressed={advTakeoverOnly}
-					onclick={() => (advTakeoverOnly = !advTakeoverOnly)}
-					>{advTakeoverOnly ? "On" : "Off"}</button
-				>
-			</section>
-
-			<!-- Footer: instant results, no submit -->
-			<div class="mt-2 flex items-center justify-between border-t-2 border-border pt-4">
-				<button class="font-pixel text-sm text-text hover:text-text-h" onclick={clearFilters}
-					>Clear filters</button
+					aria-pressed={quickOpenOnly}
+					onclick={() => (quickOpenOnly = !quickOpenOnly)}>Open slots</button
 				>
 				<button
-					class="pixel-bordered px-6 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-					onclick={() => (advancedOpen = false)}>Show {visible.length} lobbies</button
+					class="pixel-bordered px-4 py-2 font-tiny text-sm transition-colors {quickHideInGame
+						? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
+						: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+					aria-pressed={quickHideInGame}
+					onclick={() => (quickHideInGame = !quickHideInGame)}>Hide in-game</button
 				>
 			</div>
+		</section>
+
+		<hr class="border-border opacity-60" />
+
+		<!-- Status -->
+		<section class="flex flex-col gap-2">
+			<span class="font-pixel text-sm uppercase text-text">Status</span>
+			<div class="flex flex-wrap gap-2">
+				{#each [["open", "Open"], ["inGame", "In Game"], ["full", "Full"]] as [key, label]}
+					<button
+						class="pixel-bordered px-4 py-2 font-tiny text-sm transition-colors {advStatus[
+							key as keyof typeof advStatus
+						]
+							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
+							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+						aria-pressed={advStatus[key as keyof typeof advStatus]}
+						onclick={() =>
+							(advStatus = {
+								...advStatus,
+								[key]: !advStatus[key as keyof typeof advStatus]
+							})}>{label}</button
+					>
+				{/each}
+			</div>
+		</section>
+
+		<hr class="border-border opacity-60" />
+
+		<!-- Open slots -->
+		<section class="flex flex-col gap-2">
+			<span class="font-pixel text-sm uppercase text-text"
+				>Min. open slots: <span class="text-accent">{advMinOpenSlots}</span></span
+			>
+			<input
+				type="range"
+				min="0"
+				max={MAX_LOBBY_MEMBERS}
+				bind:value={advMinOpenSlots}
+				class="accent-accent"
+			/>
+		</section>
+
+		<hr class="border-border opacity-60" />
+
+		<!-- Deck -->
+		<section class="flex flex-col gap-2">
+			<span class="font-pixel text-sm uppercase text-text">Deck</span>
+			<div class="flex flex-wrap gap-2">
+				{#each DECKS as deck}
+					<button
+						class="pixel-bordered px-4 py-2 font-tiny text-sm transition-colors {advDecks[deck]
+							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
+							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+						aria-pressed={advDecks[deck] ?? false}
+						onclick={() => (advDecks = { ...advDecks, [deck]: !advDecks[deck] })}>{deck}</button
+					>
+				{/each}
+			</div>
+		</section>
+
+		<hr class="border-border opacity-60" />
+
+		<!-- Rules (must include) -->
+		<section class="flex flex-col gap-2">
+			<span class="font-pixel text-sm uppercase text-text">Must include rules</span>
+			<div class="flex flex-wrap gap-2">
+				{#each RULE_IDS as rid}
+					<button
+						class="pixel-bordered flex items-center gap-2 px-3 py-2 font-tiny text-sm transition-colors {advRules[
+							rid
+						]
+							? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
+							: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+						aria-pressed={advRules[rid] ?? false}
+						onclick={() => (advRules = { ...advRules, [rid]: !advRules[rid] })}
+					>
+						<i class="hn pix {RULES[rid].icon} text-base"></i>{RULES[rid].label}
+					</button>
+				{/each}
+			</div>
+		</section>
+
+		<hr class="border-border opacity-60" />
+
+		<!-- Bots -->
+		<section class="flex items-center justify-between gap-4">
+			<span class="font-tiny text-sm text-text-h">Only lobbies that allow bot takeover</span>
+			<button
+				class="pixel-bordered px-4 py-2 font-tiny text-sm transition-colors {advTakeoverOnly
+					? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
+					: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
+				aria-pressed={advTakeoverOnly}
+				onclick={() => (advTakeoverOnly = !advTakeoverOnly)}
+				>{advTakeoverOnly ? "On" : "Off"}</button
+			>
+		</section>
+
+		<!-- Footer: instant results, no submit -->
+		<div class="mt-2 flex items-center justify-between border-t-2 border-border pt-4">
+			<button class="font-pixel text-sm text-text hover:text-text-h" onclick={clearFilters}
+				>Clear filters</button
+			>
+			<button
+				class="pixel-bordered px-6 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+				onclick={() => (advancedOpen = false)}>Show {visible.length} lobbies</button
+			>
+		</div>
 	</Modal>
 {/if}
 
@@ -715,26 +720,26 @@
 		ariaLabel="Create or join a lobby"
 		contentClass="pixel-corners relative flex max-h-[90vh] w-full max-w-[44rem] flex-col overflow-y-auto p-5 sm:p-7.5"
 	>
-			<button
-				class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
-				title="Close"
-				aria-label="Close"
-				onclick={() => (createOpen = false)}><i class="hn pix hn-times"></i></button
-			>
+		<button
+			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
+			title="Close"
+			aria-label="Close"
+			onclick={() => (createOpen = false)}><i class="hn pix hn-times"></i></button
+		>
 
-			<div class="flex flex-col gap-6 sm:flex-row sm:gap-8">
-				<section class="flex flex-1 flex-col gap-4">
-					<h2 class="m-0 font-heading text-2xl text-text-h">Create</h2>
-					<LobbyCreateForm initialName={nameQuery} />
-				</section>
+		<div class="flex flex-col gap-6 sm:flex-row sm:gap-8">
+			<section class="flex flex-1 flex-col gap-4">
+				<h2 class="m-0 font-heading text-2xl text-text-h">Create</h2>
+				<LobbyCreateForm initialName={nameQuery} />
+			</section>
 
-				<hr class="border-border opacity-60 sm:hidden" />
-				<div class="hidden w-0.5 self-stretch bg-border opacity-60 sm:block"></div>
+			<hr class="border-border opacity-60 sm:hidden" />
+			<div class="hidden w-0.5 self-stretch bg-border opacity-60 sm:block"></div>
 
-				<section class="flex flex-1 flex-col gap-4">
-					<h2 class="m-0 font-heading text-2xl text-text-h">Join</h2>
-					<LobbyJoinForm />
-				</section>
-			</div>
+			<section class="flex flex-1 flex-col gap-4">
+				<h2 class="m-0 font-heading text-2xl text-text-h">Join</h2>
+				<LobbyJoinForm />
+			</section>
+		</div>
 	</Modal>
 {/if}
