@@ -22,6 +22,7 @@
 	import { storeToast } from "./lib/stores/toast.svelte";
 	import { storeAnalytics } from "./lib/stores/analytics.svelte";
 	import { storeAuth } from "./lib/stores/auth.svelte";
+	import { storeAudio } from "./lib/stores/audio.svelte";
 	import { storeLobby as _storeLobby } from "./lib/stores/lobby.svelte";
 	// Eagerly construct the game store so its WebSocket listeners (state capture
 	// and the lobby→game switch) are live from boot. Otherwise it would only load
@@ -29,11 +30,6 @@
 	// leaving the board empty (rebeccapurple playmat, no cards).
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
 
-	// 1. Variables for audio management
-	let volume = $state(0.05);
-	let audioPlayer: HTMLAudioElement;
-
-	let _audioInteractionHandler: (() => void) | null = null;
 	let _unsubError: (() => void) | null = null;
 
 	// Warm the lazy GameScreen chunk while in a lobby so the match starts without
@@ -43,18 +39,7 @@
 	});
 
 	onMount(async () => {
-		if (audioPlayer) {
-			audioPlayer.play().catch(() => {
-				_audioInteractionHandler = () => {
-					audioPlayer.play();
-					document.removeEventListener("click", _audioInteractionHandler!);
-					document.removeEventListener("keydown", _audioInteractionHandler!);
-					_audioInteractionHandler = null;
-				};
-				document.addEventListener("click", _audioInteractionHandler);
-				document.addEventListener("keydown", _audioInteractionHandler);
-			});
-		}
+		storeAudio.init();
 
 		await storeAuth.checkSession();
 
@@ -86,10 +71,6 @@
 	});
 
 	onDestroy(() => {
-		if (_audioInteractionHandler) {
-			document.removeEventListener("click", _audioInteractionHandler);
-			document.removeEventListener("keydown", _audioInteractionHandler);
-		}
 		_unsubError?.();
 	});
 
@@ -108,10 +89,6 @@
 <div id="app">
 	<Toast />
 	<span class="version-badge">v{__APP_VERSION__}</span>
-
-	<audio autoplay loop bind:volume bind:this={audioPlayer}>
-		<source src="/assets/music/lofi.mp3" type="audio/mpeg" />
-	</audio>
 
 	{#if storeNavigation.current === "main"}
 		<MainScreen />
