@@ -36,3 +36,7 @@ cert.pem
 .env
 
 .sqliterc
+
+frontend/public/assets/audio/**/*.wav
+frontend/public/assets/audio/**/*.flac
+frontend/public/assets/audio/**/*.aiff
