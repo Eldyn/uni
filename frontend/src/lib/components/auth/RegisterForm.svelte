@@ -1,8 +1,13 @@
 <script lang="ts">
-	import { storeAuth } from "../../stores/auth.svelte";
-	import FormInput from "../common/FormInput.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
+	import FormInput from "$components/common/FormInput.svelte";
+	import { censorText, loadCensorData } from "$utils/censor.svelte";
 
 	let { onRegisterSuccess }: { onRegisterSuccess?: () => void } = $props();
+
+	// Warm the censor data as soon as the register form mounts, so the
+	// username check on submit (below) doesn't wait on the fetch.
+	loadCensorData();
 
 	let form = $state({
 		username: "",
@@ -22,6 +27,12 @@
 		event.preventDefault();
 
 		errors = { username: "", email: "", password: "", confirmPassword: "" };
+
+		await loadCensorData();
+		if (censorText(form.username) !== form.username) {
+			errors.username = "Please choose a different username.";
+			return;
+		}
 
 		const resErrors = await storeAuth.register(
 			form.username,

@@ -87,9 +87,11 @@ h3 {
 	line-height: 2;
 	margin: 2.2rem 0 0.8rem;
 	text-align: center;
-	border-bottom: 2px solid var(--border);
 }
 
+/* Page titles (h1/h2) read cleaner without a hard rule under them — only
+   h3 subsection headings keep the separator, and even those step aside
+   for a .subtitle right underneath (see :has() rule below). */
 h1 {
 	font-size: 2rem;
 	margin-top: 0.5rem;
@@ -101,10 +103,34 @@ h2 {
 h3 {
 	font-family: var(--anchor);
 	font-size: 1.1rem;
+	border-bottom: 2px solid var(--border);
+	padding-bottom: 0.3rem;
 }
 h4 {
 	font-family: var(--anchor);
 	font-size: 1.1rem;
+}
+
+/* Small centered Habbo caption sitting directly under a heading, e.g.
+   <h3>Attributions</h3><p class="subtitle">...</p> — same muted gray as
+   body text, just smaller and spaced out for a clean, cute label feel. */
+.subtitle {
+	margin: -0.5rem 0 1.2rem;
+	font-family: var(--body);
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-align: center;
+	color: var(--text);
+}
+
+/* A heading immediately followed by a .subtitle drops its own separator —
+   the subtitle takes over as the visual close to the heading instead. */
+h1:has(+ .subtitle),
+h2:has(+ .subtitle),
+h3:has(+ .subtitle) {
+	border-bottom: none;
+	padding-bottom: 0;
 }
 
 a {
