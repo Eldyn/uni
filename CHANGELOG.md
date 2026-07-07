@@ -9,6 +9,14 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Added
+
+- **Settings screen**: `frontend/src/lib/components/settings/SettingsScreen.svelte` wires the main-screen "Settings" hub tile to a real screen with music/SFX volume sliders (reusing `lobby/settings/Slider.svelte`), bound to `storeAudio`. Guests can reach it too — it's local browser state, no account needed.
+
+### Fixed
+
+- **Main-screen hub tiles hidden for guests**: the hub-tile dock (Stats/Decks/Skins/Settings) was gated on `storeAuth.isLoggedIn`, which guests never satisfy by design — so a guest hitting "Back" from the lobby list fell through to the Login/Guest CTA screen, which looked like they'd been logged out even though their guest session was still alive. The dock now also shows for guests (`isLoggedIn || isGuest`); `Stats` stays account-only (`action` only set when `isLoggedIn`), `Decks`/`Skins` stay unbuilt placeholders for everyone.
+
 ## [0.5.0] - 2026-07-07
 
 ### Fixed

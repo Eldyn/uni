@@ -27,12 +27,14 @@
 		action?: () => void;
 	}
 
-	const HUB_TILES: HubTile[] = [
+	// Stats/saved matches are account-only; Settings is local browser state, so
+	// it works for guests too. Decks/Skins have no action either way — unbuilt.
+	const HUB_TILES = $derived<HubTile[]>([
 		{
 			label: "Stats",
 			icon: "hn-crown",
 			accent: "text-blue-card",
-			action: () => storeNavigation.goto("stats")
+			action: storeAuth.isLoggedIn ? () => storeNavigation.goto("stats") : undefined
 		},
 		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card" },
 		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card" },
@@ -42,7 +44,7 @@
 			accent: "text-accent",
 			action: () => storeNavigation.goto("settings")
 		}
-	];
+	]);
 
 	const SOCIAL_LINKS = [
 		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
@@ -102,8 +104,8 @@
 	<!-- Bottom dock: actions + nav -->
 	<div class="dock relative z-10 w-full px-4 pb-6 pt-6">
 		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
-			{#if !storeAuth.isLoggedIn}
-				<!-- Guest: login + guest CTA -->
+			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+				<!-- Signed out entirely: login + guest CTA -->
 				<button
 					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
 					onclick={() => storeNavigation.goto("auth")}

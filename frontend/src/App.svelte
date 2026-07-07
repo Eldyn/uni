@@ -11,7 +11,8 @@
 		lobby: () => import("./lib/components/lobby/LobbyScreen.svelte"),
 		game: () => import("./lib/components/game/GameScreen.svelte"),
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
-		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte")
+		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
+		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
 	} as const;
 
 	import { onMount, onDestroy } from "svelte";
