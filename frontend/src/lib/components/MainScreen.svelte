@@ -143,7 +143,7 @@
 							onclick={() => tile.action?.()}
 							aria-label="{tile.label}{tile.action ? '' : ' — coming soon'}"
 						>
-							<i class="pix {tile.icon} text-xl {tile.accent}"></i>
+							<i class="hn pix {tile.icon} text-xl {tile.accent}"></i>
 							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>
 							{#if !tile.action}
 								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">Soon</span>
