@@ -9,6 +9,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-07-07
+
 ### Changed
 
 - **Production deploys now gated on release tags**: CI still builds a multi-arch image on every push to `main`, but tags it `:edge` (+ `:sha-*`) instead of `:latest`. Only pushing a `vX.Y.Z` git tag publishes `:latest` (plus the matching semver tag), which is what the OCI deploy-watcher polls — so `main` can accumulate unreleased work without it shipping to playuni.app, and a release is cut simply by tagging.
@@ -308,7 +310,9 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.4.6...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/Eldyn/uni/compare/v0.4.7...v0.4.8
+[0.4.7]: https://github.com/Eldyn/uni/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/Eldyn/uni/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/Eldyn/uni/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/Eldyn/uni/compare/v0.4.3...v0.4.4
