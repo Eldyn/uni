@@ -115,6 +115,18 @@ describe("MusicPlayer", () => {
 		expect(howl.play).toHaveBeenCalledTimes(1);
 	});
 
+	it("playTrack with the same id already playing is a no-op — doesn't restart the track", () => {
+		const player = new MusicPlayer();
+		player.playTrack("music.trackA");
+		const first = FakeHowl.instances[0];
+
+		player.playTrack("music.trackA");
+
+		expect(first.stop).not.toHaveBeenCalled();
+		expect(first.unload).not.toHaveBeenCalled();
+		expect(FakeHowl.instances).toHaveLength(1);
+	});
+
 	it("playTrack again stops/unloads the previous track before starting the new one", () => {
 		const player = new MusicPlayer();
 		player.playTrack("music.trackA");

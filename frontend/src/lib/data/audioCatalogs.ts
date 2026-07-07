@@ -71,12 +71,18 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	// — the multi-channel engine already handles this shape, no new code needed.
 };
 
-// all PLACEHOLDER-SFX for now — no real SFX files exist yet; entries get
-// added when audio.svelte.ts's gameplay trigger wiring lands.
+// INFO: All PLACEHOLDER-SFX for now — no real SFX files exist yet.
 export const SFX_CATALOG: Record<string, SfxDef> = {};
 
-// Replaces the old broken `/assets/music/lofi.mp3` reference in App.svelte
-// (not touched in this batch — wiring happens in a later step).
+// INFO: Plays on every screen except "game" — the match itself gets its own
+//       music/atmosphere later; no entry here means resolveMusicForContext()
+//       resolves to undefined and MusicPlayer.stopAll()s instead.
 export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {
-	main: "music.fuzzsong"
+	main: "music.fuzzsong",
+	auth: "music.fuzzsong",
+	lobbies: "music.fuzzsong",
+	lobby: "music.fuzzsong",
+	settings: "music.fuzzsong",
+	stats: "music.fuzzsong",
+	detailedStats: "music.fuzzsong"
 };

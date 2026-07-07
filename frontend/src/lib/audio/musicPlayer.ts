@@ -54,24 +54,28 @@ function resolveChannelDefs(def: MusicTrackDef): MusicChannelDef[] {
 
 export class MusicPlayer {
 	#current: CurrentHandle | undefined;
-	// Bumped on every playTrack/stopAll call. Async work (playlist onend
-	// callbacks, multi-channel decode promises) captures the token it was
-	// started under and bails if a newer operation has since taken over —
-	// this is what prevents both the playlist double-advance-after-stop
-	// bug and a stale multi-channel decode from clobbering a newer track.
+	// INFO: Catalog id behind #current — lets playTrack no-op when asked to
+	//       play what's already playing instead of restarting from zero.
+	#currentId: string | undefined;
+	// INFO: Bumped on every playTrack/stopAll call. Async work (playlist
+	//       onend, multi-channel decode) captures its token and bails if a
+	//       newer operation has taken over — prevents playlist double-advance
+	//       and a stale decode clobbering a newer track.
 	#operationId = 0;
 
 	playTrack(id: string, opts?: { fadeMs?: number }): Promise<void> {
+		if (id === this.#currentId && this.#current) return Promise.resolve();
+
 		const def = MUSIC_CATALOG[id];
 		if (!def) {
 			console.warn(`MusicPlayer.playTrack: unknown track id "${id}"`);
 			return Promise.resolve();
 		}
 
-		// Immediate stop-then-start: simpler than crossfading the old track
-		// against the new one, and matches the "screen-change cleanup"
-		// requirement of never leaving two things playing at once.
+		// INFO: Immediate stop-then-start rather than crossfading old vs new —
+		//       simpler, and never leaves two things playing at once.
 		this.#stopCurrent(opts?.fadeMs);
+		this.#currentId = id;
 		const operationId = ++this.#operationId;
 
 		if (def.kind === "single") {
@@ -89,7 +93,7 @@ export class MusicPlayer {
 			return Promise.resolve();
 		}
 
-		// "multi" / "multi-folder": decode all stems, then start them synced.
+		// INFO: "multi"/"multi-folder" — decode all stems, then sync-start them.
 		return this.#playMultiChannel(def, operationId);
 	}
 
@@ -102,6 +106,7 @@ export class MusicPlayer {
 		const current = this.#current;
 		if (!current) return;
 		this.#current = undefined;
+		this.#currentId = undefined;
 
 		if (current.kind === "multi") {
 			current.handle.stop(fadeMs);
@@ -121,9 +126,8 @@ export class MusicPlayer {
 		}
 	}
 
-	// Unlike #playMultiChannel, this and #startPlaylist run fully synchronously
-	// (no await between #stopCurrent and setting #current), so they don't need
-	// the operationId race guard — if that ever changes, add one.
+	// INFO: Runs fully synchronously (no await before #current is set), so it
+	//       doesn't need the operationId race guard #playMultiChannel does.
 	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
 		const howl = new Howl({ src: [def.src], loop: def.loop ?? false, volume: 0 });
 		howl.play();
@@ -161,17 +165,16 @@ export class MusicPlayer {
 			return;
 		}
 
-		// Playlist entries always play non-looping regardless of the nested
-		// def's own loop flag — the playlist itself owns advancing/looping.
+		// INFO: Playlist entries always play non-looping regardless of the
+		//       nested def's own loop flag — the playlist owns advancing.
 		const howl = new Howl({
 			src: [trackDef.src],
 			loop: false,
 			volume: 1,
 			onend: () => {
-				// Howler only fires onend on natural completion, never on a
-				// manual .stop() — but we still guard on the operation id in
-				// case stopAll()/a new playTrack() raced in right as this
-				// callback was queued.
+				// INFO: Howler fires onend only on natural completion, never on
+				//       a manual .stop() — guard anyway in case a newer
+				//       operation raced in right as this callback was queued.
 				if (operationId !== this.#operationId) return;
 				const nextIndex = (index + 1) % order.length;
 				this.#playPlaylistEntry(order, nextIndex, crossfadeMs, operationId);
@@ -198,8 +201,8 @@ export class MusicPlayer {
 			})
 		);
 
-		// A newer playTrack/stopAll call raced ahead of this decode — don't
-		// resurrect ourselves as "current" over whatever's playing now.
+		// INFO: A newer playTrack/stopAll raced ahead of this decode — don't
+		//       resurrect as "current" over whatever's playing now.
 		if (operationId !== this.#operationId) return;
 
 		const handle = playSyncedChannels(Howler.ctx, channelBuffers, Howler.masterGain);

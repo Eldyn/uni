@@ -51,8 +51,8 @@ describe("audioLogic: resolveMusicForContext", () => {
 		expect(resolveMusicForContext("main")).toBe("music.fuzzsong");
 	});
 
-	it("returns undefined for a screen with no entry", () => {
-		expect(resolveMusicForContext("auth")).toBeUndefined();
+	it("returns undefined for a screen with no entry (the match screen — no music during gameplay)", () => {
+		expect(resolveMusicForContext("game")).toBeUndefined();
 	});
 });
 
