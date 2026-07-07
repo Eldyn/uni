@@ -195,6 +195,14 @@ class StoreLobby {
 	/** True while fetching the list of public lobbies from the server. */
 	isLoadingList = $state(false);
 
+	/**
+	 * True when the most recent fetchList() failed (server rejection, malformed
+	 * payload, or network/WS error) — distinct from a successful fetch that
+	 * legitimately found zero lobbies, so the UI can tell "nothing to join"
+	 * apart from "couldn't check."
+	 */
+	listError = $state(false);
+
 	/** True while a lobby creation or join request is in progress. */
 	isLoadingJoin = $state(false);
 
@@ -417,16 +425,24 @@ class StoreLobby {
 
 			if (!response.ok) {
 				this.available = [];
+				this.listError = true;
 				return;
 			}
 			const parsed = z.array(ListedLobbySchema).safeParse(response.get("lobbies") ?? []);
 			if (!parsed.success) {
 				console.error("[lobby] Malformed lobby list payload:", parsed.error.issues);
+				this.listError = true;
 				return;
 			}
 			this.available = parsed.data as ListedLobby[];
+			this.listError = false;
 		} catch (error) {
-			storeToast.error(failureText(error));
+			// Toast only on the transition into failure, not every retry —
+			// LobbyBrowse polls this every 8s, and once broken the always-
+			// visible error card (with its own Retry action) already says so;
+			// re-toasting each tick would just be noise on top of that.
+			if (!this.listError) storeToast.error(failureText(error));
+			this.listError = true;
 		} finally {
 			this.isLoadingList = false;
 		}

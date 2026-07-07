@@ -169,6 +169,20 @@
 					>
 						<p class="font-heading text-xl text-text-h">Loading lobbies…</p>
 					</div>
+				{:else if storeLobby.listError && lobbies.length === 0}
+					<div
+						class="pixel-corners border-2 border-dashed border-danger bg-bg/80 p-12 text-center md:col-span-2"
+					>
+						<p class="mb-4 font-heading text-xl text-text-h">Couldn't load lobbies</p>
+						<p class="mb-4 font-tiny text-sm text-text">
+							Something went wrong reaching the server — this isn't the same as there being no
+							lobbies.
+						</p>
+						<button
+							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+							onclick={() => storeLobby.fetchList()}>Retry</button
+						>
+					</div>
 				{:else if visible.length === 0}
 					<div
 						class="pixel-corners border-2 border-dashed border-border bg-bg/80 p-12 text-center md:col-span-2"
