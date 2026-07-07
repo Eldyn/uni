@@ -11,7 +11,7 @@ import { resolveMusicForContext } from "$lib/audio/audioLogic";
 import { storeNavigation } from "$stores/navigation.svelte";
 
 const SETTINGS_STORAGE_KEY = "uni:audio:settings";
-const DEFAULT_MUSIC_VOLUME = 0.5;
+const DEFAULT_MUSIC_VOLUME = 0.15;
 const DEFAULT_SFX_VOLUME = 0.5;
 
 interface AudioSettings {
@@ -34,7 +34,7 @@ class StoreAudio {
 			if (typeof parsed?.musicVolume === "number") this.musicVolume = parsed.musicVolume;
 			if (typeof parsed?.sfxVolume === "number") this.sfxVolume = parsed.sfxVolume;
 		} catch {
-			// localStorage unavailable or settings payload malformed — use defaults.
+			// INFO: localStorage unavailable or malformed — fall back to defaults.
 		}
 	}
 
@@ -50,22 +50,18 @@ class StoreAudio {
 		this.#initialized = true;
 
 		try {
-			// Also lazily creates Howler.ctx as a side effect (Howler only sets
-			// up its AudioContext on first real use), which is why the gesture
-			// unlock check below can safely inspect Howler.ctx right after this.
+			// INFO: Also creates Howler.ctx as a side effect — Howler defers
+			//       AudioContext setup until first real use.
 			Howler.volume(this.musicVolume);
 		} catch {
-			// Howler/AudioContext unavailable — audio degrades to silent no-op.
+			// INFO: Howler/AudioContext unavailable — degrade to silent no-op.
 		}
 
 		this.#unlockOnGesture();
 
-		// The dispose function $effect.root returns is intentionally unused:
-		// storeAudio is an app-lifetime singleton and init() is idempotent
-		// (#initialized guard above), so this effect is meant to live for the
-		// whole session — there's currently nothing that should ever tear it
-		// down. Revisit if that stops being true (e.g. SSR, hot-reload
-		// re-instantiation, or a future teardown/dispose() method).
+		// INFO: storeAudio is an app-lifetime singleton, so this effect is
+		//       meant to run for the whole session — the dispose function
+		//       $effect.root returns is intentionally left unused.
 		$effect.root(() => {
 			$effect(() => {
 				const trackId = resolveMusicForContext(storeNavigation.current);
@@ -76,7 +72,7 @@ class StoreAudio {
 						this.#music.stopAll();
 					}
 				} catch {
-					// Playback backend unavailable — screen switches silently.
+					// INFO: Playback backend unavailable — screen switches silently.
 				}
 			});
 		});
@@ -84,10 +80,8 @@ class StoreAudio {
 
 	/**
 	 * @brief Browsers block audio playback until a user gesture. If Howler's
-	 * AudioContext already exists but is suspended, attach one-shot
-	 * click/keydown listeners that retry `ctx.resume()` and remove
-	 * themselves once done — mirrors the fallback that used to live directly
-	 * on an `<audio>` element in App.svelte, adapted to Howler's context.
+	 * AudioContext exists but is suspended, attach one-shot click/keydown
+	 * listeners that retry `ctx.resume()` and remove themselves once done.
 	 */
 	#unlockOnGesture(): void {
 		try {
@@ -98,13 +92,13 @@ class StoreAudio {
 				document.removeEventListener("click", resume);
 				document.removeEventListener("keydown", resume);
 				ctx.resume().catch(() => {
-					// Still no gesture-granted permission — nothing further to do.
+					// INFO: Still no gesture-granted permission — nothing to do.
 				});
 			};
 			document.addEventListener("click", resume);
 			document.addEventListener("keydown", resume);
 		} catch {
-			// Howler.ctx unavailable — nothing to unlock.
+			// INFO: Howler.ctx unavailable — nothing to unlock.
 		}
 	}
 
@@ -116,7 +110,7 @@ class StoreAudio {
 		try {
 			this.#sfx.playSfx(id, { pitch: opts?.pitch, volume: opts?.volume ?? this.sfxVolume });
 		} catch {
-			// Underlying audio backend unavailable — silently drop the SFX.
+			// INFO: Audio backend unavailable — silently drop the SFX.
 		}
 	}
 
@@ -125,7 +119,7 @@ class StoreAudio {
 		try {
 			Howler.volume(v);
 		} catch {
-			// Howler/AudioContext unavailable — the setting still persists below.
+			// INFO: Howler/AudioContext unavailable — the setting still persists.
 		}
 		this.#persist();
 	}
@@ -142,7 +136,7 @@ class StoreAudio {
 				JSON.stringify({ musicVolume: this.musicVolume, sfxVolume: this.sfxVolume })
 			);
 		} catch {
-			// localStorage unavailable — settings still live in memory.
+			// INFO: localStorage unavailable — settings still live in memory.
 		}
 	}
 }

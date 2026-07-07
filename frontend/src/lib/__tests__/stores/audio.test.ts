@@ -38,7 +38,7 @@ describe("storeAudio", () => {
 
 	it("defaults musicVolume/sfxVolume when localStorage is empty", async () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
-		expect(storeAudio.musicVolume).toBe(0.5);
+		expect(storeAudio.musicVolume).toBe(0.15);
 		expect(storeAudio.sfxVolume).toBe(0.5);
 	});
 
@@ -52,7 +52,7 @@ describe("storeAudio", () => {
 	it("falls back to defaults when the persisted payload is malformed", async () => {
 		localStorage.setItem(SETTINGS_KEY, "{not-json");
 		const { storeAudio } = await import("$stores/audio.svelte");
-		expect(storeAudio.musicVolume).toBe(0.5);
+		expect(storeAudio.musicVolume).toBe(0.15);
 		expect(storeAudio.sfxVolume).toBe(0.5);
 	});
 
