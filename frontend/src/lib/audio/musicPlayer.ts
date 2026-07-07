@@ -121,6 +121,9 @@ export class MusicPlayer {
 		}
 	}
 
+	// Unlike #playMultiChannel, this and #startPlaylist run fully synchronously
+	// (no await between #stopCurrent and setting #current), so they don't need
+	// the operationId race guard — if that ever changes, add one.
 	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
 		const howl = new Howl({ src: [def.src], loop: def.loop ?? false, volume: 0 });
 		howl.play();

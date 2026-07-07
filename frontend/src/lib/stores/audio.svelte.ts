@@ -60,6 +60,12 @@ class StoreAudio {
 
 		this.#unlockOnGesture();
 
+		// The dispose function $effect.root returns is intentionally unused:
+		// storeAudio is an app-lifetime singleton and init() is idempotent
+		// (#initialized guard above), so this effect is meant to live for the
+		// whole session — there's currently nothing that should ever tear it
+		// down. Revisit if that stops being true (e.g. SSR, hot-reload
+		// re-instantiation, or a future teardown/dispose() method).
 		$effect.root(() => {
 			$effect(() => {
 				const trackId = resolveMusicForContext(storeNavigation.current);

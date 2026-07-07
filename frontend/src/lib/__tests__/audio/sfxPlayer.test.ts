@@ -6,14 +6,15 @@ const { FakeHowl } = vi.hoisted(() => {
 
 		src: string[];
 		#soundIdCounter = 0;
-		#onceEndCallbacks = new Map<number, () => void>();
+		#onceCallbacks = new Map<string, Map<number, () => void>>();
 
 		play = vi.fn(() => ++this.#soundIdCounter);
 		rate = vi.fn();
 		volume = vi.fn();
 
 		once = vi.fn((event: string, cb: () => void, id: number) => {
-			if (event === "end") this.#onceEndCallbacks.set(id, cb);
+			if (!this.#onceCallbacks.has(event)) this.#onceCallbacks.set(event, new Map());
+			this.#onceCallbacks.get(event)!.set(id, cb);
 		});
 
 		constructor(opts: { src: string[] }) {
@@ -23,7 +24,12 @@ const { FakeHowl } = vi.hoisted(() => {
 
 		/** Test helper: simulate the given sound instance finishing playback. */
 		triggerEnd(soundId: number) {
-			this.#onceEndCallbacks.get(soundId)?.();
+			this.#onceCallbacks.get("end")?.get(soundId)?.();
+		}
+
+		/** Test helper: simulate a load/play failure for the given sound instance. */
+		triggerError(event: "loaderror" | "playerror", soundId: number) {
+			this.#onceCallbacks.get(event)?.get(soundId)?.();
 		}
 	}
 
@@ -75,6 +81,37 @@ describe("SfxPlayer", () => {
 		expect(() => player.playSfx("sfx.nope")).not.toThrow();
 		expect(FakeHowl.instances).toHaveLength(0);
 		expect(warn).toHaveBeenCalled();
+	});
+
+	it("warns only once per unknown id, even across many calls", () => {
+		const player = new SfxPlayer();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		player.playSfx("sfx.nope");
+		player.playSfx("sfx.nope");
+		player.playSfx("sfx.nope");
+
+		expect(warn).toHaveBeenCalledTimes(1);
+	});
+
+	it("releases the in-flight slot on loaderror/playerror, not just on end", () => {
+		const player = new SfxPlayer();
+
+		player.playSfx("sfx.capped");
+		player.playSfx("sfx.capped");
+
+		const howl = FakeHowl.instances[0];
+		expect(howl.play).toHaveBeenCalledTimes(2);
+
+		// A third call is dropped — both slots still counted as in flight.
+		player.playSfx("sfx.capped");
+		expect(howl.play).toHaveBeenCalledTimes(2);
+
+		// One instance fails to load instead of ever firing "end" — its slot
+		// must still be released, or it leaks permanently.
+		howl.triggerError("loaderror", 1);
+		player.playSfx("sfx.capped");
+		expect(howl.play).toHaveBeenCalledTimes(3);
 	});
 
 	it("empty variants list is a safe no-op", () => {
