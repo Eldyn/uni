@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
 	import GameCard from "$components/game/GameCard.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
@@ -17,13 +18,23 @@
 			<div class="action-buttons-group">
 				<button
 					class="btn pixel-corners sized-btn play-btn"
-					onclick={() => storeGame.submitInput("0")}
+					onclick={() => {
+						// PLACEHOLDER-SFX: sfx.play-drawn.confirm — confirmation blip when
+						// the player chooses to play the just-drawn card.
+						storeAudio.playSfx("sfx.play-drawn.confirm");
+						storeGame.submitInput("0");
+					}}
 				>
 					Play It
 				</button>
 				<button
 					class="btn pixel-corners sized-btn keep-btn"
-					onclick={() => storeGame.submitInput("1")}
+					onclick={() => {
+						// PLACEHOLDER-SFX: sfx.play-drawn.confirm — confirmation blip when
+						// the player chooses to keep the just-drawn card instead.
+						storeAudio.playSfx("sfx.play-drawn.confirm");
+						storeGame.submitInput("1");
+					}}
 				>
 					Keep It
 				</button>

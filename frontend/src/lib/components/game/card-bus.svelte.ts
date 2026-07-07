@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import type { Card } from "$stores/game.svelte";
+import { storeAudio } from "$stores/audio.svelte";
 
 export type ElementRole = "draw-pile" | "discard-pile" | "hand-local" | `hand-opponent-${number}`;
 
@@ -108,6 +109,12 @@ export class CardBus {
 		const src = this.resolvePoint(event.from);
 		const dst = this.resolvePoint(event.to);
 		const key = this.#nextKey++;
+
+		// PLACEHOLDER-SFX: sfx.card.launch — generic card-in-flight whoosh; this
+		// path is shared by play/draw/deal animations, a human may want to split
+		// per-action variants later using event context instead of one generic id.
+		storeAudio.playSfx("sfx.card.launch");
+
 		this.flights = [
 			...this.flights,
 			{
@@ -126,6 +133,11 @@ export class CardBus {
 	land(key: number) {
 		const flight = this.flights.find((f) => f.key === key);
 		this.flights = this.flights.filter((f) => f.key !== key);
+
+		// PLACEHOLDER-SFX: sfx.card.land — generic card-landing thud/tap; same
+		// caveat as sfx.card.launch, a human may want play/draw/deal variants.
+		storeAudio.playSfx("sfx.card.land");
+
 		flight?.onLand?.();
 	}
 

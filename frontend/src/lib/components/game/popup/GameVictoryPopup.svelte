@@ -2,9 +2,27 @@
 	import Modal from "$lib/components/common/Modal.svelte";
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
+
+	let hasPlayedResultSfx = $state(false);
+
+	// Guarded so the result SFX fires exactly once, even if isMe/winnerName
+	// happen to re-derive while this popup stays mounted.
+	$effect(() => {
+		if (hasPlayedResultSfx) return;
+		hasPlayedResultSfx = true;
+		if (isMe) {
+			// PLACEHOLDER-SFX: sfx.match.victory — triumphant fanfare for the
+			// local player winning the match.
+			storeAudio.playSfx("sfx.match.victory");
+		} else {
+			// PLACEHOLDER-SFX: sfx.match.defeat — somber sting for losing the match.
+			storeAudio.playSfx("sfx.match.defeat");
+		}
+	});
 
 	let winnerIdx = $derived(
 		storeGame.state?.players?.findIndex((p) => p.username === winnerName) ?? -1

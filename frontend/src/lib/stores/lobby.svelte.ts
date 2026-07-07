@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 import { failureText } from "./errors";
+import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
@@ -253,6 +254,9 @@ class StoreLobby {
 			return;
 		}
 
+		// PLACEHOLDER-SFX: sfx.lobby.promote — confirmation chime when a member
+		// is promoted to host.
+		storeAudio.playSfx("sfx.lobby.promote");
 		storeToast.success(`Promoted ${username}!`);
 	}
 
@@ -270,6 +274,9 @@ class StoreLobby {
 			return;
 		}
 
+		// PLACEHOLDER-SFX: sfx.lobby.kick — punchy "removed" sting when a member
+		// is kicked from the lobby.
+		storeAudio.playSfx("sfx.lobby.kick");
 		storeToast.success(`Kicked ${username}!`);
 	}
 
@@ -287,6 +294,9 @@ class StoreLobby {
 			if (!response.ok) {
 				storeToast.error(response.message);
 			} else {
+				// PLACEHOLDER-SFX: sfx.lobby.start — kickoff sting when the host
+				// successfully starts the match.
+				storeAudio.playSfx("sfx.lobby.start");
 				this.#trackMatchStart();
 			}
 		} finally {
@@ -367,6 +377,9 @@ class StoreLobby {
 				storeToast.error(response.message);
 				return false;
 			}
+			// PLACEHOLDER-SFX: sfx.lobby.create — confirmation chime when a new
+			// lobby is successfully created.
+			storeAudio.playSfx("sfx.lobby.create");
 			storeAnalytics.track("lobby_create", { is_public: data.is_public });
 			return true;
 		} catch (error) {
@@ -399,6 +412,9 @@ class StoreLobby {
 				storeToast.error(response.message);
 				return false;
 			}
+			// PLACEHOLDER-SFX: sfx.lobby.join — confirmation chime when the local
+			// player successfully joins a lobby via invite code.
+			storeAudio.playSfx("sfx.lobby.join");
 			storeAnalytics.track("lobby_join");
 			return true;
 		} catch (error) {
@@ -458,6 +474,10 @@ class StoreLobby {
 			// the server actually processes the leave and echoes LobbyLeft back.
 			await ws.connect();
 			ws.emit(ClientAction.LobbyLeave);
+			// PLACEHOLDER-SFX: sfx.lobby.leave — departure blip when the local
+			// player leaves the lobby; fires optimistically here since LobbyLeave
+			// has no emitAndWait ack, mirroring the existing emit-and-forget pattern.
+			storeAudio.playSfx("sfx.lobby.leave");
 			storeAnalytics.track("lobby_leave");
 		} catch {
 			this.#reset();

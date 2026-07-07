@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
 	import { ClientAction, ws } from "$stores/ws.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	let isMyTurn = $derived(storeGame.state?.current_turn === storeGame.localPlayer?.username);
 
@@ -9,6 +10,18 @@
 	let alreadyCalled = $derived(storeGame.localPlayer?.has_called_uno ?? false);
 
 	let canPlayCard = $derived((storeGame.localPlayer?.hand || []).some((card) => card.can_play));
+
+	let isVisible = $derived(isMyTurn && hasTwoCards && canPlayCard);
+	let wasVisible = $state(false);
+
+	$effect(() => {
+		if (isVisible && !wasVisible) {
+			// PLACEHOLDER-SFX: sfx.uno.button-appear — attention sting when the
+			// UNO button pops into view; consider a short pitch-up chime.
+			storeAudio.playSfx("sfx.uno.button-appear");
+		}
+		wasVisible = isVisible;
+	});
 </script>
 
 {#if isMyTurn && hasTwoCards && canPlayCard}
@@ -16,7 +29,14 @@
 		<button
 			type="button"
 			class="btn pixel-corners uno-button animate-pixel-bounce"
-			onclick={() => ws.emit(ClientAction.MatchCallUno)}
+			onclick={() => {
+				// PLACEHOLDER-SFX: sfx.uno.call — the "shout" moment of pressing the
+				// UNO button itself; distinct from sfx.action.call-uno in
+				// game.svelte.ts since this button emits directly, bypassing
+				// storeGame.callUno().
+				storeAudio.playSfx("sfx.uno.call");
+				ws.emit(ClientAction.MatchCallUno);
+			}}
 		>
 			UNO!
 		</button>
