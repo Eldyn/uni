@@ -5,7 +5,7 @@
  * testable in isolation.
  */
 
-import { AVATAR_COLORS, type SortKey } from "$lib/data/lobbyCatalogs";
+import type { SortKey } from "$lib/data/lobbyCatalogs";
 import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 import type { ListedLobby } from "$lib/stores/lobby.svelte";
 
@@ -100,14 +100,6 @@ export function joinInfo(l: BrowseLobby): JoinInfo {
 		disabled: false,
 		title: "Open — join now"
 	};
-}
-
-/** Deterministic per-slot avatar colour derived from the lobby code. */
-export function avatarColor(seed: string, i: number): string {
-	let h = 0;
-	const s = `${seed}:${i}`;
-	for (let c = 0; c < s.length; c++) h = (h * 31 + s.charCodeAt(c)) >>> 0;
-	return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 export function filterLobbies(lobbies: BrowseLobby[], f: BrowseFilters): BrowseLobby[] {

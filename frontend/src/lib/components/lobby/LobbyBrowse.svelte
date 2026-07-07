@@ -3,6 +3,7 @@
 	// concept yet. Rule data comes from storeCatalog (server-provided).         //
 
 	import { onMount } from "svelte";
+	import LoadingSpinner from "$components/common/LoadingSpinner.svelte";
 	import Modal from "$components/common/Modal.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
 	import AdvancedSearchModal from "./AdvancedSearchModal.svelte";
@@ -23,13 +24,25 @@
 
 	// The server pushes lobby updates only to lobby members, so the browse
 	// list has to poll to see new, closed or started lobbies.
-	const LIST_POLL_MS = 8000;
+	const LIST_POLL_MS = 10000;
 
 	onMount(() => {
 		storeLobby.fetchList();
 		storeCatalog.ensureLoaded();
 		const poll = setInterval(() => storeLobby.fetchList(), LIST_POLL_MS);
 		return () => clearInterval(poll);
+	});
+
+	// TODO: fill in with real illustrations, then swap the empty-state check
+	//       below for an unconditional random pick.
+	const ERROR_ILLUSTRATIONS: string[] = [];
+	let errorIllustration = $state<string | null>(null);
+	$effect(() => {
+		if (storeLobby.listError) {
+			errorIllustration = ERROR_ILLUSTRATIONS.length
+				? ERROR_ILLUSTRATIONS[Math.floor(Math.random() * ERROR_ILLUSTRATIONS.length)]
+				: null;
+		}
 	});
 
 	const lobbies = $derived(storeLobby.available.map(toBrowseLobby));
@@ -164,19 +177,17 @@
 				{/each}
 
 				{#if storeLobby.isLoadingList && lobbies.length === 0}
-					<div
-						class="pixel-corners border-2 border-dashed border-border bg-bg/80 p-12 text-center md:col-span-2"
-					>
-						<p class="font-heading text-xl text-text-h">Loading lobbies…</p>
+					<div class="flex items-center justify-center p-12 text-center md:col-span-2">
+						<LoadingSpinner size="large" />
 					</div>
 				{:else if storeLobby.listError && lobbies.length === 0}
-					<div
-						class="pixel-corners border-2 border-dashed border-danger bg-bg/80 p-12 text-center md:col-span-2"
-					>
-						<p class="mb-4 font-heading text-xl text-text-h">Couldn't load lobbies</p>
+					<div class="p-12 text-center md:col-span-2">
+						{#if errorIllustration}
+							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
+						{/if}
+						<p class="mb-4 font-pixel text-xl uppercase text-text-h">Couldn't load lobbies</p>
 						<p class="mb-4 font-tiny text-sm text-text">
-							Something went wrong reaching the server — this isn't the same as there being no
-							lobbies.
+							Something went wrong while reaching the server :(
 						</p>
 						<button
 							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
@@ -184,10 +195,10 @@
 						>
 					</div>
 				{:else if visible.length === 0}
-					<div
-						class="pixel-corners border-2 border-dashed border-border bg-bg/80 p-12 text-center md:col-span-2"
-					>
-						<p class="mb-4 font-heading text-xl text-text-h">No lobbies match your filters</p>
+					<div class="p-12 text-center md:col-span-2">
+						<p class="mb-4 font-pixel text-xl uppercase text-text-h">
+							No lobbies match your filters
+						</p>
 						<button
 							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 							onclick={() => {

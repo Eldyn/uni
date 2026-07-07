@@ -8,7 +8,6 @@ import {
 	openSlots,
 	filled,
 	category,
-	avatarColor,
 	type BrowseLobby,
 	type BrowseFilters
 } from "$lib/utils/lobbyBrowse";
@@ -205,15 +204,5 @@ describe("sortLobbies", () => {
 		const input = [emptyish, fullish];
 		sortLobbies(input, "fullest");
 		expect(input[0].invite_code).toBe("E");
-	});
-});
-
-describe("avatarColor", () => {
-	it("is deterministic per seed and slot", () => {
-		expect(avatarColor("AAAAAA", 0)).toBe(avatarColor("AAAAAA", 0));
-	});
-
-	it("returns a valid hex colour", () => {
-		expect(avatarColor("BBBBBB", 2)).toMatch(/^#[0-9a-f]{6}$/i);
 	});
 });

@@ -103,7 +103,6 @@
 			humans={lobby.humans}
 			bots={lobby.bots}
 			empty={openSlots(lobby)}
-			seed={lobby.invite_code}
 			sizeClass={avatarCls}
 		/>
 
