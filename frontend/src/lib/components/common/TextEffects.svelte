@@ -9,6 +9,9 @@
 		// Needed because the chars are <span>s, so they don't inherit element
 		// rules like `h1 { font-family: ... }`.
 		font = "",
+		// Text color, applied to every branch (shine has its own
+		// shineColor/shineBaseColor sweep instead — this is the plain-text color).
+		color = "",
 		// undulate
 		frequency = 0.12, // seconds of phase offset per character
 		amplitude = 10, // px vertical displacement
@@ -25,6 +28,7 @@
 		effect?: Effect;
 		class?: string;
 		font?: string;
+		color?: string;
 		frequency?: number;
 		amplitude?: number;
 		speed?: number;
@@ -37,6 +41,11 @@
 
 	const chars = $derived(text.split(""));
 	const fontStyle = $derived(font ? `font-family: ${font};` : "");
+	// Not folded into fontStyle: shine already colors itself via
+	// --shine-base/--shine-color (background-clip: text), so a plain inline
+	// `color` there would win over the class's `color: transparent` and break
+	// the sweep effect. Every other branch applies it directly.
+	const colorStyle = $derived(color ? `color: ${color};` : "");
 </script>
 
 {#if effect === "shine"}
@@ -48,7 +57,7 @@
 {:else if effect === "undulate"}
 	<span
 		class="char-wrap {className}"
-		style="{fontStyle} --amp: {amplitude}px; --speed: {speed}s; --freq: {frequency}s"
+		style="{fontStyle}{colorStyle} --amp: {amplitude}px; --speed: {speed}s; --freq: {frequency}s"
 	>
 		{#each chars as char, i}
 			<span class="char undulate-char" style="--i: {i}" aria-hidden={i > 0 ? "true" : undefined}
@@ -60,7 +69,7 @@
 {:else if effect === "shake"}
 	<span
 		class="char-wrap {className}"
-		style="{fontStyle} --amp: {shakeIntensity}px; --speed: {shakeSpeed}s"
+		style="{fontStyle}{colorStyle} --amp: {shakeIntensity}px; --speed: {shakeSpeed}s"
 	>
 		{#each chars as char, i}
 			<span class="char shake-char" style="--i: {i}" aria-hidden={i > 0 ? "true" : undefined}
@@ -70,7 +79,7 @@
 		<span class="sr-only">{text}</span>
 	</span>
 {:else}
-	<span class={className} style={fontStyle}>{text}</span>
+	<span class={className} style="{fontStyle}{colorStyle}">{text}</span>
 {/if}
 
 <style>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import MainScreen from "./lib/components/MainScreen.svelte";
 	import Toast from "./lib/components/common/Toast.svelte";
+	import ChatDock from "$components/chat/ChatDock.svelte";
 
 	// INFO: Screens are lazy-loaded such that our website loads fast instead
 	//       of downloading ALL the resources before even showing our landing.
@@ -89,6 +90,9 @@
 
 <div id="app">
 	<Toast />
+	{#if storeNavigation.current !== "game"}
+		<ChatDock />
+	{/if}
 	<span class="version-badge">v{__APP_VERSION__}</span>
 
 	{#if storeNavigation.current === "main"}

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
-:focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: 2px;
+/* In @layer base (not a bare rule) so a component can win against it with a
+   plain Tailwind utility (e.g. outline-none) — unlayered CSS always beats
+   layered CSS regardless of specificity, so a bare rule here would silently
+   defeat every `outline-none`/`focus-visible:outline-none` in the app. */
+@layer base {
+	:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
 }
 
 @font-face {
@@ -536,4 +542,29 @@ code,
 	background: var(--bg);
 	display: flex;
 	flex-direction: column;
+}
+
+/* Reusable accent scrollbar for any scrollable panel (chat log, friends
+   list, etc.) — sharp/rectangular to match the pixel-art aesthetic, no
+   rounded thumb. Firefox uses scrollbar-color; Chrome/Safari/Edge use the
+   ::-webkit-scrollbar pseudo-elements — both are declared so it's styled
+   consistently everywhere. */
+.scrollbar-accent {
+	scrollbar-width: thin;
+	scrollbar-color: var(--accent) var(--surface-deep);
+}
+.scrollbar-accent::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+.scrollbar-accent::-webkit-scrollbar-track {
+	background: var(--surface-deep);
+}
+.scrollbar-accent::-webkit-scrollbar-thumb {
+	background: var(--accent);
+	border: 2px solid var(--surface-deep);
+	border-radius: 0;
+}
+.scrollbar-accent::-webkit-scrollbar-thumb:hover {
+	background: var(--accent-h);
 }
