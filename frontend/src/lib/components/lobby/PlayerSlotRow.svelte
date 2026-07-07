@@ -3,7 +3,7 @@
      compact preview disables it and uses the fixed palette instead of the
      per-lobby seeded colours. -->
 <script lang="ts">
-	import TintedSprite from "../common/TintedSprite.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import { AVATAR_COLORS } from "$lib/data/lobbyCatalogs";
 	import { avatarColor } from "$lib/utils/lobbyBrowse";
 

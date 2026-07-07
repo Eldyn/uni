@@ -2,7 +2,7 @@
 	import { createSortable } from "@dnd-kit/svelte/sortable";
 	import GameCard from "./GameCard.svelte";
 	import { useCardBus } from "./card-bus.svelte";
-	import type { Card } from "../../stores/game.svelte";
+	import type { Card } from "$stores/game.svelte";
 
 	const bus = useCardBus();
 

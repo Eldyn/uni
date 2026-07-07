@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeLobby } from "../../stores/lobby.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
 
 	let roomCodeInput = $state("");
 	let roomCodeError = $state("");

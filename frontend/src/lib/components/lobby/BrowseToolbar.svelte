@@ -2,8 +2,8 @@
      the Create / Advanced actions. All filter state is bound through from
      LobbyBrowse, which owns it. -->
 <script lang="ts">
-	import Listbox from "../common/Listbox.svelte";
-	import ToggleChip from "../common/ToggleChip.svelte";
+	import Listbox from "$components/common/Listbox.svelte";
+	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import PlayerSlotRow from "./PlayerSlotRow.svelte";
 	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { SORT_OPTIONS, type SortKey } from "$lib/data/lobbyCatalogs";
@@ -49,7 +49,7 @@
 	>
 		<i class="hn pix hn-search text-lg text-text"></i>
 		<input
-			class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none placeholder:text-text/60"
+			class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
 			placeholder="Search lobby name…"
 			aria-label="Search lobby name"
 			bind:value={nameQuery}

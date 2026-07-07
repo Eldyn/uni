@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { storeStats } from "../../stores/stats.svelte";
-	import { storeNavigation } from "../../stores/navigation.svelte";
-	import GameCard from "../game/GameCard.svelte";
+	import { storeStats } from "$stores/stats.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
+	import GameCard from "$components/game/GameCard.svelte";
 
 	onMount(() => {
 		if (!storeStats.myStats) {

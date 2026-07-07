@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeGame, Action } from "../../../stores/game.svelte";
+	import { storeGame, Action } from "$stores/game.svelte";
 
 	const TYPE_BUTTONS = [
 		{ name: "red", typeIndex: 0 },

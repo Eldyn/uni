@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { storeStats } from "../../stores/stats.svelte";
-	import { storeNavigation } from "../../stores/navigation.svelte";
+	import { storeStats } from "$stores/stats.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 
 	onMount(() => {
 		storeStats.fetchMe();

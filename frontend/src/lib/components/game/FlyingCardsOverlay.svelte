@@ -2,7 +2,7 @@
 	import { untrack } from "svelte";
 	import GameCard from "./GameCard.svelte";
 	import { useCardBus, type Point } from "./card-bus.svelte";
-	import { storeGame } from "../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 
 	const bus = useCardBus();
 

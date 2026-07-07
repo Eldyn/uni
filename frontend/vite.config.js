@@ -36,7 +36,13 @@ export default defineConfig(({ mode }) => {
 		// Only run the watch plugin when running in development/watch mode
 		plugins: [tailwindcss(), svelte(), isDev && watchPublicDirPlugin].filter(Boolean),
 		resolve: {
-			alias: { $lib: path.resolve("./src/lib") }
+			alias: {
+				$lib: path.resolve("./src/lib"),
+				$components: path.resolve("./src/lib/components"),
+				$stores: path.resolve("./src/lib/stores"),
+				$utils: path.resolve("./src/lib/utils"),
+				$data: path.resolve("./src/lib/data")
+			}
 		},
 		define: {
 			__APP_VERSION__: JSON.stringify(appVersion)

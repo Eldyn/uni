@@ -10,7 +10,7 @@ import { storeNavigation } from "./navigation.svelte";
 import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
-import { Action, Type, TypeMap, ValueMap } from "../generated/schemas";
+import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
 
 export const TYPE_MAP = TypeMap;
 const VALUE_MAP = ValueMap;

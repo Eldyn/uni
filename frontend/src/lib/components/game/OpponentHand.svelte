@@ -1,8 +1,8 @@
 <script lang="ts">
 	import GameCard from "./GameCard.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import { useCardBus, type ElementRole } from "./card-bus.svelte";
-	import { storeGame, Action, type GamePlayer } from "../../stores/game.svelte";
+	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 
 	let {
 		player,

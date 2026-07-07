@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeGame, Action } from "../../../stores/game.svelte";
+	import { storeGame, Action } from "$stores/game.svelte";
 </script>
 
 {#if storeGame.actionRequired === Action.ChooseTarget}

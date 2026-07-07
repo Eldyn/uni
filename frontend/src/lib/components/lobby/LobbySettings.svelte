@@ -5,9 +5,9 @@
 	import RulesGrid from "./settings/RulesGrid.svelte";
 	import type { RuleDef } from "./settings/RulesGrid.svelte";
 	import { onMount } from "svelte";
-	import { BotTakeoverMode, type LobbySettings, storeLobby } from "../../stores/lobby.svelte";
-	import { storeCatalog, type RuleDefinition } from "../../stores/catalog.svelte";
-	import { storeAuth } from "../../stores/auth.svelte";
+	import { BotTakeoverMode, type LobbySettings, storeLobby } from "$stores/lobby.svelte";
+	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import {
 		STARTING_CARDS_MIN,
 		STARTING_CARDS_MAX,
@@ -15,7 +15,7 @@
 		TURN_TIME_MAX_MS,
 		BOT_COUNT_MIN,
 		BOT_COUNT_MAX
-	} from "../../generated/schemas";
+	} from "$lib/generated/schemas";
 
 	/**
 	 * The subset of lobby settings keys this panel can modify.

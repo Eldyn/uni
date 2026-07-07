@@ -10,7 +10,7 @@ import {
 	validatePassword,
 	validateUsername,
 	validatePasswordMatch
-} from "../utils/validation";
+} from "$utils/validation";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";

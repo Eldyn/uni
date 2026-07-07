@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
-	import { ClientAction, ws } from "../../stores/ws.svelte";
+	import { storeGame } from "$stores/game.svelte";
+	import { ClientAction, ws } from "$stores/ws.svelte";
 
 	let isMyTurn = $derived(storeGame.state?.current_turn === storeGame.localPlayer?.username);
 

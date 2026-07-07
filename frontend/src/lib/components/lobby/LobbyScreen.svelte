@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { storeLobby } from "../../stores/lobby.svelte";
-	import { storeAuth } from "../../stores/auth.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import LobbySave from "./LobbySave.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
-	import TextEffects from "../common/TextEffects.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import TextEffects from "$components/common/TextEffects.svelte";
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
 	let startable = $derived((storeLobby.current?.members.length ?? 0) >= 2);

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Modal from "$lib/components/common/Modal.svelte";
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
-	import { storeGame } from "../../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);

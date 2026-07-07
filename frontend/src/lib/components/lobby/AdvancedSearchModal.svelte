@@ -2,11 +2,11 @@
      through from LobbyBrowse; results update live, so the footer button
      only dismisses. -->
 <script lang="ts">
-	import Modal from "../common/Modal.svelte";
-	import ToggleChip from "../common/ToggleChip.svelte";
+	import Modal from "$components/common/Modal.svelte";
+	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { DECKS, ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
-	import { storeCatalog } from "../../stores/catalog.svelte";
+	import { storeCatalog } from "$stores/catalog.svelte";
 
 	let {
 		open = $bindable(),

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 	import GameCard from "./GameCard.svelte";
 	import { useCardBus } from "./card-bus.svelte";
 

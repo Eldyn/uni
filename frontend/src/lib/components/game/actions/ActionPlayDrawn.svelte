@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { storeGame, Action } from "../../../stores/game.svelte";
-	import GameCard from "../GameCard.svelte";
+	import { storeGame, Action } from "$stores/game.svelte";
+	import GameCard from "$components/game/GameCard.svelte";
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}

@@ -5,7 +5,7 @@
 	import PlayerSlotRow from "./PlayerSlotRow.svelte";
 	import { ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
 	import { joinInfo, openSlots, type BrowseLobby } from "$lib/utils/lobbyBrowse";
-	import { storeCatalog } from "../../stores/catalog.svelte";
+	import { storeCatalog } from "$stores/catalog.svelte";
 
 	let {
 		lobby,

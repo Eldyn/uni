@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { storeNavigation } from "../stores/navigation.svelte";
-	import { storeAuth } from "../stores/auth.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import TextEffects from "./common/TextEffects.svelte";
 
 	let logoutPending = $state(false);
@@ -163,6 +163,7 @@
 					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
 					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
 					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
 				</nav>
 				<nav class="flex items-center gap-3" aria-label="Social links">
 					{#each SOCIAL_LINKS as link}

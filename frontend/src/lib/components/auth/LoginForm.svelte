@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { storeAuth } from "../../stores/auth.svelte";
-	import FormInput from "../common/FormInput.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
+	import FormInput from "$components/common/FormInput.svelte";
 
 	let { onLoginSuccess }: { onLoginSuccess: () => void } = $props();
 

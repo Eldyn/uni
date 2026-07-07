@@ -3,8 +3,8 @@
 	// concept yet. Rule data comes from storeCatalog (server-provided).         //
 
 	import { onMount } from "svelte";
-	import Modal from "../common/Modal.svelte";
-	import TextEffects from "../common/TextEffects.svelte";
+	import Modal from "$components/common/Modal.svelte";
+	import TextEffects from "$components/common/TextEffects.svelte";
 	import AdvancedSearchModal from "./AdvancedSearchModal.svelte";
 	import BrowseToolbar from "./BrowseToolbar.svelte";
 	import LobbyCard from "./LobbyCard.svelte";
@@ -14,10 +14,10 @@
 	import type { SortKey } from "$lib/data/lobbyCatalogs";
 	import { DECKS } from "$lib/data/lobbyCatalogs";
 	import { filterLobbies, sortLobbies, toBrowseLobby } from "$lib/utils/lobbyBrowse";
-	import { storeAuth } from "../../stores/auth.svelte";
-	import { storeCatalog } from "../../stores/catalog.svelte";
-	import { storeNavigation } from "../../stores/navigation.svelte";
-	import { storeLobby } from "../../stores/lobby.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
+	import { storeCatalog } from "$stores/catalog.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
 
 	// --- Server-backed lobby list --------------------------------------------- //
 
@@ -98,7 +98,8 @@
 <svelte:window bind:innerWidth={winW} />
 
 <div
-	class="fixed inset-0 flex flex-col overflow-x-hidden bg-[url('/assets/bg_full.png')] bg-cover bg-center"
+	class="fixed inset-0 flex flex-col overflow-x-hidden bg-cover bg-center"
+	style="background-image: url('/assets/bg_full.png');"
 >
 	<!-- Header ------------------------------------------------------------- -->
 	<header

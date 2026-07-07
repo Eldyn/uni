@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 
 	// Number of cards currently stacked on the draw chain (+2 / +4 ruleset).
 	let pending = $derived(storeGame.state?.pending_draws ?? 0);

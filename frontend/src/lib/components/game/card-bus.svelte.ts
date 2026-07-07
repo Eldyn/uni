@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { Card } from "../../stores/game.svelte";
+import type { Card } from "$stores/game.svelte";
 
 export type ElementRole = "draw-pile" | "discard-pile" | "hand-local" | `hand-opponent-${number}`;
 

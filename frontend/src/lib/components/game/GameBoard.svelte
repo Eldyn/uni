@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 	import { createCardBus } from "./card-bus.svelte";
 	import PlayerHand from "./PlayerHand.svelte";
 	import OpponentHand from "./OpponentHand.svelte";
 	import GamePiles from "./GamePiles.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 
 	createCardBus();
 

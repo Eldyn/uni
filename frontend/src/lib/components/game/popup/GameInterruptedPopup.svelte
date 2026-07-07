@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Modal from "../../common/Modal.svelte";
-	import { storeGame } from "../../../stores/game.svelte";
+	import Modal from "$components/common/Modal.svelte";
+	import { storeGame } from "$stores/game.svelte";
 </script>
 
 <Modal

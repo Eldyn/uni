@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { type Card, type CardValue, type CardType } from "../../stores/game.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
+	import { type Card, type CardValue, type CardType } from "$stores/game.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 
 	let {
 		card,
