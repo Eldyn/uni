@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
-## [Unreleased]
+## [0.5.0] - 2026-07-07
 
 ### Added
 
@@ -16,11 +16,6 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 ### Fixed
 
 - **Main-screen hub tiles hidden for guests**: the hub-tile dock (Stats/Decks/Skins/Settings) was gated on `storeAuth.isLoggedIn`, which guests never satisfy by design — so a guest hitting "Back" from the lobby list fell through to the Login/Guest CTA screen, which looked like they'd been logged out even though their guest session was still alive. The dock now also shows for guests (`isLoggedIn || isGuest`); `Stats` stays account-only (`action` only set when `isLoggedIn`), `Decks`/`Skins` stay unbuilt placeholders for everyone.
-
-## [0.5.0] - 2026-07-07
-
-### Fixed
-
 - **Lobby store and WebSocket client hardening**: incoming lobby payloads (`LobbyJoined`, `LobbyUpdated`, `LobbyRejoin` response, `LobbyList`) are now Zod-validated at the WS boundary — malformed frames are logged and dropped instead of corrupting store state; the browse list's `status` now tracks full/open live from the member count on every lobby update ("in-game" still comes from the list fetch); `create()` catches network errors like `join()` already did and both now return a success flag; `updateSettings()` and the saved-matches fetch surface errors as toasts instead of failing silently; the duplicate `MatchStateUpdated` race between the join handler and the rejoin flow is replaced by a single shared one-shot redirect guard; a stray broadcast can no longer overwrite `current` with a different lobby (invite-code guard); `leave()` reconnects before emitting so the frame isn't silently dropped on a dead socket; `Lobby.member_count` (never actually sent by the server on updates) was removed in favour of deriving counts from `members`; concurrent `ws.connect()` calls now share one in-flight attempt instead of opening a second socket; non-JSON frames and throwing message handlers no longer kill the dispatch loop; the join form's dead local loading flag now uses the store's real `isLoadingJoin`; the create form keeps the typed name when creation fails; `MAX_LOBBY_MEMBERS` from the generated contract replaces hardcoded 4s.
 - **Readable connection-error toasts**: a failed WebSocket connection used to reject with the raw browser `Event`, so toasts printed "ERROR! [object Event]". The client now rejects with a proper `Error` and a new `failureText()` helper guards every catch-toast against non-Error rejections.
 - **Toast accent bar**: the coloured status strip is now the toast's actual left edge (full-bleed, notched by the toast's own pixel-corners clip) instead of a small inset rectangle floating inside the border.
