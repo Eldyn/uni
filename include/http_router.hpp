@@ -70,6 +70,28 @@ public:
      */
     void Attach(AppHttp& app);
 
+    /**
+     * @brief Looks up a registered route by (method, path) and invokes its
+     *        handler directly, bypassing uWS route-matching and the live app.
+     *
+     * Mirrors `ActionRouter::Dispatch`'s lookup-and-invoke shape for the HTTP
+     * side: runs the registered wildcards first (any returning false aborts
+     * the chain, exactly as in `Attach`'s wrapped handlers), then the exact
+     * (method, path) match. Does not perform uWS-style wildcard/path-pattern
+     * matching (e.g. "/*") — the path must match a registered route exactly.
+     * Intended for tests that want to drive a registered handler without a
+     * live uWS request; it does not fake `AppRequest`/`AppResponse` and so
+     * still requires real (or otherwise obtained) instances of both.
+     * @param method The HTTP method ("GET" or "POST").
+     * @param path The exact, registered URI path.
+     * @param res Pointer to the HTTP response passed through to the handler.
+     * @param req Pointer to the HTTP request passed through to the handler.
+     * @return true if a matching handler was found and invoked, false otherwise.
+     * @tag HTTP-RTR-MTH-005
+     */
+    bool Dispatch(const std::string& method, const std::string& path,
+                  AppResponse* res, AppRequest* req) const;
+
 private:
     /**
      * @struct Route

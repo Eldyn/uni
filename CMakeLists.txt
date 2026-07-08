@@ -190,7 +190,11 @@ if(UNI_BUILD_TESTS)
         src/match/effects/pass_hands.cpp
         src/controllers/lobby_controller.cpp
         src/controllers/match_controller.cpp
+        src/controllers/auth_controller.cpp
+        src/controllers/stats_controller.cpp
         src/action_router.cpp
+        src/http_router.cpp
+        src/common/http_utils.cpp
         src/database.cpp
         src/transport/uws_broadcaster.cpp
         src/transport/uws_timer_service.cpp
@@ -205,6 +209,7 @@ if(UNI_BUILD_TESTS)
         OpenSSL::SSL OpenSSL::Crypto
         SQLite::SQLite3
         ZLIB::ZLIB
+        jwt-cpp::jwt-cpp
     )
     add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp)
 

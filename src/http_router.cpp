@@ -32,6 +32,24 @@ HttpHandler HttpRouter::WrapWithWildcards(HttpHandler handler) {
     };
 }
 
+bool HttpRouter::Dispatch(const std::string& method, const std::string& path,
+                          AppResponse* res, AppRequest* req) const {
+    for (const auto& wildcard : wildcards_) {
+        if (!wildcard(res, req)) {
+            return false;  // chain interrupted; wildcard sent the response
+        }
+    }
+
+    for (const auto& route : routes_) {
+        if (route.method == method && route.path == path) {
+            route.handler(res, req);
+            return true;
+        }
+    }
+
+    return false;  // no matching route registered
+}
+
 void HttpRouter::Attach(AppHttp& app) {
     for (auto& route : routes_) {
         HttpHandler wrapped = WrapWithWildcards(route.handler);
