@@ -1,6 +1,7 @@
 #pragma once
 #include <transport/itimer_service.hpp>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <App.h>
@@ -31,9 +32,10 @@ private:
         std::function<void()>  callback;
         UwsTimerService*       service;
         bool                   repeat;
+        us_timer_t*            timer;
     };
 
-    std::unordered_map<std::string, us_timer_t*> timers_;
+    std::unordered_map<std::string, std::unique_ptr<TimerData>> timers_;
 
     void CancelLocked(const std::string& key);
 };
