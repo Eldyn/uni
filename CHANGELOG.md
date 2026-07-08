@@ -7,7 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
-## [Unreleased]
+## [0.5.0] - 2026-07-07
+
+### Added
+
+- **Settings screen**: `frontend/src/lib/components/settings/SettingsScreen.svelte` wires the main-screen "Settings" hub tile to a real screen with music/SFX volume sliders (reusing `lobby/settings/Slider.svelte`), bound to `storeAudio`. Guests can reach it too — it's local browser state, no account needed.
+
+### Fixed
+
+- **Main-screen hub tiles hidden for guests**: the hub-tile dock (Stats/Decks/Skins/Settings) was gated on `storeAuth.isLoggedIn`, which guests never satisfy by design — so a guest hitting "Back" from the lobby list fell through to the Login/Guest CTA screen, which looked like they'd been logged out even though their guest session was still alive. The dock now also shows for guests (`isLoggedIn || isGuest`); `Stats` stays account-only (`action` only set when `isLoggedIn`), `Decks`/`Skins` stay unbuilt placeholders for everyone.
+- **Lobby store and WebSocket client hardening**: incoming lobby payloads (`LobbyJoined`, `LobbyUpdated`, `LobbyRejoin` response, `LobbyList`) are now Zod-validated at the WS boundary — malformed frames are logged and dropped instead of corrupting store state; the browse list's `status` now tracks full/open live from the member count on every lobby update ("in-game" still comes from the list fetch); `create()` catches network errors like `join()` already did and both now return a success flag; `updateSettings()` and the saved-matches fetch surface errors as toasts instead of failing silently; the duplicate `MatchStateUpdated` race between the join handler and the rejoin flow is replaced by a single shared one-shot redirect guard; a stray broadcast can no longer overwrite `current` with a different lobby (invite-code guard); `leave()` reconnects before emitting so the frame isn't silently dropped on a dead socket; `Lobby.member_count` (never actually sent by the server on updates) was removed in favour of deriving counts from `members`; concurrent `ws.connect()` calls now share one in-flight attempt instead of opening a second socket; non-JSON frames and throwing message handlers no longer kill the dispatch loop; the join form's dead local loading flag now uses the store's real `isLoadingJoin`; the create form keeps the typed name when creation fails; `MAX_LOBBY_MEMBERS` from the generated contract replaces hardcoded 4s.
+- **Readable connection-error toasts**: a failed WebSocket connection used to reject with the raw browser `Event`, so toasts printed "ERROR! [object Event]". The client now rejects with a proper `Error` and a new `failureText()` helper guards every catch-toast against non-Error rejections.
+- **Toast accent bar**: the coloured status strip is now the toast's actual left edge (full-bleed, notched by the toast's own pixel-corners clip) instead of a small inset rectangle floating inside the border.
+- **Lobby browse liveness**: the server only pushes lobby updates to lobby members, so the Browse screen now polls the list every 10s while open (with an overlap guard) — new, closed, filled and started lobbies finally show up without re-entering the screen.
+- **Lobby browse crash after leaving a lobby**: the `LobbyUpdated` handler copied `member_count`/`bot_count` straight from the broadcast payload into the public lobby list, but `BroadcastUpdate` only sends the `members` array — both fields came back `undefined`, slot math produced `NaN`, and `{#each Array(NaN)}` threw `RangeError: invalid array length`, blanking the Browse screen. Counts are now derived from the `members` list (humans = non-bot members), and the Browse mapping guards against missing counts.
+- **Lobby list failure now distinguishable from "no lobbies"**: a new `storeLobby.listError` flag is set when `fetchList()` fails (network error, non-OK response, or a malformed payload that fails Zod validation) and cleared on the next success, so Browse can show a dedicated "Couldn't load lobbies" retry card instead of silently rendering the same empty state as zero real lobbies. Since Browse polls every 10s, the failure toast now only fires on the transition into failure rather than on every repeat retry — the always-visible error card already says so.
+- **Lobby browse empty/error state polish**: the "Loading lobbies…", "Couldn't load lobbies" and "No lobbies match your filters" states no longer sit inside a dashed-border card — all three float directly on the page, with pixel-font headings/buttons. Loading now shows the existing `LoadingSpinner` component (a spinning ring) instead of text. A random cute illustration slot is wired up for the error state but empty until real art lands (`ERROR_ILLUSTRATIONS` in `LobbyBrowse.svelte`).
+- **Player avatar colours are now genuinely random**: `PlayerSlotRow` used to derive a colour deterministically from the lobby's invite code (`avatarColor()`, now removed), so a given lobby always showed the same "random-looking" colours. Colours are now picked fresh from `AVATAR_COLORS` on every render — purely decorative, no identity to preserve.
+
+### Changed
+
+- **Main screen cleanup**: hub tiles now mark "coming soon" via an absent `action` instead of no-op callbacks, and the social links are data-driven (one array, one loop) instead of six copy-pasted anchors. The lobby-card rule-overflow estimation got named constants in place of magic pixel numbers.
+- **Lobby browse toolbar polish**: the search field highlights its pixel border on focus (instead of the browser focus ring on the inner input); the duplicate Logout button was removed (it lives on the main screen); and the small filter/sort controls (search text, quick toggles, advanced-search chips) use the tiny UI font, reserving the pixel font for the big Create / Advanced / Back / Clear CTAs.
+- **Import path aliases**: `$components`, `$stores`, `$utils` and `$data` join the existing `$lib` catch-all (`vite.config.js`, `tsconfig.json`), and every relative `../`/`../../` import across the frontend now uses the most specific one instead.
+
+### Added
+
+- **Guest sessions**: "Play as Guest" was a dead end — it navigated to the lobby list but the WebSocket upgrade rejected the connection for lack of a `ws_token`, so account-less players could never see or join a lobby. New `POST /auth/guest` issues an ephemeral session: a generated `Guest#XXXXX` display name (the `#` is outside the registration username pattern, so guests can never collide with real accounts) and a `ws_token` cookie — but no `auth_token`, so `/auth/me` still reports logged-out and guests are never mistaken for full accounts. The main-screen button now requests the session before navigating; stats and saved matches remain account-only. Frontend rule-icon map also re-keyed to the real backend rule ids (`progressive`, `no_bluffing`, `jump_in`, `force_play`, `draw_stacking`, `seven_zero`) — the old hardcoded catalog had drifted from the server.
+- **Dedicated `metadata_request` WS action**: the rule catalog (`available_rules`) is no longer attached to every join/create/rejoin response — the client fetches it lazily once per session via the new action (`LobbyController::HandleGetMetadata`), and a new `storeCatalog` (frontend) caches it with a shared in-flight promise so concurrent consumers (Browse filters, LobbySettings) trigger a single request. `storeLobby.availableRules` is gone; the contract's `Metadata`/`MetadataRequest` messages are extensible for future deck/card catalogs. The `MaxLobbyMembers` x-constants annotation (lost in an earlier contract rework) is restored as the `LobbyMemberCap` constraint schema, so `MAX_LOBBY_MEMBERS` is generated again instead of hardcoded 4s.
+- **Browse view-model extracted and unit-tested**: pure helpers (`toBrowseLobby`, `filterLobbies`, `sortLobbies`, `joinInfo`, `openSlots`, `category`, `avatarColor`) moved from `LobbyBrowse.svelte` into `lib/utils/lobbyBrowse.ts` with a Vitest suite (26 tests) covering the NaN-crash payload class, every filter, sort order and the join-button matrix. Client presentation catalogs (rule icons, future i18n label overrides, mocked decks, avatar palette, sort options) live in `lib/data/lobbyCatalogs.ts`; rule labels/descriptions now come from the server catalog instead of a hand-synced `RuleId` union.
+- **LobbyBrowse split into components**: the 730-line screen is now a thin shell (state + layout) over new components — `common/ToggleChip` (the pixel-bordered on/off chip previously copy-pasted ~12×), `common/Listbox` (generic accessible dropdown with a state-driven roving focus index, Home/End support and outside-click dismissal via a shared `use:clickOutside` action — replaces the bespoke sort dropdown whose keyboard nav queried the DOM), `lobby/PlayerSlotRow` (the three near-identical avatar loops + sort preview), `lobby/LobbyCard`, `lobby/AdvancedSearchModal` and `lobby/BrowseToolbar`. The search input also gained an `aria-label`.
+- **Multi-language profanity censor**: `lib/utils/censor.svelte.ts` masks profanity client-side (display-only, not a moderation layer) across 28 languages, sourced from the LDNOOBW word lists (`lib/data/profanityWords.ts`, credited on `/credits.html`) and dynamically imported so the ~2300-word dataset only loads once the register screen is reached — not bundled into the main chunk. Matching is plain substring (not word-boundary-checked): a deliberate tradeoff so that glued-together abuse (`fuckyou99`, repeated slurs) is always caught, at the cost of occasionally masking inside innocent words. Wired into `RegisterForm.svelte` (blocks registering a profane username). Disable/custom-word-list hooks exist (`setCensorEnabled`, `addCustomWords`) but aren't wired to any settings UI yet.
+- **Swipe-to-dismiss toasts**: the per-toast rendering (accent bar, icon, countdown) moved out of `Toast.svelte` into a new `ToastItem.svelte`, which now supports dragging a toast horizontally (via `svelte-gestures`' `usePan`) past an 80px threshold to dismiss it early, with the toast snapping back if released short of that.
+- **Background music and SFX manager**: built on Howler.js (`lib/audio/musicPlayer.ts`, `lib/audio/sfxPlayer.ts`) with a raw-Web-Audio engine (`lib/audio/multiChannelSync.ts`) for sample-accurate multi-channel stem playback that Howler alone can't do. A real track (`music.fuzzsong`) plays on every screen except the match itself; volume settings persist to `localStorage`. 23 gameplay/lobby trigger points (card play/draw, UNO call, victory/interrupted popups, draw-stack, lobby join/leave/kick/promote/start) are wired to `storeAudio.playSfx(...)` with placeholder catalog ids — `SFX_CATALOG` is intentionally empty until real sound files are sourced; every call site is tagged `// PLACEHOLDER-SFX:` for later follow-up.
+
+### Removed
+
+- **Spectate / Take Over buttons**: spectating isn't a feature yet, and "Take Over" was just a join. In-game lobbies now show a plain **Join** button when joinable by replacing a bot, and no button at all otherwise.
+
+### Fixed (UI)
+
+- **Hub-tile icons on the main screen**: the Stats/Decks/Skins/Settings tiles were missing their icon glyphs — the markup dropped the `hn` base class every other icon in the app uses alongside `pix`.
+- **Sort-preview player icons**: the "(fullest)"/"(emptiest)" sort-order preview in the lobby browse toolbar is UI chrome, not real players, so its icons are now theme-adaptive (`var(--text-h)`: near-white in dark mode, near-black in light) instead of picking a random accent colour.
+
+## [0.4.8] - 2026-07-07
 
 ### Changed
 
@@ -27,6 +70,20 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 ### Fixed
 
 - **Sitemap 404 on HEAD requests**: The server now registers an HTTP HEAD handler for static files alongside the existing GET handler. uWebSockets does not derive HEAD from GET automatically, so `curl -I` (and Google Search Console's sitemap validator) was receiving a 404 even though the file existed. The sitemap is also renamed from `sitemap-index.xml` to `sitemap.xml`, `robots.txt` updated to match, and `.xml` files are now served with `Content-Type: application/xml`.
+
+### Changed
+
+- **Icons migrated to HackerNoon Pixel Icon Library**: The remaining JetBrains Mono Nerd Font (MDI) glyphs across `GameUnoButton`, `FormInput`, `Toast`, `StatsScreen`, `DetailedStatsScreen`, `LobbyScreen`, and `LobbySettings` are now rendered as `<i class="hn pix hn-…">` pixel icons, matching the convention already used in the lobby browse UI.
+- **`--mono` font stack**: Dropped the bundled `JetBrainsMono.woff2` (and its `@font-face`) now that it no longer provides icon glyphs. `--mono` resolves to a standard cross-platform monospace stack (`ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace`).
+- **Webfont cleanup**: Removed the unused `MonoPixel` webfont and the `mono` element rule that referenced it. Pixel webfont URLs now carry `?v=` cache-busting query strings so updated glyph files reach returning players.
+
+- **Lobby-not-found copy**: Joining with an invite code that matches no lobby now reads "This code has no lobby associated." instead of the ambiguous "That lobby no longer exists."
+- **Main-menu label**: The stray Italian "Entra in Stanza" button is now "Browse Lobbies".
+
+### Removed
+
+- **Lobby connection-status icon**: The per-player connected/disconnected glyph is gone; disconnection will be conveyed by morphing the player's avatar instead. The dead `.nf-icon` optical-centering rule was also removed.
+- **Unused assets**: Deleted the Vite starter assets (`hero.png`, `svelte.svg`, `vite.svg`) and the unreferenced `icons.svg` social sprite.
 
 ## [0.4.6] - 2026-06-28
 
@@ -308,7 +365,10 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.4.6...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Eldyn/uni/compare/v0.4.8...v0.5.0
+[0.4.8]: https://github.com/Eldyn/uni/compare/v0.4.7...v0.4.8
+[0.4.7]: https://github.com/Eldyn/uni/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/Eldyn/uni/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/Eldyn/uni/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/Eldyn/uni/compare/v0.4.3...v0.4.4

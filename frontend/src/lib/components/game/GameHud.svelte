@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
-	import { storeLobby } from "../../stores/lobby.svelte";
+	import { storeGame } from "$stores/game.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
 
 	function handleReturnToLobbies() {
 		storeLobby.leave();

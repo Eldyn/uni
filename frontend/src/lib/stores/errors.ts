@@ -24,7 +24,7 @@ const ERROR_TEXT: Record<string, string> = {
 	[ErrorCode.NotInLobby]: "You're not in a lobby.",
 	[ErrorCode.AlreadyInLobby]: "You're already in a lobby.",
 	[ErrorCode.AlreadyMember]: "You're already a member of this lobby.",
-	[ErrorCode.LobbyNotFound]: "That lobby no longer exists.",
+	[ErrorCode.LobbyNotFound]: "This code has no lobby associated.",
 	[ErrorCode.LobbyFull]: "That lobby is full.",
 	[ErrorCode.LobbyExpired]: "That lobby has expired.",
 	[ErrorCode.NotHost]: "Only the host can do that.",
@@ -42,6 +42,17 @@ const ERROR_TEXT: Record<string, string> = {
  * Resolve an error code to display text. Returns "" for intentionally-silent
  * codes; callers should skip toasting when the result is empty.
  */
+/**
+ * Human-readable text for a thrown/rejected value. Guards against non-Error
+ * rejections (e.g. the raw `Event` a failed WebSocket produces) that would
+ * otherwise stringify as "[object Event]".
+ */
+export function failureText(err: unknown): string {
+	if (err instanceof Error) return err.message;
+	if (typeof err === "string" && err) return err;
+	return GENERIC_ERROR;
+}
+
 export function errorText(code: string | undefined, detail?: string): string {
 	if (!code) return detail || GENERIC_ERROR;
 	const text = ERROR_TEXT[code];

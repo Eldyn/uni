@@ -3,7 +3,7 @@
 	import { isSortable } from "@dnd-kit/svelte/sortable";
 	import { untrack } from "svelte"; // <-- Add untrack back
 
-	import { storeGame, type Card } from "../../stores/game.svelte";
+	import { storeGame, type Card } from "$stores/game.svelte";
 	import SortableCardSlot from "./SortableCardSlot.svelte";
 	import { useCardBus } from "./card-bus.svelte";
 

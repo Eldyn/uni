@@ -37,11 +37,13 @@
 	<div class="ad-interstitial-overlay">
 		<div class="ad-interstitial-content">
 			<span class="ad-label">Advertisement</span>
-			<ins class="adsbygoogle"
+			<ins
+				class="adsbygoogle"
 				style="display:block"
 				data-ad-client="ca-pub-7899204097948216"
 				data-ad-format="auto"
-				data-full-width-responsive="true"></ins>
+				data-full-width-responsive="true"
+			></ins>
 			<button class="close-btn" on:click={() => (visible = false)}>Close</button>
 		</div>
 	</div>

@@ -114,6 +114,11 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kMetadataRequest, [this](WsContext ctx, const json& msg) {
+        HandleGetMetadata(ctx, msg);
+        return true;
+    });
+
     action_router_.On(ws::ClientAction::kLobbyKick, [this](WsContext ctx, const json& msg) {
         HandleKick(ctx, msg);
         return true;
@@ -325,7 +330,6 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
                 {"settings",    lobby->settings},
                 {"name",        lobby->name}
             });
-            resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
             broadcaster_.Send(ws, resp.dump(), uWS::OpCode::TEXT);
 
             SendMatchStateToSocket(*lobby, ws, sd->username, uWS::OpCode::TEXT);
@@ -423,7 +427,6 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
         {"settings", lobby.settings},
         {"name", lobby.name}
     };
-    resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 
@@ -524,7 +527,6 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         {"members",     MemberListJson(lobby)},
         {"settings",    lobby.settings}
     });
-    resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 
     BroadcastUpdate(lobby);
@@ -575,7 +577,6 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
             {"settings",    lobby.settings},
             {"name",        lobby.name}
         });
-        resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
 
         broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 
@@ -648,18 +649,37 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
         });
 
         if (!any_connected) continue;
-        if (humans >= kMaxMembers) continue;
-       
+
+        string status = lobby.match != nullptr ? "in-game"
+                       : humans >= kMaxMembers   ? "full"
+                       : "open";
+
         list.push_back({
             {"name", lobby.name},
             {"member_count", humans},
-            {"bot_count", lobby.members.size()}, 
-            {"invite_code", lobby.invite_code}
+            {"bot_count", lobby.members.size() - humans},
+            {"invite_code", lobby.invite_code},
+            {"status", status},
+            {"active_mods", lobby.settings.active_mods},
+            {"allow_bot_takeover", lobby.settings.allow_bot_takeover}
         });
     }
 
     auto resp = MakeResponse(ws::ServerAction::kLobbyList, request_id);
     resp["lobbies"] = list;
+    broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
+}
+
+/**
+ * @brief Returns static server metadata (currently the rule catalog).
+ * @param ctx Payload context wrapping request sockets and raw buffers.
+ * @param message JSON message block from the client requesting metadata.
+ */
+void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
+    string request_id = ws::GetOr<string>(message, "request_id", "");
+
+    auto resp = MakeResponse(ws::ServerAction::kMetadata, request_id);
+    resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 

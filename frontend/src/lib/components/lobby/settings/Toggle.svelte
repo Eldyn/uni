@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Tooltip from "../../common/Tooltip.svelte";
+	import Tooltip from "$components/common/Tooltip.svelte";
 
 	let {
 		label,

@@ -33,6 +33,10 @@ AuthController::AuthController(HttpRouter& router)
         HandleLogin(res, req);
     });
 
+    router.Post("/auth/guest", [this](AppResponse* res, AppRequest* req) {
+        HandleGuest(res, req);
+    });
+
     router.Post("/auth/logout", [this](AppResponse* res, AppRequest* req) {
         res->writeStatus("200 OK")
            ->writeHeader("Set-Cookie", "auth_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict; Path=/")
@@ -163,6 +167,33 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
         res->writeHeader("Content-Type", "application/json")
            ->end(json({{"status", "ok"}, {"message", "Registration successful"}}).dump());
     });
+}
+
+void AuthController::HandleGuest(AppResponse* res, AppRequest* /*req*/) {
+    // INFO: 5 random base32 chars ≈ 33M names — enough entropy that two     //
+    // concurrent guests won't collide at this project's scale.              //
+    static constexpr char kNameAlphabet[] = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    static constexpr int  kNameLen        = 5;
+
+    unsigned char raw[kNameLen];
+    if (RAND_bytes(raw, kNameLen) != 1) {
+        res->writeStatus("500 Internal Server Error")->end();
+        return;
+    }
+
+    std::string username = "Guest#";
+    for (int i = 0; i < kNameLen; ++i) {
+        username += kNameAlphabet[raw[i] % (sizeof(kNameAlphabet) - 1)];
+    }
+
+    // INFO: ws_token only — no auth_token, so /auth/me keeps returning 401  //
+    // and the client never mistakes a guest for a full account.             //
+    std::string token = IssueToken(username);
+
+    Logger::Info("[Auth] Guest session issued: " + username);
+    res->writeHeader("Set-Cookie", "ws_token=" + token + "; HttpOnly; Secure; SameSite=None; Path=/")
+       ->writeHeader("Content-Type", "application/json")
+       ->end("{\"username\": \"" + username + "\"}");
 }
 
 void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {

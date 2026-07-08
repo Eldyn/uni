@@ -5,12 +5,13 @@
  */
 
 import { z } from "zod";
+import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
-import { Action, Type, TypeMap, ValueMap } from "../generated/schemas";
+import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
 
 export const TYPE_MAP = TypeMap;
 const VALUE_MAP = ValueMap;
@@ -305,6 +306,11 @@ class StoreGame {
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		storeAnalytics.track("play_card");
+		// PLACEHOLDER-SFX: sfx.action.play-card — optimistic click SFX only,
+		// fires on the client-side action, not confirmed by the server's state
+		// broadcast; a human may want a separate confirmed-by-server SFX later
+		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
+		storeAudio.playSfx("sfx.action.play-card");
 		ws.emit(ClientAction.MatchPlayCard, { card_id: cardId });
 	}
 
@@ -317,6 +323,11 @@ class StoreGame {
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		storeAnalytics.track("draw_card");
+		// PLACEHOLDER-SFX: sfx.action.draw-card — optimistic click SFX only,
+		// fires on the client-side action, not confirmed by the server's state
+		// broadcast; a human may want a separate confirmed-by-server SFX later
+		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
+		storeAudio.playSfx("sfx.action.draw-card");
 		ws.emit(ClientAction.MatchDrawCard);
 	}
 
@@ -326,6 +337,11 @@ class StoreGame {
 	 */
 	callUno() {
 		storeAnalytics.track("call_uno");
+		// PLACEHOLDER-SFX: sfx.action.call-uno — optimistic click SFX only,
+		// fires on the client-side action, not confirmed by the server's state
+		// broadcast; a human may want a separate confirmed-by-server SFX later
+		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
+		storeAudio.playSfx("sfx.action.call-uno");
 		ws.emit(ClientAction.MatchCallUno);
 	}
 
@@ -338,6 +354,11 @@ class StoreGame {
 		if (this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
+		// PLACEHOLDER-SFX: sfx.action.submit-input — optimistic click SFX only,
+		// fires on the client-side action, not confirmed by the server's state
+		// broadcast; a human may want a separate confirmed-by-server SFX later
+		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
+		storeAudio.playSfx("sfx.action.submit-input");
 		ws.emit(ClientAction.MatchSubmitInput, { value: value });
 	}
 }

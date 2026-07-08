@@ -1,5 +1,5 @@
-import type { Card, GamePlayer, GameState } from "../stores/game.svelte";
-import type { BotTakeoverMode, Lobby, LobbyMember, LobbySettings } from "../stores/lobby.svelte";
+import type { Card, GamePlayer, GameState } from "$stores/game.svelte";
+import type { BotTakeoverMode, Lobby, LobbyMember, LobbySettings } from "$stores/lobby.svelte";
 
 export function makeCard(overrides?: Partial<Card>): Card {
 	return {
@@ -62,7 +62,6 @@ export function makeLobby(overrides?: Partial<Lobby>): Lobby {
 		invite_code: "AAAAAA",
 		host: "player1",
 		name: "Test Lobby",
-		member_count: 2,
 		members,
 		settings,
 		...overrides

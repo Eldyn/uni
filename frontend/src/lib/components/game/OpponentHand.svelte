@@ -1,8 +1,9 @@
 <script lang="ts">
 	import GameCard from "./GameCard.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import { useCardBus, type ElementRole } from "./card-bus.svelte";
-	import { storeGame, Action, type GamePlayer } from "../../stores/game.svelte";
+	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	let {
 		player,
@@ -58,11 +59,18 @@
 	class:is-targetable={isValidTarget}
 	onclick={() => {
 		if (isValidTarget && player) {
+			// PLACEHOLDER-SFX: sfx.target.confirm — confirmation blip when the
+			//       player picks a target opponent. ActionChooseTarget.svelte is
+			//       display-only, so the real confirm click lives here instead.
+			storeAudio.playSfx("sfx.target.confirm");
 			storeGame.submitInput(player.username);
 		}
 	}}
 	onkeydown={(e) => {
 		if ((e.key === "Enter" || e.key === " ") && isValidTarget && player) {
+			// PLACEHOLDER-SFX: sfx.target.confirm — keyboard-activated equivalent
+			// of the click confirm above.
+			storeAudio.playSfx("sfx.target.confirm");
 			storeGame.submitInput(player.username);
 		}
 	}}

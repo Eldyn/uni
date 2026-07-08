@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { type SavedMatch } from "../../stores/lobby.svelte";
-	import { ClientAction, ws } from "../../stores/ws.svelte";
-	import { storeToast } from "../../stores/toast.svelte";
+	import { type SavedMatch } from "$stores/lobby.svelte";
+	import { ClientAction, ws } from "$stores/ws.svelte";
+	import { storeToast } from "$stores/toast.svelte";
 
 	let { save }: { save: SavedMatch } = $props();
 

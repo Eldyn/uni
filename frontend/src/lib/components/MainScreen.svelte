@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { storeNavigation } from "../stores/navigation.svelte";
-	import { storeAuth } from "../stores/auth.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import TextEffects from "./common/TextEffects.svelte";
 
 	let logoutPending = $state(false);
+
+	async function playAsGuest() {
+		if (await storeAuth.loginAsGuest()) storeNavigation.goto("lobbies");
+	}
 
 	async function handleLogout() {
 		if (logoutPending) return;
@@ -14,12 +18,67 @@
 			logoutPending = false;
 		}
 	}
+
+	interface HubTile {
+		label: string;
+		icon: string;
+		accent: string;
+		/** Absent = tile is a "coming soon" placeholder. */
+		action?: () => void;
+	}
+
+	// Stats/saved matches are account-only; Settings is local browser state, so
+	// it works for guests too. Decks/Skins have no action either way — unbuilt.
+	const HUB_TILES = $derived<HubTile[]>([
+		{
+			label: "Stats",
+			icon: "hn-crown",
+			accent: "text-blue-card",
+			action: storeAuth.isLoggedIn ? () => storeNavigation.goto("stats") : undefined
+		},
+		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card" },
+		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card" },
+		{
+			label: "Settings",
+			icon: "hn-cog",
+			accent: "text-accent",
+			action: () => storeNavigation.goto("settings")
+		}
+	]);
+
+	const SOCIAL_LINKS = [
+		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
+		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
+		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" },
+		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
+		{
+			label: "Bluesky",
+			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
+			img: "bluesky_icon.png"
+		},
+		{
+			label: "Instagram",
+			href: "https://www.instagram.com/the.uni.game/",
+			img: "instagram_icon.png"
+		}
+	];
 </script>
 
-<div class="screen-container">
-	<div class="doodle-bg"></div>
+<div
+	class="relative flex min-h-screen flex-col overflow-hidden bg-bg"
+	style="-webkit-font-smoothing: none; -moz-osx-font-smoothing: grayscale; font-smooth: never;"
+>
+	<!-- Background art: y-position tuned to align the dark cutout with the logo -->
+	<div
+		class="fixed inset-0 z-0 bg-cover"
+		style="background-image: url('/assets/bg_main.png'); background-position: center 62%;"
+	></div>
 
-	<header class="logo-container">
+	<!-- Dock gradient: fixed, always bottom-half of viewport, independent of content height -->
+	<div class="dock-bg pointer-events-none fixed bottom-0 left-0 right-0 z-[5]"></div>
+
+	<!-- Upper hero zone: logo pushed toward the dock, not mid-viewport -->
+	<div class="relative z-10 flex flex-1 flex-col items-center justify-end px-4 pb-6">
 		<TextEffects
 			text="UNI!"
 			effect="undulate"
@@ -29,144 +88,153 @@
 			speed={1}
 			frequency={0.15}
 		/>
-	</header>
-
-	<main class="button-container">
-		{#if !storeAuth.isLoggedIn}
-			<button class="btn menu-btn pixel-corners" onclick={() => storeNavigation.goto("auth")}>
-				Login
-			</button>
-		{:else}
-			<div class="logged-in-menu">
+		{#if storeAuth.isLoggedIn}
+			<p class="mt-4 font-tiny text-sm text-text/70">
+				Welcome back, <span class="text-accent">{storeAuth.username}</span>
 				<button
-					class="btn menu-btn btn-wide pixel-corners"
+					class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+					style="font-family: var(--pypx); font-weight: 800;"
+					onclick={handleLogout}
+					disabled={logoutPending}>{logoutPending ? "Logging out…" : "Logout"}</button
+				>
+			</p>
+		{/if}
+	</div>
+
+	<!-- Bottom dock: actions + nav -->
+	<div class="dock relative z-10 w-full px-4 pb-6 pt-6">
+		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
+			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+				<!-- Signed out entirely: login + guest CTA -->
+				<button
+					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
+					onclick={() => storeNavigation.goto("auth")}
+				>
+					Login
+				</button>
+				<p
+					class="text-center font-extrabold uppercase tracking-widest text-text/30"
+					style="font-family: var(--pypx);"
+				>
+					- or -
+				</p>
+				<button
+					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
+					disabled={storeAuth.isLoading}
+					onclick={playAsGuest}
+				>
+					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
+				</button>
+			{:else}
+				<!-- Logged-in: primary CTA -->
+				<button
+					class="btn pixel-corners w-full py-4 text-xl tracking-wider"
 					onclick={() => storeNavigation.goto("lobbies")}
 				>
-					Entra in Stanza
+					Browse Lobbies
 				</button>
-				<div class="secondary-buttons">
-					<button class="btn menu-btn pixel-corners" onclick={() => storeNavigation.goto("stats")}>
-						Stats
-					</button>
-					<button class="btn menu-btn pixel-corners" onclick={handleLogout} disabled={logoutPending}
-						>Logout</button
-					>
+
+				<!-- Hub: 4-tile horizontal action bar -->
+				<div class="grid grid-cols-4 gap-2">
+					{#each HUB_TILES as tile}
+						<button
+							class="hub-tile pixel-bordered flex flex-col items-center gap-1 py-3 text-center
+							       {tile.action ? '' : 'opacity-50'}"
+							style="--pc-fill: var(--surface); --pc-border: var(--border);"
+							aria-disabled={!tile.action}
+							onclick={() => tile.action?.()}
+							aria-label="{tile.label}{tile.action ? '' : ' — coming soon'}"
+						>
+							<i class="hn pix {tile.icon} text-xl {tile.accent}"></i>
+							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>
+							{#if !tile.action}
+								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">Soon</span>
+							{/if}
+						</button>
+					{/each}
 				</div>
-			</div>
-		{/if}
-	</main>
+			{/if}
+
+			<!-- Site links + social icons -->
+			<footer class="flex flex-col items-center gap-2">
+				<nav
+					class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
+					aria-label="Site links"
+				>
+					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
+					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
+					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
+					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+				</nav>
+				<nav class="flex items-center gap-3" aria-label="Social links">
+					{#each SOCIAL_LINKS as link}
+						<a
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="social-icon"
+							aria-label={link.label}
+						>
+							<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
+						</a>
+					{/each}
+				</nav>
+			</footer>
+		</div>
+	</div>
 </div>
 
 <style>
-	.doodle-bg {
-		position: fixed;
-		inset: 0;
-		background-image: url("/assets/bg_main.png");
-		background-size: cover;
-		z-index: 0;
-	}
-
-	.screen-container {
-		position: relative;
-		display: flex;
-		flex-direction: column;
-		justify-content: flex-end;
-		align-items: center;
-
-		gap: 2rem;
-		min-height: 100vh;
-		padding-bottom: 6rem;
-		background: var(--bg);
-		overflow: hidden;
-
-		-webkit-font-smoothing: none;
-		-moz-osx-font-smoothing: grayscale;
-		font-smooth: never;
-	}
-
-	@keyframes fallAndFade {
-		0% {
-			transform: translateY(0);
-			opacity: 0;
-		}
-		8% {
-			opacity: 0.45;
-		}
-		92% {
-			opacity: 0.45;
-		}
-		100% {
-			transform: translateY(125vh);
-			opacity: 0;
-		}
-	}
-
-	@keyframes spin3D {
-		0% {
-			transform: rotateX(var(--initial-rx)) rotateY(0deg) rotateZ(var(--rotate-z))
-				scale(var(--scale));
-		}
-		100% {
-			transform: rotateX(calc(var(--initial-rx) + 40deg)) rotateY(720deg)
-				rotateZ(calc(var(--rotate-z) + 150deg)) scale(var(--scale));
-		}
-	}
-
-	.logo-container,
-	.button-container {
-		position: relative;
-		z-index: 1;
-	}
-
-	.logo-container {
-		display: flex;
-		justify-content: center;
-		color: #ffffff;
-
-		margin: 0;
-		text-align: center;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+	:global(.logo-text) {
 		gap: 0.4rem;
 	}
 
-	/* Logo sizing/stroke/shadow live in the shared .title-hero class (app.css),
-	   kept in sync with the #seo-splash hero in index.html. Only the per-char
-	   gap is logo-specific. */
-	.logo-container :global(.logo-text) {
-		gap: 0.4rem;
+	/* Logo scales with viewport width on narrow screens (portrait mobile),
+	   stays at 10rem on wide/desktop. clamp handles it without a hard breakpoint. */
+	:global(.logo-text.title-hero) {
+		font-size: clamp(4rem, 26vw, 10rem);
+		text-shadow: clamp(2px, 0.3vw, 4px) clamp(2px, 0.3vw, 4px) 0px var(--pixel-shadow);
 	}
 
-	.button-container {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		margin-bottom: 3rem;
+	.dock-bg {
+		height: 50vh;
+		background-image: repeating-conic-gradient(rgba(16, 17, 22, 0.97) 0% 25%, transparent 0% 50%);
+		background-size: 4px 4px;
+		-webkit-mask-image: linear-gradient(to top, black 35%, transparent 100%);
+		mask-image: linear-gradient(to top, black 35%, transparent 100%);
 	}
 
-	.logged-in-menu {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
+	.hub-tile:not([aria-disabled="true"]):hover {
+		--pc-border: var(--accent);
+		cursor: pointer;
 	}
 
-	.secondary-buttons {
-		display: flex;
-		justify-content: center;
-		gap: 1.5rem;
+	.logout-inline {
+		display: inline;
+		background: transparent;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		clip-path: none !important;
+		border-radius: 0 !important;
+		font-size: inherit;
+	}
+	.logout-inline:hover {
+		text-decoration: underline;
+		text-decoration-thickness: 2px;
+	}
+	.logout-inline:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
-	.btn-wide {
-		width: 100%;
+	.social-icon {
+		opacity: 0.45;
+		transition: opacity 0.15s;
+		image-rendering: pixelated;
 	}
-
-	/* Hero-sized variant of the shared flat .btn */
-	.menu-btn {
-		padding: 1.5rem 2.5rem;
-		font-size: 1.35rem;
-		font-weight: 900;
-		letter-spacing: 1.5px;
-		line-height: 1.3;
+	.social-icon:hover {
+		opacity: 1;
 	}
 </style>

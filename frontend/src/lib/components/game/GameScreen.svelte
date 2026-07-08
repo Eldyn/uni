@@ -4,9 +4,9 @@
 	import GameOverPopup from "./GameOverPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import GameActions from "./GameActions.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
-	import { storeGame } from "../../stores/game.svelte";
-	import AdInterstitial from "../common/AdInterstitial.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import { storeGame } from "$stores/game.svelte";
+	import AdInterstitial from "$components/common/AdInterstitial.svelte";
 
 	function shouldShowAd(isGuest: boolean): boolean {
 		if (isGuest) return true;
@@ -17,11 +17,11 @@
 
 	let matchEnded = $state(false);
 	let showAd = $state(false);
-	let activeColor = $state('red');
+	let activeColor = $state("red");
 
 	$effect(() => {
 		const type = storeGame.state?.active_type;
-		if (type && type !== 'white') activeColor = type;
+		if (type && type !== "white") activeColor = type;
 	});
 
 	$effect(() => {
@@ -37,10 +37,7 @@
 
 <div class="game-screen">
 	<div class="bg-layer playmat-layout">
-		<TintedSprite
-			src="/assets/playmat.png"
-			color="var(--{activeColor})"
-		/>
+		<TintedSprite src="/assets/playmat.png" color="var(--{activeColor})" />
 	</div>
 
 	<div class="bg-layer arrows-layout">

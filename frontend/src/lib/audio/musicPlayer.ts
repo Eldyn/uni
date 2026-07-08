@@ -1,0 +1,211 @@
+/**
+ * @file musicPlayer.ts
+ * @brief Single-track/playlist music playback via Howler, with multi-channel
+ * "stem" tracks delegated to the raw Web Audio multiChannelSync engine.
+ * Only ever one thing playing at a time — playTrack always tears down
+ * whatever came before.
+ */
+
+import { Howl, Howler } from "howler";
+import { MUSIC_CATALOG, type MusicChannelDef, type MusicTrackDef } from "$data/audioCatalogs";
+import { playSyncedChannels } from "$lib/audio/multiChannelSync";
+
+const DEFAULT_CROSSFADE_MS = 500;
+
+interface SingleHandle {
+	kind: "single";
+	howl: Howl;
+}
+
+interface PlaylistHandle {
+	kind: "playlist";
+	order: string[];
+	index: number;
+	crossfadeMs: number;
+	howl: Howl;
+}
+
+interface MultiHandle {
+	kind: "multi";
+	handle: { stop(fadeMs?: number): void };
+}
+
+type CurrentHandle = SingleHandle | PlaylistHandle | MultiHandle;
+
+function shuffleOrder(ids: string[]): string[] {
+	const shuffled = [...ids];
+	for (let i = shuffled.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+	}
+	return shuffled;
+}
+
+function resolveChannelDefs(def: MusicTrackDef): MusicChannelDef[] {
+	if (def.kind === "multi") return def.channels;
+	if (def.kind === "multi-folder") {
+		const start = def.start ?? 0;
+		return Array.from({ length: def.count }, (_, i) => ({
+			src: `/assets/audio/music/${def.folder}/${start + i}.mp3`
+		}));
+	}
+	return [];
+}
+
+export class MusicPlayer {
+	#current: CurrentHandle | undefined;
+	// INFO: Catalog id behind #current — lets playTrack no-op when asked to
+	//       play what's already playing instead of restarting from zero.
+	#currentId: string | undefined;
+	// INFO: Bumped on every playTrack/stopAll call. Async work (playlist
+	//       onend, multi-channel decode) captures its token and bails if a
+	//       newer operation has taken over — prevents playlist double-advance
+	//       and a stale decode clobbering a newer track.
+	#operationId = 0;
+
+	playTrack(id: string, opts?: { fadeMs?: number }): Promise<void> {
+		if (id === this.#currentId && this.#current) return Promise.resolve();
+
+		const def = MUSIC_CATALOG[id];
+		if (!def) {
+			console.warn(`MusicPlayer.playTrack: unknown track id "${id}"`);
+			return Promise.resolve();
+		}
+
+		// INFO: Immediate stop-then-start rather than crossfading old vs new —
+		//       simpler, and never leaves two things playing at once.
+		this.#stopCurrent(opts?.fadeMs);
+		this.#currentId = id;
+		const operationId = ++this.#operationId;
+
+		if (def.kind === "single") {
+			this.#playSingleTrackDef(def, opts?.fadeMs ?? 0);
+			return Promise.resolve();
+		}
+
+		if (def.kind === "playlist") {
+			this.#startPlaylist(
+				def.trackIds,
+				def.shuffle ?? false,
+				def.crossfadeMs ?? DEFAULT_CROSSFADE_MS,
+				operationId
+			);
+			return Promise.resolve();
+		}
+
+		// INFO: "multi"/"multi-folder" — decode all stems, then sync-start them.
+		return this.#playMultiChannel(def, operationId);
+	}
+
+	stopAll(fadeMs?: number): void {
+		this.#stopCurrent(fadeMs);
+		this.#operationId++;
+	}
+
+	#stopCurrent(fadeMs?: number): void {
+		const current = this.#current;
+		if (!current) return;
+		this.#current = undefined;
+		this.#currentId = undefined;
+
+		if (current.kind === "multi") {
+			current.handle.stop(fadeMs);
+			return;
+		}
+
+		const howl = current.howl;
+		if (fadeMs) {
+			howl.fade(howl.volume(), 0, fadeMs);
+			setTimeout(() => {
+				howl.stop();
+				howl.unload();
+			}, fadeMs);
+		} else {
+			howl.stop();
+			howl.unload();
+		}
+	}
+
+	// INFO: Runs fully synchronously (no await before #current is set), so it
+	//       doesn't need the operationId race guard #playMultiChannel does.
+	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
+		const howl = new Howl({ src: [def.src], loop: def.loop ?? false, volume: 0 });
+		howl.play();
+		howl.fade(0, 1, fadeMs);
+		this.#current = { kind: "single", howl };
+	}
+
+	#startPlaylist(
+		trackIds: string[],
+		shuffle: boolean,
+		crossfadeMs: number,
+		operationId: number
+	): void {
+		const order = shuffle ? shuffleOrder(trackIds) : [...trackIds];
+		this.#playPlaylistEntry(order, 0, crossfadeMs, operationId);
+	}
+
+	#playPlaylistEntry(
+		order: string[],
+		index: number,
+		crossfadeMs: number,
+		operationId: number
+	): void {
+		if (order.length === 0) return;
+		const trackId = order[index];
+		const trackDef = MUSIC_CATALOG[trackId];
+		if (!trackDef || trackDef.kind === "playlist") {
+			console.warn(`MusicPlayer: playlist entry "${trackId}" is missing or nested — skipping`);
+			return;
+		}
+		if (trackDef.kind !== "single") {
+			console.warn(
+				`MusicPlayer: playlist entry "${trackId}" is a multi-channel track, which playlists don't support — skipping`
+			);
+			return;
+		}
+
+		// INFO: Playlist entries always play non-looping regardless of the
+		//       nested def's own loop flag — the playlist owns advancing.
+		const howl = new Howl({
+			src: [trackDef.src],
+			loop: false,
+			volume: 1,
+			onend: () => {
+				// INFO: Howler fires onend only on natural completion, never on
+				//       a manual .stop() — guard anyway in case a newer
+				//       operation raced in right as this callback was queued.
+				if (operationId !== this.#operationId) return;
+				const nextIndex = (index + 1) % order.length;
+				this.#playPlaylistEntry(order, nextIndex, crossfadeMs, operationId);
+			}
+		});
+		howl.play();
+		howl.fade(0, 1, crossfadeMs);
+
+		this.#current = { kind: "playlist", order, index, crossfadeMs, howl };
+	}
+
+	async #playMultiChannel(
+		def: Extract<MusicTrackDef, { kind: "multi" | "multi-folder" }>,
+		operationId: number
+	): Promise<void> {
+		const channelDefs = resolveChannelDefs(def);
+
+		const channelBuffers = await Promise.all(
+			channelDefs.map(async (channelDef) => {
+				const response = await fetch(channelDef.src);
+				const arrayBuffer = await response.arrayBuffer();
+				const buffer = await Howler.ctx.decodeAudioData(arrayBuffer);
+				return { def: channelDef, buffer };
+			})
+		);
+
+		// INFO: A newer playTrack/stopAll raced ahead of this decode — don't
+		//       resurrect as "current" over whatever's playing now.
+		if (operationId !== this.#operationId) return;
+
+		const handle = playSyncedChannels(Howler.ctx, channelBuffers, Howler.masterGain);
+		this.#current = { kind: "multi", handle };
+	}
+}

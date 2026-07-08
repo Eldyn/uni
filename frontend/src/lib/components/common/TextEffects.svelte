@@ -15,7 +15,8 @@
 		speed = 1.2, // seconds per full cycle
 		// shine
 		shineSpeed = 2.5, // seconds per sweep
-		shineColor = "rgba(255, 255, 255, 0.85)",
+		shineColor = "rgba(255, 255, 255, 0.9)",
+		shineBaseColor = "var(--text)", // base text color (currentColor breaks with background-clip: text)
 		// shake
 		shakeIntensity = 3, // max px displacement
 		shakeSpeed = 0.4 // seconds per shake cycle
@@ -29,6 +30,7 @@
 		speed?: number;
 		shineSpeed?: number;
 		shineColor?: string;
+		shineBaseColor?: string;
 		shakeIntensity?: number;
 		shakeSpeed?: number;
 	} = $props();
@@ -40,7 +42,8 @@
 {#if effect === "shine"}
 	<span
 		class="shine {className}"
-		style="{fontStyle} --shine-speed: {shineSpeed}s; --shine-color: {shineColor}">{text}</span
+		style="{fontStyle} --shine-speed: {shineSpeed}s; --shine-color: {shineColor}; --shine-base: {shineBaseColor}"
+		>{text}</span
 	>
 {:else if effect === "undulate"}
 	<span
@@ -104,19 +107,21 @@
 	}
 
 	/* ── Shine ────────────────────────────────────────────── */
+	/* Hard stops = crisp pixel edge; steps(30) = discrete jumps not smooth interpolation. */
 	.shine {
 		display: inline-block;
 		background: linear-gradient(
-			90deg,
-			currentColor 20%,
-			var(--shine-color, rgba(255, 255, 255, 0.85)) 50%,
-			currentColor 80%
+			110deg,
+			var(--shine-base, var(--text)) 45.5%,
+			var(--shine-color, rgba(255, 255, 255, 0.9)) 45.5%,
+			var(--shine-color, rgba(255, 255, 255, 0.9)) 54.5%,
+			var(--shine-base, var(--text)) 54.5%
 		);
 		background-size: 300% auto;
 		-webkit-background-clip: text;
 		background-clip: text;
 		color: transparent;
-		animation: shine-sweep var(--shine-speed, 2.5s) linear infinite;
+		animation: shine-sweep var(--shine-speed, 2.5s) steps(30, end) infinite;
 	}
 
 	@keyframes shine-sweep {

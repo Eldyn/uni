@@ -1,20 +1,29 @@
 <script lang="ts">
-	import { storeGame } from "../../../stores/game.svelte";
+	import Modal from "$components/common/Modal.svelte";
+	import { storeGame } from "$stores/game.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
+
+	// PLACEHOLDER-SFX: sfx.match.interrupted — alarm/error stinger fired once
+	// when the interrupted popup appears (component only mounts on this event).
+	storeAudio.playSfx("sfx.match.interrupted");
 </script>
 
-<div class="modal-overlay">
-	<div class="modal-content interrupted-content">
-		<h1>Interrupted</h1>
-		<h2>Something went wrong.</h2>
-		<p>A player disconnected or the match was forcefully cancelled.</p>
-		<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
-			Back to Lobby
-		</button>
-	</div>
-</div>
+<Modal
+	open={true}
+	dismissible={false}
+	titleId="interrupted-title"
+	contentClass="interrupted-content"
+>
+	<h1 id="interrupted-title">Interrupted</h1>
+	<h2>Something went wrong.</h2>
+	<p>A player disconnected or the match was forcefully cancelled.</p>
+	<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
+		Back to Lobby
+	</button>
+</Modal>
 
 <style>
-	.interrupted-content {
+	:global(.interrupted-content) {
 		text-align: center;
 		color: var(--text-h);
 		max-width: 380px;
@@ -43,7 +52,7 @@
 		}
 	}
 
-	.interrupted-content h1 {
+	:global(.interrupted-content) h1 {
 		font-family: "FatPixel", sans-serif;
 		font-size: 1rem;
 		margin: 0 0 10px 0;
@@ -51,13 +60,13 @@
 		text-shadow: 2px 2px 0px var(--pixel-shadow);
 	}
 
-	.interrupted-content h2 {
+	:global(.interrupted-content) h2 {
 		font-family: "Pixel", sans-serif;
 		font-size: 1.1rem;
 		margin-bottom: 10px;
 	}
 
-	.interrupted-content p {
+	:global(.interrupted-content) p {
 		font-family: var(--sans);
 		color: var(--text);
 		margin-bottom: 25px;

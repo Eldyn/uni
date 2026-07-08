@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storeGame } from "../../stores/game.svelte";
+	import { storeGame } from "$stores/game.svelte";
 	import GameVictoryPopup from "./popup/GameVictoryPopup.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
 

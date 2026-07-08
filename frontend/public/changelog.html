@@ -80,7 +80,78 @@
 		</header>
 
 		<main class="wrap">
-			<h3>Unreleased</h3>
+			<h3>0.5.0 - Current Release</h3>
+			<span class="release-date">July 7, 2026</span>
+			<ul>
+				<li>
+					There's a Settings screen now, with music and sound effects volume sliders — works
+					whether you're logged in or just playing as a guest.
+				</li>
+				<li>
+					Fixed a bug where playing as a guest and hitting "Back" from the lobby list looked like
+					you'd been logged out.
+				</li>
+				<li>There's background music now! It plays on every screen except during a match.</li>
+				<li>
+					You can no longer register a username using offensive language, across many languages.
+				</li>
+				<li>Notifications can now be swiped away instead of waiting for them to fade out.</li>
+				<li>
+					<strong>You can now really play as a guest!</strong> The "Play as Guest" button used to
+					lead to an empty, disconnected screen. Now it gives you a temporary guest name (like
+					Guest#A3K9X) and connects you properly, so you can browse, join and play without
+					creating an account. Stats and saved matches still need an account.
+				</li>
+				<li>Switched the app's icons to a crisp pixel-art icon set for a more consistent retro look.</li>
+				<li>Cleaned up the monospace text font so it shows clearly on every device.</li>
+				<li>Removed the small connection dot next to players in the lobby (a clearer disconnect indicator is coming).</li>
+				<li>Clearer message when an invite code doesn't match any lobby.</li>
+				<li>Renamed the main-menu "Entra in Stanza" button to "Browse Lobbies".</li>
+				<li>
+					Fixed a bug where going back to the lobby list after visiting a lobby could show a blank
+					screen.
+				</li>
+				<li>
+					Lobby list polish: the search box now lights up when you click into it, the smaller
+					filter buttons use a cleaner small font, and the duplicate logout button was removed
+					(it's still on the main menu).
+				</li>
+				<li>
+					The lobby list now stays up to date on its own — new rooms appear and full or started
+					ones update within a few seconds, without leaving and re-entering the screen.
+				</li>
+				<li>
+					Lots of behind-the-scenes reliability work: clearer error messages when creating a
+					lobby or changing settings fails, no more silent failures when your connection drops
+					at the wrong moment, and better protection against bad data from the server.
+				</li>
+				<li>
+					The "Spectate" and "Take Over" buttons are gone. Games in progress simply show a
+					<strong>Join</strong> button when you can hop in for a bot, and nothing otherwise —
+					spectating may come later as a real feature.
+				</li>
+				<li>
+					Rule names and descriptions in the lobby list's advanced search now come straight from
+					the game server, so new rules will show up there automatically as they're added.
+				</li>
+				<li>
+					The lobby list's sort menu is now fully keyboard-friendly: arrow keys, Home/End, Enter
+					and Escape all work as you'd expect, and screen readers get proper labels.
+				</li>
+				<li>
+					Connection problems now show a clear message ("Could not connect to the server")
+					instead of the cryptic "[object Event]", and the coloured stripe on notifications now
+					sits flush with the edge like a proper pixel-art border.
+				</li>
+				<li>Fixed the Stats/Decks/Skins/Settings icons missing from the main screen.</li>
+				<li>
+					The little player icons next to the lobby sort menu no longer flash random colours —
+					they're a fixed colour that matches light/dark mode.
+				</li>
+			</ul>
+
+			<h3>0.4.8</h3>
+			<span class="release-date">July 7, 2026</span>
 			<ul>
 				<li>
 					UNI! has a new home: <strong>playuni.app</strong>! The old unii.duckdns.org address still
@@ -93,7 +164,7 @@
 				</li>
 			</ul>
 
-			<h3>0.4.7 - Current Release</h3>
+			<h3>0.4.7</h3>
 			<span class="release-date">June 28, 2026</span>
 			<ul>
 				<li>

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { storeGame, Action } from "../../../stores/game.svelte";
+	import { storeGame, Action } from "$stores/game.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	const TYPE_BUTTONS = [
 		{ name: "red", typeIndex: 0 },
@@ -20,7 +21,12 @@
 						type="button"
 						class="btn pixel-corners color-button color-{name}"
 						disabled={storeGame.isActionPending}
-						onclick={() => storeGame.submitInput(String(typeIndex))}
+						onclick={() => {
+							// PLACEHOLDER-SFX: sfx.color.confirm — confirmation blip when the
+							// player picks a wild-card colour; a human may want per-colour pitch.
+							storeAudio.playSfx("sfx.color.confirm");
+							storeGame.submitInput(String(typeIndex));
+						}}
 					>
 						{name.charAt(0).toUpperCase()}
 					</button>

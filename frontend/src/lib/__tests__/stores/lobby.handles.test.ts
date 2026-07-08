@@ -76,9 +76,9 @@ describe("lobby store: handle methods", () => {
 		expect(mockEmitAndWait).toHaveBeenCalledWith("lobby_join", { code: "AAAAAA" });
 	});
 
-	it("join resolves without throwing when response.ok is false", async () => {
+	it("join resolves to false when response.ok is false", async () => {
 		mockEmitAndWait.mockResolvedValue(errorResponse);
-		await expect(storeLobby.join("AAAAAA")).resolves.toBeUndefined();
+		await expect(storeLobby.join("AAAAAA")).resolves.toBe(false);
 	});
 
 	it("startMatch calls emitAndWait with LobbyStartMatch action", async () => {

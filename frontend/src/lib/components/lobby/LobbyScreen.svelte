@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { storeLobby } from "../../stores/lobby.svelte";
-	import { storeAuth } from "../../stores/auth.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import LobbySave from "./LobbySave.svelte";
-	import TintedSprite from "../common/TintedSprite.svelte";
-	import TextEffects from "../common/TextEffects.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import TextEffects from "$components/common/TextEffects.svelte";
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
 	let startable = $derived((storeLobby.current?.members.length ?? 0) >= 2);
@@ -75,7 +75,7 @@
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
 				<button class="toggle-code-btn" onclick={() => (showInviteCode = !showInviteCode)}>
-					{showInviteCode ? "󰈉" : "󰈈"}
+					<i class="hn pix {showInviteCode ? 'hn-eye' : 'hn-eye-cross'}"></i>
 				</button>
 			</div>
 
@@ -103,13 +103,18 @@
 				{#each storeLobby.current?.members ?? [] as member, i}
 					<li class="member">
 						<div class="member-avatar">
-							<TintedSprite
-								src="/assets/base_player.gif"
-								color={member.is_bot ? "#666" : PLAYER_COLORS[i % 4]}
-								fit="contain"
-							/>
+							{#if member.is_bot}
+								<img class="avatar-sprite" src="/assets/bot_animated.gif" alt="Bot" />
+							{:else}
+								<TintedSprite
+									src="/assets/base_player.gif"
+									color={PLAYER_COLORS[i % 4]}
+									fit="contain"
+								/>
+							{/if}
+
 							{#if member.is_host}
-								<img class="avatar-crown" src="/assets/crown_host.gif" alt="Host" />
+								<img class="avatar-crown" src="/assets/crown_host.gif" alt="Host Crown" />
 							{/if}
 						</div>
 
@@ -117,15 +122,10 @@
 							<div class="member-details">
 								<div class="name-row">
 									{#if member.is_bot}
-										<span class="status-icon" style="color: lightblue"> 󱚣 </span>
-									{:else}
-										<span
-											class="status-icon"
-											class:on={member.is_connected}
-											class:off={!member.is_connected}
-										>
-											{member.is_connected ? "" : ""}
-										</span>
+										<i
+											class="hn pix hn-robot flex min-w-10 items-center justify-center text-[2rem]"
+											style="color: lightblue"
+										></i>
 									{/if}
 
 									<span class="member-name">{member.username}</span>
@@ -194,7 +194,11 @@
 		</div>
 	</div>
 
-	<button class="leave-button-fixed pixel-corners" onclick={storeLobby.leave} title="Exit Lobby">
+	<button
+		class="leave-button-fixed pixel-corners"
+		onclick={() => storeLobby.leave()}
+		title="Exit Lobby"
+	>
 		<img src="/assets/exit.png" alt="Exit" class="exit-icon" />
 	</button>
 </div>
@@ -226,6 +230,12 @@
 		flex-shrink: 0;
 	}
 
+	.avatar-sprite {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
 	/* Crown gif shares the avatar's exact box so it layers over the head. */
 	.avatar-crown {
 		position: absolute;
@@ -254,15 +264,6 @@
 		color: white;
 	}
 
-	.status-icon {
-		font-size: 2rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 40px;
-		font-family: var(--mono);
-	}
-
 	.header-controls {
 		display: flex;
 		align-items: center;
@@ -288,7 +289,6 @@
 		cursor: pointer;
 		color: white;
 		font-size: 1.5rem;
-		font-family: var(--mono);
 		display: flex;
 		align-items: center;
 		line-height: 1;

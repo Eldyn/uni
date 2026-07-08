@@ -4,6 +4,10 @@
  * Handles creation, joining, settings updates and the public list.
  */
 
+import { z } from "zod";
+import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
+import { failureText } from "./errors";
+import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
@@ -18,19 +22,6 @@ export enum BotTakeoverMode {
 	PlayInstantly,
 	/** The bot waits up to 5 seconds for its turn, or until the end of the turn for other AFK players. */
 	WaitUntilTurnEnd
-}
-
-/**
- * @interface RuleDefinition
- * @brief Describes a single game rule as provided by the server.
- */
-export interface RuleDefinition {
-	/** Unique identifier used in active_mods (e.g. "seven_zero"). */
-	id: string;
-	/** Short human-readable name for UI display. */
-	label: string;
-	/** One-sentence explanation of the rule's effect. */
-	description: string;
 }
 
 /**
@@ -118,8 +109,6 @@ export interface Lobby {
 	host: string;
 	/** The custom name of the lobby shown in the public list. */
 	name: string;
-	/** The current number of members in the lobby (maximum 4). */
-	member_count: number;
 	/** Detailed list of the players currently in the lobby. */
 	members: LobbyMember[];
 	/** The settings configured for this game room. */
@@ -140,6 +129,54 @@ export interface ListedLobby {
 	bot_count: number;
 	/** The invite code allowing the client to join with one click. */
 	invite_code: string;
+	/** Derived lobby status: "open" | "in-game" | "full". */
+	status: "open" | "in-game" | "full";
+	/** Special rules (mods) currently active in this lobby. */
+	active_mods: string[];
+	/** If true, a human player can join an in-progress match by replacing a bot. */
+	allow_bot_takeover: boolean;
+}
+
+// INFO: Incoming lobby payloads are validated at the WS boundary — outgoing //
+// frames already go through the generated Zod schemas, incoming ones don't. //
+// Loose objects: unknown extra fields pass through untouched.               //
+
+const LobbyMemberSchema = z.looseObject({
+	username: z.string(),
+	is_connected: z.boolean(),
+	is_host: z.boolean(),
+	is_bot: z.boolean()
+});
+
+const LobbySchema = z.looseObject({
+	invite_code: z.string(),
+	host: z.string(),
+	name: z.string(),
+	members: z.array(LobbyMemberSchema).default([]),
+	settings: z.looseObject({
+		active_mods: z.array(z.string()).default([]),
+		allow_bot_takeover: z.boolean().default(false)
+	})
+});
+
+const ListedLobbySchema = z.looseObject({
+	name: z.string(),
+	member_count: z.number().default(0),
+	bot_count: z.number().default(0),
+	invite_code: z.string(),
+	status: z.enum(["open", "in-game", "full"]).default("open"),
+	active_mods: z.array(z.string()).default([]),
+	allow_bot_takeover: z.boolean().default(false)
+});
+
+/** Parses a raw lobby payload; returns null (and logs) when malformed. */
+function parseLobby(raw: unknown): Lobby | null {
+	const parsed = LobbySchema.safeParse(raw);
+	if (!parsed.success) {
+		console.error("[lobby] Malformed lobby payload:", parsed.error.issues);
+		return null;
+	}
+	return parsed.data as unknown as Lobby;
 }
 
 /**
@@ -152,14 +189,20 @@ class StoreLobby {
 	savedMatches = $state<SavedMatch[] | null>(null);
 	/** The lobby the user is currently in. Null if not in a lobby. */
 	current = $state<Lobby | null>(null);
-	/** Rule definitions synced from the server on lobby join. */
-	availableRules = $state<RuleDefinition[]>([]);
 
 	/** The list of public lobbies available to join. */
 	available = $state<ListedLobby[]>([]);
 
 	/** True while fetching the list of public lobbies from the server. */
 	isLoadingList = $state(false);
+
+	/**
+	 * True when the most recent fetchList() failed (server rejection, malformed
+	 * payload, or network/WS error) — distinct from a successful fetch that
+	 * legitimately found zero lobbies, so the UI can tell "nothing to join"
+	 * apart from "couldn't check."
+	 */
+	listError = $state(false);
 
 	/** True while a lobby creation or join request is in progress. */
 	isLoadingJoin = $state(false);
@@ -171,6 +214,12 @@ class StoreLobby {
 	isLoadingStart = $state(false);
 
 	#listenersRegistered = false;
+
+	// Shared match-redirect guard: LobbyJoined and #tryRejoin both wait for a
+	// MatchStateUpdated frame right after (re)join; only one listener may be
+	// armed at a time so goto("game") fires at most once.
+	#matchRedirectUnsub: (() => void) | null = null;
+	#matchRedirectTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * @brief Derived property to quickly check whether the user is in a lobby.
@@ -205,6 +254,9 @@ class StoreLobby {
 			return;
 		}
 
+		// PLACEHOLDER-SFX: sfx.lobby.promote — confirmation chime when a member
+		// is promoted to host.
+		storeAudio.playSfx("sfx.lobby.promote");
 		storeToast.success(`Promoted ${username}!`);
 	}
 
@@ -222,6 +274,9 @@ class StoreLobby {
 			return;
 		}
 
+		// PLACEHOLDER-SFX: sfx.lobby.kick — punchy "removed" sting when a member
+		// is kicked from the lobby.
+		storeAudio.playSfx("sfx.lobby.kick");
 		storeToast.success(`Kicked ${username}!`);
 	}
 
@@ -239,6 +294,9 @@ class StoreLobby {
 			if (!response.ok) {
 				storeToast.error(response.message);
 			} else {
+				// PLACEHOLDER-SFX: sfx.lobby.start — kickoff sting when the host
+				// successfully starts the match.
+				storeAudio.playSfx("sfx.lobby.start");
 				this.#trackMatchStart();
 			}
 		} finally {
@@ -257,6 +315,7 @@ class StoreLobby {
 	#trackMatchStart(): void {
 		const s = this.current?.settings;
 		const active_mods = s?.active_mods ?? [];
+		const humanCount = this.current?.members.filter((m) => !m.is_bot).length;
 		storeAnalytics.track("match_start", {
 			settings_json: JSON.stringify({
 				active_mods,
@@ -275,7 +334,7 @@ class StoreLobby {
 			starting_cards: s?.starting_cards,
 			turn_time_limit_ms: s?.turn_time_limit_ms,
 			bot_count: s?.bot_count,
-			player_count: this.current?.member_count
+			player_count: humanCount
 		});
 	}
 
@@ -289,11 +348,14 @@ class StoreLobby {
 			await ws.connect();
 			const response = await ws.emitAndWait(ClientAction.LobbyUpdateSettings, settings);
 
-			if (!response.ok) return;
+			if (!response.ok) {
+				storeToast.error(response.message);
+				return;
+			}
 
 			storeToast.success("Settings updated!");
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
 		}
 	}
 
@@ -301,10 +363,10 @@ class StoreLobby {
 	 * @brief Creates a new game lobby on the server.
 	 * Automatically connects to the WebSocket and emits the creation payload.
 	 * @param data The configuration for the new lobby.
-	 * @returns A Promise that resolves when the network request completes.
+	 * @returns True when the lobby was created, false on rejection or network error.
 	 * @tag FRONT-LOBBY-MTH-005
 	 */
-	async create(data: { is_public: boolean; name: string }): Promise<void> {
+	async create(data: { is_public: boolean; name: string }): Promise<boolean> {
 		this.isLoadingJoin = true;
 
 		try {
@@ -313,9 +375,16 @@ class StoreLobby {
 
 			if (!response.ok) {
 				storeToast.error(response.message);
-			} else {
-				storeAnalytics.track("lobby_create", { is_public: data.is_public });
+				return false;
 			}
+			// PLACEHOLDER-SFX: sfx.lobby.create — confirmation chime when a new
+			// lobby is successfully created.
+			storeAudio.playSfx("sfx.lobby.create");
+			storeAnalytics.track("lobby_create", { is_public: data.is_public });
+			return true;
+		} catch (error) {
+			storeToast.error(failureText(error));
+			return false;
 		} finally {
 			this.isLoadingJoin = false;
 		}
@@ -324,13 +393,13 @@ class StoreLobby {
 	/**
 	 * @brief Joins an existing lobby using a 6-character invite code.
 	 * @param code The unique 6-character identifier of the lobby.
-	 * @returns A Promise that resolves when the join attempt completes.
+	 * @returns True when the lobby was joined, false on rejection or network error.
 	 * @tag FRONT-LOBBY-MTH-006
 	 */
-	async join(code: string): Promise<void> {
+	async join(code: string): Promise<boolean> {
 		if (!code) {
 			storeToast.error("Enter an invite code.");
-			return;
+			return false;
 		}
 
 		this.isLoadingJoin = true;
@@ -339,10 +408,18 @@ class StoreLobby {
 			await ws.connect();
 			const response = await ws.emitAndWait(ClientAction.LobbyJoin, { code: code.toUpperCase() });
 
-			if (!response.ok) storeToast.error(response.message);
-			else storeAnalytics.track("lobby_join");
+			if (!response.ok) {
+				storeToast.error(response.message);
+				return false;
+			}
+			// PLACEHOLDER-SFX: sfx.lobby.join — confirmation chime when the local
+			// player successfully joins a lobby via invite code.
+			storeAudio.playSfx("sfx.lobby.join");
+			storeAnalytics.track("lobby_join");
+			return true;
 		} catch (error) {
-			storeToast.error(String(error));
+			storeToast.error(failureText(error));
+			return false;
 		} finally {
 			this.isLoadingJoin = false;
 		}
@@ -355,6 +432,7 @@ class StoreLobby {
 	 * @tag FRONT-LOBBY-MTH-007
 	 */
 	async fetchList(): Promise<void> {
+		if (this.isLoadingList) return; // Poll ticks must not overlap an in-flight fetch.
 		this.isLoadingList = true;
 
 		try {
@@ -363,11 +441,24 @@ class StoreLobby {
 
 			if (!response.ok) {
 				this.available = [];
+				this.listError = true;
 				return;
 			}
-			this.available = response.get<ListedLobby[]>("lobbies") ?? [];
+			const parsed = z.array(ListedLobbySchema).safeParse(response.get("lobbies") ?? []);
+			if (!parsed.success) {
+				console.error("[lobby] Malformed lobby list payload:", parsed.error.issues);
+				this.listError = true;
+				return;
+			}
+			this.available = parsed.data as ListedLobby[];
+			this.listError = false;
 		} catch (error) {
-			storeToast.error(String(error));
+			// Toast only on the transition into failure, not every retry —
+			// LobbyBrowse polls this every 8s, and once broken the always-
+			// visible error card (with its own Retry action) already says so;
+			// re-toasting each tick would just be noise on top of that.
+			if (!this.listError) storeToast.error(failureText(error));
+			this.listError = true;
 		} finally {
 			this.isLoadingList = false;
 		}
@@ -377,9 +468,22 @@ class StoreLobby {
 	 * @brief Emits a request to leave the current lobby.
 	 * @tag FRONT-LOBBY-MTH-008
 	 */
-	leave(): void {
-		ws.emit(ClientAction.LobbyLeave);
-		storeAnalytics.track("lobby_leave");
+	async leave(): Promise<void> {
+		try {
+			// emit() silently drops frames on a closed socket — reconnect first so
+			// the server actually processes the leave and echoes LobbyLeft back.
+			await ws.connect();
+			ws.emit(ClientAction.LobbyLeave);
+			// PLACEHOLDER-SFX: sfx.lobby.leave — departure blip when the local
+			// player leaves the lobby; fires optimistically here since LobbyLeave
+			// has no emitAndWait ack, mirroring the existing emit-and-forget pattern.
+			storeAudio.playSfx("sfx.lobby.leave");
+			storeAnalytics.track("lobby_leave");
+		} catch {
+			this.#reset();
+			storeNavigation.goto("lobbies");
+			storeToast.error("Connection lost — left the lobby locally.");
+		}
 	}
 
 	/**
@@ -392,11 +496,11 @@ class StoreLobby {
 		this.#listenersRegistered = true;
 
 		ws.on(ServerAction.LobbyJoined, async (data) => {
-			const lobby = data.lobby as Lobby;
+			const lobby = parseLobby(data.lobby);
+			if (!lobby) return;
 			const alreadyInThisLobby = this.current?.invite_code === lobby.invite_code;
 
 			this.current = lobby;
-			this.availableRules = (data.available_rules as RuleDefinition[]) ?? [];
 			localStorage.setItem("lobby_code", lobby.invite_code);
 
 			// Deduplicate: OnOpen push + HandleRejoin response both fire this handler.
@@ -405,30 +509,38 @@ class StoreLobby {
 
 			// If a match state follows immediately (server-proactive reconnect with active match),
 			// navigate to game. The 500ms window is generous — both messages are sent back-to-back.
-			const matchTimeout = setTimeout(() => unsub(), 500);
-			const unsub = ws.on(ServerAction.MatchStateUpdated, () => {
-				clearTimeout(matchTimeout);
-				unsub();
-				storeNavigation.goto("game");
-			});
+			this.#armMatchRedirect(500);
 
 			storeNavigation.goto("lobby");
 			await this.#fetchSavedMatches();
 		});
 
 		ws.on(ServerAction.LobbyUpdated, async (data) => {
-			const updatedLobby = data.lobby as Lobby;
+			const updatedLobby = parseLobby(data.lobby);
 			if (!updatedLobby) return;
 
-			if (this.current) {
+			// Guard on invite_code: never let a stray broadcast for another
+			// lobby overwrite the one the user is actually in.
+			if (this.current?.invite_code === updatedLobby.invite_code) {
 				this.current = updatedLobby;
 			}
 
 			const idx = this.available.findIndex((l) => l.invite_code === updatedLobby.invite_code);
 			if (idx !== -1) {
-				this.available[idx].member_count = updatedLobby.member_count;
-				this.available[idx].bot_count = updatedLobby.settings.bot_count;
+				// INFO: The update payload carries no member_count/bot_count fields —  //
+				// derive both from the members list to match the LobbyList semantics.  //
+				const humans = updatedLobby.members.filter((m) => !m.is_bot).length;
+				this.available[idx].member_count = humans;
+				this.available[idx].bot_count = updatedLobby.members.length - humans;
 				this.available[idx].name = updatedLobby.name;
+				this.available[idx].active_mods = updatedLobby.settings.active_mods;
+				this.available[idx].allow_bot_takeover = updatedLobby.settings.allow_bot_takeover;
+				// The update payload carries no match info: keep "in-game" from the
+				// last fetchList(), but track full/open live from the member count.
+				if (this.available[idx].status !== "in-game") {
+					this.available[idx].status =
+						updatedLobby.members.length >= MAX_LOBBY_MEMBERS ? "full" : "open";
+				}
 			}
 
 			await this.#fetchSavedMatches();
@@ -441,6 +553,27 @@ class StoreLobby {
 
 		ws.on(ServerAction.LobbyLeft, handleDisconnection);
 		ws.on(ServerAction.LobbyEvicted, handleDisconnection);
+	}
+
+	/**
+	 * @brief Arms the shared one-shot redirect to the game screen.
+	 * Waits up to `windowMs` for a MatchStateUpdated frame; re-arming cancels
+	 * any previous listener so the redirect can never fire twice.
+	 */
+	#armMatchRedirect(windowMs: number): void {
+		this.#disarmMatchRedirect();
+		this.#matchRedirectUnsub = ws.on(ServerAction.MatchStateUpdated, () => {
+			this.#disarmMatchRedirect();
+			storeNavigation.goto("game");
+		});
+		this.#matchRedirectTimer = setTimeout(() => this.#disarmMatchRedirect(), windowMs);
+	}
+
+	#disarmMatchRedirect(): void {
+		if (this.#matchRedirectTimer) clearTimeout(this.#matchRedirectTimer);
+		this.#matchRedirectTimer = null;
+		this.#matchRedirectUnsub?.();
+		this.#matchRedirectUnsub = null;
 	}
 
 	/**
@@ -460,6 +593,7 @@ class StoreLobby {
 			}
 		} catch (err) {
 			console.error("Failed to parse saved rooms details:", err);
+			storeToast.error("Saved games list error");
 		} finally {
 			this.isLoadingSavedMatchList = false;
 		}
@@ -477,18 +611,12 @@ class StoreLobby {
 
 		try {
 			// Guard against MatchStateUpdated leaking past a failed or no-match rejoin.
-			const unsubscribeGameRejoin = ws.on(ServerAction.MatchStateUpdated, (_data) => {
-				clearTimeout(rejoinMatchTimeout);
-				unsubscribeGameRejoin();
-				storeNavigation.goto("game");
-			});
-			const rejoinMatchTimeout = setTimeout(() => unsubscribeGameRejoin(), 1000);
+			this.#armMatchRedirect(1000);
 
 			const response = await ws.emitAndWait(ClientAction.LobbyRejoin, { code });
 
 			if (!response.ok) {
-				clearTimeout(rejoinMatchTimeout);
-				unsubscribeGameRejoin();
+				this.#disarmMatchRedirect();
 				this.#reset();
 				if (response.action !== ServerAction.LobbyEvicted) {
 					storeToast.error(`Could not rejoin lobby: ${response.message}`);
@@ -496,7 +624,7 @@ class StoreLobby {
 				return;
 			}
 
-			const lobby = response.get<Lobby>("lobby");
+			const lobby = parseLobby(response.get("lobby"));
 			if (!lobby) throw new Error("Invalid lobby data received.");
 
 			// If the LobbyJoined event from OnOpen already populated state for this lobby,
@@ -504,11 +632,11 @@ class StoreLobby {
 			if (this.current?.invite_code === lobby.invite_code) return;
 
 			this.current = lobby;
-			this.availableRules = response.getOr<RuleDefinition[]>("available_rules", []);
 			storeNavigation.goto("lobby");
 
 			await this.#fetchSavedMatches();
-		} catch (error) {
+		} catch {
+			this.#disarmMatchRedirect();
 			this.#reset();
 		}
 	}
@@ -519,7 +647,6 @@ class StoreLobby {
 	 */
 	#reset(): void {
 		this.current = null;
-		this.availableRules = [];
 		localStorage.removeItem("lobby_code");
 	}
 }

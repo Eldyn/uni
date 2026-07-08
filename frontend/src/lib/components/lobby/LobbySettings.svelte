@@ -4,13 +4,10 @@
 	import EnumSelector from "./settings/EnumSelector.svelte";
 	import RulesGrid from "./settings/RulesGrid.svelte";
 	import type { RuleDef } from "./settings/RulesGrid.svelte";
-	import {
-		BotTakeoverMode,
-		type LobbySettings,
-		type RuleDefinition,
-		storeLobby
-	} from "../../stores/lobby.svelte";
-	import { storeAuth } from "../../stores/auth.svelte";
+	import { onMount } from "svelte";
+	import { BotTakeoverMode, type LobbySettings, storeLobby } from "$stores/lobby.svelte";
+	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import {
 		STARTING_CARDS_MIN,
 		STARTING_CARDS_MAX,
@@ -18,7 +15,7 @@
 		TURN_TIME_MAX_MS,
 		BOT_COUNT_MIN,
 		BOT_COUNT_MAX
-	} from "../../generated/schemas";
+	} from "$lib/generated/schemas";
 
 	/**
 	 * The subset of lobby settings keys this panel can modify.
@@ -46,8 +43,12 @@
 		bot_count: storeLobby.current?.settings.bot_count ?? 0
 	} as LobbySettings);
 
+	onMount(() => {
+		storeCatalog.ensureLoaded();
+	});
+
 	let rules = $derived<RuleDef[]>(
-		storeLobby.availableRules.map((rule: RuleDefinition) => ({
+		storeCatalog.rules.map((rule: RuleDefinition) => ({
 			id: rule.id,
 			label: rule.label,
 			description: rule.description,
@@ -69,7 +70,7 @@
 </script>
 
 <div class="lobby-settings-panel panel pixel-corners" role="region" aria-label="Lobby Settings">
-	<h3 class="settings-title"><span class="title-icon">󰒓</span> Lobby Settings</h3>
+	<h3 class="settings-title"><i class="hn pix hn-cog text-accent"></i> Lobby Settings</h3>
 
 	<Toggle
 		label="Public Lobby"
@@ -188,11 +189,6 @@
 		font-size: 1.1rem;
 		font-weight: 600;
 		color: var(--text-h);
-	}
-
-	.title-icon {
-		font-family: var(--mono);
-		color: var(--accent);
 	}
 
 	.settings-divider {

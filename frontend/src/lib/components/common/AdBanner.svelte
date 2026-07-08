@@ -16,11 +16,13 @@
 
 {#if show}
 	<div class="ad-banner">
-		<ins class="adsbygoogle"
+		<ins
+			class="adsbygoogle"
 			style="display:block"
 			data-ad-client="ca-pub-7899204097948216"
 			data-ad-format="auto"
-			data-full-width-responsive="true"></ins>
+			data-full-width-responsive="true"
+		></ins>
 	</div>
 {/if}
 
