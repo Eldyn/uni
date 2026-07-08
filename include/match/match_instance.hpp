@@ -256,6 +256,24 @@ namespace match {
         nlohmann::json SerializePlayerState(const std::string& username) const;
 
         /**
+         * @brief Creates the JSON portion of the match state shared identically
+         * across all viewers (discard pile, turn timer, player roster, etc.),
+         * excluding any single player's own hand.
+         * @return nlohmann::json The shared state, without any viewer's hand.
+         * @tag MATCH-INST-022
+         */
+        nlohmann::json SerializeBaseState() const;
+
+        /**
+         * @brief Creates the JSON array describing a single player's own hand,
+         * including per-card playability when it is that player's turn.
+         * @param username The player whose hand should be serialized.
+         * @return nlohmann::json The array of cards in the player's hand.
+         * @tag MATCH-INST-022
+         */
+        nlohmann::json SerializeHandFor(const std::string& username) const;
+
+        /**
          * @brief Retrieves the unique UUID of the match (for saving to the DB).
          * @return std::string ID of the match.
          * @tag MATCH-INST-023

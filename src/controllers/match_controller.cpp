@@ -183,12 +183,20 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
         match_over_payload["winner"] = current_lobby->match->GetWinner();
     }
 
+    json base_state = current_lobby->match->SerializeBaseState();
+
     for (const auto& lobby_member : current_lobby->members) {
         if (!lobby_member.is_connected || !lobby_member.socket) continue;
 
         json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        response_payload["match_state"] =
-            current_lobby->match->SerializePlayerState(lobby_member.username);
+        json match_state = base_state;
+        for (auto& p_json : match_state["players"]) {
+            if (p_json["username"] == lobby_member.username) {
+                p_json["hand"] = current_lobby->match->SerializeHandFor(lobby_member.username);
+                break;
+            }
+        }
+        response_payload["match_state"] = std::move(match_state);
 
         if (is_waiting_for_input && lobby_member.username == pending_player_username) {
             response_payload["action_required"] = static_cast<int>(required_action);

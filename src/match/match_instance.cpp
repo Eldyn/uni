@@ -765,7 +765,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
         std::shuffle(state_.draw_pile.begin(), state_.draw_pile.end(), rng_);
     }
 
-    nlohmann::json MatchInstance::SerializePlayerState(const std::string& username) const {
+    nlohmann::json MatchInstance::SerializeBaseState() const {
         nlohmann::json root;
         auto now = std::chrono::steady_clock::now();
         int remaining_ms = 0;
@@ -822,32 +822,50 @@ bool MatchInstance::DrawCard(const std::string& username) {
             p_json["card_count"] = p.hand.size();
             p_json["has_called_uno"] = p.has_called_uno;
             p_json["is_bot"] = p.is_bot;
-
-            if (p.username == username) {
-                bool is_current_turn = username == GetCurrentPlayerUsername();
-                nlohmann::json hand_json = nlohmann::json::array();
-                for (CompactCard c : p.hand) {
-                    bool can_play = false;
-                    if (is_current_turn) {
-                        CardPlayedEvent play_check = { username, c, true, false };
-                        for (auto& rule : active_rules_) {
-                            rule->ValidatePlay(&state_, play_check);
-                            if (play_check.is_handled) break;
-                        }
-                        can_play = play_check.is_valid_play;
-                    }
-                    hand_json.push_back({
-                        {"id", GetId(c)},
-                        {"type", static_cast<int>(GetType(c))},
-                        {"value", static_cast<int>(GetValue(c))},
-                        {"can_play", can_play}
-                    });
-                }
-                p_json["hand"] = hand_json;
-            }
             players_array.push_back(p_json);
         }
         root["players"] = players_array;
+
+        return root;
+    }
+
+    nlohmann::json MatchInstance::SerializeHandFor(const std::string& username) const {
+        nlohmann::json hand_json = nlohmann::json::array();
+
+        auto it = std::ranges::find(state_.players, username, &Player::username);
+        if (it == state_.players.end()) return hand_json;
+
+        bool is_current_turn = username == GetCurrentPlayerUsername();
+        for (CompactCard c : it->hand) {
+            bool can_play = false;
+            if (is_current_turn) {
+                CardPlayedEvent play_check = { username, c, true, false };
+                for (auto& rule : active_rules_) {
+                    rule->ValidatePlay(&state_, play_check);
+                    if (play_check.is_handled) break;
+                }
+                can_play = play_check.is_valid_play;
+            }
+            hand_json.push_back({
+                {"id", GetId(c)},
+                {"type", static_cast<int>(GetType(c))},
+                {"value", static_cast<int>(GetValue(c))},
+                {"can_play", can_play}
+            });
+        }
+
+        return hand_json;
+    }
+
+    nlohmann::json MatchInstance::SerializePlayerState(const std::string& username) const {
+        nlohmann::json root = SerializeBaseState();
+
+        for (auto& p_json : root["players"]) {
+            if (p_json["username"] == username) {
+                p_json["hand"] = SerializeHandFor(username);
+                break;
+            }
+        }
 
         return root;
     }

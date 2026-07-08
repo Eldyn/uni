@@ -62,6 +62,51 @@ TEST_CASE("match: serialization round-trip") {
     CHECK(exported["players"].size()       == re_exported["players"].size());
 }
 
+TEST_CASE("match: SerializePlayerState matches SerializeBaseState + SerializeHandFor") {
+    MatchInstance m(two_humans(), default_settings());
+    m.Start();
+
+    const std::string current = m.GetCurrentPlayerUsername();
+    const std::string other = current == "Alice" ? "Bob" : "Alice";
+
+    for (const std::string& viewer : {current, other}) {
+        nlohmann::json expected = m.SerializePlayerState(viewer);
+
+        nlohmann::json actual = m.SerializeBaseState();
+        for (auto& p_json : actual["players"]) {
+            if (p_json["username"] == viewer) {
+                p_json["hand"] = m.SerializeHandFor(viewer);
+                break;
+            }
+        }
+
+        CHECK(actual == expected);
+    }
+}
+
+TEST_CASE("match: SerializeBaseState omits any player's hand") {
+    MatchInstance m(two_humans(), default_settings());
+    m.Start();
+
+    nlohmann::json base = m.SerializeBaseState();
+    for (const auto& p_json : base["players"]) {
+        CHECK_FALSE(p_json.contains("hand"));
+    }
+}
+
+TEST_CASE("match: SerializeHandFor only marks can_play on the current player's turn") {
+    MatchInstance m(two_humans(), default_settings());
+    m.Start();
+
+    const std::string current = m.GetCurrentPlayerUsername();
+    const std::string other = current == "Alice" ? "Bob" : "Alice";
+
+    nlohmann::json other_hand = m.SerializeHandFor(other);
+    for (const auto& card : other_hand) {
+        CHECK(card["can_play"] == false);
+    }
+}
+
 TEST_CASE("match: serialization handles missing keys gracefully") {
     nlohmann::json partial;
     partial["rules"]   = nlohmann::json::array();
