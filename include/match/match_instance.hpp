@@ -191,12 +191,14 @@ namespace match {
          * @c kMaxInstantBotSteps consecutive moves is hit.
          * @param is_connected Predicate telling whether a given username is currently connected.
          * @param on_step Invoked after each individual bot move completes.
+         * @param max_steps Safety cap on consecutive bot moves in this burst.
          * @return BotAdvanceResult Summary of the burst (steps taken, stalled, match over).
          * @tag MATCH-INST-026
          */
         BotAdvanceResult AdvanceBotTurns(const std::function<bool(const std::string&)>&
                                               is_connected,
-                                          const std::function<void()>& on_step);
+                                          const std::function<void()>& on_step,
+                                          int max_steps = kMaxInstantBotSteps);
 
         /**
          * @brief Determines what kind of timer should govern the current turn.

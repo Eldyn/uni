@@ -48,6 +48,8 @@ private:
     /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
     int bot_wait_min_ms_;
     int bot_wait_max_ms_;        /**< Upper bound (exclusive) of the randomised "thinking" delay. */
+    /**< Safety cap on consecutive bot moves in a single instant-advance burst. */
+    int max_instant_bot_steps_;
 
     /**< Mersenne Twister RNG for bot delay jitter. */
     std::mt19937 rng_{std::random_device {}()};

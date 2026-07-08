@@ -27,6 +27,7 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     bot_instant_delay_ms_  = std::max(0, Env::GetInt("BOT_TURN_DELAY_MS", 1000));
     bot_wait_min_ms_       = std::max(0, Env::GetInt("BOT_WAIT_MIN_MS", 500));
     bot_wait_max_ms_       = std::max(bot_wait_min_ms_ + 1, Env::GetInt("BOT_WAIT_MAX_MS", 3500));
+    max_instant_bot_steps_ = std::max(1, Env::GetInt("MAX_INSTANT_BOT_STEPS", 20));
     Logger::Info("[Match] Bot instant delay: ", bot_instant_delay_ms_, "ms, wait spread: ",
                  bot_wait_min_ms_, "-", bot_wait_max_ms_, "ms");
 
@@ -284,7 +285,8 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
             //       connected players.
             auto on_step = [this, active_lobby]() { BroadcastMatchState(active_lobby); };
 
-            auto advance_result = active_lobby->match->AdvanceBotTurns(is_connected, on_step);
+            auto advance_result = active_lobby->match->AdvanceBotTurns(
+                is_connected, on_step, max_instant_bot_steps_);
             if (advance_result.stalled) {
                 Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
             }

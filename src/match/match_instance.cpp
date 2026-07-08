@@ -677,10 +677,11 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     BotAdvanceResult MatchInstance::AdvanceBotTurns(
         const std::function<bool(const std::string&)>& is_connected,
-        const std::function<void()>& on_step) {
+        const std::function<void()>& on_step,
+        int max_steps) {
         BotAdvanceResult result;
 
-        for (int step = 0; step < kMaxInstantBotSteps; ++step) {
+        for (int step = 0; step < max_steps; ++step) {
             if (IsMatchOver()) {
                 result.match_over = true;
                 break;
