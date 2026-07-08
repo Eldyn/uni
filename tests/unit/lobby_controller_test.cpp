@@ -236,4 +236,189 @@ TEST_CASE("eviction: AFK member removed after grace expires") {
     CHECK_FALSE(alice_present);
 }
 
+// ---------------------------------------------------------------------------
+// RemoveMember edge cases
+// ---------------------------------------------------------------------------
+
+TEST_CASE("remove: leave destroys lobby when only bots remain") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    lp->members.emplace_back("Bot1", nullptr, true, true);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+    f.router.Dispatch(f.actx(), leave_msg());
+
+    CHECK(f.lobby.GetLobbyByCode(code) == nullptr);
+}
+
+TEST_CASE("kick: unsubscribes a still-connected target from the lobby topic") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), kick_msg("bob"));
+
+    CHECK(f.bus.subscriptions.count({f.bob_sock, "lobby_" + code}) == 0);
+}
+
+// ---------------------------------------------------------------------------
+// Host succession — duplicated between HandleLeave and the eviction callback.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("leave: host leaving passes host to next connected member") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), leave_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->host == "bob");
+}
+
+TEST_CASE("leave: host leaving with only a disconnected member left keeps a stale host") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.lobby.OnClose(f.bob_sock, &f.bob_sd);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), leave_msg());
+
+    // No connected non-bot member exists to take over, so HandleLeave's
+    // succession loop finds nothing — the host field is left pointing at
+    // alice even though she is no longer a member of the lobby.
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->host == "alice");
+}
+
+TEST_CASE("eviction: host succession when the evicted member was host") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    for (auto& m : lp->members) {
+        if (m.username == "alice")
+            m.disconnected_at = std::chrono::steady_clock::now() - std::chrono::hours(1);
+    }
+
+    f.timers.Fire("lobby_eviction");
+
+    lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->host == "bob");
+}
+
+TEST_CASE("eviction: evicted host leaves a stale host when nobody else is connected") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+    f.lobby.OnClose(f.bob_sock, &f.bob_sd);
+
+    // Only alice (the host) is past the grace window; bob stays disconnected
+    // but within grace, so he is not a candidate for succession either.
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    for (auto& m : lp->members) {
+        if (m.username == "alice")
+            m.disconnected_at = std::chrono::steady_clock::now() - std::chrono::hours(1);
+    }
+
+    f.timers.Fire("lobby_eviction");
+
+    // Same stale-host characterization as the HandleLeave path above: the
+    // duplicated succession loop in the eviction callback also finds no
+    // connected non-bot candidate and leaves lobby.host untouched.
+    lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->host == "alice");
+}
+
+// ---------------------------------------------------------------------------
+// Additional eviction-timer coverage
+// ---------------------------------------------------------------------------
+
+TEST_CASE("eviction: member within the grace window is not evicted") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    // disconnected_at defaults to "just now" — well within the grace window.
+    f.timers.Fire("lobby_eviction");
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    bool alice_present = false;
+    for (const auto& m : lp->members)
+        if (m.username == "alice") { alice_present = true; break; }
+    CHECK(alice_present);
+}
+
+TEST_CASE("eviction: broadcasts lobby_updated after evicting a member") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.lobby.OnClose(f.bob_sock, &f.bob_sd);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    for (auto& m : lp->members) {
+        if (m.username == "bob")
+            m.disconnected_at = std::chrono::steady_clock::now() - std::chrono::hours(1);
+    }
+
+    f.bus.Clear();
+    f.timers.Fire("lobby_eviction");
+
+    std::string topic = "lobby_" + code;
+    bool published = false;
+    for (const auto& [t, payload] : f.bus.published)
+        if (t == topic) { published = true; break; }
+    CHECK(published);
+}
+
+// ---------------------------------------------------------------------------
+// Join-hijack: a joiner takes over an available bot slot instead of adding
+// a brand-new member.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("join: hijacks an available bot slot instead of adding a new member") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    lp->members.emplace_back("BotBuddy", nullptr, true, true);
+    std::size_t members_before = lp->members.size();
+
+    PerSocketData charlie_sd; charlie_sd.username = "charlie";
+    auto* charlie = fake_sock(charlie_sd);
+    f.router.Dispatch(make_ctx(charlie, &charlie_sd), join_msg(code));
+
+    lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->members.size() == members_before);
+
+    bool charlie_present = false;
+    bool bot_present = false;
+    for (const auto& m : lp->members) {
+        if (m.username == "charlie") charlie_present = true;
+        if (m.username == "BotBuddy") bot_present = true;
+    }
+    CHECK(charlie_present);
+    CHECK_FALSE(bot_present);
+}
+
 } // TEST_SUITE
