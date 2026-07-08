@@ -59,6 +59,31 @@ public:
      */
     static Result<JwtPayload> VerifyToken(const std::string& token);
 
+    /**
+     * @brief Generates a cryptographic salt and computes the hash of the password.
+     * @param password The plaintext password entered by the user.
+     * @return std::string Composite format stored in the DB: `<base64_salt>:<base64_hash>`.
+     * @tag CTRL-AUTH-CRYP-001
+     */
+    static std::string HashPassword(const std::string& password);
+
+    /**
+     * @brief Checks whether a plaintext password matches the one stored in the DB.
+     * @param password The plaintext password entered at login.
+     * @param stored The string from the DB in the format `<salt>:<hash>`.
+     * @return true if the credentials match, false otherwise.
+     * @tag CTRL-AUTH-CRYP-002
+     */
+    static bool        VerifyPassword(const std::string& password, const std::string& stored);
+
+    /**
+     * @brief Generates a new signed JWT token using the secret key (pepper).
+     * @param username The username to insert into the payload (the 'sub' field).
+     * @return std::string The complete token string.
+     * @tag CTRL-AUTH-CRYP-003
+     */
+    static std::string IssueToken(const std::string& username);
+
 private:
     // --- HTTP Route Handlers ---
 
@@ -112,33 +137,6 @@ private:
      * @tag CTRL-AUTH-ACT-004
      */
     void HandleMe(AppResponse* res, AppRequest* req);
-
-    // --- Cryptographic Helpers ---
-
-    /**
-     * @brief Generates a cryptographic salt and computes the hash of the password.
-     * @param password The plaintext password entered by the user.
-     * @return std::string Composite format stored in the DB: `<base64_salt>:<base64_hash>`.
-     * @tag CTRL-AUTH-CRYP-001
-     */
-    static std::string HashPassword(const std::string& password);
-
-    /**
-     * @brief Checks whether a plaintext password matches the one stored in the DB.
-     * @param password The plaintext password entered at login.
-     * @param stored The string from the DB in the format `<salt>:<hash>`.
-     * @return true if the credentials match, false otherwise.
-     * @tag CTRL-AUTH-CRYP-002
-     */
-    static bool        VerifyPassword(const std::string& password, const std::string& stored);
-
-    /**
-     * @brief Generates a new signed JWT token using the secret key (pepper).
-     * @param username The username to insert into the payload (the 'sub' field).
-     * @return std::string The complete token string.
-     * @tag CTRL-AUTH-CRYP-003
-     */
-    static std::string IssueToken(const std::string& username);
 
     // --- Validation and Security Parameters ---
 
