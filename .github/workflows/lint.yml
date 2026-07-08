@@ -1,0 +1,36 @@
+name: lint
+
+# Google-style C++ lint (cpplint) over src/ and include/. Runs on every push
+# and PR touching backend source so style regressions fail fast, independent
+# of the multi-arch Docker build in deploy.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "include/**"
+      - "CPPLINT.cfg"
+      - ".github/workflows/lint.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "include/**"
+      - "CPPLINT.cfg"
+      - ".github/workflows/lint.yml"
+
+jobs:
+  cpplint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install cpplint
+        run: pip install cpplint
+
+      - name: Run cpplint
+        run: scripts/lint_cpp.sh

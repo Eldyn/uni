@@ -39,8 +39,10 @@ AuthController::AuthController(HttpRouter& router)
 
     router.Post("/auth/logout", [this](AppResponse* res, AppRequest* req) {
         res->writeStatus("200 OK")
-           ->writeHeader("Set-Cookie", "auth_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict; Path=/")
-           ->writeHeader("Set-Cookie", "ws_token=; Max-Age=0; HttpOnly; Secure; SameSite=None; Path=/")
+           ->writeHeader("Set-Cookie",
+                         "auth_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict; Path=/")
+           ->writeHeader("Set-Cookie",
+                         "ws_token=; Max-Age=0; HttpOnly; Secure; SameSite=None; Path=/")
            ->end();
     });
 
@@ -58,15 +60,17 @@ AuthController::AuthController(HttpRouter& router)
         }
 
         Logger::Info("[Auth] Login successful: " + payload->username);
-        res->writeHeader("Set-Cookie", "auth_token=" + *token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
-           ->writeHeader("Set-Cookie", "ws_token=" + *token + "; HttpOnly; Secure; SameSite=None; Path=/")
+        res->writeHeader("Set-Cookie",
+                         "auth_token=" + *token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
+           ->writeHeader("Set-Cookie",
+                         "ws_token=" + *token + "; HttpOnly; Secure; SameSite=None; Path=/")
            ->writeHeader("Content-Type", "application/json")
            ->end("{\"username\": \"" + payload->username + "\"}");
     });
 }
 
 void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
-    http::ReadBody(res, kMaxBodyBytes, [res](const std::string& body) { 
+    http::ReadBody(res, kMaxBodyBytes, [res](const std::string& body) {
         json data;
         try {
             data = json::parse(body);
@@ -97,8 +101,7 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
 
         auto duplicate = Database::Get().QueryOne(
             "SELECT id FROM users WHERE username = ? OR email = ?;",
-            {username, email}
-        );
+            {username, email});
 
         if (!duplicate) {
             Logger::Error("[Auth] DB error during register: " + duplicate.error().message);
@@ -111,7 +114,7 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
                        [](unsigned char c){ return std::tolower(c); });
 
         bool is_reserved = false;
-        
+
         if (lower_username.starts_with("bot_")) {
             is_reserved = true;
         }
@@ -154,8 +157,7 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
 
         auto result = Database::Get().Exec(
             "INSERT INTO users (username, pass_hash, salt, email) VALUES (?, ?, ?, ?);",
-            {username, hash_b64, salt_b64, email.empty() ? DbValue(nullptr) : DbValue(email)}
-        );
+            {username, hash_b64, salt_b64, email.empty() ? DbValue(nullptr) : DbValue(email)});
 
         if (!result) {
             Logger::Error("[Auth] DB insert failed: " + result.error().message);
@@ -191,7 +193,8 @@ void AuthController::HandleGuest(AppResponse* res, AppRequest* /*req*/) {
     std::string token = IssueToken(username);
 
     Logger::Info("[Auth] Guest session issued: " + username);
-    res->writeHeader("Set-Cookie", "ws_token=" + token + "; HttpOnly; Secure; SameSite=None; Path=/")
+    res->writeHeader("Set-Cookie",
+                     "ws_token=" + token + "; HttpOnly; Secure; SameSite=None; Path=/")
        ->writeHeader("Content-Type", "application/json")
        ->end("{\"username\": \"" + username + "\"}");
 }
@@ -244,8 +247,7 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
 
         auto row_result = Database::Get().QueryOne(
             "SELECT username, pass_hash, salt FROM users WHERE email = ?;",
-            {email}
-        );
+            {email});
 
         if (!row_result) {
             Logger::Error("[Auth] DB error during login: " + row_result.error().message);
@@ -282,8 +284,10 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
         std::string token = IssueToken(username);
 
         Logger::Info("[Auth] Login successful: " + username);
-        response->writeHeader("Set-Cookie", "auth_token=" + token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
-                ->writeHeader("Set-Cookie", "ws_token=" + token + "; HttpOnly; Secure; SameSite=None; Path=/")
+        response->writeHeader("Set-Cookie",
+                              "auth_token=" + token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
+                ->writeHeader("Set-Cookie",
+                              "ws_token=" + token + "; HttpOnly; Secure; SameSite=None; Path=/")
                 ->writeHeader("Content-Type", "application/json")
                 ->end("{\"username\": \"" + username + "\"}");
     });
@@ -432,7 +436,6 @@ Result<JwtPayload> AuthController::VerifyToken(const std::string& token) {
         // INFO: get_subject() returns the "sub" claim as std::string.
         payload.username = decoded.get_subject();
         return payload;
-
     } catch (const std::exception& e) {
         // INFO: Collapse all jwt-cpp exceptions into our Error type so
         //       callers don't need to know about jwt-cpp internals.

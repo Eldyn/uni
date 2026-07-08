@@ -20,7 +20,8 @@ namespace match {
     }
 
     EffectResult DrawEffect::Resolve(MatchState* state, MatchInstance* match) {
-        auto player_iterator = std::ranges::find(state->players, target_username_, &Player::username);
+        auto player_iterator = std::ranges::find(state->players, target_username_,
+                                                  &Player::username);
         if (player_iterator != state->players.end()) {
             for (int draw_index = 0; draw_index < count_; ++draw_index) {
                 if (state->draw_pile.empty()) {
@@ -79,11 +80,25 @@ namespace match {
         return {EffectStatus::kNeedsInput, Action::kPlayDrawn, username_, action_context.dump()};
     }
 
-    static EffectRegistrar reg_advance(EffectType::kAdvanceTurn, [](const auto&)  { return std::make_unique<AdvanceTurnEffect>(); });
-    static EffectRegistrar reg_skip(   EffectType::kSkip,        [](const auto&)  { return std::make_unique<SkipEffect>(); });
-    static EffectRegistrar reg_reverse(EffectType::kReverse,     [](const auto&)  { return std::make_unique<ReverseEffect>(); });
-    static EffectRegistrar reg_draw(   EffectType::kDraw,        [](const auto& e){ return std::make_unique<DrawEffect>(e.value("count", 0), e.value("target", "")); });
-    static EffectRegistrar reg_color(  EffectType::kChooseColor, [](const auto& e){ return std::make_unique<ChooseColorEffect>(e.value("target", ""), e.value("stack_bonus", 0)); });
-    static EffectRegistrar reg_drawn(  EffectType::kDecideDrawnCard, [](const auto& e){ return std::make_unique<DecideDrawnCardEffect>(e.value("username", ""), e.value("card_id", uint16_t(0))); });
+    static EffectRegistrar reg_advance(EffectType::kAdvanceTurn, [](const auto&) {
+        return std::make_unique<AdvanceTurnEffect>();
+    });
+    static EffectRegistrar reg_skip(EffectType::kSkip, [](const auto&) {
+        return std::make_unique<SkipEffect>();
+    });
+    static EffectRegistrar reg_reverse(EffectType::kReverse, [](const auto&) {
+        return std::make_unique<ReverseEffect>();
+    });
+    static EffectRegistrar reg_draw(EffectType::kDraw, [](const auto& e) {
+        return std::make_unique<DrawEffect>(e.value("count", 0), e.value("target", ""));
+    });
+    static EffectRegistrar reg_color(EffectType::kChooseColor, [](const auto& e) {
+        return std::make_unique<ChooseColorEffect>(e.value("target", ""),
+                                                     e.value("stack_bonus", 0));
+    });
+    static EffectRegistrar reg_drawn(EffectType::kDecideDrawnCard, [](const auto& e) {
+        return std::make_unique<DecideDrawnCardEffect>(
+            e.value("username", ""), e.value("card_id", static_cast<uint16_t>(0)));
+    });
 
 }

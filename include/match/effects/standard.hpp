@@ -51,7 +51,8 @@ namespace match {
          * @param username Name of the player who has just drawn.
          * @param card_id The 16-bit ID of the just-drawn card.
          */
-        explicit DecideDrawnCardEffect(const std::string& username, uint16_t card_id) : username_(username), card_id_(card_id) {}
+        explicit DecideDrawnCardEffect(const std::string& username, uint16_t card_id)
+            : username_(username), card_id_(card_id) {}
 
         /**
          * @brief Suspends the game engine while waiting for the user's input.
@@ -69,8 +70,10 @@ namespace match {
          */
         EffectType GetType() const override { return EffectType::kDecideDrawnCard; }
         nlohmann::json ToJson() const override {
-            return {{"type", static_cast<int>(GetType())}, {"username", username_}, {"card_id", card_id_}};
+            return {{"type", static_cast<int>(GetType())},
+                    {"username", username_}, {"card_id", card_id_}};
         }
+
     private:
         std::string username_; /**< The user who must make the decision. */
         uint16_t card_id_;     /**< The ID of the card to decide on. */
@@ -89,7 +92,8 @@ namespace match {
          * @param count The number of cards to draw.
          * @param target_username The user who will undergo the effect.
          */
-        explicit DrawEffect(int count, const std::string& target_username) : count_(count), target_username_(target_username) {}
+        explicit DrawEffect(int count, const std::string& target_username)
+            : count_(count), target_username_(target_username) {}
 
         /**
          * @brief Resolves the effect by taking the cards from the deck and adding them to the target's hand.
@@ -108,8 +112,10 @@ namespace match {
          */
         EffectType GetType() const override { return EffectType::kDraw; }
         nlohmann::json ToJson() const override {
-            return {{"type", static_cast<int>(GetType())}, {"count", count_}, {"target", target_username_}};
+            return {{"type", static_cast<int>(GetType())},
+                    {"count", count_}, {"target", target_username_}};
         }
+
     private:
         int count_;                     /**< Quantity of cards. */
         std::string target_username_;   /**< Target of the effect. */
@@ -195,10 +201,13 @@ namespace match {
          */
         EffectType GetType() const override { return EffectType::kChooseColor; }
         nlohmann::json ToJson() const override {
-            return {{"type", static_cast<int>(GetType())}, {"target", target_username_}, {"stack_bonus", stack_bonus_}};
+            return {{"type", static_cast<int>(GetType())},
+                    {"target", target_username_}, {"stack_bonus", stack_bonus_}};
         }
+
     private:
         std::string target_username_; /**< User who must provide the colour choice. */
-        int stack_bonus_ = 0;         /**< Extra draws added to pending_draws after colour resolves. */
+        /**< Extra draws added to pending_draws after colour resolves. */
+        int stack_bonus_ = 0;
     };
 }  // namespace match

@@ -82,5 +82,6 @@ using AppResponse  = uWS::HttpResponse<kAppSSL>;
 struct WsContext {
     AppWebSocket* socket;       /**< Pointer to the socket that sent the message. */
     PerSocketData* socket_data;  /**< Session data associated with the calling socket. */
-    uWS::OpCode    op_code;      /**< Operation code of the WebSocket frame (e.g. Text or Binary). */
+    /**< Operation code of the WebSocket frame (e.g. Text or Binary). */
+    uWS::OpCode    op_code;
 };

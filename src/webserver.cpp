@@ -9,6 +9,7 @@
 #include <WebSocketProtocol.h>
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <App.h>
@@ -18,10 +19,12 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
-using std::string, std::string_view, std::ifstream, std::stringstream, std::ios, std::runtime_error, std::to_string, std::isalnum;
+using std::string, std::string_view, std::ifstream, std::stringstream, std::ios,
+      std::runtime_error, std::to_string, std::isalnum;
 
 
-WebServer::WebServer(int port, string_view key_file, string_view cert_file, string_view db_file, string_view frontend_path)
+WebServer::WebServer(int port, string_view key_file, string_view cert_file, string_view db_file,
+                     string_view frontend_path)
     : port_(port), db_file_(db_file), frontend_path_(frontend_path),
       trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
       app_(AppHttp({.key_file_name = key_file.data(), .cert_file_name = cert_file.data()})),
@@ -38,8 +41,10 @@ WebServer::WebServer(int port, string_view key_file, string_view cert_file, stri
     }
     RegisterRoutes();
     if constexpr (kAppSSL) {
-        Logger::Info("Key file: " + string(key_file) + " exists=" + (fs::exists(key_file) ? "yes" : "NO"));
-        Logger::Info("Cert file: " + string(cert_file) + " exists=" + (fs::exists(cert_file) ? "yes" : "NO"));
+        Logger::Info("Key file: " + string(key_file) + " exists=" +
+                     (fs::exists(key_file) ? "yes" : "NO"));
+        Logger::Info("Cert file: " + string(cert_file) + " exists=" +
+                     (fs::exists(cert_file) ? "yes" : "NO"));
     } else {
         Logger::Info("TLS disabled (plain HTTP) — UNI_ENABLE_SSL=0");
     }
@@ -58,7 +63,8 @@ void WebServer::Run() {
 
     app_.listen(port_, [this](auto *socket) {
         if (socket) {
-            Logger::Log("Server listening on ", (kAppSSL ? "https" : "http"), "://localhost:", port_);
+            Logger::Log("Server listening on ", (kAppSSL ? "https" : "http"),
+                       "://localhost:", port_);
         } else {
             Logger::Error("Failed to bind to port " + to_string(port_));
         }
@@ -67,8 +73,8 @@ void WebServer::Run() {
 }
 
 bool WebServer::InitDB() {
-    VoidResult open_result = Database::Get().Open(db_file_); 
-    
+    VoidResult open_result = Database::Get().Open(db_file_);
+
     if (!open_result) {
         Logger::Error("Database opening failed: " + open_result.error().message);
         return false;
@@ -159,7 +165,8 @@ void WebServer::RegisterRoutes() {
             //       reason}), echoing the request_id so the client can tie
             //       it back to the throttled action.
             const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
-            ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited, request_id);
+            ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited,
+                          request_id);
             return false;
         }
         return true;
@@ -169,9 +176,12 @@ void WebServer::RegisterRoutes() {
     //       size, idle time and server-side backpressure stops oversized
     //       frames, slow-loris sockets and unbounded outbound buffering from
     //       exhausting memory.
-    const unsigned int   ws_max_payload      = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));        // 16 KB
-    const unsigned int   ws_max_backpressure = static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576"))); // 1 MB
-    const unsigned short ws_idle_timeout     = static_cast<unsigned short>(std::stoi(Env::Get("WS_IDLE_TIMEOUT", "120")));         // seconds
+    const unsigned int ws_max_payload =
+        static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));  // 16 KB
+    const unsigned int ws_max_backpressure =
+        static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576")));  // 1 MB
+    const uint16_t ws_idle_timeout =
+        static_cast<uint16_t>(std::stoi(Env::Get("WS_IDLE_TIMEOUT", "120")));  // seconds
 
     // INFO: SHARED_COMPRESSOR negotiates permessage-deflate using one shared
     //       compressor (no per-socket memory). Gated by WS_COMPRESSION so it
@@ -261,20 +271,20 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
             }
 
             string topic = data.value("topic", "default");
-            if (topic.empty() || topic.size() > 64) {    
+            if (topic.empty() || topic.size() > 64) {
                 response->writeStatus("422 Unprocessable Entity")->end();
                 return;
             }
 
-            const bool valid = std::ranges::all_of(topic, [](unsigned char c) { 
-                return std::isalnum(c) || c == '-' || c == '_'; 
+            const bool valid = std::ranges::all_of(topic, [](unsigned char c) {
+                return std::isalnum(c) || c == '-' || c == '_';
             });
 
             if (!valid) {
                 response->writeStatus("422 Unprocessable Entity")->end();
                 return;
             }
-        
+
             response->writeHeader("Content-Type", "application/json")
                     ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
     });
@@ -466,8 +476,9 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::
         return;
     }
 
-    WsContext context = { .socket = socket, .socket_data = socket->getUserData(), .op_code = op_code};
-    
+    WsContext context = { .socket = socket, .socket_data = socket->getUserData(),
+                          .op_code = op_code};
+
     if (!ws_router_.Dispatch(context, message_json)) {
         Logger::Warn("No handler found for action: " + message_json.value("action", "UNKNOWN"));
     }

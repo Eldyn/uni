@@ -154,3 +154,18 @@ printf 'JWT_SECRET=%s\nPASSWORD_PEPPER=%s\n' \
 ```
 
 Open <https://localhost:9999> and accept the self-signed certificate warning.
+
+---
+
+## Linting (backend)
+
+Backend C++ follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html),
+checked with [`cpplint`](https://github.com/cpplint/cpplint) (settings in `CPPLINT.cfg`).
+
+```bash
+pip install --user cpplint
+scripts/lint_cpp.sh
+```
+
+CI runs the same check on every push/PR touching `src/` or `include/` (see
+`.github/workflows/lint.yml`).

@@ -103,7 +103,9 @@ public:
      * @param callback The function to invoke.
      * @tag LOBBY-CTRL-007
      */
-    void OnGameStarted(MatchStartedCallback callback) override { on_game_started_.push_back(std::move(callback)); }
+    void OnGameStarted(MatchStartedCallback callback) override {
+        on_game_started_.push_back(std::move(callback));
+    }
 
     /**
      * @brief Registers a callback to execute when a player is replaced.
@@ -111,7 +113,9 @@ public:
      * @param callback The function to invoke.
      * @tag LOBBY-CTRL-008
      */
-    void OnPlayerReplaced(PlayerReplacedCallback callback) override { on_player_replaced_.push_back(std::move(callback)); }
+    void OnPlayerReplaced(PlayerReplacedCallback callback) override {
+        on_player_replaced_.push_back(std::move(callback));
+    }
 
     /**
      * @brief Registers a callback invoked when a match is aborted due to disconnections.
@@ -119,7 +123,9 @@ public:
      * @param callback The function to invoke.
      * @tag LOBBY-CTRL-009
      */
-    void OnMatchAborted(MatchAbortedCallback callback) override { on_match_aborted_.push_back(std::move(callback)); }
+    void OnMatchAborted(MatchAbortedCallback callback) override {
+        on_match_aborted_.push_back(std::move(callback));
+    }
 
     /**
      * @brief Tears down the match for the given lobby after a normal match-over.
@@ -311,7 +317,8 @@ private:
      * context when the engine is waiting for input from that player.
      * @tag LOBBY-UTIL-004
      */
-    void SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws, const std::string& username, uWS::OpCode op_code) const;
+    void SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws, const std::string& username,
+                                 uWS::OpCode op_code) const;
 
     /**
      * @brief Removes a member from the lobby. Destroys the lobby if it becomes empty.
@@ -322,7 +329,8 @@ private:
      * @return true if the lobby still exists, false if it was destroyed.
      * @tag LOBBY-PRIV-003
      */
-    bool RemoveMember(uint32_t lobby_id, const string& username, bool explicit_leave = true, const string& request_id = "");
+    bool RemoveMember(uint32_t lobby_id, const string& username, bool explicit_leave = true,
+                       const string& request_id = "");
 
     /**
      * @brief Finds which lobby a given user currently belongs to.
@@ -332,9 +340,12 @@ private:
      */
     Lobby* FindLobbyForUser(const std::string& username);
 
-    std::vector<MatchStartedCallback>   on_game_started_;    /**< Multicast callbacks for match start. */
-    std::vector<PlayerReplacedCallback> on_player_replaced_; /**< Multicast callbacks for player replacement. */
-    std::vector<MatchAbortedCallback>   on_match_aborted_;   /**< Multicast callbacks for aborted matches (< 2 members). */
+    /**< Multicast callbacks for match start. */
+    std::vector<MatchStartedCallback>   on_game_started_;
+    /**< Multicast callbacks for player replacement. */
+    std::vector<PlayerReplacedCallback> on_player_replaced_;
+    /**< Multicast callbacks for aborted matches (< 2 members). */
+    std::vector<MatchAbortedCallback>   on_match_aborted_;
 
     IActionRouter& action_router_;  /**< Reference to the WS action router. */
     IBroadcaster&  broadcaster_;    /**< Transport layer for all sends/publishes. */
@@ -344,6 +355,7 @@ private:
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */
 
     std::atomic<uint32_t> next_id_{1};          /**< Thread-safe counter for the lobby IDs. */
-    int reconnect_grace_ms_ = 1'000 * 30;       /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
-    std::mt19937 rng_{std::random_device{}()};  /**< Shared RNG for bot name selection. */
+    /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
+    int reconnect_grace_ms_ = 1'000 * 30;
+    std::mt19937 rng_{std::random_device {}()};  /**< Shared RNG for bot name selection. */
 };

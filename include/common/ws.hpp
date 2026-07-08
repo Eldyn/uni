@@ -37,33 +37,35 @@ namespace ws {
     inline Result<T> Get(const nlohmann::json& json, std::string_view key) {
         auto it = json.find(key);
         if (it == json.end()) {
-            return std::unexpected(Error::InvalidInput("Missing required field: '" + std::string(key) + "'"));
+            return std::unexpected(
+                Error::InvalidInput("Missing required field: '" + std::string(key) + "'"));
         }
         if (it->is_null()) {
-            return std::unexpected(Error::InvalidInput("Required field '" + std::string(key) + "' cannot be null"));
+            return std::unexpected(
+                Error::InvalidInput("Required field '" + std::string(key) + "' cannot be null"));
         }
 
         if constexpr (std::is_same_v<T, std::string>) {
             if (it->is_string()) return it->get<std::string>();
             if (it->is_number_integer()) return std::to_string(it->get<int64_t>());
-        }
-        else if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+        } else if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             if (it->is_number_integer()) return it->get<T>();
             if (it->is_string()) {
                 try {
-                    if constexpr (std::is_signed_v<T>) return static_cast<T>(std::stoll(it->get<std::string>()));
-                    else return static_cast<T>(std::stoull(it->get<std::string>()));
+                    if constexpr (std::is_signed_v<T>)
+                        return static_cast<T>(std::stoll(it->get<std::string>()));
+                    else
+                        return static_cast<T>(std::stoull(it->get<std::string>()));
                 } catch (...) {}
             }
-        }
-        else if constexpr (std::is_same_v<T, bool>) {
+        } else if constexpr (std::is_same_v<T, bool>) {
             if (it->is_boolean()) return it->get<bool>();
-        }
-        else if constexpr (std::is_floating_point_v<T>) {
+        } else if constexpr (std::is_floating_point_v<T>) {
             if (it->is_number()) return it->get<T>();
         }
 
-        return std::unexpected(Error::InvalidInput("Type mismatch for field: '" + std::string(key) + "'"));
+        return std::unexpected(
+            Error::InvalidInput("Type mismatch for field: '" + std::string(key) + "'"));
     }
 
     /**
@@ -88,7 +90,8 @@ namespace ws {
      * @return nlohmann::json JSON structure ready to be populated with other fields.
      * @tag WS-UTIL-003
      */
-    inline nlohmann::json MakeResponse(ws::ServerAction action, const std::string& request_id = "") {
+    inline nlohmann::json MakeResponse(ws::ServerAction action,
+                                        const std::string& request_id = "") {
         nlohmann::json json = nlohmann::json::object({
             {"action", kServerActionStr.at(action)}
         });

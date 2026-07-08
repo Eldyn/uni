@@ -16,7 +16,6 @@ using std::string;
  * @tag ERR-STR-001
  */
 struct Error {
-
     /**
      * @enum Code
      * @brief Generic codes that classify the type of error.

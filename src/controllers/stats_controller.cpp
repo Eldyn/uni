@@ -39,7 +39,7 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
     auto row_result = Database::Get().QueryOne(R"(
         WITH RankedPlayers AS (
             SELECT *,
-                   RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank 
+                   RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank
             FROM player_stats
         )
         SELECT * FROM RankedPlayers WHERE username = ?;
@@ -59,7 +59,7 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
             {"total_wins", row.Get<int>("total_wins")},
             {"total_losses", row.Get<int>("total_losses")},
             {"rank", row.GetOr<int>("rank", 0)},
-            
+
             {"cards_played_red", row.GetOr<int>("cards_played_red", 0)},
             {"cards_played_blue", row.GetOr<int>("cards_played_blue", 0)},
             {"cards_played_green", row.GetOr<int>("cards_played_green", 0)},
@@ -95,8 +95,8 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
 
 void StatsController::HandleGetLeaderboard(AppResponse* res, AppRequest* req) {
     auto rows_result = Database::Get().Query(R"(
-        SELECT username, total_wins, total_losses, 
-               DENSE_RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank 
+        SELECT username, total_wins, total_losses,
+               DENSE_RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank
         FROM player_stats
         ORDER BY rank ASC
         LIMIT 50;

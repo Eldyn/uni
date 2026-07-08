@@ -26,11 +26,12 @@ namespace match {
         match_state->draw_pile = std::move(match_state->discard_pile);
         match_state->discard_pile.push_back(top_card);
 
-        static std::mt19937 rng{std::random_device{}()};
+        static std::mt19937 rng{std::random_device {}()};
         std::shuffle(match_state->draw_pile.begin(), match_state->draw_pile.end(), rng);
     }
 
-    MatchInstance::MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info, const LobbySettings& settings) : settings_(settings) {
+    MatchInstance::MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
+                                  const LobbySettings& settings) : settings_(settings) {
         for (const auto& player_info : players_info) {
             state_.players.emplace_back(player_info.first, player_info.second, false);
         }
@@ -92,7 +93,8 @@ namespace match {
         return state_json;
     }
 
-    MatchInstance::MatchInstance(const json& saved_state, const LobbySettings& settings) : settings_(settings) {
+    MatchInstance::MatchInstance(const json& saved_state, const LobbySettings& settings)
+        : settings_(settings) {
         std::vector<string> rules; saved_state["rules"].get_to(rules);
         for (const auto& rule : rules) {
             auto new_rule = RuleRegistry::Create(rule);
@@ -115,7 +117,8 @@ namespace match {
         state_.provided_input        = saved_state.value("provided_input", "");
 
         if (saved_state.contains("draw_pile"))    saved_state["draw_pile"].get_to(state_.draw_pile);
-        if (saved_state.contains("discard_pile")) saved_state["discard_pile"].get_to(state_.discard_pile);
+        if (saved_state.contains("discard_pile"))
+            saved_state["discard_pile"].get_to(state_.discard_pile);
 
         if (saved_state.contains("last_play")) {
             const auto& lp = saved_state["last_play"];
@@ -140,8 +143,7 @@ namespace match {
                 player_json.value("username", ""),
                 hand,
                 player_json.value("is_bot", false),
-                player_json.value("has_called_uno", false)
-            );
+                player_json.value("has_called_uno", false));
         }
     }
 
@@ -151,7 +153,7 @@ namespace match {
         for (int index = 0; index < settings_.starting_cards; ++index) {
             if (state_.draw_pile.empty()) {
                 ReshuffleDiscardIntoDraw(&state_);
-                if (state_.draw_pile.empty()) break; // Failsafe
+                if (state_.draw_pile.empty()) break;  // Failsafe
             }
             p.hand.push_back(state_.draw_pile.back());
             state_.draw_pile.pop_back();
@@ -187,7 +189,7 @@ namespace match {
             }
         }
     }
-    
+
     void MatchInstance::Start() {
         GenerateDeck();
 
@@ -219,7 +221,7 @@ namespace match {
         state_.active_type = GetType(state_.discard_pile.back());
         state_.status = MatchStatus::kPlaying;
     }
-    
+
     void MatchInstance::Tick() {
         if (state_.effect_queue.size() > 64) {
             Logger::Error("[Match] effect_queue exceeded 64 — aborting match ", match_id_);
@@ -229,20 +231,20 @@ namespace match {
         while (!state_.effect_queue.empty()) {
             auto current_effect = std::move(state_.effect_queue.front());
             state_.effect_queue.pop_front();
-            
-            EffectResult result = current_effect->Resolve(&state_, this); 
-    
+
+            EffectResult result = current_effect->Resolve(&state_, this);
+
             if (result.status == EffectStatus::kNeedsInput) {
                 state_.pending_player = result.target_player;
                 state_.pending_action = result.action;
                 state_.pending_input_context = result.input_context;
-                
+
                 state_.effect_queue.push_front(std::move(current_effect));
-                return; 
+                return;
             }
         }
     }
-    
+
     bool MatchInstance::PlayCard(const std::string& username, uint16_t card_id) {
         if (IsWaitingForInput() || IsMatchOver()) return false;
 
@@ -250,18 +252,19 @@ namespace match {
         if (!current_player) return false;
 
         bool is_out_of_turn = (GetCurrentPlayerUsername() != username);
-     
+
         auto card_iterator = std::ranges::find(current_player->hand, card_id, GetId);
         if (card_iterator == current_player->hand.end()) return false;
 
         CompactCard played_card = *card_iterator;
-        CardPlayedEvent play_event = { username, played_card, !is_out_of_turn, false, is_out_of_turn };
+        CardPlayedEvent play_event = { username, played_card, !is_out_of_turn, false,
+                                        is_out_of_turn };
 
         for (auto& rule : active_rules_) {
             rule->ValidatePlay(&state_, play_event);
             if (play_event.is_handled) break;
         }
-        
+
         if (!play_event.is_valid_play) return false;
 
         // INFO: Record provenance (who + which hand slot) so clients can
@@ -307,17 +310,20 @@ namespace match {
                 TransactionGuard tx(db);
 
                 if (!match_id_.empty()) {
-                    auto delete_save_status = db.Exec("DELETE FROM saved_matches WHERE id = ?", {match_id_});
+                    auto delete_save_status = db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                                                       {match_id_});
                     if (!delete_save_status) {
-                        Logger::Warn("[Match] Failed to clean up saved match: ", delete_save_status.error().message);
+                        Logger::Warn("[Match] Failed to clean up saved match: ",
+                                     delete_save_status.error().message);
                     }
                 }
-                
-                auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)", {username});
+
+                auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
+                                             {username});
                 if (!match_status) {
                     throw std::runtime_error(match_status.error().message);
                 }
-                
+
                 auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
                 if (!match_row) {
                     throw std::runtime_error(match_row.error().message);
@@ -326,12 +332,16 @@ namespace match {
                 int match_id = match_row->value().Get<int>("id");
 
                 for (const auto& p : state_.players) {
-                    auto part_status = db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)", {match_id, p.username});
+                    auto part_status = db.Exec(
+                        "INSERT INTO match_participants (match_id, username) VALUES (?, ?)",
+                        {match_id, p.username});
                     if (!part_status) {
                         throw std::runtime_error(part_status.error().message);
                     }
-                    
-                    auto profile_status = db.Exec("INSERT OR IGNORE INTO player_stats (username) VALUES (?)", {p.username});
+
+                    auto profile_status = db.Exec(
+                        "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
+                        {p.username});
                     if (!profile_status) {
                         throw std::runtime_error(profile_status.error().message);
                     }
@@ -340,10 +350,10 @@ namespace match {
                     auto& stats = session_stats_[p.username];
 
                     auto update_status = db.Exec(R"(
-                        UPDATE player_stats SET 
+                        UPDATE player_stats SET
                             total_wins = total_wins + ?,
                             total_losses = total_losses + ?,
-                            
+
                             cards_played_red = cards_played_red + ?,
                             cards_played_blue = cards_played_blue + ?,
                             cards_played_green = cards_played_green + ?,
@@ -366,15 +376,18 @@ namespace match {
                             cards_played_jolly = cards_played_jolly + ?
                         WHERE username = ?
                     )", {
-                        is_winner ? 1 : 0, 
+                        is_winner ? 1 : 0,
                         is_winner ? 0 : 1,
-                        
-                        stats.color_counts[0], stats.color_counts[1], stats.color_counts[2], stats.color_counts[3],
-                        
-                        stats.value_counts[0], stats.value_counts[1], stats.value_counts[2], stats.value_counts[3], stats.value_counts[4],
-                        stats.value_counts[5], stats.value_counts[6], stats.value_counts[7], stats.value_counts[8], stats.value_counts[9],
-                        stats.value_counts[10], stats.value_counts[11], stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
-                        
+
+                        stats.color_counts[0], stats.color_counts[1],
+                        stats.color_counts[2], stats.color_counts[3],
+
+                        stats.value_counts[0], stats.value_counts[1], stats.value_counts[2],
+                        stats.value_counts[3], stats.value_counts[4], stats.value_counts[5],
+                        stats.value_counts[6], stats.value_counts[7], stats.value_counts[8],
+                        stats.value_counts[9], stats.value_counts[10], stats.value_counts[11],
+                        stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
+
                         p.username
                     });
 
@@ -394,7 +407,7 @@ namespace match {
 
         return true;
     }
-    
+
 bool MatchInstance::DrawCard(const std::string& username) {
     if (IsWaitingForInput() || IsMatchOver()) return false;
 
@@ -408,7 +421,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
         for (int draw_index = 0; draw_index < state_.pending_draws; ++draw_index) {
             if (state_.draw_pile.empty()) {
                 ReshuffleDiscardIntoDraw(&state_);
-                if (state_.draw_pile.empty()) break; 
+                if (state_.draw_pile.empty()) break;
             }
             current_player->hand.push_back(state_.draw_pile.back());
             state_.draw_pile.pop_back();
@@ -429,15 +442,15 @@ bool MatchInstance::DrawCard(const std::string& username) {
     do {
         if (state_.draw_pile.empty()) {
             ReshuffleDiscardIntoDraw(&state_);
-            if (state_.draw_pile.empty()) break; 
+            if (state_.draw_pile.empty()) break;
         }
 
         CompactCard drawn_card = state_.draw_pile.back();
         current_player->hand.push_back(drawn_card);
         state_.draw_pile.pop_back();
         draw_event.drawn_card = drawn_card;
-        
-        current_player->has_called_uno = false; 
+
+        current_player->has_called_uno = false;
 
         CardPlayedEvent dummy_event = { username, drawn_card, true, false };
         for (auto& rule : active_rules_) {
@@ -456,7 +469,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
         if (draw_event.force_play) {
             PlayCard(username, GetId(draw_event.drawn_card));
         } else {
-            state_.effect_queue.push_front(std::make_unique<DecideDrawnCardEffect>(username, GetId(draw_event.drawn_card)));
+            state_.effect_queue.push_front(
+                std::make_unique<DecideDrawnCardEffect>(username, GetId(draw_event.drawn_card)));
         }
     } else {
         state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
@@ -464,11 +478,11 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     return true;
 }
-    
+
     void MatchInstance::ProvideInput(const std::string& username, const std::string& input) {
         if (username == state_.pending_player) {
             state_.provided_input = input;
-            
+
             state_.pending_player.clear();
             state_.pending_input_context.clear();
         }
@@ -480,7 +494,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             p->has_called_uno = true;
         }
     }
-    
+
     void MatchInstance::TakeBotTurn() {
         if (IsMatchOver()) return;
 
@@ -511,7 +525,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
         string bot_username = GetCurrentPlayerUsername();
 
-        int next_idx = (state_.current_player_index + state_.play_direction + state_.players.size()) % state_.players.size();
+        int next_idx = (state_.current_player_index + state_.play_direction +
+                        state_.players.size()) % state_.players.size();
         int next_player_hand_size = state_.players[next_idx].hand.size();
         std::string winning_player = "";
 
@@ -530,11 +545,13 @@ bool MatchInstance::DrawCard(const std::string& username) {
             if (state_.pending_action == Action::kPlayDrawn)
                 ProvideInput(state_.pending_player, "0");
             else if (state_.pending_action == Action::kChooseType)
-                ProvideInput(state_.pending_player, std::to_string(static_cast<int>(greatestType())));
+                ProvideInput(state_.pending_player,
+                             std::to_string(static_cast<int>(greatestType())));
             else if (state_.pending_action == Action::kChooseTarget)
                 ProvideInput(state_.pending_player, winning_player);
             else
-                Logger::Error("[MATCH] Bot encountered unknown action: ", static_cast<int>(state_.pending_action));
+                Logger::Error("[MATCH] Bot encountered unknown action: ",
+                              static_cast<int>(state_.pending_action));
 
             Tick();
             return;
@@ -612,17 +629,17 @@ bool MatchInstance::DrawCard(const std::string& username) {
         }
         Tick();
     }
-    
+
     std::string MatchInstance::GetCurrentPlayerUsername() const {
         if (state_.players.empty()) return "";
         return state_.players[state_.current_player_index].username;
     }
-    
+
     Player* MatchInstance::GetPlayer(const std::string& username) {
         auto it = std::ranges::find(state_.players, username, &Player::username);
         return it != state_.players.end() ? &(*it) : nullptr;
     }
-    
+
     void MatchInstance::GenerateDeck() {
         uint16_t unique_card_identifier = 0;
         Type standard_types[] = {Type::kRed, Type::kBlue, Type::kGreen, Type::kYellow};
@@ -630,57 +647,66 @@ bool MatchInstance::DrawCard(const std::string& username) {
         for (Type current_color : standard_types) {
             // Generate Zeros
             for (int i = 0; i < settings_.count_zeros; ++i) {
-                state_.draw_pile.push_back(MakeCard(current_color, Value::k0, unique_card_identifier++));
+                state_.draw_pile.push_back(
+                    MakeCard(current_color, Value::k0, unique_card_identifier++));
             }
-                
+
             // Generate Numbers 1-9
             for (int card_value = 1; card_value <= 9; ++card_value) {
                 for (int i = 0; i < settings_.count_numbered; ++i) {
-                    state_.draw_pile.push_back(MakeCard(current_color, static_cast<Value>(card_value), unique_card_identifier++));
+                    state_.draw_pile.push_back(
+                        MakeCard(current_color, static_cast<Value>(card_value),
+                                 unique_card_identifier++));
                 }
             }
-            
+
             // Generate Skips
             for (int i = 0; i < settings_.count_skips; ++i) {
-                state_.draw_pile.push_back(MakeCard(current_color, Value::kSkip, unique_card_identifier++));
+                state_.draw_pile.push_back(
+                    MakeCard(current_color, Value::kSkip, unique_card_identifier++));
             }
-            
+
             // Generate Reverses (Blocks)
             for (int i = 0; i < settings_.count_reverses; ++i) {
-                state_.draw_pile.push_back(MakeCard(current_color, Value::kReverse, unique_card_identifier++));
+                state_.draw_pile.push_back(
+                    MakeCard(current_color, Value::kReverse, unique_card_identifier++));
             }
-            
+
             // Generate +2s
             for (int i = 0; i < settings_.count_draw_two; ++i) {
-                state_.draw_pile.push_back(MakeCard(current_color, Value::kDraw2, unique_card_identifier++));
+                state_.draw_pile.push_back(
+                    MakeCard(current_color, Value::kDraw2, unique_card_identifier++));
             }
         }
 
         // 2. Generate Wild Cards (Color-less)
         for (int i = 0; i < settings_.count_wild; ++i) {
-            state_.draw_pile.push_back(MakeCard(Type::kWhite, Value::kJolly, unique_card_identifier++));
+            state_.draw_pile.push_back(
+                MakeCard(Type::kWhite, Value::kJolly, unique_card_identifier++));
         }
 
         for (int i = 0; i < settings_.count_wild_draw_four; ++i) {
-            state_.draw_pile.push_back(MakeCard(Type::kWhite, Value::kJollyDraw4, unique_card_identifier++));
+            state_.draw_pile.push_back(
+                MakeCard(Type::kWhite, Value::kJollyDraw4, unique_card_identifier++));
         }
-    
+
         std::shuffle(state_.draw_pile.begin(), state_.draw_pile.end(), rng_);
     }
-    
+
     nlohmann::json MatchInstance::SerializePlayerState(const std::string& username) const {
         nlohmann::json root;
         auto now = std::chrono::steady_clock::now();
         int remaining_ms = 0;
 
         if (state_.turn_end_time > now) {
-            remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(state_.turn_end_time - now).count();
+            remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                state_.turn_end_time - now).count();
         }
 
         root["turn_time_remaining_ms"] = remaining_ms;
 
         if (IsMatchOver()) root["winner"] = state_.winner;
-    
+
         root["match_status"] = static_cast<int>(state_.status);
 
         root["active_type"] = static_cast<int>(state_.active_type);
@@ -716,7 +742,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
                 {"value", static_cast<int>(GetValue(top))},
             };
         }
-    
+
         nlohmann::json players_array = nlohmann::json::array();
         for (const auto& p : state_.players) {
             nlohmann::json p_json;
@@ -724,7 +750,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             p_json["card_count"] = p.hand.size();
             p_json["has_called_uno"] = p.has_called_uno;
             p_json["is_bot"] = p.is_bot;
-    
+
             if (p.username == username) {
                 nlohmann::json hand_json = nlohmann::json::array();
                 for (CompactCard c : p.hand) {
@@ -745,8 +771,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
             players_array.push_back(p_json);
         }
         root["players"] = players_array;
-    
+
         return root;
-    }  
+    }
 
 }

@@ -140,7 +140,8 @@ private:
     UwsBroadcaster  broadcaster_{app_}; /**< Transport layer: owned broadcaster backed by app_. */
     UwsTimerService timer_service_;     /**< Timer service backed by the uWS event loop. */
 
-    std::map<string, AppWebSocket*> connections_; /**< Map of connected users (Username -> Socket). */
+    /**< Map of connected users (Username -> Socket). */
+    std::map<string, AppWebSocket*> connections_;
 
     ActionRouter ws_router_;    /**< Handler for dispatching WebSocket messages. */
     HttpRouter   http_router_;  /**< Handler for dispatching HTTP requests. */
@@ -183,14 +184,14 @@ private:
      * @brief Generic handler for HTTP GET requests (delegated to the HttpRouter).
      * @tag SRV-PRIV-004
      */
-    void HandleGet (AppResponse*, AppRequest*);
+    void HandleGet(AppResponse*, AppRequest*);
     void HandleHead(AppResponse*, AppRequest*);
 
     /**
      * @brief Handles the successful WebSocket upgrade event.
      * @tag SRV-PRIV-005
      */
-    void OnSocketOpen   (AppWebSocket*);
+    void OnSocketOpen(AppWebSocket*);
 
     /**
      * @brief Receives the incoming WebSocket frames and forwards them to the ActionRouter.
@@ -202,7 +203,7 @@ private:
      * @brief Handles the disconnection event of a socket.
      * @tag SRV-PRIV-007
      */
-    void OnSocketClosed (AppWebSocket*);
+    void OnSocketClosed(AppWebSocket*);
 
     /**
      * @brief Internal utility to read the entire content of a file (e.g. for static resources).
@@ -210,7 +211,7 @@ private:
      * @return std::string The content of the file.
      * @tag SRV-UTIL-001
      */
-    static std::string     ReadFile    (std::string_view path);
+    static std::string     ReadFile(std::string_view path);
 
     /**
      * @brief Deduces the MimeType of a file based on its extension.
@@ -218,10 +219,11 @@ private:
      * @return std::string The MIME Type (e.g. "text/html").
      * @tag SRV-UTIL-002
      */
-    static std::string     GetMimeType (const string& path);
+    static std::string     GetMimeType(const string& path);
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */
 
-    std::function<std::size_t()> active_match_provider_; /**< Source for the active-match count (see /internal/active-games). */
+    /**< Source for the active-match count (see /internal/active-games). */
+    std::function<std::size_t()> active_match_provider_;
 };

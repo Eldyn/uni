@@ -28,13 +28,15 @@ namespace http {
  * @param callback The function to invoke, exactly once, with the complete body string (if not aborted).
  * @tag CMN-HTTP-MTH-001
  */
-inline void ReadBody(AppResponse* res, size_t max_bytes, std::function<void(const std::string&)> callback) {
+inline void ReadBody(AppResponse* res, size_t max_bytes,
+                      std::function<void(const std::string&)> callback) {
     auto is_alive = std::make_shared<bool>(true);
     auto buffer   = std::make_shared<std::string>();
 
     res->onAborted([is_alive] { *is_alive = false; });
 
-    res->onData([is_alive, buffer, max_bytes, callback = std::move(callback), res](std::string_view chunk, bool isLast) mutable {
+    res->onData([is_alive, buffer, max_bytes, callback = std::move(callback), res](
+                    std::string_view chunk, bool isLast) mutable {
         if (!*is_alive) return;
 
         buffer->append(chunk.data(), chunk.size());
@@ -74,7 +76,8 @@ constexpr std::string_view TrimWhitespace(std::string_view str) {
  * @return std::optional<std::string> The decoded cookie value, or an empty string if the key does not exist.
  * @tag CMN-HTTP-MTH-003
  */
-inline std::optional<std::string> GetCookieValue(std::string_view cookie_header, std::string_view target_key) {
+inline std::optional<std::string> GetCookieValue(std::string_view cookie_header,
+                                                  std::string_view target_key) {
     size_t start = 0;
 
     while (start < cookie_header.size()) {

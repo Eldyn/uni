@@ -41,28 +41,28 @@ namespace match {
 
         if (card_value == Value::kSkip) {
             state->effect_queue.push_back(std::make_unique<SkipEffect>());
-        }
-        else if (card_value == Value::kReverse) {
+        } else if (card_value == Value::kReverse) {
             state->effect_queue.push_back(std::make_unique<ReverseEffect>());
-        }
-        else if (card_value == Value::kDraw2) {
+        } else if (card_value == Value::kDraw2) {
             std::string next_player = GetNextPlayer(state);
             state->effect_queue.push_back(std::make_unique<DrawEffect>(2, next_player));
             state->effect_queue.push_back(std::make_unique<SkipEffect>());
-        }
-        else if (card_value == Value::kJolly) {
-            state->effect_queue.push_back(std::make_unique<ChooseColorEffect>(event.player_username));
-        }
-        else if (card_value == Value::kJollyDraw4) {
+        } else if (card_value == Value::kJolly) {
+            state->effect_queue.push_back(
+                std::make_unique<ChooseColorEffect>(event.player_username));
+        } else if (card_value == Value::kJollyDraw4) {
             std::string next_player = GetNextPlayer(state);
-            state->effect_queue.push_back(std::make_unique<ChooseColorEffect>(event.player_username));
+            state->effect_queue.push_back(
+                std::make_unique<ChooseColorEffect>(event.player_username));
             state->effect_queue.push_back(std::make_unique<DrawEffect>(4, next_player));
             state->effect_queue.push_back(std::make_unique<SkipEffect>());
         }
 
         // UNO Penalty
-        auto player_iterator = std::ranges::find(state->players, event.player_username, &Player::username);
-        if (player_iterator != state->players.end() && player_iterator->hand.size() == 1 && !player_iterator->has_called_uno) {
+        auto player_iterator = std::ranges::find(state->players, event.player_username,
+                                                  &Player::username);
+        if (player_iterator != state->players.end() && player_iterator->hand.size() == 1 &&
+            !player_iterator->has_called_uno) {
             state->effect_queue.push_back(std::make_unique<DrawEffect>(2, event.player_username));
         }
 

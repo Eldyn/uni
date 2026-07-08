@@ -36,7 +36,8 @@ namespace match {
          * @param settings Current settings of the lobby.
          * @tag MATCH-INST-001
          */
-        explicit MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info, const LobbySettings& settings);
+        explicit MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
+                                const LobbySettings& settings);
 
         /**
          * @brief Constructor for reloading a match starting from a state saved in the database.
@@ -137,7 +138,9 @@ namespace match {
          * @param end_time The timestamp at which the turn will expire (triggering the AFK or bot).
          * @tag MATCH-INST-015
          */
-        void SetTurnEndTime(std::chrono::steady_clock::time_point end_time) { state_.turn_end_time = end_time; }
+        void SetTurnEndTime(std::chrono::steady_clock::time_point end_time) {
+            state_.turn_end_time = end_time;
+        }
 
         /**
          * @brief Retrieves the internal data of a specific player by username.
@@ -208,11 +211,14 @@ namespace match {
     private:
         MatchState state_;                        /**< The central match state. */
         LobbySettings settings_;                 /**< The rules and preferences of the match. */
-        std::string match_id_;                   /**< Unique identifier of the match in the database. */
-        mutable std::mt19937 rng_{std::random_device{}()}; /**< Shared RNG for shuffles. */
+        /**< Unique identifier of the match in the database. */
+        std::string match_id_;
+        /**< Shared RNG for shuffles. */
+        mutable std::mt19937 rng_{std::random_device {}()};
 
-        std::unordered_map<std::string, PlayerSessionStats> session_stats_; /**< Statistics collected during the match. */
-        std::vector<std::unique_ptr<MatchRule>> active_rules_;              /**< Set of active rules. */
+        /**< Statistics collected during the match. */
+        std::unordered_map<std::string, PlayerSessionStats> session_stats_;
+        std::vector<std::unique_ptr<MatchRule>> active_rules_;  /**< Set of active rules. */
 
         /**
          * @brief Checks whether a given optional rule mod is currently active for this match.

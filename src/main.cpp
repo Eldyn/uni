@@ -24,14 +24,20 @@ int main() {
         WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path);
 
         AuthController  auth(server.GetHTTPRouter());
-        LobbyController lobby(server.GetActionRouter(), server.GetBroadcaster(), server.GetTimerService());
+        LobbyController lobby(server.GetActionRouter(), server.GetBroadcaster(),
+                              server.GetTimerService());
 
-        server.OnConnectionOpen ([&lobby](AppWebSocket* ws, PerSocketData* sd) { lobby.OnOpen(ws, sd);  });
-        server.OnConnectionClose([&lobby](AppWebSocket* ws, PerSocketData* sd) { lobby.OnClose(ws, sd); });
+        server.OnConnectionOpen([&lobby](AppWebSocket* ws, PerSocketData* sd) {
+            lobby.OnOpen(ws, sd);
+        });
+        server.OnConnectionClose([&lobby](AppWebSocket* ws, PerSocketData* sd) {
+            lobby.OnClose(ws, sd);
+        });
         server.SetActiveMatchProvider([&lobby] { return lobby.ActiveMatchCount(); });
 
         StatsController stats(server.GetHTTPRouter());
-        MatchController game(server.GetActionRouter(), server.GetBroadcaster(), server.GetTimerService(), lobby);
+        MatchController game(server.GetActionRouter(), server.GetBroadcaster(),
+                             server.GetTimerService(), lobby);
 
         // INFO: Logging Middleware
         server.GetHTTPRouter().OnAny([](AppResponse *response, AppRequest *request) {
@@ -43,11 +49,10 @@ int main() {
             Logger::Log(
                 "[WS] request received: ", ctx.socket_data->username, ".",
                 ws::GetOr<string>(msg, "action", "?"),
-                "(", ws::GetOr<string>(msg,"request_id", "?"), ")"
-            );
+                "(", ws::GetOr<string>(msg, "request_id", "?"), ")");
             return true;
         });
- 
+
         server.Run();
     } catch (const std::exception& e) {
         Logger::Error(string("Fatal: "), e.what());

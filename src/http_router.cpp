@@ -45,7 +45,8 @@ void HttpRouter::Attach(AppHttp& app) {
                 wrapped(res, req);
             });
         } else {
-            Logger::Warn("[HttpRouter] Unknown method: " + route.method + " for path: " + route.path);
+            Logger::Warn("[HttpRouter] Unknown method: " + route.method +
+                         " for path: " + route.path);
         }
     }
 

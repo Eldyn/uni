@@ -38,18 +38,22 @@ NLOHMANN_JSON_SERIALIZE_ENUM(BotTakeoverMode, {
  * @tag CMN-LOBBY-STR-001
  */
 struct LobbySettings {
-    bool is_public = false;                 /**< Indicates whether the lobby appears in the public list. */
+    /**< Indicates whether the lobby appears in the public list. */
+    bool is_public = false;
     int turn_time_limit_ms = 15'000;        /**< Time limit for a turn (in milliseconds). */
     std::vector<std::string> active_mods;   /**< Optional mods or rules active for the match. */
 
     bool save_state = false;                /**< If true, the match state is saved to the DB. */
-    bool quit_deletes_match = false;        /**< If true, a player quitting destroys the saved match. */
+    /**< If true, a player quitting destroys the saved match. */
+    bool quit_deletes_match = false;
 
     int bot_count = 0;                      /**< Number of initial bots in the lobby. */
     BotTakeoverMode bot_mode = BotTakeoverMode::kWaitUntilTurnEnd; /**< Play mode of the bots. */
 
-    bool allow_bot_takeover = true;         /**< If true, a new human player can replace a bot mid-match. */
-    bool allow_bot_replacement = true;      /**< If true, a player who leaves is replaced by a bot instead of stopping the game. */
+    /**< If true, a new human player can replace a bot mid-match. */
+    bool allow_bot_takeover = true;
+    /**< If true, a player who leaves is replaced by a bot instead of stopping the game. */
+    bool allow_bot_replacement = true;
 
     int starting_cards       = 7;           /**< Number of cards drawn at the start. */
     int count_zeros          = 1;           /**< Copies per colour of the number 0. */
@@ -73,13 +77,17 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
  */
 struct LobbyMember {
     std::string     username;      /**< Username of the member. */
-    AppWebSocket* socket;        /**< Pointer to the uWS socket. nullptr if the user is temporarily disconnected. */
-    bool            is_connected;  /**< Connection state (true = online, false = offline in grace period). */
+    /**< Pointer to the uWS socket. nullptr if the user is temporarily disconnected. */
+    AppWebSocket* socket;
+    /**< Connection state (true = online, false = offline in grace period). */
+    bool            is_connected;
     bool            is_bot;        /**< True if this "member" is controlled by the AI. */
 
-    std::chrono::steady_clock::time_point disconnected_at{}; /**< Timestamp of the last disconnection (for the eviction timer). */
+    /**< Timestamp of the last disconnection (for the eviction timer). */
+    std::chrono::steady_clock::time_point disconnected_at{};
 
-    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b) : username(std::move(u)), socket(s), is_connected(c), is_bot(b)  {}
+    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b)
+        : username(std::move(u)), socket(s), is_connected(c), is_bot(b)  {}
 };
 
 /**
@@ -90,9 +98,11 @@ struct LobbyMember {
 struct Lobby {
     uint32_t                 id;            /**< Unique internal numeric identifier of the lobby. */
     std::string              invite_code;   /**< 6-character alphanumeric invite code. */
-    std::string              host;          /**< Username of the current creator/host of the lobby. */
+    /**< Username of the current creator/host of the lobby. */
+    std::string              host;
     std::vector<LobbyMember> members;       /**< List of participants (Humans and Bots). */
-    std::string              name;          /**< Textual name of the lobby (for display in the list). */
+    /**< Textual name of the lobby (for display in the list). */
+    std::string              name;
     LobbySettings            settings;      /**< Current settings of the match in this lobby. */
 
     /** * @brief Instance of the game engine.

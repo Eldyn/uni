@@ -31,22 +31,26 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     Logger::Info("[Match] Bot instant delay: ", bot_instant_delay_ms_, "ms, wait spread: ",
                  bot_wait_min_ms_, "-", bot_wait_max_ms_, "ms");
 
-    action_router_.On(ws::ClientAction::kMatchPlayCard, [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kMatchPlayCard,
+                      [this](WsContext context, const json& message) {
         HandlePlayCard(context, message);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kMatchDrawCard, [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kMatchDrawCard,
+                      [this](WsContext context, const json& message) {
         HandleDrawCard(context, message);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kMatchSubmitInput, [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kMatchSubmitInput,
+                      [this](WsContext context, const json& message) {
         HandleProvideInput(context, message);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kMatchCallUno, [this](WsContext context, const json& message) {
+    action_router_.On(ws::ClientAction::kMatchCallUno,
+                      [this](WsContext context, const json& message) {
         HandleCallUno(context, message);
         return true;
     });
@@ -86,15 +90,19 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::GamePlayCardPayload>(message);
     if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_identifier, payload_res.error().message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               payload_res.error().message);
         return;
     }
     uint16_t card_identifier = payload_res->card_id;
 
-    bool was_play_successful = active_lobby->match->PlayCard(context.socket_data->username, card_identifier);
+    bool was_play_successful = active_lobby->match->PlayCard(context.socket_data->username,
+                                                              card_identifier);
 
     if (!was_play_successful) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidMove, request_identifier);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidMove, request_identifier);
         return;
     }
 
@@ -120,7 +128,8 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     bool was_draw_successful = active_lobby->match->DrawCard(context.socket_data->username);
 
     if (!was_draw_successful) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kCannotDraw, request_identifier);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw, request_identifier);
         return;
     }
 
@@ -142,7 +151,9 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::GameSubmitInputPayload>(message);
     if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_identifier, payload_res.error().message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               payload_res.error().message);
         return;
     }
     std::string input_value = payload_res->value;
@@ -176,7 +187,8 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
         if (!lobby_member.is_connected || !lobby_member.socket) continue;
 
         json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        response_payload["match_state"] = current_lobby->match->SerializePlayerState(lobby_member.username);
+        response_payload["match_state"] =
+            current_lobby->match->SerializePlayerState(lobby_member.username);
 
         if (is_waiting_for_input && lobby_member.username == pending_player_username) {
             response_payload["action_required"] = static_cast<int>(required_action);
@@ -236,12 +248,14 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         //       be instantaneous!
         if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
 
-        auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+        auto end_time = std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
         active_lobby->match->SetTurnEndTime(end_time);
 
         uint32_t current_lobby_id = active_lobby->id;
 
-        SetTurnTimer(current_lobby_id, bot_thinking_ms, [this, current_lobby_id, current_player_username]() {
+        SetTurnTimer(current_lobby_id, bot_thinking_ms,
+                    [this, current_lobby_id, current_player_username]() {
             Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
             if (verified_lobby && verified_lobby->match) {
                 if (verified_lobby->match->GetCurrentPlayerUsername() == current_player_username) {
@@ -263,7 +277,8 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         }
     }
 
-    if (active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly && !is_player_connected) {
+    if (active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly &&
+        !is_player_connected) {
         Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
 
         // INFO: Broadcast between each step so every action is visible to
@@ -284,7 +299,10 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
             std::string after = active_lobby->match->GetCurrentPlayerUsername();
             bool is_now_connected = false;
             for (const auto& m : active_lobby->members) {
-                if (m.username == after && m.is_connected) { is_now_connected = true; break; }
+                if (m.username == after && m.is_connected) {
+                    is_now_connected = true;
+                    break;
+                }
             }
             bool now_is_bot = false;
             if (auto* p = active_lobby->match->GetPlayer(after)) now_is_bot = p->is_bot;
@@ -332,7 +350,8 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         active_lobby->match->SetTurnEndTime(end_time);
 
         uint32_t current_lobby_id = active_lobby->id;
-        SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms, [this, current_lobby_id, current_player_username]() {
+        SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
+                    [this, current_lobby_id, current_player_username]() {
             Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
             if (verified_lobby && verified_lobby->match) {
                 if (verified_lobby->match->GetCurrentPlayerUsername() == current_player_username) {
@@ -352,7 +371,8 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
  * @param timeout_ms Milliseconds before the timer fires.
  * @param callback Invoked when the timer expires.
  */
-void MatchController::SetTurnTimer(uint32_t lobby_id, int timeout_ms, std::function<void()> callback) {
+void MatchController::SetTurnTimer(uint32_t lobby_id, int timeout_ms,
+                                   std::function<void()> callback) {
     const std::string key = "turn_" + std::to_string(lobby_id);
     timer_service_.Schedule(key, timeout_ms, false, std::move(callback));
 }

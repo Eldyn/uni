@@ -17,12 +17,16 @@ namespace match {
         void OnCardPlayed(MatchState* state, CardPlayedEvent& event) override {
             Value card_value = GetValue(event.played_card);
 
-            if (card_value == Value::k0) state->effect_queue.push_back(std::make_unique<PassHandsEffect>());
-            else if (card_value == Value::k7) state->effect_queue.push_back(std::make_unique<DecideSwapTargetEffect>(event.player_username));
+            if (card_value == Value::k0)
+                state->effect_queue.push_back(std::make_unique<PassHandsEffect>());
+            else if (card_value == Value::k7)
+                state->effect_queue.push_back(
+                    std::make_unique<DecideSwapTargetEffect>(event.player_username));
         }
     };
 
     static RuleRegistrar registrar("seven_zero", []() {
         return std::make_unique<SevenZeroRule>();
-    }, "Seven-Zero", "Playing a 7 swaps your hand with a chosen player; playing a 0 rotates all hands.");
+    }, "Seven-Zero",
+       "Playing a 7 swaps your hand with a chosen player; playing a 0 rotates all hands.");
 }

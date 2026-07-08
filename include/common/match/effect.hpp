@@ -33,7 +33,8 @@ namespace match {
      */
     enum class Action : uint8_t {
         kChooseType   = 0, /**< Player must choose a card type (formerly "choose_color") */
-        kPlayDrawn    = 1, /**< Player must decide to play or keep a drawn card (formerly "play_drawn_card") */
+        /**< Player must decide to play or keep a drawn card (formerly "play_drawn_card") */
+        kPlayDrawn    = 1,
         kChooseTarget = 2  /**< Player must choose a target player (formerly "choose_target") */
     };
 
@@ -43,9 +44,12 @@ namespace match {
      */
     struct EffectResult {
         EffectStatus status;                        /**< The resolution status of the effect. */
-        Action action = Action::kChooseType;        /**< The action required (meaningful only when status == kNeedsInput). */
-        std::string target_player = "";             /**< The player from whom the input is awaited. */
-        std::string input_context = "";             /**< A generic JSON payload with contextual information for the frontend. */
+        /**< The action required (meaningful only when status == kNeedsInput). */
+        Action action = Action::kChooseType;
+        /**< The player from whom the input is awaited. */
+        std::string target_player = "";
+        /**< A generic JSON payload with contextual information for the frontend. */
+        std::string input_context = "";
     };
 
     /**

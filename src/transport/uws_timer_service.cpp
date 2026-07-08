@@ -2,7 +2,7 @@
 
 UwsTimerService::~UwsTimerService() {
     for (auto& [key, timer] : timers_) {
-        TimerData* data = *(TimerData**)us_timer_ext(timer);
+        TimerData* data = *reinterpret_cast<TimerData**>(us_timer_ext(timer));
         delete data;
         us_timer_close(timer);
     }
@@ -12,13 +12,13 @@ void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
                                 std::function<void()> cb) {
     CancelLocked(key);
 
-    auto* loop  = (us_loop_t*)uWS::Loop::get();
+    auto* loop  = reinterpret_cast<us_loop_t*>(uWS::Loop::get());
     auto* timer = us_create_timer(loop, 0, sizeof(TimerData*));
     auto* data  = new TimerData{key, std::move(cb), this, repeat};
-    *(TimerData**)us_timer_ext(timer) = data;
+    *reinterpret_cast<TimerData**>(us_timer_ext(timer)) = data;
 
     us_timer_set(timer, [](us_timer_t* t) {
-        auto* d = *(TimerData**)us_timer_ext(t);
+        auto* d = *reinterpret_cast<TimerData**>(us_timer_ext(t));
 
         if (d->repeat) {
             d->callback();
@@ -32,7 +32,6 @@ void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
         delete d;
         us_timer_close(t);
         if (cb) cb();
-
     }, ms, repeat ? ms : 0);
 
     timers_[key] = timer;
@@ -47,7 +46,7 @@ void UwsTimerService::CancelLocked(const std::string& key) {
     if (it == timers_.end()) return;
 
     auto* timer = it->second;
-    auto* data  = *(TimerData**)us_timer_ext(timer);
+    auto* data  = *reinterpret_cast<TimerData**>(us_timer_ext(timer));
     delete data;
     us_timer_close(timer);
     timers_.erase(it);

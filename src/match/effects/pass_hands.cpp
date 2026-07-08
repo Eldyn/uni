@@ -30,5 +30,7 @@ namespace match {
         return {EffectStatus::kResolved};
     }
 
-    static EffectRegistrar reg_pass(EffectType::kPassHands, [](const auto&){ return std::make_unique<PassHandsEffect>(); });
+    static EffectRegistrar reg_pass(EffectType::kPassHands, [](const auto&) {
+        return std::make_unique<PassHandsEffect>();
+    });
 }

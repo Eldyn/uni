@@ -52,7 +52,7 @@ public:
             throw std::runtime_error("Column not found: " + col);
         }
         return std::get<T>(data_.at(col));
-    };
+    }
 
     /**
      * @brief Safely extracts a value, providing a fallback if it is absent or NULL.
@@ -68,7 +68,7 @@ public:
             return fallback;
         }
         return std::get<T>(data_.at(col));
-    };
+    }
 
     /**
      * @brief Checks whether the row possesses the specified column.
@@ -134,7 +134,8 @@ public:
      * @return VoidResult Error in case of query failure or constraint violation.
      * @tag DB-MTH-006
      */
-    VoidResult                          Exec     (const char* sql, std::vector<DbValue> params = {});
+    VoidResult                          Exec(const char* sql,
+                                               std::vector<DbValue> params = {});
 
     /**
      * @brief Executes a query that returns a list of results (e.g. generic SELECTs).
@@ -143,7 +144,8 @@ public:
      * @return Result<std::vector<DbRow>> The vector of resulting rows.
      * @tag DB-MTH-007
      */
-    Result<std::vector<DbRow>>          Query    (const char* sql, std::vector<DbValue> params = {});
+    Result<std::vector<DbRow>>          Query(const char* sql,
+                                               std::vector<DbValue> params = {});
 
     /**
      * @brief Executes a query aimed at returning at most 1 record (e.g. SELECT with LIMIT 1).
@@ -152,7 +154,8 @@ public:
      * @return Result<std::optional<DbRow>> Result containing the record or empty (std::nullopt).
      * @tag DB-MTH-008
      */
-    Result<std::optional<DbRow>>        QueryOne (const char* sql, std::vector<DbValue> params = {});
+    Result<std::optional<DbRow>>        QueryOne(const char* sql,
+                                                  std::vector<DbValue> params = {});
 
     /**
      * @brief Applies all pending schema migrations in version order.

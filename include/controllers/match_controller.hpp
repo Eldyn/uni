@@ -43,12 +43,16 @@ private:
     ITimerService&    timer_service_;    /**< Timer service for turn/bot timers. */
     ILobbyStore&      lobby_store_;       /**< Interface to access the in-memory lobbies. */
 
-    int bot_instant_delay_ms_;   /**< Minimum ms between consecutive bot turns in kPlayInstantly mode. */
-    int bot_wait_min_ms_;        /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
+    /**< Minimum ms between consecutive bot turns in kPlayInstantly mode. */
+    int bot_instant_delay_ms_;
+    /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
+    int bot_wait_min_ms_;
     int bot_wait_max_ms_;        /**< Upper bound (exclusive) of the randomised "thinking" delay. */
-    int max_instant_bot_steps_;  /**< Safety cap on consecutive bot moves in a single kPlayInstantly burst. */
+    /**< Safety cap on consecutive bot moves in a single kPlayInstantly burst. */
+    int max_instant_bot_steps_;
 
-    std::mt19937 rng_{std::random_device{}()}; /**< Mersenne Twister RNG for bot delay jitter. */
+    /**< Mersenne Twister RNG for bot delay jitter. */
+    std::mt19937 rng_{std::random_device {}()};
 
     // --- WebSocket Event Handlers ---
 

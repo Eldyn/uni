@@ -5,7 +5,7 @@ namespace match {
     class ProgressiveRule : public MatchRule {
     public:
         void OnCardDrawn(MatchState* state, CardDrawnEvent& event) override {
-            event.keep_drawing = true; // Tell the DrawCard engine to loop
+            event.keep_drawing = true;  // Tell the DrawCard engine to loop
         }
     };
 

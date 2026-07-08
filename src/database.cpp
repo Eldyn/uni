@@ -75,7 +75,7 @@ static constexpr Migration MIGRATIONS[] = {
     { 2, "ALTER TABLE player_stats RENAME COLUMN cards_played_colorswitch TO cards_played_jolly;" },
 };
 
-} // namespace
+}  // namespace
 
 // Database implementation
 
@@ -122,10 +122,10 @@ VoidResult Database::ApplySchema(const char* sql) {
     char* zErrMsg = nullptr;
     // INFO: sqlite3_exec runs everything in the string until the end
     int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &zErrMsg);
-    
+
     if (rc != SQLITE_OK) {
         std::string err = zErrMsg ? zErrMsg : "Unknown error";
-        sqlite3_free(zErrMsg); // Must free this!
+        sqlite3_free(zErrMsg);  // Must free this!
         return std::unexpected(Error::DatabaseFail(err));
     }
     return {};
@@ -138,8 +138,8 @@ sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& par
     }
 
     for (size_t i = 0; i < params.size(); ++i) {
-        int index = static_cast<int>(i) + 1; // SQLite uses 1-based indexing for params
-        
+        int index = static_cast<int>(i) + 1;  // SQLite uses 1-based indexing for params
+
         // INFO: C++23 std::visit handles the variant types safely
         std::visit([&](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
@@ -172,7 +172,8 @@ DbRow Database::ReadRow(sqlite3_stmt* stmt) {
         } else if (type == SQLITE_TEXT) {
             const unsigned char* text = sqlite3_column_text(stmt, i);
             // INFO: Null guard for text columns
-            row.Set(col_name, text ? std::string(reinterpret_cast<const char*>(text)) : DbValue(nullptr));
+            row.Set(col_name,
+                   text ? std::string(reinterpret_cast<const char*>(text)) : DbValue(nullptr));
         } else {
             row.Set(col_name, nullptr);
         }
@@ -236,8 +237,12 @@ VoidResult Database::RunMigrations() {
     for (const auto& m : MIGRATIONS) {
         if (m.version <= current) continue;
         TransactionGuard tx(*this);
-        if (auto r = ApplySchema(m.sql); !r) return r;
-        if (auto r = SetSchemaVersion(m.version); !r) return r;
+        if (auto r = ApplySchema(m.sql); !r) {
+            return r;
+        }
+        if (auto r = SetSchemaVersion(m.version); !r) {
+            return r;
+        }
         tx.Commit();
         Logger::Info("[DB] Migration v", m.version, " applied");
     }

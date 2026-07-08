@@ -7,7 +7,8 @@
 
 namespace Base64 {
 
-inline constexpr char kAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+inline constexpr char kAlphabet[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 inline constexpr uint8_t kInvalid = 0xFF;
 
 inline constexpr std::array<uint8_t, 256> kDecodeTable = []() {
@@ -87,4 +88,4 @@ inline std::vector<uint8_t> Decode(const std::string& encoded) {
     return out;
 }
 
-} 
+}

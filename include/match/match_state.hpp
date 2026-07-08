@@ -23,7 +23,8 @@ namespace match {
      * @tag GAME-STRUCT-001
      */
     struct PlayerSessionStats {
-        int color_counts[5] = {0};  /**< Frequency count for the various Colours (including Wild). */
+        /**< Frequency count for the various Colours (including Wild). */
+        int color_counts[5] = {0};
         int value_counts[15] = {0}; /**< Frequency count for the Values (0-9, and special cards). */
     };
 
@@ -35,8 +36,10 @@ namespace match {
     struct Player {
         std::string username;           /**< Identifying username. */
         std::vector<CompactCard> hand;  /**< The cards currently in the player's hand. */
-        bool is_bot;                    /**< Flag indicating whether the player is driven by the CPU. */
-        bool has_called_uno = false;    /**< Flag indicating whether they have correctly declared "UNO". */
+        /**< Flag indicating whether the player is driven by the CPU. */
+        bool is_bot;
+        /**< Flag indicating whether they have correctly declared "UNO". */
+        bool has_called_uno = false;
 
         /**
          * @brief Full constructor of the Player.
@@ -45,12 +48,13 @@ namespace match {
          * @param b True if Bot.
          * @param uno True if they have already called UNO.
          */
-        Player(std::string u, std::vector<CompactCard> h, bool b, bool uno) : username(u), hand(h), is_bot(b), has_called_uno(uno) {};
+        Player(std::string u, std::vector<CompactCard> h, bool b, bool uno)
+            : username(u), hand(h), is_bot(b), has_called_uno(uno) {}
 
         /**
          * @brief Constructor without cards in hand (setup phase).
          */
-        Player(std::string u, bool b, bool uno) : username(u), is_bot(b), has_called_uno(uno) {};
+        Player(std::string u, bool b, bool uno) : username(u), is_bot(b), has_called_uno(uno) {}
     };
 
     /**
@@ -84,27 +88,41 @@ namespace match {
      * @tag GAME-STRUCT-003
      */
     struct MatchState {
-        MatchStatus status = MatchStatus::kWaitingToStart; /**< The progression state. */
-        std::string winner;                                /**< Username of the winner (if concluded). */
+        /**< The progression state. */
+        MatchStatus status = MatchStatus::kWaitingToStart;
+        std::string winner;  /**< Username of the winner (if concluded). */
 
-        std::vector<Player> players;                       /**< Ordered list (by turn) of the players. */
-        int current_player_index = 0;                      /**< Index of the player with the active turn. */
-        int play_direction = 1;                            /**< Direction of play (1 = clockwise, -1 = counter-clockwise). */
-        int pending_draws = 0;                             /**< Accumulated cards the next player will have to draw (e.g. +2/+4 chain). */
-        LastPlay last_play;                                /**< Origin of the last played card, used for the client animations. */
+        /**< Ordered list (by turn) of the players. */
+        std::vector<Player> players;
+        /**< Index of the player with the active turn. */
+        int current_player_index = 0;
+        /**< Direction of play (1 = clockwise, -1 = counter-clockwise). */
+        int play_direction = 1;
+        /**< Accumulated cards the next player will have to draw (e.g. +2/+4 chain). */
+        int pending_draws = 0;
+        /**< Origin of the last played card, used for the client animations. */
+        LastPlay last_play;
 
         std::vector<CompactCard> draw_pile;                /**< The deck of cards to draw from. */
-        std::vector<CompactCard> discard_pile;             /**< The discard pile in the centre of the table. */
-        Type active_type = Type::kRed;                     /**< Type currently required to respond (changes with Wild cards). */
+        /**< The discard pile in the centre of the table. */
+        std::vector<CompactCard> discard_pile;
+        /**< Type currently required to respond (changes with Wild cards). */
+        Type active_type = Type::kRed;
 
-        std::deque<std::unique_ptr<Effect>> effect_queue;  /**< Queue of effects to resolve (asynchronous architecture for chained moves). */
+        /**< Queue of effects to resolve (asynchronous architecture for chained moves). */
+        std::deque<std::unique_ptr<Effect>> effect_queue;
 
-        std::string pending_player;                        /**< The user who MUST provide an input before the match continues. */
-        Action pending_action = Action::kChooseType;       /**< Action required (meaningful only when pending_player is set). */
-        std::string pending_input_context;                 /**< Additional JSON payload to help the client render the input box. */
-        std::string provided_input;                        /**< Asynchronous response stored as soon as it is sent by the player for the effect. */
+        /**< The user who MUST provide an input before the match continues. */
+        std::string pending_player;
+        /**< Action required (meaningful only when pending_player is set). */
+        Action pending_action = Action::kChooseType;
+        /**< Additional JSON payload to help the client render the input box. */
+        std::string pending_input_context;
+        /**< Asynchronous response stored as soon as it is sent by the player for the effect. */
+        std::string provided_input;
 
-        std::chrono::steady_clock::time_point turn_end_time; /**< Timestamp at which the AFK/Timeout of the current turn will fire. */
+        /**< Timestamp at which the AFK/Timeout of the current turn will fire. */
+        std::chrono::steady_clock::time_point turn_end_time;
     };
 
     /**

@@ -13,7 +13,6 @@ namespace match {
 
                 if (GetType(event.played_card) == GetType(top_card) &&
                     GetValue(event.played_card) == GetValue(top_card)) {
-
                     event.is_valid_play = true;
                     event.is_handled = true;
                 }
@@ -22,7 +21,8 @@ namespace match {
 
         void OnCardPlayed(MatchState* state, CardPlayedEvent& event) override {
             if (event.is_out_of_turn) {
-                auto it = std::ranges::find(state->players, event.player_username, &Player::username);
+                auto it = std::ranges::find(state->players, event.player_username,
+                                             &Player::username);
                 if (it != state->players.end()) {
                     state->current_player_index = std::distance(state->players.begin(), it);
                     Logger::Info("[Match] ", event.player_username, " successfully JUMPED IN!");

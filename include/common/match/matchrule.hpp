@@ -20,9 +20,14 @@ namespace match {
         std::string player_username;  /**< The username of the player attempting the play. */
         CompactCard played_card;      /**< The card being played. */
 
-        bool is_valid_play = true;    /**< Flag indicating whether the play is valid or must be rejected (settable by the validators). */
-        bool is_handled = false;      /**< Flag indicating whether the event has already been fully processed by a rule. */
-        bool is_out_of_turn = false;  /**< Flag indicating whether the play occurred out of turn (useful for special rules or penalties). */
+        /**< Flag indicating whether the play is valid or must be rejected
+         * (settable by the validators). */
+        bool is_valid_play = true;
+        /**< Flag indicating whether the event has already been fully processed by a rule. */
+        bool is_handled = false;
+        /**< Flag indicating whether the play occurred out of turn
+         * (useful for special rules or penalties). */
+        bool is_out_of_turn = false;
     };
 
     struct CardDrawnEvent {
@@ -30,7 +35,7 @@ namespace match {
         CompactCard drawn_card;
         bool is_handled = false;
 
-        bool keep_drawing = false; // Hook for "Progressive" mod
+        bool keep_drawing = false;  // Hook for "Progressive" mod
         bool force_play = false;   // Hook for "Force Play" mod
     };
 

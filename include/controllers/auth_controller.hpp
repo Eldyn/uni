@@ -20,7 +20,8 @@
  * @tag CTRL-AUTH-STR-001
  */
 struct JwtPayload {
-    std::string username; /**< The identifying name of the authenticated user (the token's 'sub' field). */
+    /**< The identifying name of the authenticated user (the token's 'sub' field). */
+    std::string username;
 };
 
 /**
@@ -79,7 +80,7 @@ private:
      * @param req Pointer to the HTTP request.
      * @tag CTRL-AUTH-ACT-002
      */
-    void HandleLogin   (AppResponse* res, AppRequest* req);
+    void HandleLogin(AppResponse* res, AppRequest* req);
 
     /**
      * @brief Handles the POST route `/auth/guest`.
@@ -92,7 +93,7 @@ private:
      * @param req Pointer to the HTTP request.
      * @tag CTRL-AUTH-ACT-005
      */
-    void HandleGuest   (AppResponse* res, AppRequest* req);
+    void HandleGuest(AppResponse* res, AppRequest* req);
 
     /**
      * @brief Handles the POST route `/auth/logout`.
@@ -101,7 +102,7 @@ private:
      * @param req Pointer to the HTTP request.
      * @tag CTRL-AUTH-ACT-003
      */
-    void HandleLogout  (AppResponse* res, AppRequest* req);
+    void HandleLogout(AppResponse* res, AppRequest* req);
 
     /**
      * @brief Handles the GET route `/auth/me`.
@@ -110,7 +111,7 @@ private:
      * @param req Pointer to the HTTP request.
      * @tag CTRL-AUTH-ACT-004
      */
-    void HandleMe      (AppResponse* res, AppRequest* req);
+    void HandleMe(AppResponse* res, AppRequest* req);
 
     // --- Cryptographic Helpers ---
 
@@ -120,7 +121,7 @@ private:
      * @return std::string Composite format stored in the DB: `<base64_salt>:<base64_hash>`.
      * @tag CTRL-AUTH-CRYP-001
      */
-    static std::string HashPassword (const std::string& password);
+    static std::string HashPassword(const std::string& password);
 
     /**
      * @brief Checks whether a plaintext password matches the one stored in the DB.
@@ -141,13 +142,18 @@ private:
 
     // --- Validation and Security Parameters ---
 
-    static constexpr int kMaxBodyBytes   = 4096;    /**< @brief Limit in bytes for the HTTP payload (Anti-DDoS). @tag CTRL-AUTH-CFG-004 */
+    /**< @brief Limit in bytes for the HTTP payload (Anti-DDoS). @tag CTRL-AUTH-CFG-004 */
+    static constexpr int kMaxBodyBytes   = 4096;
 
     // PBKDF2 parameters (increasing kIterations raises the cost of brute-force attempts)
 
-    static constexpr int kSaltBytes   = 16;         /**< @brief Size in bytes of the cryptographic Salt. @tag CTRL-AUTH-CFG-005 */
-    static constexpr int kHashBytes   = 32;         /**< @brief Size in bytes of the resulting Hash. @tag CTRL-AUTH-CFG-006 */
-    static constexpr int kIterations  = 200'000;    /**< @brief Number of iterations of the PBKDF2 algorithm (NIST SP 800-132 minimum). @tag CTRL-AUTH-CFG-007 */
+    /**< @brief Size in bytes of the cryptographic Salt. @tag CTRL-AUTH-CFG-005 */
+    static constexpr int kSaltBytes   = 16;
+    /**< @brief Size in bytes of the resulting Hash. @tag CTRL-AUTH-CFG-006 */
+    static constexpr int kHashBytes   = 32;
+    /**< @brief Number of iterations of the PBKDF2 algorithm (NIST SP 800-132 minimum).
+     * @tag CTRL-AUTH-CFG-007 */
+    static constexpr int kIterations  = 200'000;
 
     // --- Brute-force protection ---
 

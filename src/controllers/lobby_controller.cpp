@@ -19,20 +19,20 @@
 #include <chrono>
 #include <stdexcept>
 #include <string>
-#include <random>
 
 using namespace std::chrono;
-using std::string, std::vector, std::runtime_error, std::memory_order_relaxed, std::transform, std::to_string; 
+using std::string, std::vector, std::runtime_error, std::memory_order_relaxed,
+      std::transform, std::to_string;
 
 static constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 static constexpr int  kCodeLen        = 6;
-static constexpr int  kAlphabetLen    = 36;   
+static constexpr int  kAlphabetLen    = 36;
 
 /**
  * @brief Selects a random, unique bot name from a predefined thematic list.
- * * Iterates through the current lobby members to ensure that the selected 
- * bot name is not already taken by an existing human or bot. If all predefined 
- * names are in use (unlikely but possible), it safely falls back to a 
+ * * Iterates through the current lobby members to ensure that the selected
+ * bot name is not already taken by an existing human or bot. If all predefined
+ * names are in use (unlikely but possible), it safely falls back to a
  * sequentially numbered "Bot_N" format.
  * * @param lobby The target lobby context used to verify name availability.
  * @return std::string A unique bot name safe for insertion into the lobby.
@@ -85,7 +85,8 @@ static void ClampSettings(LobbySettings& settings) {
  * @param broadcast Transport layer for sends/publishes.
  * @param timers    Timer service for the eviction clock.
  */
-LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast, ITimerService& timers)
+LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
+                                  ITimerService& timers)
     : action_router_(router), broadcaster_(broadcast), timer_service_(timers) {
     reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 30'000));
 
@@ -129,27 +130,32 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyListSavedMatches, [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyListSavedMatches,
+                      [this](WsContext ctx, const json& msg) {
         HandleGetSavedMatchesList(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyDeleteSavedMatch, [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyDeleteSavedMatch,
+                      [this](WsContext ctx, const json& msg) {
         HandleDeleteSavedMatch(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyResumeSavedMatch, [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyResumeSavedMatch,
+                      [this](WsContext ctx, const json& msg) {
         HandleResumeSavedMatch(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyUpdateSettings, [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kLobbyUpdateSettings,
+                      [this](WsContext ctx, const json& msg) {
         HandleUpdateSettings(ctx, msg);
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyStartMatch, [this](WsContext context, const nlohmann::json& message) {
+    action_router_.On(ws::ClientAction::kLobbyStartMatch,
+                      [this](WsContext context, const nlohmann::json& message) {
         HandleStartGame(context, message);
         return true;
     });
@@ -186,7 +192,8 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
                     for (const auto& m : lobby.members) {
                         if (m.is_connected && !m.is_bot) {
                             lobby.host = m.username;
-                            Logger::Log("[Lobby] Host auto-passed to ", m.username, " in lobby ", id);
+                            Logger::Log("[Lobby] Host auto-passed to ", m.username,
+                                       " in lobby ", id);
                             break;
                         }
                     }
@@ -205,7 +212,8 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         }
     });
 
-    Logger::Info("[Lobby] Registered — grace window: " + to_string(reconnect_grace_ms_ / 1000) + "s");
+    Logger::Info("[Lobby] Registered — grace window: " +
+                 to_string(reconnect_grace_ms_ / 1000) + "s");
 }
 
 /**
@@ -241,33 +249,36 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
 
         auto res_upsert = db.Exec(R"(
             INSERT INTO saved_matches (id, state_json) VALUES (?, ?)
-            ON CONFLICT(id) DO UPDATE SET 
-                state_json = excluded.state_json, 
-                saved_at = CURRENT_TIMESTAMP, 
+            ON CONFLICT(id) DO UPDATE SET
+                state_json = excluded.state_json,
+                saved_at = CURRENT_TIMESTAMP,
                 expires_at = datetime('now', '+1 day')
         )", {match_id, json_payload});
-        
+
         if (!res_upsert) {
             throw std::runtime_error("Upsert saved_matches failed: " + res_upsert.error().message);
         }
 
-        auto res_del = db.Exec("DELETE FROM saved_match_participants WHERE match_id = ?", {match_id});
+        auto res_del = db.Exec("DELETE FROM saved_match_participants WHERE match_id = ?",
+                               {match_id});
         if (!res_del) {
             throw std::runtime_error("Delete participants failed: " + res_del.error().message);
         }
 
         for (const auto& member : lobby.members) {
             if (!member.is_bot) {
-                auto res_insert = db.Exec("INSERT INTO saved_match_participants (match_id, username) VALUES (?, ?)", {match_id, member.username});
+                auto res_insert = db.Exec(
+                    "INSERT INTO saved_match_participants (match_id, username) VALUES (?, ?)",
+                    {match_id, member.username});
                 if (!res_insert) {
-                    throw std::runtime_error("Insert participant failed for " + member.username + ": " + res_insert.error().message);
+                    throw std::runtime_error("Insert participant failed for " + member.username +
+                                             ": " + res_insert.error().message);
                 }
             }
         }
 
         tx.Commit();
         Logger::Info("[Lobby] Safely upserted match state to DB: ", match_id);
-
     } catch (const std::exception& e) {
         Logger::Error("[Lobby DB Error] Failed to save state: ", e.what());
     }
@@ -353,7 +364,8 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
 
     for (auto& member : lobby.members) {
         if (member.username == sd->username && member.socket == ws) {
-            Logger::Log("[Lobby] Disconnect: ", sd->username, " in lobby ", lobby.id, " — grace window open");
+            Logger::Log("[Lobby] Disconnect: ", sd->username, " in lobby ", lobby.id,
+                        " — grace window open");
             member.is_connected    = false;
             member.socket          = nullptr;
             member.disconnected_at = steady_clock::now();
@@ -373,18 +385,21 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     const string request_id = ws::GetOr<string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyCreatePayload>(message);
     if (!payload_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload, request_id, payload_res.error().message);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, payload_res.error().message);
         return;
     }
 
     if (!ctx.socket_data->lobby_code.empty()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
+                               request_id);
         return;
     }
 
     const int max_lobbies = Env::GetInt("MAX_LOBBIES", 200);
     if (static_cast<int>(lobbies_.size()) >= max_lobbies) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInternalError, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInternalError,
+                               request_id);
         return;
     }
 
@@ -401,8 +416,10 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     Lobby& lobby = lobbies_[id];
     lobby.id                   = id;
     lobby.settings.is_public   = payload_res->is_public.value_or(false);
-    lobby.settings.turn_time_limit_ms = Env::GetInt("DEFAULT_TURN_TIME_MS", lobby.settings.turn_time_limit_ms);
-    lobby.settings.starting_cards     = Env::GetInt("DEFAULT_STARTING_CARDS", lobby.settings.starting_cards);
+    lobby.settings.turn_time_limit_ms = Env::GetInt("DEFAULT_TURN_TIME_MS",
+                                                    lobby.settings.turn_time_limit_ms);
+    lobby.settings.starting_cards     = Env::GetInt("DEFAULT_STARTING_CARDS",
+                                                    lobby.settings.starting_cards);
     lobby.invite_code          = code;
     lobby.host                 = username;
     lobby.name                 = payload_res->name.value_or(username + "'s lobby");
@@ -412,7 +429,7 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     code_to_id_[code] = id;
     ctx.socket_data->lobby_code = code;
     ctx.socket_data->lobby_id   = id;
-    
+
     std::string topic = "lobby_" + code;
     broadcaster_.Subscribe(ctx.socket, topic);
     SyncBots(lobby);
@@ -440,12 +457,14 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
     auto payload_res = ws::ParsePayload<ws::LobbyJoinPayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload, request_id, payload_res.error().message);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, payload_res.error().message);
         return;
     }
 
     if (!ctx.socket_data->lobby_code.empty()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
+                               request_id);
         return;
     }
 
@@ -454,19 +473,22 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
     const string& username = ctx.socket_data->username;
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyMember, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyMember,
+                               request_id);
         return;
     }
 
     if (lobby.match && !lobby.settings.allow_bot_takeover) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kJoinDisabledInMatch, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code,
+                               contract::ErrorCode::kJoinDisabledInMatch, request_id);
         return;
     }
 
@@ -476,12 +498,12 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         for (auto& member : lobby.members) {
             if (member.is_bot) {
                 std::string old_bot_name = member.username;
-                
+
                 member.username = username;
                 member.socket = ctx.socket;
                 member.is_connected = true;
                 member.is_bot = false;
-                
+
                 if (lobby.match) {
                     match::Player* engine_player = lobby.match->GetPlayer(old_bot_name);
                     if (engine_player) {
@@ -499,7 +521,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     if (!joined && lobby.members.size() < kMaxMembers) {
         lobby.members.emplace_back(username, ctx.socket, true, false);
-        
+
         if (lobby.match) {
             lobby.match->AddPlayerMidGame(username, false);
         }
@@ -509,7 +531,8 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
     }
 
     if (!joined) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull,
+                               request_id);
         return;
     }
 
@@ -548,7 +571,8 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
     auto payload_res = ws::ParsePayload<ws::LobbyRejoinPayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload, request_id, payload_res.error().message);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, payload_res.error().message);
         return;
     }
 
@@ -599,13 +623,15 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
     const string  request_id = ws::GetOr<string>(message, "request_id", "");
 
     if (code.empty()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
+                               request_id);
         return;
     }
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
 
@@ -694,15 +720,17 @@ void LobbyController::HandlePromote(WsContext ctx, const json& message) {
     auto payload_res = ws::ParsePayload<ws::LobbyPromotePayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload, request_id);
-        return; 
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id);
+        return;
     }
-    
+
     const string& username = payload_res->username;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
@@ -715,12 +743,14 @@ void LobbyController::HandlePromote(WsContext ctx, const json& message) {
     auto target_it = std::ranges::find(lobby.members, username, &LobbyMember::username);
 
     if (target_it == lobby.members.end()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kUserNotInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kUserNotInLobby,
+                               request_id);
         return;
     }
 
     if (target_it->is_bot) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kCannotPromoteBot, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kCannotPromoteBot,
+                               request_id);
         return;
     }
 
@@ -739,15 +769,17 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
     auto payload_res = ws::ParsePayload<ws::LobbyKickPayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload, request_id);
-        return; 
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id);
+        return;
     }
-    
+
     const string& username = payload_res->username;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
@@ -758,14 +790,16 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
     }
 
     if (username == lobby.host) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kCannotKickSelf, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kCannotKickSelf,
+                               request_id);
         return;
     }
 
     auto target_it = std::ranges::find(lobby.members, username, &LobbyMember::username);
-    
+
     if (target_it == lobby.members.end()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kUserNotInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kUserNotInLobby,
+                               request_id);
         return;
     }
 
@@ -797,7 +831,8 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
@@ -846,13 +881,15 @@ void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& messa
     const string& code = ctx.socket_data->lobby_code;
 
     if (code.empty()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
+                               request_id);
         return;
     }
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
+                               request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
@@ -870,9 +907,9 @@ void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& messa
     auto _ = db.Exec("DELETE FROM saved_matches WHERE expires_at <= CURRENT_TIMESTAMP", {});
 
     auto rows_result = db.Query(R"(
-        SELECT m.id, m.saved_at 
-        FROM saved_matches m 
-        JOIN saved_match_participants p ON m.id = p.match_id 
+        SELECT m.id, m.saved_at
+        FROM saved_matches m
+        JOIN saved_match_participants p ON m.id = p.match_id
         WHERE p.username = ?
         ORDER BY m.saved_at DESC
     )", {username});
@@ -882,16 +919,18 @@ void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& messa
         for (const auto& row : rows_result.value()) {
             std::string match_id = row.Get<std::string>("id");
             std::string saved_at = row.Get<std::string>("saved_at");
-            
-            auto players_res = db.Query("SELECT username FROM saved_match_participants WHERE match_id = ?", {match_id});
-            
+
+            auto players_res = db.Query(
+                "SELECT username FROM saved_match_participants WHERE match_id = ?",
+                {match_id});
+
             std::vector<std::string> match_humans;
             if (players_res) {
-                for(const auto& p_row : players_res.value()) {
+                for (const auto& p_row : players_res.value()) {
                     match_humans.push_back(p_row.Get<std::string>("username"));
                 }
             }
-            
+
             std::sort(match_humans.begin(), match_humans.end());
 
             if (current_humans == match_humans) {
@@ -918,20 +957,24 @@ void LobbyController::HandleDeleteSavedMatch(WsContext context, const json& mess
     auto payload_res = ws::ParsePayload<ws::LobbyDeleteSavedMatchPayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_id, payload_res.error().message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_id,
+                               payload_res.error().message);
         return;
     }
     std::string match_id = payload_res->match_id;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kLobbyNotFound, request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
 
     if (lobby.host != context.socket_data->username) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost, request_id);
+        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost,
+                               request_id);
         return;
     }
 
@@ -939,15 +982,17 @@ void LobbyController::HandleDeleteSavedMatch(WsContext context, const json& mess
     auto row = db.QueryOne("SELECT state_json FROM saved_matches WHERE id = ?", {match_id});
 
     if (!row || !row->has_value()) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kSavedMatchNotFound, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSavedMatchNotFound, request_id);
         return;
     }
 
     auto delete_status = db.Exec("DELETE FROM saved_matches WHERE id = ?", {match_id});
     if (!delete_status) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInternalError, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
     }
-    
+
     BroadcastUpdate(lobby);
     broadcaster_.SendSuccess(context.socket, context.op_code, request_id);
 }
@@ -963,20 +1008,24 @@ void LobbyController::HandleResumeSavedMatch(WsContext context, const json& mess
     auto payload_res = ws::ParsePayload<ws::LobbyResumeSavedMatchPayload>(message);
 
     if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kInvalidPayload, request_id, payload_res.error().message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_id,
+                               payload_res.error().message);
         return;
     }
     std::string match_id = payload_res->match_id;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kLobbyNotFound, request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
 
     if (lobby.host != context.socket_data->username) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost, request_id);
+        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost,
+                               request_id);
         return;
     }
 
@@ -984,13 +1033,15 @@ void LobbyController::HandleResumeSavedMatch(WsContext context, const json& mess
     auto row = db.QueryOne("SELECT state_json FROM saved_matches WHERE id = ?", {match_id});
 
     if (!row || !row->has_value()) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kSavedMatchNotFound, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSavedMatchNotFound, request_id);
         return;
     }
 
     std::string state_json_str = row->value().Get<std::string>("state_json");
-    lobby.match = std::make_unique<match::MatchInstance>(json::parse(state_json_str), lobby.settings);
-    lobby.match->SetMatchId(match_id); 
+    lobby.match = std::make_unique<match::MatchInstance>(json::parse(state_json_str),
+                                                          lobby.settings);
+    lobby.match->SetMatchId(match_id);
 
     for (auto& cb : on_game_started_) cb(&lobby);
 
@@ -998,7 +1049,7 @@ void LobbyController::HandleResumeSavedMatch(WsContext context, const json& mess
 
     for (const auto& lobby_member : lobby.members) {
         if (!lobby_member.is_connected || !lobby_member.socket) continue;
-        
+
         json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
         response_payload["match_state"] = lobby.match->SerializePlayerState(lobby_member.username);
         broadcaster_.Send(lobby_member.socket, response_payload.dump(), uWS::OpCode::TEXT);
@@ -1016,23 +1067,27 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kLobbyNotFound, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kLobbyNotFound, request_id);
         return;
     }
     Lobby& lobby = *lobby_ptr;
 
     if (lobby.host != context.socket_data->username) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost, request_id);
+        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost,
+                               request_id);
         return;
     }
 
     if (lobby.match != nullptr) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kMatchAlreadyStarted, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kMatchAlreadyStarted, request_id);
         return;
     }
 
     if (lobby.members.size() < 2) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotEnoughPlayers, request_id);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kNotEnoughPlayers, request_id);
         return;
     }
 
@@ -1042,7 +1097,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    lobby.match->SetMatchId("match_" + GenerateInviteCode() + GenerateInviteCode()); 
+    lobby.match->SetMatchId("match_" + GenerateInviteCode() + GenerateInviteCode());
     lobby.match->Start();
 
     for (auto& cb : on_game_started_) cb(&lobby);
@@ -1099,7 +1154,9 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
  * @brief Blasts generalized configuration status changes down to all users currently subscribed to the room thread.
  * @param lobby Targeted state structure tracking information.
  */
-void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws, const std::string& username, uWS::OpCode op_code) const {
+void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws,
+                                              const std::string& username,
+                                              uWS::OpCode op_code) const {
     if (!lobby.match) return;
     json resp = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
     resp["match_state"] = lobby.match->SerializePlayerState(username);
@@ -1132,7 +1189,8 @@ void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
  * @param request_id Contextual callback tracker for matching active frontend promises.
  * @return true If the lobby survived the removal mutation.
  */
-bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bool explicit_leave, const string& request_id) {
+bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username,
+                                   bool explicit_leave, const string& request_id) {
     auto it = lobbies_.find(lobby_id);
     if (it == lobbies_.end()) return false;
 
@@ -1142,14 +1200,18 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bo
     if (member_it != lobby.members.end()) {
         if (member_it->is_connected && member_it->socket) {
             PerSocketData* sd = member_it->socket->getUserData();
-            if (sd) { sd->lobby_code.clear(); sd->lobby_id = 0; }
+            if (sd) {
+                sd->lobby_code.clear();
+                sd->lobby_id = 0;
+            }
 
             string topic = "lobby_" + lobby.invite_code;
             broadcaster_.Unsubscribe(member_it->socket, topic);
 
             json response;
-            if (explicit_leave) response = MakeResponse(ws::ServerAction::kLobbyLeft, request_id);
-            else {
+            if (explicit_leave) {
+                response = MakeResponse(ws::ServerAction::kLobbyLeft, request_id);
+            } else {
                 response = MakeResponse(ws::ServerAction::kLobbyEvicted);
                 response["reason"] = "Kicked by host";
             }
@@ -1163,19 +1225,20 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bo
             if (lobby.settings.quit_deletes_match) {
                 Logger::Info("[Match] Human '", old_name, "' quit. Aborting and saving game.");
                 SaveMatchStateToDB(lobby);
-                
+
                 json game_over_payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
-                game_over_payload["winner"] = ""; 
-                game_over_payload["reason"] = "A player left. The game state has been safely saved.";
-                
+                game_over_payload["winner"] = "";
+                game_over_payload["reason"] =
+                    "A player left. The game state has been safely saved.";
+
                 for (const auto& m : lobby.members) {
                     if (m.is_connected && m.socket && m.username != old_name) {
                         broadcaster_.Send(m.socket, game_over_payload.dump(), uWS::OpCode::TEXT);
                     }
                 }
-                
+
                 lobby.match.reset();
-                lobby.members.erase(member_it); 
+                lobby.members.erase(member_it);
             } else if (lobby.settings.allow_bot_replacement) {
                 std::string new_bot_name = GetRandomBotName(lobby);
 
@@ -1189,13 +1252,15 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username, bo
                     engine_player->is_bot = true;
                 }
 
-                Logger::Info("[Match] Human '", old_name, "' evicted mid-game. Replaced by ", new_bot_name);
+                Logger::Info("[Match] Human '", old_name, "' evicted mid-game. Replaced by ",
+                             new_bot_name);
 
                 if (was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
             } else {
                 lobby.match->RemovePlayerMidGame(old_name);
                 lobby.members.erase(member_it);
-                Logger::Info("[Match] Human '", old_name, "' evicted mid-game. Dropped from engine.");
+                Logger::Info("[Match] Human '", old_name,
+                             "' evicted mid-game. Dropped from engine.");
 
                 if (was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
             }

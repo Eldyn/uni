@@ -78,9 +78,10 @@ private:
 
         char buf[20];
         strftime(buf, sizeof(buf), "%H:%M:%S", &tm_buf);
-        
+
         std::ostringstream oss;
-        oss << Gray << "[" << buf << "." << std::setfill('0') << std::setw(3) << ms.count() << "]" << Reset;
+        oss << Gray << "[" << buf << "." << std::setfill('0') << std::setw(3) << ms.count()
+            << "]" << Reset;
         return oss.str();
     }
 
@@ -95,9 +96,10 @@ private:
 
         std::ostringstream oss;
         oss << timestamp() << " ";
-        
-        oss << Gray << "[" << Reset << color << Bold << std::left << std::setw(5) << tag << Reset << Gray << "] " << Reset;
-        
+
+        oss << Gray << "[" << Reset << color << Bold << std::left << std::setw(5) << tag << Reset
+            << Gray << "] " << Reset;
+
         // C++17 Fold Expression to unpack arguments efficiently
         (oss << ... << std::forward<Args>(args));
 
@@ -146,7 +148,7 @@ public:
      */
     template<typename... Args>
     static void HTTP(Args&&... args) { Print(Magenta, "HTTP", std::forward<Args>(args)...); }
-    
+
     /**
      * @brief Logs a basic debug message (White).
      * @tag LOG-MTH-007

@@ -54,6 +54,8 @@ public:
     bool Dispatch(WsContext ctx, const json& msg) const;
 
 private:
-    std::unordered_map<std::string, ActionHandler> handlers_; /**< Map of actions to their specific handlers. */
-    std::vector<ActionHandler> wildcards_; /**< List of middleware executed before every specific action. */
+    /**< Map of actions to their specific handlers. */
+    std::unordered_map<std::string, ActionHandler> handlers_;
+    /**< List of middleware executed before every specific action. */
+    std::vector<ActionHandler> wildcards_;
 };

@@ -5,7 +5,7 @@ namespace match {
     class ForcePlayRule : public MatchRule {
     public:
         void OnCardDrawn(MatchState* state, CardDrawnEvent& event) override {
-            event.force_play = true; // Tell the DrawCard engine to bypass DecideDrawnCardEffect
+            event.force_play = true;  // Tell the DrawCard engine to bypass DecideDrawnCardEffect
         }
     };
 
