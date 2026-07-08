@@ -21,8 +21,6 @@
 #include <string>
 
 using namespace std::chrono;
-using std::string, std::vector, std::runtime_error, std::memory_order_relaxed,
-      std::transform, std::to_string;
 
 static constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 static constexpr int  kCodeLen        = 6;
@@ -213,7 +211,7 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
     });
 
     Logger::Info("[Lobby] Registered — grace window: " +
-                 to_string(reconnect_grace_ms_ / 1000) + "s");
+                 std::to_string(reconnect_grace_ms_ / 1000) + "s");
 }
 
 /**
@@ -381,8 +379,8 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
  * @param message Received raw JSON document mapping initialization preferences.
  */
 void LobbyController::HandleCreate(WsContext ctx, const json& message) {
-    const string& username = ctx.socket_data->username;
-    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& username = ctx.socket_data->username;
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyCreatePayload>(message);
     if (!payload_res) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
@@ -403,15 +401,15 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
         return;
     }
 
-    string code;
+    std::string code;
     int attempts = 0;
     do {
         code = GenerateInviteCode();
         if (++attempts > 10)
-            throw runtime_error("[Lobby] Failed to generate unique code");
+            throw std::runtime_error("[Lobby] Failed to generate unique code");
     } while (code_to_id_.count(code));
 
-    uint32_t id = next_id_.fetch_add(1, memory_order_relaxed);
+    uint32_t id = next_id_.fetch_add(1, std::memory_order_relaxed);
 
     Lobby& lobby = lobbies_[id];
     lobby.id                   = id;
@@ -450,10 +448,10 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
 /**
  * @brief Attaches incoming network contexts to matching pre-configured room environments.
  * @param ctx Payload context wrapping request sockets and raw buffers.
- * @param message Received payload string mapping specific target identification tokens.
+ * @param message Received payload std::string mapping specific target identification tokens.
  */
 void LobbyController::HandleJoin(WsContext ctx, const json& message) {
-    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyJoinPayload>(message);
 
     if (!payload_res) {
@@ -468,8 +466,8 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
 
-    string code = payload_res->code;
-    transform(code.begin(), code.end(), code.begin(), ::toupper);
+    std::string code = payload_res->code;
+    std::transform(code.begin(), code.end(), code.begin(), ::toupper);
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -478,7 +476,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
     Lobby& lobby = *lobby_ptr;
-    const string& username = ctx.socket_data->username;
+    const std::string& username = ctx.socket_data->username;
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyMember,
@@ -567,7 +565,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
  * @param message Raw input structure indicating desired identity verification keys.
  */
 void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
-    const std::string request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyRejoinPayload>(message);
 
     if (!payload_res) {
@@ -576,8 +574,8 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
         return;
     }
 
-    string code = payload_res->code;
-    transform(code.begin(), code.end(), code.begin(), ::toupper);
+    std::string code = payload_res->code;
+    std::transform(code.begin(), code.end(), code.begin(), ::toupper);
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -587,10 +585,10 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
         return;
     }
     Lobby& lobby = *lobby_ptr;
-    const string& username = ctx.socket_data->username;
+    const std::string& username = ctx.socket_data->username;
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
-        string topic = "lobby_" + lobby.invite_code;
+        std::string topic = "lobby_" + lobby.invite_code;
         broadcaster_.Subscribe(ctx.socket, topic);
 
         auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
@@ -618,9 +616,9 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
  * @param message JSON representation of the leave request payload.
  */
 void LobbyController::HandleLeave(WsContext ctx, const json& message) {
-    const string& username   = ctx.socket_data->username;
-    const string& code       = ctx.socket_data->lobby_code;
-    const string  request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& username   = ctx.socket_data->username;
+    const std::string& code       = ctx.socket_data->lobby_code;
+    const std::string  request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     if (code.empty()) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
@@ -664,7 +662,7 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
  */
 void LobbyController::HandleList(WsContext ctx, const json& message) {
     json list = json::array();
-    string request_id = ws::GetOr<string>(message, "request_id", "");
+    std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     for (const auto& [id, lobby] : lobbies_) {
         if (!lobby.settings.is_public) continue;
@@ -676,7 +674,7 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 
         if (!any_connected) continue;
 
-        string status = lobby.match != nullptr ? "in-game"
+        std::string status = lobby.match != nullptr ? "in-game"
                        : humans >= kMaxMembers   ? "full"
                        : "open";
 
@@ -702,7 +700,7 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
  * @param message JSON message block from the client requesting metadata.
  */
 void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
-    string request_id = ws::GetOr<string>(message, "request_id", "");
+    std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     auto resp = MakeResponse(ws::ServerAction::kMetadata, request_id);
     resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
@@ -715,8 +713,8 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
  * @param message Payload specifying targeted user label parameters.
  */
 void LobbyController::HandlePromote(WsContext ctx, const json& message) {
-    const string& code       = ctx.socket_data->lobby_code;
-    const string& request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code       = ctx.socket_data->lobby_code;
+    const std::string& request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyPromotePayload>(message);
 
     if (!payload_res) {
@@ -725,7 +723,7 @@ void LobbyController::HandlePromote(WsContext ctx, const json& message) {
         return;
     }
 
-    const string& username = payload_res->username;
+    const std::string& username = payload_res->username;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -764,8 +762,8 @@ void LobbyController::HandlePromote(WsContext ctx, const json& message) {
  * @param message Input mapping parameters declaring execution constraints.
  */
 void LobbyController::HandleKick(WsContext ctx, const json& message) {
-    const string& code       = ctx.socket_data->lobby_code;
-    const string& request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code       = ctx.socket_data->lobby_code;
+    const std::string& request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyKickPayload>(message);
 
     if (!payload_res) {
@@ -774,7 +772,7 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
         return;
     }
 
-    const string& username = payload_res->username;
+    const std::string& username = payload_res->username;
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -826,8 +824,8 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
  * @param message Document declaration holding updated setting keys.
  */
 void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
-    const string& code       = ctx.socket_data->lobby_code;
-    const string& request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code       = ctx.socket_data->lobby_code;
+    const std::string& request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -876,9 +874,9 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
  * @param message Inbound payload message.
  */
 void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& message) {
-    const string request_id = ws::GetOr<string>(message, "request_id", "");
-    const string& username = ctx.socket_data->username;
-    const string& code = ctx.socket_data->lobby_code;
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
+    const std::string& username = ctx.socket_data->username;
+    const std::string& code = ctx.socket_data->lobby_code;
 
     if (code.empty()) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
@@ -949,11 +947,11 @@ void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& messa
 /**
  * @brief Removes a saved historical game session completely from persistence tracking.
  * @param context Payload context wrapping request sockets and raw buffers.
- * @param message Structure holding the specific `match_id` string to purge.
+ * @param message Structure holding the specific `match_id` std::string to purge.
  */
 void LobbyController::HandleDeleteSavedMatch(WsContext context, const json& message) {
-    const string& code = context.socket_data->lobby_code;
-    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code = context.socket_data->lobby_code;
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyDeleteSavedMatchPayload>(message);
 
     if (!payload_res) {
@@ -1003,8 +1001,8 @@ void LobbyController::HandleDeleteSavedMatch(WsContext context, const json& mess
  * @param message Structure containing the `match_id` targeting the saved state.
  */
 void LobbyController::HandleResumeSavedMatch(WsContext context, const json& message) {
-    const string& code = context.socket_data->lobby_code;
-    const string request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code = context.socket_data->lobby_code;
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     auto payload_res = ws::ParsePayload<ws::LobbyResumeSavedMatchPayload>(message);
 
     if (!payload_res) {
@@ -1062,8 +1060,8 @@ void LobbyController::HandleResumeSavedMatch(WsContext context, const json& mess
  * @param message Structured message parameter data from client frames.
  */
 void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& message) {
-    const string& code       = context.socket_data->lobby_code;
-    const string& request_id = ws::GetOr<string>(message, "request_id", "");
+    const std::string& code       = context.socket_data->lobby_code;
+    const std::string& request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     Lobby* lobby_ptr = GetLobbyByCode(code);
     if (!lobby_ptr) {
@@ -1118,15 +1116,15 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
 }
 
 /**
- * @brief Helper parsing cryptographic entropy arrays to output a random unique string identifier.
- * @return string Cryptographically randomized alphanumeric joining token.
+ * @brief Helper parsing cryptographic entropy arrays to output a random unique std::string identifier.
+ * @return std::string Cryptographically randomized alphanumeric joining token.
  */
-string LobbyController::GenerateInviteCode() {
+std::string LobbyController::GenerateInviteCode() {
     uint8_t raw[kCodeLen];
     if (RAND_bytes(raw, kCodeLen) != 1)
-        throw runtime_error("[Lobby] RAND_bytes failed generating invite code");
+        throw std::runtime_error("[Lobby] RAND_bytes failed generating invite code");
 
-    string code(kCodeLen, ' ');
+    std::string code(kCodeLen, ' ');
     for (int i = 0; i < kCodeLen; ++i)
         code[i] = kCodeAlphabet[raw[i] % kAlphabetLen];
     return code;
@@ -1189,8 +1187,8 @@ void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
  * @param request_id Contextual callback tracker for matching active frontend promises.
  * @return true If the lobby survived the removal mutation.
  */
-bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username,
-                                   bool explicit_leave, const string& request_id) {
+bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& username,
+                                   bool explicit_leave, const std::string& request_id) {
     auto it = lobbies_.find(lobby_id);
     if (it == lobbies_.end()) return false;
 
@@ -1205,7 +1203,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username,
                 sd->lobby_id = 0;
             }
 
-            string topic = "lobby_" + lobby.invite_code;
+            std::string topic = "lobby_" + lobby.invite_code;
             broadcaster_.Unsubscribe(member_it->socket, topic);
 
             json response;
@@ -1288,10 +1286,10 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const string& username,
 
 /**
  * @brief Scans active registries matching connected users back into their hosted environment pointer.
- * @param username Unique string tracking key mapping current entity identity.
+ * @param username Unique std::string tracking key mapping current entity identity.
  * @return Lobby* Pointer to target lobby framework, or nullptr on map miss.
  */
-Lobby* LobbyController::FindLobbyForUser(const string& username) {
+Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
     for (auto& [id, lobby] : lobbies_) {
         if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
             return &lobby;

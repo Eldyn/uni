@@ -95,7 +95,7 @@ namespace match {
 
     MatchInstance::MatchInstance(const json& saved_state, const LobbySettings& settings)
         : settings_(settings) {
-        std::vector<string> rules; saved_state["rules"].get_to(rules);
+        std::vector<std::string> rules; saved_state["rules"].get_to(rules);
         for (const auto& rule : rules) {
             auto new_rule = RuleRegistry::Create(rule);
             if (new_rule) {
@@ -523,7 +523,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             }
         };
 
-        string bot_username = GetCurrentPlayerUsername();
+        std::string bot_username = GetCurrentPlayerUsername();
 
         int next_idx = (state_.current_player_index + state_.play_direction +
                         state_.players.size()) % state_.players.size();

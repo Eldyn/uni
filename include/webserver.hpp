@@ -131,17 +131,17 @@ public:
     }
 
 private:
-    int    port_;           /**< Listening port of the server. */
-    string db_file_;        /**< Path of the sqlite DB file. */
-    string frontend_path_;  /**< Path of the directory with built frontend static files. */
-    bool   trust_proxy_;    /**< Honour X-Forwarded-For (set when behind a proxy). */
+    int         port_;           /**< Listening port of the server. */
+    std::string db_file_;        /**< Path of the sqlite DB file. */
+    std::string frontend_path_;  /**< Path of the directory with built frontend static files. */
+    bool        trust_proxy_;    /**< Honour X-Forwarded-For (set when behind a proxy). */
 
     AppHttp app_;                /**< Main uWebSockets instance (SSL or plain per kAppSSL). */
     UwsBroadcaster  broadcaster_{app_}; /**< Transport layer: owned broadcaster backed by app_. */
     UwsTimerService timer_service_;     /**< Timer service backed by the uWS event loop. */
 
     /**< Map of connected users (Username -> Socket). */
-    std::map<string, AppWebSocket*> connections_;
+    std::map<std::string, AppWebSocket*> connections_;
 
     ActionRouter ws_router_;    /**< Handler for dispatching WebSocket messages. */
     HttpRouter   http_router_;  /**< Handler for dispatching HTTP requests. */
@@ -219,7 +219,7 @@ private:
      * @return std::string The MIME Type (e.g. "text/html").
      * @tag SRV-UTIL-002
      */
-    static std::string     GetMimeType(const string& path);
+    static std::string     GetMimeType(const std::string& path);
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */

@@ -19,12 +19,9 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
-using std::string, std::string_view, std::ifstream, std::stringstream, std::ios,
-      std::runtime_error, std::to_string, std::isalnum;
 
-
-WebServer::WebServer(int port, string_view key_file, string_view cert_file, string_view db_file,
-                     string_view frontend_path)
+WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_file,
+                     std::string_view db_file, std::string_view frontend_path)
     : port_(port), db_file_(db_file), frontend_path_(frontend_path),
       trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
       app_(AppHttp({.key_file_name = key_file.data(), .cert_file_name = cert_file.data()})),
@@ -37,13 +34,13 @@ WebServer::WebServer(int port, string_view key_file, string_view cert_file, stri
       last_evict_(RateLimiter::Clock::now()),
       max_conn_per_ip_(std::stoi(Env::Get("MAX_CONN_PER_IP", "10"))) {
     if (!InitDB()) {
-        throw runtime_error("Failed to initialise database");
+        throw std::runtime_error("Failed to initialise database");
     }
     RegisterRoutes();
     if constexpr (kAppSSL) {
-        Logger::Info("Key file: " + string(key_file) + " exists=" +
+        Logger::Info("Key file: " + std::string(key_file) + " exists=" +
                      (fs::exists(key_file) ? "yes" : "NO"));
-        Logger::Info("Cert file: " + string(cert_file) + " exists=" +
+        Logger::Info("Cert file: " + std::string(cert_file) + " exists=" +
                      (fs::exists(cert_file) ? "yes" : "NO"));
     } else {
         Logger::Info("TLS disabled (plain HTTP) — UNI_ENABLE_SSL=0");
@@ -66,7 +63,7 @@ void WebServer::Run() {
             Logger::Log("Server listening on ", (kAppSSL ? "https" : "http"),
                        "://localhost:", port_);
         } else {
-            Logger::Error("Failed to bind to port " + to_string(port_));
+            Logger::Error("Failed to bind to port " + std::to_string(port_));
         }
     });
     app_.run();
@@ -240,10 +237,10 @@ void WebServer::RegisterRoutes() {
         .open = [this](AppWebSocket *ws) {
             OnSocketOpen(ws);
         },
-        .message = [this](AppWebSocket *ws, string_view message, uWS::OpCode op) {
+        .message = [this](AppWebSocket *ws, std::string_view message, uWS::OpCode op) {
             OnSocketMessage(ws, message, op);
         },
-        .close = [this](AppWebSocket *ws, int code, string_view message) {
+        .close = [this](AppWebSocket *ws, int code, std::string_view message) {
             OnSocketClosed(ws);
         }
     });
@@ -270,7 +267,7 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
                 return;
             }
 
-            string topic = data.value("topic", "default");
+            std::string topic = data.value("topic", "default");
             if (topic.empty() || topic.size() > 64) {
                 response->writeStatus("422 Unprocessable Entity")->end();
                 return;
@@ -308,7 +305,7 @@ namespace {
 //                          never change; long TTL avoids re-fetching the ~1 MB
 //                          JetBrainsMono on every visit, ETag covers the rare edit.
 //   everything else     -> 1 day (favicon, icons, root images).
-std::string CacheControlFor(string_view relative_path) {
+std::string CacheControlFor(std::string_view relative_path) {
     if (relative_path.ends_with(".html"))   return "no-cache";
     if (relative_path.starts_with("assets/")) return "public, max-age=31536000, immutable";
     if (relative_path.starts_with("fonts/"))  return "public, max-age=2592000";
@@ -326,7 +323,8 @@ std::string MakeETag(const fs::path& file) {
     if (ec) return "";
     const auto mtime = fs::last_write_time(file, ec);
     if (ec) return "";
-    return "W/\"" + to_string(size) + "-" + to_string(mtime.time_since_epoch().count()) + "\"";
+    return "W/\"" + std::to_string(size) + "-" +
+           std::to_string(mtime.time_since_epoch().count()) + "\"";
 }
 
 }  // namespace
@@ -337,9 +335,9 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
 
     if (!*is_alive) return;
 
-    string url = string(req->getUrl());
-    string relativePath = (url == "/") ? "index.html" : url.substr(1);
-    string if_none_match = string(req->getHeader("if-none-match"));
+    std::string url = std::string(req->getUrl());
+    std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
+    std::string if_none_match = std::string(req->getHeader("if-none-match"));
 
     std::error_code ec;
     fs::path root     = fs::weakly_canonical(fs::path(frontend_path_), ec);
@@ -348,8 +346,8 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
     const bool within_root = !ec && !rel.empty() && *rel.begin() != "..";
 
     if (within_root && fs::exists(filePath) && !fs::is_directory(filePath)) {
-        string pathStr = filePath.string();
-        string etag = MakeETag(filePath);
+        std::string pathStr = filePath.string();
+        std::string etag = MakeETag(filePath);
 
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
@@ -377,13 +375,13 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
     if (!*is_alive) return;
 
-    string url = string(req->getUrl());
-    string relativePath = (url == "/") ? "index.html" : url.substr(1);
+    std::string url = std::string(req->getUrl());
+    std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
 
     // INFO: Capture the conditional-request header now: uWebSockets recycles
     //       the request object as soon as the response is written, so it
     //       cannot be read afterwards.
-    string if_none_match = string(req->getHeader("if-none-match"));
+    std::string if_none_match = std::string(req->getHeader("if-none-match"));
 
     // INFO: Resolve both the served root and the requested file to canonical
     //       form so that "../" segments and symlinks are collapsed, then
@@ -397,8 +395,8 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     const bool within_root = !ec && !rel.empty() && *rel.begin() != "..";
 
     if (within_root && fs::exists(filePath) && !fs::is_directory(filePath)) {
-        string pathStr = filePath.string();
-        string etag = MakeETag(filePath);
+        std::string pathStr = filePath.string();
+        std::string etag = MakeETag(filePath);
 
         // INFO: Conditional request: the client already holds this exact
         //       version, so skip resending the body. This is what makes
@@ -456,7 +454,8 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
     Logger::Log("[WS] Connection closed: ", socket_data->username);
 }
 
-void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::OpCode op_code) {
+void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
+                                uWS::OpCode op_code) {
     // INFO: A malformed frame must never escape this callback: an exception
     //       thrown through uWebSockets' C event loop terminates the whole
     //       process, so a single junk frame from any connected client would
@@ -484,19 +483,19 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, string_view message, uWS::
     }
 }
 
-string WebServer::ReadFile(string_view path) {
-    ifstream is(path.data(), ios::binary);
+std::string WebServer::ReadFile(std::string_view path) {
+    std::ifstream is(path.data(), std::ios::binary);
 
     if (!is) {
         return "";
     }
 
-    stringstream buf;
+    std::stringstream buf;
     buf << is.rdbuf();
     return buf.str();
 }
 
-string WebServer::GetMimeType(const string &path) {
+std::string WebServer::GetMimeType(const std::string &path) {
     if (path.ends_with(".html"))   return "text/html";
     if (path.ends_with(".js"))     return "text/javascript";
     if (path.ends_with(".css"))    return "text/css";

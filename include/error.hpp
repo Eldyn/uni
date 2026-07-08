@@ -1,8 +1,6 @@
 #pragma once
 #include <string>
 
-using std::string;
-
 /**
  * @file error.hpp
  * @brief Definition of the standard system and protocol errors.
@@ -31,25 +29,25 @@ struct Error {
         kInternalError,     /**< Unhandled exception or server logic error. */
     };
 
-    Code   code;            /**< Type of the error. */
-    string message;         /**< Human-readable textual detail. */
+    Code        code;            /**< Type of the error. */
+    std::string message;         /**< Human-readable textual detail. */
 
     // --- Factory Methods ---
 
     /** @brief Creates an error of type kBadRequest. @tag ERR-MTH-001 */
-    static Error BadRequest   (const string& msg) { return {Code::kBadRequest,       msg}; }
+    static Error BadRequest   (const std::string& msg) { return {Code::kBadRequest,       msg}; }
     /** @brief Creates an error of type kInvalidInput. @tag ERR-MTH-002 */
-    static Error InvalidInput (const string& msg) { return {Code::kInvalidInput,     msg}; }
+    static Error InvalidInput (const std::string& msg) { return {Code::kInvalidInput,     msg}; }
     /** @brief Creates an error of type kNotFound. @tag ERR-MTH-003 */
-    static Error NotFound     (const string& msg) { return {Code::kNotFound,         msg}; }
+    static Error NotFound     (const std::string& msg) { return {Code::kNotFound,         msg}; }
     /** @brief Creates an error of type kUnauthorised. @tag ERR-MTH-004 */
-    static Error Unauthorised (const string& msg) { return {Code::kUnauthorised,     msg}; }
+    static Error Unauthorised (const std::string& msg) { return {Code::kUnauthorised,     msg}; }
     /** @brief Creates an error of type kConflict. @tag ERR-MTH-005 */
-    static Error Conflict     (const string& msg) { return {Code::kConflict,         msg}; }
+    static Error Conflict     (const std::string& msg) { return {Code::kConflict,         msg}; }
     /** @brief Creates a DB error kDatabaseFailure. @tag ERR-MTH-006 */
-    static Error DatabaseFail (const string& msg) { return {Code::kDatabaseFailure,  msg}; }
+    static Error DatabaseFail (const std::string& msg) { return {Code::kDatabaseFailure,  msg}; }
     /** @brief Creates a generic error kInternalError. @tag ERR-MTH-007 */
-    static Error Internal     (const string& msg) { return {Code::kInternalError,    msg}; }
+    static Error Internal     (const std::string& msg) { return {Code::kInternalError,    msg}; }
 
     /**
      * @brief Maps the internal error code to the corresponding HTTP Status Code.

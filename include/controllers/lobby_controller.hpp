@@ -329,8 +329,8 @@ private:
      * @return true if the lobby still exists, false if it was destroyed.
      * @tag LOBBY-PRIV-003
      */
-    bool RemoveMember(uint32_t lobby_id, const string& username, bool explicit_leave = true,
-                       const string& request_id = "");
+    bool RemoveMember(uint32_t lobby_id, const std::string& username, bool explicit_leave = true,
+                       const std::string& request_id = "");
 
     /**
      * @brief Finds which lobby a given user currently belongs to.
