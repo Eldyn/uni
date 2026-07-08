@@ -183,47 +183,70 @@ private:
  * @brief Implements the safe execution of database transactions through the RAII paradigm.
  * * Ensures that any blocking failure within its C++ scope
  * automatically triggers a ROLLBACK (if `Commit()` was not called explicitly),
- * avoiding inconsistencies in the database.
+ * avoiding inconsistencies in the database. Construction never throws; callers
+ * must check `Ok()` before using the guard.
  * @tag DB-TX-001
  */
 class TransactionGuard {
 public:
     /**
      * @brief Begins the transaction by executing "BEGIN TRANSACTION".
+     * Never throws; check `Ok()` to determine whether the transaction began.
      * @param db The database to operate on.
      * @tag DB-TX-MTH-001
      */
     explicit TransactionGuard(Database& db) : db_(db), committed_(false) {
         auto res = db_.Exec("BEGIN TRANSACTION;");
         if (!res) {
-            throw std::runtime_error("Failed to begin transaction: " + res.error().message);
+            error_ = res.error();
         }
     }
 
     /**
-     * @brief Destructor: Executes "ROLLBACK" if the transaction was not completed normally.
+     * @brief Destructor: Executes "ROLLBACK" if a started transaction was not committed.
      * @tag DB-TX-MTH-002
      */
     ~TransactionGuard() {
-        if (!committed_) {
+        if (Ok() && !committed_) {
             auto _ = db_.Exec("ROLLBACK;");
             Logger::Error("[DB] Transaction failed, rolling back...");
         }
     }
 
     /**
-     * @brief Marks the transaction for a successful completion (executes "COMMIT").
-     * If called, it cancels the rollback effect upon destruction of the Guard.
+     * @brief Checks whether the transaction was successfully started.
+     * @return true if "BEGIN TRANSACTION" succeeded.
      * @tag DB-TX-MTH-003
      */
-    void Commit() {
+    bool Ok() const { return !error_.has_value(); }
+
+    /**
+     * @brief Returns the error captured during construction or Commit().
+     * Only valid to call when `Ok()` (or the last `Commit()`) returned false.
+     * @return const Error& The stored error.
+     * @tag DB-TX-MTH-004
+     */
+    const Error& GetError() const { return *error_; }
+
+    /**
+     * @brief Marks the transaction for a successful completion (executes "COMMIT").
+     * If called, it cancels the rollback effect upon destruction of the Guard.
+     * @return VoidResult Error if the transaction never began or COMMIT failed.
+     * @tag DB-TX-MTH-005
+     */
+    VoidResult Commit() {
+        if (!Ok()) {
+            return std::unexpected(*error_);
+        }
         if (!committed_) {
             auto res = db_.Exec("COMMIT;");
             if (!res) {
-                throw std::runtime_error("Failed to COMMIT transaction: " + res.error().message);
+                error_ = res.error();
+                return std::unexpected(*error_);
             }
             committed_ = true;
         }
+        return {};
     }
 
     TransactionGuard(const TransactionGuard&) = delete;
@@ -232,4 +255,5 @@ public:
 private:
     Database& db_;
     bool committed_;
+    std::optional<Error> error_;
 };

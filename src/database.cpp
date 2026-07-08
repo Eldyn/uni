@@ -237,13 +237,18 @@ VoidResult Database::RunMigrations() {
     for (const auto& m : MIGRATIONS) {
         if (m.version <= current) continue;
         TransactionGuard tx(*this);
+        if (!tx.Ok()) {
+            return std::unexpected(tx.GetError());
+        }
         if (auto r = ApplySchema(m.sql); !r) {
             return r;
         }
         if (auto r = SetSchemaVersion(m.version); !r) {
             return r;
         }
-        tx.Commit();
+        if (auto r = tx.Commit(); !r) {
+            return r;
+        }
         Logger::Info("[DB] Migration v", m.version, " applied");
     }
     return {};

@@ -308,6 +308,9 @@ namespace match {
                 }
 
                 TransactionGuard tx(db);
+                if (!tx.Ok()) {
+                    throw std::runtime_error(tx.GetError().message);
+                }
 
                 if (!match_id_.empty()) {
                     auto delete_save_status = db.Exec("DELETE FROM saved_matches WHERE id = ?",
@@ -396,7 +399,9 @@ namespace match {
                     }
                 }
 
-                tx.Commit();
+                if (auto commit_status = tx.Commit(); !commit_status) {
+                    throw std::runtime_error(commit_status.error().message);
+                }
                 Logger::Info("[Match] Saved match stats to DB securely.");
         } catch (const std::exception& e) {
             Logger::Error("[Match DB Error] ", e.what());

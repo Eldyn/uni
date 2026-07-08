@@ -244,6 +244,9 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
         if (!db.IsOpen()) return;
 
         TransactionGuard tx(db);
+        if (!tx.Ok()) {
+            throw std::runtime_error(tx.GetError().message);
+        }
 
         auto res_upsert = db.Exec(R"(
             INSERT INTO saved_matches (id, state_json) VALUES (?, ?)
@@ -275,7 +278,9 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
             }
         }
 
-        tx.Commit();
+        if (auto commit_status = tx.Commit(); !commit_status) {
+            throw std::runtime_error(commit_status.error().message);
+        }
         Logger::Info("[Lobby] Safely upserted match state to DB: ", match_id);
     } catch (const std::exception& e) {
         Logger::Error("[Lobby DB Error] Failed to save state: ", e.what());
