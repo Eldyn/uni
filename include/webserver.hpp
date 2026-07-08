@@ -1,5 +1,4 @@
 #pragma once
-#include <map>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -139,9 +138,6 @@ private:
     AppHttp app_;                /**< Main uWebSockets instance (SSL or plain per kAppSSL). */
     UwsBroadcaster  broadcaster_{app_}; /**< Transport layer: owned broadcaster backed by app_. */
     UwsTimerService timer_service_;     /**< Timer service backed by the uWS event loop. */
-
-    /** Map of connected users (Username -> Socket). */
-    std::map<std::string, AppWebSocket*> connections_;
 
     ActionRouter ws_router_;    /**< Handler for dispatching WebSocket messages. */
     HttpRouter   http_router_;  /**< Handler for dispatching HTTP requests. */

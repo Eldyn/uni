@@ -425,7 +425,6 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
 void WebServer::OnSocketOpen(AppWebSocket* socket) {
     PerSocketData *socket_data = socket->getUserData();
-    connections_[socket_data->username] = socket;
 
     for (auto handler : on_open_hooks_) {
         handler(socket, socket_data);
@@ -440,8 +439,6 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
     for (auto handler : on_close_hooks_) {
         handler(socket, socket_data);
     }
-
-    connections_.erase(socket_data->username);
 
     // INFO: Release this IP's connection slot; drop the entry once it
     //       reaches zero.
