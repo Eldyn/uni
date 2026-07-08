@@ -287,48 +287,6 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
     });
 }
 
-namespace {
-
-// INFO: Cache policy for a static asset, keyed on its path within the
-//       served root.
-//
-//   *.html              -> "no-cache": always revalidate. index.html is the
-//                          entry point that names the content-hashed bundles,
-//                          so a returning client must re-check it or a redeploy
-//                          would stay invisible. "no-cache" still allows storing
-//                          the copy; paired with the ETag below the recheck is a
-//                          cheap 304 when nothing changed.
-//   assets/*            -> immutable for a year. Vite content-hashes these
-//                          (e.g. assets/index-8FzcvdAa.js); a new build yields a
-//                          new name, so the old URL can be trusted forever.
-//   fonts/*             -> 30 days. Stable filenames whose bytes effectively
-//                          never change; long TTL avoids re-fetching the ~1 MB
-//                          JetBrainsMono on every visit, ETag covers the rare edit.
-//   everything else     -> 1 day (favicon, icons, root images).
-std::string CacheControlFor(std::string_view relative_path) {
-    if (relative_path.ends_with(".html"))   return "no-cache";
-    if (relative_path.starts_with("assets/")) return "public, max-age=31536000, immutable";
-    if (relative_path.starts_with("fonts/"))  return "public, max-age=2592000";
-    return "public, max-age=86400";
-}
-
-// INFO: Weak ETag derived from the file's size and last-write time. It is
-//       an opaque validator (RFC 7232) that only has to change when the
-//       file does — size+mtime captures that without hashing the contents.
-//       Empty return means the file could not be stat'd, in which case the
-//       caller simply omits the header.
-std::string MakeETag(const fs::path& file) {
-    std::error_code ec;
-    const auto size = fs::file_size(file, ec);
-    if (ec) return "";
-    const auto mtime = fs::last_write_time(file, ec);
-    if (ec) return "";
-    return "W/\"" + std::to_string(size) + "-" +
-           std::to_string(mtime.time_since_epoch().count()) + "\"";
-}
-
-}  // namespace
-
 void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
     auto is_alive = std::make_shared<bool>(true);
     res->onAborted([is_alive]() { *is_alive = false; });
@@ -339,26 +297,23 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
     std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
     std::string if_none_match = std::string(req->getHeader("if-none-match"));
 
-    std::error_code ec;
-    fs::path root     = fs::weakly_canonical(fs::path(frontend_path_), ec);
-    fs::path filePath = fs::weakly_canonical(root / relativePath, ec);
-    fs::path rel      = filePath.lexically_relative(root);
-    const bool within_root = !ec && !rel.empty() && *rel.begin() != "..";
+    auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
 
-    if (within_root && fs::exists(filePath) && !fs::is_directory(filePath)) {
+    if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
+        const fs::path& filePath = *resolved;
         std::string pathStr = filePath.string();
-        std::string etag = MakeETag(filePath);
+        std::string etag = http::MakeETag(filePath);
 
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
-                ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+                ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("ETag", etag)
                 ->end();
             return;
         }
 
-        res->writeHeader("Content-Type", GetMimeType(pathStr))
-            ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+        res->writeHeader("Content-Type", http::GetMimeType(pathStr))
+            ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
             ->writeHeader("X-Content-Type-Options", "nosniff");
         if (!etag.empty()) {
             res->writeHeader("ETag", etag);
@@ -388,15 +343,12 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     //       confirm the result stays inside the root. Without this, a raw
     //       request such as "GET /../../etc/passwd" would escape
     //       frontend_path_ and disclose host files.
-    std::error_code ec;
-    fs::path root     = fs::weakly_canonical(fs::path(frontend_path_), ec);
-    fs::path filePath = fs::weakly_canonical(root / relativePath, ec);
-    fs::path rel      = filePath.lexically_relative(root);
-    const bool within_root = !ec && !rel.empty() && *rel.begin() != "..";
+    auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
 
-    if (within_root && fs::exists(filePath) && !fs::is_directory(filePath)) {
+    if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
+        const fs::path& filePath = *resolved;
         std::string pathStr = filePath.string();
-        std::string etag = MakeETag(filePath);
+        std::string etag = http::MakeETag(filePath);
 
         // INFO: Conditional request: the client already holds this exact
         //       version, so skip resending the body. This is what makes
@@ -404,21 +356,23 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
         //       max-age lapses — an empty 304 instead of ~1 MB on the wire.
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
-                ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+                ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("ETag", etag)
                 ->end();
             return;
         }
 
-        res->writeHeader("Content-Type", GetMimeType(pathStr))
-            ->writeHeader("Cache-Control", CacheControlFor(relativePath))
+        res->writeHeader("Content-Type", http::GetMimeType(pathStr))
+            ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
             ->writeHeader("X-Content-Type-Options", "nosniff");
         if (!etag.empty()) {
             res->writeHeader("ETag", etag);
         }
         res->end(ReadFile(pathStr));
     } else {
-        Logger::Log("[GET] 404 – ", filePath.string());
+        std::error_code ec;
+        fs::path logged_path = fs::weakly_canonical(fs::path(frontend_path_) / relativePath, ec);
+        Logger::Log("[GET] 404 – ", logged_path.string());
         res->writeStatus("404 Not Found")->end("File not found");
     }
 }
@@ -490,18 +444,6 @@ std::string WebServer::ReadFile(std::string_view path) {
     std::stringstream buf;
     buf << is.rdbuf();
     return buf.str();
-}
-
-std::string WebServer::GetMimeType(const std::string &path) {
-    if (path.ends_with(".html"))   return "text/html";
-    if (path.ends_with(".js"))     return "text/javascript";
-    if (path.ends_with(".css"))    return "text/css";
-    if (path.ends_with(".svg"))    return "image/svg+xml";
-    if (path.ends_with(".png"))    return "image/png";
-    if (path.ends_with(".woff2"))  return "font/woff2";
-    if (path.ends_with(".woff"))   return "font/woff";
-    if (path.ends_with(".xml"))    return "application/xml";
-    return "application/octet-stream";
 }
 
 void WebServer::OnConnectionOpen(ConnectionHandler handler) {

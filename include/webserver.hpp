@@ -9,6 +9,7 @@
 #include <action_router.hpp>
 #include <http_router.hpp>
 #include <websocket_context.hpp>
+#include <common/http_utils.hpp>
 #include <common/rate_limiter.hpp>
 #include <transport/uws_broadcaster.hpp>
 #include <transport/uws_timer_service.hpp>
@@ -208,14 +209,6 @@ private:
      * @tag SRV-UTIL-001
      */
     static std::string     ReadFile(std::string_view path);
-
-    /**
-     * @brief Deduces the MimeType of a file based on its extension.
-     * @param path Path of the file.
-     * @return std::string The MIME Type (e.g. "text/html").
-     * @tag SRV-UTIL-002
-     */
-    static std::string     GetMimeType(const std::string& path);
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */
