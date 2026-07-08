@@ -140,7 +140,7 @@ private:
     UwsBroadcaster  broadcaster_{app_}; /**< Transport layer: owned broadcaster backed by app_. */
     UwsTimerService timer_service_;     /**< Timer service backed by the uWS event loop. */
 
-    /**< Map of connected users (Username -> Socket). */
+    /** Map of connected users (Username -> Socket). */
     std::map<std::string, AppWebSocket*> connections_;
 
     ActionRouter ws_router_;    /**< Handler for dispatching WebSocket messages. */
@@ -224,6 +224,6 @@ private:
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */
 
-    /**< Source for the active-match count (see /internal/active-games). */
+    /** Source for the active-match count (see /internal/active-games). */
     std::function<std::size_t()> active_match_provider_;
 };

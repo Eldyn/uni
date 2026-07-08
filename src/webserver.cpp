@@ -173,10 +173,10 @@ void WebServer::RegisterRoutes() {
     //       size, idle time and server-side backpressure stops oversized
     //       frames, slow-loris sockets and unbounded outbound buffering from
     //       exhausting memory.
-    const unsigned int ws_max_payload =
-        static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));  // 16 KB
-    const unsigned int ws_max_backpressure =
-        static_cast<unsigned int>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576")));  // 1 MB
+    const uint32_t ws_max_payload =
+        static_cast<uint32_t>(std::stoul(Env::Get("WS_MAX_PAYLOAD", "16384")));  // 16 KB
+    const uint32_t ws_max_backpressure =
+        static_cast<uint32_t>(std::stoul(Env::Get("WS_MAX_BACKPRESSURE", "1048576")));  // 1 MB
     const uint16_t ws_idle_timeout =
         static_cast<uint16_t>(std::stoi(Env::Get("WS_IDLE_TIMEOUT", "120")));  // seconds
 

@@ -167,5 +167,10 @@ pip install --user cpplint
 scripts/lint_cpp.sh
 ```
 
+`clang-format` settings live in `.clang-format` (Google base, 100-column limit
+to match `CPPLINT.cfg`) for editor format-on-save — it is not run over the
+whole tree in CI, so existing files keep their current formatting until
+they're next edited.
+
 CI runs the same check on every push/PR touching `src/` or `include/` (see
 `.github/workflows/lint.yml`).
