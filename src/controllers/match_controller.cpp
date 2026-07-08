@@ -236,109 +236,112 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
 
     std::string current_player_username = active_lobby->match->GetCurrentPlayerUsername();
 
-    if (active_lobby->match->IsBot(current_player_username)) {
-        int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly
-            ? bot_instant_delay_ms_
-            : std::uniform_int_distribution<int>(bot_wait_min_ms_, bot_wait_max_ms_ - 1)(rng_);
-
-        // INFO: Waiting for each input is tiresome. "Pending Color" -> ~2
-        //       seconds, "Draw or Play" -> ~2 seconds. This stacks up. Let's
-        //       be instantaneous!
-        if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
-
-        auto end_time = std::chrono::steady_clock::now() +
-            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-        active_lobby->match->SetTurnEndTime(end_time);
-
-        uint32_t current_lobby_id = active_lobby->id;
-
-        SetTurnTimer(current_lobby_id, bot_thinking_ms,
-                    [this, current_lobby_id, current_player_username]() {
-            Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-            if (verified_lobby && verified_lobby->match) {
-                if (verified_lobby->match->GetCurrentPlayerUsername() == current_player_username) {
-                    verified_lobby->match->TakeBotTurn();
-                    OnTurnStarted(verified_lobby);
-                    BroadcastMatchState(verified_lobby);
-                }
-            }
-        });
-
-        return;
-    }
-
-    bool is_player_connected = false;
-    for (const auto& lobby_member : active_lobby->members) {
-        if (lobby_member.username == current_player_username) {
-            is_player_connected = lobby_member.is_connected;
-            break;
+    auto is_connected = [active_lobby](const std::string& username) {
+        for (const auto& m : active_lobby->members) {
+            if (m.username == username && m.is_connected) return true;
         }
-    }
+        return false;
+    };
 
-    if (active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly &&
-        !is_player_connected) {
-        Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
+    switch (active_lobby->match->GetTurnTimeoutPolicy(is_connected)) {
+        case match::TurnTimeoutPolicy::kBotThinking: {
+            int bot_thinking_ms =
+                active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly
+                    ? bot_instant_delay_ms_
+                    : std::uniform_int_distribution<int>(
+                          bot_wait_min_ms_, bot_wait_max_ms_ - 1)(rng_);
 
-        // INFO: Broadcast between each step so every action is visible to
-        //       connected players.
-        auto is_connected = [active_lobby](const std::string& username) {
-            for (const auto& m : active_lobby->members) {
-                if (m.username == username && m.is_connected) return true;
-            }
-            return false;
-        };
-        auto on_step = [this, active_lobby]() { BroadcastMatchState(active_lobby); };
+            // INFO: Waiting for each input is tiresome. "Pending Color" -> ~2
+            //       seconds, "Draw or Play" -> ~2 seconds. This stacks up.
+            //       Let's be instantaneous!
+            if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
 
-        auto advance_result = active_lobby->match->AdvanceBotTurns(is_connected, on_step);
-        if (advance_result.stalled) {
-            Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
-        }
+            auto end_time = std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+            active_lobby->match->SetTurnEndTime(end_time);
 
-        OnTurnStarted(active_lobby);
-        return;
-    }
+            uint32_t current_lobby_id = active_lobby->id;
 
-    // If the game is waiting for action input (e.g. colour pick after a Jolly),
-    // always arm a timer regardless of bot mode — the pending player must respond
-    // within the turn time limit or a bot handles it for them.
-    if (active_lobby->match->IsWaitingForInput()) {
-        std::string pending = active_lobby->match->GetPendingPlayer();
-        auto end_time = std::chrono::steady_clock::now() +
-                        std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-        active_lobby->match->SetTurnEndTime(end_time);
-        uint32_t current_lobby_id = active_lobby->id;
-        SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
-            [this, current_lobby_id, pending]() {
+            SetTurnTimer(current_lobby_id, bot_thinking_ms,
+                        [this, current_lobby_id, current_player_username]() {
                 Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-                if (!verified_lobby || !verified_lobby->match) return;
-                if (!verified_lobby->match->IsWaitingForInput()) return;
-                if (verified_lobby->match->GetPendingPlayer() != pending) return;
-                Logger::Info("[MATCH] Action timeout for player: ", pending);
-                verified_lobby->match->TakeBotTurn();
-                OnTurnStarted(verified_lobby);
-                BroadcastMatchState(verified_lobby);
+                if (verified_lobby && verified_lobby->match) {
+                    if (verified_lobby->match->GetCurrentPlayerUsername() ==
+                        current_player_username) {
+                        verified_lobby->match->TakeBotTurn();
+                        OnTurnStarted(verified_lobby);
+                        BroadcastMatchState(verified_lobby);
+                    }
+                }
             });
-        return;
-    }
+            return;
+        }
 
-    if (active_lobby->settings.bot_mode == BotTakeoverMode::kWaitUntilTurnEnd) {
-        auto end_time = std::chrono::steady_clock::now() +
-                        std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-        active_lobby->match->SetTurnEndTime(end_time);
+        case match::TurnTimeoutPolicy::kInstantBotAdvance: {
+            Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
 
-        uint32_t current_lobby_id = active_lobby->id;
-        SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
-                    [this, current_lobby_id, current_player_username]() {
-            Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-            if (verified_lobby && verified_lobby->match) {
-                if (verified_lobby->match->GetCurrentPlayerUsername() == current_player_username) {
-                    Logger::Info("[MATCH] Bot playing for AFK player: ", current_player_username);
+            // INFO: Broadcast between each step so every action is visible to
+            //       connected players.
+            auto on_step = [this, active_lobby]() { BroadcastMatchState(active_lobby); };
+
+            auto advance_result = active_lobby->match->AdvanceBotTurns(is_connected, on_step);
+            if (advance_result.stalled) {
+                Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
+            }
+
+            OnTurnStarted(active_lobby);
+            return;
+        }
+
+        case match::TurnTimeoutPolicy::kInputWaitTimeout: {
+            // INFO: The engine is waiting for action input (e.g. colour pick
+            //       after a Jolly). A timer is always armed here regardless of
+            //       bot mode — the pending player must respond within the turn
+            //       time limit or a bot handles it for them.
+            std::string pending = active_lobby->match->GetPendingPlayer();
+            auto end_time = std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+            active_lobby->match->SetTurnEndTime(end_time);
+            uint32_t current_lobby_id = active_lobby->id;
+            SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
+                [this, current_lobby_id, pending]() {
+                    Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
+                    if (!verified_lobby || !verified_lobby->match) return;
+                    if (!verified_lobby->match->IsWaitingForInput()) return;
+                    if (verified_lobby->match->GetPendingPlayer() != pending) return;
+                    Logger::Info("[MATCH] Action timeout for player: ", pending);
                     verified_lobby->match->TakeBotTurn();
                     OnTurnStarted(verified_lobby);
                     BroadcastMatchState(verified_lobby);
+                });
+            return;
+        }
+
+        case match::TurnTimeoutPolicy::kHumanAfkTimeout: {
+            auto end_time = std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
+            active_lobby->match->SetTurnEndTime(end_time);
+
+            uint32_t current_lobby_id = active_lobby->id;
+            SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
+                        [this, current_lobby_id, current_player_username]() {
+                Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
+                if (verified_lobby && verified_lobby->match) {
+                    if (verified_lobby->match->GetCurrentPlayerUsername() ==
+                        current_player_username) {
+                        Logger::Info("[MATCH] Bot playing for AFK player: ",
+                                     current_player_username);
+                        verified_lobby->match->TakeBotTurn();
+                        OnTurnStarted(verified_lobby);
+                        BroadcastMatchState(verified_lobby);
+                    }
                 }
-            }
-        });
+            });
+            return;
+        }
+
+        case match::TurnTimeoutPolicy::kNone:
+            return;
     }
 }
 

@@ -33,6 +33,19 @@ namespace match {
     };
 
     /**
+     * @enum TurnTimeoutPolicy
+     * @brief Describes what kind of timer (if any) should govern the current turn.
+     * @tag MATCH-INST-ENUM-001
+     */
+    enum class TurnTimeoutPolicy {
+        kBotThinking,        /**< Current player is a bot: arm a "thinking" delay timer. */
+        kInstantBotAdvance,    /**< Current player is a disconnected human under kPlayInstantly. */
+        kInputWaitTimeout,     /**< The engine is waiting for input from a pending player. */
+        kHumanAfkTimeout,      /**< Current player is a human under kWaitUntilTurnEnd. */
+        kNone                  /**< No timer should be armed for the current turn. */
+    };
+
+    /**
      * @class MatchInstance
      * @brief Represents an active instance of a match.
      * * Maintains the internal match state (`MatchState`), manages the flow of turns,
@@ -184,6 +197,15 @@ namespace match {
         BotAdvanceResult AdvanceBotTurns(const std::function<bool(const std::string&)>&
                                               is_connected,
                                           const std::function<void()>& on_step);
+
+        /**
+         * @brief Determines what kind of timer should govern the current turn.
+         * @param is_connected Predicate telling whether a given username is currently connected.
+         * @return TurnTimeoutPolicy The policy the controller should act on.
+         * @tag MATCH-INST-027
+         */
+        TurnTimeoutPolicy GetTurnTimeoutPolicy(
+            const std::function<bool(const std::string&)>& is_connected) const;
 
         /**
          * @brief Returns the user from whom a mandatory input is being awaited.

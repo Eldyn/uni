@@ -157,3 +157,76 @@ TEST_CASE("AdvanceBotTurns: a stalled state (same player, same waiting-state aft
     CHECK(result.stalled);
     CHECK_FALSE(result.match_over);
 }
+
+// ---------------------------------------------------------------------------
+// GetTurnTimeoutPolicy
+// ---------------------------------------------------------------------------
+
+static LobbySettings settings_with_mode(BotTakeoverMode mode) {
+    LobbySettings s = default_settings();
+    s.bot_mode = mode;
+    return s;
+}
+
+static auto always_connected = [](const std::string&) { return true; };
+static auto never_connected  = [](const std::string&) { return false; };
+
+TEST_CASE("GetTurnTimeoutPolicy: a bot's turn always resolves to kBotThinking") {
+    std::vector<std::pair<std::string, bool>> players = {{"BotBob", true}, {"Alice", false}};
+    MatchInstance m(players, settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    m.Start();
+
+    CHECK(m.GetTurnTimeoutPolicy(always_connected) == TurnTimeoutPolicy::kBotThinking);
+    CHECK(m.GetTurnTimeoutPolicy(never_connected) == TurnTimeoutPolicy::kBotThinking);
+}
+
+TEST_CASE("GetTurnTimeoutPolicy: a connected human under kWaitUntilTurnEnd resolves to "
+          "kHumanAfkTimeout") {
+    std::vector<std::pair<std::string, bool>> players = {{"Alice", false}, {"Bob", false}};
+    MatchInstance m(players, settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    m.Start();
+
+    CHECK(m.GetTurnTimeoutPolicy(always_connected) == TurnTimeoutPolicy::kHumanAfkTimeout);
+}
+
+TEST_CASE("GetTurnTimeoutPolicy: a disconnected human under kPlayInstantly resolves to "
+          "kInstantBotAdvance") {
+    std::vector<std::pair<std::string, bool>> players = {{"Alice", false}, {"Bob", false}};
+    MatchInstance m(players, settings_with_mode(BotTakeoverMode::kPlayInstantly));
+    m.Start();
+
+    CHECK(m.GetTurnTimeoutPolicy(never_connected) == TurnTimeoutPolicy::kInstantBotAdvance);
+}
+
+TEST_CASE("GetTurnTimeoutPolicy: a pending-input human resolves to kInputWaitTimeout") {
+    json saved_state;
+    saved_state["rules"]                = json::array();
+    saved_state["status"]               = 1;  // kPlaying
+    saved_state["active_type"]          = 0;  // kRed
+    saved_state["current_player_index"] = 0;
+    saved_state["play_direction"]       = 1;
+    saved_state["pending_player"]       = "Alice";
+    saved_state["pending_action"]       = 0;  // kChooseType
+    saved_state["discard_pile"]         = json::array({MakeCard(Type::kRed, Value::k5, 100)});
+    saved_state["draw_pile"]            = json::array();
+    saved_state["players"] = json::array({
+        {{"username", "Alice"}, {"hand", json::array()},
+         {"is_bot", false}, {"has_called_uno", false}},
+        {{"username", "Bob"}, {"hand", json::array()},
+         {"is_bot", false}, {"has_called_uno", false}}
+    });
+
+    MatchInstance m(saved_state, settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+
+    REQUIRE(m.IsWaitingForInput());
+    CHECK(m.GetTurnTimeoutPolicy(always_connected) == TurnTimeoutPolicy::kInputWaitTimeout);
+}
+
+TEST_CASE("GetTurnTimeoutPolicy: a connected human under kPlayInstantly with no pending "
+          "input falls through to kNone") {
+    std::vector<std::pair<std::string, bool>> players = {{"Alice", false}, {"Bob", false}};
+    MatchInstance m(players, settings_with_mode(BotTakeoverMode::kPlayInstantly));
+    m.Start();
+
+    CHECK(m.GetTurnTimeoutPolicy(always_connected) == TurnTimeoutPolicy::kNone);
+}

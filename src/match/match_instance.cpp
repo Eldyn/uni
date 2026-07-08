@@ -635,6 +635,31 @@ bool MatchInstance::DrawCard(const std::string& username) {
         Tick();
     }
 
+    TurnTimeoutPolicy MatchInstance::GetTurnTimeoutPolicy(
+        const std::function<bool(const std::string&)>& is_connected) const {
+        std::string current_player_username = GetCurrentPlayerUsername();
+
+        if (IsBot(current_player_username)) {
+            return TurnTimeoutPolicy::kBotThinking;
+        }
+
+        bool is_player_connected = is_connected(current_player_username);
+
+        if (settings_.bot_mode == BotTakeoverMode::kPlayInstantly && !is_player_connected) {
+            return TurnTimeoutPolicy::kInstantBotAdvance;
+        }
+
+        if (IsWaitingForInput()) {
+            return TurnTimeoutPolicy::kInputWaitTimeout;
+        }
+
+        if (settings_.bot_mode == BotTakeoverMode::kWaitUntilTurnEnd) {
+            return TurnTimeoutPolicy::kHumanAfkTimeout;
+        }
+
+        return TurnTimeoutPolicy::kNone;
+    }
+
     std::string MatchInstance::GetCurrentPlayerUsername() const {
         if (state_.players.empty()) return "";
         return state_.players[state_.current_player_index].username;
