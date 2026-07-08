@@ -277,3 +277,78 @@ TEST_CASE("ClearTurnTimer: the match reaching a terminal state stops the timer c
     CHECK(f.store.lobby.match->IsMatchOver());
 }
 }  // TEST_SUITE("MatchController")
+
+// ---------------------------------------------------------------------------
+// Test: full-game bot simulation with all mods enabled.
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::FullGameSimulation") {
+TEST_CASE("Full match: 4 bots with every mod enabled reaches a terminal state "
+          "without hanging, crashing, or violating invariants") {
+    MatchFixture f;
+
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000);
+    settings.active_mods = {"seven_zero", "draw_stacking", "force_play", "jump_in", "progressive"};
+
+    f.SetupMatch(all_bots(4), settings);
+
+    constexpr int kMaxFires = 20'000;
+    int fired = f.DrainTurnTimer(kMaxFires);
+
+    REQUIRE(fired < kMaxFires);
+    REQUIRE(f.store.lobby.match->IsMatchOver());
+
+    std::string winner = f.store.lobby.match->GetWinner();
+    CHECK_FALSE(winner.empty());
+
+    // The winner must be one of the participating bots.
+    bool winner_is_participant = false;
+    for (const auto& member : f.store.lobby.members) {
+        if (member.username == winner) {
+            winner_is_participant = true;
+            break;
+        }
+    }
+    CHECK(winner_is_participant);
+
+    // Match-over broadcast must have propagated through to the lobby store.
+    CHECK_GE(f.store.match_over_notifications, 1);
+}
+
+TEST_CASE("Full match: kPlayInstantly mode with all bots and every mod enabled reaches a "
+          "terminal state once the bot-thinking timer chain is drained") {
+    MatchFixture f;
+
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kPlayInstantly, 15'000);
+    settings.active_mods = {"seven_zero", "draw_stacking", "force_play", "jump_in", "progressive"};
+
+    f.SetupMatch(all_bots(3), settings);
+    REQUIRE(f.timers.Has("turn_1"));
+
+    constexpr int kMaxFires = 20'000;
+    int fired = f.DrainTurnTimer(kMaxFires);
+
+    CHECK(fired < kMaxFires);
+    CHECK(f.store.lobby.match->IsMatchOver());
+    CHECK_FALSE(f.store.lobby.match->GetWinner().empty());
+}
+
+TEST_CASE("Full match: mixed bot count (2 to 4 players) with every mod enabled always "
+          "terminates") {
+    for (int player_count = 2; player_count <= 4; ++player_count) {
+        MatchFixture f;
+
+        LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000);
+        settings.active_mods = {"seven_zero", "draw_stacking", "force_play", "jump_in",
+                                 "progressive"};
+
+        f.SetupMatch(all_bots(player_count), settings);
+
+        constexpr int kMaxFires = 20'000;
+        int fired = f.DrainTurnTimer(kMaxFires);
+
+        CAPTURE(player_count);
+        CHECK(fired < kMaxFires);
+        CHECK(f.store.lobby.match->IsMatchOver());
+    }
+}
+}  // TEST_SUITE("MatchController::FullGameSimulation")
