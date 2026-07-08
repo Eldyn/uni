@@ -49,7 +49,7 @@ namespace match {
         /**< The player from whom the input is awaited. */
         std::string target_player = "";
         /**< A generic JSON payload with contextual information for the frontend. */
-        std::string input_context = "";
+        nlohmann::json input_context = nlohmann::json{};
     };
 
     /**

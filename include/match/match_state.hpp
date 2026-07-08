@@ -4,6 +4,7 @@
 #include <common/match/effect.hpp>
 #include <deque>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <string>
 #include <vector>
@@ -118,7 +119,7 @@ namespace match {
         /**< Action required (meaningful only when pending_player is set). */
         Action pending_action = Action::kChooseType;
         /**< Additional JSON payload to help the client render the input box. */
-        std::string pending_input_context;
+        nlohmann::json pending_input_context;
         /**< Asynchronous response stored as soon as it is sent by the player for the effect. */
         std::string provided_input;
 

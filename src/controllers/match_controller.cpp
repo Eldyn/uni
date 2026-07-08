@@ -193,9 +193,9 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
         if (is_waiting_for_input && lobby_member.username == pending_player_username) {
             response_payload["action_required"] = static_cast<int>(required_action);
 
-            std::string context_string = current_lobby->match->GetPendingInputContext();
-            if (!context_string.empty()) {
-                response_payload["action_context"] = json::parse(context_string);
+            const nlohmann::json& pending_context = current_lobby->match->GetPendingInputContext();
+            if (!pending_context.is_null()) {
+                response_payload["action_context"] = pending_context;
             }
         }
 

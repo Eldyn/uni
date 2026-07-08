@@ -38,7 +38,7 @@ namespace match {
             }
         }
 
-        return {EffectStatus::kNeedsInput, Action::kChooseTarget, username_, action_context.dump()};
+        return {EffectStatus::kNeedsInput, Action::kChooseTarget, username_, action_context};
     }
 
     static EffectRegistrar reg_swap(EffectType::kDecideSwapTarget, [](const auto& e) {

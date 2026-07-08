@@ -112,7 +112,7 @@ namespace match {
         state_.winner                = saved_state.value("winner", "");
         state_.pending_player        = saved_state.value("pending_player", "");
         state_.pending_action        = static_cast<Action>(saved_state.value("pending_action", 0));
-        state_.pending_input_context = saved_state.value("pending_input_context", "");
+        state_.pending_input_context = saved_state.value("pending_input_context", nlohmann::json{});
         state_.provided_input        = saved_state.value("provided_input", "");
 
         if (saved_state.contains("draw_pile"))    saved_state["draw_pile"].get_to(state_.draw_pile);
@@ -488,7 +488,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
             state_.provided_input = input;
 
             state_.pending_player.clear();
-            state_.pending_input_context.clear();
+            state_.pending_input_context = nlohmann::json{};
         }
     }
 

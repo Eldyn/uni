@@ -77,7 +77,7 @@ namespace match {
             {"message", "You drew a playable card!"}
         };
 
-        return {EffectStatus::kNeedsInput, Action::kPlayDrawn, username_, action_context.dump()};
+        return {EffectStatus::kNeedsInput, Action::kPlayDrawn, username_, action_context};
     }
 
     static EffectRegistrar reg_advance(EffectType::kAdvanceTurn, [](const auto&) {

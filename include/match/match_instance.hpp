@@ -224,11 +224,13 @@ namespace match {
         Action GetPendingAction() const { return state_.pending_action; }
 
         /**
-         * @brief Returns contextual JSON text data for the input request.
-         * @return std::string The input context.
+         * @brief Returns contextual JSON data for the input request.
+         * @return nlohmann::json The input context.
          * @tag MATCH-INST-019
          */
-        std::string GetPendingInputContext() const { return state_.pending_input_context; }
+        const nlohmann::json& GetPendingInputContext() const {
+            return state_.pending_input_context;
+        }
 
         /**
          * @brief Determines whether the match has reached a terminal state.
