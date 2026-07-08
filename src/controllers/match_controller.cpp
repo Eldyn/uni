@@ -27,7 +27,6 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     bot_instant_delay_ms_  = std::max(0, Env::GetInt("BOT_TURN_DELAY_MS", 1000));
     bot_wait_min_ms_       = std::max(0, Env::GetInt("BOT_WAIT_MIN_MS", 500));
     bot_wait_max_ms_       = std::max(bot_wait_min_ms_ + 1, Env::GetInt("BOT_WAIT_MAX_MS", 3500));
-    max_instant_bot_steps_ = std::max(1, Env::GetInt("MAX_INSTANT_BOT_STEPS", 20));
     Logger::Info("[Match] Bot instant delay: ", bot_instant_delay_ms_, "ms, wait spread: ",
                  bot_wait_min_ms_, "-", bot_wait_max_ms_, "ms");
 
@@ -281,38 +280,18 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
 
         // INFO: Broadcast between each step so every action is visible to
-        //       connected players. Guard against infinite recursion: if
-        //       TakeBotTurn failed to change state (e.g., a rule bug made
-        //       PlayCard return false with IsWaitingForInput still false),
-        //       stop rather than stack-overflow.
-        for (int step = 0; step < max_instant_bot_steps_; ++step) {
-            if (active_lobby->match->IsMatchOver()) break;
-
-            std::string before = active_lobby->match->GetCurrentPlayerUsername();
-            bool was_waiting = active_lobby->match->IsWaitingForInput();
-
-            active_lobby->match->TakeBotTurn();
-            BroadcastMatchState(active_lobby);
-
-            // INFO: Check whether a connected player's turn has arrived.
-            std::string after = active_lobby->match->GetCurrentPlayerUsername();
-            bool is_now_connected = false;
+        //       connected players.
+        auto is_connected = [active_lobby](const std::string& username) {
             for (const auto& m : active_lobby->members) {
-                if (m.username == after && m.is_connected) {
-                    is_now_connected = true;
-                    break;
-                }
+                if (m.username == username && m.is_connected) return true;
             }
-            bool now_is_bot = active_lobby->match->IsBot(after);
+            return false;
+        };
+        auto on_step = [this, active_lobby]() { BroadcastMatchState(active_lobby); };
 
-            if (is_now_connected || now_is_bot) break;
-
-            // INFO: Stall detection: if current player didn't change and
-            //       waiting-state didn't change, stop.
-            if (after == before && active_lobby->match->IsWaitingForInput() == was_waiting) {
-                Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
-                break;
-            }
+        auto advance_result = active_lobby->match->AdvanceBotTurns(is_connected, on_step);
+        if (advance_result.stalled) {
+            Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
         }
 
         OnTurnStarted(active_lobby);

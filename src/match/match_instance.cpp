@@ -650,6 +650,43 @@ bool MatchInstance::DrawCard(const std::string& username) {
         return it != state_.players.end() && it->is_bot;
     }
 
+    BotAdvanceResult MatchInstance::AdvanceBotTurns(
+        const std::function<bool(const std::string&)>& is_connected,
+        const std::function<void()>& on_step) {
+        BotAdvanceResult result;
+
+        for (int step = 0; step < kMaxInstantBotSteps; ++step) {
+            if (IsMatchOver()) {
+                result.match_over = true;
+                break;
+            }
+
+            std::string before = GetCurrentPlayerUsername();
+            bool was_waiting = IsWaitingForInput();
+
+            TakeBotTurn();
+            ++result.steps;
+            on_step();
+
+            if (IsMatchOver()) {
+                result.match_over = true;
+                break;
+            }
+
+            std::string after = GetCurrentPlayerUsername();
+            if (is_connected(after) || IsBot(after)) break;
+
+            // INFO: Stall detection: if current player didn't change and
+            //       waiting-state didn't change, stop.
+            if (after == before && IsWaitingForInput() == was_waiting) {
+                result.stalled = true;
+                break;
+            }
+        }
+
+        return result;
+    }
+
     void MatchInstance::GenerateDeck() {
         uint16_t unique_card_identifier = 0;
         Type standard_types[] = {Type::kRed, Type::kBlue, Type::kGreen, Type::kYellow};

@@ -3,6 +3,7 @@
 #include "common/lobby.hpp"
 #include <common/match/matchrule.hpp>
 #include <nlohmann/json.hpp>
+#include <functional>
 #include <random>
 #include <string>
 #include <vector>
@@ -19,6 +20,17 @@
 struct LobbySettings;
 
 namespace match {
+
+    /**
+     * @struct BotAdvanceResult
+     * @brief Outcome of a synchronous burst of consecutive bot turns.
+     * @tag MATCH-INST-STRUCT-001
+     */
+    struct BotAdvanceResult {
+        int steps = 0;      /**< Number of bot moves actually taken. */
+        bool stalled = false;    /**< True if aborted due to detected stall. */
+        bool match_over = false;  /**< True if the match reached a terminal state. */
+    };
 
     /**
      * @class MatchInstance
@@ -159,6 +171,21 @@ namespace match {
         bool IsBot(const std::string& username) const;
 
         /**
+         * @brief Synchronously advances consecutive bot turns until a stop condition is met.
+         * A stop condition is reached when the current player is a connected human
+         * (per @p is_connected), the match ends, a stall is detected (current player
+         * and waiting-state both unchanged after a move), or the safety cap of
+         * @c kMaxInstantBotSteps consecutive moves is hit.
+         * @param is_connected Predicate telling whether a given username is currently connected.
+         * @param on_step Invoked after each individual bot move completes.
+         * @return BotAdvanceResult Summary of the burst (steps taken, stalled, match over).
+         * @tag MATCH-INST-026
+         */
+        BotAdvanceResult AdvanceBotTurns(const std::function<bool(const std::string&)>&
+                                              is_connected,
+                                          const std::function<void()>& on_step);
+
+        /**
          * @brief Returns the user from whom a mandatory input is being awaited.
          * @return std::string Username or empty string if nothing is awaited.
          * @tag MATCH-INST-017
@@ -217,6 +244,9 @@ namespace match {
         void SetMatchId(const std::string& id) { match_id_ = id; }
 
     private:
+        /**< Safety cap on consecutive bot moves in a single AdvanceBotTurns burst. */
+        static constexpr int kMaxInstantBotSteps = 20;
+
         MatchState state_;                        /**< The central match state. */
         LobbySettings settings_;                 /**< The rules and preferences of the match. */
         /**< Unique identifier of the match in the database. */
