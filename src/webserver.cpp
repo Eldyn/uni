@@ -37,6 +37,7 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
         throw std::runtime_error("Failed to initialise database");
     }
     RegisterRoutes();
+    LoadStaticFileCache();
     if constexpr (kAppSSL) {
         Logger::Info("Key file: " + std::string(key_file) + " exists=" +
                      (fs::exists(key_file) ? "yes" : "NO"));
@@ -434,7 +435,43 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
     }
 }
 
-std::string WebServer::ReadFile(std::string_view path) {
+void WebServer::LoadStaticFileCache() {
+    std::error_code ec;
+    fs::path root = fs::weakly_canonical(frontend_path_, ec);
+
+    if (ec || !fs::exists(root)) {
+        Logger::Warn("Static file cache: root does not exist: " + frontend_path_);
+        return;
+    }
+
+    for (const auto& entry : fs::recursive_directory_iterator(root, ec)) {
+        if (ec) break;
+        if (!entry.is_regular_file()) continue;
+
+        std::ifstream is(entry.path(), std::ios::binary);
+        if (!is) continue;
+
+        std::stringstream buf;
+        buf << is.rdbuf();
+        static_file_cache_.emplace(entry.path().string(), buf.str());
+    }
+
+    Logger::Info("Static file cache: loaded " + std::to_string(static_file_cache_.size()) +
+                 " file(s) from " + root.string());
+}
+
+std::string WebServer::ReadFile(std::string_view path) const {
+    // INFO: Hot path — the cache is populated once at startup by
+    //       LoadStaticFileCache(), so a busy server serving the same asset
+    //       repeatedly avoids the disk read + stringstream churn per request.
+    if (auto it = static_file_cache_.find(std::string(path)); it != static_file_cache_.end()) {
+        return it->second;
+    }
+
+    // INFO: Fallback for a file that exists on disk but was not present in
+    //       the cache at startup (e.g. added after the server was launched).
+    //       Kept so behaviour matches the pre-cache implementation instead of
+    //       silently 200-ing with an empty body.
     std::ifstream is(path.data(), std::ios::binary);
 
     if (!is) {

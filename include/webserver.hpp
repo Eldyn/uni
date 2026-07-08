@@ -204,11 +204,27 @@ private:
 
     /**
      * @brief Internal utility to read the entire content of a file (e.g. for static resources).
+     * Serves from `static_file_cache_` when present; falls back to a direct disk read
+     * otherwise (e.g. a file created after startup, or the cache being disabled).
      * @param path Path of the file.
      * @return std::string The content of the file.
      * @tag SRV-UTIL-001
      */
-    static std::string     ReadFile(std::string_view path);
+    std::string             ReadFile(std::string_view path) const;
+
+    /**
+     * @brief Walks `frontend_path_` once at startup and loads every regular file's
+     * contents into `static_file_cache_`, so `ReadFile` becomes a hot-path lookup
+     * instead of a per-request disk read. ETags stay live (stat-based via
+     * `http::MakeETag`) so a file replaced on disk after startup still revalidates
+     * correctly even though its cached bytes are stale; only newly added files are
+     * not served until the process restarts and re-populates the cache.
+     * @tag SRV-PRIV-010
+     */
+    void LoadStaticFileCache();
+
+    /** In-memory cache of static file contents, keyed by canonical absolute path. */
+    std::unordered_map<std::string, std::string> static_file_cache_;
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */
