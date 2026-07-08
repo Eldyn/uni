@@ -824,18 +824,23 @@ bool MatchInstance::DrawCard(const std::string& username) {
             p_json["is_bot"] = p.is_bot;
 
             if (p.username == username) {
+                bool is_current_turn = username == GetCurrentPlayerUsername();
                 nlohmann::json hand_json = nlohmann::json::array();
                 for (CompactCard c : p.hand) {
-                    CardPlayedEvent play_check = { username, c, true, false };
-                    for (auto& rule : active_rules_) {
-                        rule->ValidatePlay(&state_, play_check);
-                        if (play_check.is_handled) break;
+                    bool can_play = false;
+                    if (is_current_turn) {
+                        CardPlayedEvent play_check = { username, c, true, false };
+                        for (auto& rule : active_rules_) {
+                            rule->ValidatePlay(&state_, play_check);
+                            if (play_check.is_handled) break;
+                        }
+                        can_play = play_check.is_valid_play;
                     }
                     hand_json.push_back({
                         {"id", GetId(c)},
                         {"type", static_cast<int>(GetType(c))},
                         {"value", static_cast<int>(GetValue(c))},
-                        {"can_play", play_check.is_valid_play}
+                        {"can_play", can_play}
                     });
                 }
                 p_json["hand"] = hand_json;
