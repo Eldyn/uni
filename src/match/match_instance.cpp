@@ -645,6 +645,11 @@ bool MatchInstance::DrawCard(const std::string& username) {
         return it != state_.players.end() ? &(*it) : nullptr;
     }
 
+    bool MatchInstance::IsBot(const std::string& username) const {
+        auto it = std::ranges::find(state_.players, username, &Player::username);
+        return it != state_.players.end() && it->is_bot;
+    }
+
     void MatchInstance::GenerateDeck() {
         uint16_t unique_card_identifier = 0;
         Type standard_types[] = {Type::kRed, Type::kBlue, Type::kGreen, Type::kYellow};

@@ -151,6 +151,14 @@ namespace match {
         Player* GetPlayer(const std::string& username);
 
         /**
+         * @brief Checks whether the given player is bot-controlled.
+         * @param username Identifier of the user.
+         * @return true if the player exists and is a bot, false otherwise.
+         * @tag MATCH-INST-025
+         */
+        bool IsBot(const std::string& username) const;
+
+        /**
          * @brief Returns the user from whom a mandatory input is being awaited.
          * @return std::string Username or empty string if nothing is awaited.
          * @tag MATCH-INST-017

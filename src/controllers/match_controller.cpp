@@ -236,9 +236,8 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
     }
 
     std::string current_player_username = active_lobby->match->GetCurrentPlayerUsername();
-    match::Player* current_player = active_lobby->match->GetPlayer(current_player_username);
 
-    if (current_player->is_bot) {
+    if (active_lobby->match->IsBot(current_player_username)) {
         int bot_thinking_ms = active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly
             ? bot_instant_delay_ms_
             : std::uniform_int_distribution<int>(bot_wait_min_ms_, bot_wait_max_ms_ - 1)(rng_);
@@ -304,8 +303,7 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
                     break;
                 }
             }
-            bool now_is_bot = false;
-            if (auto* p = active_lobby->match->GetPlayer(after)) now_is_bot = p->is_bot;
+            bool now_is_bot = active_lobby->match->IsBot(after);
 
             if (is_now_connected || now_is_bot) break;
 

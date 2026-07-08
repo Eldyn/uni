@@ -69,3 +69,13 @@ TEST_CASE("match: serialization handles missing keys gracefully") {
 
     CHECK_NOTHROW(MatchInstance m(partial, default_settings()));
 }
+
+TEST_CASE("match: IsBot reflects each player's bot flag") {
+    std::vector<std::pair<std::string, bool>> players = {{"Alice", false}, {"BotBob", true}};
+    MatchInstance m(players, default_settings());
+    m.Start();
+
+    CHECK(m.IsBot("BotBob"));
+    CHECK_FALSE(m.IsBot("Alice"));
+    CHECK_FALSE(m.IsBot("Nobody"));
+}
