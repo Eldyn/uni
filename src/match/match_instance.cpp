@@ -17,7 +17,7 @@
 #include <vector>
 
 namespace match {
-    void ReshuffleDiscardIntoDraw(MatchState* match_state) {
+    void ReshuffleDiscardIntoDraw(MatchState* match_state, std::mt19937& rng) {
         if (match_state->discard_pile.size() <= 1) return;
 
         CompactCard top_card = match_state->discard_pile.back();
@@ -26,7 +26,6 @@ namespace match {
         match_state->draw_pile = std::move(match_state->discard_pile);
         match_state->discard_pile.push_back(top_card);
 
-        static std::mt19937 rng{std::random_device {}()};
         std::shuffle(match_state->draw_pile.begin(), match_state->draw_pile.end(), rng);
     }
 
@@ -152,7 +151,7 @@ namespace match {
 
         for (int index = 0; index < settings_.starting_cards; ++index) {
             if (state_.draw_pile.empty()) {
-                ReshuffleDiscardIntoDraw(&state_);
+                ReshuffleDiscardIntoDraw(&state_, rng_);
                 if (state_.draw_pile.empty()) break;  // Failsafe
             }
             p.hand.push_back(state_.draw_pile.back());
@@ -425,7 +424,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
     if (state_.pending_draws > 0) {
         for (int draw_index = 0; draw_index < state_.pending_draws; ++draw_index) {
             if (state_.draw_pile.empty()) {
-                ReshuffleDiscardIntoDraw(&state_);
+                ReshuffleDiscardIntoDraw(&state_, rng_);
                 if (state_.draw_pile.empty()) break;
             }
             current_player->hand.push_back(state_.draw_pile.back());
@@ -446,7 +445,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     do {
         if (state_.draw_pile.empty()) {
-            ReshuffleDiscardIntoDraw(&state_);
+            ReshuffleDiscardIntoDraw(&state_, rng_);
             if (state_.draw_pile.empty()) break;
         }
 

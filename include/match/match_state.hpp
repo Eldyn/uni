@@ -4,6 +4,7 @@
 #include <common/match/effect.hpp>
 #include <deque>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 #include <chrono>
@@ -129,7 +130,8 @@ namespace match {
      * @brief System utility that moves and reshuffles the cards from the discard pile into the main deck.
      * Invoked automatically by the game engine when `draw_pile` is exhausted.
      * @param match_state Pointer to the match state to manipulate.
+     * @param rng Shuffle source, owned by the calling MatchInstance.
      * @tag GAME-UTIL-001
      */
-    void ReshuffleDiscardIntoDraw(MatchState* match_state);
+    void ReshuffleDiscardIntoDraw(MatchState* match_state, std::mt19937& rng);
 }  // namespace match

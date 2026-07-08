@@ -25,7 +25,7 @@ namespace match {
         if (player_iterator != state->players.end()) {
             for (int draw_index = 0; draw_index < count_; ++draw_index) {
                 if (state->draw_pile.empty()) {
-                    ReshuffleDiscardIntoDraw(state);
+                    ReshuffleDiscardIntoDraw(state, match->Rng());
                     if (state->draw_pile.empty()) break;
                 }
                 player_iterator->hand.push_back(state->draw_pile.back());

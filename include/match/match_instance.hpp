@@ -267,6 +267,13 @@ namespace match {
          */
         void SetMatchId(const std::string& id) { match_id_ = id; }
 
+        /**
+         * @brief Exposes the match's shuffle RNG for effects that need it.
+         * @return std::mt19937& Reference to the shared RNG.
+         * @tag MATCH-INST-028
+         */
+        std::mt19937& Rng() const { return rng_; }
+
     private:
         /**< Safety cap on consecutive bot moves in a single AdvanceBotTurns burst. */
         static constexpr int kMaxInstantBotSteps = 20;
