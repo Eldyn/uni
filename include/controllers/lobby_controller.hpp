@@ -11,6 +11,7 @@
 #include <transport/iaction_router.hpp>
 #include <transport/ibroadcaster.hpp>
 #include <transport/itimer_service.hpp>
+#include <transport/presence_registry.hpp>
 #include <websocket_context.hpp>
 
 /**
@@ -36,9 +37,12 @@ public:
      * @param router    WebSocket action router (DI seam).
      * @param broadcast Transport layer for sends/publishes (DI seam).
      * @param timers    Timer service for the eviction clock (DI seam).
+     * @param presence  Connection registry, also indexes username -> lobby ID
+     *                  (perf audit M-1, replaces the old O(N) member scan).
      * @tag LOBBY-CTRL-001
      */
-    LobbyController(IActionRouter& router, IBroadcaster& broadcast, ITimerService& timers);
+    LobbyController(IActionRouter& router, IBroadcaster& broadcast, ITimerService& timers,
+                    PresenceRegistry& presence);
 
     /**
      * @brief Destructor. Takes care of cleaning up the associated libuv timers.
@@ -328,6 +332,7 @@ private:
     IActionRouter& action_router_;  /**< Reference to the WS action router. */
     IBroadcaster&  broadcaster_;    /**< Transport layer for all sends/publishes. */
     ITimerService& timer_service_;  /**< Timer service for the eviction clock. */
+    PresenceRegistry& presence_;    /**< Connection registry; also indexes username -> lobby ID. */
 
     std::unordered_map<uint32_t, Lobby> lobbies_;        /**< Primary storage of the lobbies. */
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */

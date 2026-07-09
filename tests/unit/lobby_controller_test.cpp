@@ -65,7 +65,8 @@ struct LobbyFixture {
     ActionRouter     router;
     FakeBroadcaster  bus;
     FakeTimerService timers;
-    LobbyController  lobby{router, bus, timers};
+    PresenceRegistry presence;
+    LobbyController  lobby{router, bus, timers, presence};
 
     PerSocketData alice_sd, bob_sd;
     AppWebSocket* alice_sock;

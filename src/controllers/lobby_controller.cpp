@@ -26,8 +26,9 @@ using namespace std::chrono;
  * @param timers    Timer service for the eviction clock.
  */
 LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
-                                  ITimerService& timers)
-    : action_router_(router), broadcaster_(broadcast), timer_service_(timers) {
+                                  ITimerService& timers, PresenceRegistry& presence)
+    : action_router_(router), broadcaster_(broadcast), timer_service_(timers),
+      presence_(presence) {
     reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 30'000));
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
@@ -350,6 +351,7 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     code_to_id_[lobby.invite_code] = id;
     ctx.socket_data->lobby_code = lobby.invite_code;
     ctx.socket_data->lobby_id   = id;
+    presence_.SetUserLobby(username, id);
 
     broadcaster_.Subscribe(ctx.socket, "lobby_" + lobby.invite_code);
     lobby.SyncBots(rng_);
@@ -429,6 +431,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     ctx.socket_data->lobby_code = code;
     ctx.socket_data->lobby_id   = lobby.id;
+    presence_.SetUserLobby(username, lobby.id);
 
     std::string topic = "lobby_" + code;
     broadcaster_.Subscribe(ctx.socket, topic);
@@ -1071,6 +1074,8 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
     MemberRemovalResult result = lobby.RemoveMember(username, rng_);
 
     if (result.found) {
+        presence_.ClearUserLobby(username);
+
         if (result.was_connected && result.socket) {
             PerSocketData* sd = result.socket->getUserData();
             if (sd) {
@@ -1149,10 +1154,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
  * @return Lobby* Pointer to target lobby framework, or nullptr on map miss.
  */
 Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
-    for (auto& [id, lobby] : lobbies_) {
-        if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
-            return &lobby;
-        }
-    }
-    return nullptr;
+    uint32_t lobby_id = presence_.GetUserLobbyId(username);
+    if (lobby_id == 0) return nullptr;
+    return GetLobbyById(lobby_id);
 }

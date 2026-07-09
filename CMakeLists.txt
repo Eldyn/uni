@@ -201,6 +201,7 @@ if(UNI_BUILD_TESTS)
         src/database.cpp
         src/transport/uws_broadcaster.cpp
         src/transport/uws_timer_service.cpp
+        src/transport/presence_registry.cpp
     )
     target_include_directories(uni_tests PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(uni_tests PRIVATE

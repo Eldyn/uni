@@ -2,6 +2,7 @@
 #include <controllers/lobby_controller.hpp>
 #include <controllers/auth_controller.hpp>
 #include <controllers/stats_controller.hpp>
+#include <transport/presence_registry.hpp>
 #include <common/env.hpp>
 #include <logger.hpp>
 #include <common/ws.hpp>
@@ -23,14 +24,17 @@ int main() {
 
         WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path);
 
-        AuthController  auth(server.GetHTTPRouter());
-        LobbyController lobby(server.GetActionRouter(), server.GetBroadcaster(),
-                              server.GetTimerService());
+        AuthController   auth(server.GetHTTPRouter());
+        PresenceRegistry presence;
+        LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
+                               server.GetTimerService(), presence);
 
-        server.OnConnectionOpen([&lobby](AppWebSocket* ws, PerSocketData* sd) {
+        server.OnConnectionOpen([&lobby, &presence](AppWebSocket* ws, PerSocketData* sd) {
+            presence.OnOpen(ws, sd);
             lobby.OnOpen(ws, sd);
         });
-        server.OnConnectionClose([&lobby](AppWebSocket* ws, PerSocketData* sd) {
+        server.OnConnectionClose([&lobby, &presence](AppWebSocket* ws, PerSocketData* sd) {
+            presence.OnClose(ws, sd);
             lobby.OnClose(ws, sd);
         });
         server.SetActiveMatchProvider([&lobby] { return lobby.ActiveMatchCount(); });
