@@ -1,40 +1,37 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>What's New in UNI! | Release Notes & Updates</title>
-		<meta
-			name="description"
-			content="See everything that's new in UNI! — a full release history with the latest fixes, features, and improvements."
-		/>
-		<link rel="canonical" href="https://playuni.app/changelog.html" />
-		<meta name="robots" content="index, follow" />
-		<link rel="icon" href="/favicon.ico" sizes="any" />
 
-		<meta property="og:type" content="article" />
-		<meta property="og:title" content="What's New in UNI! | Release Notes & Updates" />
-		<meta
-			property="og:description"
-			content="Everything new in UNI! — the full release history with the latest fixes, features, and improvements."
-		/>
-		<meta property="og:url" content="https://playuni.app/changelog.html" />
-		<meta property="og:image" content="https://playuni.app/assets/link_image.png" />
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>What's New in UNI! | Release Notes & Updates</title>
+    <meta name="description"
+        content="See everything that's new in UNI! — a full release history with the latest fixes, features, and improvements." />
+    <link rel="canonical" href="https://playuni.app/changelog.html" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
 
-		<link rel="stylesheet" href="/seo.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="What's New in UNI! | Release Notes & Updates" />
+    <meta property="og:description"
+        content="Everything new in UNI! — the full release history with the latest fixes, features, and improvements." />
+    <meta property="og:url" content="https://playuni.app/changelog.html" />
+    <meta property="og:image" content="https://playuni.app/assets/link_image.png" />
 
-		<style>
-			.release-date {
-				display: block;
-				text-align: center;
-				font-size: 0.85rem;
-				margin-top: -0.9rem;
-				margin-bottom: 0.2rem;
-				opacity: 0.6;
-			}
-		</style>
+    <link rel="stylesheet" href="/seo.css" />
 
-		<script type="application/ld+json">
+    <style>
+        .release-date {
+            display: block;
+            text-align: center;
+            font-size: 0.85rem;
+            margin-top: -0.9rem;
+            margin-bottom: 0.2rem;
+            opacity: 0.6;
+        }
+    </style>
+
+    <script type="application/ld+json">
 			{
 				"@context": "https://schema.org",
 				"@type": "WebPage",
@@ -49,341 +46,350 @@
 			}
 		</script>
 
-		<!-- Google tag (gtag.js) -->
-		<script async src="https://www.googletagmanager.com/gtag/js?id=G-DCRB2ENVJB"></script>
-		<script>
-			window.dataLayer = window.dataLayer || [];
-			function gtag() {
-				dataLayer.push(arguments);
-			}
-			gtag("js", new Date());
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DCRB2ENVJB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag("js", new Date());
 
-			gtag("config", "G-DCRB2ENVJB", { cookie_domain: "playuni.app" });
-		</script>
-	</head>
+        gtag("config", "G-DCRB2ENVJB", {cookie_domain: "playuni.app"});
+    </script>
+</head>
 
-	<body>
-		<header class="site-header">
-			<div class="wrap">
-				<a class="brand" href="/">
-					<img src="/assets/logo.png" alt="UNI! logo" width="32" height="32" />
-					UNI!
-				</a>
-				<nav class="site-nav" aria-label="Primary">
-					<a href="/">Play</a>
-					<a href="/how-to-play.html">How to Play</a>
-					<a href="/faq.html">FAQ</a>
-					<a href="/changelog.html" aria-current="page">Changelog</a>
-					<a href="/about.html">About</a>
-				</nav>
-			</div>
-		</header>
+<body>
+    <header class="site-header">
+        <div class="wrap">
+            <a class="brand" href="/">
+                <img src="/assets/logo.png" alt="UNI! logo" width="32" height="32" />
+                UNI!
+            </a>
+            <nav class="site-nav" aria-label="Primary">
+                <a href="/">Play</a>
+                <a href="/how-to-play.html">How to Play</a>
+                <a href="/faq.html">FAQ</a>
+                <a href="/changelog.html" aria-current="page">Changelog</a>
+                <a href="/about.html">About</a>
+            </nav>
+        </div>
+    </header>
 
-		<main class="wrap">
-			<h3>0.5.0 - Current Release</h3>
-			<span class="release-date">July 7, 2026</span>
-			<ul>
-				<li>
-					There's a Settings screen now, with music and sound effects volume sliders — works
-					whether you're logged in or just playing as a guest.
-				</li>
-				<li>
-					Fixed a bug where playing as a guest and hitting "Back" from the lobby list looked like
-					you'd been logged out.
-				</li>
-				<li>There's background music now! It plays on every screen except during a match.</li>
-				<li>
-					You can no longer register a username using offensive language, across many languages.
-				</li>
-				<li>Notifications can now be swiped away instead of waiting for them to fade out.</li>
-				<li>
-					<strong>You can now really play as a guest!</strong> The "Play as Guest" button used to
-					lead to an empty, disconnected screen. Now it gives you a temporary guest name (like
-					Guest#A3K9X) and connects you properly, so you can browse, join and play without
-					creating an account. Stats and saved matches still need an account.
-				</li>
-				<li>Switched the app's icons to a crisp pixel-art icon set for a more consistent retro look.</li>
-				<li>Cleaned up the monospace text font so it shows clearly on every device.</li>
-				<li>Removed the small connection dot next to players in the lobby (a clearer disconnect indicator is coming).</li>
-				<li>Clearer message when an invite code doesn't match any lobby.</li>
-				<li>Renamed the main-menu "Entra in Stanza" button to "Browse Lobbies".</li>
-				<li>
-					Fixed a bug where going back to the lobby list after visiting a lobby could show a blank
-					screen.
-				</li>
-				<li>
-					Lobby list polish: the search box now lights up when you click into it, the smaller
-					filter buttons use a cleaner small font, and the duplicate logout button was removed
-					(it's still on the main menu).
-				</li>
-				<li>
-					The lobby list now stays up to date on its own — new rooms appear and full or started
-					ones update within a few seconds, without leaving and re-entering the screen.
-				</li>
-				<li>
-					Lots of behind-the-scenes reliability work: clearer error messages when creating a
-					lobby or changing settings fails, no more silent failures when your connection drops
-					at the wrong moment, and better protection against bad data from the server.
-				</li>
-				<li>
-					The "Spectate" and "Take Over" buttons are gone. Games in progress simply show a
-					<strong>Join</strong> button when you can hop in for a bot, and nothing otherwise —
-					spectating may come later as a real feature.
-				</li>
-				<li>
-					Rule names and descriptions in the lobby list's advanced search now come straight from
-					the game server, so new rules will show up there automatically as they're added.
-				</li>
-				<li>
-					The lobby list's sort menu is now fully keyboard-friendly: arrow keys, Home/End, Enter
-					and Escape all work as you'd expect, and screen readers get proper labels.
-				</li>
-				<li>
-					Connection problems now show a clear message ("Could not connect to the server")
-					instead of the cryptic "[object Event]", and the coloured stripe on notifications now
-					sits flush with the edge like a proper pixel-art border.
-				</li>
-				<li>Fixed the Stats/Decks/Skins/Settings icons missing from the main screen.</li>
-				<li>
-					The little player icons next to the lobby sort menu no longer flash random colours —
-					they're a fixed colour that matches light/dark mode.
-				</li>
-			</ul>
+    <main class="wrap">
 
-			<h3>0.4.8</h3>
-			<span class="release-date">July 7, 2026</span>
-			<ul>
-				<li>
-					UNI! has a new home: <strong>playuni.app</strong>! The old unii.duckdns.org address still
-					works and will send you to the new one automatically, so old links and bookmarks won't
-					break.
-				</li>
-				<li>
-					Behind the scenes: updates now reach the live game only as part of official releases, so
-					work-in-progress changes can't sneak onto playuni.app before they're ready.
-				</li>
-			</ul>
+        <h3>0.5.1 - Current Release</h3>
+        <span class="release-date">July 9, 2026</span>
+        <ul>
+            <li>Nothing changed for you, but we made it easier and faster for the website to be found online!</li>
+        </ul>
 
-			<h3>0.4.7</h3>
-			<span class="release-date">June 28, 2026</span>
-			<ul>
-				<li>
-					Added anonymous gameplay analytics so we can see which rules and game modes people
-					actually play, and where things break. We only record gameplay actions (like starting a
-					match and which rules it used) — never your messages or any personal information — and the
-					data is used only to research and improve the game. If your browser blocks analytics,
-					everything keeps working normally.
-				</li>
-			</ul>
+        <h3>0.5.0</h3>
+        <span class="release-date">July 7, 2026</span>
+        <ul>
+            <li>
+                There's a Settings screen now, with music and sound effects volume sliders — works
+                whether you're logged in or just playing as a guest.
+            </li>
+            <li>
+                Fixed a bug where playing as a guest and hitting "Back" from the lobby list looked like
+                you'd been logged out.
+            </li>
+            <li>There's background music now! It plays on every screen except during a match.</li>
+            <li>
+                You can no longer register a username using offensive language, across many languages.
+            </li>
+            <li>Notifications can now be swiped away instead of waiting for them to fade out.</li>
+            <li>
+                <strong>You can now really play as a guest!</strong> The "Play as Guest" button used to
+                lead to an empty, disconnected screen. Now it gives you a temporary guest name (like
+                Guest#A3K9X) and connects you properly, so you can browse, join and play without
+                creating an account. Stats and saved matches still need an account.
+            </li>
+            <li>Switched the app's icons to a crisp pixel-art icon set for a more consistent retro look.</li>
+            <li>Cleaned up the monospace text font so it shows clearly on every device.</li>
+            <li>Removed the small connection dot next to players in the lobby (a clearer disconnect indicator is
+                coming).</li>
+            <li>Clearer message when an invite code doesn't match any lobby.</li>
+            <li>Renamed the main-menu "Entra in Stanza" button to "Browse Lobbies".</li>
+            <li>
+                Fixed a bug where going back to the lobby list after visiting a lobby could show a blank
+                screen.
+            </li>
+            <li>
+                Lobby list polish: the search box now lights up when you click into it, the smaller
+                filter buttons use a cleaner small font, and the duplicate logout button was removed
+                (it's still on the main menu).
+            </li>
+            <li>
+                The lobby list now stays up to date on its own — new rooms appear and full or started
+                ones update within a few seconds, without leaving and re-entering the screen.
+            </li>
+            <li>
+                Lots of behind-the-scenes reliability work: clearer error messages when creating a
+                lobby or changing settings fails, no more silent failures when your connection drops
+                at the wrong moment, and better protection against bad data from the server.
+            </li>
+            <li>
+                The "Spectate" and "Take Over" buttons are gone. Games in progress simply show a
+                <strong>Join</strong> button when you can hop in for a bot, and nothing otherwise —
+                spectating may come later as a real feature.
+            </li>
+            <li>
+                Rule names and descriptions in the lobby list's advanced search now come straight from
+                the game server, so new rules will show up there automatically as they're added.
+            </li>
+            <li>
+                The lobby list's sort menu is now fully keyboard-friendly: arrow keys, Home/End, Enter
+                and Escape all work as you'd expect, and screen readers get proper labels.
+            </li>
+            <li>
+                Connection problems now show a clear message ("Could not connect to the server")
+                instead of the cryptic "[object Event]", and the coloured stripe on notifications now
+                sits flush with the edge like a proper pixel-art border.
+            </li>
+            <li>Fixed the Stats/Decks/Skins/Settings icons missing from the main screen.</li>
+            <li>
+                The little player icons next to the lobby sort menu no longer flash random colours —
+                they're a fixed colour that matches light/dark mode.
+            </li>
+        </ul>
 
-			<h3>0.4.6</h3>
-			<span class="release-date">June 28, 2026</span>
-			<ul>
-				<li>Fixed Google Analytics not loading in correctly.</li>
-				<li>Fixed the Card Arsenal not loading when playing inside the itch.io embed.</li>
-				<li>
-					Fixed missing card images in the Card Arsenal for colour categories and the Jolly +4 card.
-				</li>
-			</ul>
+        <h3>0.4.8</h3>
+        <span class="release-date">July 7, 2026</span>
+        <ul>
+            <li>
+                UNI! has a new home: <strong>playuni.app</strong>! The old unii.duckdns.org address still
+                works and will send you to the new one automatically, so old links and bookmarks won't
+                break.
+            </li>
+            <li>
+                Behind the scenes: updates now reach the live game only as part of official releases, so
+                work-in-progress changes can't sneak onto playuni.app before they're ready.
+            </li>
+        </ul>
 
-			<h3>0.4.5</h3>
-			<span class="release-date">June 27, 2026</span>
-			<p>
-				A batch of connectivity and in-game fixes — no new features, just a smoother experience when
-				reconnecting, switching browsers, or playing against bots.
-			</p>
-			<ul>
-				<li>
-					Fixed a bug where your own name could briefly show as disconnected in the lobby even while
-					you were actively connected.
-				</li>
-				<li>
-					Fixed a bug where returning to the site without your lobby code (e.g. from a different
-					browser) would leave you stuck — you are now brought straight back into your lobby or
-					active match automatically.
-				</li>
-				<li>
-					Fixed a bug where reconnecting mid-turn (e.g. after a Jolly card was played) could leave
-					you unable to pick a colour until the timer ran out.
-				</li>
-				<li>
-					Fixed a bug where reconnecting with a saved session would trigger duplicate fetches and
-					multiple navigation calls in the background.
-				</li>
-				<li>
-					Fixed a server startup failure that could occur when upgrading from an older build — the
-					server now applies all database changes in a single step on first launch.
-				</li>
-				<li>
-					Fixed a visual glitch where the table background would briefly flash purple when playing a
-					Jolly card — it now keeps the colour from the previous card until a new colour is chosen.
-				</li>
-				<li>
-					Fixed a bug where the game interface would go blank when a bot won the match — the result
-					popup now appears correctly over a full game board.
-				</li>
-				<li>
-					Fixed a bug where playing a Jolly card and ignoring the colour picker would permanently
-					stall the game — the bot now steps in and picks automatically when the turn timer runs
-					out.
-				</li>
-			</ul>
+        <h3>0.4.7</h3>
+        <span class="release-date">June 28, 2026</span>
+        <ul>
+            <li>
+                Added anonymous gameplay analytics so we can see which rules and game modes people
+                actually play, and where things break. We only record gameplay actions (like starting a
+                match and which rules it used) — never your messages or any personal information — and the
+                data is used only to research and improve the game. If your browser blocks analytics,
+                everything keeps working normally.
+            </li>
+        </ul>
 
-			<h3>0.4.4</h3>
-			<span class="release-date">June 26, 2026</span>
-			<p>
-				Backend and performance improvements — nothing visible has changed, but the game should feel
-				snappier and the server is more robust under the hood.
-			</p>
-			<ul>
-				<li>
-					The server now handles database updates automatically on startup, so future upgrades will
-					apply without any downtime or manual intervention.
-				</li>
-				<li>
-					In-game actions are now processed faster internally, reducing the overhead on every card
-					play and draw.
-				</li>
-				<li>
-					Various internal systems were cleaned up and standardised to make the codebase easier to
-					maintain going forward.
-				</li>
-			</ul>
+        <h3>0.4.6</h3>
+        <span class="release-date">June 28, 2026</span>
+        <ul>
+            <li>Fixed Google Analytics not loading in correctly.</li>
+            <li>Fixed the Card Arsenal not loading when playing inside the itch.io embed.</li>
+            <li>
+                Fixed missing card images in the Card Arsenal for colour categories and the Jolly +4 card.
+            </li>
+        </ul>
 
-			<h3>0.4.3</h3>
-			<span class="release-date">June 25, 2026</span>
-			<ul>
-				<li>Changed our SEO, Landing Page, About, and Rules pages.</li>
-				<li>
-					<strong>AdSense integration</strong>: We've added gentle interstitial and banner ads to
-					help keep the servers running and the game free for everyone.
-				</li>
-				<li>
-					<strong>Cross-origin embedding (e.g. itch.io) now works!</strong> You can login and play
-					smoothly from within third-party iframes.
-				</li>
-			</ul>
+        <h3>0.4.5</h3>
+        <span class="release-date">June 27, 2026</span>
+        <p>
+            A batch of connectivity and in-game fixes — no new features, just a smoother experience when
+            reconnecting, switching browsers, or playing against bots.
+        </p>
+        <ul>
+            <li>
+                Fixed a bug where your own name could briefly show as disconnected in the lobby even while
+                you were actively connected.
+            </li>
+            <li>
+                Fixed a bug where returning to the site without your lobby code (e.g. from a different
+                browser) would leave you stuck — you are now brought straight back into your lobby or
+                active match automatically.
+            </li>
+            <li>
+                Fixed a bug where reconnecting mid-turn (e.g. after a Jolly card was played) could leave
+                you unable to pick a colour until the timer ran out.
+            </li>
+            <li>
+                Fixed a bug where reconnecting with a saved session would trigger duplicate fetches and
+                multiple navigation calls in the background.
+            </li>
+            <li>
+                Fixed a server startup failure that could occur when upgrading from an older build — the
+                server now applies all database changes in a single step on first launch.
+            </li>
+            <li>
+                Fixed a visual glitch where the table background would briefly flash purple when playing a
+                Jolly card — it now keeps the colour from the previous card until a new colour is chosen.
+            </li>
+            <li>
+                Fixed a bug where the game interface would go blank when a bot won the match — the result
+                popup now appears correctly over a full game board.
+            </li>
+            <li>
+                Fixed a bug where playing a Jolly card and ignoring the colour picker would permanently
+                stall the game — the bot now steps in and picks automatically when the turn timer runs
+                out.
+            </li>
+        </ul>
 
-			<h3>0.4.1</h3>
-			<span class="release-date">June 24, 2026</span>
-			<ul>
-				<li>
-					Fixed an issue where tooltips in the lobby settings panel were being clipped by the panel
-					border instead of floating above the page as intended.
-				</li>
-			</ul>
+        <h3>0.4.4</h3>
+        <span class="release-date">June 26, 2026</span>
+        <p>
+            Backend and performance improvements — nothing visible has changed, but the game should feel
+            snappier and the server is more robust under the hood.
+        </p>
+        <ul>
+            <li>
+                The server now handles database updates automatically on startup, so future upgrades will
+                apply without any downtime or manual intervention.
+            </li>
+            <li>
+                In-game actions are now processed faster internally, reducing the overhead on every card
+                play and draw.
+            </li>
+            <li>
+                Various internal systems were cleaned up and standardised to make the codebase easier to
+                maintain going forward.
+            </li>
+        </ul>
 
-			<h3>0.4.0</h3>
-			<span class="release-date">June 24, 2026</span>
-			<ul>
-				<li>
-					<strong>Match saving is now complete.</strong> When you quit a saved match and come back,
-					the game picks up exactly where it left off — every active effect, every card in play,
-					nothing lost.
-				</li>
-				<li>
-					Fixed a rare crash that could occur when lobby cleanup happened at the exact moment a
-					player was still leaving.
-				</li>
-				<li>
-					If your connection drops while the game is waiting for a server response, it now recovers
-					cleanly instead of hanging until a timeout.
-				</li>
-				<li>
-					The app now properly cleans up background listeners when you navigate away, preventing
-					them from silently piling up across reconnects.
-				</li>
-				<li>The logout button no longer double-submits if clicked quickly.</li>
-			</ul>
+        <h3>0.4.3</h3>
+        <span class="release-date">June 25, 2026</span>
+        <ul>
+            <li>Changed our SEO, Landing Page, About, and Rules pages.</li>
+            <li>
+                <strong>AdSense integration</strong>: We've added gentle interstitial and banner ads to
+                help keep the servers running and the game free for everyone.
+            </li>
+            <li>
+                <strong>Cross-origin embedding (e.g. itch.io) now works!</strong> You can login and play
+                smoothly from within third-party iframes.
+            </li>
+        </ul>
 
-			<h3>0.3.0</h3>
-			<span class="release-date">June 23, 2026</span>
-			<ul>
-				<li>
-					<strong>Full visual redesign.</strong> The entire interface was rebuilt with a consistent
-					design system: sharper pixel aesthetic, unified colours and typography, better
-					proportions, and improved support for smaller screens.
-				</li>
-			</ul>
+        <h3>0.4.1</h3>
+        <span class="release-date">June 24, 2026</span>
+        <ul>
+            <li>
+                Fixed an issue where tooltips in the lobby settings panel were being clipped by the panel
+                border instead of floating above the page as intended.
+            </li>
+        </ul>
 
-			<h3>0.2.1</h3>
-			<span class="release-date">June 22, 2026</span>
-			<ul>
-				<li>
-					New standalone pages: <a href="/about.html">About</a>, <a href="/faq.html">FAQ</a>, and
-					<a href="/how-to-play.html">How to Play</a> — now accessible without launching the game.
-				</li>
-				<li>
-					Better search visibility: OpenGraph and Twitter card previews so links look good when
-					shared, a web app manifest so you can install UNI! on your device, and a sitemap.
-				</li>
-			</ul>
+        <h3>0.4.0</h3>
+        <span class="release-date">June 24, 2026</span>
+        <ul>
+            <li>
+                <strong>Match saving is now complete.</strong> When you quit a saved match and come back,
+                the game picks up exactly where it left off — every active effect, every card in play,
+                nothing lost.
+            </li>
+            <li>
+                Fixed a rare crash that could occur when lobby cleanup happened at the exact moment a
+                player was still leaving.
+            </li>
+            <li>
+                If your connection drops while the game is waiting for a server response, it now recovers
+                cleanly instead of hanging until a timeout.
+            </li>
+            <li>
+                The app now properly cleans up background listeners when you navigate away, preventing
+                them from silently piling up across reconnects.
+            </li>
+            <li>The logout button no longer double-submits if clicked quickly.</li>
+        </ul>
 
-			<h3>0.2.0</h3>
-			<span class="release-date">June 22, 2026</span>
-			<ul>
-				<li>
-					<strong>Lobby settings</strong> — the host can now configure the game before it starts:
-					turn time limit, starting hand size, number of bots, bot play style, which rule variants
-					are active, and whether the match is saved when someone quits.
-				</li>
-				<li>
-					Bots can automatically take over for players who disconnect mid-game. Likewise, players
-					joining a lobby can claim a bot's seat.
-				</li>
-				<li>
-					Error messages from the server are now shown as readable text in the game UI rather than
-					raw internal codes.
-				</li>
-				<li>
-					Fixed: host settings are now validated to stay within the allowed range on both the client
-					and server.
-				</li>
-				<li>
-					Fixed: the wild card colour selection screen always appears at the right moment; the +4
-					Wild now correctly waits for the colour choice before applying the penalty to the next
-					player.
-				</li>
-				<li>Fixed: rank colouring for tied players; duplicate pop-up notifications eliminated.</li>
-			</ul>
+        <h3>0.3.0</h3>
+        <span class="release-date">June 23, 2026</span>
+        <ul>
+            <li>
+                <strong>Full visual redesign.</strong> The entire interface was rebuilt with a consistent
+                design system: sharper pixel aesthetic, unified colours and typography, better
+                proportions, and improved support for smaller screens.
+            </li>
+        </ul>
 
-			<h3>0.1.1</h3>
-			<span class="release-date">June 19, 2026</span>
-			<ul>
-				<li>
-					Cards that you can legally play on your turn are now correctly highlighted — the server
-					sends this information explicitly rather than the client guessing.
-				</li>
-				<li>
-					Fixed: bots in instant-play mode now send each action one step at a time so animations
-					play through correctly instead of skipping.
-				</li>
-				<li>Fixed: kick and promote now complete reliably in all cases.</li>
-			</ul>
+        <h3>0.2.1</h3>
+        <span class="release-date">June 22, 2026</span>
+        <ul>
+            <li>
+                New standalone pages: <a href="/about.html">About</a>, <a href="/faq.html">FAQ</a>, and
+                <a href="/how-to-play.html">How to Play</a> — now accessible without launching the game.
+            </li>
+            <li>
+                Better search visibility: OpenGraph and Twitter card previews so links look good when
+                shared, a web app manifest so you can install UNI! on your device, and a sitemap.
+            </li>
+        </ul>
 
-			<h3>0.1.0</h3>
-			<span class="release-date">June 18, 2026</span>
-			<p>Hello, World!</p>
-			<p>
-				The first release of UNI! — a four-player card game with lobbies, user accounts, bots,
-				per-game stats, match saving and resuming, and a hand-crafted pixel-art interface. The game
-				you're playing today grew out of a university project, and this is where it all started.
-			</p>
-		</main>
+        <h3>0.2.0</h3>
+        <span class="release-date">June 22, 2026</span>
+        <ul>
+            <li>
+                <strong>Lobby settings</strong> — the host can now configure the game before it starts:
+                turn time limit, starting hand size, number of bots, bot play style, which rule variants
+                are active, and whether the match is saved when someone quits.
+            </li>
+            <li>
+                Bots can automatically take over for players who disconnect mid-game. Likewise, players
+                joining a lobby can claim a bot's seat.
+            </li>
+            <li>
+                Error messages from the server are now shown as readable text in the game UI rather than
+                raw internal codes.
+            </li>
+            <li>
+                Fixed: host settings are now validated to stay within the allowed range on both the client
+                and server.
+            </li>
+            <li>
+                Fixed: the wild card colour selection screen always appears at the right moment; the +4
+                Wild now correctly waits for the colour choice before applying the penalty to the next
+                player.
+            </li>
+            <li>Fixed: rank colouring for tied players; duplicate pop-up notifications eliminated.</li>
+        </ul>
 
-		<footer class="site-footer">
-			<div class="wrap">
-				<nav aria-label="Footer">
-					<a href="/">Play</a>
-					<a href="/how-to-play.html">How to Play</a>
-					<a href="/faq.html">FAQ</a>
-					<a href="/changelog.html">Changelog</a>
-					<a href="/about.html">About</a>
-					<a href="https://github.com/Eldyn/uni">Github</a>
-				</nav>
+        <h3>0.1.1</h3>
+        <span class="release-date">June 19, 2026</span>
+        <ul>
+            <li>
+                Cards that you can legally play on your turn are now correctly highlighted — the server
+                sends this information explicitly rather than the client guessing.
+            </li>
+            <li>
+                Fixed: bots in instant-play mode now send each action one step at a time so animations
+                play through correctly instead of skipping.
+            </li>
+            <li>Fixed: kick and promote now complete reliably in all cases.</li>
+        </ul>
 
-				<span class="muted">UNI! free &amp; open-source online card game.</span>
-			</div>
-		</footer>
-	</body>
+        <h3>0.1.0</h3>
+        <span class="release-date">June 18, 2026</span>
+        <p>Hello, World!</p>
+        <p>
+            The first release of UNI! — a four-player card game with lobbies, user accounts, bots,
+            per-game stats, match saving and resuming, and a hand-crafted pixel-art interface. The game
+            you're playing today grew out of a university project, and this is where it all started.
+        </p>
+    </main>
+
+    <footer class="site-footer">
+        <div class="wrap">
+            <nav aria-label="Footer">
+                <a href="/">Play</a>
+                <a href="/how-to-play.html">How to Play</a>
+                <a href="/faq.html">FAQ</a>
+                <a href="/changelog.html">Changelog</a>
+                <a href="/about.html">About</a>
+                <a href="https://github.com/Eldyn/uni">Github</a>
+            </nav>
+
+            <span class="muted">UNI! free &amp; open-source online card game.</span>
+        </div>
+    </footer>
+</body>
+
 </html>
