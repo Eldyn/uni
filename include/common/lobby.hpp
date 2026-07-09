@@ -2,6 +2,7 @@
 #include <common/ws.hpp>
 #include <App.h>
 #include <action_router.hpp>
+#include <random>
 #include <websocket_context.hpp>
 #include <webserver.hpp>
 
@@ -116,4 +117,22 @@ struct Lobby {
      * If nullptr, the lobby is in the waiting phase. If populated, a match is currently in progress.
      */
     std::unique_ptr<match::MatchInstance> match;
+
+    /**
+     * @brief Re-evaluates settings.bot_count, adding or purging bot members
+     * until the bot count matches (clamped to the lobby capacity). No-op
+     * while a match is in progress.
+     * @param rng Shared RNG used to pick unique bot display names.
+     * @tag CMN-LOBBY-MTH-002
+     */
+    void SyncBots(std::mt19937& rng);
+
+    /**
+     * @brief Picks a random bot display name not already taken in the lobby.
+     * Falls back to a sequential "Bot_N" name if every reserved name is taken.
+     * @param rng Shared RNG used for the random pick.
+     * @return std::string An available bot display name.
+     * @tag CMN-LOBBY-MTH-003
+     */
+    std::string PickBotName(std::mt19937& rng) const;
 };

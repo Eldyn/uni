@@ -1,11 +1,15 @@
 /**
  * @file lobby.cpp
- * @brief Implementation of LobbySettings validation policy.
+ * @brief Implementation of LobbySettings validation policy and Lobby bot-count
+ * reconciliation.
  */
 #include "common/lobby.hpp"
+#include <common/bot_names.hpp>
 #include <match/rule_registry.hpp>
 #include <algorithm>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 void LobbySettings::Sanitize() {
     turn_time_limit_ms = std::clamp(turn_time_limit_ms,
@@ -25,4 +29,55 @@ void LobbySettings::Sanitize() {
         sanitized_mods.push_back(mod);
     }
     active_mods = std::move(sanitized_mods);
+}
+
+std::string Lobby::PickBotName(std::mt19937& rng) const {
+    std::vector<std::string> available;
+
+    for (const auto& name : match::kReservedBotNames) {
+        bool taken = std::ranges::any_of(members, [&](const LobbyMember& m) {
+            return m.username == name;
+        });
+        if (!taken) available.push_back(name);
+    }
+
+    if (available.empty()) {
+        int fallback_id = static_cast<int>(members.size()) + 1;
+        return "Bot_" + std::to_string(fallback_id);
+    }
+
+    std::uniform_int_distribution<> dist(0, static_cast<int>(available.size()) - 1);
+    return available[dist(rng)];
+}
+
+void Lobby::SyncBots(std::mt19937& rng) {
+    if (match) return;
+    int human_count = 0;
+    int bot_count = 0;
+
+    for (const auto& member : members) {
+        if (member.is_bot) bot_count++;
+        else human_count++;
+    }
+
+    int desired_bots = settings.bot_count;
+    if (human_count + desired_bots > contract::kMaxLobbyMembers) {
+        desired_bots = contract::kMaxLobbyMembers - human_count;
+    }
+
+    while (bot_count < desired_bots) {
+        std::string bot_name = PickBotName(rng);
+        members.emplace_back(bot_name, nullptr, true, true);
+        bot_count++;
+    }
+
+    while (bot_count > desired_bots) {
+        for (auto it = members.rbegin(); it != members.rend(); ++it) {
+            if (it->is_bot) {
+                members.erase(std::next(it).base());
+                bot_count--;
+                break;
+            }
+        }
+    }
 }

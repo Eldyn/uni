@@ -158,13 +158,6 @@ public:
 
 private:
     /**
-     * @brief Synchronizes the state of the bots within the lobby.
-     * @param lobby The lobby to update.
-     * @tag LOBBY-PRIV-001
-     */
-    void SyncBots(Lobby& lobby);
-
-    /**
      * @brief Verifies the integrity of the current match data (e.g. host realignment).
      * @param lobby The lobby to verify.
      * @tag LOBBY-PRIV-002
@@ -288,14 +281,6 @@ private:
      * @tag LOBBY-UTIL-001
      */
     static std::string GenerateInviteCode();
-
-    /**
-     * @brief Picks a random bot name not already taken in the lobby.
-     * @param lobby The lobby to check for taken names.
-     * @return std::string An available bot display name.
-     * @tag LOBBY-UTIL-004
-     */
-    std::string GetRandomBotName(const Lobby& lobby);
 
     /**
      * @brief Serializes the member list into JSON format for sending via WebSocket.

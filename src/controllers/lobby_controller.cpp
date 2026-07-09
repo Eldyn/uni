@@ -7,8 +7,6 @@
 #include "websocket_context.hpp"
 #include <WebSocketProtocol.h>
 #include <controllers/lobby_controller.hpp>
-#include <random>
-#include <common/bot_names.hpp>
 #include <common/env.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
@@ -25,35 +23,6 @@ using namespace std::chrono;
 static constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 static constexpr int  kCodeLen        = 6;
 static constexpr int  kAlphabetLen    = 36;
-
-/**
- * @brief Selects a random, unique bot name from a predefined thematic list.
- * * Iterates through the current lobby members to ensure that the selected
- * bot name is not already taken by an existing human or bot. If all predefined
- * names are in use (unlikely but possible), it safely falls back to a
- * sequentially numbered "Bot_N" format.
- * * @param lobby The target lobby context used to verify name availability.
- * @return std::string A unique bot name safe for insertion into the lobby.
- */
-std::string LobbyController::GetRandomBotName(const Lobby& lobby) {
-    std::vector<std::string> available;
-
-    for (const auto& name : match::kReservedBotNames) {
-        bool taken = std::ranges::any_of(lobby.members, [&](const LobbyMember& m) {
-            return m.username == name;
-        });
-        if (!taken) available.push_back(name);
-    }
-
-    if (available.empty()) {
-        static int fallback_id = 1;
-        return "Bot_" + std::to_string(fallback_id++);
-    }
-
-    std::uniform_int_distribution<> dist(0, static_cast<int>(available.size()) - 1);
-    return available[dist(rng_)];
-}
-
 
 /**
  * @brief Constructs the LobbyController instance and establishes central inbound routing maps.
@@ -175,7 +144,7 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
                     }
                 }
 
-                SyncBots(lobby);
+                lobby.SyncBots(rng_);
                 lobbies_to_update.insert(id);
             } else {
                 lobbies_to_update.erase(id);
@@ -413,7 +382,7 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
 
     std::string topic = "lobby_" + code;
     broadcaster_.Subscribe(ctx.socket, topic);
-    SyncBots(lobby);
+    lobby.SyncBots(rng_);
 
     Logger::Log("[Lobby] Created lobby ", id, " code=", code, " host=", username);
 
@@ -624,7 +593,7 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
     if (lobby_still_exists) {
         Lobby* remaining = GetLobbyById(id);
         if (!remaining) return;
-        SyncBots(*remaining);
+        remaining->SyncBots(rng_);
         if (was_host) {
             for (const auto& m : remaining->members) {
                 if (m.is_connected && !m.is_bot) {
@@ -795,7 +764,7 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
     if (lobby_still_exists) {
         Lobby* remaining = GetLobbyById(lobby_id);
         if (!remaining) return;
-        SyncBots(*remaining);
+        remaining->SyncBots(rng_);
         broadcaster_.SendSuccess(ctx.socket, ctx.op_code, request_id);
         BroadcastUpdate(*remaining);
     }
@@ -844,7 +813,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     lobby.settings.Sanitize();
 
     if (old_bot_count != lobby.settings.bot_count) {
-        SyncBots(lobby);
+        lobby.SyncBots(rng_);
     }
 
     broadcaster_.SendSuccess(ctx.socket, uWS::OpCode::TEXT, request_id);
@@ -1221,7 +1190,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                 lobby.match.reset();
                 lobby.members.erase(member_it);
             } else if (lobby.settings.allow_bot_replacement) {
-                std::string new_bot_name = GetRandomBotName(lobby);
+                std::string new_bot_name = lobby.PickBotName(rng_);
 
                 member_it->username = new_bot_name;
                 member_it->is_bot = true;
@@ -1279,41 +1248,4 @@ Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
         }
     }
     return nullptr;
-}
-
-/**
- * @brief Re-evaluates configuration limits, adding or purging bot instances until matching thresholds are synchronized.
- * @param lobby Active room reference requiring bot balancing.
- */
-void LobbyController::SyncBots(Lobby& lobby) {
-    if (lobby.match) return;
-    int human_count = 0;
-    int bot_count = 0;
-
-    for (const auto& member : lobby.members) {
-        if (member.is_bot) bot_count++;
-        else human_count++;
-    }
-
-    int desired_bots = lobby.settings.bot_count;
-    if (human_count + desired_bots > 4) {
-        desired_bots = 4 - human_count;
-    }
-
-    while (bot_count < desired_bots) {
-        std::string bot_name = GetRandomBotName(lobby);
-        LobbyMember bot{bot_name, nullptr, true, true};
-        lobby.members.push_back(bot);
-        bot_count++;
-    }
-
-    while (bot_count > desired_bots) {
-        for (auto it = lobby.members.rbegin(); it != lobby.members.rend(); ++it) {
-            if (it->is_bot) {
-                lobby.members.erase(std::next(it).base());
-                bot_count--;
-                break;
-            }
-        }
-    }
 }
