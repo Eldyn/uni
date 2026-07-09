@@ -343,42 +343,28 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
         return;
     }
 
-    std::string code;
-    int attempts = 0;
-    do {
-        code = Lobby::GenerateInviteCode();
-        if (++attempts > 10)
-            throw std::runtime_error("[Lobby] Failed to generate unique code");
-    } while (code_to_id_.count(code));
-
     uint32_t id = next_id_.fetch_add(1, std::memory_order_relaxed);
 
-    Lobby& lobby = lobbies_[id];
-    lobby.id                   = id;
-    lobby.settings.is_public   = payload_res->is_public.value_or(false);
-    lobby.settings.turn_time_limit_ms = Env::GetInt("DEFAULT_TURN_TIME_MS",
-                                                    lobby.settings.turn_time_limit_ms);
-    lobby.settings.starting_cards     = Env::GetInt("DEFAULT_STARTING_CARDS",
-                                                    lobby.settings.starting_cards);
-    lobby.invite_code          = code;
-    lobby.host                 = username;
-    lobby.name                 = payload_res->name.value_or(username + "'s lobby");
-    lobby.members.emplace_back(username, ctx.socket, true, false);
-    lobby.settings.Sanitize();
+    Lobby built = Lobby::Create(id, username, ctx.socket,
+        payload_res->is_public.value_or(false), payload_res->name.value_or(username + "'s lobby"),
+        Env::GetInt("DEFAULT_TURN_TIME_MS", LobbySettings{}.turn_time_limit_ms),
+        Env::GetInt("DEFAULT_STARTING_CARDS", LobbySettings{}.starting_cards),
+        [this](const std::string& c) { return code_to_id_.count(c) > 0; });
 
-    code_to_id_[code] = id;
-    ctx.socket_data->lobby_code = code;
+    Lobby& lobby = lobbies_.emplace(id, std::move(built)).first->second;
+
+    code_to_id_[lobby.invite_code] = id;
+    ctx.socket_data->lobby_code = lobby.invite_code;
     ctx.socket_data->lobby_id   = id;
 
-    std::string topic = "lobby_" + code;
-    broadcaster_.Subscribe(ctx.socket, topic);
+    broadcaster_.Subscribe(ctx.socket, "lobby_" + lobby.invite_code);
     lobby.SyncBots(rng_);
 
-    Logger::Log("[Lobby] Created lobby ", id, " code=", code, " host=", username);
+    Logger::Log("[Lobby] Created lobby ", id, " code=", lobby.invite_code, " host=", username);
 
     auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
     resp["lobby"] = json{
-        {"invite_code", code},
+        {"invite_code", lobby.invite_code},
         {"host", lobby.host},
         {"members", MemberListJson(lobby)},
         {"settings", lobby.settings},

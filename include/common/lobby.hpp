@@ -2,6 +2,7 @@
 #include <common/ws.hpp>
 #include <App.h>
 #include <action_router.hpp>
+#include <functional>
 #include <random>
 #include <websocket_context.hpp>
 #include <webserver.hpp>
@@ -234,4 +235,27 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-007
      */
     JoinResult AddOrHijack(const std::string& username, AppWebSocket* socket);
+
+    /**
+     * @brief Builds a fully-populated, sanitized Lobby with a unique invite code,
+     * retrying code generation up to 10 times on collision.
+     * @param id Numeric lobby id, already allocated by the caller.
+     * @param host Username of the creating host; also added as the first member.
+     * @param host_socket Websocket of the creating host, assigned to their member entry.
+     * @param is_public Whether the lobby appears in the public list.
+     * @param name Display name of the lobby.
+     * @param turn_time_limit_ms Initial turn time limit, before Sanitize() clamps it.
+     * @param starting_cards Initial starting card count, before Sanitize() clamps it.
+     * @param code_taken Predicate returning true if a candidate invite code is
+     * already registered elsewhere (queries the caller's own registry, e.g.
+     * LobbyController::code_to_id_).
+     * @return The populated Lobby, ready to be inserted into the caller's registry.
+     * @throws std::runtime_error if no unique code could be generated in 10 attempts,
+     * matching the previous LobbyController::HandleCreate behavior exactly.
+     * @tag CMN-LOBBY-MTH-008
+     */
+    static Lobby Create(uint32_t id, const std::string& host, AppWebSocket* host_socket,
+                         bool is_public, const std::string& name, int turn_time_limit_ms,
+                         int starting_cards,
+                         const std::function<bool(const std::string&)>& code_taken);
 };

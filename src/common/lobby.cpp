@@ -196,6 +196,32 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
     return result;
 }
 
+Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_socket,
+                     bool is_public, const std::string& name, int turn_time_limit_ms,
+                     int starting_cards,
+                     const std::function<bool(const std::string&)>& code_taken) {
+    std::string code;
+    int attempts = 0;
+    do {
+        code = GenerateInviteCode();
+        if (++attempts > 10)
+            throw std::runtime_error("[Lobby] Failed to generate unique code");
+    } while (code_taken(code));
+
+    Lobby lobby;
+    lobby.id                          = id;
+    lobby.settings.is_public          = is_public;
+    lobby.settings.turn_time_limit_ms = turn_time_limit_ms;
+    lobby.settings.starting_cards     = starting_cards;
+    lobby.invite_code                 = code;
+    lobby.host                        = host;
+    lobby.name                        = name;
+    lobby.members.emplace_back(host, host_socket, true, false);
+    lobby.settings.Sanitize();
+
+    return lobby;
+}
+
 std::string Lobby::GenerateInviteCode() {
     uint8_t raw[kCodeLen];
     if (RAND_bytes(raw, kCodeLen) != 1)
