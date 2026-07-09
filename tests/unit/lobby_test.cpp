@@ -3,6 +3,7 @@
 #include <common/contract.hpp>
 #include <match/match_instance.hpp>
 #include <algorithm>
+#include <cctype>
 #include <random>
 #include <string>
 #include <vector>
@@ -144,4 +145,223 @@ TEST_CASE("lobby: SyncBots picks bot names unique against existing members") {
     for (const auto& m : lobby.members) names.push_back(m.username);
     std::ranges::sort(names);
     CHECK(std::ranges::adjacent_find(names) == names.end());
+}
+
+TEST_CASE("lobby: GenerateInviteCode produces a 6-character alphanumeric code") {
+    std::string code = Lobby::GenerateInviteCode();
+
+    CHECK_EQ(code.size(), 6);
+    CHECK(std::ranges::all_of(code, [](char c) { return std::isalnum(static_cast<unsigned char>(c)); }));
+}
+
+TEST_CASE("lobby: RemoveMember erases a member with no match in progress") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Alice", rng);
+
+    CHECK(result.found);
+    CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kMatchUnaffected);
+    CHECK_EQ(lobby.members.size(), 1);
+    CHECK_EQ(lobby.members[0].username, "Bob");
+}
+
+TEST_CASE("lobby: RemoveMember reports not found for an unknown username") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Ghost", rng);
+
+    CHECK_FALSE(result.found);
+    CHECK_EQ(lobby.members.size(), 1);
+}
+
+TEST_CASE("lobby: RemoveMember aborts the match when quit_deletes_match is set") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.quit_deletes_match = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Alice", rng);
+
+    CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kMatchAborted);
+    CHECK_FALSE(lobby.match);
+    CHECK_EQ(lobby.members.size(), 1);
+}
+
+TEST_CASE("lobby: RemoveMember replaces the departing player with a bot") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_replacement = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Alice", rng);
+
+    CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kPlayerReplacedByBot);
+    CHECK_FALSE(result.new_bot_name.empty());
+    REQUIRE(lobby.match);
+    CHECK_EQ(lobby.members.size(), 2);
+    bool bot_present = false;
+    for (const auto& m : lobby.members)
+        if (m.username == result.new_bot_name && m.is_bot) bot_present = true;
+    CHECK(bot_present);
+}
+
+TEST_CASE("lobby: RemoveMember drops the player from the engine when neither policy applies") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.quit_deletes_match = false;
+    lobby.settings.allow_bot_replacement = false;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Alice", rng);
+
+    CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kPlayerDroppedFromEngine);
+    REQUIRE(lobby.match);
+    CHECK_EQ(lobby.members.size(), 1);
+}
+
+TEST_CASE("lobby: PromoteNextHost promotes the first connected non-bot member") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.host = "Alice";
+    lobby.members.emplace_back("Bot1", nullptr, true, true);
+    lobby.members.emplace_back("Bob", nullptr, false, false);
+    lobby.members.emplace_back("Carol", nullptr, true, false);
+
+    bool promoted = lobby.PromoteNextHost();
+
+    CHECK(promoted);
+    CHECK_EQ(lobby.host, "Carol");
+}
+
+TEST_CASE("lobby: PromoteNextHost is a no-op when no eligible member exists") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.host = "Alice";
+    lobby.members.emplace_back("Bot1", nullptr, true, true);
+    lobby.members.emplace_back("Bob", nullptr, false, false);
+
+    bool promoted = lobby.PromoteNextHost();
+
+    CHECK_FALSE(promoted);
+    CHECK_EQ(lobby.host, "Alice");
+}
+
+TEST_CASE("lobby: AddOrHijack hijacks an existing bot slot") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bot1", nullptr, true, true);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
+    CHECK_EQ(result.old_bot_name, "Bot1");
+    CHECK_EQ(lobby.members.size(), 2);
+    bool charlie_present = false;
+    for (const auto& m : lobby.members)
+        if (m.username == "Charlie" && !m.is_bot) charlie_present = true;
+    CHECK(charlie_present);
+}
+
+TEST_CASE("lobby: AddOrHijack fills an empty slot when no bots are hijackable") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+
+    auto result = lobby.AddOrHijack("Bob", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kJoinedEmptySlot);
+    CHECK_EQ(lobby.members.size(), 2);
+}
+
+TEST_CASE("lobby: AddOrHijack reports full when at capacity") {
+    Lobby lobby;
+    lobby.id = 1;
+    for (int i = 0; i < contract::kMaxLobbyMembers; ++i)
+        lobby.members.emplace_back("Player" + std::to_string(i), nullptr, true, false);
+
+    auto result = lobby.AddOrHijack("Overflow", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kLobbyFull);
+    CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(contract::kMaxLobbyMembers));
+}
+
+TEST_CASE("lobby: Create builds a sanitized lobby with the host as first member") {
+    Lobby lobby = Lobby::Create(7, "Alice", nullptr, true, "Alice's Room",
+                                 contract::kTurnTimeMinMs - 1, contract::kStartingCardsMax + 1,
+                                 [](const std::string&) { return false; });
+
+    CHECK_EQ(lobby.id, 7);
+    CHECK_EQ(lobby.host, "Alice");
+    CHECK_EQ(lobby.name, "Alice's Room");
+    CHECK(lobby.settings.is_public);
+    CHECK_EQ(lobby.settings.turn_time_limit_ms, contract::kTurnTimeMinMs);
+    CHECK_EQ(lobby.settings.starting_cards, contract::kStartingCardsMax);
+    REQUIRE_EQ(lobby.members.size(), 1);
+    CHECK_EQ(lobby.members[0].username, "Alice");
+    CHECK_FALSE(lobby.invite_code.empty());
+}
+
+TEST_CASE("lobby: Create retries on invite code collision") {
+    int attempts = 0;
+    Lobby lobby = Lobby::Create(1, "Alice", nullptr, false, "Room", 15000, 7,
+                                 [&](const std::string&) { return ++attempts < 3; });
+
+    CHECK_GE(attempts, 3);
+    CHECK_FALSE(lobby.invite_code.empty());
+}
+
+TEST_CASE("lobby: Create throws after exhausting collision retries") {
+    CHECK_THROWS_AS(
+        Lobby::Create(1, "Alice", nullptr, false, "Room", 15000, 7,
+                      [](const std::string&) { return true; }),
+        std::runtime_error);
+}
+
+TEST_CASE("lobby: CollectExpiredDisconnects returns members past the grace window") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now() - std::chrono::hours(1);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+    lobby.members.emplace_back("Bot1", nullptr, false, true);
+
+    auto expired = lobby.CollectExpiredDisconnects(std::chrono::steady_clock::now(), 30'000);
+
+    REQUIRE_EQ(expired.size(), 1);
+    CHECK_EQ(expired[0], "Alice");
+}
+
+TEST_CASE("lobby: CollectExpiredDisconnects excludes members within grace") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now();
+
+    auto expired = lobby.CollectExpiredDisconnects(std::chrono::steady_clock::now(), 30'000);
+
+    CHECK(expired.empty());
 }
