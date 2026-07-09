@@ -27,6 +27,7 @@ struct Error {
         kConflict,          /**< Conflict in the resource state (e.g. user already present). */
         kDatabaseFailure,   /**< Internal error in the SQLite driver. */
         kInternalError,     /**< Unhandled exception or server logic error. */
+        kTooManyRequests,   /**< Rate/attempt limit exceeded (e.g. login throttle lockout). */
     };
 
     Code        code;            /**< Type of the error. */
@@ -48,6 +49,8 @@ struct Error {
     static Error DatabaseFail (const std::string& msg) { return {Code::kDatabaseFailure,  msg}; }
     /** @brief Creates a generic error kInternalError. @tag ERR-MTH-007 */
     static Error Internal     (const std::string& msg) { return {Code::kInternalError,    msg}; }
+    /** @brief Creates an error of type kTooManyRequests. @tag ERR-MTH-009 */
+    static Error TooManyRequests(const std::string& msg) { return {Code::kTooManyRequests, msg}; }
 
     /**
      * @brief Maps the internal error code to the corresponding HTTP Status Code.
@@ -63,6 +66,7 @@ struct Error {
             case Code::kUnauthorised:    return "401 Unauthorized";
             case Code::kConflict:        return "409 Conflict";
             case Code::kDatabaseFailure: return "500 Internal Server Error";
+            case Code::kTooManyRequests: return "429 Too Many Requests";
             default:                     return "500 Internal Server Error";
         }
     }
