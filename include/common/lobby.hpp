@@ -63,6 +63,13 @@ struct LobbySettings {
     int count_draw_two       = 2;           /**< Copies per colour of the "Draw Two" card. */
     int count_wild           = 4;           /**< Total number of Wild cards. */
     int count_wild_draw_four = 4;           /**< Total number of Wild Draw Four cards. */
+
+    /**
+     * @brief Clamps numeric fields into contract bounds and strips unknown or
+     * duplicate entries from active_mods in place.
+     * @tag CMN-LOBBY-MTH-001
+     */
+    void Sanitize();
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,

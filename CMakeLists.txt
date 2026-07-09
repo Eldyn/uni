@@ -177,6 +177,7 @@ if(UNI_BUILD_TESTS)
         ${TEST_SOURCES}
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
+        src/common/lobby.cpp
         src/match/match_instance.cpp
         src/match/rules/standard.cpp
         src/match/rules/70.cpp

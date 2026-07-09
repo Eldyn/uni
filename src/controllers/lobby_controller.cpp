@@ -56,28 +56,6 @@ std::string LobbyController::GetRandomBotName(const Lobby& lobby) {
 
 
 /**
- * @brief Clamps host-supplied settings into the contract's safe bounds.
- *
- * HandleUpdateSettings merge-patches raw client JSON, so a malicious frame
- * could otherwise drive values out of range (e.g. turn_time_limit_ms = 0 spins
- * the libuv timer). Bounds are the single source of truth generated from
- * contract/asyncapi.yaml (contract::k...). Deck count_* fields are intentionally
- * omitted — they are unused until dynamic decks land.
- *
- * @param settings The settings block to clamp in place.
- */
-static void ClampSettings(LobbySettings& settings) {
-    settings.turn_time_limit_ms = std::clamp(settings.turn_time_limit_ms,
-                                             contract::kTurnTimeMinMs, contract::kTurnTimeMaxMs);
-    settings.starting_cards = std::clamp(settings.starting_cards,
-                                         contract::kStartingCardsMin, contract::kStartingCardsMax);
-    settings.bot_count = std::clamp(settings.bot_count,
-                                    contract::kBotCountMin, contract::kBotCountMax);
-    settings.bot_mode = static_cast<BotTakeoverMode>(std::clamp(
-        static_cast<int>(settings.bot_mode), contract::kBotModeMin, contract::kBotModeMax));
-}
-
-/**
  * @brief Constructs the LobbyController instance and establishes central inbound routing maps.
  * @param router    WebSocket action router.
  * @param broadcast Transport layer for sends/publishes.
@@ -427,7 +405,7 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     lobby.host                 = username;
     lobby.name                 = payload_res->name.value_or(username + "'s lobby");
     lobby.members.emplace_back(username, ctx.socket, true, false);
-    ClampSettings(lobby.settings);
+    lobby.settings.Sanitize();
 
     code_to_id_[code] = id;
     ctx.socket_data->lobby_code = code;
@@ -863,7 +841,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     json current_settings = lobby.settings;
     current_settings.merge_patch(patch);
     lobby.settings = current_settings.get<LobbySettings>();
-    ClampSettings(lobby.settings);
+    lobby.settings.Sanitize();
 
     if (old_bot_count != lobby.settings.bot_count) {
         SyncBots(lobby);
