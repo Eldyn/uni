@@ -21,18 +21,18 @@ namespace match {
 
     /**
      * @class EffectRegistry
-     * @brief Global registry mapping EffectType → factory (Meyers' Singleton).
+     * @brief Global registry mapping effect string id → factory (Meyers' Singleton).
      * @tag EFFECT-REG-CLS-001
      */
     class EffectRegistry {
     public:
-        static std::unordered_map<int, EffectFactory>& GetMap() {
-            static std::unordered_map<int, EffectFactory> registry;
+        static std::unordered_map<std::string, EffectFactory>& GetMap() {
+            static std::unordered_map<std::string, EffectFactory> registry;
             return registry;
         }
 
         static std::unique_ptr<Effect> Create(const nlohmann::json& e) {
-            int type = e.value("type", -1);
+            std::string type = e.value("type", std::string{});
             auto it = GetMap().find(type);
             if (it == GetMap().end()) {
                 Logger::Warn("[EffectRegistry] Unknown effect type: ", type);
@@ -50,7 +50,7 @@ namespace match {
      */
     struct EffectRegistrar {
         EffectRegistrar(EffectType type, EffectFactory factory) {
-            EffectRegistry::GetMap()[static_cast<int>(type)] = std::move(factory);
+            EffectRegistry::GetMap()[std::string(EffectTypeToString(type))] = std::move(factory);
         }
     };
 

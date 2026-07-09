@@ -70,6 +70,28 @@ namespace match {
     };
 
     /**
+     * @brief Maps an EffectType to its stable string id, used as the
+     *        EffectRegistry key and the wire/DB "type" field.
+     * @param type The effect type to convert.
+     * @return std::string_view The stable snake_case id.
+     */
+    constexpr std::string_view EffectTypeToString(EffectType type) {
+        switch (type) {
+            case EffectType::kAdvanceTurn:      return "advance_turn";
+            case EffectType::kDraw:             return "draw";
+            case EffectType::kSkip:             return "skip";
+            case EffectType::kPlayCard:         return "play_card";
+            case EffectType::kDecideDrawnCard:  return "decide_drawn_card";
+            case EffectType::kChooseColor:      return "choose_color";
+            case EffectType::kReverse:          return "reverse";
+            case EffectType::kDecideSwapTarget: return "decide_swap_target";
+            case EffectType::kPassHands:        return "pass_hands";
+            case EffectType::kCustom:           return "custom";
+        }
+        return "custom";
+    }
+
+    /**
      * @class Effect
      * @brief Abstract base class for all the effects applicable in the game.
      */
@@ -91,7 +113,7 @@ namespace match {
          */
         virtual EffectResult Resolve(MatchState* state, MatchInstance* match) = 0;
 
-        virtual nlohmann::json ToJson() const { return {{"type", static_cast<int>(GetType())}}; }
+        virtual nlohmann::json ToJson() const { return {{"type", std::string(EffectTypeToString(GetType()))}}; }
     };
 
 }  // namespace match
