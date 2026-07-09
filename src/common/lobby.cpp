@@ -112,7 +112,6 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     if (settings.quit_deletes_match) {
         result.match_outcome = MemberRemovalOutcome::kMatchAborted;
         result.old_username = old_name;
-        match.reset();
         members.erase(member_it);
     } else if (settings.allow_bot_replacement) {
         std::string new_bot_name = PickBotName(rng);

@@ -195,7 +195,9 @@ TEST_CASE("lobby: RemoveMember aborts the match when quit_deletes_match is set")
     auto result = lobby.RemoveMember("Alice", rng);
 
     CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kMatchAborted);
-    CHECK_FALSE(lobby.match);
+    // match is deliberately left intact so the caller can persist its state
+    // before tearing it down itself.
+    CHECK(lobby.match);
     CHECK_EQ(lobby.members.size(), 1);
 }
 
@@ -220,6 +222,41 @@ TEST_CASE("lobby: RemoveMember replaces the departing player with a bot") {
     for (const auto& m : lobby.members)
         if (m.username == result.new_bot_name && m.is_bot) bot_present = true;
     CHECK(bot_present);
+}
+
+TEST_CASE("lobby: RemoveMember replacing the current turn-holder reports was_their_turn") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_replacement = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    std::string turn_holder = lobby.match->GetCurrentPlayerUsername();
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember(turn_holder, rng);
+
+    CHECK(result.was_their_turn);
+}
+
+TEST_CASE("lobby: RemoveMember replacing a non-turn-holder reports was_their_turn false") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_replacement = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    std::string turn_holder = lobby.match->GetCurrentPlayerUsername();
+    std::string other = (turn_holder == "Alice") ? "Bob" : "Alice";
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember(other, rng);
+
+    CHECK_FALSE(result.was_their_turn);
 }
 
 TEST_CASE("lobby: RemoveMember drops the player from the engine when neither policy applies") {
@@ -284,6 +321,25 @@ TEST_CASE("lobby: AddOrHijack hijacks an existing bot slot") {
     for (const auto& m : lobby.members)
         if (m.username == "Charlie" && !m.is_bot) charlie_present = true;
     CHECK(charlie_present);
+}
+
+TEST_CASE("lobby: AddOrHijack renames the engine-side player when hijacking mid-match") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bot1", nullptr, true, true);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bot1", true}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
+    match::Player* engine_player = lobby.match->GetPlayer("Charlie");
+    REQUIRE(engine_player);
+    CHECK_FALSE(engine_player->is_bot);
+    CHECK_FALSE(lobby.match->GetPlayer("Bot1"));
 }
 
 TEST_CASE("lobby: AddOrHijack fills an empty slot when no bots are hijackable") {

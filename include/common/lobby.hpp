@@ -114,7 +114,7 @@ enum class MemberRemovalOutcome {
 /**
  * @struct MemberRemovalResult
  * @brief Outcome of a Lobby::RemoveMember call, for the caller to react to.
- * @tag CMN-LOBBY-STR-004
+ * @tag CMN-LOBBY-STR-003
  */
 struct MemberRemovalResult {
     bool found = false;          /**< False if the member wasn't in lobby.members at all. */
@@ -146,7 +146,7 @@ enum class JoinOutcome {
 /**
  * @struct JoinResult
  * @brief Outcome of a Lobby::AddOrHijack call, for the caller to react to.
- * @tag CMN-LOBBY-STR-005
+ * @tag CMN-LOBBY-STR-004
  */
 struct JoinResult {
     JoinOutcome outcome;
@@ -157,7 +157,7 @@ struct JoinResult {
 /**
  * @struct Lobby
  * @brief Aggregates the entire structural state of a game room.
- * @tag CMN-LOBBY-STR-003
+ * @tag CMN-LOBBY-STR-005
  */
 struct Lobby {
     uint32_t                 id;            /**< Unique internal numeric identifier of the lobby. */
@@ -202,12 +202,12 @@ struct Lobby {
 
     /**
      * @brief Removes a member from the lobby, applying departure policy: if a
-     * match is in progress, either aborts and saves it, replaces the departing
+     * match is in progress, either flags it for abort, replaces the departing
      * human with a bot, or drops them from the engine directly, per
-     * settings.quit_deletes_match / settings.allow_bot_replacement. Erases the
-     * member from `members` in every outcome except kMatchAborted, where the
-     * lobby's whole match teardown already implies member removal via the same
-     * erase call.
+     * settings.quit_deletes_match / settings.allow_bot_replacement. Always
+     * erases the member from `members`. On the kMatchAborted outcome, `match`
+     * is deliberately left intact so the caller can persist its state before
+     * tearing it down — the caller must reset `match` itself after saving.
      * @param username Username of the member to remove.
      * @param rng Shared RNG, forwarded to PickBotName for the bot-replacement path.
      * @return MemberRemovalResult describing what happened, for the caller to

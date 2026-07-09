@@ -1107,6 +1107,8 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                         broadcaster_.Send(m.socket, game_over_payload.dump(), uWS::OpCode::TEXT);
                     }
                 }
+
+                lobby.match.reset();
                 break;
             }
             case MemberRemovalOutcome::kPlayerReplacedByBot:
