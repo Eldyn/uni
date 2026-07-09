@@ -132,6 +132,28 @@ struct MemberRemovalResult {
 };
 
 /**
+ * @enum JoinOutcome
+ * @brief Describes which path Lobby::AddOrHijack took to admit a new member.
+ * @tag CMN-LOBBY-ENUM-003
+ */
+enum class JoinOutcome {
+    kHijackedBot,      /**< An existing bot member was replaced by the joiner. */
+    kJoinedEmptySlot,  /**< The joiner filled a free member slot. */
+    kLobbyFull         /**< Neither path was available; the lobby is at capacity. */
+};
+
+/**
+ * @struct JoinResult
+ * @brief Outcome of a Lobby::AddOrHijack call, for the caller to react to.
+ * @tag CMN-LOBBY-STR-005
+ */
+struct JoinResult {
+    JoinOutcome outcome;
+    /**< Only set when outcome == kHijackedBot. */
+    std::string old_bot_name;
+};
+
+/**
  * @struct Lobby
  * @brief Aggregates the entire structural state of a game room.
  * @tag CMN-LOBBY-STR-003
@@ -201,4 +223,15 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-006
      */
     bool PromoteNextHost();
+
+    /**
+     * @brief Adds a user to the lobby: hijacks a bot slot if
+     * allow_bot_takeover is set and a bot member exists, otherwise fills an
+     * empty slot if under capacity, otherwise reports the lobby as full.
+     * @param username Username of the joining player.
+     * @param socket Their websocket connection.
+     * @return JoinResult describing which path was taken.
+     * @tag CMN-LOBBY-MTH-007
+     */
+    JoinResult AddOrHijack(const std::string& username, AppWebSocket* socket);
 };

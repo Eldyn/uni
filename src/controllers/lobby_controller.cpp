@@ -432,48 +432,19 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
 
-    bool joined = false;
+    JoinResult result = lobby.AddOrHijack(username, ctx.socket);
 
-    if (lobby.settings.allow_bot_takeover) {
-        for (auto& member : lobby.members) {
-            if (member.is_bot) {
-                std::string old_bot_name = member.username;
-
-                member.username = username;
-                member.socket = ctx.socket;
-                member.is_connected = true;
-                member.is_bot = false;
-
-                if (lobby.match) {
-                    match::Player* engine_player = lobby.match->GetPlayer(old_bot_name);
-                    if (engine_player) {
-                        engine_player->username = username;
-                        engine_player->is_bot = false;
-                    }
-                }
-
-                joined = true;
-                Logger::Info("[Game] '", username, "' hijacked ", old_bot_name);
-                break;
-            }
-        }
-    }
-
-    if (!joined && lobby.members.size() < kMaxMembers) {
-        lobby.members.emplace_back(username, ctx.socket, true, false);
-
-        if (lobby.match) {
-            lobby.match->AddPlayerMidGame(username, false);
-        }
-
-        joined = true;
-        Logger::Info("[Lobby] '", username, "' joined an empty slot.");
-    }
-
-    if (!joined) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull,
-                               request_id);
-        return;
+    switch (result.outcome) {
+        case JoinOutcome::kHijackedBot:
+            Logger::Info("[Game] '", username, "' hijacked ", result.old_bot_name);
+            break;
+        case JoinOutcome::kJoinedEmptySlot:
+            Logger::Info("[Lobby] '", username, "' joined an empty slot.");
+            break;
+        case JoinOutcome::kLobbyFull:
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull,
+                                   request_id);
+            return;
     }
 
     ctx.socket_data->lobby_code = code;

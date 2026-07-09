@@ -153,6 +153,49 @@ bool Lobby::PromoteNextHost() {
     return false;
 }
 
+JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket) {
+    JoinResult result;
+
+    if (settings.allow_bot_takeover) {
+        for (auto& member : members) {
+            if (member.is_bot) {
+                std::string old_bot_name = member.username;
+
+                member.username = username;
+                member.socket = socket;
+                member.is_connected = true;
+                member.is_bot = false;
+
+                if (match) {
+                    match::Player* engine_player = match->GetPlayer(old_bot_name);
+                    if (engine_player) {
+                        engine_player->username = username;
+                        engine_player->is_bot = false;
+                    }
+                }
+
+                result.outcome = JoinOutcome::kHijackedBot;
+                result.old_bot_name = old_bot_name;
+                return result;
+            }
+        }
+    }
+
+    if (members.size() < contract::kMaxLobbyMembers) {
+        members.emplace_back(username, socket, true, false);
+
+        if (match) {
+            match->AddPlayerMidGame(username, false);
+        }
+
+        result.outcome = JoinOutcome::kJoinedEmptySlot;
+        return result;
+    }
+
+    result.outcome = JoinOutcome::kLobbyFull;
+    return result;
+}
+
 std::string Lobby::GenerateInviteCode() {
     uint8_t raw[kCodeLen];
     if (RAND_bytes(raw, kCodeLen) != 1)
