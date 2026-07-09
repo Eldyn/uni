@@ -12,17 +12,12 @@
 #include <common/payloads.hpp>
 #include <match/rule_registry.hpp>
 #include <logger.hpp>
-#include <openssl/rand.h>
 #include <algorithm>
 #include <chrono>
 #include <stdexcept>
 #include <string>
 
 using namespace std::chrono;
-
-static constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-static constexpr int  kCodeLen        = 6;
-static constexpr int  kAlphabetLen    = 36;
 
 /**
  * @brief Constructs the LobbyController instance and establishes central inbound routing maps.
@@ -356,7 +351,7 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     std::string code;
     int attempts = 0;
     do {
-        code = GenerateInviteCode();
+        code = Lobby::GenerateInviteCode();
         if (++attempts > 10)
             throw std::runtime_error("[Lobby] Failed to generate unique code");
     } while (code_to_id_.count(code));
@@ -1047,7 +1042,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    lobby.match->SetMatchId("match_" + GenerateInviteCode() + GenerateInviteCode());
+    lobby.match->SetMatchId("match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode());
     lobby.match->Start();
 
     for (auto& cb : on_game_started_) cb(&lobby);
@@ -1065,21 +1060,6 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     broadcaster_.SendSuccess(context.socket, uWS::OpCode::TEXT, request_id);
-}
-
-/**
- * @brief Helper parsing cryptographic entropy arrays to output a random unique std::string identifier.
- * @return std::string Cryptographically randomized alphanumeric joining token.
- */
-std::string LobbyController::GenerateInviteCode() {
-    uint8_t raw[kCodeLen];
-    if (RAND_bytes(raw, kCodeLen) != 1)
-        throw std::runtime_error("[Lobby] RAND_bytes failed generating invite code");
-
-    std::string code(kCodeLen, ' ');
-    for (int i = 0; i < kCodeLen; ++i)
-        code[i] = kCodeAlphabet[raw[i] % kAlphabetLen];
-    return code;
 }
 
 /**

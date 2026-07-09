@@ -135,4 +135,12 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-003
      */
     std::string PickBotName(std::mt19937& rng) const;
+
+    /**
+     * @brief Generates a cryptographically random alphanumeric token, used both
+     * for lobby invite codes and match identifiers.
+     * @return std::string Random alphanumeric token.
+     * @tag CMN-LOBBY-MTH-004
+     */
+    static std::string GenerateInviteCode();
 };

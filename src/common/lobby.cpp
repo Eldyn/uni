@@ -6,10 +6,18 @@
 #include "common/lobby.hpp"
 #include <common/bot_names.hpp>
 #include <match/rule_registry.hpp>
+#include <openssl/rand.h>
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+namespace {
+constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+constexpr int  kCodeLen        = 6;
+constexpr int  kAlphabetLen    = 36;
+}  // namespace
 
 void LobbySettings::Sanitize() {
     turn_time_limit_ms = std::clamp(turn_time_limit_ms,
@@ -80,4 +88,15 @@ void Lobby::SyncBots(std::mt19937& rng) {
             }
         }
     }
+}
+
+std::string Lobby::GenerateInviteCode() {
+    uint8_t raw[kCodeLen];
+    if (RAND_bytes(raw, kCodeLen) != 1)
+        throw std::runtime_error("[Lobby] RAND_bytes failed generating invite code");
+
+    std::string code(kCodeLen, ' ');
+    for (int i = 0; i < kCodeLen; ++i)
+        code[i] = kCodeAlphabet[raw[i] % kAlphabetLen];
+    return code;
 }

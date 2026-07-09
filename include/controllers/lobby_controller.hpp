@@ -276,13 +276,6 @@ private:
     void HandleStartGame(WsContext context, const nlohmann::json& message);
 
     /**
-     * @brief Generates a unique 6-character alphanumeric code (Invite Code).
-     * @return std::string The generated invite code.
-     * @tag LOBBY-UTIL-001
-     */
-    static std::string GenerateInviteCode();
-
-    /**
      * @brief Serializes the member list into JSON format for sending via WebSocket.
      * @param lobby The lobby whose members to serialize.
      * @return json JSON object representing the members.
