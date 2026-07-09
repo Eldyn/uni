@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <controllers/stats_controller.hpp>
+#include <services/stats_service.hpp>
 #include <database.hpp>
 
 namespace {
@@ -36,7 +36,7 @@ TEST_CASE("GetLeaderboard: orders by wins desc, losses asc") {
     InsertStatsRow("stats_test_bob", 20, 1);
     InsertStatsRow("stats_test_carol", 5, 0);
 
-    auto result = StatsController::GetLeaderboard();
+    auto result = StatsService().GetLeaderboard();
     REQUIRE(result.has_value());
 
     auto find = [&](const std::string& username) -> const LeaderboardEntry* {
@@ -65,7 +65,7 @@ TEST_CASE("GetLeaderboard: DENSE_RANK does not skip on ties") {
     InsertStatsRow("stats_test_erin", 10, 0);
     InsertStatsRow("stats_test_frank", 5, 0);
 
-    auto result = StatsController::GetLeaderboard();
+    auto result = StatsService().GetLeaderboard();
     REQUIRE(result.has_value());
 
     auto find = [&](const std::string& username) -> const LeaderboardEntry* {
@@ -91,7 +91,7 @@ TEST_CASE("GetLeaderboard: DENSE_RANK does not skip on ties") {
 TEST_CASE("GetUserStats: no row returns zeroed defaults with no rank") {
     StatsFixture f;
 
-    auto result = StatsController::GetUserStats("stats_test_ghost");
+    auto result = StatsService().GetUserStats("stats_test_ghost");
     REQUIRE(result.has_value());
     CHECK(result->username == "stats_test_ghost");
     CHECK(result->total_wins == 0);
@@ -103,7 +103,7 @@ TEST_CASE("GetUserStats: existing row matches inserted values") {
     StatsFixture f;
     InsertStatsRow("stats_test_henry", 7, 3);
 
-    auto result = StatsController::GetUserStats("stats_test_henry");
+    auto result = StatsService().GetUserStats("stats_test_henry");
     REQUIRE(result.has_value());
     CHECK(result->username == "stats_test_henry");
     CHECK(result->total_wins == 7);
