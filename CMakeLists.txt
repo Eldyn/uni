@@ -193,6 +193,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/match_controller.cpp
         src/controllers/auth_controller.cpp
         src/controllers/stats_controller.cpp
+        src/services/auth_service.cpp
         src/action_router.cpp
         src/http_router.cpp
         src/common/http_utils.cpp

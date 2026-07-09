@@ -1,5 +1,5 @@
 #include <controllers/stats_controller.hpp>
-#include <controllers/auth_controller.hpp>
+#include <services/auth_service.hpp>
 #include <database.hpp>
 #include <common/http.hpp>
 #include <nlohmann/json.hpp>
@@ -105,7 +105,7 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
         return;
     }
 
-    auto payload = AuthController::VerifyToken(*token);
+    auto payload = AuthService::VerifyToken(*token);
     if (!payload) {
         res->writeStatus("401 Unauthorized")->end();
         return;

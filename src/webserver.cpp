@@ -3,7 +3,7 @@
 #include "common/ws.hpp"
 #include "common/env.hpp"
 #include <fstream>
-#include "controllers/auth_controller.hpp"
+#include "services/auth_service.hpp"
 #include "http_router.hpp"
 #include "websocket_context.hpp"
 #include <WebSocketProtocol.h>
@@ -203,7 +203,7 @@ void WebServer::RegisterRoutes() {
             auto token = http::GetCookieValue(cookies, "ws_token");
             if (!token || token->empty()) token = http::GetCookieValue(cookies, "auth_token");
 
-            auto payload = AuthController::VerifyToken(*token);
+            auto payload = AuthService::VerifyToken(*token);
 
             if (!payload) {
                 Logger::Warn("[WS] Rejected upgrade — invalid token");
@@ -261,7 +261,7 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
 
             std::string_view cookies = request->getHeader("cookie");
             auto token = http::GetCookieValue(cookies, "auth_token");
-            auto payload = AuthController::VerifyToken(*token);
+            auto payload = AuthService::VerifyToken(*token);
 
             if (!payload) {
                 response->writeStatus("401 Unauthorized")->end();
