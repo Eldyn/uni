@@ -37,6 +37,7 @@ channels:
           - $ref: "#/components/messages/MatchStateUpdated"
           - $ref: "#/components/messages/MatchOver"
           - $ref: "#/components/messages/ChatMessage"
+          - $ref: "#/components/messages/FriendList"
           - $ref: "#/components/messages/Metadata"
 
     publish:
@@ -61,6 +62,9 @@ channels:
           - $ref: "#/components/messages/LobbyDeleteSavedMatch"
           - $ref: "#/components/messages/LobbyResumeSavedMatch"
           - $ref: "#/components/messages/ChatSend"
+          - $ref: "#/components/messages/FriendRequest"
+          - $ref: "#/components/messages/FriendResponse"
+          - $ref: "#/components/messages/FriendListRequest"
           - $ref: "#/components/messages/MetadataRequest"
 
 # ---------------------------------------------------------------------------
@@ -281,7 +285,7 @@ components:
       title: Incoming Chat Message
       payload:
         type: object
-        required: [action, username, message]
+        required: [action, username, message, channel]
         properties:
           action:
             type: string
@@ -291,6 +295,43 @@ components:
           message:
             type: string
             maxLength: 512
+          channel:
+            type: string
+            enum: ["global", "lobby", "dm"]
+          target:
+            $ref: "#/components/schemas/Username"
+            description: Present only when channel == "dm" — the other DM participant.
+
+    FriendList:
+      name: friend_list
+      title: Friends List Broadcast
+      payload:
+        type: object
+        required: [action, friends, incoming_requests, outgoing_requests]
+        properties:
+          action:
+            type: string
+            enum: ["friend_list"]
+          request_id:
+            type: string
+          friends:
+            type: array
+            items:
+              type: object
+              required: [username, online]
+              properties:
+                username:
+                  $ref: "#/components/schemas/Username"
+                online:
+                  type: boolean
+          incoming_requests:
+            type: array
+            items:
+              $ref: "#/components/schemas/Username"
+          outgoing_requests:
+            type: array
+            items:
+              $ref: "#/components/schemas/Username"
 
     # --- Client → Server (payloads reference components/schemas for code generation) ---
 
@@ -443,6 +484,30 @@ components:
       title: Send a Chat Message
       payload:
         $ref: "#/components/schemas/ChatSendPayload"
+
+    FriendRequest:
+      name: friend_request
+      title: Send a Friend Request
+      payload:
+        $ref: "#/components/schemas/FriendRequestPayload"
+
+    FriendResponse:
+      name: friend_response
+      title: Accept or Decline a Friend Request
+      payload:
+        $ref: "#/components/schemas/FriendResponsePayload"
+
+    FriendListRequest:
+      name: friend_list_request
+      title: Request Current Friends List
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["friend_list_request"]
+          request_id:
+            type: string
 
     MetadataRequest:
       name: metadata_request
@@ -641,11 +706,37 @@ components:
       type: object
       required:
         - message
+        - channel
       properties:
         message:
           type: string
           minLength: 1
           maxLength: 512
+        channel:
+          type: string
+          enum: ["global", "lobby", "dm"]
+        target:
+          $ref: "#/components/schemas/Username"
+          description: Required when channel == "dm" — the recipient's username.
+
+    FriendRequestPayload:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          $ref: "#/components/schemas/Username"
+
+    FriendResponsePayload:
+      type: object
+      required:
+        - username
+        - accept
+      properties:
+        username:
+          $ref: "#/components/schemas/Username"
+        accept:
+          type: boolean
 
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)
