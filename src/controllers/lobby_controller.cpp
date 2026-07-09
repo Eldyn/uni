@@ -129,13 +129,8 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
                 Lobby& lobby = it->second;
 
                 if (lobby.host == username) {
-                    for (const auto& m : lobby.members) {
-                        if (m.is_connected && !m.is_bot) {
-                            lobby.host = m.username;
-                            Logger::Log("[Lobby] Host auto-passed to ", m.username,
-                                       " in lobby ", id);
-                            break;
-                        }
+                    if (lobby.PromoteNextHost()) {
+                        Logger::Log("[Lobby] Host auto-passed to ", lobby.host, " in lobby ", id);
                     }
                 }
 
@@ -590,12 +585,8 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
         if (!remaining) return;
         remaining->SyncBots(rng_);
         if (was_host) {
-            for (const auto& m : remaining->members) {
-                if (m.is_connected && !m.is_bot) {
-                    remaining->host = m.username;
-                    Logger::Log("[Lobby] Host auto-passed to ", m.username, " in lobby ", id);
-                    break;
-                }
+            if (remaining->PromoteNextHost()) {
+                Logger::Log("[Lobby] Host auto-passed to ", remaining->host, " in lobby ", id);
             }
         }
         BroadcastUpdate(*remaining);

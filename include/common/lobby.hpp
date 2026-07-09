@@ -193,4 +193,12 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-005
      */
     MemberRemovalResult RemoveMember(const std::string& username, std::mt19937& rng);
+
+    /**
+     * @brief Promotes the first connected non-bot member to host. No-op if no
+     * such member exists.
+     * @return true if a new host was promoted, false if no eligible member was found.
+     * @tag CMN-LOBBY-MTH-006
+     */
+    bool PromoteNextHost();
 };

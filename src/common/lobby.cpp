@@ -143,6 +143,16 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     return result;
 }
 
+bool Lobby::PromoteNextHost() {
+    for (const auto& m : members) {
+        if (m.is_connected && !m.is_bot) {
+            host = m.username;
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string Lobby::GenerateInviteCode() {
     uint8_t raw[kCodeLen];
     if (RAND_bytes(raw, kCodeLen) != 1)
