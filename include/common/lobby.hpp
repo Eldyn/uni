@@ -99,6 +99,39 @@ struct LobbyMember {
 };
 
 /**
+ * @enum MemberRemovalOutcome
+ * @brief Describes how an in-progress match, if any, was affected by a member removal.
+ * @tag CMN-LOBBY-ENUM-002
+ */
+enum class MemberRemovalOutcome {
+    kMatchUnaffected,        /**< No match in progress, or match unaffected by this removal. */
+    kMatchAborted,           /**< quit_deletes_match path: match was torn down. */
+    kPlayerReplacedByBot,    /**< allow_bot_replacement path. */
+    kPlayerDroppedFromEngine /**< Neither of the above: RemovePlayerMidGame path. */
+};
+
+/**
+ * @struct MemberRemovalResult
+ * @brief Outcome of a Lobby::RemoveMember call, for the caller to react to.
+ * @tag CMN-LOBBY-STR-004
+ */
+struct MemberRemovalResult {
+    bool found = false;          /**< False if the member wasn't in lobby.members at all. */
+    /**< True if the member had a live socket at time of removal. */
+    bool was_connected = false;
+    /**< The member's socket pointer at time of removal, or nullptr. */
+    AppWebSocket* socket = nullptr;
+    /**< How an in-progress match, if any, was affected. */
+    MemberRemovalOutcome match_outcome = MemberRemovalOutcome::kMatchUnaffected;
+    /**< The username removed/replaced (meaningful only if a match was affected). */
+    std::string old_username;
+    /**< Only set when match_outcome == kPlayerReplacedByBot. */
+    std::string new_bot_name;
+    /**< Meaningful only for kPlayerReplacedByBot or kPlayerDroppedFromEngine. */
+    bool was_their_turn = false;
+};
+
+/**
  * @struct Lobby
  * @brief Aggregates the entire structural state of a game room.
  * @tag CMN-LOBBY-STR-003
@@ -143,4 +176,21 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-004
      */
     static std::string GenerateInviteCode();
+
+    /**
+     * @brief Removes a member from the lobby, applying departure policy: if a
+     * match is in progress, either aborts and saves it, replaces the departing
+     * human with a bot, or drops them from the engine directly, per
+     * settings.quit_deletes_match / settings.allow_bot_replacement. Erases the
+     * member from `members` in every outcome except kMatchAborted, where the
+     * lobby's whole match teardown already implies member removal via the same
+     * erase call.
+     * @param username Username of the member to remove.
+     * @param rng Shared RNG, forwarded to PickBotName for the bot-replacement path.
+     * @return MemberRemovalResult describing what happened, for the caller to
+     * react to (broadcasting, persistence, callbacks) — this method does not
+     * touch sockets, the database, or controller-level callback lists.
+     * @tag CMN-LOBBY-MTH-005
+     */
+    MemberRemovalResult RemoveMember(const std::string& username, std::mt19937& rng);
 };

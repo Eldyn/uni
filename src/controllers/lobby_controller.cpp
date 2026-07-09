@@ -1126,17 +1126,18 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
 
     Lobby& lobby = it->second;
 
-    auto member_it = std::ranges::find(lobby.members, username, &LobbyMember::username);
-    if (member_it != lobby.members.end()) {
-        if (member_it->is_connected && member_it->socket) {
-            PerSocketData* sd = member_it->socket->getUserData();
+    MemberRemovalResult result = lobby.RemoveMember(username, rng_);
+
+    if (result.found) {
+        if (result.was_connected && result.socket) {
+            PerSocketData* sd = result.socket->getUserData();
             if (sd) {
                 sd->lobby_code.clear();
                 sd->lobby_id = 0;
             }
 
             std::string topic = "lobby_" + lobby.invite_code;
-            broadcaster_.Unsubscribe(member_it->socket, topic);
+            broadcaster_.Unsubscribe(result.socket, topic);
 
             json response;
             if (explicit_leave) {
@@ -1145,15 +1146,13 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                 response = MakeResponse(ws::ServerAction::kLobbyEvicted);
                 response["reason"] = "Kicked by host";
             }
-            broadcaster_.Send(member_it->socket, response.dump(), uWS::OpCode::TEXT);
+            broadcaster_.Send(result.socket, response.dump(), uWS::OpCode::TEXT);
         }
 
-        if (lobby.match) {
-            std::string old_name = member_it->username;
-            bool was_their_turn = (lobby.match->GetCurrentPlayerUsername() == old_name);
-
-            if (lobby.settings.quit_deletes_match) {
-                Logger::Info("[Match] Human '", old_name, "' quit. Aborting and saving game.");
+        switch (result.match_outcome) {
+            case MemberRemovalOutcome::kMatchAborted: {
+                Logger::Info("[Match] Human '", result.old_username,
+                             "' quit. Aborting and saving game.");
                 SaveMatchStateToDB(lobby);
 
                 json game_over_payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
@@ -1162,40 +1161,24 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                     "A player left. The game state has been safely saved.";
 
                 for (const auto& m : lobby.members) {
-                    if (m.is_connected && m.socket && m.username != old_name) {
+                    if (m.is_connected && m.socket && m.username != result.old_username) {
                         broadcaster_.Send(m.socket, game_over_payload.dump(), uWS::OpCode::TEXT);
                     }
                 }
-
-                lobby.match.reset();
-                lobby.members.erase(member_it);
-            } else if (lobby.settings.allow_bot_replacement) {
-                std::string new_bot_name = lobby.PickBotName(rng_);
-
-                member_it->username = new_bot_name;
-                member_it->is_bot = true;
-                member_it->is_connected = true;
-
-                match::Player* engine_player = lobby.match->GetPlayer(old_name);
-                if (engine_player) {
-                    engine_player->username = new_bot_name;
-                    engine_player->is_bot = true;
-                }
-
-                Logger::Info("[Match] Human '", old_name, "' evicted mid-game. Replaced by ",
-                             new_bot_name);
-
-                if (was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
-            } else {
-                lobby.match->RemovePlayerMidGame(old_name);
-                lobby.members.erase(member_it);
-                Logger::Info("[Match] Human '", old_name,
-                             "' evicted mid-game. Dropped from engine.");
-
-                if (was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
+                break;
             }
-        } else {
-            lobby.members.erase(member_it);
+            case MemberRemovalOutcome::kPlayerReplacedByBot:
+                Logger::Info("[Match] Human '", result.old_username,
+                             "' evicted mid-game. Replaced by ", result.new_bot_name);
+                if (result.was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
+                break;
+            case MemberRemovalOutcome::kPlayerDroppedFromEngine:
+                Logger::Info("[Match] Human '", result.old_username,
+                             "' evicted mid-game. Dropped from engine.");
+                if (result.was_their_turn) for (auto& cb : on_player_replaced_) cb(&lobby);
+                break;
+            case MemberRemovalOutcome::kMatchUnaffected:
+                break;
         }
 
         CheckMatchIntegrity(lobby);

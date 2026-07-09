@@ -5,6 +5,7 @@
  */
 #include "common/lobby.hpp"
 #include <common/bot_names.hpp>
+#include <match/match_instance.hpp>
 #include <match/rule_registry.hpp>
 #include <openssl/rand.h>
 #include <algorithm>
@@ -88,6 +89,58 @@ void Lobby::SyncBots(std::mt19937& rng) {
             }
         }
     }
+}
+
+MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt19937& rng) {
+    MemberRemovalResult result;
+
+    auto member_it = std::ranges::find(members, username, &LobbyMember::username);
+    if (member_it == members.end()) return result;
+
+    result.found = true;
+    result.was_connected = member_it->is_connected && member_it->socket;
+    result.socket = member_it->socket;
+
+    if (!match) {
+        members.erase(member_it);
+        return result;
+    }
+
+    std::string old_name = member_it->username;
+    bool was_their_turn = (match->GetCurrentPlayerUsername() == old_name);
+
+    if (settings.quit_deletes_match) {
+        result.match_outcome = MemberRemovalOutcome::kMatchAborted;
+        result.old_username = old_name;
+        match.reset();
+        members.erase(member_it);
+    } else if (settings.allow_bot_replacement) {
+        std::string new_bot_name = PickBotName(rng);
+
+        member_it->username = new_bot_name;
+        member_it->is_bot = true;
+        member_it->is_connected = true;
+
+        match::Player* engine_player = match->GetPlayer(old_name);
+        if (engine_player) {
+            engine_player->username = new_bot_name;
+            engine_player->is_bot = true;
+        }
+
+        result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
+        result.old_username = old_name;
+        result.new_bot_name = new_bot_name;
+        result.was_their_turn = was_their_turn;
+    } else {
+        match->RemovePlayerMidGame(old_name);
+        members.erase(member_it);
+
+        result.match_outcome = MemberRemovalOutcome::kPlayerDroppedFromEngine;
+        result.old_username = old_name;
+        result.was_their_turn = was_their_turn;
+    }
+
+    return result;
 }
 
 std::string Lobby::GenerateInviteCode() {
