@@ -232,3 +232,17 @@ std::string Lobby::GenerateInviteCode() {
         code[i] = kCodeAlphabet[raw[i] % kAlphabetLen];
     return code;
 }
+
+std::vector<std::string> Lobby::CollectExpiredDisconnects(
+    std::chrono::steady_clock::time_point now, int64_t grace_ms) const {
+    std::vector<std::string> expired;
+    for (const auto& m : members) {
+        if (!m.is_connected && !m.is_bot) {
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - m.disconnected_at)
+                    .count();
+            if (elapsed > grace_ms) expired.push_back(m.username);
+        }
+    }
+    return expired;
+}

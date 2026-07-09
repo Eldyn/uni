@@ -258,4 +258,17 @@ struct Lobby {
                          bool is_public, const std::string& name, int turn_time_limit_ms,
                          int starting_cards,
                          const std::function<bool(const std::string&)>& code_taken);
+
+    /**
+     * @brief Scans for disconnected, non-bot members whose grace period has
+     * expired as of `now`. Read-only: does not remove members or touch match
+     * state, leaving eviction and its side effects to the caller.
+     * @param now Reference timestamp to measure elapsed disconnect time against.
+     * @param grace_ms Grace period in milliseconds before a disconnected
+     * member is considered expired.
+     * @return std::vector<std::string> Usernames of expired members.
+     * @tag CMN-LOBBY-MTH-009
+     */
+    std::vector<std::string> CollectExpiredDisconnects(
+        std::chrono::steady_clock::time_point now, int64_t grace_ms) const;
 };

@@ -106,14 +106,8 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         std::vector<std::pair<uint32_t, std::string>> to_evict;
 
         for (const auto& [id, lobby] : lobbies_) {
-            for (const auto& m : lobby.members) {
-                if (!m.is_connected && !m.is_bot) {
-                    auto elapsed = duration_cast<milliseconds>(now - m.disconnected_at).count();
-                    if (elapsed > reconnect_grace_ms_) {
-                        to_evict.push_back({id, m.username});
-                    }
-                }
-            }
+            for (const auto& username : lobby.CollectExpiredDisconnects(now, reconnect_grace_ms_))
+                to_evict.push_back({id, username});
         }
 
         std::set<uint32_t> lobbies_to_update;
