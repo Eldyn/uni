@@ -5,6 +5,7 @@
 #include <vector>
 #include <result.hpp>
 #include <database.hpp>
+#include <common/rate_limiter.hpp>
 
 /**
  * @file chat_service.hpp
@@ -32,10 +33,13 @@ public:
     static constexpr std::size_t kDmHistoryLimit      = 200;
 
     /**
-     * @param db Database to read/write DM rows from.
+     * @param db             Database to read/write DM rows from.
+     * @param flood_capacity Burst size for the per-user chat send bucket.
+     * @param flood_rps      Sustained tokens/sec refill for the chat send bucket.
      * @tag SVC-CHAT-MTH-000
      */
-    explicit ChatService(Database& db = Database::Get());
+    explicit ChatService(Database& db = Database::Get(), double flood_capacity = -1,
+                        double flood_rps = -1);
 
     /**
      * @brief Appends a message to global chat, dropping the oldest entry once
@@ -67,8 +71,16 @@ public:
     Result<std::vector<ChatMessageEntry>> GetDirectHistory(const std::string& user_a,
                                                            const std::string& user_b);
 
+    /**
+     * @brief Consumes one flood-control token for `username`.
+     * @return false once the user's send bucket is empty, until it refills.
+     * @tag SVC-CHAT-MTH-005
+     */
+    bool AllowSend(const std::string& username);
+
 private:
     Database&            db_;
     std::vector<uint8_t> dm_key_;
     std::deque<ChatMessageEntry> global_history_;
+    RateLimiter           flood_limiter_;
 };

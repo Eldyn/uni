@@ -1,7 +1,20 @@
 #include <services/chat_service.hpp>
 #include <common/crypto.hpp>
+#include <common/env.hpp>
 
-ChatService::ChatService(Database& db) : db_(db), dm_key_(Crypto::LoadKey()) {}
+namespace {
+double ResolveFloodCapacity(double flood_capacity) {
+    return flood_capacity >= 0 ? flood_capacity : std::stod(Env::Get("RATE_CHAT_BURST", "5"));
+}
+
+double ResolveFloodRps(double flood_rps) {
+    return flood_rps >= 0 ? flood_rps : std::stod(Env::Get("RATE_CHAT_RPS", "1"));
+}
+}  // namespace
+
+ChatService::ChatService(Database& db, double flood_capacity, double flood_rps)
+    : db_(db), dm_key_(Crypto::LoadKey()),
+      flood_limiter_(ResolveFloodCapacity(flood_capacity), ResolveFloodRps(flood_rps)) {}
 
 void ChatService::PostGlobalMessage(const std::string& username, const std::string& message) {
     global_history_.push_back({username, message});
@@ -12,6 +25,10 @@ void ChatService::PostGlobalMessage(const std::string& username, const std::stri
 
 const std::deque<ChatMessageEntry>& ChatService::GetGlobalHistory() const {
     return global_history_;
+}
+
+bool ChatService::AllowSend(const std::string& username) {
+    return flood_limiter_.Allow(username);
 }
 
 VoidResult ChatService::SendDirectMessage(const std::string& sender,

@@ -40,6 +40,12 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
 
     const std::string& username = ctx.socket_data->username;
 
+    if (!chat_service_.AllowSend(username)) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kRateLimited,
+                               request_id);
+        return;
+    }
+
     if (payload_res->channel == kGlobalChatTopic) {
         chat_service_.PostGlobalMessage(username, payload_res->message);
 

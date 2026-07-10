@@ -115,4 +115,21 @@ TEST_CASE("SendDirectMessage: prunes a pair's history down to kDmHistoryLimit") 
     CHECK(history->back().message == "msg" + std::to_string(ChatService::kDmHistoryLimit + 4));
 }
 
+TEST_CASE("AllowSend: allows up to the burst capacity then rate limits") {
+    ChatService svc(Database::Get(), 3, 1);
+
+    CHECK(svc.AllowSend("chat_dm_test_flood"));
+    CHECK(svc.AllowSend("chat_dm_test_flood"));
+    CHECK(svc.AllowSend("chat_dm_test_flood"));
+    CHECK_FALSE(svc.AllowSend("chat_dm_test_flood"));
+}
+
+TEST_CASE("AllowSend: tracks each username's bucket independently") {
+    ChatService svc(Database::Get(), 1, 1);
+
+    CHECK(svc.AllowSend("chat_dm_test_alice"));
+    CHECK_FALSE(svc.AllowSend("chat_dm_test_alice"));
+    CHECK(svc.AllowSend("chat_dm_test_bob"));
+}
+
 }  // TEST_SUITE
