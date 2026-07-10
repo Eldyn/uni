@@ -82,6 +82,18 @@ static constexpr Migration MIGRATIONS[] = {
             PRIMARY KEY(user_a, user_b)
         );
     )sql" },
+    { 4, R"sql(
+        CREATE TABLE IF NOT EXISTS chat_dms (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender     TEXT     NOT NULL,
+            recipient  TEXT     NOT NULL,
+            nonce      TEXT     NOT NULL,
+            ciphertext TEXT     NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_dms_pair
+            ON chat_dms(sender, recipient, id);
+    )sql" },
 };
 
 }  // namespace

@@ -1,7 +1,10 @@
 #pragma once
+#include <cstdint>
 #include <deque>
 #include <string>
 #include <vector>
+#include <result.hpp>
+#include <database.hpp>
 
 /**
  * @file chat_service.hpp
@@ -20,13 +23,19 @@ struct ChatMessageEntry {
 
 /**
  * @class ChatService
- * @brief Owns the global chat ring buffer, capped at the most recent
- * `kGlobalHistoryLimit` messages.
+ * @brief Owns the global chat ring buffer and encrypted DM history.
  * @tag SVC-CHAT-CLS-001
  */
 class ChatService {
 public:
     static constexpr std::size_t kGlobalHistoryLimit = 200;
+    static constexpr std::size_t kDmHistoryLimit      = 200;
+
+    /**
+     * @param db Database to read/write DM rows from.
+     * @tag SVC-CHAT-MTH-000
+     */
+    explicit ChatService(Database& db = Database::Get());
 
     /**
      * @brief Appends a message to global chat, dropping the oldest entry once
@@ -41,6 +50,25 @@ public:
      */
     const std::deque<ChatMessageEntry>& GetGlobalHistory() const;
 
+    /**
+     * @brief Encrypts and persists a DM from `sender` to `recipient`, then
+     * prunes the pair's history down to the most recent `kDmHistoryLimit`
+     * messages.
+     * @tag SVC-CHAT-MTH-003
+     */
+    VoidResult SendDirectMessage(const std::string& sender, const std::string& recipient,
+                                 const std::string& plaintext);
+
+    /**
+     * @brief Returns the decrypted DM history between two users, oldest
+     * message first.
+     * @tag SVC-CHAT-MTH-004
+     */
+    Result<std::vector<ChatMessageEntry>> GetDirectHistory(const std::string& user_a,
+                                                           const std::string& user_b);
+
 private:
+    Database&            db_;
+    std::vector<uint8_t> dm_key_;
     std::deque<ChatMessageEntry> global_history_;
 };
