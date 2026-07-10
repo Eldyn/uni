@@ -37,18 +37,34 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
         return;
     }
 
-    if (payload_res->channel != kGlobalChatTopic) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
-                               request_id, "Unsupported chat channel");
+    const std::string& username = ctx.socket_data->username;
+
+    if (payload_res->channel == kGlobalChatTopic) {
+        chat_service_.PostGlobalMessage(username, payload_res->message);
+
+        auto resp = ws::MakeResponse(ws::ServerAction::kChatMessage, request_id);
+        resp["username"] = username;
+        resp["message"]  = payload_res->message;
+        resp["channel"]  = kGlobalChatTopic;
+        broadcaster_.PublishJson(kGlobalChatTopic, resp);
         return;
     }
 
-    const std::string& username = ctx.socket_data->username;
-    chat_service_.PostGlobalMessage(username, payload_res->message);
+    if (payload_res->channel == "lobby") {
+        if (ctx.socket_data->lobby_code.empty()) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
+                                   request_id);
+            return;
+        }
 
-    auto resp = ws::MakeResponse(ws::ServerAction::kChatMessage, request_id);
-    resp["username"] = username;
-    resp["message"]  = payload_res->message;
-    resp["channel"]  = kGlobalChatTopic;
-    broadcaster_.PublishJson(kGlobalChatTopic, resp);
+        auto resp = ws::MakeResponse(ws::ServerAction::kChatMessage, request_id);
+        resp["username"] = username;
+        resp["message"]  = payload_res->message;
+        resp["channel"]  = "lobby";
+        broadcaster_.PublishJson("lobby_" + ctx.socket_data->lobby_code, resp);
+        return;
+    }
+
+    broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                           request_id, "Unsupported chat channel");
 }
