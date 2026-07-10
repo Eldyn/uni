@@ -73,6 +73,15 @@ static constexpr Migration MIGRATIONS[] = {
         );
     )sql" },
     { 2, "ALTER TABLE player_stats RENAME COLUMN cards_played_colorswitch TO cards_played_jolly;" },
+    { 3, R"sql(
+        CREATE TABLE IF NOT EXISTS friends (
+            user_a     TEXT     NOT NULL,
+            user_b     TEXT     NOT NULL,
+            status     TEXT     NOT NULL DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_a, user_b)
+        );
+    )sql" },
 };
 
 }  // namespace
