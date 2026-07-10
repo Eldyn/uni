@@ -30,7 +30,7 @@ int main() {
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
                                server.GetTimerService(), presence);
-        ChatController   chat(server.GetActionRouter(), server.GetBroadcaster());
+        ChatController   chat(server.GetActionRouter(), server.GetBroadcaster(), presence);
 
         server.OnConnectionOpen([&lobby, &presence, &chat](AppWebSocket* ws, PerSocketData* sd) {
             presence.OnOpen(ws, sd);
