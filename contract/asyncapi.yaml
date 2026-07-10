@@ -805,4 +805,7 @@ components:
         CannotKickSelf: cannot_kick_self
         CannotPromoteBot: cannot_promote_bot
         SavedMatchNotFound: saved_match_not_found
+        FriendRequestInvalid: friend_request_invalid
+        FriendRequestExists: friend_request_exists
+        FriendRequestNotFound: friend_request_not_found
         InternalError: internal_error

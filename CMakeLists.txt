@@ -193,6 +193,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/match_controller.cpp
         src/controllers/auth_controller.cpp
         src/controllers/stats_controller.cpp
+        src/controllers/friend_controller.cpp
         src/services/auth_service.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp

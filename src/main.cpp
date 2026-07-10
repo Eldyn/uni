@@ -2,6 +2,7 @@
 #include <controllers/lobby_controller.hpp>
 #include <controllers/auth_controller.hpp>
 #include <controllers/stats_controller.hpp>
+#include <controllers/friend_controller.hpp>
 #include <transport/presence_registry.hpp>
 #include <common/env.hpp>
 #include <logger.hpp>
@@ -42,6 +43,7 @@ int main() {
         StatsController stats(server.GetHTTPRouter());
         MatchController game(server.GetActionRouter(), server.GetBroadcaster(),
                              server.GetTimerService(), lobby);
+        FriendController friends(server.GetActionRouter(), server.GetBroadcaster(), presence);
 
         // INFO: Logging Middleware
         server.GetHTTPRouter().OnAny([](AppResponse *response, AppRequest *request) {
