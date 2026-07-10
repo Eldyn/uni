@@ -3,6 +3,7 @@
 #include <controllers/auth_controller.hpp>
 #include <controllers/stats_controller.hpp>
 #include <controllers/friend_controller.hpp>
+#include <controllers/chat_controller.hpp>
 #include <transport/presence_registry.hpp>
 #include <common/env.hpp>
 #include <logger.hpp>
@@ -29,10 +30,12 @@ int main() {
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
                                server.GetTimerService(), presence);
+        ChatController   chat(server.GetActionRouter(), server.GetBroadcaster());
 
-        server.OnConnectionOpen([&lobby, &presence](AppWebSocket* ws, PerSocketData* sd) {
+        server.OnConnectionOpen([&lobby, &presence, &chat](AppWebSocket* ws, PerSocketData* sd) {
             presence.OnOpen(ws, sd);
             lobby.OnOpen(ws, sd);
+            chat.OnOpen(ws, sd);
         });
         server.OnConnectionClose([&lobby, &presence](AppWebSocket* ws, PerSocketData* sd) {
             presence.OnClose(ws, sd);

@@ -194,9 +194,11 @@ if(UNI_BUILD_TESTS)
         src/controllers/auth_controller.cpp
         src/controllers/stats_controller.cpp
         src/controllers/friend_controller.cpp
+        src/controllers/chat_controller.cpp
         src/services/auth_service.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
+        src/services/chat_service.cpp
         src/action_router.cpp
         src/http_router.cpp
         src/common/http_utils.cpp
