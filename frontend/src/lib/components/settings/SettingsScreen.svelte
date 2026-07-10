@@ -8,7 +8,12 @@
 
 <div
 	class="fixed inset-0 flex flex-col overflow-y-auto bg-cover bg-center"
-	style="background-image: url('/assets/bg_main.png');"
+	style="
+        background-image: url('/assets/bg_main.png');
+        background-position: center 62%;
+	    image-rendering: pixelated;
+	    image-rendering: crisp-edges;
+        "
 >
 	<header
 		class="flex items-center justify-between gap-3 border-b-2 border-border bg-bg px-4 py-2 sm:px-6 sm:py-3 lg:px-10"

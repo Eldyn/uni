@@ -112,7 +112,12 @@
 
 <div
 	class="fixed inset-0 flex flex-col overflow-x-hidden bg-cover bg-center"
-	style="background-image: url('/assets/bg_full.png');"
+	style="
+        background-image: url('/assets/bg_full.png');
+        background-position: center 62%;
+	    image-rendering: pixelated;
+	    image-rendering: crisp-edges;
+        "
 >
 	<!-- Header ------------------------------------------------------------- -->
 	<header

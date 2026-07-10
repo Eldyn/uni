@@ -71,7 +71,12 @@
 	<!-- Background art: y-position tuned to align the dark cutout with the logo -->
 	<div
 		class="fixed inset-0 z-0 bg-cover"
-		style="background-image: url('/assets/bg_main.png'); background-position: center 62%;"
+		style="
+        background-image: url('/assets/bg_main.png');
+        background-position: center 62%;
+	    image-rendering: pixelated;
+	    image-rendering: crisp-edges;
+        "
 	></div>
 
 	<!-- Dock gradient: fixed, always bottom-half of viewport, independent of content height -->

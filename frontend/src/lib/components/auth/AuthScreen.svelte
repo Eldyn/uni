@@ -51,6 +51,7 @@
 		padding: 20px;
 		font-family: "Pixel";
 		background-image: url("/assets/bg_main.png");
+		image-rendering: pixelated;
 		background-size: cover;
 	}
 

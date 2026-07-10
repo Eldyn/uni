@@ -208,6 +208,7 @@
 		position: fixed;
 		inset: 0;
 		background-image: url("/assets/bg_full.png");
+		image-rendering: pixelated;
 		background-size: cover;
 		background-position: center;
 		padding: 24px;

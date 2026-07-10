@@ -114,6 +114,7 @@
 		inset: 0;
 		background-color: #121212;
 		background-image: url("/assets/bg_stats.png");
+		image-rendering: pixelated;
 		background-size: cover;
 		z-index: 0;
 	}
