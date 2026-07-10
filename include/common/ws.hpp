@@ -38,11 +38,11 @@ namespace ws {
         auto it = json.find(key);
         if (it == json.end()) {
             return std::unexpected(
-                Error::InvalidInput("Missing required field: '" + std::string(key) + "'"));
+                ::Error::InvalidInput("Missing required field: '" + std::string(key) + "'"));
         }
         if (it->is_null()) {
             return std::unexpected(
-                Error::InvalidInput("Required field '" + std::string(key) + "' cannot be null"));
+                ::Error::InvalidInput("Required field '" + std::string(key) + "' cannot be null"));
         }
 
         if constexpr (std::is_same_v<T, std::string>) {
@@ -65,7 +65,7 @@ namespace ws {
         }
 
         return std::unexpected(
-            Error::InvalidInput("Type mismatch for field: '" + std::string(key) + "'"));
+            ::Error::InvalidInput("Type mismatch for field: '" + std::string(key) + "'"));
     }
 
     /**
