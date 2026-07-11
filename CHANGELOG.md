@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
+## [0.5.2] - 2026-07-11
+
+The chat dock talks to the server now: the mocked fixture data from 0.5.0 is
+gone, replaced by real `chat_send`/`chat_message`/friends traffic, DM
+history, and a shard-paginated global chat history so joining players see
+recent conversation instead of an empty room.
+
+### Added
+
+- **Global chat history on join**: `ChatController::OnOpen` pushes a shard of recent global chat (`chat_history`, `channel: "global"`) to every newly connected socket, so late joiners see recent conversation instead of an empty room. Gated by `CHAT_GLOBAL_HISTORY_ON_JOIN` (default on) and sized by `CHAT_GLOBAL_HISTORY_SIZE` (default 64, `-1` sends the entire 200-message in-memory ring buffer as one shard).
+- **Cursor-paginated chat history**: `chat_history_request`/`chat_history` now shard both global and DM history instead of returning it all at once — each message carries a monotonic `id`, and `chat_history_request` accepts `before_id`/`limit` to walk further back. `ChatService::GetGlobalHistoryPage`/`GetDirectHistoryPage` do the windowing; the server always clamps client-requested `limit` to `[1, 100]` (default 20) regardless of what's asked, so a client can never force a multi-MB single response. The frontend's `ChatLog.svelte` shows a "Load older messages" button once `chatStore.hasMoreHistory()` is true, wired through `chatStore.loadMoreHistory()`.
+- **Chat wired to real WebSocket traffic**: `chat.svelte.ts` no longer serves fixture data — `send()` emits `chat_send` (mapping the UI's `global`/`party`/DM channels to the backend's `global`/`lobby`/`dm`), incoming `chat_message` frames are routed to the right thread (DM routing resolves the thread partner from `target` vs `username` depending on who sent it), and DM threads hydrate their first history shard the first time they're opened.
+- **Party chat gated to being in a lobby**: the party tab is disabled (with a tooltip) and sending is blocked with an inline composer error when the socket has no `lobby_code`; `ChatLog` shows a "Join a lobby to use party chat" empty state instead.
+- **Friends, for real**: `friend_list_request`/`friend_list`/`friend_request`/`friend_response` replace the mocked friends list. `FriendsList.svelte` gained an "Add friend by username" field and accept/reject buttons for incoming requests; unknown/duplicate/missing-request errors get real messages in `errors.ts`.
+- **Inline composer errors**: fire-and-forget actions like `chat_send` have no `emitAndWait` caller to report to, so their `error` frames are now surfaced as a transient message under the composer (scoped to while the dock is open, cleared after 5s or on the next send).
+
+### Changed
+
+- **`chat_history` is now a shared shape** for both the DM `chat_history_request` reply and the global on-join/scroll-back push, disambiguated by a `channel` field (`"global"` | `"dm"`) instead of two separate message types.
+
+### Fixed
+
+- **Zen Browser chat dock border**: `.pixel-bordered`'s `@supports (corner-shape: notch)` fast path false-positived on Zen — it ships several Gecko Nightly CSS experiments enabled by default, including a partial `corner-shape` implementation that passes the feature check without actually painting the notch. Removed the fast path; the clip-path fallback (which already worked correctly everywhere, including Zen) is now used unconditionally.
+
 ## [0.5.1] - 2026-09-07
 
 ### Added
