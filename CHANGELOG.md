@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
+## [0.5.1] - 2026-09-07
+
+### Added
+
+- **IndexNow** added IndexNow key for search engine indexing notifications.
+
 ## [0.5.0] - 2026-07-07
 
 The "half-UI" update: a ground-up redesign of the landing and lobby-browse
