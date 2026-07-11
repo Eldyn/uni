@@ -109,9 +109,12 @@ TEST_CASE("returns prior DM history for the pair, oldest message first") {
     REQUIRE(frames.size() == 1);
     auto resp = json::parse(frames[0].payload);
     CHECK(resp["action"] == "chat_history");
+    CHECK(resp["channel"] == "dm");
+    CHECK(resp["has_more"] == false);
     REQUIRE(resp["messages"].size() == 1);
     CHECK(resp["messages"][0]["username"] == "chat_ctrl_test_alice");
     CHECK(resp["messages"][0]["message"] == "hi bob");
+    CHECK(resp["messages"][0].contains("id"));
 }
 
 TEST_CASE("missing target field yields an invalid_payload error, not a crash") {
@@ -126,7 +129,116 @@ TEST_CASE("missing target field yields an invalid_payload error, not a crash") {
     CHECK(resp["code"] == "invalid_payload");
 }
 
+TEST_CASE("DM history is delivered a shard at a time via before_id") {
+    ChatControllerFixture f;
+
+    for (int i = 0; i < 3; ++i) {
+        f.Dispatch({{"action", "chat_send"},
+                    {"channel", "dm"},
+                    {"target", "chat_ctrl_test_bob"},
+                    {"message", "msg" + std::to_string(i)}});
+    }
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"}, {"target", "chat_ctrl_test_bob"}, {"limit", 2}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    REQUIRE(resp["messages"].size() == 2);
+    CHECK(resp["messages"][0]["message"] == "msg1");
+    CHECK(resp["messages"][1]["message"] == "msg2");
+    CHECK(resp["has_more"] == true);
+
+    int oldest_id = resp["messages"][0]["id"].get<int>();
+    f.broadcaster.Clear();
+    f.Dispatch({{"action", "chat_history_request"},
+                {"target", "chat_ctrl_test_bob"},
+                {"limit", 2},
+                {"before_id", oldest_id}});
+
+    auto frames2 = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames2.size() == 1);
+    auto resp2 = json::parse(frames2[0].payload);
+    REQUIRE(resp2["messages"].size() == 1);
+    CHECK(resp2["messages"][0]["message"] == "msg0");
+    CHECK(resp2["has_more"] == false);
+}
+
 }  // TEST_SUITE
+
+TEST_SUITE("ChatController — chat_history_request (channel: global)") {
+
+TEST_CASE("returns a shard of global history, newest shard first") {
+    ChatControllerFixture f;
+
+    for (int i = 0; i < 3; ++i) {
+        f.Dispatch({{"action", "chat_send"}, {"channel", "global"}, {"message", "msg" + std::to_string(i)}});
+    }
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"}, {"channel", "global"}, {"limit", 2}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    CHECK(resp["action"] == "chat_history");
+    CHECK(resp["channel"] == "global");
+    CHECK_FALSE(resp.contains("target"));
+    REQUIRE(resp["messages"].size() == 2);
+    CHECK(resp["messages"][0]["message"] == "msg1");
+    CHECK(resp["messages"][1]["message"] == "msg2");
+    CHECK(resp["has_more"] == true);
+}
+
+TEST_CASE("before_id fetches the next older shard of global history") {
+    ChatControllerFixture f;
+
+    for (int i = 0; i < 3; ++i) {
+        f.Dispatch({{"action", "chat_send"}, {"channel", "global"}, {"message", "msg" + std::to_string(i)}});
+    }
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"}, {"channel", "global"}, {"limit", 2}});
+    auto first = json::parse(f.broadcaster.FramesFor(f.sock)[0].payload);
+    int oldest_id = first["messages"][0]["id"].get<int>();
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"},
+                {"channel", "global"},
+                {"limit", 2},
+                {"before_id", oldest_id}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    REQUIRE(resp["messages"].size() == 1);
+    CHECK(resp["messages"][0]["message"] == "msg0");
+    CHECK(resp["has_more"] == false);
+}
+
+TEST_CASE("requesting more messages than exist returns them all, with has_more false") {
+    ChatControllerFixture f;
+
+    f.Dispatch({{"action", "chat_send"}, {"channel", "global"}, {"message", "only one"}});
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"}, {"channel", "global"}, {"limit", 50}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    REQUIRE(resp["messages"].size() == 1);
+    CHECK(resp["has_more"] == false);
+}
+
+}  // TEST_SUITE
+
+// The server-side clamp to kMaxShardSize (regardless of a huge requested
+// `limit`) is covered directly at the service layer in chat_service_test.cpp
+// — constructing >100 real messages here would trip ChatService's flood
+// limiter (AllowSend), since chat_send goes through the same rate-limited
+// path a real client would use.
 
 TEST_SUITE("ChatController — global history on join") {
 

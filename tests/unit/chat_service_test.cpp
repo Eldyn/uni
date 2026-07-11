@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <services/chat_service.hpp>
 #include <database.hpp>
+#include <optional>
 
 namespace {
 
@@ -130,6 +131,146 @@ TEST_CASE("AllowSend: tracks each username's bucket independently") {
     CHECK(svc.AllowSend("chat_dm_test_alice"));
     CHECK_FALSE(svc.AllowSend("chat_dm_test_alice"));
     CHECK(svc.AllowSend("chat_dm_test_bob"));
+}
+
+TEST_CASE("GetGlobalHistoryPage: first shard returns the newest `limit` messages, oldest first") {
+    ChatService svc;
+    for (int i = 0; i < 5; ++i) svc.PostGlobalMessage("user", "msg" + std::to_string(i));
+
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, 3);
+
+    REQUIRE(page.messages.size() == 3);
+    CHECK(page.messages[0].message == "msg2");
+    CHECK(page.messages[1].message == "msg3");
+    CHECK(page.messages[2].message == "msg4");
+    CHECK(page.has_more == true);
+}
+
+TEST_CASE("GetGlobalHistoryPage: has_more is false once the oldest message is included") {
+    ChatService svc;
+    for (int i = 0; i < 3; ++i) svc.PostGlobalMessage("user", "msg" + std::to_string(i));
+
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, 10);
+
+    REQUIRE(page.messages.size() == 3);
+    CHECK(page.has_more == false);
+}
+
+TEST_CASE("GetGlobalHistoryPage: before_id walks further back a shard at a time") {
+    ChatService svc;
+    for (int i = 0; i < 5; ++i) svc.PostGlobalMessage("user", "msg" + std::to_string(i));
+
+    auto first = svc.GetGlobalHistoryPage(std::nullopt, 2);
+    REQUIRE(first.messages.size() == 2);
+    CHECK(first.has_more == true);
+
+    auto second = svc.GetGlobalHistoryPage(first.messages.front().id, 2);
+    REQUIRE(second.messages.size() == 2);
+    CHECK(second.messages[0].message == "msg1");
+    CHECK(second.messages[1].message == "msg2");
+    CHECK(second.has_more == true);
+
+    auto third = svc.GetGlobalHistoryPage(second.messages.front().id, 2);
+    REQUIRE(third.messages.size() == 1);
+    CHECK(third.messages[0].message == "msg0");
+    CHECK(third.has_more == false);
+}
+
+TEST_CASE("GetGlobalHistoryPage: an empty history returns an empty page, not an error") {
+    ChatService svc;
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, 20);
+    CHECK(page.messages.empty());
+    CHECK(page.has_more == false);
+}
+
+TEST_CASE("GetGlobalHistoryPage: a negative limit returns the entire matching window unclamped") {
+    ChatService svc;
+    for (int i = 0; i < 30; ++i) svc.PostGlobalMessage("user", "msg" + std::to_string(i));
+
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, -1);
+
+    CHECK(page.messages.size() == 30);
+    CHECK(page.has_more == false);
+}
+
+TEST_CASE("GetGlobalHistoryPage: a limit above kMaxShardSize is clamped") {
+    ChatService svc;
+    for (int i = 0; i < ChatService::kMaxShardSize + 10; ++i) {
+        svc.PostGlobalMessage("user", "msg" + std::to_string(i));
+    }
+
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, ChatService::kMaxShardSize + 10);
+
+    CHECK(page.messages.size() == static_cast<std::size_t>(ChatService::kMaxShardSize));
+    CHECK(page.has_more == true);
+}
+
+TEST_CASE("GetDirectHistoryPage: first shard returns the newest `limit` DMs, oldest first") {
+    ChatDmFixture f;
+    ChatService svc;
+
+    for (int i = 0; i < 5; ++i) {
+        REQUIRE(svc.SendDirectMessage("chat_dm_test_alice", "chat_dm_test_bob",
+                                      "msg" + std::to_string(i)).has_value());
+    }
+
+    auto page = svc.GetDirectHistoryPage("chat_dm_test_alice", "chat_dm_test_bob", std::nullopt, 3);
+
+    REQUIRE(page.has_value());
+    REQUIRE(page->messages.size() == 3);
+    CHECK(page->messages[0].message == "msg2");
+    CHECK(page->messages[2].message == "msg4");
+    CHECK(page->has_more == true);
+}
+
+TEST_CASE("GetDirectHistoryPage: before_id walks further back a shard at a time") {
+    ChatDmFixture f;
+    ChatService svc;
+
+    for (int i = 0; i < 5; ++i) {
+        REQUIRE(svc.SendDirectMessage("chat_dm_test_alice", "chat_dm_test_bob",
+                                      "msg" + std::to_string(i)).has_value());
+    }
+
+    auto first = svc.GetDirectHistoryPage("chat_dm_test_alice", "chat_dm_test_bob", std::nullopt, 2);
+    REQUIRE(first.has_value());
+    REQUIRE(first->messages.size() == 2);
+    CHECK(first->has_more == true);
+
+    auto second = svc.GetDirectHistoryPage("chat_dm_test_alice", "chat_dm_test_bob",
+                                           first->messages.front().id, 2);
+    REQUIRE(second.has_value());
+    REQUIRE(second->messages.size() == 2);
+    CHECK(second->messages[0].message == "msg1");
+    CHECK(second->messages[1].message == "msg2");
+    CHECK(second->has_more == true);
+}
+
+TEST_CASE("GetDirectHistoryPage: no messages returns an empty, has_more:false page") {
+    ChatDmFixture f;
+    ChatService svc;
+
+    auto page = svc.GetDirectHistoryPage("chat_dm_test_ghost1", "chat_dm_test_ghost2", std::nullopt, 20);
+
+    REQUIRE(page.has_value());
+    CHECK(page->messages.empty());
+    CHECK(page->has_more == false);
+}
+
+TEST_CASE("GetDirectHistoryPage: a negative limit is not honoured — falls back to the default shard size") {
+    ChatDmFixture f;
+    ChatService svc;
+
+    for (int i = 0; i < ChatService::kDefaultShardSize + 5; ++i) {
+        REQUIRE(svc.SendDirectMessage("chat_dm_test_alice", "chat_dm_test_bob",
+                                      "msg" + std::to_string(i)).has_value());
+    }
+
+    auto page = svc.GetDirectHistoryPage("chat_dm_test_alice", "chat_dm_test_bob", std::nullopt, -1);
+
+    REQUIRE(page.has_value());
+    CHECK(page->messages.size() == static_cast<std::size_t>(ChatService::kDefaultShardSize));
+    CHECK(page->has_more == true);
 }
 
 }  // TEST_SUITE
