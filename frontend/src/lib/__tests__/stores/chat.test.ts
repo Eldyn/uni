@@ -20,15 +20,14 @@ describe("chatStore", () => {
 		expect(chatStore.activeChannel).toBe("global");
 	});
 
-	it("returns fixture lines for the global channel", () => {
-		const lines = chatStore.linesFor("global");
-		expect(lines.length).toBeGreaterThan(0);
+	it("starts with empty global and party lines — populated by the server, not fixtures", () => {
+		expect(chatStore.linesFor("global")).toEqual([]);
+		expect(chatStore.linesFor("party")).toEqual([]);
 	});
 
-	it("returns fixture lines for the party channel, distinct from global", () => {
+	it("linesFor returns distinct array references per channel", () => {
 		const globalLines = chatStore.linesFor("global");
 		const partyLines = chatStore.linesFor("party");
-		expect(partyLines.length).toBeGreaterThan(0);
 		expect(partyLines).not.toBe(globalLines);
 	});
 
@@ -37,37 +36,11 @@ describe("chatStore", () => {
 		chatStore.activeChannel = { friendId: friend.id };
 		const lines = chatStore.linesFor(chatStore.activeChannel);
 		expect(Array.isArray(lines)).toBe(true);
-		// Every seeded line in a friend's own thread was authored by the
-		// friend or the local user — never by a different friend's name.
-		const otherFriendNames = CHAT_FRIENDS.filter((f) => f.id !== friend.id).map((f) => f.name);
-		for (const line of lines) {
-			expect(otherFriendNames).not.toContain(line.username);
-		}
-	});
-
-	it("send() appends an optimistic line only to the currently active channel", () => {
-		const before = chatStore.linesFor("global").length;
-		chatStore.send("hello **world**");
-		const after = chatStore.linesFor("global");
-		expect(after.length).toBe(before + 1);
-		expect(after[after.length - 1].text).toBe("hello **world**");
-
-		// party wasn't touched
-		const beforeParty = chatStore.linesFor("party").length;
-		expect(chatStore.linesFor("party").length).toBe(beforeParty);
-	});
-
-	it("send() attributes the local line to storeAuth.username, or 'You' when logged out", () => {
-		chatStore.send("anonymous line");
-		const lines = chatStore.linesFor("global");
-		expect(lines[lines.length - 1].username).toBe("You");
-
-		storeAuth.username = "Eldyn";
-		chatStore.send("named line");
-		const lines2 = chatStore.linesFor("global");
-		expect(lines2[lines2.length - 1].username).toBe("Eldyn");
 	});
 });
+
+// send()/receive() wiring against the real ws traffic is covered in
+// chat.sendReceive.test.ts (mocks $stores/ws.svelte).
 
 describe("chatStore drafts (per-channel scratchpad)", () => {
 	beforeEach(() => {
