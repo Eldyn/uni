@@ -99,6 +99,35 @@ describe("chatStore: chat_send wiring", () => {
 	});
 });
 
+describe("chatStore: global history push on join (unsolicited chat_history)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("seeds the global thread from a channel: global chat_history push", () => {
+		fire("chat_history", {
+			channel: "global",
+			messages: [
+				{ username: "Bianca", message: "welcome" },
+				{ username: "Renn", message: "hey" }
+			]
+		});
+		expect(chatStore.linesFor("global").map((l) => l.text)).toEqual(["welcome", "hey"]);
+	});
+
+	it("replaces rather than appends to the global thread", () => {
+		fire("chat_history", { channel: "global", messages: [{ username: "Bianca", message: "a" }] });
+		fire("chat_history", { channel: "global", messages: [{ username: "Bianca", message: "b" }] });
+		expect(chatStore.linesFor("global").map((l) => l.text)).toEqual(["b"]);
+	});
+
+	it("ignores a chat_history push with channel: dm (handled by emitAndWait instead)", () => {
+		fire("chat_history", { channel: "global", messages: [{ username: "Bianca", message: "kept" }] });
+		fire("chat_history", { channel: "dm", target: "Bianca", messages: [{ username: "Bianca", message: "dm-only" }] });
+		expect(chatStore.linesFor("global").map((l) => l.text)).toEqual(["kept"]);
+	});
+});
+
 describe("chatStore: chat_message wiring", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();

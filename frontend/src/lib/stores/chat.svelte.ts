@@ -275,6 +275,17 @@ class StoreChat {
 			}
 		});
 
+		// Unsolicited push on join (see ChatController::OnOpen /
+		// CHAT_GLOBAL_HISTORY_ON_JOIN) — replaces #global outright rather than
+		// appending, since it's the authoritative snapshot for this connection.
+		// DM replies to chat_history_request carry channel: "dm" and are
+		// already resolved directly by their emitAndWait() caller; ignored here.
+		ws.on(ServerAction.ChatHistory, (data) => {
+			if (data.channel !== "global") return;
+			const messages = (data.messages as Array<{ username: string; message: string }>) ?? [];
+			this.#global = messages.map((m) => makeLine(m.username, m.message));
+		});
+
 		ws.on(ServerAction.FriendList, (data) => {
 			const friends = (data.friends as Array<{ username: string; online: boolean }>) ?? [];
 			this.#friends = friends.map((f) => ({
