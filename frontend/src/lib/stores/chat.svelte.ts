@@ -15,6 +15,13 @@ const CHAT_FRIEND_COLORS = ["#f97373", "#60a5fa", "#4ade80", "#facc15", "#c084fc
 
 export interface ChatLine {
 	id: string;
+	/**
+	 * Server-assigned message id, present only on lines loaded from a
+	 * `chat_history` shard — used as the `before_id` cursor to fetch the
+	 * next older shard. Absent on live `chat_message` lines, which are only
+	 * ever appended (never used as a pagination cursor).
+	 */
+	serverId?: number;
 	username: string;
 	color: string;
 	text: string;
@@ -49,8 +56,8 @@ function colorFor(username: string): string {
 	return CHAT_FRIEND_COLORS[Math.abs(hash) % CHAT_FRIEND_COLORS.length];
 }
 
-function makeLine(username: string, text: string): ChatLine {
-	return { id: `srv-${++nextLineId}`, username, color: colorFor(username), text };
+function makeLine(username: string, text: string, serverId?: number): ChatLine {
+	return { id: `srv-${++nextLineId}`, serverId, username, color: colorFor(username), text };
 }
 
 class StoreChat {
@@ -78,6 +85,11 @@ class StoreChat {
 	#party = $state<ChatLine[]>([]);
 	#friendThreads = $state<Record<string, ChatLine[]>>({});
 	#hydratedThreads = new Set<string>();
+
+	/** Whether an older shard exists beyond what's currently loaded, keyed by channelKey. */
+	#hasMore = $state<Record<string, boolean>>({ global: true });
+	/** True while a loadMoreHistory() request for that channel is in flight. */
+	#loadingMore = $state<Record<string, boolean>>({});
 
 	#friends = $state<ChatFriend[]>([]);
 	incomingRequests = $state<string[]>([]);
@@ -148,6 +160,53 @@ class StoreChat {
 		return this.unread[channelKey(channel)] ?? 0;
 	}
 
+	/** True if an older shard of this channel's history hasn't been loaded yet. */
+	hasMoreHistory(channel: ChatChannel): boolean {
+		return this.#hasMore[channelKey(channel)] ?? false;
+	}
+
+	/** True while a loadMoreHistory() request for this channel is in flight. */
+	isLoadingMoreHistory(channel: ChatChannel): boolean {
+		return this.#loadingMore[channelKey(channel)] ?? false;
+	}
+
+	/**
+	 * Fetches the next older shard for global or a DM thread and prepends it.
+	 * No-ops for "party" (lobby chat has no history endpoint) and while a
+	 * request for this channel is already in flight or none remains.
+	 */
+	async loadMoreHistory(channel: ChatChannel): Promise<void> {
+		if (channel === "party") return;
+
+		const key = channelKey(channel);
+		if (this.#loadingMore[key] || this.#hasMore[key] === false) return;
+
+		const oldest = this.linesFor(channel)[0];
+		this.#loadingMore = { ...this.#loadingMore, [key]: true };
+		try {
+			await ws.connect();
+			const res = await ws.emitAndWait(
+				ClientAction.ChatHistoryRequest,
+				channel === "global"
+					? { channel: "global", before_id: oldest?.serverId }
+					: { channel: "dm", target: channel.friendId, before_id: oldest?.serverId }
+			);
+			if (!res.ok) return;
+
+			const messages = res.getOr<Array<{ id: number; username: string; message: string }>>(
+				"messages",
+				[]
+			);
+			this.#prepend(
+				channel,
+				messages.map((m) => makeLine(m.username, m.message, m.id))
+			);
+			this.#hasMore = { ...this.#hasMore, [key]: res.getOr<boolean>("has_more", false) };
+		} finally {
+			this.#loadingMore = { ...this.#loadingMore, [key]: false };
+		}
+	}
+
 	/**
 	 * Appends an incoming line to its channel and bumps unread, unless the
 	 * dock is open and that channel is the one currently being viewed.
@@ -163,6 +222,16 @@ class StoreChat {
 		const key = channelKey(channel);
 		if (this.isOpen && channelKey(this.activeChannel) === key) return;
 		this.unread = { ...this.unread, [key]: (this.unread[key] ?? 0) + 1 };
+	}
+
+	/** Prepends an older shard of lines to the front of a channel's history. */
+	#prepend(channel: ChatChannel, lines: ChatLine[]): void {
+		if (channel === "global") this.#global = [...lines, ...this.#global];
+		else if (channel === "party") this.#party = [...lines, ...this.#party];
+		else {
+			const existing = this.#friendThreads[channel.friendId] ?? [];
+			this.#friendThreads = { ...this.#friendThreads, [channel.friendId]: [...lines, ...existing] };
+		}
 	}
 
 	/** Opens the dock and clears unread for the currently active channel. */
@@ -233,15 +302,25 @@ class StoreChat {
 	async #hydrateHistory(friendId: string): Promise<void> {
 		try {
 			await ws.connect();
-			const res = await ws.emitAndWait(ClientAction.ChatHistoryRequest, { target: friendId });
+			const res = await ws.emitAndWait(ClientAction.ChatHistoryRequest, {
+				channel: "dm",
+				target: friendId
+			});
 			if (!res.ok) {
 				this.#hydratedThreads.delete(friendId);
 				return;
 			}
-			const messages = res.getOr<Array<{ username: string; message: string }>>("messages", []);
+			const messages = res.getOr<Array<{ id: number; username: string; message: string }>>(
+				"messages",
+				[]
+			);
 			this.#friendThreads = {
 				...this.#friendThreads,
-				[friendId]: messages.map((m) => makeLine(m.username, m.message))
+				[friendId]: messages.map((m) => makeLine(m.username, m.message, m.id))
+			};
+			this.#hasMore = {
+				...this.#hasMore,
+				[channelKey({ friendId })]: res.getOr<boolean>("has_more", false)
 			};
 		} catch {
 			this.#hydratedThreads.delete(friendId);
@@ -282,8 +361,10 @@ class StoreChat {
 		// already resolved directly by their emitAndWait() caller; ignored here.
 		ws.on(ServerAction.ChatHistory, (data) => {
 			if (data.channel !== "global") return;
-			const messages = (data.messages as Array<{ username: string; message: string }>) ?? [];
-			this.#global = messages.map((m) => makeLine(m.username, m.message));
+			const messages =
+				(data.messages as Array<{ id: number; username: string; message: string }>) ?? [];
+			this.#global = messages.map((m) => makeLine(m.username, m.message, m.id));
+			this.#hasMore = { ...this.#hasMore, global: (data.has_more as boolean) ?? false };
 		});
 
 		ws.on(ServerAction.FriendList, (data) => {
