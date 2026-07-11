@@ -37,6 +37,7 @@ channels:
           - $ref: "#/components/messages/MatchStateUpdated"
           - $ref: "#/components/messages/MatchOver"
           - $ref: "#/components/messages/ChatMessage"
+          - $ref: "#/components/messages/ChatHistory"
           - $ref: "#/components/messages/FriendList"
           - $ref: "#/components/messages/Metadata"
 
@@ -62,6 +63,7 @@ channels:
           - $ref: "#/components/messages/LobbyDeleteSavedMatch"
           - $ref: "#/components/messages/LobbyResumeSavedMatch"
           - $ref: "#/components/messages/ChatSend"
+          - $ref: "#/components/messages/ChatHistoryRequest"
           - $ref: "#/components/messages/FriendRequest"
           - $ref: "#/components/messages/FriendResponse"
           - $ref: "#/components/messages/FriendListRequest"
@@ -302,6 +304,34 @@ components:
             $ref: "#/components/schemas/Username"
             description: Present only when channel == "dm" — the other DM participant.
 
+    ChatHistory:
+      name: chat_history
+      title: DM History (response to chat_history_request)
+      payload:
+        type: object
+        required: [action, target, messages]
+        properties:
+          action:
+            type: string
+            enum: ["chat_history"]
+          request_id:
+            type: string
+          target:
+            $ref: "#/components/schemas/Username"
+            description: The other DM participant this history belongs to.
+          messages:
+            type: array
+            description: Oldest message first, matching ChatService::GetDirectHistory order.
+            items:
+              type: object
+              required: [username, message]
+              properties:
+                username:
+                  $ref: "#/components/schemas/Username"
+                message:
+                  type: string
+                  maxLength: 512
+
     FriendList:
       name: friend_list
       title: Friends List Broadcast
@@ -484,6 +514,12 @@ components:
       title: Send a Chat Message
       payload:
         $ref: "#/components/schemas/ChatSendPayload"
+
+    ChatHistoryRequest:
+      name: chat_history_request
+      title: Request DM History With a Friend
+      payload:
+        $ref: "#/components/schemas/ChatHistoryRequestPayload"
 
     FriendRequest:
       name: friend_request
@@ -718,6 +754,14 @@ components:
         target:
           $ref: "#/components/schemas/Username"
           description: Required when channel == "dm" — the recipient's username.
+
+    ChatHistoryRequestPayload:
+      type: object
+      required:
+        - target
+      properties:
+        target:
+          $ref: "#/components/schemas/Username"
 
     FriendRequestPayload:
       type: object
