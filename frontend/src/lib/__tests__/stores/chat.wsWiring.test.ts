@@ -213,7 +213,10 @@ describe("chatStore: DM history hydration", () => {
 		chatStore.selectChannel({ friendId: "renn-hydrate" });
 
 		await vi.waitFor(() =>
-			expect(mockEmitAndWait).toHaveBeenCalledWith("chat_history_request", { target: "renn-hydrate" })
+			expect(mockEmitAndWait).toHaveBeenCalledWith("chat_history_request", {
+				channel: "dm",
+				target: "renn-hydrate"
+			})
 		);
 	});
 
@@ -257,6 +260,110 @@ describe("chatStore: DM history hydration", () => {
 		chatStore.selectChannel("global");
 		chatStore.selectChannel({ friendId: "retry-hydrate" });
 		await vi.waitFor(() => expect(mockEmitAndWait).toHaveBeenCalledTimes(2));
+	});
+});
+
+describe("chatStore: shard-based history loading (loadMoreHistory)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("loadMoreHistory('party') is a no-op — lobby chat has no history endpoint", async () => {
+		await chatStore.loadMoreHistory("party");
+		expect(mockEmitAndWait).not.toHaveBeenCalled();
+	});
+
+	it("loadMoreHistory('global') requests the shard before the oldest loaded message", async () => {
+		fire("chat_history", {
+			channel: "global",
+			has_more: true,
+			messages: [
+				{ id: 10, username: "Bianca", message: "shard-2-a" },
+				{ id: 11, username: "Renn", message: "shard-2-b" }
+			]
+		});
+
+		mockEmitAndWait.mockResolvedValueOnce(
+			okResponse({
+				has_more: false,
+				messages: [{ id: 9, username: "Bianca", message: "shard-1-a" }]
+			})
+		);
+		await chatStore.loadMoreHistory("global");
+
+		expect(mockEmitAndWait).toHaveBeenCalledWith("chat_history_request", {
+			channel: "global",
+			before_id: 10
+		});
+	});
+
+	it("loadMoreHistory('global') prepends the older shard and updates hasMoreHistory", async () => {
+		fire("chat_history", {
+			channel: "global",
+			has_more: true,
+			messages: [{ id: 20, username: "Bianca", message: "newer" }]
+		});
+
+		mockEmitAndWait.mockResolvedValueOnce(
+			okResponse({
+				has_more: false,
+				messages: [{ id: 19, username: "Bianca", message: "older" }]
+			})
+		);
+		await chatStore.loadMoreHistory("global");
+
+		expect(chatStore.linesFor("global").map((l) => l.text)).toEqual(["older", "newer"]);
+		expect(chatStore.hasMoreHistory("global")).toBe(false);
+	});
+
+	it("loadMoreHistory is a no-op while a request for that channel is already in flight", async () => {
+		fire("chat_history", {
+			channel: "global",
+			has_more: true,
+			messages: [{ id: 30, username: "Bianca", message: "a" }]
+		});
+
+		let resolvePending: (v: unknown) => void = () => {};
+		mockEmitAndWait.mockReturnValueOnce(new Promise((resolve) => (resolvePending = resolve)));
+
+		const first = chatStore.loadMoreHistory("global");
+		await vi.waitFor(() => expect(mockEmitAndWait).toHaveBeenCalledTimes(1));
+
+		await chatStore.loadMoreHistory("global");
+		expect(mockEmitAndWait).toHaveBeenCalledTimes(1);
+
+		resolvePending(okResponse({ has_more: false, messages: [] }));
+		await first;
+	});
+
+	it("loadMoreHistory is a no-op once hasMoreHistory is false", async () => {
+		fire("chat_history", {
+			channel: "global",
+			has_more: false,
+			messages: [{ id: 40, username: "Bianca", message: "only one" }]
+		});
+
+		await chatStore.loadMoreHistory("global");
+		expect(mockEmitAndWait).not.toHaveBeenCalled();
+	});
+
+	it("loadMoreHistory for a DM thread requests channel: dm with the friend as target", async () => {
+		mockEmitAndWait.mockResolvedValueOnce(
+			okResponse({ has_more: true, messages: [{ id: 50, username: "Otto", message: "first shard" }] })
+		);
+		chatStore.selectChannel({ friendId: "otto-shard" });
+		await vi.waitFor(() => expect(mockEmitAndWait).toHaveBeenCalledTimes(1));
+
+		mockEmitAndWait.mockResolvedValueOnce(
+			okResponse({ has_more: false, messages: [{ id: 49, username: "Otto", message: "older" }] })
+		);
+		await chatStore.loadMoreHistory({ friendId: "otto-shard" });
+
+		expect(mockEmitAndWait).toHaveBeenLastCalledWith("chat_history_request", {
+			channel: "dm",
+			target: "otto-shard",
+			before_id: 50
+		});
 	});
 });
 
