@@ -8,11 +8,28 @@
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
 #include <common/env.hpp>
+#include <optional>
 
 using json = nlohmann::json;
 
 namespace {
 constexpr const char* kGlobalChatTopic = "global";
+
+/** Builds a `chat_history` frame from one shard, oldest message first. */
+json MakeChatHistoryResponse(const std::string& request_id, const std::string& channel,
+                             const std::optional<std::string>& target,
+                             const ChatHistoryPage& page) {
+    auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory, request_id);
+    resp["channel"] = channel;
+    if (target.has_value()) resp["target"] = *target;
+    resp["has_more"] = page.has_more;
+    resp["messages"] = json::array();
+    for (const auto& entry : page.messages) {
+        resp["messages"].push_back(
+            {{"id", entry.id}, {"username", entry.username}, {"message", entry.message}});
+    }
+    return resp;
+}
 }  // namespace
 
 ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
@@ -41,21 +58,10 @@ void ChatController::OnOpen(AppWebSocket* socket, PerSocketData* socket_data) {
 
     if (!send_global_history_on_join_) return;
 
-    const auto& history = chat_service_.GetGlobalHistory();
-    std::size_t start = 0;
-    if (global_history_limit_ >= 0 &&
-        history.size() > static_cast<std::size_t>(global_history_limit_)) {
-        start = history.size() - static_cast<std::size_t>(global_history_limit_);
-    }
-
-    auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory);
-    resp["channel"] = "global";
-    resp["messages"] = json::array();
-    for (std::size_t i = start; i < history.size(); ++i) {
-        resp["messages"].push_back(
-            {{"username", history[i].username}, {"message", history[i].message}});
-    }
-    broadcaster_.SendJson(socket, resp);
+    // global_history_limit_ is env/constructor-resolved (trusted), so a -1
+    // override is allowed here to mean "the whole in-memory buffer, one shard".
+    auto page = chat_service_.GetGlobalHistoryPage(std::nullopt, global_history_limit_);
+    broadcaster_.SendJson(socket, MakeChatHistoryResponse("", "global", std::nullopt, page));
 }
 
 void ChatController::HandleChatSend(WsContext ctx, const json& message) {
@@ -148,20 +154,33 @@ void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message
     }
 
     const std::string& username = ctx.socket_data->username;
+    const std::string channel = payload_res->channel.value_or("dm");
+    // limit is untrusted client input — GetGlobalHistoryPage/GetDirectHistoryPage
+    // both clamp it to [1, kMaxShardSize] (or default when <= 0); a client can
+    // never request the unbounded (-1) mode reserved for the OnOpen push.
+    const int limit = payload_res->limit.value_or(0);
 
-    auto history_res = chat_service_.GetDirectHistory(username, payload_res->target);
-    if (!history_res) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInternalError,
-                               request_id, history_res.error().message);
+    if (channel == "global") {
+        auto page = chat_service_.GetGlobalHistoryPage(payload_res->before_id, limit);
+        broadcaster_.SendJson(ctx.socket,
+                              MakeChatHistoryResponse(request_id, "global", std::nullopt, page));
         return;
     }
 
-    auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory, request_id);
-    resp["channel"] = "dm";
-    resp["target"] = payload_res->target;
-    resp["messages"] = json::array();
-    for (const auto& entry : *history_res) {
-        resp["messages"].push_back({{"username", entry.username}, {"message", entry.message}});
+    if (!payload_res->target.has_value()) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, "Missing DM target");
+        return;
     }
-    broadcaster_.SendJson(ctx.socket, resp);
+
+    auto page_res = chat_service_.GetDirectHistoryPage(username, *payload_res->target,
+                                                        payload_res->before_id, limit);
+    if (!page_res) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInternalError,
+                               request_id, page_res.error().message);
+        return;
+    }
+
+    broadcaster_.SendJson(
+        ctx.socket, MakeChatHistoryResponse(request_id, "dm", *payload_res->target, *page_res));
 }
