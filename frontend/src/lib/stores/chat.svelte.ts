@@ -10,9 +10,15 @@ import { storeAuth } from "$stores/auth.svelte";
 import { storeToast } from "./toast.svelte";
 import { errorText } from "./errors";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
-import type { ChatLine } from "$data/chatMock";
 
 const CHAT_FRIEND_COLORS = ["#f97373", "#60a5fa", "#4ade80", "#facc15", "#c084fc", "#fb923c"];
+
+export interface ChatLine {
+	id: string;
+	username: string;
+	color: string;
+	text: string;
+}
 
 export type ChatChannel = "global" | "party" | { friendId: string };
 

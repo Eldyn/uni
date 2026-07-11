@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { chatStore, channelKey } from "$stores/chat.svelte";
 import { storeAuth } from "$stores/auth.svelte";
-import { CHAT_FRIENDS } from "$data/chatMock";
 
 // Access private fields for test-only state reset, mirroring the pattern
 // already used for ws.svelte's private handler maps in lobby.dedup.test.ts.
@@ -32,15 +31,14 @@ describe("chatStore", () => {
 	});
 
 	it("returns a friend's own thread when switched to their DM channel", () => {
-		const friend = CHAT_FRIENDS[0];
-		chatStore.activeChannel = { friendId: friend.id };
+		chatStore.activeChannel = { friendId: "bianca" };
 		const lines = chatStore.linesFor(chatStore.activeChannel);
 		expect(Array.isArray(lines)).toBe(true);
 	});
 });
 
 // send()/receive() wiring against the real ws traffic is covered in
-// chat.sendReceive.test.ts (mocks $stores/ws.svelte).
+// chat.wsWiring.test.ts (mocks $stores/ws.svelte).
 
 describe("chatStore drafts (per-channel scratchpad)", () => {
 	beforeEach(() => {
