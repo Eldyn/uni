@@ -54,6 +54,11 @@
 	}
 </script>
 
+{#if chatStore.composerError}
+	<p class="border-t-2 border-danger bg-danger/10 px-3 py-1 font-tiny text-xs text-danger">
+		{chatStore.composerError}
+	</p>
+{/if}
 <div class="flex items-center gap-2 border-t-2 border-border px-2 py-2">
 	<button
 		class="px-2 py-1.5 font-pypx text-sm font-bold text-text hover:text-text-h"

@@ -14,6 +14,7 @@
 		chatStore.selectChannel("global");
 	}
 	function selectParty() {
+		if (!chatStore.isPartyAvailable) return;
 		showFriendsList = false;
 		chatStore.selectChannel("party");
 	}
@@ -25,12 +26,16 @@
 	const isPartyActive = $derived(!showFriendsList && chatStore.activeChannel === "party");
 </script>
 
-{#snippet tab(label: string, active: boolean, onclick: () => void)}
+{#snippet tab(label: string, active: boolean, onclick: () => void, disabled: boolean = false)}
 	<button
 		{onclick}
+		{disabled}
+		title={disabled ? "Join a lobby to use party chat" : undefined}
 		class="flex flex-1 items-center justify-center px-2 py-2 font-pypx text-xs font-extrabold uppercase transition {active
 			? 'bg-accent text-white'
-			: 'text-text hover:text-text-h'}"
+			: disabled
+				? 'text-text/30'
+				: 'text-text hover:text-text-h'}"
 	>
 		{label}
 	</button>
@@ -38,7 +43,7 @@
 
 <div class="flex items-stretch border-b-2 border-border">
 	{@render tab("GLOBAL", isGlobalActive, selectGlobal)}
-	{@render tab(partyLabel, isPartyActive, selectParty)}
+	{@render tab(partyLabel, isPartyActive, selectParty, !chatStore.isPartyAvailable)}
 	{@render tab("FRIENDS", showFriendsList, selectFriends)}
 	<button
 		class="flex items-center justify-center px-3 text-text hover:text-text-h"

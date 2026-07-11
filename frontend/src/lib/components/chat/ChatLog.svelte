@@ -9,7 +9,7 @@
 
 	const friend = $derived(
 		typeof channel === "object"
-			? chatStore.friends.find((f) => f.id === channel.friendId)
+			? chatStore.friends.find((f) => f.username === channel.friendId)
 			: undefined
 	);
 
@@ -23,10 +23,14 @@
 
 <div bind:this={containerEl} class="scrollbar-accent flex-1 overflow-y-auto px-3 py-2">
 	{#if friend}
-		<p class="mb-2 font-tiny text-sm" style="color: {friend.color};">Chatting with {friend.name}</p>
+		<p class="mb-2 font-tiny text-sm" style="color: {friend.color};">
+			Chatting with {friend.username}
+		</p>
 	{/if}
 
-	{#if lines.length === 0}
+	{#if channel === "party" && !chatStore.isPartyAvailable}
+		<p class="font-tiny text-sm text-text/50">Join a lobby to use party chat.</p>
+	{:else if lines.length === 0}
 		<p class="font-tiny text-sm text-text/50">No messages yet.</p>
 	{:else}
 		<div class="flex flex-col gap-1">

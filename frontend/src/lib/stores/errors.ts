@@ -35,6 +35,9 @@ const ERROR_TEXT: Record<string, string> = {
 	[ErrorCode.CannotKickSelf]: "You can't kick yourself.",
 	[ErrorCode.CannotPromoteBot]: "You can't promote a bot to host.",
 	[ErrorCode.SavedMatchNotFound]: "That saved match has expired or can't be found.",
+	[ErrorCode.FriendRequestInvalid]: "You can't send a friend request to that user.",
+	[ErrorCode.FriendRequestExists]: "A friend request is already pending with that user.",
+	[ErrorCode.FriendRequestNotFound]: "That friend request no longer exists.",
 	[ErrorCode.InternalError]: "Something went wrong on our end."
 };
 
