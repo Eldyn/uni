@@ -306,10 +306,10 @@ components:
 
     ChatHistory:
       name: chat_history
-      title: Chat History (DM response to chat_history_request, or global on-join push)
+      title: Chat History Shard (DM response to chat_history_request, or global on-join/scroll-back push)
       payload:
         type: object
-        required: [action, channel, messages]
+        required: [action, channel, messages, has_more]
         properties:
           action:
             type: string
@@ -323,13 +323,19 @@ components:
           target:
             $ref: "#/components/schemas/Username"
             description: The other DM participant this history belongs to — present only when channel == "dm".
+          has_more:
+            type: boolean
+            description: True if older messages exist beyond this shard — pass the oldest message's `id` as `before_id` to fetch the next one.
           messages:
             type: array
-            description: Oldest message first.
+            description: One shard, oldest message first.
             items:
               type: object
-              required: [username, message]
+              required: [id, username, message]
               properties:
+                id:
+                  type: integer
+                  description: Monotonic per-channel-pair id — use the oldest one as the next request's `before_id`.
                 username:
                   $ref: "#/components/schemas/Username"
                 message:
@@ -521,7 +527,7 @@ components:
 
     ChatHistoryRequest:
       name: chat_history_request
-      title: Request DM History With a Friend
+      title: Request a Shard of DM or Global Chat History
       payload:
         $ref: "#/components/schemas/ChatHistoryRequestPayload"
 
@@ -761,11 +767,22 @@ components:
 
     ChatHistoryRequestPayload:
       type: object
-      required:
-        - target
       properties:
+        channel:
+          type: string
+          enum: ["global", "dm"]
+          description: Defaults to "dm" when omitted.
         target:
           $ref: "#/components/schemas/Username"
+          description: Required when channel == "dm" — the other DM participant.
+        before_id:
+          type: integer
+          description: Cursor — request messages older than this id. Omit to fetch the most recent shard.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Requested page size. Always clamped server-side; server default applies when omitted.
 
     FriendRequestPayload:
       type: object
