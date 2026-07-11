@@ -21,6 +21,10 @@ ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
         HandleChatSend(ctx, msg);
         return true;
     });
+    action_router_.On(ws::ClientAction::kChatHistoryRequest, [this](WsContext ctx, const json& msg) {
+        HandleChatHistoryRequest(ctx, msg);
+        return true;
+    });
 }
 
 void ChatController::OnOpen(AppWebSocket* socket, PerSocketData* socket_data) {
@@ -105,4 +109,32 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
 
     broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
                            request_id, "Unsupported chat channel");
+}
+
+void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message) {
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
+
+    auto payload_res = ws::ParsePayload<ws::ChatHistoryRequestPayload>(message);
+    if (!payload_res) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, payload_res.error().message);
+        return;
+    }
+
+    const std::string& username = ctx.socket_data->username;
+
+    auto history_res = chat_service_.GetDirectHistory(username, payload_res->target);
+    if (!history_res) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInternalError,
+                               request_id, history_res.error().message);
+        return;
+    }
+
+    auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory, request_id);
+    resp["target"] = payload_res->target;
+    resp["messages"] = json::array();
+    for (const auto& entry : *history_res) {
+        resp["messages"].push_back({{"username", entry.username}, {"message", entry.message}});
+    }
+    broadcaster_.SendJson(ctx.socket, resp);
 }

@@ -50,4 +50,11 @@ private:
      * @tag CTRL-CHAT-ACT-001
      */
     void HandleChatSend(WsContext ctx, const nlohmann::json& message);
+
+    /**
+     * @brief Handles a `chat_history_request` action, replying with the
+     * requester's DM history against the given target.
+     * @tag CTRL-CHAT-ACT-002
+     */
+    void HandleChatHistoryRequest(WsContext ctx, const nlohmann::json& message);
 };
