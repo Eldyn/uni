@@ -25,12 +25,23 @@ public:
     /**
      * @brief Constructor of the chat controller.
      * Registers the `chat_send` WebSocket action handler on the ActionRouter.
-     * @param router    WebSocket action router (DI seam).
-     * @param broadcast Transport layer for sends/publishes (DI seam).
-     * @param presence  Presence lookups for routing direct messages (DI seam).
+     * @param router                    WebSocket action router (DI seam).
+     * @param broadcast                 Transport layer for sends/publishes (DI seam).
+     * @param presence                  Presence lookups for routing direct messages (DI seam).
+     * @param send_global_history_on_join Tri-state override for
+     *   `CHAT_GLOBAL_HISTORY_ON_JOIN`: -1 reads the env var, 0/1 force
+     *   disabled/enabled (test seam).
+     * @param global_history_limit      Override for `CHAT_GLOBAL_HISTORY_SIZE`:
+     *   `kUnsetHistoryLimit` reads the env var, -1 sends the entire in-memory
+     *   ring buffer, any other value caps how many of the newest messages are
+     *   sent on join (test seam).
      * @tag CTRL-CHAT-MTH-001
      */
-    ChatController(IActionRouter& router, IBroadcaster& broadcast, IPresenceStore& presence);
+    static constexpr int kUnsetHistoryLimit = -2;
+
+    ChatController(IActionRouter& router, IBroadcaster& broadcast, IPresenceStore& presence,
+                  int send_global_history_on_join = -1,
+                  int global_history_limit = kUnsetHistoryLimit);
 
     /**
      * @brief Subscribes a freshly connected socket to the `"global"` chat
@@ -44,6 +55,14 @@ private:
     IBroadcaster&   broadcaster_;
     IPresenceStore& presence_;
     ChatService     chat_service_;
+
+    /** Whether a newly connected socket receives recent global chat history. */
+    bool send_global_history_on_join_;
+    /**
+     * Max number of global messages sent on join (newest N of the in-memory
+     * ring buffer). -1 sends the entire buffer.
+     */
+    int global_history_limit_;
 
     /**
      * @brief Handles a `chat_send` action.

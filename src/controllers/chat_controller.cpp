@@ -7,6 +7,7 @@
 #include <controllers/chat_controller.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
+#include <common/env.hpp>
 
 using json = nlohmann::json;
 
@@ -15,8 +16,15 @@ constexpr const char* kGlobalChatTopic = "global";
 }  // namespace
 
 ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
-                               IPresenceStore& presence)
-    : action_router_(router), broadcaster_(broadcast), presence_(presence) {
+                               IPresenceStore& presence, int send_global_history_on_join,
+                               int global_history_limit)
+    : action_router_(router), broadcaster_(broadcast), presence_(presence),
+      send_global_history_on_join_(send_global_history_on_join >= 0
+                                        ? send_global_history_on_join != 0
+                                        : Env::Get("CHAT_GLOBAL_HISTORY_ON_JOIN", "1") != "0"),
+      global_history_limit_(global_history_limit != kUnsetHistoryLimit
+                                 ? global_history_limit
+                                 : Env::GetInt("CHAT_GLOBAL_HISTORY_SIZE", 64)) {
     action_router_.On(ws::ClientAction::kChatSend, [this](WsContext ctx, const json& msg) {
         HandleChatSend(ctx, msg);
         return true;
@@ -30,6 +38,24 @@ ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
 void ChatController::OnOpen(AppWebSocket* socket, PerSocketData* socket_data) {
     (void)socket_data;
     broadcaster_.Subscribe(socket, kGlobalChatTopic);
+
+    if (!send_global_history_on_join_) return;
+
+    const auto& history = chat_service_.GetGlobalHistory();
+    std::size_t start = 0;
+    if (global_history_limit_ >= 0 &&
+        history.size() > static_cast<std::size_t>(global_history_limit_)) {
+        start = history.size() - static_cast<std::size_t>(global_history_limit_);
+    }
+
+    auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory);
+    resp["channel"] = "global";
+    resp["messages"] = json::array();
+    for (std::size_t i = start; i < history.size(); ++i) {
+        resp["messages"].push_back(
+            {{"username", history[i].username}, {"message", history[i].message}});
+    }
+    broadcaster_.SendJson(socket, resp);
 }
 
 void ChatController::HandleChatSend(WsContext ctx, const json& message) {
@@ -131,6 +157,7 @@ void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message
     }
 
     auto resp = ws::MakeResponse(ws::ServerAction::kChatHistory, request_id);
+    resp["channel"] = "dm";
     resp["target"] = payload_res->target;
     resp["messages"] = json::array();
     for (const auto& entry : *history_res) {
