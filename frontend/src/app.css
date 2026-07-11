@@ -373,22 +373,11 @@
 		background: var(--pc-fill, var(--bg));
 	}
 
-	@supports (corner-shape: notch) {
-		.pixel-bordered {
-			isolation: auto;
-			background: var(--pc-fill, var(--bg));
-			border: var(--pc-width, 2px) solid var(--pc-border, var(--border));
-			border-radius: 4px;
-			corner-shape: notch;
-			transition:
-				background-color 0.12s ease,
-				border-color 0.12s ease;
-		}
-		.pixel-bordered::before,
-		.pixel-bordered::after {
-			content: none;
-		}
-	}
+	/* No `@supports (corner-shape: notch)` fast path: Gecko-based browsers
+	   that ship the property behind an experimental flag (e.g. Zen Browser)
+	   pass the @supports check without actually painting the notch, leaving
+	   a plain rounded border. The clip-path implementation above renders
+	   correctly everywhere, so it's used unconditionally. */
 
 	/* Modals */
 }
