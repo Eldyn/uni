@@ -306,22 +306,26 @@ components:
 
     ChatHistory:
       name: chat_history
-      title: DM History (response to chat_history_request)
+      title: Chat History (DM response to chat_history_request, or global on-join push)
       payload:
         type: object
-        required: [action, target, messages]
+        required: [action, channel, messages]
         properties:
           action:
             type: string
             enum: ["chat_history"]
           request_id:
             type: string
+          channel:
+            type: string
+            enum: ["global", "dm"]
+            description: Distinguishes an on-join global history push from a DM history reply.
           target:
             $ref: "#/components/schemas/Username"
-            description: The other DM participant this history belongs to.
+            description: The other DM participant this history belongs to — present only when channel == "dm".
           messages:
             type: array
-            description: Oldest message first, matching ChatService::GetDirectHistory order.
+            description: Oldest message first.
             items:
               type: object
               required: [username, message]
