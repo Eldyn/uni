@@ -16,6 +16,6 @@
 			"$utils/*": ["src/lib/utils/*"],
 			"$data/*": ["src/lib/data/*"]
 		}
-		// "exclude": ["node_modules/"]
-	}
+	},
+	"exclude": ["node_modules", "../public", "dist"]
 }

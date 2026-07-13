@@ -26,6 +26,29 @@ const watchPublicDirPlugin = {
 	}
 };
 
+// `vite build --watch` only runs emptyOutDir on the first build, so every
+// subsequent rebuild leaves the previous run's content-hashed chunks behind.
+// Prune stale JS/CSS chunks that no longer belong to the current bundle.
+const pruneStaleChunksPlugin = {
+	name: "prune-stale-chunks",
+	writeBundle(options, bundle) {
+		const outDir = options.dir ?? path.resolve("../public");
+		const assetsDir = path.join(outDir, "assets");
+		if (!fs.existsSync(assetsDir)) return;
+
+		const currentFiles = new Set(
+			Object.keys(bundle).map((fileName) => path.basename(fileName))
+		);
+
+		for (const entry of fs.readdirSync(assetsDir)) {
+			if (!/\.(js|css)$/.test(entry)) continue;
+			if (!currentFiles.has(entry)) {
+				fs.unlinkSync(path.join(assetsDir, entry));
+			}
+		}
+	}
+};
+
 const appVersion = fs.readFileSync(path.resolve("../VERSION"), "utf8").trim();
 
 export default defineConfig(({ mode }) => {
@@ -34,7 +57,12 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		// Only run the watch plugin when running in development/watch mode
-		plugins: [tailwindcss(), svelte(), isDev && watchPublicDirPlugin].filter(Boolean),
+		plugins: [
+				tailwindcss(),
+				svelte(),
+				isDev && watchPublicDirPlugin,
+				isDev && pruneStaleChunksPlugin
+			].filter(Boolean),
 		resolve: {
 			alias: {
 				$lib: path.resolve("./src/lib"),

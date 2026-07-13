@@ -150,13 +150,18 @@ foreach(asset IN LISTS RUNTIME_FILES)
 endforeach()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/public")
-    add_custom_command(TARGET uni_server POST_BUILD
+    # A custom target with ALL (rather than a uni_server POST_BUILD step) so the
+    # copy runs on every build invocation, even when uni_server itself has
+    # nothing to relink — otherwise `npm run build`/`watch` changes to public/
+    # would silently never reach the server's runtime directory.
+    add_custom_target(sync_public ALL
         COMMAND ${CMAKE_COMMAND} -E echo ""
         COMMAND ${CMAKE_COMMAND} -E echo "-- Copying public/ next to the executable"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/public"
                 "$<TARGET_FILE_DIR:uni_server>/public"
     )
+    add_dependencies(sync_public uni_server)
 else()
     message(WARNING "Folder 'public/' not found: build the frontend first (cd frontend && npm run build).")
 endif()
