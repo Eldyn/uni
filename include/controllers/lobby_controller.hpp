@@ -132,6 +132,17 @@ public:
     }
 
     /**
+     * @brief Registers a callback invoked once a lobby has no humans left
+     * and is about to be destroyed.
+     * Multiple callbacks are supported; all are invoked in registration order.
+     * @param callback The function to invoke.
+     * @tag LOBBY-CTRL-012
+     */
+    void OnLobbyDestroyed(LobbyDestroyedCallback callback) override {
+        on_lobby_destroyed_.push_back(std::move(callback));
+    }
+
+    /**
      * @brief Tears down the match for the given lobby after a normal match-over.
      * Called by MatchController once all kMatchOver frames have been sent.
      * @param lobby_id ID of the lobby whose match to destroy.
@@ -328,6 +339,8 @@ private:
     std::vector<PlayerReplacedCallback> on_player_replaced_;
     /**< Multicast callbacks for aborted matches (< 2 members). */
     std::vector<MatchAbortedCallback>   on_match_aborted_;
+    /**< Multicast callbacks for lobby destruction. */
+    std::vector<LobbyDestroyedCallback> on_lobby_destroyed_;
 
     IActionRouter& action_router_;  /**< Reference to the WS action router. */
     IBroadcaster&  broadcaster_;    /**< Transport layer for all sends/publishes. */

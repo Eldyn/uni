@@ -1140,8 +1140,10 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
     });
 
     if (!has_humans) {
-        code_to_id_.erase(lobby.invite_code);
+        const std::string invite_code = lobby.invite_code;
+        code_to_id_.erase(invite_code);
         lobbies_.erase(it);
+        for (auto& cb : on_lobby_destroyed_) cb(invite_code);
         Logger::Log("[Lobby] Destroyed lobby ", lobby_id, " (no humans left)");
         return false;
     }

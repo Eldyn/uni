@@ -42,6 +42,10 @@ public:
         match_aborted_cbs.push_back(std::move(cb));
     }
 
+    void OnLobbyDestroyed(LobbyDestroyedCallback cb) override {
+        lobby_destroyed_cbs.push_back(std::move(cb));
+    }
+
     void NotifyMatchOver(uint32_t) override {
         ++match_over_notifications;
     }
@@ -53,6 +57,7 @@ public:
     std::vector<MatchStartedCallback>   game_started_cbs;
     std::vector<PlayerReplacedCallback> player_replaced_cbs;
     std::vector<MatchAbortedCallback>   match_aborted_cbs;
+    std::vector<LobbyDestroyedCallback> lobby_destroyed_cbs;
 };
 
 // FakeTimerService that also records the last requested timeout for each key,

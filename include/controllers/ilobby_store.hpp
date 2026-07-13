@@ -26,6 +26,13 @@ using PlayerReplacedCallback = std::function<void(Lobby*)>;
 using MatchAbortedCallback = std::function<void(Lobby*, const std::string& winner_username)>;
 
 /**
+ * @typedef LobbyDestroyedCallback
+ * @brief Callback invoked once a lobby has no humans left and is torn down.
+ * @tag LOBBY-TYP-004
+ */
+using LobbyDestroyedCallback = std::function<void(const std::string& lobby_code)>;
+
+/**
  * @class ILobbyStore
  * @brief Interface for lobby lookup and match lifecycle hooks consumed by MatchController.
  * Decouples MatchController from the concrete LobbyController to enable isolated unit tests.
@@ -64,6 +71,14 @@ public:
      * @tag LOBBY-IFACE-004
      */
     virtual void OnMatchAborted(MatchAbortedCallback cb) = 0;
+
+    /**
+     * @brief Registers a callback invoked once a lobby has no humans left
+     * and is about to be destroyed.
+     * @param cb The function to invoke.
+     * @tag LOBBY-IFACE-006
+     */
+    virtual void OnLobbyDestroyed(LobbyDestroyedCallback cb) = 0;
 
     /**
      * @brief Notifies the lobby layer that a match has ended normally.
