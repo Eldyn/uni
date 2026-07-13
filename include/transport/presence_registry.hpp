@@ -1,15 +1,15 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <transport/ipresence_store.hpp>
 #include <unordered_map>
 #include <vector>
-#include <transport/ipresence_store.hpp>
 #include <websocket_context.hpp>
 
 /**
  * @file presence_registry.hpp
  * @brief Definition of the connection registry tracking which users are online
- * and, per perf audit M-1, which lobby each online user currently belongs to.
+ * and which lobby each online user currently belongs to.
  */
 
 /**
@@ -37,12 +37,12 @@ public:
      */
     void OnClose(AppWebSocket* ws, PerSocketData* sd);
 
-    bool IsOnline(const std::string& username) const override;
-    AppWebSocket* GetSocket(const std::string& username) const override;
+    bool                     IsOnline(const std::string& username) const override;
+    AppWebSocket*            GetSocket(const std::string& username) const override;
     std::vector<std::string> OnlineUsernames() const override;
 
     /**
-     * @brief Records which lobby a user currently belongs to (perf audit M-1).
+     * @brief Records which lobby a user currently belongs to.
      * Replaces `LobbyController::FindLobbyForUser`'s O(N) linear scan with an
      * O(1) lookup, kept up to date by `LobbyController` on join/leave/kick.
      * @param username The username to index.
@@ -69,6 +69,6 @@ public:
 private:
     /**< Primary storage: username -> live socket pointer. */
     std::unordered_map<std::string, AppWebSocket*> sockets_;
-    /**< Secondary index: username -> current lobby ID (perf audit M-1). */
+    /**< Secondary index: username -> current lobby ID. */
     std::unordered_map<std::string, uint32_t> user_to_lobby_id_;
 };

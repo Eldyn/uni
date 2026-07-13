@@ -12,17 +12,23 @@ double ResolveFloodRps(double flood_rps) {
     return flood_rps >= 0 ? flood_rps : std::stod(Env::Get("RATE_CHAT_RPS", "1"));
 }
 
-/** limit < 0 stays unclamped (trusted callers only); 0 falls back to the
- *  default shard size; anything else is capped at kMaxShardSize. */
-int NormalizeShardLimit(int limit) {
-    if (limit < 0) return limit;
-    if (limit == 0) return ChatService::kDefaultShardSize;
-    return std::min(limit, ChatService::kMaxShardSize);
+int ResolveDefaultShardSize(int default_shard_size) {
+    return default_shard_size >= 0
+               ? default_shard_size
+               : Env::GetInt("CHAT_HISTORY_SHARD_SIZE", ChatService::kDefaultShardSizeFallback);
 }
 }  // namespace
 
-ChatService::ChatService(Database& db, double flood_capacity, double flood_rps)
+int ChatService::NormalizeShardLimit(int limit) const {
+    if (limit < 0) return limit;
+    if (limit == 0) return default_shard_size_;
+    return std::min(limit, kMaxShardSize);
+}
+
+ChatService::ChatService(Database& db, double flood_capacity, double flood_rps,
+                         int default_shard_size)
     : db_(db), dm_key_(Crypto::LoadKey()),
+      default_shard_size_(ResolveDefaultShardSize(default_shard_size)),
       flood_limiter_(ResolveFloodCapacity(flood_capacity), ResolveFloodRps(flood_rps)) {}
 
 void ChatService::PostGlobalMessage(const std::string& username, const std::string& message) {
@@ -54,6 +60,41 @@ ChatHistoryPage ChatService::GetGlobalHistoryPage(std::optional<int> before_id, 
 
 bool ChatService::AllowSend(const std::string& username) {
     return flood_limiter_.Allow(username);
+}
+
+void ChatService::PostLobbyMessage(const std::string& lobby_code, const std::string& username,
+                                   const std::string& message) {
+    auto& history = lobby_history_[lobby_code];
+    auto [it, _] = next_lobby_id_.try_emplace(lobby_code, 1);
+    history.push_back({it->second++, username, message});
+    if (history.size() > kLobbyHistoryLimit) {
+        history.pop_front();
+    }
+}
+
+ChatHistoryPage ChatService::GetLobbyHistoryPage(const std::string& lobby_code,
+                                                 std::optional<int> before_id, int limit) const {
+    limit = NormalizeShardLimit(limit);
+
+    std::vector<ChatMessageEntry> window;
+    auto it = lobby_history_.find(lobby_code);
+    if (it != lobby_history_.end()) {
+        for (auto rit = it->second.rbegin(); rit != it->second.rend(); ++rit) {
+            if (before_id.has_value() && rit->id >= *before_id) continue;
+            window.push_back(*rit);
+            if (limit >= 0 && window.size() > static_cast<std::size_t>(limit)) break;
+        }
+    }
+
+    bool has_more = limit >= 0 && window.size() > static_cast<std::size_t>(limit);
+    if (has_more) window.pop_back();
+    std::reverse(window.begin(), window.end());
+    return {window, has_more};
+}
+
+void ChatService::ClearLobbyHistory(const std::string& lobby_code) {
+    lobby_history_.erase(lobby_code);
+    next_lobby_id_.erase(lobby_code);
 }
 
 VoidResult ChatService::SendDirectMessage(const std::string& sender,
@@ -118,7 +159,7 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
                                                            int raw_limit) {
     int limit = NormalizeShardLimit(raw_limit);
     // Client-facing entry point — never allow the unbounded (-1) mode here.
-    if (limit < 0) limit = kDefaultShardSize;
+    if (limit < 0) limit = default_shard_size_;
 
     std::string sql =
         "SELECT id, sender, nonce, ciphertext FROM chat_dms WHERE "

@@ -3,6 +3,7 @@
 #include <deque>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <result.hpp>
 #include <database.hpp>
@@ -44,19 +45,23 @@ class ChatService {
 public:
     static constexpr std::size_t kGlobalHistoryLimit = 200;
     static constexpr std::size_t kDmHistoryLimit      = 200;
-    /** Shard size used when a `chat_history_request` omits `limit`. */
-    static constexpr int kDefaultShardSize = 20;
+    static constexpr std::size_t kLobbyHistoryLimit   = 200;
     /** Hard cap on `limit`, regardless of what a client requests. */
     static constexpr int kMaxShardSize = 100;
+    /** Fallback shard size, used when CHAT_HISTORY_SHARD_SIZE is unset. */
+    static constexpr int kDefaultShardSizeFallback = 50;
 
     /**
-     * @param db             Database to read/write DM rows from.
-     * @param flood_capacity Burst size for the per-user chat send bucket.
-     * @param flood_rps      Sustained tokens/sec refill for the chat send bucket.
+     * @param db                Database to read/write DM rows from.
+     * @param flood_capacity    Burst size for the per-user chat send bucket.
+     * @param flood_rps         Sustained tokens/sec refill for the chat send bucket.
+     * @param default_shard_size Shard size used when a `chat_history_request` omits
+     *   `limit`. Defaults to `CHAT_HISTORY_SHARD_SIZE` (falls back to
+     *   `kDefaultShardSizeFallback`) when negative.
      * @tag SVC-CHAT-MTH-000
      */
     explicit ChatService(Database& db = Database::Get(), double flood_capacity = -1,
-                        double flood_rps = -1);
+                        double flood_rps = -1, int default_shard_size = -1);
 
     /**
      * @brief Appends a message to global chat, dropping the oldest entry once
@@ -114,6 +119,30 @@ public:
                                                  std::optional<int> before_id, int limit);
 
     /**
+     * @brief Appends a message to a lobby's in-memory chat history, dropping
+     * the oldest entry once it exceeds `kLobbyHistoryLimit`.
+     * @tag SVC-CHAT-MTH-006
+     */
+    void PostLobbyMessage(const std::string& lobby_code, const std::string& username,
+                          const std::string& message);
+
+    /**
+     * @brief Returns one shard of a lobby's chat history, oldest-first within
+     * the shard, newest shard first overall.
+     * @tag SVC-CHAT-MTH-007
+     */
+    ChatHistoryPage GetLobbyHistoryPage(const std::string& lobby_code,
+                                        std::optional<int> before_id, int limit) const;
+
+    /**
+     * @brief Drops a lobby's in-memory chat history. Called once the lobby
+     * itself is destroyed, so the map doesn't grow unbounded over server
+     * uptime as lobbies come and go.
+     * @tag SVC-CHAT-MTH-008
+     */
+    void ClearLobbyHistory(const std::string& lobby_code);
+
+    /**
      * @brief Consumes one flood-control token for `username`.
      * @return false once the user's send bucket is empty, until it refills.
      * @tag SVC-CHAT-MTH-005
@@ -121,9 +150,16 @@ public:
     bool AllowSend(const std::string& username);
 
 private:
+    /** limit < 0 stays unclamped (trusted callers only); 0 falls back to
+     *  default_shard_size_; anything else is capped at kMaxShardSize. */
+    int NormalizeShardLimit(int limit) const;
+
     Database&            db_;
     std::vector<uint8_t> dm_key_;
     std::deque<ChatMessageEntry> global_history_;
     int                   next_global_id_ = 1;
+    std::unordered_map<std::string, std::deque<ChatMessageEntry>> lobby_history_;
+    std::unordered_map<std::string, int> next_lobby_id_;
+    int                   default_shard_size_;
     RateLimiter           flood_limiter_;
 };

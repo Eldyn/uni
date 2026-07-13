@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <controllers/chat_controller.hpp>
+#include <controllers/ilobby_store.hpp>
 #include <action_router.hpp>
 #include <database.hpp>
 #include "support/fake_broadcaster.hpp"
@@ -9,6 +10,27 @@
 using json = nlohmann::json;
 
 namespace {
+
+// Minimal ILobbyStore double — only OnLobbyDestroyed is exercised here, so
+// every other hook is a no-op. FireLobbyDestroyed() drives the same path
+// LobbyController takes once a lobby's last human leaves.
+class FakeLobbyStoreForChat : public ILobbyStore {
+public:
+    Lobby* GetLobbyById(uint32_t) override { return nullptr; }
+    void OnGameStarted(MatchStartedCallback) override {}
+    void OnPlayerReplaced(PlayerReplacedCallback) override {}
+    void OnMatchAborted(MatchAbortedCallback) override {}
+    void OnLobbyDestroyed(LobbyDestroyedCallback cb) override {
+        lobby_destroyed_cbs.push_back(std::move(cb));
+    }
+    void NotifyMatchOver(uint32_t) override {}
+
+    void FireLobbyDestroyed(const std::string& lobby_code) {
+        for (auto& cb : lobby_destroyed_cbs) cb(lobby_code);
+    }
+
+    std::vector<LobbyDestroyedCallback> lobby_destroyed_cbs;
+};
 
 // chat_ctrl_test_* usernames avoid colliding with rows other test files insert.
 void CleanupDmTestRows() {
@@ -230,6 +252,72 @@ TEST_CASE("requesting more messages than exist returns them all, with has_more f
     auto resp = json::parse(frames[0].payload);
     REQUIRE(resp["messages"].size() == 1);
     CHECK(resp["has_more"] == false);
+}
+
+}  // TEST_SUITE
+
+TEST_SUITE("ChatController — chat_history_request (channel: lobby)") {
+
+TEST_CASE("returns a shard of the requester's own lobby history, newest shard first") {
+    ChatControllerFixture f;
+    f.sd.lobby_code = "chat_ctrl_test_lobby";
+
+    for (int i = 0; i < 3; ++i) {
+        f.Dispatch({{"action", "chat_send"}, {"channel", "lobby"}, {"message", "msg" + std::to_string(i)}});
+    }
+    f.broadcaster.Clear();
+
+    f.Dispatch({{"action", "chat_history_request"}, {"channel", "lobby"}, {"limit", 2}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    CHECK(resp["action"] == "chat_history");
+    CHECK(resp["channel"] == "lobby");
+    CHECK_FALSE(resp.contains("target"));
+    REQUIRE(resp["messages"].size() == 2);
+    CHECK(resp["messages"][0]["message"] == "msg1");
+    CHECK(resp["messages"][1]["message"] == "msg2");
+    CHECK(resp["has_more"] == true);
+}
+
+TEST_CASE("a socket not in a lobby gets not_in_lobby, not another lobby's history") {
+    ChatControllerFixture f;
+    REQUIRE(f.sd.lobby_code.empty());
+
+    f.Dispatch({{"action", "chat_history_request"}, {"channel", "lobby"}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    CHECK(resp["action"] == "error");
+    CHECK(resp["code"] == "not_in_lobby");
+}
+
+TEST_CASE("lobby history is dropped once the lobby store reports it destroyed") {
+    ActionRouter      router;
+    FakeBroadcaster   broadcaster;
+    FakePresenceStore presence;
+    FakeLobbyStoreForChat lobby_store;
+    ChatController controller(router, broadcaster, presence, /*send_global_history_on_join=*/0,
+                              ChatController::kUnsetHistoryLimit, &lobby_store);
+
+    PerSocketData sd;
+    sd.username    = "chat_ctrl_test_alice";
+    sd.lobby_code  = "chat_ctrl_test_doomed_lobby";
+    auto* sock     = reinterpret_cast<AppWebSocket*>(&sd);
+    WsContext ctx{sock, &sd, uWS::OpCode::TEXT};
+
+    router.Dispatch(ctx, {{"action", "chat_send"}, {"channel", "lobby"}, {"message", "hi"}});
+    broadcaster.Clear();
+
+    lobby_store.FireLobbyDestroyed("chat_ctrl_test_doomed_lobby");
+
+    router.Dispatch(ctx, {{"action", "chat_history_request"}, {"channel", "lobby"}});
+    auto frames = broadcaster.FramesFor(sock);
+    REQUIRE(frames.size() == 1);
+    auto resp = json::parse(frames[0].payload);
+    CHECK(resp["messages"].empty());
 }
 
 }  // TEST_SUITE

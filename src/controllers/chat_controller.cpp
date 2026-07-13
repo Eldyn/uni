@@ -34,7 +34,7 @@ json MakeChatHistoryResponse(const std::string& request_id, const std::string& c
 
 ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
                                IPresenceStore& presence, int send_global_history_on_join,
-                               int global_history_limit)
+                               int global_history_limit, ILobbyStore* lobby_store)
     : action_router_(router), broadcaster_(broadcast), presence_(presence),
       send_global_history_on_join_(send_global_history_on_join >= 0
                                         ? send_global_history_on_join != 0
@@ -50,6 +50,12 @@ ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
         HandleChatHistoryRequest(ctx, msg);
         return true;
     });
+
+    if (lobby_store != nullptr) {
+        lobby_store->OnLobbyDestroyed([this](const std::string& lobby_code) {
+            chat_service_.ClearLobbyHistory(lobby_code);
+        });
+    }
 }
 
 void ChatController::OnOpen(AppWebSocket* socket, PerSocketData* socket_data) {
@@ -99,6 +105,8 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
                                    request_id);
             return;
         }
+
+        chat_service_.PostLobbyMessage(ctx.socket_data->lobby_code, username, payload_res->message);
 
         auto resp = ws::MakeResponse(ws::ServerAction::kChatMessage, request_id);
         resp["username"] = username;
@@ -164,6 +172,21 @@ void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message
         auto page = chat_service_.GetGlobalHistoryPage(payload_res->before_id, limit);
         broadcaster_.SendJson(ctx.socket,
                               MakeChatHistoryResponse(request_id, "global", std::nullopt, page));
+        return;
+    }
+
+    if (channel == "lobby") {
+        // lobby_code comes from the socket's own membership, never client
+        // input — a client can't fish for another lobby's chat history.
+        if (ctx.socket_data->lobby_code.empty()) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
+                                   request_id);
+            return;
+        }
+        auto page = chat_service_.GetLobbyHistoryPage(ctx.socket_data->lobby_code,
+                                                      payload_res->before_id, limit);
+        broadcaster_.SendJson(ctx.socket,
+                              MakeChatHistoryResponse(request_id, "lobby", std::nullopt, page));
         return;
     }
 

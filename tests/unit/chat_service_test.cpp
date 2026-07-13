@@ -259,9 +259,10 @@ TEST_CASE("GetDirectHistoryPage: no messages returns an empty, has_more:false pa
 
 TEST_CASE("GetDirectHistoryPage: a negative limit is not honoured — falls back to the default shard size") {
     ChatDmFixture f;
-    ChatService svc;
+    constexpr int kShardSize = 20;
+    ChatService svc(Database::Get(), -1, -1, kShardSize);
 
-    for (int i = 0; i < ChatService::kDefaultShardSize + 5; ++i) {
+    for (int i = 0; i < kShardSize + 5; ++i) {
         REQUIRE(svc.SendDirectMessage("chat_dm_test_alice", "chat_dm_test_bob",
                                       "msg" + std::to_string(i)).has_value());
     }
@@ -269,8 +270,78 @@ TEST_CASE("GetDirectHistoryPage: a negative limit is not honoured — falls back
     auto page = svc.GetDirectHistoryPage("chat_dm_test_alice", "chat_dm_test_bob", std::nullopt, -1);
 
     REQUIRE(page.has_value());
-    CHECK(page->messages.size() == static_cast<std::size_t>(ChatService::kDefaultShardSize));
+    CHECK(page->messages.size() == static_cast<std::size_t>(kShardSize));
     CHECK(page->has_more == true);
+}
+
+TEST_CASE("ChatService: default shard size falls back to CHAT_HISTORY_SHARD_SIZE (50) when unset") {
+    ChatService svc;
+
+    for (int i = 0; i < 60; ++i) svc.PostGlobalMessage("alice", "msg" + std::to_string(i));
+
+    auto page = svc.GetGlobalHistoryPage(std::nullopt, 0);
+
+    REQUIRE(page.messages.size() == 50);
+    CHECK(page.has_more == true);
+}
+
+TEST_CASE("PostLobbyMessage/GetLobbyHistoryPage: appends and shards per lobby code") {
+    ChatService svc(Database::Get(), -1, -1, 20);
+
+    svc.PostLobbyMessage("LOBBY1", "alice", "hi");
+    svc.PostLobbyMessage("LOBBY1", "bob", "hey alice");
+    svc.PostLobbyMessage("LOBBY2", "carol", "unrelated lobby");
+
+    auto page = svc.GetLobbyHistoryPage("LOBBY1", std::nullopt, -1);
+    REQUIRE(page.messages.size() == 2);
+    CHECK(page.messages[0].message == "hi");
+    CHECK(page.messages[1].message == "hey alice");
+    CHECK(page.has_more == false);
+}
+
+TEST_CASE("GetLobbyHistoryPage: unknown lobby code returns an empty page") {
+    ChatService svc;
+
+    auto page = svc.GetLobbyHistoryPage("chat_lobby_test_ghost", std::nullopt, 20);
+
+    CHECK(page.messages.empty());
+    CHECK(page.has_more == false);
+}
+
+TEST_CASE("GetLobbyHistoryPage: before_id cursor pages older shards oldest-first") {
+    ChatService svc(Database::Get(), -1, -1, 2);
+
+    svc.PostLobbyMessage("LOBBY3", "alice", "msg0");
+    svc.PostLobbyMessage("LOBBY3", "alice", "msg1");
+    svc.PostLobbyMessage("LOBBY3", "alice", "msg2");
+
+    auto first = svc.GetLobbyHistoryPage("LOBBY3", std::nullopt, 0);
+    REQUIRE(first.messages.size() == 2);
+    CHECK(first.messages[0].message == "msg1");
+    CHECK(first.messages[1].message == "msg2");
+    CHECK(first.has_more == true);
+
+    auto second = svc.GetLobbyHistoryPage("LOBBY3", first.messages.front().id, 0);
+    REQUIRE(second.messages.size() == 1);
+    CHECK(second.messages[0].message == "msg0");
+    CHECK(second.has_more == false);
+}
+
+TEST_CASE("ClearLobbyHistory: drops the lobby's history and id counter") {
+    ChatService svc;
+
+    svc.PostLobbyMessage("chat_lobby_test_clear", "alice", "hi");
+    svc.ClearLobbyHistory("chat_lobby_test_clear");
+
+    auto page = svc.GetLobbyHistoryPage("chat_lobby_test_clear", std::nullopt, 20);
+    CHECK(page.messages.empty());
+
+    // A fresh message after clearing restarts ids from 1, confirming the
+    // id counter (not just the message deque) was dropped.
+    svc.PostLobbyMessage("chat_lobby_test_clear", "alice", "hi again");
+    auto after = svc.GetLobbyHistoryPage("chat_lobby_test_clear", std::nullopt, 20);
+    REQUIRE(after.messages.size() == 1);
+    CHECK(after.messages[0].id == 1);
 }
 
 }  // TEST_SUITE

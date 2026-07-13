@@ -1,5 +1,6 @@
 #pragma once
 
+#include <controllers/ilobby_store.hpp>
 #include <services/chat_service.hpp>
 #include <transport/iaction_router.hpp>
 #include <transport/ibroadcaster.hpp>
@@ -35,13 +36,17 @@ public:
      *   `kUnsetHistoryLimit` reads the env var, -1 sends the entire in-memory
      *   ring buffer, any other value caps how many of the newest messages are
      *   sent on join (test seam).
+     * @param lobby_store               Lobby lifecycle hooks (DI seam) — used
+     *   to drop a lobby's chat history once it's destroyed. Null in tests
+     *   that don't exercise lobby chat history cleanup.
      * @tag CTRL-CHAT-MTH-001
      */
     static constexpr int kUnsetHistoryLimit = -2;
 
     ChatController(IActionRouter& router, IBroadcaster& broadcast, IPresenceStore& presence,
                   int send_global_history_on_join = -1,
-                  int global_history_limit = kUnsetHistoryLimit);
+                  int global_history_limit = kUnsetHistoryLimit,
+                  ILobbyStore* lobby_store = nullptr);
 
     /**
      * @brief Subscribes a freshly connected socket to the `"global"` chat

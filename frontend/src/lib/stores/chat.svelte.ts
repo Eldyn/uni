@@ -7,6 +7,7 @@
  */
 
 import { storeAuth } from "$stores/auth.svelte";
+import { storeLobby } from "./lobby.svelte";
 import { storeToast } from "./toast.svelte";
 import { errorText } from "./errors";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
@@ -87,9 +88,11 @@ class StoreChat {
 	#hydratedThreads = new Set<string>();
 
 	/** Whether an older shard exists beyond what's currently loaded, keyed by channelKey. */
-	#hasMore = $state<Record<string, boolean>>({ global: true });
+	#hasMore = $state<Record<string, boolean>>({ global: true, party: true });
 	/** True while a loadMoreHistory() request for that channel is in flight. */
 	#loadingMore = $state<Record<string, boolean>>({});
+	/** Lobby code the party thread was last hydrated for, so switching lobbies re-hydrates. */
+	#partyHydratedLobby: string | null = null;
 
 	#friends = $state<ChatFriend[]>([]);
 	incomingRequests = $state<string[]>([]);
@@ -126,7 +129,7 @@ class StoreChat {
 
 	/** True when the socket has joined a lobby — gates the party tab/send. */
 	get isPartyAvailable(): boolean {
-		return ws.connectionStatus.lobby_code !== "";
+		return !!storeLobby.current?.invite_code;
 	}
 
 	/** Sums unread counts across every channel, for the launcher badge. */
@@ -171,12 +174,12 @@ class StoreChat {
 	}
 
 	/**
-	 * Fetches the next older shard for global or a DM thread and prepends it.
-	 * No-ops for "party" (lobby chat has no history endpoint) and while a
-	 * request for this channel is already in flight or none remains.
+	 * Fetches the next older shard for global, party, or a DM thread and
+	 * prepends it. No-ops while a request for this channel is already in
+	 * flight or none remains.
 	 */
 	async loadMoreHistory(channel: ChatChannel): Promise<void> {
-		if (channel === "party") return;
+		if (channel === "party" && !this.isPartyAvailable) return;
 
 		const key = channelKey(channel);
 		if (this.#loadingMore[key] || this.#hasMore[key] === false) return;
@@ -189,7 +192,9 @@ class StoreChat {
 				ClientAction.ChatHistoryRequest,
 				channel === "global"
 					? { channel: "global", before_id: oldest?.serverId }
-					: { channel: "dm", target: channel.friendId, before_id: oldest?.serverId }
+					: channel === "party"
+						? { channel: "lobby", before_id: oldest?.serverId }
+						: { channel: "dm", target: channel.friendId, before_id: oldest?.serverId }
 			);
 			if (!res.ok) return;
 
@@ -261,6 +266,14 @@ class StoreChat {
 			this.#hydratedThreads.add(channel.friendId);
 			void this.#hydrateHistory(channel.friendId);
 		}
+
+		if (channel === "party" && this.isPartyAvailable) {
+			const lobbyCode = storeLobby.current?.invite_code ?? "";
+			if (this.#partyHydratedLobby !== lobbyCode) {
+				this.#partyHydratedLobby = lobbyCode;
+				void this.#hydratePartyHistory();
+			}
+		}
 	}
 
 	/** Sends a message on the active channel over the real WS connection. */
@@ -299,6 +312,29 @@ class StoreChat {
 		if (!res.ok) storeToast.error(res.message);
 	}
 
+	/** Fetches the most recent shard of the current lobby's party chat. */
+	async #hydratePartyHistory(): Promise<void> {
+		try {
+			await ws.connect();
+			const res = await ws.emitAndWait(ClientAction.ChatHistoryRequest, { channel: "lobby" });
+			if (!res.ok) {
+				this.#partyHydratedLobby = null;
+				return;
+			}
+			const messages = res.getOr<Array<{ id: number; username: string; message: string }>>(
+				"messages",
+				[]
+			);
+			this.#party = [
+				...messages.map((m) => makeLine(m.username, m.message, m.id)),
+				...this.#party
+			];
+			this.#hasMore = { ...this.#hasMore, party: res.getOr<boolean>("has_more", false) };
+		} catch {
+			this.#partyHydratedLobby = null;
+		}
+	}
+
 	async #hydrateHistory(friendId: string): Promise<void> {
 		try {
 			await ws.connect();
@@ -316,7 +352,10 @@ class StoreChat {
 			);
 			this.#friendThreads = {
 				...this.#friendThreads,
-				[friendId]: messages.map((m) => makeLine(m.username, m.message, m.id))
+				[friendId]: [
+					...messages.map((m) => makeLine(m.username, m.message, m.id)),
+					...(this.#friendThreads[friendId] ?? [])
+				]
 			};
 			this.#hasMore = {
 				...this.#hasMore,
@@ -357,10 +396,14 @@ class StoreChat {
 		// Unsolicited push on join (see ChatController::OnOpen /
 		// CHAT_GLOBAL_HISTORY_ON_JOIN) — replaces #global outright rather than
 		// appending, since it's the authoritative snapshot for this connection.
-		// DM replies to chat_history_request carry channel: "dm" and are
-		// already resolved directly by their emitAndWait() caller; ignored here.
+		// _dispatch() fans this action out to every "on" listener even when a
+		// request_id also resolves a pending emitAndWait() (loadMoreHistory's
+		// shard fetch), so request_id presence is what distinguishes "this is
+		// the on-join snapshot" from "this is a shard response someone already
+		// handled" — without it, an in-flight loadMoreHistory("global") would
+		// have its #prepend() result immediately clobbered by this handler.
 		ws.on(ServerAction.ChatHistory, (data) => {
-			if (data.channel !== "global") return;
+			if (data.request_id || data.channel !== "global") return;
 			const messages =
 				(data.messages as Array<{ id: number; username: string; message: string }>) ?? [];
 			this.#global = messages.map((m) => makeLine(m.username, m.message, m.id));
