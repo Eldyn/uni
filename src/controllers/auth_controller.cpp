@@ -36,7 +36,7 @@ AuthController::AuthController(HttpRouter& router)
         auto payload = AuthService::VerifyToken(*token);
 
         if (!payload) {
-            Logger::Warn("[HTTP] Rejected auth-me — invalid token");
+            Logger::Warn("[HTTP] Rejected auth-me, invalid token");
             res->writeStatus("401 Unauthorized")->end();
             return;
         }
@@ -97,7 +97,7 @@ void AuthController::HandleGuest(AppResponse* res, AppRequest* /*req*/) {
         return;
     }
 
-    // INFO: ws_token only — no auth_token, so /auth/me keeps returning 401
+    // INFO: ws_token only, no auth_token, so /auth/me keeps returning 401
     //       and the client never mistakes a guest for a full account.
     res->writeHeader("Set-Cookie",
                      "ws_token=" + session->token + "; HttpOnly; Secure; SameSite=None; Path=/")

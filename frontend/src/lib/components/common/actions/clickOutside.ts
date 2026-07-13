@@ -1,6 +1,6 @@
 /**
  * @file clickOutside.ts
- * @brief `use:clickOutside={callback}` — fires the callback when a click
+ * @brief `use:clickOutside={callback}`, fires the callback when a click
  * lands outside the node. Capture phase so stopPropagation inside other
  * widgets can't swallow the dismissal.
  */

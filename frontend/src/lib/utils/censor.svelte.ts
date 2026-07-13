@@ -1,13 +1,13 @@
 /**
  * @file censor.svelte.ts
  * @brief Client-side, display-only profanity masking for chat and usernames.
- * Not a moderation layer — messages/usernames reach the server and other
+ * Not a moderation layer, messages/usernames reach the server and other
  * clients unmodified; this only changes what the *local viewer* sees,
  * replacing matched words with asterisks of the same length
  * (e.g. "fuck" -> "****").
  *
  * Word data (lib/data/profanityWords.ts, ~28 languages, LDNOOBW/CC BY 4.0)
- * is dynamically imported — see loadCensorData() — so it's only downloaded
+ * is dynamically imported, see loadCensorData(), so it's only downloaded
  * once something actually needs it (first RichText render, or the register
  * form's username check), not baked into the main app bundle.
  */
@@ -22,7 +22,7 @@ function escapeRegExp(word: string): string {
  * Plain substring matching, deliberately no word-boundary check: an earlier
  * boundary-checked version protected words like "assassin" from
  * false-triggering on "ass", but that same character-class logic can't tell
- * "assassin" apart from a glued compound like "fuckyou" — there's no clean
+ * "assassin" apart from a glued compound like "fuckyou", there's no clean
  * rule-based way to have one without the other, so this trades a few
  * innocent false positives for actually catching glued/compound abuse.
  * Substring matching also means a word repeated with no separator (e.g.
@@ -52,7 +52,7 @@ function applyRegex(text: string, regex: RegExp | null): string {
 }
 
 /**
- * Pure matcher — takes an explicit word map, no lazy-loading or caching
+ * Pure matcher, takes an explicit word map, no lazy-loading or caching
  * involved. Intentionally uncached (always rebuilds): this is the
  * general-purpose/test-facing entry point, called with arbitrary word maps
  * that can differ between calls, so caching here has no safe invalidation
@@ -94,13 +94,13 @@ export function loadCensorData(): Promise<void> {
 	return loadPromise;
 }
 
-/** Reserved for a future settings toggle — not yet wired to any UI. */
+/** Reserved for a future settings toggle, not yet wired to any UI. */
 export function setCensorEnabled(enabled: boolean): void {
 	censorState.enabled = enabled;
 }
 
 /**
- * Reserved for a future settings import (custom CSV/TXT word list) — not
+ * Reserved for a future settings import (custom CSV/TXT word list), not
  * yet wired to any UI. Words are matched the same substring way as the
  * bundled lists, under a synthetic "custom" language bucket.
  */
@@ -120,14 +120,14 @@ export function clearCustomWords(): void {
 /**
  * Masks profane words in `text` for display. No-ops (returns `text`
  * unchanged) until loadCensorData() has resolved, or while disabled via
- * setCensorEnabled(false) — both read reactively, so a component that
+ * setCensorEnabled(false), both read reactively, so a component that
  * calls this from its template re-renders automatically once data loads.
  */
 export function censorText(text: string, languages?: string[]): string {
 	if (!text || !censorState.enabled || !censorState.ready || !wordsByLang) return text;
 
 	if (languages) {
-		// Explicit subset requested — not the hot path, no caching.
+		// Explicit subset requested, not the hot path, no caching.
 		return censorWithWordMap(text, wordsByLang, languages);
 	}
 	if (!customWords.length) {

@@ -1,7 +1,7 @@
 /**
  * @file lobbyBrowse.ts
  * @brief Pure view-model helpers for the lobby browse screen: mapping,
- * filtering, sorting and per-card join affordances. No Svelte state — unit
+ * filtering, sorting and per-card join affordances. No Svelte state, unit
  * testable in isolation.
  */
 
@@ -51,7 +51,7 @@ export function toBrowseLobby(l: ListedLobby): BrowseLobby {
 		humans: l.member_count || 0,
 		bots: l.bot_count || 0,
 		max: MAX_LOBBY_MEMBERS,
-		deck: "Default", // TODO: no backend deck concept yet — stays mocked
+		deck: "Default", // TODO: no backend deck concept yet, stays mocked
 		allowBotTakeover: l.allow_bot_takeover,
 		rules: l.active_mods ?? []
 	};
@@ -75,7 +75,7 @@ export function joinInfo(l: BrowseLobby): JoinInfo {
 				label: "Join",
 				bg: "bg-orange-500",
 				disabled: false,
-				title: "In game — joinable by replacing a bot"
+				title: "In game, joinable by replacing a bot"
 			};
 		return {
 			dot: "bg-red-500",
@@ -98,7 +98,7 @@ export function joinInfo(l: BrowseLobby): JoinInfo {
 		label: "Play",
 		bg: "bg-accent",
 		disabled: false,
-		title: "Open — join now"
+		title: "Open, join now"
 	};
 }
 

@@ -4,11 +4,11 @@ Generates the C++ WebSocket actions header (namespace ``ws``) from
 contract/asyncapi.yaml.
 
 Reads the channel publish/subscribe message lists and emits:
-  * ClientAction — struct of ``static constexpr const char*`` constants, one
+  * ClientAction, struct of ``static constexpr const char*`` constants, one
     per client→server action (channel publish list).
-  * ServerAction — enum class, one enumerator per server→client action
+  * ServerAction, enum class, one enumerator per server→client action
     (channel subscribe list).
-  * kServerActionStr — inline unordered_map<ServerAction, std::string> for
+  * kServerActionStr, inline unordered_map<ServerAction, std::string> for
     enum→wire-string conversion used by MakeResponse() and SendError().
 
 Adding a new action is a contract-only edit; this script does not change.
@@ -79,7 +79,7 @@ def main():
     lines = [
         "#pragma once",
         "",
-        "// AUTO-GENERATED — do not edit by hand.",
+        "// AUTO-GENERATED, do not edit by hand.",
         "// Source:     contract/asyncapi.yaml (channels.publish / channels.subscribe)",
         "// Generator:  scripts/generate_ws_hpp.py (run by CMake target gen_ws_actions_hpp)",
         "//",

@@ -17,7 +17,7 @@ ActionRouter& ActionRouter::OnAny(ActionHandler handler) {
 }
 
 bool ActionRouter::Dispatch(WsContext ctx, const json& msg) const {
-    // Run wildcards first — any returning false aborts the entire chain.
+    // Run wildcards first, any returning false aborts the entire chain.
     for (const auto& wildcard : wildcards_) {
         if (!wildcard(ctx, msg)) {
             return false;
@@ -28,7 +28,7 @@ bool ActionRouter::Dispatch(WsContext ctx, const json& msg) const {
     auto it = handlers_.find(action);
 
     if (it == handlers_.end()) {
-        return false;   // no handler registered — WebServer will log this
+        return false;   // no handler registered, WebServer will log this
     }
 
     it->second(ctx, msg);

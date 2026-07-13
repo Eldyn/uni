@@ -78,7 +78,7 @@ public:
      * side: runs the registered wildcards first (any returning false aborts
      * the chain, exactly as in `Attach`'s wrapped handlers), then the exact
      * (method, path) match. Does not perform uWS-style wildcard/path-pattern
-     * matching (e.g. "/*") — the path must match a registered route exactly.
+     * matching (e.g. "/*"), the path must match a registered route exactly.
      * Intended for tests that want to drive a registered handler without a
      * live uWS request; it does not fake `AppRequest`/`AppResponse` and so
      * still requires real (or otherwise obtained) instances of both.

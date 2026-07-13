@@ -207,11 +207,11 @@ struct Lobby {
      * settings.quit_deletes_match / settings.allow_bot_replacement. Always
      * erases the member from `members`. On the kMatchAborted outcome, `match`
      * is deliberately left intact so the caller can persist its state before
-     * tearing it down — the caller must reset `match` itself after saving.
+     * tearing it down, the caller must reset `match` itself after saving.
      * @param username Username of the member to remove.
      * @param rng Shared RNG, forwarded to PickBotName for the bot-replacement path.
      * @return MemberRemovalResult describing what happened, for the caller to
-     * react to (broadcasting, persistence, callbacks) — this method does not
+     * react to (broadcasting, persistence, callbacks), this method does not
      * touch sockets, the database, or controller-level callback lists.
      * @tag CMN-LOBBY-MTH-005
      */

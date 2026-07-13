@@ -10,7 +10,7 @@
 		// rules like `h1 { font-family: ... }`.
 		font = "",
 		// Text color, applied to every branch (shine has its own
-		// shineColor/shineBaseColor sweep instead — this is the plain-text color).
+		// shineColor/shineBaseColor sweep instead, this is the plain-text color).
 		color = "",
 		// undulate
 		frequency = 0.12, // seconds of phase offset per character

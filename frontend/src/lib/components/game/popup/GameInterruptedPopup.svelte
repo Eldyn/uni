@@ -3,7 +3,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 
-	// PLACEHOLDER-SFX: sfx.match.interrupted — alarm/error stinger fired once
+	// PLACEHOLDER-SFX: sfx.match.interrupted, alarm/error stinger fired once
 	// when the interrupted popup appears (component only mounts on this event).
 	storeAudio.playSfx("sfx.match.interrupted");
 </script>

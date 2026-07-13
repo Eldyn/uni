@@ -8,13 +8,13 @@ data-driven: it never hardcodes schema names, field paths, or enum members.
 It discovers two declarative conventions anywhere in the document and emits
 their C++ mirrors:
 
-  * ``x-constants`` — a map ``{ jsonSchemaKeyword: BaseName }`` attached to any
+  * ``x-constants``, a map ``{ jsonSchemaKeyword: BaseName }`` attached to any
     schema node. The sibling keyword's value is emitted as
     ``inline constexpr int k<BaseName>``.
         Username: { minLength: 3, x-constants: { minLength: UsernameMin } }
         ->  inline constexpr int kUsernameMin = 3;
 
-  * ``x-enums`` — named enums under ``components/x-enums``. Each becomes a C++
+  * ``x-enums``, named enums under ``components/x-enums``. Each becomes a C++
     ``enum class <Name>`` with ``k``-prefixed enumerators. Enums whose values
     are strings (wire codes) additionally get a ``k<Name>Str`` map from
     enumerator to wire string.
@@ -124,7 +124,7 @@ def main():
     lines = [
         "#pragma once",
         "",
-        "// AUTO-GENERATED — do not edit by hand.",
+        "// AUTO-GENERATED, do not edit by hand.",
         "// Source:     contract/asyncapi.yaml (x-constants + x-enums)",
         "// Generator:  scripts/generate_contract_hpp.py (run by CMake target gen_contract_hpp)",
         "//",

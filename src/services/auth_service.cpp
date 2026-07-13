@@ -152,7 +152,7 @@ Result<AuthSession> AuthService::CreateGuestSession() {
 }
 
 Result<std::string> AuthService::GenerateGuestName() {
-    // INFO: 5 random base32 chars ≈ 33M names — enough entropy that two
+    // INFO: 5 random base32 chars ≈ 33M names, enough entropy that two
     //       concurrent guests won't collide at this project's scale.
     static constexpr char kNameAlphabet[] = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     static constexpr int  kNameLen        = 5;
@@ -175,7 +175,7 @@ Result<std::string> AuthService::GenerateGuestName() {
 //
 //       The "pepper" is an application-level secret from the environment.
 //       Unlike a salt (stored in the DB, unique per user, public), a pepper
-//       is *not* stored anywhere — it lives only in memory, loaded from the
+//       is *not* stored anywhere, it lives only in memory, loaded from the
 //       env at startup. An attacker who steals the DB but not the server
 //       config cannot run offline dictionary attacks even with the salts in
 //       hand.
@@ -244,16 +244,16 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 
     // INFO: CRYPTO_memcmp performs a constant-time comparison. A regular `==`
     //       on std::vector short-circuits on the first mismatch, which leaks
-    //       timing information — a timing-side-channel attack can use that to
+    //       timing information, a timing-side-channel attack can use that to
     //       infer how many bytes of the hash match. Returns 0 if equal (same
     //       convention as memcmp).
     return (CRYPTO_memcmp(candidate.data(), ref_hash.data(), kHashBytes) == 0);
 }
 
-// JWT — issue + verify
+// JWT, issue + verify
 //
 // INFO: jwt-cpp uses a fluent builder API. We create a JWT with:
-//         - algorithm  : HS256 (HMAC-SHA256) — symmetric, using JWT_SECRET
+//         - algorithm  : HS256 (HMAC-SHA256), symmetric, using JWT_SECRET
 //         - subject    : username (who this token represents)
 //         - issued_at  : current UTC time (for audit / debugging)
 //         - expires_at : now + 24 hours (after which the token is rejected)
@@ -261,7 +261,7 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 //       The secret is fetched via Env::Require every call rather than cached
 //       so that secret rotation (SIGHUP + Env::Load) works without restart.
 //       In a hot path you'd cache it, but token issuance / verification
-//       happen only at login and upgrade — not per-message.
+//       happen only at login and upgrade, not per-message.
 Result<std::string> AuthService::IssueToken(const std::string& username) {
     using namespace std::chrono;
 

@@ -148,7 +148,7 @@ function schemaToZod(_schemaName, schema) {
 }
 
 // Constraint schemas: named scalar schemas (not objects/arrays) reused inside
-// payloads. Detected generically from the contract — no hardcoded list.
+// payloads. Detected generically from the contract, no hardcoded list.
 const constraintSchemas = Object.entries(schemas).filter(
 	([, schema]) => schema.type !== "object" && schema.type !== "array"
 );
@@ -163,13 +163,13 @@ const { client: clientActions, server: serverActions } = collectActions();
 const xEnums = data?.components?.["x-enums"] ?? {};
 
 const lines = [
-	"// AUTO-GENERATED — do not edit manually.",
+	"// AUTO-GENERATED, do not edit manually.",
 	"// Source: contract/asyncapi.yaml",
 	"// Regenerate: npm run generate:contract",
 	"import { z } from 'zod';",
 	"",
 	"// ---------------------------------------------------------------------------",
-	"// Validation constants (single source of truth — derived from constraint schemas)",
+	"// Validation constants (single source of truth, derived from constraint schemas)",
 	"// ---------------------------------------------------------------------------"
 ];
 
@@ -281,10 +281,10 @@ for (const [msgName, msg] of Object.entries(messages)) {
 	lines.push("");
 }
 
-// Outgoing schemas lookup — used by ws.svelte.ts to validate outgoing frames at runtime.
+// Outgoing schemas lookup, used by ws.svelte.ts to validate outgoing frames at runtime.
 // Keyed by action string; value is the corresponding MessageSchema (payload + action literal).
 lines.push("// ---------------------------------------------------------------------------");
-lines.push("// outgoingSchemas — action string → outgoing message Zod schema");
+lines.push("// outgoingSchemas, action string → outgoing message Zod schema");
 lines.push("// ---------------------------------------------------------------------------");
 lines.push("export const outgoingSchemas: Partial<Record<string, z.ZodTypeAny>> = {");
 for (const [msgName, msg] of Object.entries(messages)) {
@@ -299,9 +299,9 @@ for (const [msgName, msg] of Object.entries(messages)) {
 lines.push("};");
 lines.push("");
 
-// ClientPayloads map — used for TypeScript overload resolution in ws.svelte.ts
+// ClientPayloads map, used for TypeScript overload resolution in ws.svelte.ts
 lines.push("// ---------------------------------------------------------------------------");
-lines.push("// ClientPayloads — maps each action string to its payload type");
+lines.push("// ClientPayloads, maps each action string to its payload type");
 lines.push("// ---------------------------------------------------------------------------");
 lines.push("export interface ClientPayloads {");
 for (const [, msg] of Object.entries(messages)) {

@@ -13,7 +13,7 @@
 		onjoin
 	}: {
 		lobby: BrowseLobby;
-		/** Measured card width in px — drives avatar/button scale and rule overflow. */
+		/** Measured card width in px, drives avatar/button scale and rule overflow. */
 		cardW: number;
 		onjoin: (inviteCode: string) => void;
 	} = $props();
@@ -48,7 +48,7 @@
 		let fit = Math.floor(free / RULE_SLOT_W);
 		if (fit < lobby.rules.length) fit = Math.floor((free - OVERFLOW_CHIP_W) / RULE_SLOT_W);
 		let n = Math.max(0, Math.min(fit, lobby.rules.length));
-		// A "+1" chip is as wide as the icon it hides — only collapse 2 or more.
+		// A "+1" chip is as wide as the icon it hides, only collapse 2 or more.
 		if (lobby.rules.length - n === 1) n = lobby.rules.length;
 		return { shown: lobby.rules.slice(0, n), overflow: lobby.rules.length - n };
 	});
@@ -97,7 +97,7 @@
 		</div>
 	</div>
 
-	<!-- Row 2: player count (the focus) · join button — the two highlights -->
+	<!-- Row 2: player count (the focus) · join button, the two highlights -->
 	<div class="flex items-center justify-between gap-4">
 		<PlayerSlotRow
 			humans={lobby.humans}
@@ -117,7 +117,7 @@
 					onjoin(lobby.invite_code);
 				}}
 				title={join.title}
-				aria-label="{join.label} — {join.title}">{join.label}</button
+				aria-label="{join.label}, {join.title}">{join.label}</button
 			>
 		{/if}
 	</div>

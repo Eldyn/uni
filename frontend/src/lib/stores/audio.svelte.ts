@@ -34,14 +34,14 @@ class StoreAudio {
 			if (typeof parsed?.musicVolume === "number") this.musicVolume = parsed.musicVolume;
 			if (typeof parsed?.sfxVolume === "number") this.sfxVolume = parsed.sfxVolume;
 		} catch {
-			// INFO: localStorage unavailable or malformed — fall back to defaults.
+			// INFO: localStorage unavailable or malformed, fall back to defaults.
 		}
 	}
 
 	/**
 	 * @brief Boots the audio system: applies the persisted master volume,
 	 * wires the autoplay-unlock-on-gesture fallback, and starts/keeps
-	 * screen-driven music in sync with `storeNavigation`. Idempotent — safe
+	 * screen-driven music in sync with `storeNavigation`. Idempotent, safe
 	 * to call more than once. Degrades to a silent no-op if the underlying
 	 * Howler/AudioContext is unavailable in this environment.
 	 */
@@ -50,17 +50,17 @@ class StoreAudio {
 		this.#initialized = true;
 
 		try {
-			// INFO: Also creates Howler.ctx as a side effect — Howler defers
+			// INFO: Also creates Howler.ctx as a side effect, Howler defers
 			//       AudioContext setup until first real use.
 			Howler.volume(this.musicVolume);
 		} catch {
-			// INFO: Howler/AudioContext unavailable — degrade to silent no-op.
+			// INFO: Howler/AudioContext unavailable, degrade to silent no-op.
 		}
 
 		this.#unlockOnGesture();
 
 		// INFO: storeAudio is an app-lifetime singleton, so this effect is
-		//       meant to run for the whole session — the dispose function
+		//       meant to run for the whole session, the dispose function
 		//       $effect.root returns is intentionally left unused.
 		$effect.root(() => {
 			$effect(() => {
@@ -72,7 +72,7 @@ class StoreAudio {
 						this.#music.stopAll();
 					}
 				} catch {
-					// INFO: Playback backend unavailable — screen switches silently.
+					// INFO: Playback backend unavailable, screen switches silently.
 				}
 			});
 		});
@@ -92,13 +92,13 @@ class StoreAudio {
 				document.removeEventListener("click", resume);
 				document.removeEventListener("keydown", resume);
 				ctx.resume().catch(() => {
-					// INFO: Still no gesture-granted permission — nothing to do.
+					// INFO: Still no gesture-granted permission, nothing to do.
 				});
 			};
 			document.addEventListener("click", resume);
 			document.addEventListener("keydown", resume);
 		} catch {
-			// INFO: Howler.ctx unavailable — nothing to unlock.
+			// INFO: Howler.ctx unavailable, nothing to unlock.
 		}
 	}
 
@@ -110,7 +110,7 @@ class StoreAudio {
 		try {
 			this.#sfx.playSfx(id, { pitch: opts?.pitch, volume: opts?.volume ?? this.sfxVolume });
 		} catch {
-			// INFO: Audio backend unavailable — silently drop the SFX.
+			// INFO: Audio backend unavailable, silently drop the SFX.
 		}
 	}
 
@@ -119,7 +119,7 @@ class StoreAudio {
 		try {
 			Howler.volume(v);
 		} catch {
-			// INFO: Howler/AudioContext unavailable — the setting still persists.
+			// INFO: Howler/AudioContext unavailable, the setting still persists.
 		}
 		this.#persist();
 	}
@@ -136,7 +136,7 @@ class StoreAudio {
 				JSON.stringify({ musicVolume: this.musicVolume, sfxVolume: this.sfxVolume })
 			);
 		} catch {
-			// INFO: localStorage unavailable — settings still live in memory.
+			// INFO: localStorage unavailable, settings still live in memory.
 		}
 	}
 }

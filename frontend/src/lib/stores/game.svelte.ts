@@ -127,7 +127,7 @@ class StoreGame {
 	/** Contextual data attached to the input request. */
 	actionContext = $state<any>(null);
 
-	/** True while a game action is in flight — cleared on next MatchStateUpdated. */
+	/** True while a game action is in flight, cleared on next MatchStateUpdated. */
 	isActionPending = $state(false);
 
 	/** Seconds remaining to complete the turn, computed locally. */
@@ -306,7 +306,7 @@ class StoreGame {
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		storeAnalytics.track("play_card");
-		// PLACEHOLDER-SFX: sfx.action.play-card — optimistic click SFX only,
+		// PLACEHOLDER-SFX: sfx.action.play-card, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
@@ -323,7 +323,7 @@ class StoreGame {
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		storeAnalytics.track("draw_card");
-		// PLACEHOLDER-SFX: sfx.action.draw-card — optimistic click SFX only,
+		// PLACEHOLDER-SFX: sfx.action.draw-card, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
@@ -337,7 +337,7 @@ class StoreGame {
 	 */
 	callUno() {
 		storeAnalytics.track("call_uno");
-		// PLACEHOLDER-SFX: sfx.action.call-uno — optimistic click SFX only,
+		// PLACEHOLDER-SFX: sfx.action.call-uno, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
@@ -354,7 +354,7 @@ class StoreGame {
 		if (this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		// PLACEHOLDER-SFX: sfx.action.submit-input — optimistic click SFX only,
+		// PLACEHOLDER-SFX: sfx.action.submit-input, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.

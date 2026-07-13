@@ -6,9 +6,9 @@ suffix, e.g. `0.2.0-rc.1` or `0.2.0-beta.2`.
 
 `VERSION` is the single source of truth:
 
-- **Backend** — `CMakeLists.txt` reads it into the CMake project version (the
+- **Backend**, `CMakeLists.txt` reads it into the CMake project version (the
   pre-release suffix is stripped automatically for `project(VERSION)`).
-- **Frontend** — `vite.config.js` injects the full string (suffix included) as
+- **Frontend**, `vite.config.js` injects the full string (suffix included) as
   `__APP_VERSION__`, shown in the version badge.
 
 ## Cutting a release
@@ -22,7 +22,7 @@ suffix, e.g. `0.2.0-rc.1` or `0.2.0-beta.2`.
    from the commits since the previous tag, and add the matching compare link at
    the bottom of the file.
 4. **Commit.** `git commit -m "release: 0.2.0"` (subject only).
-5. **Tag.** `git tag -a v0.2.0 -m "v0.2.0"` — note the leading `v` on the tag,
+5. **Tag.** `git tag -a v0.2.0 -m "v0.2.0"`, note the leading `v` on the tag,
    matching the existing convention; the `VERSION` file itself has no `v`.
 6. **Push.** `git push && git push --tags`.
 7. **Write the GitHub Release.** Create a release from the tag, pasting the
@@ -37,4 +37,4 @@ suffix, e.g. `0.2.0-rc.1` or `0.2.0-beta.2`.
 in-app changelog viewer reads, so keep it accurate and parseable: one `##
 [X.Y.Z] - DATE` heading per release, `###` section headings, and `-` bullets.
 To point at a specific fix, use its short commit hash (`git log --oneline` to
-find it) — GitHub renders it as a link inside release notes, issues, and PRs.
+find it), GitHub renders it as a link inside release notes, issues, and PRs.

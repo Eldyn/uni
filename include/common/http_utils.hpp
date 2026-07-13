@@ -68,7 +68,7 @@ std::string CacheControlFor(std::string_view relative_path);
 /**
  * @brief Derives a weak ETag from a file's size and last-write time.
  *
- * An opaque validator (RFC 7232) that only has to change when the file does —
+ * An opaque validator (RFC 7232) that only has to change when the file does:
  * size+mtime captures that without hashing the contents.
  *
  * @param file The file to stat.

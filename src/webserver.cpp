@@ -44,7 +44,7 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
         Logger::Info("Cert file: " + std::string(cert_file) + " exists=" +
                      (fs::exists(cert_file) ? "yes" : "NO"));
     } else {
-        Logger::Info("TLS disabled (plain HTTP) — UNI_ENABLE_SSL=0");
+        Logger::Info("TLS disabled (plain HTTP), UNI_ENABLE_SSL=0");
     }
     Logger::Info("WebServer constructed");
 }
@@ -206,7 +206,7 @@ void WebServer::RegisterRoutes() {
             auto payload = AuthService::VerifyToken(*token);
 
             if (!payload) {
-                Logger::Warn("[WS] Rejected upgrade — invalid token");
+                Logger::Warn("[WS] Rejected upgrade, invalid token");
                 res->writeStatus("401 Unauthorized")->end();
                 return;
             }
@@ -219,7 +219,7 @@ void WebServer::RegisterRoutes() {
             //       exhaust the server's sockets. The counter is incremented
             //       here and decremented in OnSocketClosed.
             if (max_conn_per_ip_ > 0 && conn_per_ip_[ip] >= max_conn_per_ip_) {
-                Logger::Warn("[WS] Rejected upgrade — connection cap reached for IP " + ip);
+                Logger::Warn("[WS] Rejected upgrade, connection cap reached for IP " + ip);
                 res->writeStatus("429 Too Many Requests")->end();
                 return;
             }
@@ -354,7 +354,7 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
         // INFO: Conditional request: the client already holds this exact
         //       version, so skip resending the body. This is what makes
         //       revalidation of the large unhashed font cheap once its
-        //       max-age lapses — an empty 304 instead of ~1 MB on the wire.
+        //       max-age lapses, an empty 304 instead of ~1 MB on the wire.
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
@@ -461,7 +461,7 @@ void WebServer::LoadStaticFileCache() {
 }
 
 std::string WebServer::ReadFile(std::string_view path) const {
-    // INFO: Hot path — the cache is populated once at startup by
+    // INFO: Hot path, the cache is populated once at startup by
     //       LoadStaticFileCache(), so a busy server serving the same asset
     //       repeatedly avoids the disk read + stringstream churn per request.
     if (auto it = static_file_cache_.find(std::string(path)); it != static_file_cache_.end()) {

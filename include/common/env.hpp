@@ -118,7 +118,7 @@ inline int Load(std::string_view path = ".env") {
     std::ifstream file(path.data());
     if (!file.is_open()) {
         Logger::Warn("[Env] .env not found at '" + std::string(path) +
-                     "' — relying on existing environment variables");
+                     "', relying on existing environment variables");
         return 0;
     }
 

@@ -28,7 +28,7 @@
 	}
 
 	// Stats/saved matches are account-only; Settings is local browser state, so
-	// it works for guests too. Decks/Skins have no action either way — unbuilt.
+	// it works for guests too. Decks/Skins have no action either way, unbuilt.
 	const HUB_TILES = $derived<HubTile[]>([
 		{
 			label: "Stats",
@@ -151,7 +151,7 @@
 							style="--pc-fill: var(--surface); --pc-border: var(--border);"
 							aria-disabled={!tile.action}
 							onclick={() => tile.action?.()}
-							aria-label="{tile.label}{tile.action ? '' : ' — coming soon'}"
+							aria-label="{tile.label}{tile.action ? '' : ', coming soon'}"
 						>
 							<i class="hn pix {tile.icon} text-xl {tile.accent}"></i>
 							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>

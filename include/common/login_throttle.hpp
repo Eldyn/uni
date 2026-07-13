@@ -16,7 +16,7 @@
  *        threshold is reached within a rolling window.
  *
  * This blunts password brute-forcing and, just as importantly, the PBKDF2 CPU
- * amplification that each verification costs — a locked key is rejected before
+ * amplification that each verification costs, a locked key is rejected before
  * any hashing happens. Failures decay after one lockout window, and a successful
  * login clears the key via `Reset`.
  *

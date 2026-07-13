@@ -34,7 +34,7 @@ describe("censorWithWordMap (pure matching logic, synthetic fixtures)", () => {
 
 	it("masks a listed word wherever it appears, including glued into other letters", () => {
 		// Deliberate: substring matching, no word-boundary check. A word like
-		// "category" (containing "cat") gets masked too — the trade-off
+		// "category" (containing "cat") gets masked too, the trade-off
 		// chosen over trying to special-case boundaries, since that logic
 		// can't reliably tell a glued compound apart from a real word.
 		expect(censorWithWordMap("category", fixture, ["en"])).toBe("***egory");
@@ -99,7 +99,7 @@ describe("censorText (stateful wrapper, real bundled data)", () => {
 	});
 
 	it("censors the profane part of a glued username-style string, leaving the rest", () => {
-		// Only "fuck" is an actual listed word here — "you"/"99" aren't
+		// Only "fuck" is an actual listed word here, "you"/"99" aren't
 		// profanity and correctly stay untouched.
 		expect(censorText("fuckyou99")).toBe("****you99");
 	});

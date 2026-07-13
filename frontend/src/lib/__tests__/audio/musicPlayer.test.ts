@@ -115,7 +115,7 @@ describe("MusicPlayer", () => {
 		expect(howl.play).toHaveBeenCalledTimes(1);
 	});
 
-	it("playTrack with the same id already playing is a no-op — doesn't restart the track", () => {
+	it("playTrack with the same id already playing is a no-op, doesn't restart the track", () => {
 		const player = new MusicPlayer();
 		player.playTrack("music.trackA");
 		const first = FakeHowl.instances[0];

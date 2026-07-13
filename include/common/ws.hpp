@@ -17,11 +17,11 @@
  *   <ws/messages.h>  (generated at build time by hatchbed/asyncapi_gencpp)
  *
  * This file provides:
- *  - ClientAction  — struct of constexpr string constants for every client→server action.
- *  - ServerAction  — enum used by MakeResponse() for type-safe outgoing message construction.
- *  - kServerActionStr — enum → string mapping consumed by MakeResponse() and SendError().
- *  - Get / GetOr   — envelope field extraction helpers (used for request_id).
- *  - MakeResponse / SendError — response construction utilities.
+ *  - ClientAction, struct of constexpr string constants for every client→server action.
+ *  - ServerAction, enum used by MakeResponse() for type-safe outgoing message construction.
+ *  - kServerActionStr, enum → string mapping consumed by MakeResponse() and SendError().
+ *  - Get / GetOr, envelope field extraction helpers (used for request_id).
+ *  - MakeResponse / SendError, response construction utilities.
  */
 
 namespace ws {

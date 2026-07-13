@@ -1,5 +1,5 @@
 <script lang="ts">
-	// INFO: Deck filtering/rendering is still mocked — the backend has no deck  //
+	// INFO: Deck filtering/rendering is still mocked, the backend has no deck  //
 	// concept yet. Rule data comes from storeCatalog (server-provided).         //
 
 	import { onMount } from "svelte";

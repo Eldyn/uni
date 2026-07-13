@@ -42,7 +42,7 @@
 			class="pixel-bordered flex w-12 shrink-0 items-center justify-center text-xl transition {isPrivate
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-			title={isPrivate ? "Private — invite only" : "Public — anyone can join"}
+			title={isPrivate ? "Private, invite only" : "Public, anyone can join"}
 			aria-pressed={isPrivate}
 			aria-label={isPrivate ? "Private lobby" : "Public lobby"}
 			onclick={() => (isPrivate = !isPrivate)}

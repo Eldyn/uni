@@ -1,4 +1,4 @@
-# 🃏 UNI — Frontend
+# 🃏 UNI, Frontend
 
 Frontend of the **UNI** project, built with **Svelte 5** (runes) and **TypeScript**,
 bundled with **Vite**. It communicates with the C++ backend through a centralized
@@ -7,12 +7,12 @@ channel), with automatic reconnection.
 
 ## 🧩 Structure
 
-- `src/lib/stores/` — reactive singleton stores, one per domain: `auth`, `lobby`, `game`,
+- `src/lib/stores/`, reactive singleton stores, one per domain: `auth`, `lobby`, `game`,
   `navigation`, `toast`, `stats`, `ws`.
-- `src/lib/components/game/` — the game table: `GameBoard`, `PlayerHand`,
+- `src/lib/components/game/`, the game table: `GameBoard`, `PlayerHand`,
   `OpponentHand`, `GamePiles`, `GameCard`, `FlyingCardsOverlay` (animations), `card-bus`.
-- `src/lib/components/lobby/` — lobby and settings screens and controls.
-- `public/` — static assets (card images, audio, pixel-art fonts).
+- `src/lib/components/lobby/`, lobby and settings screens and controls.
+- `public/`, static assets (card images, audio, pixel-art fonts).
 
 Reordering the cards in hand uses **drag-and-drop** (`@dnd-kit/svelte`).
 

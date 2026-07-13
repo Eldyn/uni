@@ -79,11 +79,11 @@ public:
     /**
      * @brief Returns one shard of global history, oldest-first within the
      * shard, newest shard first overall.
-     * @param before_id Cursor — only messages older than this id are
+     * @param before_id Cursor, only messages older than this id are
      *   considered. `std::nullopt` starts from the most recent message.
      * @param limit Shard size. Values > 0 are clamped to `kMaxShardSize`;
      *   a negative value returns every matching message unclamped (trusted
-     *   server-side callers only — never pass client input here directly).
+     *   server-side callers only, never pass client input here directly).
      * @tag SVC-CHAT-MTH-002B
      */
     ChatHistoryPage GetGlobalHistoryPage(std::optional<int> before_id, int limit) const;
@@ -108,9 +108,9 @@ public:
     /**
      * @brief Returns one shard of the DM history between two users,
      * oldest-first within the shard, newest shard first overall.
-     * @param before_id Cursor — only messages older than this id are
+     * @param before_id Cursor, only messages older than this id are
      *   considered. `std::nullopt` starts from the most recent message.
-     * @param limit Requested shard size — always clamped to
+     * @param limit Requested shard size, always clamped to
      *   [1, kMaxShardSize] server-side, regardless of client input.
      * @tag SVC-CHAT-MTH-004B
      */

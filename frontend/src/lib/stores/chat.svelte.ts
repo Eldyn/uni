@@ -18,7 +18,7 @@ export interface ChatLine {
 	id: string;
 	/**
 	 * Server-assigned message id, present only on lines loaded from a
-	 * `chat_history` shard — used as the `before_id` cursor to fetch the
+	 * `chat_history` shard, used as the `before_id` cursor to fetch the
 	 * next older shard. Absent on live `chat_message` lines, which are only
 	 * ever appended (never used as a pagination cursor).
 	 */
@@ -43,7 +43,7 @@ const COMPOSER_ERROR_DURATION_MS = 5_000;
 
 let nextLineId = 0;
 
-/** Stable string key for a channel — used to index drafts/unread maps. */
+/** Stable string key for a channel, used to index drafts/unread maps. */
 export function channelKey(channel: ChatChannel): string {
 	if (channel === "global") return "global";
 	if (channel === "party") return "party";
@@ -68,7 +68,7 @@ class StoreChat {
 	 * Measured pixel height of the open dock panel (0 when closed), set by
 	 * `ChatDock` via `bind:clientHeight`. Lets other fixed-position UI (the
 	 * toast stack) sit above the dock without duplicating its responsive
-	 * breakpoints/height — one measured source of truth instead of two files
+	 * breakpoints/height, one measured source of truth instead of two files
 	 * agreeing on magic numbers.
 	 */
 	dockHeight = $state(0);
@@ -114,7 +114,7 @@ class StoreChat {
 				this.drafts = parsed;
 			}
 		} catch {
-			// localStorage unavailable or drafts payload malformed — start empty.
+			// localStorage unavailable or drafts payload malformed, start empty.
 		}
 
 		this.#registerListeners();
@@ -127,7 +127,7 @@ class StoreChat {
 		return this.#friends;
 	}
 
-	/** True when the socket has joined a lobby — gates the party tab/send. */
+	/** True when the socket has joined a lobby, gates the party tab/send. */
 	get isPartyAvailable(): boolean {
 		return !!storeLobby.current?.invite_code;
 	}
@@ -155,7 +155,7 @@ class StoreChat {
 		try {
 			localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(this.drafts));
 		} catch {
-			// localStorage unavailable — draft still lives in memory.
+			// localStorage unavailable, draft still lives in memory.
 		}
 	}
 
@@ -394,13 +394,13 @@ class StoreChat {
 		});
 
 		// Unsolicited push on join (see ChatController::OnOpen /
-		// CHAT_GLOBAL_HISTORY_ON_JOIN) — replaces #global outright rather than
+		// CHAT_GLOBAL_HISTORY_ON_JOIN), replaces #global outright rather than
 		// appending, since it's the authoritative snapshot for this connection.
 		// _dispatch() fans this action out to every "on" listener even when a
 		// request_id also resolves a pending emitAndWait() (loadMoreHistory's
 		// shard fetch), so request_id presence is what distinguishes "this is
 		// the on-join snapshot" from "this is a shard response someone already
-		// handled" — without it, an in-flight loadMoreHistory("global") would
+		// handled", without it, an in-flight loadMoreHistory("global") would
 		// have its #prepend() result immediately clobbered by this handler.
 		ws.on(ServerAction.ChatHistory, (data) => {
 			if (data.request_id || data.channel !== "global") return;
@@ -423,7 +423,7 @@ class StoreChat {
 
 		// Fire-and-forget actions (chat_send) send an empty request_id on
 		// failure, so their errors arrive unsolicited rather than through
-		// emitAndWait — only surface them while the composer is visible.
+		// emitAndWait, only surface them while the composer is visible.
 		ws.on(ServerAction.Error, (data) => {
 			if (!this.isOpen) return;
 			const text = errorText(data.code as string | undefined, data.detail as string | undefined);

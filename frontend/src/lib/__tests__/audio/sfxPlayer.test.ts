@@ -74,7 +74,7 @@ describe("SfxPlayer", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("unknown sfx id is a safe no-op — no Howl constructed, no throw", () => {
+	it("unknown sfx id is a safe no-op, no Howl constructed, no throw", () => {
 		const player = new SfxPlayer();
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -103,11 +103,11 @@ describe("SfxPlayer", () => {
 		const howl = FakeHowl.instances[0];
 		expect(howl.play).toHaveBeenCalledTimes(2);
 
-		// A third call is dropped — both slots still counted as in flight.
+		// A third call is dropped, both slots still counted as in flight.
 		player.playSfx("sfx.capped");
 		expect(howl.play).toHaveBeenCalledTimes(2);
 
-		// One instance fails to load instead of ever firing "end" — its slot
+		// One instance fails to load instead of ever firing "end", its slot
 		// must still be released, or it leaks permanently.
 		howl.triggerError("loaderror", 1);
 		player.playSfx("sfx.capped");
@@ -123,7 +123,7 @@ describe("SfxPlayer", () => {
 		expect(warn).toHaveBeenCalled();
 	});
 
-	it("respects minIntervalMs throttling — a second rapid call is dropped", () => {
+	it("respects minIntervalMs throttling, a second rapid call is dropped", () => {
 		const dateSpy = vi.spyOn(Date, "now").mockReturnValue(1000);
 		const player = new SfxPlayer();
 
@@ -138,7 +138,7 @@ describe("SfxPlayer", () => {
 		expect(FakeHowl.instances[0].play).toHaveBeenCalledTimes(2);
 	});
 
-	it("respects maxConcurrent — an Nth+1 call is dropped while N are in flight", () => {
+	it("respects maxConcurrent, an Nth+1 call is dropped while N are in flight", () => {
 		const player = new SfxPlayer();
 
 		player.playSfx("sfx.capped");

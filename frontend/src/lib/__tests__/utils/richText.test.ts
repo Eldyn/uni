@@ -68,7 +68,7 @@ describe("parseRichText", () => {
 
 	it("degrades a color tag with a non-hex value to literal text (style-injection guard)", () => {
 		// Only hex colors are trusted since this value is interpolated
-		// straight into a CSS `style` attribute — CSS keywords, url(), and
+		// straight into a CSS `style` attribute, CSS keywords, url(), and
 		// anything else are rejected rather than sanitized.
 		expect(parseRichText("[c=red]oops[/c]")).toEqual([{ text: "[c=red]oops[/c]" }]);
 		expect(parseRichText("[c=javascript:alert(1)]oops[/c]")).toEqual([

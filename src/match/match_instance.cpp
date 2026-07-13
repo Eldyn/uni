@@ -223,7 +223,7 @@ namespace match {
 
     void MatchInstance::Tick() {
         if (state_.effect_queue.size() > 64) {
-            Logger::Error("[Match] effect_queue exceeded 64 — aborting match ", match_id_);
+            Logger::Error("[Match] effect_queue exceeded 64, aborting match ", match_id_);
             state_.status = MatchStatus::kFinished;
             return;
         }

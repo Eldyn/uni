@@ -164,7 +164,7 @@ TEST_CASE("AdvanceBotTurns: a stalled state (same player, same waiting-state aft
           "is reported without exceeding the cap or looping forever") {
     // INFO: A 2-player match where the current player's only playable card is
     //       a Skip: resolving it advances the turn twice, landing back on the
-    //       same player with no pending input — the exact no-progress
+    //       same player with no pending input, the exact no-progress
     //       condition AdvanceBotTurns must detect and abort on.
     json saved_state;
     saved_state["rules"]                = json::array();

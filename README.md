@@ -28,9 +28,9 @@ code), configure the match rules and play against other users or against bots.
 ### Backend (C++)
 
 - A C++ compiler with **C++23** support (GCC or Clang)
-- **Python 3** (with `pip`) — used to install Conan and Ninja
+- **Python 3** (with `pip`), used to install Conan and Ninja
 - **CMake**
-- **OpenSSL** — to generate the TLS certificates
+- **OpenSSL**, to generate the TLS certificates
 
 ### Frontend (Svelte)
 
@@ -64,7 +64,7 @@ git clone https://github.com/Eldyn/uni.git
 cd uni  # or your chosen folder name
 ```
 
-The build is fully standardized and cross-platform — pure **Conan** + **CMake
+The build is fully standardized and cross-platform, pure **Conan** + **CMake
 presets** + **npm**, with no OS-specific setup scripts. The complete step-by-step
 instructions live in **[`BUILD.md`](BUILD.md)**.
 
@@ -75,7 +75,7 @@ In short:
 cd frontend && npm install && npm run build && cd ..
 
 # Backend
-conan profile detect                              # one time — NO --force
+conan profile detect                              # one time, NO --force
 conan install . -pr:a conan/release --build=missing
 cmake --preset conan-release                       # configure
 cmake --build --preset release                     # build
@@ -95,13 +95,13 @@ the full list of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PAT
 ## 🏃 Running
 
 The server reads its paths from environment variables (`DB_PATH`, `FRONTEND_PATH`,
-`SSL_CERT_PATH`, `SSL_KEY_PATH`, `PORT`) with sensible local defaults — by default it
+`SSL_CERT_PATH`, `SSL_KEY_PATH`, `PORT`) with sensible local defaults: it
 looks for the certificates, `.env`, the `public/` folder and the SQLite database
 (`uni.sqlite`) in the **current working directory**. Since the build copies the
 runtime assets next to the executable, you can start it in two equivalent ways:
 
 ```bash
-# Linux / macOS — from the project root
+# Linux / macOS, from the project root
 ./build/Release/uni_server
 
 # …or from the build folder (assets already copied next to the binary)
@@ -109,7 +109,7 @@ cd build/Release && ./uni_server
 ```
 
 ```powershell
-# Windows — from the project root
+# Windows, from the project root
 build\Release\uni_server.exe
 
 # …or from the build folder
@@ -141,11 +141,11 @@ Node.js; then run:
 
 See [`ATTRIBUTION.md`](ATTRIBUTION.md) for the full list of third-party assets. In short:
 
-- **SNKRX font** — from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex (MIT License).
-- **Lobby music** — "Lo-Fi 16-bit Funky Fresh Beats To Chill and Jazz Out To
+- **SNKRX font**, from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex (MIT License).
+- **Lobby music**, "Lo-Fi 16-bit Funky Fresh Beats To Chill and Jazz Out To
   [Sega Megadrive/Genesis Oscilloscope]" by birdrun
   ([source](https://www.youtube.com/watch?v=a2xtQqsuDRI)).
-- **Backgrounds** — AI-generated with Google Gemini ("Nano Banana").
+- **Backgrounds**, AI-generated with Google Gemini ("Nano Banana").
 
 ---
 
@@ -158,5 +158,5 @@ Mattel, Inc. All trademarks are the property of their respective owners.
 ## 📄 License
 
 UNI's original code and assets are released under [CC0 1.0 Universal](LICENSE)
-(public domain) — use them freely, including commercially. Third-party assets
+(public domain), use them freely, including commercially. Third-party assets
 remain under their own licenses; see [`ATTRIBUTION.md`](ATTRIBUTION.md).

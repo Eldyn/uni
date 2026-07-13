@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Stage 1 — Frontend (Svelte 5 / Vite) built with Node Alpine.
+# Stage 1, Frontend (Svelte 5 / Vite) built with Node Alpine.
 # Vite's outDir is "../public", so the bundle lands in /app/public.
 # The schema generator reads the root contract/asyncapi.yaml, so it is copied too.
 # =============================================================================
@@ -16,7 +16,7 @@ RUN cd frontend && npm run build
 # → /app/public
 
 # =============================================================================
-# Stage 2 — Backend builder (Ubuntu): Conan + CMake presets compile uni_server.
+# Stage 2, Backend builder (Ubuntu): Conan + CMake presets compile uni_server.
 # =============================================================================
 FROM ubuntu:24.04 AS backend
 ENV DEBIAN_FRONTEND=noninteractive
@@ -54,7 +54,7 @@ RUN cmake --preset conan-release -DUNI_ENABLE_SSL=${UNI_ENABLE_SSL} \
 # → /app/build/Release/uni_server
 
 # =============================================================================
-# Stage 3 — Runtime: pristine Ubuntu with only the binary + static frontend.
+# Stage 3, Runtime: pristine Ubuntu with only the binary + static frontend.
 # All dependencies are statically linked by Conan, so only the C++ runtime
 # library is needed.
 # =============================================================================

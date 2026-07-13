@@ -6,7 +6,7 @@
  * the single place the app emits custom events, so every call site stays a
  * one-liner and the `window.gtag` guard lives in exactly one location.
  *
- * Transparency: the events sent here describe gameplay only — which screens are
+ * Transparency: the events sent here describe gameplay only, which screens are
  * visited, lobby/match lifecycle, the rules a match was started with, and
  * coarse error/disconnect signals. No message content, card values, chat, or
  * personal data is collected. This data is used ONLY for game research

@@ -19,7 +19,7 @@
 				<button
 					class="btn pixel-corners sized-btn play-btn"
 					onclick={() => {
-						// PLACEHOLDER-SFX: sfx.play-drawn.confirm — confirmation blip when
+						// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
 						// the player chooses to play the just-drawn card.
 						storeAudio.playSfx("sfx.play-drawn.confirm");
 						storeGame.submitInput("0");
@@ -30,7 +30,7 @@
 				<button
 					class="btn pixel-corners sized-btn keep-btn"
 					onclick={() => {
-						// PLACEHOLDER-SFX: sfx.play-drawn.confirm — confirmation blip when
+						// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
 						// the player chooses to keep the just-drawn card instead.
 						storeAudio.playSfx("sfx.play-drawn.confirm");
 						storeGame.submitInput("1");

@@ -1,4 +1,4 @@
-<!-- Advanced search modal. Owns no filter state — everything is bound
+<!-- Advanced search modal. Owns no filter state, everything is bound
      through from LobbyBrowse; results update live, so the footer button
      only dismisses. -->
 <script lang="ts">

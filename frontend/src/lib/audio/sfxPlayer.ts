@@ -11,11 +11,11 @@ import { pickVariant, randomPitch, shouldThrottle } from "$lib/audio/audioLogic"
 export class SfxPlayer {
 	#lastPlayedAt = new Map<string, number>();
 	#inFlightCount = new Map<string, number>();
-	// Grows with the SFX catalog's unique variant count and is never evicted —
+	// Grows with the SFX catalog's unique variant count and is never evicted:
 	// fine while the catalog stays small; revisit with an eviction policy if
 	// it grows large enough for the held decoded buffers to matter.
 	#howlCache = new Map<string, Howl>();
-	// Warn once per unknown id, not once per call — placeholder SFX ids are
+	// Warn once per unknown id, not once per call, placeholder SFX ids are
 	// wired at real gameplay trigger points (e.g. every card animation) ahead
 	// of SFX_CATALOG having entries for them, so an unthrottled warning would
 	// flood the console during normal play.
@@ -54,7 +54,7 @@ export class SfxPlayer {
 		howl.rate(pitch, soundId);
 		howl.volume(volume, soundId);
 
-		// Release the in-flight slot on completion OR failure — without the
+		// Release the in-flight slot on completion OR failure, without the
 		// error listeners, a broken/missing source (404, decode error) never
 		// fires "end", permanently leaking one in-flight slot for that id and
 		// eventually starving it once maxConcurrent is reached.

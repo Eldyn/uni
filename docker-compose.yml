@@ -14,7 +14,7 @@ services:
       FRONTEND_PATH: /app/public
       SSL_CERT_PATH: /app/certs/cert.pem
       SSL_KEY_PATH: /app/certs/key.pem
-      # Secrets — substituted from the host .env file (gitignored). Compose fails
+      # Secrets, substituted from the host .env file (gitignored). Compose fails
       # fast if they are unset, so the server never starts without them.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       PASSWORD_PEPPER: ${PASSWORD_PEPPER:?set PASSWORD_PEPPER in .env}

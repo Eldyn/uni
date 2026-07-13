@@ -1,7 +1,7 @@
 /**
  * @file multiChannelSync.ts
  * @brief Phase-locked, sample-accurate multi-channel music playback via raw
- * Web Audio API — the only file in the audio system that touches AudioContext
+ * Web Audio API, the only file in the audio system that touches AudioContext
  * directly; everything else goes through Howler.
  */
 

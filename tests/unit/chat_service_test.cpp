@@ -257,7 +257,7 @@ TEST_CASE("GetDirectHistoryPage: no messages returns an empty, has_more:false pa
     CHECK(page->has_more == false);
 }
 
-TEST_CASE("GetDirectHistoryPage: a negative limit is not honoured — falls back to the default shard size") {
+TEST_CASE("GetDirectHistoryPage: a negative limit is not honoured, falls back to the default shard size") {
     ChatDmFixture f;
     constexpr int kShardSize = 20;
     ChatService svc(Database::Get(), -1, -1, kShardSize);

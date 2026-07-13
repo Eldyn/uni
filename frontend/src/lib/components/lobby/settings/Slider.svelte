@@ -19,7 +19,7 @@
 		min: number;
 		max: number;
 		disabled?: boolean;
-		/** Optional display formatter — e.g. (v) => `${v}s` */
+		/** Optional display formatter, e.g. (v) => `${v}s` */
 		format?: (value: number) => string;
 		oncommit: (value: number) => void;
 	} = $props();

@@ -10,7 +10,7 @@ namespace {
 struct TestDBInit {
     TestDBInit() {
         (void)Database::Get().Open(":memory:");
-        // 32 zero bytes, base64-encoded — a fixed key is fine for tests, it
+        // 32 zero bytes, base64-encoded, a fixed key is fine for tests, it
         // never needs to match anything outside this process.
         setenv("CHAT_DM_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", 1);
     }

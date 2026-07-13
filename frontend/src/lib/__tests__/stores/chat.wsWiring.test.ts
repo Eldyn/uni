@@ -268,7 +268,7 @@ describe("chatStore: shard-based history loading (loadMoreHistory)", () => {
 		vi.clearAllMocks();
 	});
 
-	it("loadMoreHistory('party') is a no-op — lobby chat has no history endpoint", async () => {
+	it("loadMoreHistory('party') is a no-op, lobby chat has no history endpoint", async () => {
 		await chatStore.loadMoreHistory("party");
 		expect(mockEmitAndWait).not.toHaveBeenCalled();
 	});

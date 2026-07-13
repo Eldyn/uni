@@ -20,7 +20,7 @@
 	}
 
 	// Square status marker, same convention as the lobby browse status dot
-	// (see joinInfo() in lib/utils/lobbyBrowse.ts) — a Tailwind bg-* class
+	// (see joinInfo() in lib/utils/lobbyBrowse.ts), a Tailwind bg-* class
 	// per state, no ad-hoc hex.
 	const STATUS_DOT: Record<ChatFriendStatus, string> = {
 		offline: "bg-zinc-500",

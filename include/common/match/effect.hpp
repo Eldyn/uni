@@ -113,7 +113,9 @@ namespace match {
          */
         virtual EffectResult Resolve(MatchState* state, MatchInstance* match) = 0;
 
-        virtual nlohmann::json ToJson() const { return {{"type", std::string(EffectTypeToString(GetType()))}}; }
+        virtual nlohmann::json ToJson() const {
+            return {{"type", std::string(EffectTypeToString(GetType()))}};
+        }
     };
 
 }  // namespace match

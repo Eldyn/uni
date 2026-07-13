@@ -28,7 +28,7 @@ FetchContent_Declare(
     GIT_TAG        main
     GIT_SHALLOW    TRUE
 )
-# Populate only (no add_subdirectory) — the package is ROS-specific and only
+# Populate only (no add_subdirectory), the package is ROS-specific and only
 # the Python generator script is needed here. MakeAvailable would call
 # add_subdirectory and pull in its ROS-specific CMake, so the single-argument
 # FetchContent_Populate is intentional; CMP0169 OLD allows it without warnings.
@@ -152,7 +152,7 @@ endforeach()
 if(EXISTS "${CMAKE_SOURCE_DIR}/public")
     # A custom target with ALL (rather than a uni_server POST_BUILD step) so the
     # copy runs on every build invocation, even when uni_server itself has
-    # nothing to relink — otherwise `npm run build`/`watch` changes to public/
+    # nothing to relink, otherwise `npm run build`/`watch` changes to public/
     # would silently never reach the server's runtime directory.
     add_custom_target(sync_public ALL
         COMMAND ${CMAKE_COMMAND} -E echo ""

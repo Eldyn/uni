@@ -58,7 +58,7 @@
 			const code = data.code as string | undefined;
 			const text = errorText(code, data.detail as string | undefined);
 
-			if (!text) return; // intentionally silent (e.g. invalid_move) — also skip analytics
+			if (!text) return; // intentionally silent (e.g. invalid_move), also skip analytics
 
 			storeAnalytics.track("server_error", {
 				code: code ?? "unknown",

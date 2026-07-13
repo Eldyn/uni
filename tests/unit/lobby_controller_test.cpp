@@ -12,7 +12,7 @@ using json = nlohmann::json;
 // Helpers
 // ---------------------------------------------------------------------------
 
-// AppWebSocket* as an opaque test key — FakeBroadcaster stores but never
+// AppWebSocket* as an opaque test key, FakeBroadcaster stores but never
 // dereferences it. Cast from PerSocketData address to avoid null checks.
 static AppWebSocket* fake_sock(PerSocketData& sd) {
     return reinterpret_cast<AppWebSocket*>(&sd);
@@ -267,7 +267,7 @@ TEST_CASE("kick: unsubscribes a still-connected target from the lobby topic") {
 }
 
 // ---------------------------------------------------------------------------
-// Host succession — duplicated between HandleLeave and the eviction callback.
+// Host succession, duplicated between HandleLeave and the eviction callback.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("leave: host leaving passes host to next connected member") {
@@ -293,7 +293,7 @@ TEST_CASE("leave: host leaving with only a disconnected member left keeps a stal
     f.router.Dispatch(f.actx(), leave_msg());
 
     // No connected non-bot member exists to take over, so HandleLeave's
-    // succession loop finds nothing — the host field is left pointing at
+    // succession loop finds nothing, the host field is left pointing at
     // alice even though she is no longer a member of the lobby.
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
@@ -356,7 +356,7 @@ TEST_CASE("eviction: member within the grace window is not evicted") {
     f.bob_joins(code);
     f.lobby.OnClose(f.alice_sock, &f.alice_sd);
 
-    // disconnected_at defaults to "just now" — well within the grace window.
+    // disconnected_at defaults to "just now", well within the grace window.
     f.timers.Fire("lobby_eviction");
 
     Lobby* lp = f.lobby.GetLobbyByCode(code);

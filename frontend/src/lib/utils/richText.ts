@@ -3,7 +3,7 @@
  * @brief Parses a small inline markup grammar into flat, renderable segments.
  *
  * Grammar: `**bold**`, `*italic*`, `[c=value]...[/c]` (color), `[fx=value]...[/fx]`
- * (effect — one of TextEffects' effect names). Tags nest. No underline or
+ * (effect, one of TextEffects' effect names). Tags nest. No underline or
  * strikethrough tokens exist by design.
  *
  * Matching is done in two passes so malformed markup degrades to literal text
@@ -54,7 +54,7 @@ function tokenize(input: string): Token[] {
 		else if (colorValue !== undefined) {
 			// Interpolated straight into a CSS `style` attribute by RichText/
 			// TextEffects, so an unvalidated value here is a style-injection
-			// vector once chat carries real, other-user-authored text —
+			// vector once chat carries real, other-user-authored text:
 			// reject anything that isn't a plain hex color, degrading to
 			// literal text like any other malformed tag.
 			tokens.push(

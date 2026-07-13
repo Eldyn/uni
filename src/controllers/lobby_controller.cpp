@@ -142,13 +142,13 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         }
     });
 
-    Logger::Info("[Lobby] Registered — grace window: " +
+    Logger::Info("[Lobby] Registered, grace window: " +
                  std::to_string(reconnect_grace_ms_ / 1000) + "s");
 }
 
 /**
  * @brief Destructor. The eviction timer is owned by the ITimerService and
- *        cancelled by its destructor — nothing to clean up here.
+ *        cancelled by its destructor, nothing to clean up here.
  */
 LobbyController::~LobbyController() {}
 
@@ -300,7 +300,7 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
     for (auto& member : lobby.members) {
         if (member.username == sd->username && member.socket == ws) {
             Logger::Log("[Lobby] Disconnect: ", sd->username, " in lobby ", lobby.id,
-                        " — grace window open");
+                        ", grace window open");
             member.is_connected    = false;
             member.socket          = nullptr;
             member.disconnected_at = steady_clock::now();

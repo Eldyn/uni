@@ -2,13 +2,13 @@ name: deploy
 
 # Build a multi-arch image (linux/amd64 + linux/arm64) on every push to main
 # and on every release tag (v*), and publish it to GHCR. Each architecture is
-# built natively on its own runner (no QEMU — the C++/Conan/CMake build is too
+# built natively on its own runner (no QEMU, the C++/Conan/CMake build is too
 # heavy to emulate), then the per-arch images are stitched into a single
 # manifest so `docker pull` auto-selects.
 #
 # Tagging policy: main pushes produce :edge (+ :sha-*) for testing; only a v*
 # tag moves :latest (+ the semver tag). The OCI deploy-watcher polls :latest,
-# so production updates only on tagged releases — main can accumulate
+# so production updates only on tagged releases, main can accumulate
 # not-yet-released work without shipping it.
 
 on:

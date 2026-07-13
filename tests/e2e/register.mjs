@@ -61,14 +61,14 @@ try {
     console.log(`  body: ${res.body}`);
 
     if (res.status >= 200 && res.status < 300) {
-        console.log('✅ PASS — registration succeeded');
+        console.log('✅ PASS, registration succeeded');
         // Emit the created username so a caller can verify the DB row.
         console.log(`CREATED_USERNAME=${payload.username}`);
         process.exit(0);
     }
-    console.error(`❌ FAIL — expected 2xx, got ${res.status}`);
+    console.error(`❌ FAIL, expected 2xx, got ${res.status}`);
     process.exit(1);
 } catch (err) {
-    console.error(`❌ FAIL — request error: ${err.message}`);
+    console.error(`❌ FAIL, request error: ${err.message}`);
     process.exit(1);
 }

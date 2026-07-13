@@ -35,7 +35,7 @@ describe("WS subscription dedup", () => {
 				try {
 					await h();
 				} catch {
-					// tryRejoin will fail without a real socket — ignore
+					// tryRejoin will fail without a real socket, ignore
 				}
 			}
 		}

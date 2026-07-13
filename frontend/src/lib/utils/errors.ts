@@ -1,6 +1,6 @@
 /**
  * The backend uses HTTP status codes consistently and returns plain English
- * strings in the `error` JSON field — it does NOT return machine-readable
+ * strings in the `error` JSON field, it does NOT return machine-readable
  * error code strings like "INVALID_PASSWORD".
  *
  * Use HTTP status codes for routing and fallback messages, and prefer showing
@@ -21,7 +21,7 @@ const HTTP_MESSAGES: Record<number, string> = {
 	404: "Not found.",
 	409: "Already exists.",
 	422: "Invalid input. Please check the form.",
-	429: "Too many requests — please wait a moment.",
+	429: "Too many requests, please wait a moment.",
 	500: "Server error. Please try again later.",
 	503: "Service temporarily unavailable."
 };
@@ -37,7 +37,7 @@ export async function fromResponse(res: Response): Promise<AppError> {
 	try {
 		body = await res.json();
 	} catch {
-		// non-JSON body — use the HTTP fallback
+		// non-JSON body, use the HTTP fallback
 	}
 
 	return {

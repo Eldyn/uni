@@ -137,7 +137,7 @@ export interface ListedLobby {
 	allow_bot_takeover: boolean;
 }
 
-// INFO: Incoming lobby payloads are validated at the WS boundary — outgoing //
+// INFO: Incoming lobby payloads are validated at the WS boundary, outgoing //
 // frames already go through the generated Zod schemas, incoming ones don't. //
 // Loose objects: unknown extra fields pass through untouched.               //
 
@@ -198,7 +198,7 @@ class StoreLobby {
 
 	/**
 	 * True when the most recent fetchList() failed (server rejection, malformed
-	 * payload, or network/WS error) — distinct from a successful fetch that
+	 * payload, or network/WS error), distinct from a successful fetch that
 	 * legitimately found zero lobbies, so the UI can tell "nothing to join"
 	 * apart from "couldn't check."
 	 */
@@ -254,7 +254,7 @@ class StoreLobby {
 			return;
 		}
 
-		// PLACEHOLDER-SFX: sfx.lobby.promote — confirmation chime when a member
+		// PLACEHOLDER-SFX: sfx.lobby.promote, confirmation chime when a member
 		// is promoted to host.
 		storeAudio.playSfx("sfx.lobby.promote");
 		storeToast.success(`Promoted ${username}!`);
@@ -274,7 +274,7 @@ class StoreLobby {
 			return;
 		}
 
-		// PLACEHOLDER-SFX: sfx.lobby.kick — punchy "removed" sting when a member
+		// PLACEHOLDER-SFX: sfx.lobby.kick, punchy "removed" sting when a member
 		// is kicked from the lobby.
 		storeAudio.playSfx("sfx.lobby.kick");
 		storeToast.success(`Kicked ${username}!`);
@@ -294,7 +294,7 @@ class StoreLobby {
 			if (!response.ok) {
 				storeToast.error(response.message);
 			} else {
-				// PLACEHOLDER-SFX: sfx.lobby.start — kickoff sting when the host
+				// PLACEHOLDER-SFX: sfx.lobby.start, kickoff sting when the host
 				// successfully starts the match.
 				storeAudio.playSfx("sfx.lobby.start");
 				this.#trackMatchStart();
@@ -377,7 +377,7 @@ class StoreLobby {
 				storeToast.error(response.message);
 				return false;
 			}
-			// PLACEHOLDER-SFX: sfx.lobby.create — confirmation chime when a new
+			// PLACEHOLDER-SFX: sfx.lobby.create, confirmation chime when a new
 			// lobby is successfully created.
 			storeAudio.playSfx("sfx.lobby.create");
 			storeAnalytics.track("lobby_create", { is_public: data.is_public });
@@ -412,7 +412,7 @@ class StoreLobby {
 				storeToast.error(response.message);
 				return false;
 			}
-			// PLACEHOLDER-SFX: sfx.lobby.join — confirmation chime when the local
+			// PLACEHOLDER-SFX: sfx.lobby.join, confirmation chime when the local
 			// player successfully joins a lobby via invite code.
 			storeAudio.playSfx("sfx.lobby.join");
 			storeAnalytics.track("lobby_join");
@@ -453,7 +453,7 @@ class StoreLobby {
 			this.available = parsed.data as ListedLobby[];
 			this.listError = false;
 		} catch (error) {
-			// Toast only on the transition into failure, not every retry —
+			// Toast only on the transition into failure, not every retry:
 			// LobbyBrowse polls this every 8s, and once broken the always-
 			// visible error card (with its own Retry action) already says so;
 			// re-toasting each tick would just be noise on top of that.
@@ -470,11 +470,11 @@ class StoreLobby {
 	 */
 	async leave(): Promise<void> {
 		try {
-			// emit() silently drops frames on a closed socket — reconnect first so
+			// emit() silently drops frames on a closed socket, reconnect first so
 			// the server actually processes the leave and echoes LobbyLeft back.
 			await ws.connect();
 			ws.emit(ClientAction.LobbyLeave);
-			// PLACEHOLDER-SFX: sfx.lobby.leave — departure blip when the local
+			// PLACEHOLDER-SFX: sfx.lobby.leave, departure blip when the local
 			// player leaves the lobby; fires optimistically here since LobbyLeave
 			// has no emitAndWait ack, mirroring the existing emit-and-forget pattern.
 			storeAudio.playSfx("sfx.lobby.leave");
@@ -482,7 +482,7 @@ class StoreLobby {
 		} catch {
 			this.#reset();
 			storeNavigation.goto("lobbies");
-			storeToast.error("Connection lost — left the lobby locally.");
+			storeToast.error("Connection lost, left the lobby locally.");
 		}
 	}
 
@@ -508,7 +508,7 @@ class StoreLobby {
 			if (alreadyInThisLobby) return;
 
 			// If a match state follows immediately (server-proactive reconnect with active match),
-			// navigate to game. The 500ms window is generous — both messages are sent back-to-back.
+			// navigate to game. The 500ms window is generous, both messages are sent back-to-back.
 			this.#armMatchRedirect(500);
 
 			storeNavigation.goto("lobby");
@@ -527,7 +527,7 @@ class StoreLobby {
 
 			const idx = this.available.findIndex((l) => l.invite_code === updatedLobby.invite_code);
 			if (idx !== -1) {
-				// INFO: The update payload carries no member_count/bot_count fields —  //
+				// INFO: The update payload carries no member_count/bot_count fields,  //
 				// derive both from the members list to match the LobbyList semantics.  //
 				const humans = updatedLobby.members.filter((m) => !m.is_bot).length;
 				this.available[idx].member_count = humans;
@@ -628,7 +628,7 @@ class StoreLobby {
 			if (!lobby) throw new Error("Invalid lobby data received.");
 
 			// If the LobbyJoined event from OnOpen already populated state for this lobby,
-			// skip duplicate navigation and fetch — the event handler already did the work.
+			// skip duplicate navigation and fetch, the event handler already did the work.
 			if (this.current?.invite_code === lobby.invite_code) return;
 
 			this.current = lobby;

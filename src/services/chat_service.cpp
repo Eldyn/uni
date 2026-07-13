@@ -158,7 +158,7 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
                                                            std::optional<int> before_id,
                                                            int raw_limit) {
     int limit = NormalizeShardLimit(raw_limit);
-    // Client-facing entry point — never allow the unbounded (-1) mode here.
+    // Client-facing entry point, never allow the unbounded (-1) mode here.
     if (limit < 0) limit = default_shard_size_;
 
     std::string sql =

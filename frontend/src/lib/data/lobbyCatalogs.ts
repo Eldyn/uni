@@ -3,7 +3,7 @@
  * @brief Client-side presentation catalogs for the lobby browse screen.
  * Rule ids/labels/descriptions come from the server (storeCatalog); this
  * module only maps ids to client presentation (icons) and holds the future
- * i18n translation overrides. Decks are still mocked — no backend concept.
+ * i18n translation overrides. Decks are still mocked, no backend concept.
  */
 
 import type { RuleDefinition } from "$lib/stores/catalog.svelte";
@@ -35,7 +35,7 @@ export function ruleLabel(rule: RuleDefinition): string {
 	return RULE_TEXT[rule.id]?.label ?? rule.label;
 }
 
-/** TODO: mocked — the backend has no deck concept yet. */
+/** TODO: mocked, the backend has no deck concept yet. */
 export const DECKS = ["Default", "Classic", "Speed", "Chaos", "Starter"];
 
 export const AVATAR_COLORS = [

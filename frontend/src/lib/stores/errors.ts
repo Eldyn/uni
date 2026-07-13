@@ -2,7 +2,7 @@
  * @file errors.ts
  * @brief Maps backend ErrorCode wire strings to human-readable messages.
  *
- * The backend never sends user-facing prose — only a stable `code` (see
+ * The backend never sends user-facing prose, only a stable `code` (see
  * x-enums/ErrorCode in contract/asyncapi.yaml). The frontend owns all text,
  * which keeps wording (and future i18n) on this side of the wire.
  */
@@ -18,7 +18,7 @@ const GENERIC_ERROR = "Something went wrong.";
  */
 const ERROR_TEXT: Record<string, string> = {
 	[ErrorCode.InvalidPayload]: "That request was malformed.",
-	[ErrorCode.RateLimited]: "You're going too fast — please slow down.",
+	[ErrorCode.RateLimited]: "You're going too fast, please slow down.",
 	[ErrorCode.InvalidMove]: "",
 	[ErrorCode.CannotDraw]: "You can't draw a card right now.",
 	[ErrorCode.NotInLobby]: "You're not in a lobby.",

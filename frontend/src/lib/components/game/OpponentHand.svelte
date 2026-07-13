@@ -59,7 +59,7 @@
 	class:is-targetable={isValidTarget}
 	onclick={() => {
 		if (isValidTarget && player) {
-			// PLACEHOLDER-SFX: sfx.target.confirm — confirmation blip when the
+			// PLACEHOLDER-SFX: sfx.target.confirm, confirmation blip when the
 			//       player picks a target opponent. ActionChooseTarget.svelte is
 			//       display-only, so the real confirm click lives here instead.
 			storeAudio.playSfx("sfx.target.confirm");
@@ -68,7 +68,7 @@
 	}}
 	onkeydown={(e) => {
 		if ((e.key === "Enter" || e.key === " ") && isValidTarget && player) {
-			// PLACEHOLDER-SFX: sfx.target.confirm — keyboard-activated equivalent
+			// PLACEHOLDER-SFX: sfx.target.confirm, keyboard-activated equivalent
 			// of the click confirm above.
 			storeAudio.playSfx("sfx.target.confirm");
 			storeGame.submitInput(player.username);

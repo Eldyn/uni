@@ -2,7 +2,7 @@
  * @file audioLogic.ts
  * @brief Pure helper functions for the music/SFX manager: variant/pitch
  * randomization, screen-to-music resolution, and throttle checks. No Web
- * Audio/Howler import — kept fully unit-testable in isolation.
+ * Audio/Howler import, kept fully unit-testable in isolation.
  */
 
 import type { AppScreen } from "$stores/navigation.svelte";
@@ -10,7 +10,7 @@ import { SCREEN_MUSIC } from "$data/audioCatalogs";
 
 /**
  * @brief Picks uniformly at random from the given variants.
- * Throws if `variants` is empty — an SFX/track definition with no variants
+ * Throws if `variants` is empty, an SFX/track definition with no variants
  * is a data bug, not a runtime condition to swallow silently.
  */
 export function pickVariant(variants: string[]): string {
@@ -44,7 +44,7 @@ export function resolveMusicForContext(screen: AppScreen, variant?: string): str
  * @brief Checks whether playing `id` right now should be throttled.
  * Returns true if `id` was last played (per `lastPlayedAt`) within
  * `def.minIntervalMs` of `now`. Never throttles when `minIntervalMs` is
- * undefined. Pure read-only check — does not mutate `lastPlayedAt`.
+ * undefined. Pure read-only check, does not mutate `lastPlayedAt`.
  */
 export function shouldThrottle(
 	id: string,

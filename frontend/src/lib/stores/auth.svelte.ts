@@ -68,7 +68,7 @@ class StoreAuth {
 
 			return false;
 		} catch {
-			// INFO: Network failure on boot — open the auth modal, let the user try manually
+			// INFO: Network failure on boot, open the auth modal, let the user try manually
 			storeNavigation.gotoAuth("login");
 			return false;
 		}
@@ -132,14 +132,14 @@ class StoreAuth {
 			if (res.status === 429) {
 				const body = await res.json().catch(() => ({}));
 				return {
-					username: body.error ?? "Too many attempts — please wait and try again."
+					username: body.error ?? "Too many attempts, please wait and try again."
 				};
 			}
 
-			storeToast.error("Registration failed — please try again.");
+			storeToast.error("Registration failed, please try again.");
 			return {};
 		} catch {
-			storeToast.error("Network error — check your connection.");
+			storeToast.error("Network error, check your connection.");
 			return {};
 		} finally {
 			this.isLoading = false;
@@ -179,7 +179,7 @@ class StoreAuth {
 
 			storeAnalytics.track("auth_error", { method: "login", reason: String(res.status) });
 
-			// 401 is always "bad credentials" — don't leak which field is wrong
+			// 401 is always "bad credentials", don't leak which field is wrong
 			if (res.status === 401) {
 				return { email: "Incorrect email or password." };
 			}
@@ -189,14 +189,14 @@ class StoreAuth {
 			if (res.status === 429) {
 				const body = await res.json().catch(() => ({}));
 				return {
-					email: body.error ?? "Too many attempts — please wait and try again."
+					email: body.error ?? "Too many attempts, please wait and try again."
 				};
 			}
 
-			storeToast.error("Login failed — please try again.");
+			storeToast.error("Login failed, please try again.");
 			return {};
 		} catch {
-			storeToast.error("Network error — check your connection.");
+			storeToast.error("Network error, check your connection.");
 			return {};
 		} finally {
 			this.isLoading = false;
@@ -216,7 +216,7 @@ class StoreAuth {
 		try {
 			const res = await fetch("/auth/guest", { method: "POST", credentials: "include" });
 			if (!res.ok) {
-				storeToast.error("Could not start a guest session — please try again.");
+				storeToast.error("Could not start a guest session, please try again.");
 				return false;
 			}
 			const data = await res.json();
@@ -225,7 +225,7 @@ class StoreAuth {
 			storeAnalytics.track("guest_session");
 			return true;
 		} catch {
-			storeToast.error("Network error — check your connection.");
+			storeToast.error("Network error, check your connection.");
 			return false;
 		} finally {
 			this.isLoading = false;
@@ -256,7 +256,7 @@ class StoreAuth {
 	async logout(): Promise<void> {
 		const res = await fetch("/auth/logout", { method: "POST", credentials: "include" });
 		if (!res.ok) {
-			storeToast.error("Logout failed — please try again.");
+			storeToast.error("Logout failed, please try again.");
 			return;
 		}
 		this.#setLoggedOut();

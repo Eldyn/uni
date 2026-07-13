@@ -22,7 +22,7 @@
 	// triggers instead of a single always-visible kebab button.
 	let pointerKind = $state<string>("mouse");
 
-	// The four seat colours ARE the four UNO card colours — members are dealt
+	// The four seat colours ARE the four UNO card colours, members are dealt
 	// their seat as an actual card face, not a generic avatar chip.
 	const SEAT_COLORS = ["var(--blueCard)", "var(--greenCard)", "var(--redCard)", "var(--yellowCard)"];
 	const TABLE_SEATS = SEAT_COLORS.length;
@@ -339,7 +339,7 @@
 		transform: translateY(0);
 	}
 
-	/* Seats read as a fanned, dealt hand on desktop only — mobile keeps them
+	/* Seats read as a fanned, dealt hand on desktop only, mobile keeps them
 	   upright so names/menus stay legible at small widths. */
 	.hand li:nth-child(1) {
 		--seat-tilt: -6deg;

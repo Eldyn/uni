@@ -22,7 +22,7 @@
 						class="btn pixel-corners color-button color-{name}"
 						disabled={storeGame.isActionPending}
 						onclick={() => {
-							// PLACEHOLDER-SFX: sfx.color.confirm — confirmation blip when the
+							// PLACEHOLDER-SFX: sfx.color.confirm, confirmation blip when the
 							// player picks a wild-card colour; a human may want per-colour pitch.
 							storeAudio.playSfx("sfx.color.confirm");
 							storeGame.submitInput(String(typeIndex));

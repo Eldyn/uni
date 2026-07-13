@@ -2,7 +2,7 @@
  * @file audioCatalogs.ts
  * @brief Client-side catalogs for the music/SFX manager: track/playlist
  * definitions, SFX definitions, and per-screen music mappings. Plain typed
- * data only — no Web Audio/Howler wiring lives here.
+ * data only, no Web Audio/Howler wiring lives here.
  */
 
 import type { AppScreen } from "$stores/navigation.svelte";
@@ -68,13 +68,13 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	// Once converted, wiring it in is just adding:
 	//   "music.fuzzsong.stems": { kind: "multi-folder", folder: "fuzzsong",
 	//     count: 9, start: 1, loop: true }
-	// — the multi-channel engine already handles this shape, no new code needed.
+	//, the multi-channel engine already handles this shape, no new code needed.
 };
 
-// INFO: All PLACEHOLDER-SFX for now — no real SFX files exist yet.
+// INFO: All PLACEHOLDER-SFX for now, no real SFX files exist yet.
 export const SFX_CATALOG: Record<string, SfxDef> = {};
 
-// INFO: Plays on every screen except "game" — the match itself gets its own
+// INFO: Plays on every screen except "game", the match itself gets its own
 //       music/atmosphere later; no entry here means resolveMusicForContext()
 //       resolves to undefined and MusicPlayer.stopAll()s instead.
 export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {

@@ -11,7 +11,7 @@ using json = nlohmann::json;
 
 namespace {
 
-// Minimal ILobbyStore double — only OnLobbyDestroyed is exercised here, so
+// Minimal ILobbyStore double, only OnLobbyDestroyed is exercised here, so
 // every other hook is a no-op. FireLobbyDestroyed() drives the same path
 // LobbyController takes once a lobby's last human leaves.
 class FakeLobbyStoreForChat : public ILobbyStore {
@@ -52,7 +52,7 @@ struct ChatControllerFixture {
     AppWebSocket*     sock;
     ChatController    controller;
 
-    // Global history push defaults to off here — irrelevant to these tests,
+    // Global history push defaults to off here, irrelevant to these tests,
     // and OnOpen() is never called in this fixture anyway.
     ChatControllerFixture()
         : sock(fake_sock(sd)), controller(router, broadcaster, presence, 0) {
@@ -101,7 +101,7 @@ struct ChatHistoryOnJoinFixture {
 
 }  // namespace
 
-TEST_SUITE("ChatController — chat_history_request") {
+TEST_SUITE("ChatController, chat_history_request") {
 
 TEST_CASE("no prior DMs returns chat_history with an empty messages array") {
     ChatControllerFixture f;
@@ -189,7 +189,7 @@ TEST_CASE("DM history is delivered a shard at a time via before_id") {
 
 }  // TEST_SUITE
 
-TEST_SUITE("ChatController — chat_history_request (channel: global)") {
+TEST_SUITE("ChatController, chat_history_request (channel: global)") {
 
 TEST_CASE("returns a shard of global history, newest shard first") {
     ChatControllerFixture f;
@@ -256,7 +256,7 @@ TEST_CASE("requesting more messages than exist returns them all, with has_more f
 
 }  // TEST_SUITE
 
-TEST_SUITE("ChatController — chat_history_request (channel: lobby)") {
+TEST_SUITE("ChatController, chat_history_request (channel: lobby)") {
 
 TEST_CASE("returns a shard of the requester's own lobby history, newest shard first") {
     ChatControllerFixture f;
@@ -324,11 +324,11 @@ TEST_CASE("lobby history is dropped once the lobby store reports it destroyed") 
 
 // The server-side clamp to kMaxShardSize (regardless of a huge requested
 // `limit`) is covered directly at the service layer in chat_service_test.cpp
-// — constructing >100 real messages here would trip ChatService's flood
+//, constructing >100 real messages here would trip ChatService's flood
 // limiter (AllowSend), since chat_send goes through the same rate-limited
 // path a real client would use.
 
-TEST_SUITE("ChatController — global history on join") {
+TEST_SUITE("ChatController, global history on join") {
 
 TEST_CASE("disabled: a joining socket receives no chat_history push") {
     ChatHistoryOnJoinFixture f(/*on_join=*/0, /*limit=*/64);

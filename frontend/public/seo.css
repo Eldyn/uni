@@ -89,7 +89,7 @@ h3 {
 	text-align: center;
 }
 
-/* Page titles (h1/h2) read cleaner without a hard rule under them — only
+/* Page titles (h1/h2) read cleaner without a hard rule under them, only
    h3 subsection headings keep the separator, and even those step aside
    for a .subtitle right underneath (see :has() rule below). */
 h1 {
@@ -112,7 +112,7 @@ h4 {
 }
 
 /* Small centered Habbo caption sitting directly under a heading, e.g.
-   <h3>Attributions</h3><p class="subtitle">...</p> — same muted gray as
+   <h3>Attributions</h3><p class="subtitle">...</p>, same muted gray as
    body text, just smaller and spaced out for a clean, cute label feel. */
 .subtitle {
 	margin: -0.5rem 0 1.2rem;
@@ -124,8 +124,8 @@ h4 {
 	color: var(--text);
 }
 
-/* A heading immediately followed by a .subtitle drops its own separator —
-   the subtitle takes over as the visual close to the heading instead. */
+/* A heading immediately followed by a .subtitle drops its own separator,
+   since the subtitle takes over as the visual close to the heading instead. */
 h1:has(+ .subtitle),
 h2:has(+ .subtitle),
 h3:has(+ .subtitle) {

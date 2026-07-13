@@ -12,7 +12,7 @@
 	} = $props();
 
 	// Kicks off the (idempotent) lazy load of the profanity word data on the
-	// first RichText anywhere — cheap to call from every instance, since
+	// first RichText anywhere, cheap to call from every instance, since
 	// loadCensorData() only actually fetches once.
 	loadCensorData();
 

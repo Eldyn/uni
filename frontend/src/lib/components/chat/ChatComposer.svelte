@@ -4,7 +4,7 @@
 	let text = $state("");
 	let inputEl: HTMLInputElement | undefined = $state();
 	// Plain (non-reactive) tracker so the load-on-switch effect below only
-	// fires on an actual channel change, not on every drafts/text write —
+	// fires on an actual channel change, not on every drafts/text write:
 	// two effects that both read and write through the same draft round-trip
 	// (load-on-channel-change + persist-on-text-change) can otherwise loop.
 	let lastChannelKey = "";
@@ -62,14 +62,14 @@
 <div class="flex items-center gap-2 border-t-2 border-border px-2 py-2">
 	<button
 		class="px-2 py-1.5 font-pypx text-sm font-bold text-text hover:text-text-h"
-		title="Bold — or type **text**"
+		title="Bold, or type **text**"
 		onclick={() => wrapSelection("**")}
 	>
 		B
 	</button>
 	<button
 		class="px-2 py-1.5 font-monogram text-sm italic text-text hover:text-text-h"
-		title="Italic — or type *text*"
+		title="Italic, or type *text*"
 		onclick={() => wrapSelection("*")}
 	>
 		I

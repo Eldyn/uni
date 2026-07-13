@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* In @layer base (not a bare rule) so a component can win against it with a
-   plain Tailwind utility (e.g. outline-none) — unlayered CSS always beats
+   plain Tailwind utility (e.g. outline-none), unlayered CSS always beats
    layered CSS regardless of specificity, so a bare rule here would silently
    defeat every `outline-none`/`focus-visible:outline-none` in the app. */
 @layer base {
@@ -45,7 +45,7 @@
 	font-display: swap;
 }
 
-/* Monogram (normal + italic) and Pypx (regular/bold/thick) — one family each,
+/* Monogram (normal + italic) and Pypx (regular/bold/thick), one family each,
    the browser fetches only the weight/style actually rendered. */
 @font-face {
 	font-family: "Monogram";
@@ -88,7 +88,7 @@
 }
 
 /*
- * Dark is the primary theme — its values live in :root.
+ * Dark is the primary theme, its values live in :root.
  * Light is the secondary theme, applied via the prefers-color-scheme: light
  * override block below. Every colour that affects visibility is a token here
  * so light mode never inherits a stranded dark surface.
@@ -101,7 +101,7 @@
 	--border: #2e303a;
 	--code-bg: #1f2028;
 
-	/* Accent — muted UI purple (NOT the vibrant card colours). Lighter/softer,
+	/* Accent, muted UI purple (NOT the vibrant card colours). Lighter/softer,
 	   the "previous purple". Per-mode so it stays readable on each background. */
 	--accent: #c084fc;
 	--accent-h: #cd9bff;
@@ -115,7 +115,7 @@
 	--surface-deep: #1c1c1e;
 	--surface-violet: #3a1b5c;
 
-	/* Semantic UI colours — deliberately MUTED, distinct from the vibrant card
+	/* Semantic UI colours, deliberately MUTED, distinct from the vibrant card
 	   colours (--redCard/--greenCard). Used for danger/success UI only. */
 	--danger: #d9534f;
 	--success: #4e9a6b;
@@ -324,7 +324,7 @@
 	}
 
 	/*
-	 * Pixel-notched corners WITH a border that follows the notch — one class, no
+	 * Pixel-notched corners WITH a border that follows the notch, one class, no
 	 * wrapper div, works with text or element content. Two clipped pseudos sit
 	 * behind the content (isolate keeps their negative z-index local): ::before
 	 * is the border colour (full box), ::after is the interior fill inset by the
@@ -336,7 +336,7 @@
 	 *   --pc-fill   : interior colour    (default --bg)
 	 *   --pc-width  : border thickness   (default 2px)
 	 * Keep --pc-fill opaque (a translucent fill lets the border colour bleed
-	 * through in the pseudo fallback). Don't add a bg-* utility — use --pc-fill.
+	 * through in the pseudo fallback). Don't add a bg-* utility, use --pc-fill.
 	 */
 	.pixel-bordered {
 		position: relative;
@@ -374,7 +374,7 @@
 	}
 
 	/* No `@supports (corner-shape: notch)` fast path: `CSS.supports()` only
-	   checks that the declaration parses, not that the engine paints it —
+	   checks that the declaration parses, not that the engine paints it, and
 	   Chromium, Firefox and Gecko-based forks (Zen) all currently report
 	   support and silently fall back to a plain rounded border instead of
 	   the notch. The clip-path implementation above renders correctly
@@ -447,7 +447,7 @@
 	}
 }
 
-/* Social icons are light glyphs — invert them onto the dark base theme,
+/* Social icons are light glyphs, invert them onto the dark base theme,
    and leave them as-authored in light mode. */
 #social .button-icon {
 	filter: invert(1) brightness(2);
@@ -537,9 +537,9 @@ code,
 }
 
 /* Reusable accent scrollbar for any scrollable panel (chat log, friends
-   list, etc.) — sharp/rectangular to match the pixel-art aesthetic, no
+   list, etc.), sharp/rectangular to match the pixel-art aesthetic, no
    rounded thumb. Firefox uses scrollbar-color; Chrome/Safari/Edge use the
-   ::-webkit-scrollbar pseudo-elements — both are declared so it's styled
+   ::-webkit-scrollbar pseudo-elements, both are declared so it's styled
    consistently everywhere. */
 .scrollbar-accent {
 	scrollbar-width: thin;

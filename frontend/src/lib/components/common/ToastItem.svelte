@@ -9,7 +9,7 @@
 		info: "INFO!"
 	};
 
-	// Fixed threshold rather than a percentage of the toast's own width — the
+	// Fixed threshold rather than a percentage of the toast's own width, the
 	// container is capped at 400px and shrinks to full viewport width on
 	// mobile, so a flat 80px reads consistently as "meant it" on every size
 	// instead of demanding a much larger swipe on wide screens.
@@ -31,7 +31,7 @@
 	function onpandown(event: GestureCustomEvent) {
 		// Idempotent: if a gesture is already tracked, a spurious re-fire
 		// (real hardware occasionally re-sends pointerdown mid-drag, e.g. on
-		// re-entering the element's hit box) must NOT reset the baseline —
+		// re-entering the element's hit box) must NOT reset the baseline:
 		// that reset would make the toast jump back toward rest mid-drag
 		// instead of tracking the full physical drag distance.
 		if (dragging) return;
@@ -42,7 +42,7 @@
 	function onpanmove(event: GestureCustomEvent) {
 		if (!dragging) return;
 		// Dismiss by dragging right (continuing the direction the toast
-		// entered from); left is locked — clamp out any negative movement.
+		// entered from); left is locked, clamp out any negative movement.
 		offsetX = Math.max(0, event.detail.event.clientX - startX);
 	}
 
@@ -68,7 +68,7 @@
 
 	// Safety net: if the gesture library's own onpanup doesn't fire (e.g. the
 	// pointer is released after leaving the element's bounds during a fast
-	// real drag), the toast must never get stuck at an arbitrary offset —
+	// real drag), the toast must never get stuck at an arbitrary offset:
 	// releasing the pointer ANYWHERE on the page while a drag is tracked
 	// forces it to resolve (snap back or dismiss) based on the last known
 	// offset.
@@ -94,7 +94,7 @@
 
 	// Reverses the entrance `slideIn` keyframe (which comes in from
 	// translateX(400px)) rather than a generic fade, and does it in discrete
-	// jumps instead of a smooth tween — the same "hard stops = crisp pixel
+	// jumps instead of a smooth tween, the same "hard stops = crisp pixel
 	// edge" treatment TextEffects' shine sweep uses, so an auto-expiring or
 	// ×-closed toast reads as leaving the same pixel-art way it arrived.
 	// Drag-dismissed toasts already have their own fling-off animation (set

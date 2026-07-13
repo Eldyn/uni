@@ -9,7 +9,7 @@
 
 	$effect(() => {
 		if (pending > previousPending) {
-			// PLACEHOLDER-SFX: sfx.draw-stack.increase — escalating "stack grows"
+			// PLACEHOLDER-SFX: sfx.draw-stack.increase, escalating "stack grows"
 			// hit each time another +2/+4 is chained; a human may want to scale
 			// pitch with the new pending count.
 			storeAudio.playSfx("sfx.draw-stack.increase");

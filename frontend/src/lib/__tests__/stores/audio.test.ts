@@ -117,7 +117,7 @@ describe("storeAudio", () => {
 		expect(HowlerMock.volume).toHaveBeenCalledWith(storeAudio.musicVolume);
 	});
 
-	it("init() is idempotent — a second call does not re-apply the volume", async () => {
+	it("init() is idempotent, a second call does not re-apply the volume", async () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
 
 		storeAudio.init();

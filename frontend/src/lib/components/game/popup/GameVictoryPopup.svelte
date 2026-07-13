@@ -15,11 +15,11 @@
 		if (hasPlayedResultSfx) return;
 		hasPlayedResultSfx = true;
 		if (isMe) {
-			// PLACEHOLDER-SFX: sfx.match.victory — triumphant fanfare for the
+			// PLACEHOLDER-SFX: sfx.match.victory, triumphant fanfare for the
 			// local player winning the match.
 			storeAudio.playSfx("sfx.match.victory");
 		} else {
-			// PLACEHOLDER-SFX: sfx.match.defeat — somber sting for losing the match.
+			// PLACEHOLDER-SFX: sfx.match.defeat, somber sting for losing the match.
 			storeAudio.playSfx("sfx.match.defeat");
 		}
 	});
@@ -32,7 +32,7 @@
 	);
 
 	// INFO: Player seat colours mirror the lobby/board. Bots are intentionally
-	//       greyed out — they never get a player identity colour.
+	//       greyed out, they never get a player identity colour.
 	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"];
 	const BOT_COLOR = "#6b6b6b";
 	let winnerColor = $derived(

@@ -9,7 +9,7 @@ using json = nlohmann::json;
 // Helpers
 // ---------------------------------------------------------------------------
 
-// AppWebSocket* as an opaque test key — never dereferenced by ActionRouter.
+// AppWebSocket* as an opaque test key, never dereferenced by ActionRouter.
 static AppWebSocket* fake_sock(PerSocketData& sd) {
     return reinterpret_cast<AppWebSocket*>(&sd);
 }

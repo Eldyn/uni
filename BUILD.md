@@ -1,6 +1,6 @@
 # 🛠️ Building UNI
 
-The same commands work on Linux, macOS and Windows — CMake's native presets handle
+The same commands work on Linux, macOS and Windows: CMake's native presets handle
 the platform differences, so there are no OS-specific setup scripts.
 
 For a fully reproducible production environment, see the Docker workflow in
@@ -51,7 +51,7 @@ npm run build
 cd ..
 ```
 
-This produces `public/` at the repository root — the directory the backend serves
+This produces `public/` at the repository root, the directory the backend serves
 by default (`FRONTEND_PATH`, see below).
 
 ---
@@ -74,9 +74,9 @@ cmake --preset conan-release      # configure
 cmake --build --preset release    # build
 ```
 
-- `conan-release` — configure preset: Ninja generator, Conan toolchain,
+- `conan-release`, configure preset: Ninja generator, Conan toolchain,
   `CMAKE_EXPORT_COMPILE_COMMANDS=ON` (for clangd/LSP), output in `build/Release`.
-- `release` — build preset for the `conan-release` configuration.
+- `release`, build preset for the `conan-release` configuration.
 
 The resulting binary is `build/Release/uni_server`. The build copies `cert.pem`,
 `key.pem`, `.env` and `public/` next to the executable, so it can be launched
@@ -92,7 +92,7 @@ cmake --preset conan-release -DUNI_ENABLE_SSL=OFF   # plain HTTP (uWS::App)
 ```
 
 Build with it **OFF** when a platform terminates TLS at its edge and proxies
-plain HTTP to the container — e.g. **Render**, Fly, or any reverse proxy. The
+plain HTTP to the container, e.g. **Render**, Fly, or any reverse proxy. The
 frontend adapts automatically (`wss://` over HTTPS pages, `ws://` over HTTP).
 The Docker image builds with `UNI_ENABLE_SSL=OFF` by default for this reason
 (override via `--build-arg UNI_ENABLE_SSL=ON`).
@@ -168,7 +168,7 @@ scripts/lint_cpp.sh
 ```
 
 `clang-format` settings live in `.clang-format` (Google base, 100-column limit
-to match `CPPLINT.cfg`) for editor format-on-save — it is not run over the
+to match `CPPLINT.cfg`) for editor format-on-save; it is not run over the
 whole tree in CI, so existing files keep their current formatting until
 they're next edited.
 

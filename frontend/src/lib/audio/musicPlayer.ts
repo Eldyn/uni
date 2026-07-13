@@ -2,7 +2,7 @@
  * @file musicPlayer.ts
  * @brief Single-track/playlist music playback via Howler, with multi-channel
  * "stem" tracks delegated to the raw Web Audio multiChannelSync engine.
- * Only ever one thing playing at a time — playTrack always tears down
+ * Only ever one thing playing at a time, playTrack always tears down
  * whatever came before.
  */
 
@@ -54,12 +54,12 @@ function resolveChannelDefs(def: MusicTrackDef): MusicChannelDef[] {
 
 export class MusicPlayer {
 	#current: CurrentHandle | undefined;
-	// INFO: Catalog id behind #current — lets playTrack no-op when asked to
+	// INFO: Catalog id behind #current, lets playTrack no-op when asked to
 	//       play what's already playing instead of restarting from zero.
 	#currentId: string | undefined;
 	// INFO: Bumped on every playTrack/stopAll call. Async work (playlist
 	//       onend, multi-channel decode) captures its token and bails if a
-	//       newer operation has taken over — prevents playlist double-advance
+	//       newer operation has taken over, prevents playlist double-advance
 	//       and a stale decode clobbering a newer track.
 	#operationId = 0;
 
@@ -72,7 +72,7 @@ export class MusicPlayer {
 			return Promise.resolve();
 		}
 
-		// INFO: Immediate stop-then-start rather than crossfading old vs new —
+		// INFO: Immediate stop-then-start rather than crossfading old vs new,
 		//       simpler, and never leaves two things playing at once.
 		this.#stopCurrent(opts?.fadeMs);
 		this.#currentId = id;
@@ -93,7 +93,7 @@ export class MusicPlayer {
 			return Promise.resolve();
 		}
 
-		// INFO: "multi"/"multi-folder" — decode all stems, then sync-start them.
+		// INFO: "multi"/"multi-folder", decode all stems, then sync-start them.
 		return this.#playMultiChannel(def, operationId);
 	}
 
@@ -155,25 +155,25 @@ export class MusicPlayer {
 		const trackId = order[index];
 		const trackDef = MUSIC_CATALOG[trackId];
 		if (!trackDef || trackDef.kind === "playlist") {
-			console.warn(`MusicPlayer: playlist entry "${trackId}" is missing or nested — skipping`);
+			console.warn(`MusicPlayer: playlist entry "${trackId}" is missing or nested, skipping`);
 			return;
 		}
 		if (trackDef.kind !== "single") {
 			console.warn(
-				`MusicPlayer: playlist entry "${trackId}" is a multi-channel track, which playlists don't support — skipping`
+				`MusicPlayer: playlist entry "${trackId}" is a multi-channel track, which playlists don't support, skipping`
 			);
 			return;
 		}
 
 		// INFO: Playlist entries always play non-looping regardless of the
-		//       nested def's own loop flag — the playlist owns advancing.
+		//       nested def's own loop flag, the playlist owns advancing.
 		const howl = new Howl({
 			src: [trackDef.src],
 			loop: false,
 			volume: 1,
 			onend: () => {
 				// INFO: Howler fires onend only on natural completion, never on
-				//       a manual .stop() — guard anyway in case a newer
+				//       a manual .stop(), guard anyway in case a newer
 				//       operation raced in right as this callback was queued.
 				if (operationId !== this.#operationId) return;
 				const nextIndex = (index + 1) % order.length;
@@ -201,7 +201,7 @@ export class MusicPlayer {
 			})
 		);
 
-		// INFO: A newer playTrack/stopAll raced ahead of this decode — don't
+		// INFO: A newer playTrack/stopAll raced ahead of this decode, don't
 		//       resurrect as "current" over whatever's playing now.
 		if (operationId !== this.#operationId) return;
 

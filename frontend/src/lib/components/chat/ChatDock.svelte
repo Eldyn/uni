@@ -18,8 +18,8 @@
 	);
 
 	// Keeps chatStore.dockHeight in sync with the panel's actual rendered
-	// height while open, and resets it to 0 as soon as the dock closes —
-	// the bound element unmounts on close and can't report 0 itself.
+	// height while open, and resets it to 0 as soon as the dock closes,
+	// since the bound element unmounts on close and can't report 0 itself.
 	$effect(() => {
 		if (!chatStore.isOpen) return;
 		chatStore.dockHeight = panelHeight;

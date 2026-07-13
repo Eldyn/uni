@@ -19,7 +19,7 @@ describe("chatStore", () => {
 		expect(chatStore.activeChannel).toBe("global");
 	});
 
-	it("starts with empty global and party lines — populated by the server, not fixtures", () => {
+	it("starts with empty global and party lines, populated by the server, not fixtures", () => {
 		expect(chatStore.linesFor("global")).toEqual([]);
 		expect(chatStore.linesFor("party")).toEqual([]);
 	});
@@ -51,7 +51,7 @@ describe("chatStore drafts (per-channel scratchpad)", () => {
 		expect(chatStore.draftFor({ friendId: "f2" })).toBe("");
 	});
 
-	it("scopes drafts per channel — setting one channel's draft doesn't leak into another", () => {
+	it("scopes drafts per channel, setting one channel's draft doesn't leak into another", () => {
 		chatStore.setDraft("global", "hello globally");
 		chatStore.setDraft("party", "hello party");
 		chatStore.setDraft({ friendId: "f1" }, "hey Bianca");

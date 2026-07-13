@@ -46,7 +46,8 @@ ChatController::ChatController(IActionRouter& router, IBroadcaster& broadcast,
         HandleChatSend(ctx, msg);
         return true;
     });
-    action_router_.On(ws::ClientAction::kChatHistoryRequest, [this](WsContext ctx, const json& msg) {
+    action_router_.On(ws::ClientAction::kChatHistoryRequest,
+                       [this](WsContext ctx, const json& msg) {
         HandleChatHistoryRequest(ctx, msg);
         return true;
     });
@@ -163,7 +164,7 @@ void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message
 
     const std::string& username = ctx.socket_data->username;
     const std::string channel = payload_res->channel.value_or("dm");
-    // limit is untrusted client input — GetGlobalHistoryPage/GetDirectHistoryPage
+    // limit is untrusted client input, GetGlobalHistoryPage/GetDirectHistoryPage
     // both clamp it to [1, kMaxShardSize] (or default when <= 0); a client can
     // never request the unbounded (-1) mode reserved for the OnOpen push.
     const int limit = payload_res->limit.value_or(0);
@@ -177,7 +178,7 @@ void ChatController::HandleChatHistoryRequest(WsContext ctx, const json& message
 
     if (channel == "lobby") {
         // lobby_code comes from the socket's own membership, never client
-        // input — a client can't fish for another lobby's chat history.
+        // input, a client can't fish for another lobby's chat history.
         if (ctx.socket_data->lobby_code.empty()) {
             broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
                                    request_id);

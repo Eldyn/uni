@@ -296,7 +296,7 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
             auto advance_result = active_lobby->match->AdvanceBotTurns(
                 is_connected, on_step, max_instant_bot_steps_);
             if (advance_result.stalled) {
-                Logger::Error("[MATCH] kPlayInstantly stall detected — aborting bot loop");
+                Logger::Error("[MATCH] kPlayInstantly stall detected, aborting bot loop");
             }
 
             OnTurnStarted(active_lobby);
@@ -306,7 +306,7 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
         case match::TurnTimeoutPolicy::kInputWaitTimeout: {
             // INFO: The engine is waiting for action input (e.g. colour pick
             //       after a Jolly). A timer is always armed here regardless of
-            //       bot mode — the pending player must respond within the turn
+            //       bot mode, the pending player must respond within the turn
             //       time limit or a bot handles it for them.
             std::string pending = active_lobby->match->GetPendingPlayer();
             auto end_time = std::chrono::steady_clock::now() +

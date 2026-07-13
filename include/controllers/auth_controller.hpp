@@ -54,7 +54,7 @@ private:
      * @brief Handles the POST route `/auth/guest`.
      * Issues an ephemeral guest session: a generated display name plus a
      * ws_token JWT so account-less players can browse and join lobbies.
-     * Guests have no DB row — stats and saved matches stay account-only. The
+     * Guests have no DB row, stats and saved matches stay account-only. The
      * '#' in the generated name is outside the registration username pattern,
      * so a guest can never collide with a registered account.
      * @param res Pointer to the HTTP response.

@@ -2,8 +2,8 @@
 
 ## Project license
 
-The **original code and assets** of this project — everything authored by the
-UNI project contributors — are released under
+The **original code and assets** of this project, everything authored by the
+UNI project contributors, are released under
 [CC0 1.0 Universal](LICENSE) (public domain dedication). You may copy, modify,
 distribute, and use them, including commercially, with no permission required.
 
@@ -18,24 +18,24 @@ eligible for copyright protection.
 
 ### Fonts
 
-- **FatPixel font** (BigBoldPixel) — from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex
+- **FatPixel font** (BigBoldPixel), from [SNKRX](https://github.com/a327ex/SNKRX) by a327ex
   ([direct TTF](https://github.com/a327ex/SNKRX/blob/master/assets/fonts/FatPixelFont.ttf)),
   licensed under the MIT License (full text below).
 
-- **PixulBrush font** — by Mercyssh (<https://mercyssh.itch.io/pixulbrush-a-bitmap-font>).
+- **PixulBrush font**, by Mercyssh (<https://mercyssh.itch.io/pixulbrush-a-bitmap-font>).
   Free for commercial use with accreditation.
 
-- **Monogram** — by datagoblin (<https://datagoblin.itch.io/monogram>).
+- **Monogram**, by datagoblin (<https://datagoblin.itch.io/monogram>).
 
-- **PyPx Fonts** — by Pyrious (<https://pyrious.itch.io/pypx-fonts>).
+- **PyPx Fonts**, by Pyrious (<https://pyrious.itch.io/pypx-fonts>).
 
-- **Habbo** — by Omni.
+- **Habbo**, by Omni.
 
-- **TinyUnicode** — by DuffsDevice.
+- **TinyUnicode**, by DuffsDevice.
 
 ### Icons
 
-- **Social Connect Icons Pack** — by lunggolfs (<https://lunggolfs.itch.io/social-connect-icons-pack>).
+- **Social Connect Icons Pack**, by lunggolfs (<https://lunggolfs.itch.io/social-connect-icons-pack>).
 
 
 ### Backgrounds
@@ -49,7 +49,7 @@ eligible for copyright protection.
 
 ## License texts
 
-### SNKRX font — MIT License
+### SNKRX font, MIT License
 
 ```
 MIT License

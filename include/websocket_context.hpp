@@ -33,7 +33,7 @@ struct PerSocketData {
  * uWebSockets bakes the SSL flag into its types (`HttpResponse<SSL>`,
  * `WebSocket<SSL, ...>`, `TemplatedApp<SSL>`), so it can only be chosen at
  * compile time. Defaults to 1 (TLS) for local development with self-signed
- * certs. Build with `-DUNI_ENABLE_SSL=OFF` to emit plain HTTP — required when a
+ * certs. Build with `-DUNI_ENABLE_SSL=OFF` to emit plain HTTP, required when a
  * platform terminates TLS at its edge and proxies HTTP to the container
  * (e.g. Render, Fly, most reverse proxies).
  */
