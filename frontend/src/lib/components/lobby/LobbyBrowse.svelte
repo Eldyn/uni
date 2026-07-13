@@ -187,13 +187,27 @@
 					</div>
 				{:else if storeLobby.listError && lobbies.length === 0}
 					<div class="p-12 text-center md:col-span-2">
-						{#if errorIllustration}
-							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
-						{/if}
 						<p class="mb-4 font-pixel text-xl uppercase text-text-h">Couldn't load lobbies</p>
 						<p class="mb-4 font-tiny text-sm text-text">
 							Something went wrong while reaching the server :(
 						</p>
+						{#if errorIllustration}
+							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
+						{/if}
+						<button
+							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+							onclick={() => storeLobby.fetchList()}>Retry</button
+						>
+					</div>
+				{:else if lobbies.length === 0}
+					<div class="p-12 text-center md:col-span-2">
+						<p class="mb-4 font-pixel text-xl uppercase text-text-h">
+							No lobbies are currently open.
+						</p>
+						<p class="mb-4 font-tiny text-sm text-text">How sad :(</p>
+						{#if errorIllustration}
+							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
+						{/if}
 						<button
 							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 							onclick={() => storeLobby.fetchList()}>Retry</button
