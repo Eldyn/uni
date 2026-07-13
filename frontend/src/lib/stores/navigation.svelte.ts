@@ -14,7 +14,6 @@ import { ws } from "./ws.svelte";
  */
 export type AppScreen =
 	| "main"
-	| "auth"
 	| "lobbies"
 	| "lobby"
 	| "game"
@@ -32,6 +31,12 @@ export type AppScreen =
 class StoreNavigation {
 	/** The screen currently displayed to the user. */
 	current = $state<AppScreen>("main");
+
+	/** Whether the AuthScreen modal is open, overlaid on top of whatever screen is current. */
+	isAuthModalOpen = $state(false);
+
+	/** Which tab the AuthScreen modal should open on. */
+	authTab = $state<"login" | "register">("login");
 
 	/** Stores the previous screen for 'back' navigation. */
 	#previous: AppScreen | null = null;
@@ -65,6 +70,22 @@ class StoreNavigation {
 		this.current = screen;
 		localStorage.setItem("currentScreen", screen);
 		storeAnalytics.track("screen_view", { screen });
+	}
+
+	/**
+	 * @brief Opens the auth modal on top of the current screen.
+	 * @param tab Tab the modal should start on. Defaults to "login".
+	 */
+	gotoAuth(tab: "login" | "register" = "login"): void {
+		this.authTab = tab;
+		this.isAuthModalOpen = true;
+	}
+
+	/**
+	 * @brief Closes the auth modal, leaving the current screen untouched.
+	 */
+	closeAuthModal(): void {
+		this.isAuthModalOpen = false;
 	}
 
 	/**

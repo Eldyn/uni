@@ -79,7 +79,6 @@ export const SFX_CATALOG: Record<string, SfxDef> = {};
 //       resolves to undefined and MusicPlayer.stopAll()s instead.
 export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {
 	main: "music.fuzzsong",
-	auth: "music.fuzzsong",
 	lobbies: "music.fuzzsong",
 	lobby: "music.fuzzsong",
 	settings: "music.fuzzsong",

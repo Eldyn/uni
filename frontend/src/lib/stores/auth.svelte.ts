@@ -68,8 +68,8 @@ class StoreAuth {
 
 			return false;
 		} catch {
-			// INFO: Network failure on boot — land on auth, let the user try manually
-			storeNavigation.goto("auth");
+			// INFO: Network failure on boot — open the auth modal, let the user try manually
+			storeNavigation.gotoAuth("login");
 			return false;
 		}
 	}
@@ -261,7 +261,8 @@ class StoreAuth {
 		}
 		this.#setLoggedOut();
 		storeAnalytics.track("logout");
-		storeNavigation.goto("auth");
+		storeNavigation.goto("main");
+		storeNavigation.gotoAuth("login");
 	}
 
 	#setLoggedIn(username: string, avatar: string = ""): void {

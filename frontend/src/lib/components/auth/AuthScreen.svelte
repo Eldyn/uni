@@ -1,58 +1,85 @@
 <script lang="ts">
+	import Modal from "$components/common/Modal.svelte";
 	import LoginForm from "./LoginForm.svelte";
 	import RegisterForm from "./RegisterForm.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 
-	let activeTab = $state<"login" | "register">("login");
+	let {
+		onAuthSuccess,
+		initialTab = "login"
+	}: { onAuthSuccess: () => void; initialTab?: "login" | "register" } = $props();
 
-	let { onAuthSuccess }: { onAuthSuccess: () => void } = $props();
+	let activeTab = $state<"login" | "register">(initialTab);
 </script>
 
-<div class="auth-screen">
-	<section class="auth-container pixel-corners w-full">
-		<div class="auth-tabs">
-			<button
-				type="button"
-				class="tab-button"
-				class:active={activeTab === "login"}
-				onclick={() => (activeTab = "login")}
-			>
-				Login
-			</button>
-			<button
-				type="button"
-				class="tab-button"
-				class:active={activeTab === "register"}
-				onclick={() => (activeTab = "register")}
-			>
-				Register
-			</button>
-		</div>
+<Modal
+	bind:open={storeNavigation.isAuthModalOpen}
+	ariaLabel="Login or register"
+	contentClass="auth-container pixel-corners w-full"
+>
+	<button
+		type="button"
+		class="close-button"
+		onclick={() => storeNavigation.closeAuthModal()}
+		aria-label="Close"
+		title="Close"
+	>
+		<i class="hn pix hn-times"></i>
+	</button>
 
-		<div class="auth-content">
-			{#if activeTab === "login"}
-				<LoginForm onLoginSuccess={onAuthSuccess} />
-			{:else}
-				<RegisterForm
-					onRegisterSuccess={() => {
-						activeTab = "login";
-					}}
-				/>
-			{/if}
-		</div>
-	</section>
-</div>
+	<div class="auth-tabs">
+		<button
+			type="button"
+			class="tab-button"
+			class:active={activeTab === "login"}
+			onclick={() => (activeTab = "login")}
+		>
+			Login
+		</button>
+		<button
+			type="button"
+			class="tab-button"
+			class:active={activeTab === "register"}
+			onclick={() => (activeTab = "register")}
+		>
+			Register
+		</button>
+	</div>
+
+	<div class="auth-content">
+		{#if activeTab === "login"}
+			<LoginForm onLoginSuccess={onAuthSuccess} />
+		{:else}
+			<RegisterForm
+				onRegisterSuccess={() => {
+					activeTab = "login";
+				}}
+			/>
+		{/if}
+	</div>
+</Modal>
 
 <style>
-	.auth-screen {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 100vh;
-		padding: 20px;
+	:global(.auth-container) {
+		position: relative;
 		font-family: "Pixel";
-		background-image: url("/assets/bg_main.png");
-		image-rendering: pixelated;
-		background-size: cover;
+	}
+
+	.close-button {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		background: none;
+		border: none;
+		color: var(--text);
+		opacity: 0.5;
+		cursor: pointer;
+		transition: opacity 0.2s;
+	}
+
+	.close-button:hover {
+		opacity: 1;
+		color: var(--danger);
 	}
 
 	.auth-tabs {
@@ -100,7 +127,7 @@
 	}
 
 	@media (max-width: 1024px) {
-		.auth-container {
+		:global(.auth-container) {
 			padding: 24px;
 		}
 	}

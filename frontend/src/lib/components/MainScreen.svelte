@@ -48,19 +48,20 @@
 
 	const SOCIAL_LINKS = [
 		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
-		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
-		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" },
-		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
+		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e", img: "discord_icon.png" },
 		{
 			label: "Bluesky",
 			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
 			img: "bluesky_icon.png"
 		},
+		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
+		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
 		{
 			label: "Instagram",
 			href: "https://www.instagram.com/the.uni.game/",
 			img: "instagram_icon.png"
-		}
+		},
+		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" }
 	];
 </script>
 
@@ -93,14 +94,16 @@
 			speed={1}
 			frequency={0.15}
 		/>
-		{#if storeAuth.isLoggedIn}
+		{#if storeAuth.isLoggedIn || storeAuth.isGuest}
 			<p class="mt-4 font-tiny text-sm text-text/70">
-				Welcome back, <span class="text-accent">{storeAuth.username}</span>
+				{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+				<span class="text-accent">{storeAuth.username}</span>
 				<button
 					class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
 					style="font-family: var(--pypx); font-weight: 800;"
 					onclick={handleLogout}
-					disabled={logoutPending}>{logoutPending ? "Logging out…" : "Logout"}</button
+					disabled={logoutPending}
+					>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
 				>
 			</p>
 		{/if}
@@ -113,7 +116,7 @@
 				<!-- Signed out entirely: login + guest CTA -->
 				<button
 					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
-					onclick={() => storeNavigation.goto("auth")}
+					onclick={() => storeNavigation.gotoAuth("login")}
 				>
 					Login
 				</button>

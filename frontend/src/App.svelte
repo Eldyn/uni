@@ -48,7 +48,8 @@
 		if (storeAuth.isLoggedIn) {
 			await ws.connect();
 
-			if (storeNavigation.current === "auth") {
+			if (storeNavigation.isAuthModalOpen) {
+				storeNavigation.closeAuthModal();
 				storeNavigation.goto("lobbies");
 			}
 		}
@@ -81,6 +82,7 @@
 			storeToast.error(`Failed to connect to server. Please try again. (${error})`);
 		});
 
+		storeNavigation.closeAuthModal();
 		storeNavigation.goto("lobbies");
 	}
 
@@ -97,13 +99,15 @@
 
 	{#if storeNavigation.current === "main"}
 		<MainScreen />
-	{:else if storeNavigation.current === "auth"}
-		{#await loadAuthScreen() then { default: AuthScreen }}
-			<AuthScreen onAuthSuccess={handleAuthSuccess} />
-		{/await}
 	{:else if storeNavigation.current in lazyScreens}
 		{#await lazyScreens[storeNavigation.current as keyof typeof lazyScreens]() then { default: Screen }}
 			<Screen />
+		{/await}
+	{/if}
+
+	{#if storeNavigation.isAuthModalOpen}
+		{#await loadAuthScreen() then { default: AuthScreen }}
+			<AuthScreen onAuthSuccess={handleAuthSuccess} initialTab={storeNavigation.authTab} />
 		{/await}
 	{/if}
 </div>
