@@ -60,7 +60,9 @@
 				</button>
 			{/if}
 			{#each lines as line (line.id)}
-				<p class="break-words font-tiny text-sm leading-relaxed text-text">
+				<p
+					class="pixel-bordered break-words px-2 py-1 font-tiny text-sm leading-relaxed text-text [--pc-border:var(--accent)]"
+				>
 					<span
 						class="uppercase"
 						style="font-family: var(--pypx); font-weight: 700; color: {line.color};"

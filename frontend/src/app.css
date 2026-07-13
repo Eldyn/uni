@@ -373,11 +373,14 @@
 		background: var(--pc-fill, var(--bg));
 	}
 
-	/* No `@supports (corner-shape: notch)` fast path: Gecko-based browsers
-	   that ship the property behind an experimental flag (e.g. Zen Browser)
-	   pass the @supports check without actually painting the notch, leaving
-	   a plain rounded border. The clip-path implementation above renders
-	   correctly everywhere, so it's used unconditionally. */
+	/* No `@supports (corner-shape: notch)` fast path: `CSS.supports()` only
+	   checks that the declaration parses, not that the engine paints it —
+	   Chromium, Firefox and Gecko-based forks (Zen) all currently report
+	   support and silently fall back to a plain rounded border instead of
+	   the notch. The clip-path implementation above renders correctly
+	   everywhere, so it's used unconditionally until corner-shape support
+	   is actually widespread (re-add the fast path then, gated on a real
+	   UA/feature check rather than @supports). */
 
 	/* Modals */
 }
@@ -557,3 +560,4 @@ code,
 .scrollbar-accent::-webkit-scrollbar-thumb:hover {
 	background: var(--accent-h);
 }
+

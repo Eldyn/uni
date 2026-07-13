@@ -45,7 +45,7 @@
 	{#if chatStore.isOpen}
 		<div
 			bind:clientHeight={panelHeight}
-			class="pixel-bordered fixed inset-x-0 bottom-0 z-50 flex h-[70vh] flex-col bg-bg [--pc-border:var(--accent)] md:inset-x-auto md:bottom-4 md:right-4 md:h-[28rem] md:w-96"
+			class="pixel-bordered fixed inset-x-0 bottom-0 z-50 flex h-[70vh] flex-col [--pc-border:var(--accent)] md:inset-x-auto md:bottom-4 md:right-4 md:h-[28rem] md:w-96"
 		>
 			<ChatChannelTabs bind:showFriendsList onclose={close} />
 
