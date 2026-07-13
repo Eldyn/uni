@@ -4,6 +4,7 @@
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import LobbySave from "./LobbySave.svelte";
+	import Modal from "$components/common/Modal.svelte";
 	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
 
@@ -13,13 +14,26 @@
 	let isEditingName = $state(false);
 	let editedName = $state("");
 	let showInviteCode = $state(false);
+	let settingsOpen = $state(false);
 	let activeMenu = $state<string | null>(null);
 
-	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"];
+	// Last pointer kind to touch a seat card. Right-click opens the seat menu
+	// on desktop; tapping does the same job on touch, so both need distinct
+	// triggers instead of a single always-visible kebab button.
+	let pointerKind = $state<string>("mouse");
 
-	function toggleMenu(username: string, event: Event) {
+	// The four seat colours ARE the four UNO card colours — members are dealt
+	// their seat as an actual card face, not a generic avatar chip.
+	const SEAT_COLORS = ["var(--blueCard)", "var(--greenCard)", "var(--redCard)", "var(--yellowCard)"];
+	const TABLE_SEATS = SEAT_COLORS.length;
+
+	let emptySeats = $derived(Math.max(0, TABLE_SEATS - (storeLobby.current?.members.length ?? 0)));
+
+	function handleSeatMenu(member: { username: string; is_host: boolean }, event: Event) {
+		if (!isHost || member.is_host) return;
+		event.preventDefault();
 		event.stopPropagation();
-		activeMenu = activeMenu === username ? null : username;
+		activeMenu = activeMenu === member.username ? null : member.username;
 	}
 
 	$effect(() => {
@@ -45,14 +59,28 @@
 			storeLobby.updateSettings({ name: trimmed });
 		}
 	}
+
+	// Anchors the pulse's phase to wall-clock time (negative delay) so seats
+	// that mount at different moments (e.g. a player leaving mid-cycle) still
+	// blink in sync instead of each restarting its own 3s cycle from zero.
+	const PULSE_PERIOD_MS = 3000;
+	function syncPulse(node: HTMLElement) {
+		node.style.animationDelay = `${-(Date.now() % PULSE_PERIOD_MS)}ms`;
+	}
 </script>
 
-<div class="lobby-layout">
-	<div class="left-panel">
-		<div class="title-container">
+<div
+	class="fixed inset-0 flex flex-col overflow-hidden bg-cover bg-center"
+	style="background-image: url('/assets/bg_full.png'); image-rendering: pixelated;"
+>
+	<!-- Header: title (editable by host) + invite code + leave ------------- -->
+	<header
+		class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-border bg-bg px-4 py-2 sm:px-6 sm:py-3 lg:px-10"
+	>
+		<div class="min-w-0 flex-1">
 			{#if isEditingName && isHost}
 				<input
-					class="name-input title-screen"
+					class="title-screen w-full max-w-full truncate border-none bg-transparent p-0 text-3xl tracking-[-1.68px] outline-none [clip-path:none!important] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
 					bind:value={editedName}
 					onblur={saveName}
 					onkeydown={(e) => e.key === "Enter" && saveName()}
@@ -60,125 +88,213 @@
 					use:focusOnMount
 				/>
 			{:else if isHost}
-				<button type="button" class="lobby-title title-screen" onclick={startEditing}>
-					<h1>{storeLobby.current?.name}</h1>
+				<button
+					type="button"
+					class="title-screen block max-w-full truncate border-none bg-transparent p-0 text-left text-3xl tracking-[-1.68px] [clip-path:none!important] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
+					onclick={startEditing}
+				>
+					{storeLobby.current?.name}
 				</button>
 			{:else}
-				<h1 class="lobby-title title-screen">
+				<h1
+					class="title-screen max-w-full truncate text-3xl tracking-[-1.68px] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
+				>
 					{storeLobby.current?.name}
 				</h1>
 			{/if}
 		</div>
-		<div class="header-controls">
-			<div class="invite-container">
-				<span class="invite-badge">
+
+		<div class="flex shrink-0 items-center gap-2">
+			<div class="flex items-center gap-1 bg-black px-3 py-2">
+				<span class="w-20 text-center font-mono text-sm text-text sm:text-base">
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
-				<button class="toggle-code-btn" onclick={() => (showInviteCode = !showInviteCode)}>
-					<i class="hn pix {showInviteCode ? 'hn-eye' : 'hn-eye-cross'}"></i>
+				<button
+					class="flex items-center leading-none text-white"
+					onclick={() => (showInviteCode = !showInviteCode)}
+					title={showInviteCode ? "Hide code" : "Show code"}
+				>
+					<i class="hn pix {showInviteCode ? 'hn-eye' : 'hn-eye-cross'} text-lg"></i>
 				</button>
 			</div>
 
-			<div class="saved-matches-mini">
-				<details class="compact-dropdown">
-					<summary class="dropdown-summary">
-						<span class="summary-text">Saved Matches ({storeLobby.savedMatches?.length ?? 0})</span>
-					</summary>
-					<div class="dropdown-content-wrapper">
-						<ul class="saved-matches-list">
-							{#each storeLobby.savedMatches ?? [] as save}
-								<LobbySave {save} />
-							{/each}
-							{#if (storeLobby.savedMatches?.length ?? 0) === 0}
-								<li style="padding: 10px; color: #666; font-size: 12px;">No saved matches</li>
-							{/if}
-						</ul>
-					</div>
-				</details>
-			</div>
+			<button
+				class="btn pixel-corners bg-danger px-3 py-2 sm:px-4"
+				onclick={() => storeLobby.leave()}
+				title="Exit Lobby"
+			>
+				<img src="/assets/exit.png" alt="Exit" class="h-5 w-5" />
+			</button>
 		</div>
+	</header>
 
-		<div class="members-section">
-			<ul class="members">
+	<!-- Saved matches + settings ----------------------------------------------- -->
+	<div class="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2 sm:px-6 lg:px-10">
+		<details class="relative w-fit select-none">
+			<summary
+				class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
+			>
+				{storeLobby.savedMatches?.length ?? 0} Saves
+			</summary>
+			<ul
+				class="scrollbar-accent absolute left-0 top-[calc(100%+10px)] z-50 max-h-96 w-80 max-w-[90vw] list-none overflow-y-auto border-2 border-border bg-bg p-2 shadow-lg"
+			>
+				{#each storeLobby.savedMatches ?? [] as save}
+					<LobbySave {save} />
+				{/each}
+				{#if (storeLobby.savedMatches?.length ?? 0) === 0}
+					<li class="p-2.5 text-xs text-text">No saved matches</li>
+				{/if}
+			</ul>
+		</details>
+
+		<button
+			class="btn pixel-corners px-3 py-2 sm:px-4"
+			onclick={() => (settingsOpen = true)}
+			title="Lobby settings"
+		>
+			<i class="hn pix hn-cog"></i>
+			<span class="ml-2 hidden uppercase sm:inline">Settings</span>
+		</button>
+	</div>
+
+	<!-- Table: dealt seats + controls ----------------------------------------- -->
+	<div class="scrollbar-accent flex-1 overflow-y-auto">
+		<div
+			class="mx-auto flex w-full max-w-330 flex-col items-center gap-10 px-4 py-6 sm:px-6 lg:px-10"
+		>
+			<ul
+				class="hand grid list-none grid-cols-2 justify-items-center gap-4 p-0 sm:gap-6 lg:grid-cols-4 lg:gap-8"
+			>
 				{#each storeLobby.current?.members ?? [] as member, i}
-					<li class="member">
-						<div class="member-avatar">
-							{#if member.is_bot}
-								<img class="avatar-sprite" src="/assets/bot_animated.gif" alt="Bot" />
-							{:else}
-								<TintedSprite
-									src="/assets/base_player.gif"
-									color={PLAYER_COLORS[i % 4]}
-									fit="contain"
-								/>
-							{/if}
+					{@const color = member.is_bot ? "var(--blackCard)" : SEAT_COLORS[i % SEAT_COLORS.length]}
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -- seat stays an <li> for
+						list semantics but is host-interactive (kick/promote) when tabindex is set -->
+					<li
+						class="seat-card group relative w-32 shrink-0 sm:w-36 lg:w-44"
+						class:cursor-context-menu={isHost && !member.is_host}
+						style="aspect-ratio: 1 / 1.5357; --card-color: {color};"
+						role={isHost && !member.is_host ? "button" : undefined}
+						tabindex={isHost && !member.is_host ? 0 : undefined}
+						onpointerdown={(e) => (pointerKind = e.pointerType)}
+						oncontextmenu={(e) => handleSeatMenu(member, e)}
+						onclick={(e) => {
+							if (pointerKind === "touch") handleSeatMenu(member, e);
+						}}
+						onkeydown={(e) => {
+							if (e.key === "Enter" || e.key === " ") handleSeatMenu(member, e);
+						}}
+					>
+						<div class="absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--lowShadow)]">
+							<img
+								src="/assets/cards/background.png"
+								alt=""
+								class="absolute inset-0 h-full w-full object-fill"
+							/>
+							<div class="absolute inset-[14%]">
+								{#if member.is_bot}
+									<img
+										src="/assets/bot_animated.gif"
+										alt=""
+										class="h-full w-full object-contain"
+									/>
+								{:else}
+									<TintedSprite src="/assets/base_player.gif" {color} fit="contain" />
+								{/if}
 
-							{#if member.is_host}
-								<img class="avatar-crown" src="/assets/crown_host.gif" alt="Host Crown" />
-							{/if}
-						</div>
-
-						<div class="member-info-group">
-							<div class="member-details">
-								<div class="name-row">
-									{#if member.is_bot}
-										<i
-											class="hn pix hn-robot flex min-w-10 items-center justify-center text-[2rem]"
-											style="color: lightblue"
-										></i>
-									{/if}
-
-									<span class="member-name">{member.username}</span>
-								</div>
+								<!-- Deco layer: sits on the seat's face art, sized to match it
+								     exactly. Host's crown lives here so future cosmetics can
+								     stack the same way. -->
+								{#if member.is_host}
+									<img
+										src="/assets/crown_host.gif"
+										alt="Host"
+										class="pointer-events-none absolute inset-0 h-full w-full object-contain"
+									/>
+								{/if}
 							</div>
-
-							{#if isHost && !member.is_host}
-								<div class="menu-wrapper">
-									<button class="dots-button" onclick={(e) => toggleMenu(member.username, e)}
-										>⋮</button
-									>
-									{#if activeMenu === member.username}
-										<div class="dropdown-menu">
-											<button
-												class="dropdown-item"
-												onclick={() => {
-													storeLobby.promote(member.username);
-													activeMenu = null;
-												}}
-											>
-												<span style="color: lightgoldenrodyellow">Promote</span>
-											</button>
-											<button
-												class="dropdown-item"
-												onclick={() => {
-													storeLobby.kick(member.username);
-													activeMenu = null;
-												}}
-											>
-												<span style="color: lightsalmon">Kick</span>
-											</button>
-										</div>
-									{/if}
-								</div>
-							{/if}
+							<div class="pointer-events-none absolute inset-0">
+								<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
+							</div>
 						</div>
+
+						<p
+							class="absolute inset-x-0 -bottom-5 flex items-center justify-center gap-1 text-center font-tiny text-[10px] uppercase text-white sm:text-xs"
+						>
+							{#if member.is_bot}
+								<i class="hn pix hn-robot" style="color: lightblue"></i>
+							{/if}
+							<span class="truncate">{member.username}</span>
+						</p>
+
+						{#if activeMenu === member.username}
+							<div
+								class="absolute right-1 top-1 z-30 min-w-[140px] border-2 border-border bg-bg"
+							>
+								<button
+									class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
+									style="color: lightgoldenrodyellow"
+									onclick={() => {
+										storeLobby.promote(member.username);
+										activeMenu = null;
+									}}
+								>
+									Promote
+								</button>
+								<button
+									class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
+									style="color: lightsalmon"
+									onclick={() => {
+										storeLobby.kick(member.username);
+										activeMenu = null;
+									}}
+								>
+									Kick
+								</button>
+							</div>
+						{/if}
+					</li>
+				{/each}
+
+				{#each Array(emptySeats) as _, idx}
+					{@const seatIndex = (storeLobby.current?.members.length ?? 0) + idx}
+					{@const color = SEAT_COLORS[seatIndex % SEAT_COLORS.length]}
+					<li
+						class="seat-card relative w-32 shrink-0 sm:w-36 lg:w-44"
+						style="aspect-ratio: 1 / 1.5357; --card-color: {color};"
+					>
+						<div
+							class="seat-empty absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--lowShadow)]"
+							style="filter: grayscale(0.55) brightness(0.85);"
+							use:syncPulse
+						>
+							<img
+								src="/assets/cards/background.png"
+								alt=""
+								class="absolute inset-0 h-full w-full object-fill"
+							/>
+							<div class="pointer-events-none absolute inset-0">
+								<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
+							</div>
+						</div>
+						<p
+							class="absolute inset-x-0 -bottom-5 text-center font-tiny text-[10px] uppercase text-text sm:text-xs"
+						>
+							Waiting…
+						</p>
 					</li>
 				{/each}
 			</ul>
-		</div>
-	</div>
 
-	<div class="right-panel">
-		<div class="settings-container">
-			<LobbySettings />
-
-			<div class="start-container">
+			<div class="flex items-center justify-center">
 				<button
-					class="start-button"
+					class="start-button flex items-center justify-center border-none bg-transparent p-0"
 					onclick={() => storeLobby.startMatch()}
 					disabled={!isHost || !startable || storeLobby.isLoadingStart}
 				>
-					<div class="animated-text">
+					<div
+						class="flex gap-1 text-4xl tracking-[6px] text-white [-webkit-text-stroke:1.5px_var(--pixel-shadow)] [font-family:'FatPixel'] [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-5xl"
+					>
 						<TextEffects
 							text="START!"
 							effect="undulate"
@@ -193,175 +309,28 @@
 			</div>
 		</div>
 	</div>
-
-	<button
-		class="leave-button-fixed pixel-corners"
-		onclick={() => storeLobby.leave()}
-		title="Exit Lobby"
-	>
-		<img src="/assets/exit.png" alt="Exit" class="exit-icon" />
-	</button>
 </div>
 
+{#if settingsOpen}
+	<Modal
+		bind:open={settingsOpen}
+		ariaLabel="Lobby settings"
+		contentClass="pixel-corners relative flex max-h-[85vh] w-full max-w-xl flex-col overflow-y-auto p-5 sm:p-7"
+	>
+		<button
+			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
+			title="Close"
+			aria-label="Close"
+			onclick={() => (settingsOpen = false)}><i class="hn pix hn-times"></i></button
+		>
+		<LobbySettings />
+	</Modal>
+{/if}
+
 <style>
-	.lobby-layout {
-		position: fixed;
-		inset: 0;
-		background-image: url("/assets/bg_full.png");
-		image-rendering: pixelated;
-		background-size: cover;
-		background-position: center;
-		padding: 24px;
-		display: flex;
-		justify-content: space-between;
-		gap: 60px;
-		overflow-y: auto;
-	}
-
-	.left-panel {
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	.member-avatar {
-		position: relative;
-		width: 128px;
-		height: 128px;
-		flex-shrink: 0;
-	}
-
-	.avatar-sprite {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-	}
-
-	/* Crown gif shares the avatar's exact box so it layers over the head. */
-	.avatar-crown {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		pointer-events: none;
-	}
-
-	.member-info-group {
-		display: flex;
-		align-items: center;
-		gap: 20px;
-	}
-	.member-name {
-		font-size: 2rem;
-		font-weight: bold;
-	}
-
-	.name-row {
-		display: flex;
-		align-items: center;
-		gap: 15px;
-		font-family: "Pixel";
-		color: white;
-	}
-
-	.header-controls {
-		display: flex;
-		align-items: center;
-		gap: 20px;
-	}
-	.invite-container {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		background: rgb(0, 0, 0);
-		padding: 8px 16px;
-	}
-	.invite-badge {
-		font-family: var(--mono);
-		width: 100px;
-		text-align: center;
-		font-size: 1.2rem;
-		color: var(--text);
-	}
-	.toggle-code-btn {
-		background: none;
-		border: none;
-		cursor: pointer;
-		color: white;
-		font-size: 1.5rem;
-		display: flex;
-		align-items: center;
-		line-height: 1;
-		width: 2rem;
-	}
-
-	.saved-matches-mini {
-		position: relative;
-		user-select: none;
-	}
-	.dropdown-summary {
-		list-style: none;
-		cursor: pointer;
-		background: var(--bg);
-		padding: 10px 20px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		font-weight: bold;
-	}
-	.dropdown-summary::-webkit-details-marker {
-		display: none;
-	}
-
-	.dropdown-content-wrapper {
-		position: absolute;
-		top: calc(100% + 10px);
-		left: 0;
-		z-index: 200;
-		background: var(--bg);
-		border: 2px solid var(--border);
-		width: 350px;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-	}
-	.saved-matches-list {
-		list-style: none;
-		padding: 10px;
-		margin: 0;
-		max-height: 400px;
-		overflow-y: auto;
-	}
-
-	.right-panel {
-		display: flex;
-		flex-direction: column;
-		width: 450px;
-		flex-shrink: 0;
-		align-self: center;
-	}
-	.settings-container {
-		display: flex;
-		flex-direction: column;
-		gap: 24px;
-	}
-
-	.start-container {
-		display: flex;
-		justify-content: center;
-		margin-top: 40px;
-	}
-	.start-button {
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
-	}
-
 	.start-button:disabled {
 		cursor: not-allowed;
 	}
-
 	.start-button:disabled :global(.start-letters) {
 		color: #888;
 	}
@@ -370,128 +339,51 @@
 		transform: translateY(0);
 	}
 
-	.leave-button-fixed {
-		position: fixed;
-		bottom: 40px;
-		left: 40px;
-		width: 80px;
-		height: 80px;
-		background: var(--danger);
-		border: 3px solid var(--pixel-shadow);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		transition: filter 0.12s ease;
-		z-index: 1000;
+	/* Seats read as a fanned, dealt hand on desktop only — mobile keeps them
+	   upright so names/menus stay legible at small widths. */
+	.hand li:nth-child(1) {
+		--seat-tilt: -6deg;
 	}
-	.leave-button-fixed:hover {
-		filter: brightness(1.1);
+	.hand li:nth-child(2) {
+		--seat-tilt: -2deg;
 	}
-	.exit-icon {
-		width: 36px;
-		height: 36px;
+	.hand li:nth-child(3) {
+		--seat-tilt: 3deg;
+	}
+	.hand li:nth-child(4) {
+		--seat-tilt: 7deg;
 	}
 
-	.animated-text {
-		display: flex;
-		gap: 5px;
-		font-family: "FatPixel";
-		font-size: 3rem;
-		color: white;
-		letter-spacing: 6px;
-		-webkit-text-stroke: 1.5px var(--pixel-shadow);
-		text-shadow: 2px 2px 0px var(--pixel-shadow);
+	@media (min-width: 1024px) {
+		.seat-card {
+			transform: rotate(var(--seat-tilt, 0deg));
+			transition: transform 0.15s ease;
+		}
+		.seat-card:hover {
+			transform: rotate(0deg) translateY(-8px);
+		}
 	}
 
-	.members {
-		list-style: none;
-		padding: 0;
-		margin: 0;
+	.seat-empty {
+		animation: seat-wait 3s ease-in-out infinite;
 	}
-	.member {
-		display: flex;
-		align-items: center;
-		gap: 30px;
-		margin-bottom: 30px;
-	}
-
-	.dots-button {
-		background: var(--bg);
-		border: 2px solid var(--border);
-		width: 22px;
-		height: 42px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 1.8rem;
-		cursor: pointer;
-		color: white;
-		transition: all 0.2s;
-		line-height: 0;
-		padding-bottom: 2px;
+	@keyframes seat-wait {
+		0%,
+		100% {
+			opacity: 0.45;
+		}
+		50% {
+			opacity: 0.9;
+		}
 	}
 
-	.dots-button:hover {
-		background: var(--bg);
-		border-color: white;
-	}
-
-	.menu-wrapper {
-		position: relative;
-	}
-
-	.dropdown-menu {
-		position: absolute;
-		background: var(--bg);
-		border: 2px solid var(--border);
-		z-index: 100;
-		min-width: 140px;
-	}
-
-	.dropdown-item {
-		width: 100%;
-		padding: 12px;
-		background: none;
-		border: none;
-		color: white;
-		text-align: left;
-		cursor: pointer;
-		font-weight: bold;
-		transition:
-			background 0.2s,
-			filter 0.2s;
-	}
-
-	.dropdown-item:hover {
-		background: rgba(255, 255, 255, 0.1);
-		filter: brightness(1.4);
-	}
-
-	.dropdown-item:hover {
-		box-shadow: inset 4px 0 0 var(--accent);
-	}
-
-	.off {
-		color: #ff6b6b;
-	}
-	.on {
-		color: #51cf66;
-	}
-
-	/* Font/size/colour/shadow come from the shared .title-screen class (app.css).
-	   Only the lobby-specific deltas + input reset live here. */
-	.lobby-title,
-	.name-input {
-		letter-spacing: -1.68px;
-		margin: 0;
-		padding: 0;
-		background: none;
-		border: none;
-		outline: none;
-		clip-path: none !important;
-		@media (max-width: 1024px) {
-			font-size: 36px;
+	@media (prefers-reduced-motion: reduce) {
+		.seat-card {
+			transition: none;
+		}
+		.seat-empty {
+			animation: none;
+			opacity: 0.7;
 		}
 	}
 </style>

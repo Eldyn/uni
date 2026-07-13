@@ -69,7 +69,7 @@
 	}
 </script>
 
-<div class="lobby-settings-panel panel pixel-corners" role="region" aria-label="Lobby Settings">
+<div class="lobby-settings-panel" role="region" aria-label="Lobby Settings">
 	<h3 class="settings-title"><i class="hn pix hn-cog text-accent"></i> Lobby Settings</h3>
 
 	<Toggle
