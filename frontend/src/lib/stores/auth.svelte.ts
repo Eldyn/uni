@@ -14,6 +14,7 @@ import {
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
+import { ws } from "./ws.svelte";
 
 /**
  * @interface AuthFieldErrors
@@ -173,6 +174,7 @@ class StoreAuth {
 			if (res.ok) {
 				const data = await res.json();
 				this.#setLoggedIn(data.username, data.avatar || "");
+				await this.#resyncSocket();
 				storeAnalytics.track("login");
 				return {};
 			}
@@ -222,6 +224,7 @@ class StoreAuth {
 			const data = await res.json();
 			this.username = data.username;
 			this.isGuest = true;
+			await this.#resyncSocket();
 			storeAnalytics.track("guest_session");
 			return true;
 		} catch {
@@ -260,9 +263,22 @@ class StoreAuth {
 			return;
 		}
 		this.#setLoggedOut();
+		await this.#resyncSocket();
 		storeAnalytics.track("logout");
 		storeNavigation.goto("main");
 		storeNavigation.gotoAuth("login");
+	}
+
+	/**
+	 * Login/guest-login rotates the `ws_token` cookie, but an already-open
+	 * socket keeps the identity it upgraded with, forces a reconnect so the
+	 * next handshake picks up the new cookie (otherwise chat/lobby traffic
+	 * keeps going out under the previous guest/account name).
+	 */
+	async #resyncSocket(): Promise<void> {
+		if (!ws.isConnected) return;
+		ws.disconnect(1000, "identity changed");
+		await ws.connect();
 	}
 
 	#setLoggedIn(username: string, avatar: string = ""): void {
