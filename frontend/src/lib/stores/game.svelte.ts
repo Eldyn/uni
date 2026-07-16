@@ -305,7 +305,6 @@ class StoreGame {
 		if (this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		storeAnalytics.track("play_card");
 		// PLACEHOLDER-SFX: sfx.action.play-card, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
@@ -322,7 +321,6 @@ class StoreGame {
 		if (this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		storeAnalytics.track("draw_card");
 		// PLACEHOLDER-SFX: sfx.action.draw-card, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
@@ -336,7 +334,6 @@ class StoreGame {
 	 * @tag FRONT-GAME-MTH-008
 	 */
 	callUno() {
-		storeAnalytics.track("call_uno");
 		// PLACEHOLDER-SFX: sfx.action.call-uno, optimistic click SFX only,
 		// fires on the client-side action, not confirmed by the server's state
 		// broadcast; a human may want a separate confirmed-by-server SFX later
