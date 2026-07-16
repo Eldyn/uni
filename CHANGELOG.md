@@ -23,6 +23,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **`play_card`, `draw_card` and `call_uno` analytics events**: fired on every single move with no parameters attached, they added volume without telling us anything. Dropped entirely, with no replacement.
 - **Ad components**: `AdBanner.svelte` and `AdInterstitial.svelte`, and the interstitial that used to show at the end of a match in `GameScreen.svelte`, are gone. Ads are coming back once there's an actual ad strategy behind them; the site-ownership meta tag and the AdSense loader script stay in `index.html`.
+- **"UNO!" calling**: the button, the `has_called_uno` state, the draw-2 penalty for forgetting, and the `match_call_uno` WS message are all gone. The rule only pays off around a physical table with other people watching for the slip-up; on a screen, clicking a button adds friction without adding fun. It was also a copyright liability not worth carrying for a mechanic nobody would miss.
 
 ## [0.5.2] - 2026-07-11
 

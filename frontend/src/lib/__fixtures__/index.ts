@@ -14,7 +14,6 @@ export function makePlayer(overrides?: Partial<GamePlayer>): GamePlayer {
 	return {
 		username: "player1",
 		card_count: 7,
-		has_called_uno: false,
 		is_bot: false,
 		...overrides
 	};

@@ -181,14 +181,12 @@ TEST_CASE("AdvanceBotTurns: a stalled state (same player, same waiting-state aft
             {"username", "Bot0"},
             {"hand", json::array({MakeCard(Type::kRed, Value::kSkip, 1),
                                    MakeCard(Type::kBlue, Value::k7, 2)})},
-            {"is_bot", false},
-            {"has_called_uno", false}
+            {"is_bot", false}
         },
         {
             {"username", "Bot1"},
             {"hand", json::array({MakeCard(Type::kGreen, Value::k9, 3)})},
-            {"is_bot", true},
-            {"has_called_uno", false}
+            {"is_bot", true}
         }
     });
 
@@ -255,10 +253,8 @@ TEST_CASE("GetTurnTimeoutPolicy: a pending-input human resolves to kInputWaitTim
     saved_state["discard_pile"]         = json::array({MakeCard(Type::kRed, Value::k5, 100)});
     saved_state["draw_pile"]            = json::array();
     saved_state["players"] = json::array({
-        {{"username", "Alice"}, {"hand", json::array()},
-         {"is_bot", false}, {"has_called_uno", false}},
-        {{"username", "Bob"}, {"hand", json::array()},
-         {"is_bot", false}, {"has_called_uno", false}}
+        {{"username", "Alice"}, {"hand", json::array()}, {"is_bot", false}},
+        {{"username", "Bob"}, {"hand", json::array()}, {"is_bot", false}}
     });
 
     MatchInstance m(saved_state, settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));

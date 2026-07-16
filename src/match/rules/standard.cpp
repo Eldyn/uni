@@ -57,16 +57,6 @@ namespace match {
             state->effect_queue.push_back(std::make_unique<DrawEffect>(4, next_player));
             state->effect_queue.push_back(std::make_unique<SkipEffect>());
         }
-
-        // UNO Penalty
-        auto player_iterator = std::ranges::find(state->players, event.player_username,
-                                                  &Player::username);
-        if (player_iterator != state->players.end() && player_iterator->hand.size() == 1 &&
-            !player_iterator->has_called_uno) {
-            state->effect_queue.push_back(std::make_unique<DrawEffect>(2, event.player_username));
-        }
-
-        player_iterator->has_called_uno = false;
     }
 
     std::string StandardRule::GetNextPlayer(MatchState* state) {

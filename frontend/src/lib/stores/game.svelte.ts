@@ -29,7 +29,6 @@ const RawCardSchema = z.object({
 const RawPlayerSchema = z.object({
 	username: z.string(),
 	card_count: z.number().int(),
-	has_called_uno: z.boolean(),
 	hand: z.array(RawCardSchema).optional(),
 	is_bot: z.boolean()
 });
@@ -70,8 +69,6 @@ export interface GamePlayer {
 	username: string;
 	/** Total number of cards in the player's hand. */
 	card_count: number;
-	/** Indicates whether the player has correctly clicked "UNO!". */
-	has_called_uno: boolean;
 	/** The physical cards in the player's hand (present only for the Local Player). */
 	hand?: Card[];
 	/** Indicates whether the player is a bot controlled by the server. */
@@ -384,19 +381,6 @@ class StoreGame {
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
 		storeAudio.playSfx("sfx.action.draw-card");
 		ws.emit(ClientAction.MatchDrawCard);
-	}
-
-	/**
-	 * @brief Formally declares "UNO!" to the server by pressing the dedicated button.
-	 * @tag FRONT-GAME-MTH-008
-	 */
-	callUno() {
-		// PLACEHOLDER-SFX: sfx.action.call-uno, optimistic click SFX only,
-		// fires on the client-side action, not confirmed by the server's state
-		// broadcast; a human may want a separate confirmed-by-server SFX later
-		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
-		storeAudio.playSfx("sfx.action.call-uno");
-		ws.emit(ClientAction.MatchCallUno);
 	}
 
 	/**

@@ -32,7 +32,6 @@ TEST_CASE("serialization: export → import → export produces equal state") {
     for (size_t i = 0; i < snap1["players"].size(); ++i) {
         CHECK(snap1["players"][i]["username"]      == snap2["players"][i]["username"]);
         CHECK(snap1["players"][i]["hand"].size()   == snap2["players"][i]["hand"].size());
-        CHECK(snap1["players"][i]["has_called_uno"] == snap2["players"][i]["has_called_uno"]);
     }
 }
 

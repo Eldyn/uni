@@ -40,23 +40,20 @@ namespace match {
         std::vector<CompactCard> hand;  /**< The cards currently in the player's hand. */
         /**< Flag indicating whether the player is driven by the CPU. */
         bool is_bot;
-        /**< Flag indicating whether they have correctly declared "UNO". */
-        bool has_called_uno = false;
 
         /**
          * @brief Full constructor of the Player.
          * @param u Username.
          * @param h Initial hand of cards.
          * @param b True if Bot.
-         * @param uno True if they have already called UNO.
          */
-        Player(std::string u, std::vector<CompactCard> h, bool b, bool uno)
-            : username(u), hand(h), is_bot(b), has_called_uno(uno) {}
+        Player(std::string u, std::vector<CompactCard> h, bool b)
+            : username(u), hand(h), is_bot(b) {}
 
         /**
          * @brief Constructor without cards in hand (setup phase).
          */
-        Player(std::string u, bool b, bool uno) : username(u), is_bot(b), has_called_uno(uno) {}
+        Player(std::string u, bool b) : username(u), is_bot(b) {}
     };
 
     /**

@@ -49,12 +49,6 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kMatchCallUno,
-                      [this](WsContext context, const json& message) {
-        HandleCallUno(context, message);
-        return true;
-    });
-
     lobby_store.OnGameStarted([this](Lobby* active_lobby) {
         OnTurnStarted(active_lobby);
     });
@@ -217,21 +211,6 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
     if (is_match_over) {
         lobby_store_.NotifyMatchOver(current_lobby->id);
     }
-}
-
-/**
- * @brief Flags a player's safety verification state within the match rule evaluation layers.
- * @param context Signaling packet metadata tracking incoming user sockets.
- * @param message Received payload data map document.
- */
-void MatchController::HandleCallUno(WsContext context, const json& message) {
-    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
-    if (!active_lobby || !active_lobby->match) {
-        return;
-    }
-
-    active_lobby->match->CallUno(context.socket_data->username);
-    BroadcastMatchState(active_lobby);
 }
 
 /**

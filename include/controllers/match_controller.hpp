@@ -80,14 +80,6 @@ private:
      */
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
-    /**
-     * @brief Handles the "UNO" declaration by the player.
-     * @param context Context of the calling socket.
-     * @param message JSON payload of the request.
-     * @tag CTRL-GAME-ACT-004
-     */
-    void HandleCallUno(WsContext context, const nlohmann::json& message);
-
     // --- Core Match Flow ---
 
     /**

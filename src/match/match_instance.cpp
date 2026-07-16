@@ -32,7 +32,7 @@ namespace match {
     MatchInstance::MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
                                   const LobbySettings& settings) : settings_(settings) {
         for (const auto& player_info : players_info) {
-            state_.players.emplace_back(player_info.first, player_info.second, false);
+            state_.players.emplace_back(player_info.first, player_info.second);
         }
 
         for (const auto& mod_name : settings.active_mods) {
@@ -83,7 +83,6 @@ namespace match {
             players_json.push_back({
                 {"username",      player.username},
                 {"hand",          player.hand},
-                {"has_called_uno", player.has_called_uno},
                 {"is_bot",        player.is_bot}
             });
         }
@@ -141,13 +140,12 @@ namespace match {
             state_.players.emplace_back(
                 player_json.value("username", ""),
                 hand,
-                player_json.value("is_bot", false),
-                player_json.value("has_called_uno", false));
+                player_json.value("is_bot", false));
         }
     }
 
     void MatchInstance::AddPlayerMidGame(const std::string& username, bool is_bot) {
-        Player p(username, is_bot, false);
+        Player p(username, is_bot);
 
         for (int index = 0; index < settings_.starting_cards; ++index) {
             if (state_.draw_pile.empty()) {
@@ -431,7 +429,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
             state_.draw_pile.pop_back();
         }
         state_.pending_draws = 0;
-        current_player->has_called_uno = false;
         state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
         return true;
     }
@@ -453,8 +450,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
         current_player->hand.push_back(drawn_card);
         state_.draw_pile.pop_back();
         draw_event.drawn_card = drawn_card;
-
-        current_player->has_called_uno = false;
 
         CardPlayedEvent dummy_event = { username, drawn_card, true, false };
         for (auto& rule : active_rules_) {
@@ -489,13 +484,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
             state_.pending_player.clear();
             state_.pending_input_context = nlohmann::json{};
-        }
-    }
-
-    void MatchInstance::CallUno(const std::string& username) {
-        Player* p = GetPlayer(username);
-        if (p && p->hand.size() <= 2) {
-            p->has_called_uno = true;
         }
     }
 
@@ -626,7 +614,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
         }
 
         if (found_playable) {
-            CallUno(bot_username);
             PlayCard(current_player->username, GetId(best_card));
         } else {
             DrawCard(current_player->username);
@@ -820,7 +807,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
             nlohmann::json p_json;
             p_json["username"] = p.username;
             p_json["card_count"] = p.hand.size();
-            p_json["has_called_uno"] = p.has_called_uno;
             p_json["is_bot"] = p.is_bot;
             players_array.push_back(p_json);
         }

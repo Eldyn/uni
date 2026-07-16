@@ -23,7 +23,6 @@ namespace match {
                 Logger::Info("[Effect] Executing swap between ", p1->username, " and ",
                              p2->username);
                 std::swap(p1->hand, p2->hand);
-                std::swap(p1->has_called_uno, p2->has_called_uno);
 
                 return {EffectStatus::kResolved};
             }

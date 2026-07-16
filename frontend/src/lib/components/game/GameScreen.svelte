@@ -1,6 +1,5 @@
 <script lang="ts">
 	import GameBoard from "./GameBoard.svelte";
-	import GameUnoButton from "./GameUnoButton.svelte";
 	import GameOverPopup from "./GameOverPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import GameActions from "./GameActions.svelte";
@@ -47,8 +46,6 @@
 		<div class="game-board-container">
 			<GameBoard />
 		</div>
-
-		<GameUnoButton />
 	</div>
 </div>
 

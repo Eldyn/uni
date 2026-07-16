@@ -31,7 +31,6 @@ namespace match {
                 player_iterator->hand.push_back(state->draw_pile.back());
                 state->draw_pile.pop_back();
             }
-            player_iterator->has_called_uno = false;
         }
         return {EffectStatus::kResolved};
     }

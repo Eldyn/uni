@@ -19,7 +19,6 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 	ClientAction: {
 		MatchPlayCard: "match_play_card",
 		MatchDrawCard: "match_draw_card",
-		MatchCallUno: "match_call_uno",
 		MatchSubmitInput: "match_submit_input",
 		MatchExit: "match_exit"
 	}
@@ -70,11 +69,6 @@ describe("game store: player action dispatching", () => {
 		storeGame.drawCard();
 		storeGame.drawCard();
 		expect(mockEmit).toHaveBeenCalledTimes(1);
-	});
-
-	it("callUno emits MatchCallUno", () => {
-		storeGame.callUno();
-		expect(mockEmit).toHaveBeenCalledWith("match_call_uno");
 	});
 
 	it("safety timer releases isActionPending after 3001ms", () => {

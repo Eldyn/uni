@@ -48,7 +48,6 @@ channels:
           - $ref: "#/components/messages/MatchPlayCard"
           - $ref: "#/components/messages/MatchDrawCard"
           - $ref: "#/components/messages/MatchSubmitInput"
-          - $ref: "#/components/messages/MatchCallUno"
           - $ref: "#/components/messages/MatchExit"
           - $ref: "#/components/messages/LobbyListRequest"
           - $ref: "#/components/messages/LobbyCreate"
@@ -399,18 +398,6 @@ components:
       title: Submit Mandatory Input (e.g. colour choice)
       payload:
         $ref: "#/components/schemas/GameSubmitInputPayload"
-
-    MatchCallUno:
-      name: match_call_uno
-      title: Declare UNO
-      payload:
-        type: object
-        properties:
-          action:
-            type: string
-            enum: ["match_call_uno"]
-          request_id:
-            type: string
 
     MatchExit:
       name: match_exit

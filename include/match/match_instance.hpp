@@ -110,13 +110,6 @@ namespace match {
         void ProvideInput(const std::string& username, const std::string& input);
 
         /**
-         * @brief Declares "UNO" for the specific player.
-         * @param username The player calling UNO.
-         * @tag MATCH-INST-008
-         */
-        void CallUno(const std::string& username);
-
-        /**
          * @brief Invokes the artificial intelligence to make the Bot take its turn.
          * @tag MATCH-INST-009
          */
