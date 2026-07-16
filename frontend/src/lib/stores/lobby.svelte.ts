@@ -305,11 +305,12 @@ class StoreLobby {
 	}
 
 	/**
-	 * @brief Reports a started match and its ruleset to analytics (host-only).
-	 * Only the host can call `startMatch()`, so this fires exactly once per game,
-	 * keeping match and rule-usage counts accurate. The unused `count_*` deck
-	 * fields are deliberately omitted. See analytics.svelte.ts for the data-use
-	 * policy: gameplay research only, no personal data.
+	 * @brief Reports a started match to analytics (host-only, funnel tracking only).
+	 * Only the host can call `startMatch()`, so this fires exactly once per game.
+	 * Kept intentionally minimal (no ruleset detail) since a started match doesn't
+	 * guarantee completion; the full ruleset is reported instead by `match_settings`
+	 * at match end, alongside `match_end`/`match_saved`. See analytics.svelte.ts for
+	 * the data-use policy: gameplay research only, no personal data.
 	 * @tag FRONT-LOBBY-PRIV-002
 	 */
 	#trackMatchStart(): void {
@@ -317,24 +318,9 @@ class StoreLobby {
 		const active_mods = s?.active_mods ?? [];
 		const humanCount = this.current?.members.filter((m) => !m.is_bot).length;
 		storeAnalytics.track("match_start", {
-			settings_json: JSON.stringify({
-				active_mods,
-				is_public: s?.is_public,
-				turn_time_limit_ms: s?.turn_time_limit_ms,
-				starting_cards: s?.starting_cards,
-				bot_count: s?.bot_count,
-				bot_mode: s?.bot_mode,
-				allow_bot_takeover: s?.allow_bot_takeover,
-				allow_bot_replacement: s?.allow_bot_replacement,
-				save_state: s?.save_state,
-				quit_deletes_match: s?.quit_deletes_match
-			}),
-			mods: active_mods.join(",") || "none",
+			player_count: humanCount,
 			mod_count: active_mods.length,
-			starting_cards: s?.starting_cards,
-			turn_time_limit_ms: s?.turn_time_limit_ms,
-			bot_count: s?.bot_count,
-			player_count: humanCount
+			is_public: s?.is_public
 		});
 	}
 
