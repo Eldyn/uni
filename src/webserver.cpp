@@ -24,6 +24,7 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
                      std::string_view db_file, std::string_view frontend_path)
     : port_(port), db_file_(db_file), frontend_path_(frontend_path),
       trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
+      static_cache_enabled_(Env::Get("STATIC_CACHE", "1") != "0"),
       app_(AppHttp({.key_file_name = key_file.data(), .cert_file_name = cert_file.data()})),
       http_limiter_(std::stod(Env::Get("RATE_HTTP_BURST", "120")),
                     std::stod(Env::Get("RATE_HTTP_RPS",   "50"))),
@@ -37,7 +38,12 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
         throw std::runtime_error("Failed to initialise database");
     }
     RegisterRoutes();
-    LoadStaticFileCache();
+    if (static_cache_enabled_) {
+        LoadStaticFileCache();
+    } else {
+        Logger::Info("Static file cache: disabled (STATIC_CACHE=0), serving " + frontend_path_ +
+                     " straight off disk");
+    }
     if constexpr (kAppSSL) {
         Logger::Info("Key file: " + std::string(key_file) + " exists=" +
                      (fs::exists(key_file) ? "yes" : "NO"));

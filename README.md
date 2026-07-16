@@ -85,10 +85,11 @@ cmake --build --preset release                     # build
 > passed `--force`, which silently overwrote any existing default profile. Plain
 > `detect` preserves a profile you already have.
 
-The build copies `cert.pem`, `key.pem`, `.env` and the `public/` folder next to the
-executable. See [`BUILD.md`](BUILD.md) for prerequisites, TLS/`.env` generation, and
-the full list of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PATH`,
-`SSL_CERT_PATH`, `SSL_KEY_PATH`).
+The build copies `cert.pem`, `key.pem` and `.env` next to the executable, and
+symlinks the `public/` folder there. See [`BUILD.md`](BUILD.md) for prerequisites,
+TLS/`.env` generation, the frontend dev loop (`npm run watch`), and the full list
+of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PATH`,
+`SSL_CERT_PATH`, `SSL_KEY_PATH`, `STATIC_CACHE`).
 
 ---
 
@@ -97,8 +98,9 @@ the full list of runtime environment variables (`PORT`, `DB_PATH`, `FRONTEND_PAT
 The server reads its paths from environment variables (`DB_PATH`, `FRONTEND_PATH`,
 `SSL_CERT_PATH`, `SSL_KEY_PATH`, `PORT`) with sensible local defaults: it
 looks for the certificates, `.env`, the `public/` folder and the SQLite database
-(`uni.sqlite`) in the **current working directory**. Since the build copies the
-runtime assets next to the executable, you can start it in two equivalent ways:
+(`uni.sqlite`) in the **current working directory**. Since the build places the
+runtime assets next to the executable (copied for `cert.pem`/`key.pem`/`.env`,
+symlinked for `public/`), you can start it in two equivalent ways:
 
 ```bash
 # Linux / macOS, from the project root

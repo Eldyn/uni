@@ -150,14 +150,19 @@ foreach(asset IN LISTS RUNTIME_FILES)
 endforeach()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/public")
-    # A custom target with ALL (rather than a uni_server POST_BUILD step) so the
-    # copy runs on every build invocation, even when uni_server itself has
-    # nothing to relink, otherwise `npm run build`/`watch` changes to public/
-    # would silently never reach the server's runtime directory.
+    # Symlink rather than copy: a `copy_directory` snapshot only refreshes on
+    # the next `cmake --build`, so `npm run watch` rebuilds (which write
+    # straight into the root public/) never reached the binary's runtime
+    # public/ without manually rebuilding/restarting the server. A symlink
+    # means the running server always sees whatever's on disk at
+    # ${CMAKE_SOURCE_DIR}/public live, no rebuild needed. `rm -rf` first
+    # since create_symlink refuses to overwrite an existing path (e.g. a
+    # leftover directory copy from before this change).
     add_custom_target(sync_public ALL
         COMMAND ${CMAKE_COMMAND} -E echo ""
-        COMMAND ${CMAKE_COMMAND} -E echo "-- Copying public/ next to the executable"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        COMMAND ${CMAKE_COMMAND} -E echo "-- Symlinking public/ next to the executable"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_FILE_DIR:uni_server>/public"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
                 "${CMAKE_SOURCE_DIR}/public"
                 "$<TARGET_FILE_DIR:uni_server>/public"
     )

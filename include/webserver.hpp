@@ -135,6 +135,10 @@ private:
     std::string db_file_;        /**< Path of the sqlite DB file. */
     std::string frontend_path_;  /**< Path of the directory with built frontend static files. */
     bool        trust_proxy_;    /**< Honour X-Forwarded-For (set when behind a proxy). */
+    /** Whether static files are pre-loaded into `static_file_cache_` at startup (STATIC_CACHE
+     *  env var, default on). Set to 0 in dev so `ReadFile` always falls back to disk and a
+     *  `npm run watch` rebuild is served without restarting the server. */
+    bool        static_cache_enabled_;
 
     AppHttp app_;                /**< Main uWebSockets instance (SSL or plain per kAppSSL). */
     UwsBroadcaster  broadcaster_{app_}; /**< Transport layer: owned broadcaster backed by app_. */

@@ -54,6 +54,20 @@ cd ..
 This produces `public/` at the repository root, the directory the backend serves
 by default (`FRONTEND_PATH`, see below).
 
+### Dev loop (`npm run watch`)
+
+```bash
+cd frontend
+npm run watch   # vite build --watch --mode development, writes to ../public on every change
+```
+
+Run this alongside the server (`./build/Release/uni_server` in another terminal)
+and set `STATIC_CACHE=0` in `.env` (see [§5](#5-runtime-configuration-environment-variables)).
+`build/Release/public` is a symlink to the root `public/` (not a copy, see §4),
+and with the cache off the server reads every request straight off disk, so a
+saved frontend change shows up on the next browser refresh with no rebuild or
+restart of the server itself.
+
 ---
 
 ## 3. Backend dependencies (Conan)
@@ -79,8 +93,12 @@ cmake --build --preset release    # build
 - `release`, build preset for the `conan-release` configuration.
 
 The resulting binary is `build/Release/uni_server`. The build copies `cert.pem`,
-`key.pem`, `.env` and `public/` next to the executable, so it can be launched
-from either the project root or `build/Release`.
+`key.pem` and `.env` next to the executable, and symlinks `public/` there (not
+a copy — a `sync_public` custom target re-links it on every `cmake --build`
+invocation, but between invocations it's just a live pointer at the root
+`public/`, so a `npm run watch` rebuild is visible immediately without
+re-running CMake). Either way, the executable can be launched from either the
+project root or `build/Release`.
 
 ### TLS vs plain HTTP (`UNI_ENABLE_SSL`)
 
@@ -126,6 +144,7 @@ The backend reads all paths from the environment, with local-friendly defaults:
 | `FRONTEND_PATH` | `public`                 | directory with the built frontend |
 | `SSL_CERT_PATH` | `cert.pem`               | TLS certificate                   |
 | `SSL_KEY_PATH`  | `key.pem`                | TLS private key                   |
+| `STATIC_CACHE`  | `1`                      | pre-load every file under `FRONTEND_PATH` into memory at startup. Fast, but a file changed on disk afterwards needs a restart to be picked up. Set to `0` in dev (see the `npm run watch` loop in §2) so the server always reads straight off disk |
 
 These can be set in the shell, injected by Docker Compose, or placed in a `.env`
 file at the working directory.
