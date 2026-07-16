@@ -43,6 +43,13 @@ class StoreNavigation {
 
 	#screenRestored = false;
 
+	/** Coarse, non-identifying account bucket for analytics segmentation. */
+	get #accountType(): "registered" | "guest" | "anonymous" {
+		if (storeAuth.isLoggedIn) return "registered";
+		if (storeAuth.isGuest) return "guest";
+		return "anonymous";
+	}
+
 	constructor() {
 		ws.onOpen(() => {
 			if (this.#screenRestored) return;
@@ -69,7 +76,7 @@ class StoreNavigation {
 		this.#previous = this.current;
 		this.current = screen;
 		localStorage.setItem("currentScreen", screen);
-		storeAnalytics.track("screen_view", { screen });
+		storeAnalytics.track("screen_view", { screen, account_type: this.#accountType });
 	}
 
 	/**

@@ -12,6 +12,11 @@
  * data is used ONLY for game research (understanding which rules and flows
  * players use) to guide development.
  *
+ * `screen_view` carries a coarse `account_type` (registered/guest/anonymous)
+ * so real accounts can be told apart from guest sessions and non-authenticated
+ * traffic (crawlers). This is a bucket, not an identifier: no GA4 User-ID or
+ * other persistent cross-session identity is ever set.
+ *
  * Match lifecycle events, host-only, one per match:
  * - `match_start`: fired when a match begins (funnel/abandonment baseline).
  *   Minimal params only (player_count, mod_count, is_public) since a started
