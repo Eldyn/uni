@@ -7,10 +7,24 @@
  * one-liner and the `window.gtag` guard lives in exactly one location.
  *
  * Transparency: the events sent here describe gameplay only, which screens are
- * visited, lobby/match lifecycle, the rules a match was started with, and
- * coarse error/disconnect signals. No message content, card values, chat, or
- * personal data is collected. This data is used ONLY for game research
- * (understanding which rules and flows players use) to guide development.
+ * visited, lobby/match lifecycle, and coarse error/disconnect signals. No
+ * message content, card values, chat, or personal data is collected. This
+ * data is used ONLY for game research (understanding which rules and flows
+ * players use) to guide development.
+ *
+ * Match lifecycle events, host-only, one per match:
+ * - `match_start`: fired when a match begins (funnel/abandonment baseline).
+ *   Minimal params only (player_count, mod_count, is_public) since a started
+ *   match doesn't guarantee completion.
+ * - `match_end`: fired only when a match reaches a real winner. Carries
+ *   outcome/timing (duration_seconds, time_to_play_avg_ms, winner_is_bot).
+ * - `match_saved`: fired when a match ends without a winner but its state was
+ *   saved (mid-match quit with save_state on). A true abort/delete (no
+ *   winner, no save) fires neither event; abandonment is measured in GA4 by
+ *   exclusion (match_start count − match_end count − match_saved count).
+ * - `match_settings`: fired alongside match_end/match_saved, carrying the
+ *   full flattened ruleset (mods, bot_count, starting_cards, etc.) as
+ *   separate params rather than a JSON blob, so GA4 can graph each field.
  */
 
 /** Allowed shapes for a gtag event parameter value. */
