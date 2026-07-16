@@ -184,25 +184,62 @@ class StoreGame {
 		ws.on(ServerAction.MatchOver, (data) => {
 			if (!this.state) return;
 
-			const winner = data.winner;
+			const winner = data.winner as string;
+			const reason = data.reason as string | undefined;
 			this.state.is_over = true;
-			this.state.winner = winner as string;
+			this.state.winner = winner;
 			this.actionRequired = null;
 			this.actionContext = null;
 
 			this.#clearTimer();
 
-			// MatchOver fires on every client; emit the analytics event only from
+			const duration_seconds =
+				this.#matchStartedAt !== null
+					? Math.round((Date.now() - this.#matchStartedAt) / 1000)
+					: undefined;
+			const time_to_play_avg_ms = this.#humanTurnDurations.length
+				? Math.round(
+						this.#humanTurnDurations.reduce((a, b) => a + b, 0) /
+							this.#humanTurnDurations.length
+					)
+				: undefined;
+
+			// MatchOver fires on every client; emit the analytics events only from
 			// the host so a single match counts once (mirrors host-only match_start).
 			if (storeLobby.current?.host === storeAuth.username) {
-				storeAnalytics.track("match_end", {
-					duration_seconds:
-						this.#matchStartedAt !== null
-							? Math.round((Date.now() - this.#matchStartedAt) / 1000)
-							: undefined
-				});
+				const s = storeLobby.current?.settings;
+				const active_mods = s?.active_mods ?? [];
+				const settingsParams = {
+					mods: active_mods.join(",") || "none",
+					mod_count: active_mods.length,
+					starting_cards: s?.starting_cards,
+					turn_time_limit_ms: s?.turn_time_limit_ms,
+					bot_count: s?.bot_count,
+					bot_mode: s?.bot_mode,
+					allow_bot_takeover: s?.allow_bot_takeover,
+					allow_bot_replacement: s?.allow_bot_replacement,
+					save_state: s?.save_state,
+					quit_deletes_match: s?.quit_deletes_match,
+					is_public: s?.is_public
+				};
+
+				if (winner) {
+					storeAnalytics.track("match_end", {
+						duration_seconds,
+						time_to_play_avg_ms,
+						winner_is_bot: this.state.players.find((p) => p.username === winner)?.is_bot
+					});
+					storeAnalytics.track("match_settings", settingsParams);
+				} else if (reason) {
+					storeAnalytics.track("match_saved", { duration_seconds });
+					storeAnalytics.track("match_settings", settingsParams);
+				}
+				// winner empty AND reason empty: true abort/delete, no event —
+				// counted as abandoned only by exclusion (match_start - match_end - match_saved).
 			}
 			this.#matchStartedAt = null;
+			this.#turnStartedAt = null;
+			this.#humanTurnDurations = [];
 		});
 
 		ws.on(ServerAction.MatchStateUpdated, (data: any) => {
