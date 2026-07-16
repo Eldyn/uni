@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
-## [Unreleased]
+## [0.5.3] - 2026-07-16
 
 ### Added
 
 - **Match pacing and completion analytics**: `match_end` now carries `time_to_play_avg_ms`, the average time a human player took per turn during the match (bot turns are excluded so their near-instant plays don't pull the average down), and `winner_is_bot`. `game.svelte.ts` tracks each turn's start time in `MatchStateUpdated` and accumulates human-only turn durations for the current match.
 - **`match_saved` event**: a mid-match quit with `save_state` on ends the match without a winner but keeps its state, and now reports its own `match_saved` event (`duration_seconds`) instead of being indistinguishable from a real completion. A true abort with no save (`quit_deletes_match`, no save) fires neither `match_end` nor `match_saved`, so the abandon rate can be read off as started minus completed minus saved.
 - **`match_settings` event**: the full ruleset (mods, starting cards, turn time limit, bot settings, save/quit behavior, public/private) is now its own event with flat parameters, fired alongside `match_end`/`match_saved`, instead of a single `settings_json` string that GA4 couldn't break into separate dimensions.
+- **`account_type` dimension on `screen_view`**: reports `registered`, `guest`, or `anonymous` depending on the current session, so real accounts can be told apart from guest sessions and pre-auth traffic in GA4. No GA4 User-ID or other persistent identity is set, this is a coarse bucket only.
 
 ### Changed
 
