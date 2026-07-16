@@ -532,7 +532,7 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
     uint32_t id  = lobby_ptr->id;
     bool was_host = (lobby_ptr->host == username);
 
-    bool lobby_still_exists = RemoveMember(id, username, true, request_id);
+    bool lobby_still_exists = RemoveMember(id, username, true, request_id, ctx.socket_data);
 
     if (lobby_still_exists) {
         Lobby* remaining = GetLobbyById(id);
@@ -1065,7 +1065,8 @@ void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
  * @return true If the lobby survived the removal mutation.
  */
 bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& username,
-                                   bool explicit_leave, const std::string& request_id) {
+                                   bool explicit_leave, const std::string& request_id,
+                                   PerSocketData* self_sd) {
     auto it = lobbies_.find(lobby_id);
     if (it == lobbies_.end()) return false;
 
@@ -1077,7 +1078,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
         presence_.ClearUserLobby(username);
 
         if (result.was_connected && result.socket) {
-            PerSocketData* sd = result.socket->getUserData();
+            PerSocketData* sd = self_sd ? self_sd : result.socket->getUserData();
             if (sd) {
                 sd->lobby_code.clear();
                 sd->lobby_id = 0;

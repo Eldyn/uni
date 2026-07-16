@@ -319,11 +319,16 @@ private:
      * @param username Username of the player to remove.
      * @param explicit_leave True if the user left voluntarily.
      * @param request_id ID of the request (optional, for tracking).
+     * @param self_sd When the caller already holds the removed member's own
+     * PerSocketData (e.g. HandleLeave, which dispatches on the leaver's own
+     * connection), pass it here so this skips `socket->getUserData()` and
+     * uses it directly instead. Left null for removals acting on someone
+     * else's socket (kick, eviction), which still resolve it that way.
      * @return true if the lobby still exists, false if it was destroyed.
      * @tag LOBBY-PRIV-003
      */
     bool RemoveMember(uint32_t lobby_id, const std::string& username, bool explicit_leave = true,
-                       const std::string& request_id = "");
+                       const std::string& request_id = "", PerSocketData* self_sd = nullptr);
 
     /**
      * @brief Finds which lobby a given user currently belongs to.
