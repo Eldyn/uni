@@ -41,8 +41,13 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 	}
 }));
 
+vi.mock("$lib/stores/lobby.svelte", () => ({
+	storeLobby: { current: null as { invite_code: string } | null }
+}));
+
 import { chatStore } from "$lib/stores/chat.svelte";
 import { storeAuth } from "$lib/stores/auth.svelte";
+import { storeLobby } from "$lib/stores/lobby.svelte";
 
 const fire = (action: string, data: Record<string, unknown>) => {
 	for (const h of handlers[action] ?? []) h(data);
@@ -176,7 +181,7 @@ describe("chatStore: party channel gated by lobby_code", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		chatStore.activeChannel = "party";
-		connectionStatus.lobby_code = "";
+		storeLobby.current = null;
 	});
 
 	it("isPartyAvailable is false when not in a lobby", () => {
@@ -184,7 +189,7 @@ describe("chatStore: party channel gated by lobby_code", () => {
 	});
 
 	it("isPartyAvailable is true once lobby_code is set", () => {
-		connectionStatus.lobby_code = "ABC123";
+		storeLobby.current = { invite_code: "ABC123" } as typeof storeLobby.current;
 		expect(chatStore.isPartyAvailable).toBe(true);
 	});
 
@@ -195,7 +200,7 @@ describe("chatStore: party channel gated by lobby_code", () => {
 	});
 
 	it("send() on party while in a lobby emits channel: lobby", () => {
-		connectionStatus.lobby_code = "ABC123";
+		storeLobby.current = { invite_code: "ABC123" } as typeof storeLobby.current;
 		chatStore.send("anyone here?");
 		expect(mockEmit).toHaveBeenCalledWith("chat_send", { message: "anyone here?", channel: "lobby" });
 	});
@@ -266,6 +271,7 @@ describe("chatStore: DM history hydration", () => {
 describe("chatStore: shard-based history loading (loadMoreHistory)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		storeLobby.current = null;
 	});
 
 	it("loadMoreHistory('party') is a no-op, lobby chat has no history endpoint", async () => {
