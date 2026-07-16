@@ -2,6 +2,7 @@
 	import { tick } from "svelte";
 	import RichText from "$components/common/RichText.svelte";
 	import { chatStore, type ChatChannel } from "$stores/chat.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import { censorText } from "$utils/censor.svelte";
 
 	let { channel }: { channel: ChatChannel } = $props();
@@ -60,13 +61,11 @@
 				</button>
 			{/if}
 			{#each lines as line (line.id)}
-				<p
-					class="pixel-bordered break-words px-2 py-1 font-tiny text-sm leading-relaxed text-text [--pc-border:var(--accent)]"
-				>
+				<p class="break-words px-2 py-1 font-tiny text-sm leading-relaxed text-text">
 					<span
 						class="uppercase"
 						style="font-family: var(--pypx); font-weight: 700; color: {line.color};"
-						>{censorText(line.username)}:</span
+						>{line.username === storeAuth.username ? "You" : censorText(line.username)}:</span
 					>
 					<RichText text={line.text} />
 				</p>
