@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
+## [0.5.4] - 2026-07-16
+
+### Changed
+
+- **Chat log, own messages labeled "You"**: `ChatLog.svelte` shows "You" instead of your own username on lines you sent, other authors still show their username as before.
+- **Chat log, plain lines instead of pixel-bordered bubbles**: individual chat lines dropped the `.pixel-bordered` notch treatment added in 0.5.2, a border per line read as noisy in a scrolling log.
+
+### Fixed
+
+- **Guest identity stuck after logging into a real account**: logging in, starting a guest session, or logging out all rotate the `ws_token` cookie the WebSocket upgrade authenticates with, but an already-open socket kept whatever identity it upgraded with until it reconnected on its own. Sending chat right after logging in (without a page reload) still posted under the old guest name. `auth.svelte.ts` now forces the socket to reconnect after each of the three so it re-upgrades under the new identity right away.
+- **Frontend dev rebuilds not reaching the running server**: `sync_public`'s `copy_directory` step only refreshed `build/Release/public` on the next `cmake --build`, so a `npm run watch` rebuild (which writes straight into the root `public/`) needed a manual server restart to show up. `build/Release/public` is now a symlink to the root `public/` instead of a copy, always current. The server also pre-loads every static file into memory at startup for fast repeat serving in production; a new `STATIC_CACHE` env var (default on) can be set to `0` in dev so it reads straight off disk instead, no restart needed either way.
+- **`LobbyController::RemoveMember` no longer walks socket internals for a departing member's own leave**: the explicit-leave path (a player hitting "leave lobby" while still connected) already has the leaver's `PerSocketData` from the request itself, `RemoveMember` now takes it directly instead of re-deriving it via `socket->getUserData()`, needed only for removals acting on someone else's socket (kick, eviction).
+
 ## [0.5.3] - 2026-07-16
 
 ### Added
