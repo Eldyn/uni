@@ -142,6 +142,12 @@ class StoreGame {
 	/** Timestamp (ms) when this client entered the current match, for duration analytics. */
 	#matchStartedAt: number | null = null;
 
+	/** Timestamp (ms) when the current turn began, for per-turn pacing analytics. */
+	#turnStartedAt: number | null = null;
+
+	/** Duration (ms) of every completed human turn this match, for time_to_play_avg. */
+	#humanTurnDurations: number[] = [];
+
 	/** Derived property to instantly identify the local player. */
 	localPlayer = $derived(
 		this.state?.players.find((p) => p.username === storeAuth.username) ?? null
@@ -160,6 +166,8 @@ class StoreGame {
 	returnToLobby() {
 		this.#clearTimer();
 		this.#matchStartedAt = null;
+		this.#turnStartedAt = null;
+		this.#humanTurnDurations = [];
 		this.state = null;
 		this.actionRequired = null;
 		this.actionContext = null;
@@ -205,6 +213,18 @@ class StoreGame {
 				return;
 			}
 			const stateJson = parsed.data;
+
+			const previousTurn = this.state?.current_turn;
+			const previousPlayers = this.state?.players;
+			if (previousTurn && previousTurn !== stateJson.current_turn) {
+				const previousPlayer = previousPlayers?.find((p) => p.username === previousTurn);
+				if (previousPlayer && !previousPlayer.is_bot && this.#turnStartedAt !== null) {
+					this.#humanTurnDurations.push(Date.now() - this.#turnStartedAt);
+				}
+			}
+			if (previousTurn !== stateJson.current_turn) {
+				this.#turnStartedAt = Date.now();
+			}
 
 			this.state = {
 				active_type: TYPE_MAP[stateJson.active_type],
