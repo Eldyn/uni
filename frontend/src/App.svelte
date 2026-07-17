@@ -82,8 +82,10 @@
 			storeToast.error(`Failed to connect to server. Please try again. (${error})`);
 		});
 
+		// INFO: The modal overlays whatever screen was already current, don't
+		//       force a navigation on top of it, logging in from Main should
+		//       leave you on Main (now showing the logged-in hub).
 		storeNavigation.closeAuthModal();
-		storeNavigation.goto("lobbies");
 	}
 
 	//@ts-ignore

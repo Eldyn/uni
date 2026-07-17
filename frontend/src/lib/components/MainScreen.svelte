@@ -4,9 +4,15 @@
 	import TextEffects from "./common/TextEffects.svelte";
 
 	let logoutPending = $state(false);
+	/** Measured height of the fixed bottom dock, so the hero above it can
+	 *  center itself in the space that's actually free, not the raw viewport
+	 *  (which the dock would otherwise overlap on short/tall screens). */
+	let dockHeight = $state(0);
 
 	async function playAsGuest() {
-		if (await storeAuth.loginAsGuest()) storeNavigation.goto("lobbies");
+		// INFO: No forced navigation, playing as guest from Main leaves you on
+		//       Main (now showing the guest hub) instead of jumping to Lobbies.
+		await storeAuth.loginAsGuest();
 	}
 
 	async function handleLogout() {
@@ -23,21 +29,29 @@
 		label: string;
 		icon: string;
 		accent: string;
-		/** Absent = tile is a "coming soon" placeholder. */
+		/** Absent = tile has no action (still shows its badge, if any). */
 		action?: () => void;
+		/** Small caption under the label, e.g. "Soon" or "Log In!". */
+		badge?: string;
 	}
 
-	// Stats/saved matches are account-only; Settings is local browser state, so
-	// it works for guests too. Decks/Skins have no action either way, unbuilt.
+	// This hub only ever renders once signed in (guest or full account, see
+	// the template below), so Stats is the only tile that still branches on
+	// auth state: a guest taps it to open the login modal, a full account
+	// goes straight to their stats. Settings is local browser state, works
+	// either way. Decks/Skins have no action either way, unbuilt.
 	const HUB_TILES = $derived<HubTile[]>([
 		{
 			label: "Stats",
 			icon: "hn-crown",
 			accent: "text-blue-card",
-			action: storeAuth.isLoggedIn ? () => storeNavigation.goto("stats") : undefined
+			action: storeAuth.isLoggedIn
+				? () => storeNavigation.goto("stats")
+				: () => storeNavigation.gotoAuth("login"),
+			badge: storeAuth.isLoggedIn ? undefined : "Log In!"
 		},
-		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card" },
-		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card" },
+		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card", badge: "Soon" },
+		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card", badge: "Soon" },
 		{
 			label: "Settings",
 			icon: "hn-cog",
@@ -66,7 +80,7 @@
 </script>
 
 <div
-	class="relative flex min-h-screen flex-col overflow-hidden bg-bg"
+	class="relative min-h-screen overflow-hidden bg-bg"
 	style="-webkit-font-smoothing: none; -moz-osx-font-smoothing: grayscale; font-smooth: never;"
 >
 	<!-- Background art: y-position tuned to align the dark cutout with the logo -->
@@ -83,19 +97,33 @@
 	<!-- Dock gradient: fixed, always bottom-half of viewport, independent of content height -->
 	<div class="dock-bg pointer-events-none fixed bottom-0 left-0 right-0 z-[5]"></div>
 
-	<!-- Upper hero zone: logo pushed toward the dock, not mid-viewport -->
-	<div class="relative z-10 flex flex-1 flex-col items-center justify-end px-4 pb-6">
-		<TextEffects
-			text="UNI!"
-			effect="undulate"
-			class="logo-text title-hero"
-			font="var(--heading)"
-			amplitude={20}
-			speed={1}
-			frequency={0.15}
-		/>
+	<!-- Hero zone: logo + welcome-back line, always centered in the space
+	     above the dock (not bottom-anchored, which left a growing empty gap
+	     up top the taller the dock got, worst on narrow/tall screens). -->
+	<div
+		class="relative z-10 flex min-h-screen flex-col items-center justify-center px-4"
+		style="padding-bottom: {dockHeight}px; transform: translateY(3rem);"
+	>
+		<div class="relative flex items-center justify-center">
+			<!-- Dither halo behind the logo: sized/centered on the text itself so
+			     it floats along with it, instead of the old page-fixed radial cutout
+			     baked into bg_main.png, which no longer tracks a centered logo. -->
+			<div
+				class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
+				style="background-image: url('/assets/dither-radial.png');"
+			></div>
+			<TextEffects
+				text="UNI!"
+				effect="undulate"
+				class="logo-text title-hero relative z-10"
+				font="var(--heading)"
+				amplitude={20}
+				speed={1}
+				frequency={0.15}
+			/>
+		</div>
 		{#if storeAuth.isLoggedIn || storeAuth.isGuest}
-			<p class="mt-4 font-tiny text-sm text-text/70">
+			<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
 				{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
 				<span class="text-accent">{storeAuth.username}</span>
 				<button
@@ -109,8 +137,12 @@
 		{/if}
 	</div>
 
-	<!-- Bottom dock: actions + nav -->
-	<div class="dock relative z-10 w-full px-4 pb-6 pt-6">
+	<!-- Bottom dock: actions + nav, fixed so its own height (which varies a
+	     lot by auth state) never pushes the hero above around, only pads it. -->
+	<div
+		bind:clientHeight={dockHeight}
+		class="dock fixed inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
+	>
 		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
 			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
 				<!-- Signed out entirely: login + guest CTA -->
@@ -134,7 +166,7 @@
 					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
 				</button>
 			{:else}
-				<!-- Logged-in: primary CTA -->
+				<!-- Logged-in or guest: primary CTA -->
 				<button
 					class="btn pixel-corners w-full py-4 text-xl tracking-wider"
 					onclick={() => storeNavigation.goto("lobbies")}
@@ -151,12 +183,13 @@
 							style="--pc-fill: var(--surface); --pc-border: var(--border);"
 							aria-disabled={!tile.action}
 							onclick={() => tile.action?.()}
-							aria-label="{tile.label}{tile.action ? '' : ', coming soon'}"
+							aria-label="{tile.label}{tile.badge ? `, ${tile.badge}` : ''}"
 						>
 							<i class="hn pix {tile.icon} text-xl {tile.accent}"></i>
 							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>
-							{#if !tile.action}
-								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">Soon</span>
+							{#if tile.badge}
+								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">{tile.badge}</span
+								>
 							{/if}
 						</button>
 					{/each}
@@ -202,7 +235,15 @@
 	   stays at 10rem on wide/desktop. clamp handles it without a hard breakpoint. */
 	:global(.logo-text.title-hero) {
 		font-size: clamp(4rem, 26vw, 10rem);
-		text-shadow: clamp(2px, 0.3vw, 4px) clamp(2px, 0.3vw, 4px) 0px var(--pixel-shadow);
+	}
+
+	/* Square halo, generously oversized relative to the logo text so it reads
+	   as an aura rather than a tight outline; scales with the same viewport
+	   range as the logo itself so it keeps looking proportional at every size. */
+	.dither-halo {
+		width: clamp(27rem, 135vw, 51rem);
+		height: clamp(27rem, 135vw, 51rem);
+		image-rendering: pixelated;
 	}
 
 	.dock-bg {

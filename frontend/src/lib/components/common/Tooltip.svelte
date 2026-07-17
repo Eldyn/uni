@@ -75,7 +75,7 @@
 		transform: translate(var(--shift-x), var(--shift-y));
 
 		pointer-events: none;
-		z-index: 9999;
+		z-index: 10001;
 
 		background: rgba(16, 1, 16, 0.94);
 		border: 2px solid #2e0664;

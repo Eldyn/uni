@@ -260,8 +260,6 @@
 		font-size: 10rem;
 		line-height: 1;
 		color: #fff;
-		-webkit-text-stroke: 2px var(--pixel-shadow);
-		text-shadow: 5px 5px 0px var(--pixel-shadow);
 	}
 	.title-screen {
 		font-family: var(--heading);
