@@ -455,19 +455,21 @@ class StoreLobby {
 	 * @tag FRONT-LOBBY-MTH-008
 	 */
 	async leave(): Promise<void> {
+		// Optimistic: drop local lobby state and navigate away immediately
+		// rather than waiting for the server's LobbyLeft echo, so the UI
+		// doesn't stall on round-trip latency for an action that's virtually
+		// never rejected.
+		this.#reset();
+		storeNavigation.goto("lobbies");
+		storeAudio.playSfx("sfx.lobby.leave");
+		storeAnalytics.track("lobby_leave");
+
 		try {
 			// emit() silently drops frames on a closed socket, reconnect first so
-			// the server actually processes the leave and echoes LobbyLeft back.
+			// the server actually processes the leave.
 			await ws.connect();
 			ws.emit(ClientAction.LobbyLeave);
-			// PLACEHOLDER-SFX: sfx.lobby.leave, departure blip when the local
-			// player leaves the lobby; fires optimistically here since LobbyLeave
-			// has no emitAndWait ack, mirroring the existing emit-and-forget pattern.
-			storeAudio.playSfx("sfx.lobby.leave");
-			storeAnalytics.track("lobby_leave");
 		} catch {
-			this.#reset();
-			storeNavigation.goto("lobbies");
 			storeToast.error("Connection lost, left the lobby locally.");
 		}
 	}
