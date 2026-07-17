@@ -339,6 +339,17 @@ namespace match {
                         throw std::runtime_error(part_status.error().message);
                     }
 
+                    // INFO: Guests (and bots) have no `users` row, they're
+                    //       excluded from player_stats/the leaderboard
+                    //       entirely instead of accumulating throwaway stats
+                    //       under a name nobody can look back up.
+                    auto account_row = db.QueryOne(
+                        "SELECT 1 FROM users WHERE username = ?", {p.username});
+                    if (!account_row) {
+                        throw std::runtime_error(account_row.error().message);
+                    }
+                    if (!account_row->has_value()) continue;
+
                     auto profile_status = db.Exec(
                         "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
                         {p.username});
