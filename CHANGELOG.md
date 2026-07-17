@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/). The
 `VERSION` file at the repo root is the single source of truth for the current
 version; each release below corresponds to a `vX.Y.Z` git tag.
 
+## [Unreleased]
+
+## [0.5.5] - 2026-07-17
+
+### Added
+
+- **Backend log level threshold and optional file sink**: `Logger` now filters calls against `LOG_LEVEL` (`debug`/`info`/`warn`/`error`/`silent`, defaults to `info`), the noisy per-request `Log`/`WS`/`Lobby`/`HTTP` trace calls are Debug-level and stay quiet unless `LOG_LEVEL=debug` is set. Setting `LOG_FILE` to a path mirrors every printed line there in plain text (no ANSI codes), left unset by default so nothing changes for local dev.
+- **Client IP in connection/request logs**: WebSocket connection open/close, the per-action WS trace log, the per-route HTTP trace log, and the upgrade-rejection warnings in `webserver.cpp` now all include `ip=<address>` (already captured on `PerSocketData` for rate limiting), so abusive clients can be identified by grepping `ip=` instead of cross-referencing usernames.
+
+### Changed
+
+- **Main screen login/guest flow no longer forces navigation**: `App.svelte` and `MainScreen.svelte` no longer `goto("lobbies")` after closing the auth modal or playing as guest, the modal overlays whatever screen was already current, so logging in or starting a guest session from Main now leaves you on Main, re-rendered as the logged-in/guest hub instead of jumping to Lobbies.
+- **Main screen hub tiles**: `HubTile.action` no longer doubles as the "coming soon" flag, a new `badge?` field carries the caption (e.g. "Soon") independently. The Stats tile now works for guests too, tapping it opens the login modal (`storeNavigation.gotoAuth("login")`) instead of sitting inert; Decks and Skins keep an explicit "Soon" badge.
+- **Main screen hero layout**: the logo and welcome-back line are now centered in the space actually free above the dock, measured via `dockHeight` (`bind:clientHeight`) instead of bottom-anchored with `flex-end`, which left a growing empty gap up top the taller the dock got. The dock itself is now `fixed` to the bottom instead of in-flow. A new dither-radial halo image (`dither-radial.png`) sits behind the logo, replacing the page-fixed radial cutout baked into `bg_main.png`, which didn't track a re-centered logo.
+- **Lobby leave is now optimistic**: `StoreLobby.leaveLobby()` clears local lobby state and navigates back to Lobbies immediately instead of waiting for the server's `LobbyLeft` echo, an action that's virtually never rejected shouldn't stall the UI on round-trip latency.
+
+### Fixed
+
+- **WebSocket duplicate-reconnect race**: `WebSocketClient` could open a second, uncoordinated socket under the same identity when a `disconnect()`→`connect()` pair raced against that first socket's own `onclose` (e.g. re-upgrading identity on login), or when a pending auto-retry from a previous drop survived an explicit `connect()`. Both orphaned a socket that stayed subscribed to broadcast topics, causing duplicate chat messages per login/logout cycle. Sockets closed via `disconnect()` are now tracked in an `intentionallyClosedSockets` WeakSet so their own `onclose` never schedules a reconnect, `connect()` now clears any pending reconnect timer before opening a new socket, and both reconnect paths now go through `connect()` (which already dedupes concurrent attempts) instead of `_connectOnce()` directly.
+- **Guests and bots no longer accumulate player stats**: `match_instance.cpp` now checks for a matching `users` row before inserting into `player_stats`, guests and bots (who have none) are skipped entirely instead of showing up in the leaderboard under a throwaway username nobody can look back up.
+
 ## [0.5.4] - 2026-07-16
 
 ### Changed
