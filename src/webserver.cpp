@@ -211,21 +211,21 @@ void WebServer::RegisterRoutes() {
 
             auto payload = AuthService::VerifyToken(*token);
 
-            if (!payload) {
-                Logger::Warn("[WS] Rejected upgrade, invalid token");
-                res->writeStatus("401 Unauthorized")->end();
-                return;
-            }
-
             // INFO: Capture the IP before upgrade() invalidates the request
             //       object.
             const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+
+            if (!payload) {
+                Logger::Warn("[WS] Rejected upgrade, invalid token ip=" + ip);
+                res->writeStatus("401 Unauthorized")->end();
+                return;
+            }
 
             // INFO: Cap concurrent connections per IP so one host cannot
             //       exhaust the server's sockets. The counter is incremented
             //       here and decremented in OnSocketClosed.
             if (max_conn_per_ip_ > 0 && conn_per_ip_[ip] >= max_conn_per_ip_) {
-                Logger::Warn("[WS] Rejected upgrade, connection cap reached for IP " + ip);
+                Logger::Warn("[WS] Rejected upgrade, connection cap reached ip=" + ip);
                 res->writeStatus("429 Too Many Requests")->end();
                 return;
             }

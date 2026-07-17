@@ -1,11 +1,16 @@
 #pragma once
 #include <iostream>
+#include <fstream>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <chrono>
 #include <ctime>
 #include <sstream>
 #include <iomanip>
+#include <cstdlib>
+#include <algorithm>
+#include <cctype>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -13,14 +18,28 @@
 
 /**
  * @file logger.hpp
- * @brief Thread-safe, colour-formatted logging system for the console.
+ * @brief Thread-safe, colour-formatted logging system for the console and an
+ * optional plain-text file sink.
  */
+
+/**
+ * @enum LogLevel
+ * @brief Severity ordering used to filter which calls actually print.
+ *
+ * `Log`, `WS`, `Lobby` and `HTTP` are per-message trace helpers and log at
+ * `Debug` — noisy by default, so they're suppressed unless `LOG_LEVEL=debug`
+ * is set. `Info`/`Warn`/`Error` map to their own levels.
+ * @tag LOG-ENM-001
+ */
+enum class LogLevel { Debug = 0, Info = 1, Warn = 2, Error = 3, Silent = 4 };
 
 /**
  * @struct Logger
  * @brief Provides static methods to print formatted log messages to standard output.
  * * Implements cross-platform ANSI colour support (enabling VT processing on Windows)
  * and automatically formats the messages with millisecond timestamps and aligned tags.
+ * Configuration (minimum level, optional file sink) is read once from the
+ * process environment (`LOG_LEVEL`, `LOG_FILE`) on first use.
  * @tag LOG-CLS-001
  */
 struct Logger {
@@ -37,10 +56,30 @@ private:
     static constexpr std::string_view White   = "\033[37m";
     static constexpr std::string_view Bold    = "\033[1m";
 
-    inline static bool is_initialized = false;
+    inline static bool       is_initialized = false;
+    inline static LogLevel   threshold      = LogLevel::Info;
+    inline static std::ofstream file_sink;
+    inline static std::mutex mutex_;
 
     /**
-     * @brief Enables ANSI support on Windows terminals.
+     * @brief Parses `LOG_LEVEL` values ("debug"/"info"/"warn"/"error"/"silent",
+     * case-insensitive) into a LogLevel, falling back to Info on anything else.
+     * @tag LOG-PRIV-004
+     */
+    static LogLevel ParseLevel(std::string_view raw) {
+        std::string s(raw);
+        std::transform(s.begin(), s.end(), s.begin(),
+                        [](unsigned char c) { return std::tolower(c); });
+        if (s == "debug")  return LogLevel::Debug;
+        if (s == "warn")   return LogLevel::Warn;
+        if (s == "error")  return LogLevel::Error;
+        if (s == "silent") return LogLevel::Silent;
+        return LogLevel::Info;
+    }
+
+    /**
+     * @brief One-time setup: enables ANSI on Windows, reads `LOG_LEVEL` to set
+     * the print threshold, and opens `LOG_FILE` as a plain-text sink if set.
      * @tag LOG-PRIV-001
      */
     static void Init() {
@@ -55,15 +94,21 @@ private:
             }
         }
 #endif
+        if (const char* level = std::getenv("LOG_LEVEL")) {
+            threshold = ParseLevel(level);
+        }
+        if (const char* path = std::getenv("LOG_FILE"); path && *path) {
+            file_sink.open(path, std::ios::app);
+        }
         is_initialized = true;
     }
 
     /**
      * @brief Generates a timestamp formatted with milliseconds (e.g. "[14:32:01.045]").
-     * @return std::string Timestamp coloured in grey.
+     * @param colored Wraps the timestamp in the grey ANSI code when true (console output).
      * @tag LOG-PRIV-002
      */
-    static std::string timestamp() {
+    static std::string timestamp(bool colored) {
         auto now = std::chrono::system_clock::now();
         auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
                        now.time_since_epoch()) % 1000;
@@ -80,30 +125,43 @@ private:
         strftime(buf, sizeof(buf), "%H:%M:%S", &tm_buf);
 
         std::ostringstream oss;
-        oss << Gray << "[" << buf << "." << std::setfill('0') << std::setw(3) << ms.count()
-            << "]" << Reset;
+        if (colored) oss << Gray;
+        oss << "[" << buf << "." << std::setfill('0') << std::setw(3) << ms.count() << "]";
+        if (colored) oss << Reset;
         return oss.str();
     }
 
     /**
-     * @brief Core function for formatting and printing.
+     * @brief Core function for formatting and printing. Drops the call entirely
+     * if `level` is below the configured `LOG_LEVEL` threshold. Writes a
+     * colourised line to stdout and, when `LOG_FILE` is set, an
+     * ANSI-free mirror line to the file sink — both share the same
+     * `[HH:MM:SS.mmm] [TAG] message` shape so either is trivially greppable.
      * Uses C++17 fold expressions to efficiently unpack the variadic arguments.
      * @tag LOG-PRIV-003
      */
     template<typename... Args>
-    static void Print(std::string_view color, std::string_view tag, Args&&... args) {
+    static void Print(LogLevel level, std::string_view color, std::string_view tag,
+                       Args&&... args) {
         if (!is_initialized) Init();
+        if (level < threshold) return;
 
-        std::ostringstream oss;
-        oss << timestamp() << " ";
+        std::ostringstream body;
+        (body << ... << std::forward<Args>(args));
+        const std::string message = body.str();
 
-        oss << Gray << "[" << Reset << color << Bold << std::left << std::setw(5) << tag << Reset
-            << Gray << "] " << Reset;
+        std::ostringstream console;
+        console << timestamp(true) << " "
+                << Gray << "[" << Reset << color << Bold << std::left << std::setw(5) << tag
+                << Reset << Gray << "] " << Reset << message;
 
-        // C++17 Fold Expression to unpack arguments efficiently
-        (oss << ... << std::forward<Args>(args));
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::cout << console.str() << "\n";
 
-        std::cout << oss.str() << "\n";
+        if (file_sink.is_open()) {
+            file_sink << timestamp(false) << " [" << tag << "] " << message << "\n";
+            file_sink.flush();
+        }
     }
 
 public:
@@ -112,49 +170,63 @@ public:
      * @tag LOG-MTH-001
      */
     template<typename... Args>
-    static void Info(Args&&... args) { Print(Green, "INFO", std::forward<Args>(args)...); }
+    static void Info(Args&&... args) {
+        Print(LogLevel::Info, Green, "INFO", std::forward<Args>(args)...);
+    }
 
     /**
      * @brief Logs a non-blocking warning (Yellow).
      * @tag LOG-MTH-002
      */
     template<typename... Args>
-    static void Warn(Args&&... args) { Print(Yellow, "WARN", std::forward<Args>(args)...); }
+    static void Warn(Args&&... args) {
+        Print(LogLevel::Warn, Yellow, "WARN", std::forward<Args>(args)...);
+    }
 
     /**
      * @brief Logs a critical error (Red).
      * @tag LOG-MTH-003
      */
     template<typename... Args>
-    static void Error(Args&&... args) { Print(Red, "ERROR", std::forward<Args>(args)...); }
+    static void Error(Args&&... args) {
+        Print(LogLevel::Error, Red, "ERROR", std::forward<Args>(args)...);
+    }
 
     /**
-     * @brief Logs an event specific to the WebSocket layer (Cyan).
+     * @brief Logs an event specific to the WebSocket layer (Cyan). Trace-level.
      * @tag LOG-MTH-004
      */
     template<typename... Args>
-    static void WS(Args&&... args) { Print(Cyan, " WS ", std::forward<Args>(args)...); }
+    static void WS(Args&&... args) {
+        Print(LogLevel::Debug, Cyan, " WS ", std::forward<Args>(args)...);
+    }
 
     /**
-     * @brief Logs an event specific to the LobbyController (dark Yellow).
+     * @brief Logs an event specific to the LobbyController (dark Yellow). Trace-level.
      * @tag LOG-MTH-005
      */
     template<typename... Args>
-    static void Lobby(Args&&... args) { Print(Yellow, "LOBBY", std::forward<Args>(args)...); }
+    static void Lobby(Args&&... args) {
+        Print(LogLevel::Debug, Yellow, "LOBBY", std::forward<Args>(args)...);
+    }
 
     /**
-     * @brief Logs an event specific to HTTP requests (Magenta).
+     * @brief Logs an event specific to HTTP requests (Magenta). Trace-level.
      * @tag LOG-MTH-006
      */
     template<typename... Args>
-    static void HTTP(Args&&... args) { Print(Magenta, "HTTP", std::forward<Args>(args)...); }
+    static void HTTP(Args&&... args) {
+        Print(LogLevel::Debug, Magenta, "HTTP", std::forward<Args>(args)...);
+    }
 
     /**
-     * @brief Logs a basic debug message (White).
+     * @brief Logs a basic debug message (White). Trace-level.
      * @tag LOG-MTH-007
      */
     template<typename... Args>
-    static void Log(Args&&... args) { Print(White, " LOG", std::forward<Args>(args)...); }
+    static void Log(Args&&... args) {
+        Print(LogLevel::Debug, White, " LOG", std::forward<Args>(args)...);
+    }
 
     static constexpr std::string_view ColorWhite() { return White; }
     static constexpr std::string_view ColorReset() { return Reset; }

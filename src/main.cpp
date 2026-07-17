@@ -1,4 +1,5 @@
 #include <common/env.hpp>
+#include <common/http.hpp>
 #include <common/ws.hpp>
 #include <controllers/auth_controller.hpp>
 #include <controllers/chat_controller.hpp>
@@ -34,11 +35,13 @@ int main() {
                               ChatController::kUnsetHistoryLimit, &lobby);
 
         server.OnConnectionOpen([&lobby, &presence, &chat](AppWebSocket* ws, PerSocketData* sd) {
+            Logger::Info("[WS] connection opened: user=", sd->username, " ip=", sd->ip);
             presence.OnOpen(ws, sd);
             lobby.OnOpen(ws, sd);
             chat.OnOpen(ws, sd);
         });
         server.OnConnectionClose([&lobby, &presence](AppWebSocket* ws, PerSocketData* sd) {
+            Logger::Info("[WS] connection closed: user=", sd->username, " ip=", sd->ip);
             presence.OnClose(ws, sd);
             lobby.OnClose(ws, sd);
         });
@@ -49,16 +52,19 @@ int main() {
                               server.GetTimerService(), lobby);
         FriendController friends(server.GetActionRouter(), server.GetBroadcaster(), presence);
 
-        // INFO: Logging Middleware
-        server.GetHTTPRouter().OnAny([](AppResponse* response, AppRequest* request) {
-            Logger::Log("[HTTP] route received: ", std::string(request->getFullUrl()));
+        // INFO: Logging Middleware (Debug-level: enable with LOG_LEVEL=debug)
+        const bool trust_proxy = (Env::Get("TRUST_PROXY", "0") != "0");
+        server.GetHTTPRouter().OnAny([trust_proxy](AppResponse* response, AppRequest* request) {
+            Logger::HTTP("route received: ", std::string(request->getFullUrl()),
+                         " ip=", http::GetClientIp(response, request, trust_proxy));
             return true;
         });
 
         server.GetActionRouter().OnAny([](WsContext ctx, const json& msg) -> bool {
-            Logger::Log("[WS] request received: ", ctx.socket_data->username, ".",
-                        ws::GetOr<std::string>(msg, "action", "?"), "(",
-                        ws::GetOr<std::string>(msg, "request_id", "?"), ")");
+            Logger::WS("request received: ", ctx.socket_data->username, ".",
+                       ws::GetOr<std::string>(msg, "action", "?"), "(",
+                       ws::GetOr<std::string>(msg, "request_id", "?"), ") ip=",
+                       ctx.socket_data->ip);
             return true;
         });
 
