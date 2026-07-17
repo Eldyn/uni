@@ -110,6 +110,17 @@ export class WebSocketClient {
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private reconnectDelayMs = 1000;
 	private intentionalClose = false;
+	/**
+	 * Sockets closed via disconnect(), checked (and cleared) by that specific
+	 * socket's own onclose so a disconnect()-then-connect() pair (e.g.
+	 * auth.svelte.ts re-upgrading the identity) can't race: without this, the
+	 * old socket's onclose firing after the new connect() already reset the
+	 * shared `intentionalClose` flag back to false would read as an organic
+	 * drop and schedule a spurious extra reconnect, permanently orphaning a
+	 * socket that stays subscribed to broadcast topics (duplicate chat
+	 * messages, one per login/logout cycle).
+	 */
+	private intentionallyClosedSockets = new WeakSet<WebSocket>();
 	/** In-flight connection attempt, shared so concurrent connect() calls
 	 *  never open a second socket while the first is still handshaking. */
 	private connectPromise: Promise<void> | null = null;
@@ -121,6 +132,15 @@ export class WebSocketClient {
 	async connect(): Promise<void> {
 		if (this.isConnected) return;
 		if (this.connectPromise) return this.connectPromise;
+		// INFO: A pending auto-retry (scheduled by a previous drop/rejection)
+		//       must not survive an explicit connect(): left alone, it can fire
+		//       independently later and open a second, uncoordinated socket
+		//       alongside this one, both live and subscribed under the same
+		//       identity (duplicate chat delivery).
+		if (this.reconnectTimer) {
+			clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
+		}
 		this.intentionalClose = false;
 		this.#attachVisibilityListener();
 		this.connectPromise = this._connectOnce().finally(() => {
@@ -137,7 +157,10 @@ export class WebSocketClient {
 			this.reconnectTimer = null;
 		}
 
-		this.socket?.close(code, reason);
+		if (this.socket) {
+			this.intentionallyClosedSockets.add(this.socket);
+			this.socket.close(code, reason);
+		}
 		this.socket = null;
 		this.connectionStatus.status = "disconnected";
 
@@ -260,6 +283,8 @@ export class WebSocketClient {
 			wsInstance.onerror = () => reject(new Error("Could not connect to the server."));
 
 			wsInstance.onclose = () => {
+				const wasIntentional = this.intentionallyClosedSockets.delete(wsInstance);
+
 				if (this.socket === wsInstance) {
 					this.socket = null;
 					this.connectionStatus.status = "disconnected";
@@ -271,7 +296,7 @@ export class WebSocketClient {
 				}
 				this.pendingRequests.clear();
 
-				this._scheduleReconnect();
+				if (!wasIntentional) this._scheduleReconnect();
 			};
 
 			wsInstance.onmessage = (e: MessageEvent) => {
@@ -339,7 +364,7 @@ export class WebSocketClient {
 			const elapsedDelayMs = this.reconnectDelayMs;
 			this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 16_000);
 			storeAnalytics.track("ws_reconnect", { delay_ms: elapsedDelayMs });
-			this._connectOnce().catch(() => this._scheduleReconnect());
+			this.connect().catch(() => this._scheduleReconnect());
 		}, this.reconnectDelayMs);
 	}
 
@@ -349,12 +374,8 @@ export class WebSocketClient {
 
 		document.addEventListener("visibilitychange", () => {
 			if (document.visibilityState === "visible" && !this.isConnected && !this.intentionalClose) {
-				if (this.reconnectTimer) {
-					clearTimeout(this.reconnectTimer);
-					this.reconnectTimer = null;
-				}
 				this.reconnectDelayMs = 1000;
-				this._connectOnce().catch(() => this._scheduleReconnect());
+				this.connect().catch(() => this._scheduleReconnect());
 			}
 		});
 	}
