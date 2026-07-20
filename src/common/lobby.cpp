@@ -20,12 +20,13 @@ constexpr int  kCodeLen        = 6;
 constexpr int  kAlphabetLen    = 36;
 }  // namespace
 
-void LobbySettings::Sanitize() {
+void LobbySettings::Sanitize(int max_players_ceiling) {
     turn_time_limit_ms = std::clamp(turn_time_limit_ms,
                                      contract::kTurnTimeMinMs, contract::kTurnTimeMaxMs);
     starting_cards = std::clamp(starting_cards,
                                  contract::kStartingCardsMin, contract::kStartingCardsMax);
     bot_count = std::clamp(bot_count, contract::kBotCountMin, contract::kBotCountMax);
+    max_players = std::clamp(max_players, 2, max_players_ceiling);
     bot_mode = static_cast<BotTakeoverMode>(std::clamp(
         static_cast<int>(bot_mode), contract::kBotModeMin, contract::kBotModeMax));
 
@@ -209,7 +210,8 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
 Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_socket,
                      bool is_public, const std::string& name, int turn_time_limit_ms,
                      int starting_cards,
-                     const std::function<bool(const std::string&)>& code_taken) {
+                     const std::function<bool(const std::string&)>& code_taken,
+                     int max_players_ceiling) {
     std::string code;
     int attempts = 0;
     do {
@@ -227,7 +229,7 @@ Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_soc
     lobby.host                        = host;
     lobby.name                        = name;
     lobby.members.emplace_back(host, host_socket, true, false, 0);
-    lobby.settings.Sanitize();
+    lobby.settings.Sanitize(max_players_ceiling);
 
     return lobby;
 }
