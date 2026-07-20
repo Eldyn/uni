@@ -571,13 +571,14 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
         if (!any_connected) continue;
 
         std::string status = lobby.match != nullptr ? "in-game"
-                       : humans >= kMaxMembers   ? "full"
+                       : humans >= lobby.settings.max_players ? "full"
                        : "open";
 
         list.push_back({
             {"name", lobby.name},
             {"member_count", humans},
             {"bot_count", lobby.members.size() - humans},
+            {"max_players", lobby.settings.max_players},
             {"invite_code", lobby.invite_code},
             {"status", status},
             {"active_mods", lobby.settings.active_mods},

@@ -151,11 +151,6 @@ public:
      */
     std::size_t ActiveMatchCount() const;
 
-    /**
-     * @brief Maximum number of players allowed in a single lobby.
-     */
-    static constexpr int kMaxMembers = 4;
-
 private:
     /**
      * @brief Verifies the integrity of the current match data (e.g. host realignment).
