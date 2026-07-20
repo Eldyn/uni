@@ -981,9 +981,10 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
-    std::vector<std::pair<std::string, bool>> players_info;
+    std::vector<std::tuple<std::string, bool, int>> players_info;
     for (const auto& lobby_member : lobby.members) {
-        players_info.push_back({lobby_member.username, lobby_member.is_bot});
+        players_info.push_back(
+            {lobby_member.username, lobby_member.is_bot, lobby_member.seat_index});
     }
 
     lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
@@ -1019,7 +1020,8 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
             {"username",  m.username},
             {"is_connected", m.is_connected},
             {"is_host",   m.username == lobby.host},
-            {"is_bot", m.is_bot}
+            {"is_bot", m.is_bot},
+            {"seat_index", m.seat_index}
         });
     }
     return arr;
