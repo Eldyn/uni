@@ -358,5 +358,8 @@ private:
     std::atomic<uint32_t> next_id_{1};          /**< Thread-safe counter for the lobby IDs. */
     /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
     int reconnect_grace_ms_ = 1'000 * 30;
+    /**< Absolute upper bound on LobbySettings::max_players across all lobbies
+     * (env: ABSOLUTE_MAX_LOBBY_MEMBERS), clamped to contract::kMaxLobbyMembers. */
+    int absolute_max_lobby_members_ = contract::kMaxLobbyMembers;
     std::mt19937 rng_{std::random_device {}()};  /**< Shared RNG for bot name selection. */
 };
