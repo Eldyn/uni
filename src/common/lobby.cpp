@@ -27,6 +27,12 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
                                  contract::kStartingCardsMin, contract::kStartingCardsMax);
     bot_count = std::clamp(bot_count, contract::kBotCountMin, contract::kBotCountMax);
     max_players = std::clamp(max_players, 2, max_players_ceiling);
+
+    const int deck_size = DeckSize();
+    if (deck_size > 0) {
+        starting_cards = std::max(1, std::min(starting_cards, deck_size / max_players));
+    }
+
     bot_mode = static_cast<BotTakeoverMode>(std::clamp(
         static_cast<int>(bot_mode), contract::kBotModeMin, contract::kBotModeMax));
 

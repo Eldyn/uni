@@ -72,6 +72,18 @@ struct LobbySettings {
     int count_wild_draw_four = 4;           /**< Total number of Wild Draw Four cards. */
 
     /**
+     * @brief Total card count MatchInstance::GenerateDeck would produce from
+     * these counts: 4 coloured suits of (zeros + 9 numbered ranks + skips +
+     * reverses + draw-twos), plus the colour-less wild piles.
+     * @tag CMN-LOBBY-MTH-011
+     */
+    int DeckSize() const {
+        return 4 * (count_zeros + count_numbered * 9 + count_skips + count_reverses
+                    + count_draw_two)
+               + count_wild + count_wild_draw_four;
+    }
+
+    /**
      * @brief Clamps numeric fields into contract bounds and strips unknown or
      * duplicate entries from active_mods in place.
      * @param max_players_ceiling Absolute upper bound to clamp max_players

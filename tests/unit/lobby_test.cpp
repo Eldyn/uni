@@ -42,6 +42,42 @@ TEST_CASE("lobby: Sanitize clamps max_players against a caller-supplied ceiling"
     CHECK_EQ(settings.max_players, 6);
 }
 
+TEST_CASE("lobby: Sanitize clamps starting_cards down when it would exceed the deck size") {
+    LobbySettings settings;
+    settings.max_players = 15;
+    settings.starting_cards = contract::kStartingCardsMax;
+    settings.count_zeros = 1;
+    settings.count_numbered = 1;
+    settings.count_skips = 0;
+    settings.count_reverses = 0;
+    settings.count_draw_two = 0;
+    settings.count_wild = 0;
+    settings.count_wild_draw_four = 0;
+    REQUIRE_EQ(settings.DeckSize(), 40);
+
+    settings.Sanitize();
+
+    CHECK_EQ(settings.starting_cards, settings.DeckSize() / settings.max_players);
+}
+
+TEST_CASE("lobby: Sanitize floors the deck-size clamp at one card") {
+    LobbySettings settings;
+    settings.max_players = 15;
+    settings.starting_cards = 7;
+    settings.count_zeros = 0;
+    settings.count_numbered = 0;
+    settings.count_skips = 1;
+    settings.count_reverses = 0;
+    settings.count_draw_two = 0;
+    settings.count_wild = 0;
+    settings.count_wild_draw_four = 0;
+    REQUIRE_EQ(settings.DeckSize(), 4);
+
+    settings.Sanitize();
+
+    CHECK_EQ(settings.starting_cards, 1);
+}
+
 TEST_CASE("lobby: Sanitize clamps out-of-range bot_mode") {
     LobbySettings settings;
     settings.bot_mode = static_cast<BotTakeoverMode>(contract::kBotModeMax + 1);
