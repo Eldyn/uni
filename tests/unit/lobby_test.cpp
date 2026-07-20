@@ -103,10 +103,10 @@ TEST_CASE("lobby: SyncBots removes bots when bot_count is lowered") {
 TEST_CASE("lobby: SyncBots clamps desired bots to the lobby capacity") {
     Lobby lobby;
     lobby.id = 1;
-    lobby.members.emplace_back("Alice", nullptr, true, false);
-    lobby.members.emplace_back("Bob", nullptr, true, false);
-    lobby.members.emplace_back("Carol", nullptr, true, false);
-    lobby.settings.bot_count = 3;
+    int human_count = contract::kMaxLobbyMembers - 1;
+    for (int i = 0; i < human_count; ++i)
+        lobby.members.emplace_back("Human" + std::to_string(i), nullptr, true, false);
+    lobby.settings.bot_count = human_count;
 
     std::mt19937 rng(42);
     lobby.SyncBots(rng);

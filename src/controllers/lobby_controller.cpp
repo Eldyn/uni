@@ -30,6 +30,9 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
     : action_router_(router), broadcaster_(broadcast), timer_service_(timers),
       presence_(presence) {
     reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 30'000));
+    absolute_max_lobby_members_ = std::clamp(
+        Env::GetInt("ABSOLUTE_MAX_LOBBY_MEMBERS", contract::kMaxLobbyMembers),
+        2, contract::kMaxLobbyMembers);
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
         HandleCreate(ctx, msg);
