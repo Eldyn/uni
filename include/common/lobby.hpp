@@ -49,6 +49,11 @@ struct LobbySettings {
     /**< If true, a player quitting destroys the saved match. */
     bool quit_deletes_match = false;
 
+    /**< Maximum humans+bots this specific lobby accepts, clamped by
+     * Sanitize() to [2, absolute ceiling]. Default 4 preserves the
+     * pre-overhaul behaviour for lobbies that never touch this field. */
+    int max_players = 4;
+
     int bot_count = 0;                      /**< Number of initial bots in the lobby. */
     BotTakeoverMode bot_mode = BotTakeoverMode::kWaitUntilTurnEnd; /**< Play mode of the bots. */
 
@@ -69,14 +74,19 @@ struct LobbySettings {
     /**
      * @brief Clamps numeric fields into contract bounds and strips unknown or
      * duplicate entries from active_mods in place.
+     * @param max_players_ceiling Absolute upper bound to clamp max_players
+     * against (env-driven ABSOLUTE_MAX_LOBBY_MEMBERS at the caller), defaults
+     * to the compile-time contract::kMaxLobbyMembers for callers (tests,
+     * Lobby::Create's default arg) that don't need the runtime override.
      * @tag CMN-LOBBY-MTH-001
      */
-    void Sanitize();
+    void Sanitize(int max_players_ceiling = contract::kMaxLobbyMembers);
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
-    allow_bot_takeover, allow_bot_replacement, quit_deletes_match, save_state, is_public
+    allow_bot_takeover, allow_bot_replacement, quit_deletes_match, save_state, is_public,
+    max_players
 )
 
 /**
@@ -264,6 +274,10 @@ struct Lobby {
      * @param code_taken Predicate returning true if a candidate invite code is
      * already registered elsewhere (queries the caller's own registry, e.g.
      * LobbyController::code_to_id_).
+     * @param max_players_ceiling Absolute ceiling forwarded to
+     * settings.Sanitize(), defaults to the compile-time
+     * contract::kMaxLobbyMembers for callers that don't need the runtime
+     * ABSOLUTE_MAX_LOBBY_MEMBERS override.
      * @return The populated Lobby, ready to be inserted into the caller's registry.
      * @throws std::runtime_error if no unique code could be generated in 10 attempts,
      * matching the previous LobbyController::HandleCreate behavior exactly.
@@ -272,7 +286,8 @@ struct Lobby {
     static Lobby Create(uint32_t id, const std::string& host, AppWebSocket* host_socket,
                          bool is_public, const std::string& name, int turn_time_limit_ms,
                          int starting_cards,
-                         const std::function<bool(const std::string&)>& code_taken);
+                         const std::function<bool(const std::string&)>& code_taken,
+                         int max_players_ceiling = contract::kMaxLobbyMembers);
 
     /**
      * @brief Scans for disconnected, non-bot members whose grace period has

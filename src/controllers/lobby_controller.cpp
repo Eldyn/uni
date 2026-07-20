@@ -347,7 +347,8 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
         payload_res->is_public.value_or(false), payload_res->name.value_or(username + "'s lobby"),
         Env::GetInt("DEFAULT_TURN_TIME_MS", LobbySettings{}.turn_time_limit_ms),
         Env::GetInt("DEFAULT_STARTING_CARDS", LobbySettings{}.starting_cards),
-        [this](const std::string& c) { return code_to_id_.count(c) > 0; });
+        [this](const std::string& c) { return code_to_id_.count(c) > 0; },
+        absolute_max_lobby_members_);
 
     Lobby& lobby = lobbies_.emplace(id, std::move(built)).first->second;
 
@@ -753,7 +754,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     json current_settings = lobby.settings;
     current_settings.merge_patch(patch);
     lobby.settings = current_settings.get<LobbySettings>();
-    lobby.settings.Sanitize();
+    lobby.settings.Sanitize(absolute_max_lobby_members_);
 
     if (old_bot_count != lobby.settings.bot_count) {
         lobby.SyncBots(rng_);

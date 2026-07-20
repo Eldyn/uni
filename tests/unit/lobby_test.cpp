@@ -21,6 +21,27 @@ TEST_CASE("lobby: Sanitize clamps out-of-range numeric fields") {
     CHECK(settings.bot_count == contract::kBotCountMax);
 }
 
+TEST_CASE("lobby: Sanitize clamps max_players to [2, contract::kMaxLobbyMembers] by default") {
+    LobbySettings low;
+    low.max_players = 1;
+    low.Sanitize();
+    CHECK_EQ(low.max_players, 2);
+
+    LobbySettings high;
+    high.max_players = contract::kMaxLobbyMembers + 5;
+    high.Sanitize();
+    CHECK_EQ(high.max_players, contract::kMaxLobbyMembers);
+}
+
+TEST_CASE("lobby: Sanitize clamps max_players against a caller-supplied ceiling") {
+    LobbySettings settings;
+    settings.max_players = 10;
+
+    settings.Sanitize(6);
+
+    CHECK_EQ(settings.max_players, 6);
+}
+
 TEST_CASE("lobby: Sanitize clamps out-of-range bot_mode") {
     LobbySettings settings;
     settings.bot_mode = static_cast<BotTakeoverMode>(contract::kBotModeMax + 1);
