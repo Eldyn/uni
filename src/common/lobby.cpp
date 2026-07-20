@@ -59,6 +59,16 @@ std::string Lobby::PickBotName(std::mt19937& rng) const {
     return available[dist(rng)];
 }
 
+int Lobby::NextFreeSeat() const {
+    std::unordered_set<int> taken;
+    for (const auto& member : members) taken.insert(member.seat_index);
+
+    for (int seat = 0; seat < contract::kMaxLobbyMembers; ++seat) {
+        if (taken.find(seat) == taken.end()) return seat;
+    }
+    return static_cast<int>(members.size());
+}
+
 void Lobby::SyncBots(std::mt19937& rng) {
     if (match) return;
     int human_count = 0;
@@ -76,7 +86,7 @@ void Lobby::SyncBots(std::mt19937& rng) {
 
     while (bot_count < desired_bots) {
         std::string bot_name = PickBotName(rng);
-        members.emplace_back(bot_name, nullptr, true, true);
+        members.emplace_back(bot_name, nullptr, true, true, NextFreeSeat());
         bot_count++;
     }
 
@@ -181,10 +191,11 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
     }
 
     if (members.size() < contract::kMaxLobbyMembers) {
-        members.emplace_back(username, socket, true, false);
+        int seat = NextFreeSeat();
+        members.emplace_back(username, socket, true, false, seat);
 
         if (match) {
-            match->AddPlayerMidGame(username, false);
+            match->AddPlayerMidGame(username, false, seat);
         }
 
         result.outcome = JoinOutcome::kJoinedEmptySlot;
@@ -215,7 +226,7 @@ Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_soc
     lobby.invite_code                 = code;
     lobby.host                        = host;
     lobby.name                        = name;
-    lobby.members.emplace_back(host, host_socket, true, false);
+    lobby.members.emplace_back(host, host_socket, true, false, 0);
     lobby.settings.Sanitize();
 
     return lobby;

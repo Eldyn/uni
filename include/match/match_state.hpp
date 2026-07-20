@@ -40,20 +40,25 @@ namespace match {
         std::vector<CompactCard> hand;  /**< The cards currently in the player's hand. */
         /**< Flag indicating whether the player is driven by the CPU. */
         bool is_bot;
+        /**< Stable seat/color identity carried over from LobbyMember::seat_index
+         * at match creation (or mid-game join); -1 if unknown (e.g. legacy saved
+         * state loaded before this field existed). */
+        int seat_index = -1;
 
         /**
          * @brief Full constructor of the Player.
          * @param u Username.
          * @param h Initial hand of cards.
          * @param b True if Bot.
+         * @param s Stable seat index.
          */
-        Player(std::string u, std::vector<CompactCard> h, bool b)
-            : username(u), hand(h), is_bot(b) {}
+        Player(std::string u, std::vector<CompactCard> h, bool b, int s = -1)
+            : username(u), hand(h), is_bot(b), seat_index(s) {}
 
         /**
          * @brief Constructor without cards in hand (setup phase).
          */
-        Player(std::string u, bool b) : username(u), is_bot(b) {}
+        Player(std::string u, bool b, int s = -1) : username(u), is_bot(b), seat_index(s) {}
     };
 
     /**

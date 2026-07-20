@@ -57,9 +57,20 @@ namespace match {
     public:
         /**
          * @brief Constructor for a new match starting from the players' information and settings.
-         * @param players_info Vector of {username, is_bot} pairs indicating the participants.
+         * @param players_info Vector of {username, is_bot, seat_index} tuples indicating the
+         * participants, seat_index carried over from LobbyMember::seat_index for stable
+         * per-player color/seat identity.
          * @param settings Current settings of the lobby.
          * @tag MATCH-INST-001
+         */
+        explicit MatchInstance(
+            const std::vector<std::tuple<std::string, bool, int>>& players_info,
+            const LobbySettings& settings);
+
+        /**
+         * @brief Convenience overload for callers (chiefly tests) without a real
+         * per-player seat_index yet; assigns seats by vector position.
+         * @tag MATCH-INST-001B
          */
         explicit MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
                                 const LobbySettings& settings);
@@ -128,7 +139,7 @@ namespace match {
          * @param is_bot True if it is a bot, False for a human.
          * @tag MATCH-INST-011
          */
-        void AddPlayerMidGame(const std::string& username, bool is_bot);
+        void AddPlayerMidGame(const std::string& username, bool is_bot, int seat_index = -1);
 
         /**
          * @brief Removes a player mid-match, typically turning them into a Bot.

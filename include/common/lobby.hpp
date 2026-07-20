@@ -91,12 +91,17 @@ struct LobbyMember {
     /**< Connection state (true = online, false = offline in grace period). */
     bool            is_connected;
     bool            is_bot;        /**< True if this "member" is controlled by the AI. */
+    /**< Stable per-member identity slot, assigned once via Lobby::NextFreeSeat() at
+     * join time (lowest currently-unused index). Never recomputed from this
+     * member's position in the `members` vector, so it survives other members
+     * leaving/joining. Drives the player's color/seat identity on the client. */
+    int             seat_index;
 
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 
-    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b)
-        : username(std::move(u)), socket(s), is_connected(c), is_bot(b)  {}
+    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1)
+        : username(std::move(u)), socket(s), is_connected(c), is_bot(b), seat_index(seat)  {}
 };
 
 /**
@@ -191,6 +196,16 @@ struct Lobby {
      * @tag CMN-LOBBY-MTH-003
      */
     std::string PickBotName(std::mt19937& rng) const;
+
+    /**
+     * @brief Returns the lowest seat index in [0, contract::kMaxLobbyMembers) not
+     * currently held by any member, for first-come-first-served, gap-filling
+     * seat assignment (a freed seat is reused before any higher index is handed
+     * out). Pure lookup: does not mutate `members`.
+     * @return int The lowest free seat index.
+     * @tag CMN-LOBBY-MTH-010
+     */
+    int NextFreeSeat() const;
 
     /**
      * @brief Generates a cryptographically random alphanumeric token, used both

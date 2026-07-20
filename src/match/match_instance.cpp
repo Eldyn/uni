@@ -29,10 +29,12 @@ namespace match {
         std::shuffle(match_state->draw_pile.begin(), match_state->draw_pile.end(), rng);
     }
 
-    MatchInstance::MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
-                                  const LobbySettings& settings) : settings_(settings) {
+    MatchInstance::MatchInstance(
+        const std::vector<std::tuple<std::string, bool, int>>& players_info,
+        const LobbySettings& settings) : settings_(settings) {
         for (const auto& player_info : players_info) {
-            state_.players.emplace_back(player_info.first, player_info.second);
+            state_.players.emplace_back(std::get<0>(player_info), std::get<1>(player_info),
+                                         std::get<2>(player_info));
         }
 
         for (const auto& mod_name : settings.active_mods) {
@@ -45,6 +47,23 @@ namespace match {
 
         active_rules_.push_back(std::make_unique<StandardRule>());
     }
+
+    namespace {
+        std::vector<std::tuple<std::string, bool, int>> ToSeatedPlayersInfo(
+            const std::vector<std::pair<std::string, bool>>& players_info) {
+            std::vector<std::tuple<std::string, bool, int>> seated;
+            seated.reserve(players_info.size());
+            int seat = 0;
+            for (const auto& [username, is_bot] : players_info) {
+                seated.emplace_back(username, is_bot, seat++);
+            }
+            return seated;
+        }
+    }  // namespace
+
+    MatchInstance::MatchInstance(const std::vector<std::pair<std::string, bool>>& players_info,
+                                  const LobbySettings& settings)
+        : MatchInstance(ToSeatedPlayersInfo(players_info), settings) {}
 
     json MatchInstance::ExportState() const {
         json state_json;
@@ -83,7 +102,8 @@ namespace match {
             players_json.push_back({
                 {"username",      player.username},
                 {"hand",          player.hand},
-                {"is_bot",        player.is_bot}
+                {"is_bot",        player.is_bot},
+                {"seat_index",    player.seat_index}
             });
         }
         state_json["players"] = players_json;
@@ -140,12 +160,14 @@ namespace match {
             state_.players.emplace_back(
                 player_json.value("username", ""),
                 hand,
-                player_json.value("is_bot", false));
+                player_json.value("is_bot", false),
+                player_json.value("seat_index", -1));
         }
     }
 
-    void MatchInstance::AddPlayerMidGame(const std::string& username, bool is_bot) {
-        Player p(username, is_bot);
+    void MatchInstance::AddPlayerMidGame(const std::string& username, bool is_bot,
+                                          int seat_index) {
+        Player p(username, is_bot, seat_index);
 
         for (int index = 0; index < settings_.starting_cards; ++index) {
             if (state_.draw_pile.empty()) {
