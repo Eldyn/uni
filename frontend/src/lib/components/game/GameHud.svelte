@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
+	import TurnOrderStrip from "./TurnOrderStrip.svelte";
+
+	let collapsed = $state(false);
 
 	function handleReturnToLobbies() {
 		storeLobby.leave();
@@ -8,15 +11,30 @@
 </script>
 
 {#if storeGame.state && !storeGame.actionRequired}
-	<div class="hud-container">
-		<span
-			class="timer pixel-corners"
-			style="background: {storeGame.turnTimeRemaining <= 5 ? 'var(--danger)' : 'var(--surface-2)'};"
+	<div class="hud-container" class:collapsed>
+		<button
+			class="collapse-toggle"
+			onclick={() => (collapsed = !collapsed)}
+			aria-expanded={!collapsed}
+			aria-label={collapsed ? "Expand HUD" : "Collapse HUD"}
 		>
-			00:{storeGame.turnTimeRemaining.toString().padStart(2, "0")}
-		</span>
+			<i class="hn pix {collapsed ? 'hn-angle-small-down' : 'hn-angle-small-up'}"></i>
+		</button>
 
-		<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}> Exit </button>
+		{#if !collapsed}
+			<span
+				class="timer pixel-corners"
+				style="background: {storeGame.turnTimeRemaining <= 5
+					? 'var(--danger)'
+					: 'var(--surface-2)'};"
+			>
+				00:{storeGame.turnTimeRemaining.toString().padStart(2, "0")}
+			</span>
+
+			<TurnOrderStrip />
+
+			<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}> Exit </button>
+		{/if}
 	</div>
 {/if}
 
@@ -28,6 +46,16 @@
 		display: flex;
 		align-items: center;
 		gap: 15px;
+	}
+
+	.collapse-toggle {
+		border: none;
+		background: transparent;
+		color: white;
+		cursor: pointer;
+		font-size: 1rem;
+		line-height: 1;
+		padding: 4px;
 	}
 
 	.timer {
