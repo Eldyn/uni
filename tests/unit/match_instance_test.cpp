@@ -21,6 +21,26 @@ TEST_CASE("match: start → playing status") {
     CHECK_FALSE(m.IsMatchOver());
 }
 
+TEST_CASE("match: starting a 6-player match with sanitized settings deals every hand fully") {
+    LobbySettings settings;
+    settings.max_players = 6;
+    settings.starting_cards = 7;
+    settings.turn_time_limit_ms = 15000;
+    settings.Sanitize();
+
+    std::vector<std::pair<std::string, bool>> players_info;
+    for (int i = 0; i < 6; ++i) players_info.emplace_back("Player" + std::to_string(i), false);
+
+    MatchInstance m(players_info, settings);
+    m.Start();
+
+    nlohmann::json state = m.ExportState();
+    REQUIRE_EQ(state["players"].size(), 6);
+    for (const auto& p : state["players"]) {
+        CHECK_EQ(p["hand"].size(), settings.starting_cards);
+    }
+}
+
 TEST_CASE("match: draw card grows hand") {
     MatchInstance m(two_humans(), default_settings());
     m.Start();
