@@ -6,7 +6,6 @@
  */
 
 import type { SortKey } from "$lib/data/lobbyCatalogs";
-import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 import type { ListedLobby } from "$lib/stores/lobby.svelte";
 
 export interface BrowseLobby {
@@ -50,7 +49,7 @@ export function toBrowseLobby(l: ListedLobby): BrowseLobby {
 		status: l.status,
 		humans: l.member_count || 0,
 		bots: l.bot_count || 0,
-		max: MAX_LOBBY_MEMBERS,
+		max: l.max_players || 4,
 		deck: "Default", // TODO: no backend deck concept yet, stays mocked
 		allowBotTakeover: l.allow_bot_takeover,
 		rules: l.active_mods ?? []

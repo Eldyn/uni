@@ -2,9 +2,9 @@
      player slots + join action below. All sizing derives from the measured
      card width so a narrow column never overflows. -->
 <script lang="ts">
-	import PlayerSlotRow from "./PlayerSlotRow.svelte";
+	import OccupancyGauge from "./OccupancyGauge.svelte";
 	import { ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
-	import { joinInfo, openSlots, type BrowseLobby } from "$lib/utils/lobbyBrowse";
+	import { filled, joinInfo, type BrowseLobby } from "$lib/utils/lobbyBrowse";
 	import { storeCatalog } from "$stores/catalog.svelte";
 
 	let {
@@ -99,12 +99,10 @@
 
 	<!-- Row 2: player count (the focus) · join button, the two highlights -->
 	<div class="flex items-center justify-between gap-4">
-		<PlayerSlotRow
-			humans={lobby.humans}
-			bots={lobby.bots}
-			empty={openSlots(lobby)}
-			sizeClass={avatarCls}
-		/>
+		<div class="flex items-center gap-2">
+			<OccupancyGauge filled={filled(lobby)} max={lobby.max} sizeClass={avatarCls} />
+			<span class="font-mono text-xs text-text-h/70">{filled(lobby)}/{lobby.max}</span>
+		</div>
 
 		{#if join.label}
 			<button

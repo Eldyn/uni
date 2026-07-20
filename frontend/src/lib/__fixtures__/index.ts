@@ -41,6 +41,7 @@ export function makeLobby(overrides?: Partial<Lobby>): Lobby {
 		save_state: false,
 		quit_deletes_match: false,
 		starting_cards: 7,
+		max_players: 4,
 		bot_count: 0,
 		bot_mode: 0 as BotTakeoverMode,
 		allow_bot_takeover: false,

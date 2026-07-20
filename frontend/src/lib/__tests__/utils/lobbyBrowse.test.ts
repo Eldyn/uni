@@ -18,6 +18,7 @@ function makeListed(overrides: Partial<ListedLobby> = {}): ListedLobby {
 		name: "Test Lobby",
 		member_count: 2,
 		bot_count: 1,
+		max_players: 4,
 		invite_code: "AAAAAA",
 		status: "open",
 		active_mods: [],
