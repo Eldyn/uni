@@ -9,6 +9,21 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Added
+
+- **Configurable per-lobby player cap**: `LobbySettings.max_players` (default 4, sanitized to `[2, ABSOLUTE_MAX_LOBBY_MEMBERS]`) replaces the flat compile-time `contract::kMaxLobbyMembers` check in `Lobby::AddOrHijack` and bot-sync; the contract ceiling itself was raised and is now broadcast to clients instead of assumed. A new `ABSOLUTE_MAX_LOBBY_MEMBERS` env var (default 15) sets the absolute upper bound.
+- **Starting-hand/deck-size safeguard**: `LobbySettings::Sanitize()` now clamps `starting_cards` down if `starting_cards * max_players` would exceed the generated deck size, so large lobbies can't be configured into an unwinnable deal.
+- **Proportional browse-screen occupancy gauge**: `OccupancyGauge.svelte` always renders 4 icons regardless of `max_players`, each clipped to its fractional share (star-rating style), replacing the old one-icon-per-seat rendering that stopped scaling past 4 seats. A "Max players" slider was added to `LobbySettings.svelte`.
+- **N-player seat layout engine**: `layout/seatLayout.ts` (pure, unit-tested) computes per-seat position/scale/rotation for any opponent count — an elliptical ring on desktop/landscape, two vertical rails on mobile/portrait — replacing `GameBoard.svelte`'s hardcoded `LAYOUT_LEFT/TOP/RIGHT` constants and 1/2/3-length branching. `useViewport.svelte.ts` and `game-layout-context.svelte.ts` track viewport size/orientation to drive it.
+- **Unified `PlayerSeat.svelte`**: replaces `OpponentHand.svelte` and the inline local-player markup with one component (avatar box, name label, turn highlight, target-picker affordance) shared by every seat; the local player's interactive hand is slotted in via a Svelte snippet instead of a separate component per role.
+- **Turn-order strip**: `TurnOrderStrip.svelte` shows up to 2 players before/after whoever's turn it currently is (direction-aware, via the new pure `computeTurnOrderWindow()` helper), and the game HUD is now collapsible.
+- **Discard pixel-shadow + draw pile relocation**: the discard pile's top card now renders with an offset flat-silhouette duplicate behind it for a pixel-art drop shadow (no new art asset, `DiscardPile.svelte`); the draw pile moved out to sit beside the local hand (`DrawPile.svelte`) instead of centered together with the discard.
+
+### Changed
+
+- **Local hand overlap now scales with card count**: `PlayerHand.svelte` shrinks the per-card overlap as the hand grows so N cards stay within a fixed span instead of overflowing; flagged with a TODO for a proper long-term overflow scheme (fanning/scrolling/second row).
+- **Per-seat player color stays a 4-color RGBY wraparound** rather than growing a richer palette past 4 seats, pending a future player-picked character color feature.
+
 ## [0.5.5] - 2026-07-17
 
 ### Added
