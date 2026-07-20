@@ -23,11 +23,13 @@
 	let pointerKind = $state<string>("mouse");
 
 	// The four seat colours ARE the four UNO card colours, members are dealt
-	// their seat as an actual card face, not a generic avatar chip.
+	// their seat as an actual card face, not a generic avatar chip. Lobbies
+	// with more than 4 seats cycle through them until #13 (polish(game):
+	// color-identity fallback for >4 players) lands.
 	const SEAT_COLORS = ["var(--blueCard)", "var(--greenCard)", "var(--redCard)", "var(--yellowCard)"];
-	const TABLE_SEATS = SEAT_COLORS.length;
 
-	let emptySeats = $derived(Math.max(0, TABLE_SEATS - (storeLobby.current?.members.length ?? 0)));
+	let tableSeats = $derived(storeLobby.current?.settings.max_players ?? SEAT_COLORS.length);
+	let emptySeats = $derived(Math.max(0, tableSeats - (storeLobby.current?.members.length ?? 0)));
 
 	function handleSeatMenu(member: { username: string; is_host: boolean }, event: Event) {
 		if (!isHost || member.is_host) return;
