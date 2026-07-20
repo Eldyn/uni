@@ -85,6 +85,15 @@
 		--shadowColor: rgba(0, 0, 0, 0.16);
 	}
 
+	/* Shrink cards on narrow/short viewports so the ring/rails and hand never
+	   outgrow the screen; seatLayout.ts + PlayerHand's overlap step already
+	   handle count-based fitting, this handles viewport-based fitting. */
+	@media (max-width: 640px), (max-height: 480px) {
+		:root {
+			--cardSize: 3.2em;
+		}
+	}
+
 	.game-field {
 		position: relative;
 		z-index: 2;
@@ -107,8 +116,8 @@
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		width: 24em;
-		height: 24em;
+		width: clamp(14em, 60vw, 24em);
+		height: clamp(14em, 60vw, 24em);
 		transform: translate(-50%, -50%);
 	}
 
@@ -116,6 +125,16 @@
 		position: absolute;
 		left: 50%;
 		bottom: 6em;
+		transform: translateX(-50%);
+	}
+
+	.game-field.portrait .local-player-wrapper {
+		bottom: 2em;
+	}
+
+	.game-field.portrait .piles-wrapper {
+		top: auto;
+		bottom: 9em;
 		transform: translateX(-50%);
 	}
 </style>
