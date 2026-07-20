@@ -19,7 +19,6 @@
  * @brief Receives chat messages and routes them to the right channel:
  * `"global"` and `"lobby"` broadcast over a pub/sub topic, `"dm"` persists
  * and delivers directly to the recipient's socket if they're online.
- * @tag CTRL-CHAT-001
  */
 class ChatController {
 public:
@@ -39,7 +38,6 @@ public:
      * @param lobby_store               Lobby lifecycle hooks (DI seam), used
      *   to drop a lobby's chat history once it's destroyed. Null in tests
      *   that don't exercise lobby chat history cleanup.
-     * @tag CTRL-CHAT-MTH-001
      */
     static constexpr int kUnsetHistoryLimit = -2;
 
@@ -51,7 +49,6 @@ public:
     /**
      * @brief Subscribes a freshly connected socket to the `"global"` chat
      * topic.
-     * @tag CTRL-CHAT-MTH-002
      */
     void OnOpen(AppWebSocket* socket, PerSocketData* socket_data);
 
@@ -71,14 +68,12 @@ private:
 
     /**
      * @brief Handles a `chat_send` action.
-     * @tag CTRL-CHAT-ACT-001
      */
     void HandleChatSend(WsContext ctx, const nlohmann::json& message);
 
     /**
      * @brief Handles a `chat_history_request` action, replying with the
      * requester's DM history against the given target.
-     * @tag CTRL-CHAT-ACT-002
      */
     void HandleChatHistoryRequest(WsContext ctx, const nlohmann::json& message);
 };

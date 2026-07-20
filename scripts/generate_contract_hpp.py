@@ -153,7 +153,7 @@ def main():
     lines.append("")
     text = "\n".join(lines)
 
-    # Write only when the content actually changes so we don't bump the header's
+    # Write only when the content actually changes to avoid bumping the header's
     # mtime and force a needless recompile of everything that includes it.
     try:
         with open(out, "r", encoding="utf-8") as f:

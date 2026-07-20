@@ -8,7 +8,6 @@
  * Wraps AppHttp& and forwards every call to the uWS send/publish/subscribe
  * primitives. The `compress` flag is forwarded to uWS's third argument so
  * permessage-deflate (when negotiated) only runs on frames that request it.
- * @tag BCAST-UWS-001
  */
 class UwsBroadcaster : public IBroadcaster {
 public:

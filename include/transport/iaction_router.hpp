@@ -9,14 +9,12 @@ using json = nlohmann::json;
 /**
  * @typedef ActionHandler
  * @brief Signature for WebSocket action handlers.
- * @tag ACT-RTR-TYP-001
  */
 using ActionHandler = std::function<bool(WsContext, const json&)>;
 
 /**
  * @class IActionRouter
  * @brief Abstract interface for registering WebSocket action handlers.
- * @tag ACT-RTR-IFACE-001
  */
 class IActionRouter {
 public:

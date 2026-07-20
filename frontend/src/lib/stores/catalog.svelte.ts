@@ -32,7 +32,6 @@ const RuleDefinitionSchema = z.looseObject({
 /**
  * @class StoreCatalog
  * @brief Singleton store holding server-provided static metadata.
- * @tag FRONT-CATALOG-001
  */
 class StoreCatalog {
 	/** Rule definitions supported by this server instance. */
@@ -43,7 +42,6 @@ class StoreCatalog {
 	/**
 	 * @brief Loads the metadata once; concurrent callers share the same request.
 	 * Failed loads clear the in-flight promise so a later call can retry.
-	 * @tag FRONT-CATALOG-MTH-001
 	 */
 	ensureLoaded(): Promise<void> {
 		if (this.rules.length > 0) return Promise.resolve();

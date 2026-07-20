@@ -64,7 +64,6 @@ export interface PlayerStats {
 /**
  * @class StoreStats
  * @brief Encapsulates the state and methods to retrieve statistics from the server.
- * @tag FRONT-STAT-001
  */
 class StoreStats {
 	/** Reactive state containing the personal statistics of the logged-in user. */
@@ -81,7 +80,6 @@ class StoreStats {
 	 * Makes a GET request to `/stats/me` including the credentials (cookie).
 	 * On success, decodes the JSON and populates the `myStats` state.
 	 * @returns Empty promise resolved when the network operation completes.
-	 * @tag FRONT-STAT-MTH-001
 	 */
 	async fetchMe(): Promise<void> {
 		try {
@@ -105,7 +103,6 @@ class StoreStats {
 	 * Makes a GET request to `/stats/leaderboard` and updates the `leaderboard` state array
 	 * to let the UI render the table. Automatically manages the loading state.
 	 * @returns Empty promise resolved when the operation completes.
-	 * @tag FRONT-STAT-MTH-002
 	 */
 	async fetchLeaderboard(): Promise<void> {
 		this.isLoading = true;

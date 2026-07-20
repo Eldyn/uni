@@ -29,7 +29,6 @@ namespace Env {
  * * @param key The name of the environment variable to read.
  * @return std::string The value extracted from the operating environment.
  * @throws std::runtime_error If the required variable is not defined in the environment.
- * @tag CMN-ENV-MTH-001
  */
 inline std::string Require(const std::string& key) {
     const char* val = std::getenv(key.c_str());
@@ -46,7 +45,6 @@ inline std::string Require(const std::string& key) {
  * * @param key The name of the environment variable to read.
  * @param fallback The default value to return if the variable does not exist.
  * @return std::string The extracted value or the fallback string.
- * @tag CMN-ENV-MTH-002
  */
 inline std::string Get(const std::string& key,
                         const std::string& fallback = "") {
@@ -61,7 +59,6 @@ inline std::string Get(const std::string& key,
  * * @param key The name of the environment variable to read.
  * @param fallback The default returned if the variable is missing or not an integer.
  * @return int The parsed value, or the fallback.
- * @tag CMN-ENV-MTH-002B
  */
 inline int GetInt(const std::string& key, int fallback) {
     const char* val = std::getenv(key.c_str());
@@ -79,7 +76,6 @@ inline int GetInt(const std::string& key, int fallback) {
  * Windows: Uses `_putenv_s` which overwrites by default behaviour.
  * * @param key The name of the variable to set.
  * @param value The value to assign to the variable.
- * @tag CMN-ENV-MTH-003
  */
 inline void SetEnv(const std::string& key, const std::string& value) {
 #ifdef _WIN32
@@ -95,7 +91,6 @@ inline void SetEnv(const std::string& key, const std::string& value) {
  * an empty string if the input string is composed entirely of whitespace.
  * * @param s The string to clean up.
  * @return std::string The trimmed string.
- * @tag CMN-ENV-MTH-004
  */
 inline std::string Trim(const std::string& s) {
     constexpr std::string_view kWs = " \t\r\n";
@@ -112,7 +107,6 @@ inline std::string Trim(const std::string& s) {
  * file on disk.
  * * @param path The path of the file to read (default: ".env").
  * @return int The exact number of environment variables read and injected successfully.
- * @tag CMN-ENV-MTH-005
  */
 inline int Load(std::string_view path = ".env") {
     std::ifstream file(path.data());

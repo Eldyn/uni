@@ -14,7 +14,6 @@
  * with the same key cancel the prior timer before arming the new one.
  * The service must be constructed after the uWS event loop is running
  * (i.e. after the WebServer is constructed).
- * @tag TIMER-UWS-001
  */
 class UwsTimerService : public ITimerService {
 public:

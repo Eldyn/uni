@@ -22,7 +22,6 @@ namespace match {
     /**
      * @struct PlayerSessionStats
      * @brief Tracks the statistics of cards played/drawn in a single session.
-     * @tag GAME-STRUCT-001
      */
     struct PlayerSessionStats {
         /**< Frequency count for the various Colours (including Wild). */
@@ -33,7 +32,6 @@ namespace match {
     /**
      * @struct Player
      * @brief Represents a real player or Bot within the ongoing match.
-     * @tag GAME-STRUCT-002
      */
     struct Player {
         std::string username;           /**< Identifying username. */
@@ -59,7 +57,6 @@ namespace match {
     /**
      * @enum MatchStatus
      * @brief Phases of the global lifecycle of a match.
-     * @tag GAME-ENUM-001
      */
     enum class MatchStatus {
         kWaitingToStart, /**< The match is initializing the decks or is in pre-game. */
@@ -71,7 +68,6 @@ namespace match {
      * @struct LastPlay
      * @brief Describes the last card played and its origin, so that the client
      * can animate the card from the specific position (slot) of the hand of whoever played it.
-     * @tag GAME-STRUCT-004
      */
     struct LastPlay {
         bool valid = false;       /**< True if it contains a valid play to animate. */
@@ -84,7 +80,6 @@ namespace match {
      * @struct MatchState
      * @brief Monolithic data structure that contains the entire "snapshot" of the match at a given instant.
      * It is manipulated by the Effect and MatchInstance classes and serialized to JSON.
-     * @tag GAME-STRUCT-003
      */
     struct MatchState {
         /**< The progression state. */
@@ -129,7 +124,6 @@ namespace match {
      * Invoked automatically by the game engine when `draw_pile` is exhausted.
      * @param match_state Pointer to the match state to manipulate.
      * @param rng Shuffle source, owned by the calling MatchInstance.
-     * @tag GAME-UTIL-001
      */
     void ReshuffleDiscardIntoDraw(MatchState* match_state, std::mt19937& rng);
 }  // namespace match

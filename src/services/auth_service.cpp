@@ -67,7 +67,7 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
     auto hashed = HashPassword(password);
     if (!hashed) return std::unexpected(hashed.error());
 
-    // INFO: The stored string is "<base64_salt>:<base64_hash>". We split it
+    // INFO: The stored string is "<base64_salt>:<base64_hash>". It is split
     //       here so the DB schema keeps salt and hash in separate columns.
     auto colon = hashed->find(':');
     std::string salt_b64 = hashed->substr(0, colon);
@@ -172,7 +172,7 @@ Result<std::string> AuthService::GenerateGuestName() {
 // INFO: PBKDF2 is battle-tested and acceptable for this project scale. The
 //       main knob is kIterations: more iterations = more CPU per guess =
 //       slower brute force.
-//
+
 //       The "pepper" is an application-level secret from the environment.
 //       Unlike a salt (stored in the DB, unique per user, public), a pepper
 //       is *not* stored anywhere, it lives only in memory, loaded from the
@@ -252,12 +252,12 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 
 // JWT, issue + verify
 //
-// INFO: jwt-cpp uses a fluent builder API. We create a JWT with:
+// INFO: jwt-cpp uses a fluent builder API. A JWT is created with:
 //         - algorithm  : HS256 (HMAC-SHA256), symmetric, using JWT_SECRET
 //         - subject    : username (who this token represents)
 //         - issued_at  : current UTC time (for audit / debugging)
 //         - expires_at : now + 24 hours (after which the token is rejected)
-//
+
 //       The secret is fetched via Env::Require every call rather than cached
 //       so that secret rotation (SIGHUP + Env::Load) works without restart.
 //       In a hot path you'd cache it, but token issuance / verification
@@ -316,7 +316,7 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
         payload.username = decoded.get_subject();
         return payload;
     } catch (const std::exception& e) {
-        // INFO: Collapse all jwt-cpp exceptions into our Error type so
+        // INFO: Collapse all jwt-cpp exceptions into the Error type so
         //       callers don't need to know about jwt-cpp internals.
         return std::unexpected(Error::Unauthorised(
             std::string("JWT verification failed: ") + e.what()));

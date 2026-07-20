@@ -324,7 +324,7 @@ TEST_CASE("lobby history is dropped once the lobby store reports it destroyed") 
 
 // The server-side clamp to kMaxShardSize (regardless of a huge requested
 // `limit`) is covered directly at the service layer in chat_service_test.cpp
-//, constructing >100 real messages here would trip ChatService's flood
+//constructing >100 real messages here would trip ChatService's flood
 // limiter (AllowSend), since chat_send goes through the same rate-limited
 // path a real client would use.
 

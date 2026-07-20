@@ -26,7 +26,6 @@ namespace http {
  * * @param res Pointer to the Response object of the current HTTP request. Must remain valid until completion.
  * @param max_bytes Hard cap in bytes to avoid DDoS attacks. If exceeded, returns 413.
  * @param callback The function to invoke, exactly once, with the complete body string (if not aborted).
- * @tag CMN-HTTP-MTH-001
  */
 inline void ReadBody(AppResponse* res, size_t max_bytes,
                       std::function<void(const std::string&)> callback) {
@@ -55,7 +54,6 @@ inline void ReadBody(AppResponse* res, size_t max_bytes,
  * Being `constexpr`, if evaluated at compile time it generates no overhead.
  * * @param str The view of the original string.
  * @return std::string_view A centred portion of the string free of the outer whitespace. Returns an empty view if composed solely of whitespace.
- * @tag CMN-HTTP-MTH-002
  */
 constexpr std::string_view TrimWhitespace(std::string_view str) {
     size_t first = str.find_first_not_of(" \t\r\n");
@@ -74,7 +72,6 @@ constexpr std::string_view TrimWhitespace(std::string_view str) {
  * * @param cookie_header The native HTTP header string containing the cookies.
  * @param target_key The identifying key of the cookie to search for.
  * @return std::optional<std::string> The decoded cookie value, or an empty string if the key does not exist.
- * @tag CMN-HTTP-MTH-003
  */
 inline std::optional<std::string> GetCookieValue(std::string_view cookie_header,
                                                   std::string_view target_key) {
@@ -121,7 +118,6 @@ inline std::optional<std::string> GetCookieValue(std::string_view cookie_header,
  * @param req Request, source of the `X-Forwarded-For` header.
  * @param trust_proxy Whether to honour `X-Forwarded-For` (set behind a proxy).
  * @return std::string The resolved client IP (may be empty if unavailable).
- * @tag CMN-HTTP-MTH-004
  */
 inline std::string GetClientIp(AppResponse* res, AppRequest* req, bool trust_proxy) {
     if (trust_proxy) {

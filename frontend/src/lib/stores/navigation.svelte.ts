@@ -56,11 +56,10 @@ const SCREEN_GUARDS: Partial<Record<AppScreen, () => boolean>> = {
  * @class StoreNavigation
  * @brief Reactive store for screen switching.
  * Uses localStorage to persist the current screen and restore it
- * after a reload (F5), after verifying the login state. Also mirrors every
+ * after a reload, after verifying the login state. Also mirrors every
  * navigation onto `window.history`, so the hardware/gesture back button
  * (mobile Chrome/Safari swipe-back included) moves within the app instead
  * of leaving the page, as long as there's an in-app screen left to return to.
- * @tag FRONT-NAV-001
  */
 class StoreNavigation {
 	/** The screen currently displayed to the user. */

@@ -18,7 +18,6 @@ namespace match {
     * if validated, decodes the card's value by instantiating the corresponding Effects
     * (e.g. if the card is a "Draw Two", it enqueues a `DrawEffect` and
     * an `AdvanceTurnEffect`).
-    * @tag RULE-STD-001
     */
    class StandardRule : public MatchRule {
     public:
@@ -30,7 +29,6 @@ namespace match {
          * on top of the discard pile (or the active colour for Wilds). Sets `event.is_valid_play` to false otherwise.
          * @param state Pointer to the current match state.
          * @param event Event struct containing the details of the play.
-         * @tag RULE-STD-MTH-001
          */
         void ValidatePlay(const MatchState* state, CardPlayedEvent& event) override;
 
@@ -40,7 +38,6 @@ namespace match {
          * on the `Value` enumerator extracted from the compact card played.
          * @param state Pointer to the match state.
          * @param event The event of the played card.
-         * @tag RULE-STD-MTH-002
          */
         void OnCardPlayed(MatchState* state, CardPlayedEvent& event) override;
 
@@ -50,7 +47,6 @@ namespace match {
          * Support method used internally to determine the target (e.g. for `SkipEffect` or `DrawEffect`).
          * * @param state Pointer to the match state.
          * @return std::string Username of the target player computed following the direction of play.
-         * @tag RULE-STD-PRIV-001
          */
         std::string GetNextPlayer(MatchState* state);
    };

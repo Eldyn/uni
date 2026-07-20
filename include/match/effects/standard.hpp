@@ -16,7 +16,6 @@ namespace match {
      * @class AdvanceTurnEffect
      * @brief Base effect that advances the turn to the next player.
      * Usually enqueued at the end of a standard play or after the resolution of the other effects.
-     * @tag EFFECT-STD-001
      */
     class AdvanceTurnEffect : public Effect {
     public:
@@ -25,14 +24,12 @@ namespace match {
          * @param match_state The current match state.
          * @param match_instance The match instance.
          * @return EffectResult The outcome of the resolution (always kResolved in the absence of errors).
-         * @tag EFFECT-STD-MTH-001
          */
         EffectResult Resolve(MatchState* match_state, MatchInstance* match_instance) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kAdvanceTurn.
-         * @tag EFFECT-STD-MTH-002
          */
         EffectType GetType() const override { return EffectType::kAdvanceTurn; }
     };
@@ -42,7 +39,6 @@ namespace match {
      * @brief Interactive effect that asks the player whether they want to play the just-drawn card.
      * * Triggered when a player draws a card from the deck (not as a penalty) and
      * it turns out to be playable according to the current rules.
-     * @tag EFFECT-STD-002
      */
     class DecideDrawnCardEffect : public Effect {
     public:
@@ -59,14 +55,12 @@ namespace match {
          * @param state The match state.
          * @param match The match instance.
          * @return EffectResult Returns a kNeedsInput status to ask the client what to do.
-         * @tag EFFECT-STD-MTH-003
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kDecideDrawnCard.
-         * @tag EFFECT-STD-MTH-004
          */
         EffectType GetType() const override { return EffectType::kDecideDrawnCard; }
         nlohmann::json ToJson() const override {
@@ -83,7 +77,6 @@ namespace match {
      * @class DrawEffect
      * @brief Penalty/obligation effect that makes a player draw a number of cards.
      * Used for the start of the turn, the +2, +4 cards, or for penalties from mods.
-     * @tag EFFECT-STD-003
      */
     class DrawEffect : public Effect {
     public:
@@ -101,14 +94,12 @@ namespace match {
          * @param state The match state.
          * @param match_instance The match instance.
          * @return EffectResult Outcome of the operation.
-         * @tag EFFECT-STD-MTH-005
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match_instance) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kDraw.
-         * @tag EFFECT-STD-MTH-006
          */
         EffectType GetType() const override { return EffectType::kDraw; }
         nlohmann::json ToJson() const override {
@@ -124,7 +115,6 @@ namespace match {
     /**
      * @class SkipEffect
      * @brief Effect that skips the next player's turn (Skip card).
-     * @tag EFFECT-STD-004
      */
     class SkipEffect : public Effect {
     public:
@@ -133,14 +123,12 @@ namespace match {
          * @param state The match state.
          * @param match_instance The match instance.
          * @return EffectResult Outcome of the operation.
-         * @tag EFFECT-STD-MTH-007
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match_instance) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kSkip.
-         * @tag EFFECT-STD-MTH-008
          */
         EffectType GetType() const override { return EffectType::kSkip; }
     };
@@ -148,7 +136,6 @@ namespace match {
     /**
      * @class ReverseEffect
      * @brief Effect that reverses the direction of turn rotation (Reverse card).
-     * @tag EFFECT-STD-005
      */
     class ReverseEffect : public Effect {
     public:
@@ -157,14 +144,12 @@ namespace match {
          * @param state The match state.
          * @param match_instance The match instance.
          * @return EffectResult Outcome of the operation.
-         * @tag EFFECT-STD-MTH-009
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match_instance) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kReverse.
-         * @tag EFFECT-STD-MTH-010
          */
         EffectType GetType() const override { return EffectType::kReverse; }
     };
@@ -172,7 +157,6 @@ namespace match {
     /**
      * @class ChooseColorEffect
      * @brief Interactive effect that requires the selection of the new active colour (Wild cards).
-     * @tag EFFECT-STD-006
      */
     class ChooseColorEffect : public Effect {
     public:
@@ -190,14 +174,12 @@ namespace match {
          * @param state The match state.
          * @param match_instance The match instance.
          * @return EffectResult Outcome of the operation or kNeedsInput.
-         * @tag EFFECT-STD-MTH-011
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match_instance) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kChooseColor.
-         * @tag EFFECT-STD-MTH-012
          */
         EffectType GetType() const override { return EffectType::kChooseColor; }
         nlohmann::json ToJson() const override {

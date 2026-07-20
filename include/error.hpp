@@ -11,13 +11,11 @@
  * @brief Encapsulates the information concerning an error that occurred in the system.
  * * Contains a standard internal code and a descriptive message for easy
  * routing and response to the client.
- * @tag ERR-STR-001
  */
 struct Error {
     /**
      * @enum Code
      * @brief Generic codes that classify the type of error.
-     * @tag ERR-ENUM-001
      */
     enum class Code {
         kBadRequest,        /**< Malformed request. */
@@ -35,28 +33,27 @@ struct Error {
 
     // --- Factory Methods ---
 
-    /** @brief Creates an error of type kBadRequest. @tag ERR-MTH-001 */
+    /** @brief Creates an error of type kBadRequest. */
     static Error BadRequest   (const std::string& msg) { return {Code::kBadRequest,       msg}; }
-    /** @brief Creates an error of type kInvalidInput. @tag ERR-MTH-002 */
+    /** @brief Creates an error of type kInvalidInput. */
     static Error InvalidInput (const std::string& msg) { return {Code::kInvalidInput,     msg}; }
-    /** @brief Creates an error of type kNotFound. @tag ERR-MTH-003 */
+    /** @brief Creates an error of type kNotFound. */
     static Error NotFound     (const std::string& msg) { return {Code::kNotFound,         msg}; }
-    /** @brief Creates an error of type kUnauthorised. @tag ERR-MTH-004 */
+    /** @brief Creates an error of type kUnauthorised. */
     static Error Unauthorised (const std::string& msg) { return {Code::kUnauthorised,     msg}; }
-    /** @brief Creates an error of type kConflict. @tag ERR-MTH-005 */
+    /** @brief Creates an error of type kConflict. */
     static Error Conflict     (const std::string& msg) { return {Code::kConflict,         msg}; }
-    /** @brief Creates a DB error kDatabaseFailure. @tag ERR-MTH-006 */
+    /** @brief Creates a DB error kDatabaseFailure. */
     static Error DatabaseFail (const std::string& msg) { return {Code::kDatabaseFailure,  msg}; }
-    /** @brief Creates a generic error kInternalError. @tag ERR-MTH-007 */
+    /** @brief Creates a generic error kInternalError. */
     static Error Internal     (const std::string& msg) { return {Code::kInternalError,    msg}; }
-    /** @brief Creates an error of type kTooManyRequests. @tag ERR-MTH-009 */
+    /** @brief Creates an error of type kTooManyRequests. */
     static Error TooManyRequests(const std::string& msg) { return {Code::kTooManyRequests, msg}; }
 
     /**
      * @brief Maps the internal error code to the corresponding HTTP Status Code.
      * Useful for automatically responding to the client in a standard way (e.g. in REST APIs).
      * @return std::string Formatted status code (e.g. "404 Not Found").
-     * @tag ERR-MTH-008
      */
     std::string HttpStatus() const {
         switch (code) {

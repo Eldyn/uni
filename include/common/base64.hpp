@@ -24,14 +24,14 @@ inline constexpr std::array<uint8_t, 256> kDecodeTable = []() {
 
 //  Takes arbitrary binary data and returns its base64 representation.
 //  Every 3 input bytes → 4 output characters; '=' padding fills the tail.
-//
+
 //  Bit arithmetic:
 //    Given bytes [A, B, C] packed into a 24-bit integer:
 //      bits 23-18 → index 0
 //      bits 17-12 → index 1
 //      bits 11- 6 → index 2
 //      bits  5- 0 → index 3
-//
+
 // @param data   Raw bytes to encode.
 // @returns      Base64-encoded ASCII string.
 inline std::string Encode(const std::vector<uint8_t>& data) {
@@ -54,7 +54,7 @@ inline std::string Encode(const std::vector<uint8_t>& data) {
 
 //  Inverse of Encode. Validates every character against kDecodeTable and
 //  throws std::invalid_argument on malformed input.
-//
+
 // @param encoded   Base64 string (may include '=' padding).
 // @returns         Decoded raw bytes.
 // @throws          std::invalid_argument if `encoded` contains illegal chars

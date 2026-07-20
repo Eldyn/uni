@@ -17,7 +17,6 @@
  * @brief Tracks live username -> socket mappings across the whole server.
  * Registered via `WebServer::OnConnectionOpen`/`OnConnectionClose`, same shape
  * as `LobbyController`'s existing hooks (additive, does not replace them).
- * @tag PRESENCE-REG-000
  */
 class PresenceRegistry : public IPresenceStore {
 public:
@@ -25,7 +24,6 @@ public:
      * @brief Handler called when a client establishes a new WebSocket connection.
      * @param ws Pointer to the WebSocket socket.
      * @param sd Data associated with the socket (contains username, set post-upgrade).
-     * @tag PRESENCE-REG-001
      */
     void OnOpen(AppWebSocket* ws, PerSocketData* sd);
 
@@ -33,7 +31,6 @@ public:
      * @brief Handler called when a client closes the connection.
      * @param ws Pointer to the disconnected WebSocket socket.
      * @param sd Data associated with the socket.
-     * @tag PRESENCE-REG-002
      */
     void OnClose(AppWebSocket* ws, PerSocketData* sd);
 
@@ -47,14 +44,12 @@ public:
      * O(1) lookup, kept up to date by `LobbyController` on join/leave/kick.
      * @param username The username to index.
      * @param lobby_id The lobby's internal numeric ID.
-     * @tag PRESENCE-REG-003
      */
     void SetUserLobby(const std::string& username, uint32_t lobby_id);
 
     /**
      * @brief Clears the lobby index entry for a user (on leave/kick/eviction).
      * @param username The username to clear.
-     * @tag PRESENCE-REG-004
      */
     void ClearUserLobby(const std::string& username);
 
@@ -62,7 +57,6 @@ public:
      * @brief Looks up which lobby a user currently belongs to.
      * @param username The username to look up.
      * @return uint32_t The lobby's internal numeric ID, or 0 if not in any lobby.
-     * @tag PRESENCE-REG-005
      */
     uint32_t GetUserLobbyId(const std::string& username) const;
 

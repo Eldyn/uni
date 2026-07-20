@@ -46,7 +46,6 @@ export interface ConnectionStatus {
 /**
  * @class WsResponse
  * @brief Unified wrapper for WebSocket message responses.
- * @tag FRONT-WS-001
  */
 export class WsResponse<T extends Record<string, unknown> = Record<string, unknown>> {
 	public readonly ok: boolean;
@@ -89,7 +88,6 @@ interface PendingRequest {
 /**
  * @class WebSocketClient
  * @brief Stateful and reactive WebSocket client with Zod-validated boundaries.
- * @tag FRONT-WS-002
  */
 export class WebSocketClient {
 	socket = $state<WebSocket | null>(null);

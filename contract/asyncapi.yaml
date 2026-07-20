@@ -563,7 +563,7 @@ components:
   # described inline in their message definitions above.
   #
   # Constraint schemas (Username, Password, etc.) are included for frontend
-  # Zod generation (Phase 3) and are referenced by the payload schemas below.
+  # Zod generation and are referenced by the payload schemas below.
   # -------------------------------------------------------------------------
   schemas:
     # --- Constraint schemas (single source of truth for validation limits) ---

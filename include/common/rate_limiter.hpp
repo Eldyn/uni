@@ -22,7 +22,6 @@
  * loop, so it avoids per-call locking. The time source is injectable (`*At`
  * overloads) so the behaviour can be unit-tested deterministically without
  * sleeping.
- * @tag CMN-RL-CLS-001
  */
 class RateLimiter {
 public:

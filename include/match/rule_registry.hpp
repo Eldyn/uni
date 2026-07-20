@@ -21,14 +21,12 @@ namespace match {
     /**
      * @typedef RuleFactory
      * @brief Defines the type of function capable of generating a new instance of a rule.
-     * @tag RULE-REG-TYP-001
      */
     using RuleFactory = std::function<std::unique_ptr<MatchRule>()>;
 
     /**
      * @struct RuleMetadata
      * @brief Human-readable metadata attached to each registered rule.
-     * @tag RULE-REG-STR-002
      */
     struct RuleMetadata {
         std::string label;
@@ -38,7 +36,6 @@ namespace match {
     /**
      * @struct RuleEntry
      * @brief Pairs a rule factory with its display metadata.
-     * @tag RULE-REG-STR-003
      */
     struct RuleEntry {
         RuleFactory  factory;
@@ -50,7 +47,6 @@ namespace match {
      * @brief Global (Singleton) registry of the match rule factories.
      * * Maintains a map that associates an identifying string (the name of the mod/rule)
      * with the `RuleEntry` holding the factory and display metadata.
-     * @tag RULE-REG-CLS-001
      */
     class RuleRegistry {
     public:
@@ -59,7 +55,6 @@ namespace match {
          * Uses the "Meyers' Singleton" pattern to ensure the map is
          * initialized in a thread-safe manner on first use.
          * @return std::unordered_map<std::string, RuleEntry>& Reference to the map of rules.
-         * @tag RULE-REG-MTH-001
          */
         static std::unordered_map<std::string, RuleEntry>& GetMap() {
             static std::unordered_map<std::string, RuleEntry> registry;
@@ -70,7 +65,6 @@ namespace match {
          * @brief Instantiates a new match rule from its name.
          * @param name The textual identifier of the rule (e.g. "seven_zero").
          * @return std::unique_ptr<MatchRule> Unique pointer to the new instance, or `nullptr` if not found.
-         * @tag RULE-REG-MTH-002
          */
         static std::unique_ptr<MatchRule> Create(const std::string& name) {
             auto& map = GetMap();
@@ -86,7 +80,6 @@ namespace match {
          * @brief Returns a JSON array describing every registered rule (id, label, description).
          * Intended to be sent to clients so they can render dynamic rule selectors.
          * @return nlohmann::json Array of rule descriptor objects.
-         * @tag RULE-REG-MTH-003
          */
         static nlohmann::json GetAvailableRulesJson() {
             auto arr = nlohmann::json::array();
@@ -107,7 +100,6 @@ namespace match {
      * * This structure is designed to be instantiated globally/statically in the
      * source files (.cpp) of the rules themselves. At program initialization time,
      * the constructor runs and injects the rule into the `RuleRegistry`.
-     * @tag RULE-REG-STR-001
      */
     struct RuleRegistrar {
         /**
@@ -116,7 +108,6 @@ namespace match {
          * @param factory     The function able to instantiate the rule.
          * @param label       Short human-readable name shown in the UI.
          * @param description One-sentence description of the rule's effect.
-         * @tag RULE-REG-MTH-004
          */
         RuleRegistrar(const std::string& name, RuleFactory factory,
                       std::string label, std::string description) {

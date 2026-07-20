@@ -14,7 +14,6 @@ namespace match {
     /**
      * @class PassHandsEffect
      * @brief Effect that performs the swapping of the cards in the players' hands.
-     * @tag EFFECT-PASS-001
      */
     class PassHandsEffect : public Effect {
     public:
@@ -25,7 +24,6 @@ namespace match {
          * @param state The current match state.
          * @param match The match instance.
          * @return EffectResult The outcome of the operation.
-         * @tag EFFECT-PASS-MTH-001
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match) override;
     };
