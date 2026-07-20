@@ -5,7 +5,6 @@
  */
 
 import { z } from "zod";
-import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 import { failureText } from "./errors";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
@@ -58,6 +57,8 @@ export interface LobbySettings {
 	/** Number of cards dealt to each player at the start of the match. */
 	starting_cards: number;
 
+	/** Maximum humans+bots this lobby accepts. */
+	max_players: number;
 	/** Number of bots to add automatically when the match starts. */
 	bot_count: number;
 	/** Bot behaviour (e.g. play immediately or wait for the timer). */
@@ -127,6 +128,8 @@ export interface ListedLobby {
 	member_count: number;
 	/** Total number of bots present in this lobby. */
 	bot_count: number;
+	/** Maximum humans+bots this lobby accepts. */
+	max_players: number;
 	/** The invite code allowing the client to join with one click. */
 	invite_code: string;
 	/** Derived lobby status: "open" | "in-game" | "full". */
@@ -155,7 +158,8 @@ const LobbySchema = z.looseObject({
 	members: z.array(LobbyMemberSchema).default([]),
 	settings: z.looseObject({
 		active_mods: z.array(z.string()).default([]),
-		allow_bot_takeover: z.boolean().default(false)
+		allow_bot_takeover: z.boolean().default(false),
+		max_players: z.number().default(4)
 	})
 });
 
@@ -163,6 +167,7 @@ const ListedLobbySchema = z.looseObject({
 	name: z.string(),
 	member_count: z.number().default(0),
 	bot_count: z.number().default(0),
+	max_players: z.number().default(4),
 	invite_code: z.string(),
 	status: z.enum(["open", "in-game", "full"]).default("open"),
 	active_mods: z.array(z.string()).default([]),
@@ -520,6 +525,7 @@ class StoreLobby {
 				const humans = updatedLobby.members.filter((m) => !m.is_bot).length;
 				this.available[idx].member_count = humans;
 				this.available[idx].bot_count = updatedLobby.members.length - humans;
+				this.available[idx].max_players = updatedLobby.settings.max_players;
 				this.available[idx].name = updatedLobby.name;
 				this.available[idx].active_mods = updatedLobby.settings.active_mods;
 				this.available[idx].allow_bot_takeover = updatedLobby.settings.allow_bot_takeover;
@@ -527,7 +533,9 @@ class StoreLobby {
 				// last fetchList(), but track full/open live from the member count.
 				if (this.available[idx].status !== "in-game") {
 					this.available[idx].status =
-						updatedLobby.members.length >= MAX_LOBBY_MEMBERS ? "full" : "open";
+						updatedLobby.members.length >= updatedLobby.settings.max_players
+							? "full"
+							: "open";
 				}
 			}
 
