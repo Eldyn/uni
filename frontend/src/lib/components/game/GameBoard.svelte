@@ -5,7 +5,8 @@
 	import { computeSeatPositions } from "./layout/seatLayout";
 	import PlayerSeat from "./PlayerSeat.svelte";
 	import PlayerHand from "./PlayerHand.svelte";
-	import GamePiles from "./GamePiles.svelte";
+	import DiscardPile from "./DiscardPile.svelte";
+	import DrawPile from "./DrawPile.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 
@@ -56,7 +57,7 @@
 	</div>
 
 	<div class="piles-wrapper">
-		<GamePiles />
+		<DiscardPile />
 	</div>
 
 	<div class="local-player-wrapper">
@@ -69,6 +70,7 @@
 				<PlayerHand />
 			{/snippet}
 		</PlayerSeat>
+		<DrawPile />
 	</div>
 </div>
 
@@ -126,6 +128,9 @@
 		left: 50%;
 		bottom: 6em;
 		transform: translateX(-50%);
+		display: flex;
+		align-items: flex-end;
+		gap: 1.5em;
 	}
 
 	.game-field.portrait .local-player-wrapper {

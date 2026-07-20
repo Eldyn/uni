@@ -142,6 +142,8 @@
 		position: relative;
 		left: auto;
 		top: auto;
+		width: 26em;
+		height: calc(var(--cardSize) * 1.5357 + 4em);
 	}
 
 	.seat-inner {
