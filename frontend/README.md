@@ -9,8 +9,9 @@ channel), with automatic reconnection.
 
 - `src/lib/stores/`, reactive singleton stores, one per domain: `auth`, `lobby`, `game`,
   `navigation`, `toast`, `stats`, `ws`.
-- `src/lib/components/game/`, the game table: `GameBoard`, `PlayerHand`,
-  `OpponentHand`, `GamePiles`, `GameCard`, `FlyingCardsOverlay` (animations), `card-bus`.
+- `src/lib/components/game/`, the game table: `GameBoard`, `PlayerSeat`,
+  `PlayerHand`, `GamePiles`, `GameCard`, `FlyingCardsOverlay` (animations), `card-bus`,
+  `layout/seatLayout` (N-player seat positioning).
 - `src/lib/components/lobby/`, lobby and settings screens and controls.
 - `public/`, static assets (card images, audio, pixel-art fonts).
 
