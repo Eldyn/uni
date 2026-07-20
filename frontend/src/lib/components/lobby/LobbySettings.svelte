@@ -14,8 +14,12 @@
 		TURN_TIME_MIN_MS,
 		TURN_TIME_MAX_MS,
 		BOT_COUNT_MIN,
-		BOT_COUNT_MAX
+		BOT_COUNT_MAX,
+		MAX_LOBBY_MEMBERS
 	} from "$lib/generated/schemas";
+
+	/** Backend floor from LobbySettings::Sanitize(), not contract-generated. */
+	const MIN_MAX_PLAYERS = 2;
 
 	/**
 	 * The subset of lobby settings keys this panel can modify.
@@ -35,6 +39,7 @@
 		allow_bot_takeover: storeLobby.current?.settings.allow_bot_takeover ?? false,
 
 		starting_cards: storeLobby.current?.settings.starting_cards ?? 7,
+		max_players: storeLobby.current?.settings.max_players ?? 4,
 
 		quit_deletes_match: storeLobby.current?.settings.quit_deletes_match ?? false,
 
@@ -137,6 +142,19 @@
 		disabled={!isHost}
 		format={(v) => `${v}s`}
 		oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
+	/>
+
+	<hr class="settings-divider" />
+
+	<Slider
+		id="max-players"
+		label="Max Players"
+		value={settings.max_players}
+		min={MIN_MAX_PLAYERS}
+		max={MAX_LOBBY_MEMBERS}
+		disabled={!isHost}
+		format={(v) => `${v} players`}
+		oncommit={(v) => commit("max_players", v)}
 	/>
 
 	<hr class="settings-divider" />
