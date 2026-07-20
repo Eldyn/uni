@@ -437,6 +437,31 @@ TEST_CASE("lobby: AddOrHijack allows more than 4 members up to max_players") {
     CHECK_EQ(lobby.members.size(), 6);
 }
 
+TEST_CASE("lobby: a sanitized 8-player lobby fills with humans then bots up to max_players") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.max_players = 8;
+    lobby.settings.bot_count = 5;
+    lobby.settings.allow_bot_takeover = false;
+    lobby.settings.Sanitize();
+    CHECK_EQ(lobby.settings.max_players, 8);
+
+    for (int i = 0; i < 6; ++i) {
+        auto result = lobby.AddOrHijack("Human" + std::to_string(i), nullptr);
+        CHECK_EQ(result.outcome, JoinOutcome::kJoinedEmptySlot);
+    }
+    REQUIRE_EQ(lobby.members.size(), 6);
+
+    std::mt19937 rng(42);
+    lobby.SyncBots(rng);
+
+    CHECK_EQ(lobby.members.size(), 8);
+    CHECK_EQ(CountBots(lobby), 2);
+
+    auto overflow = lobby.AddOrHijack("Overflow", nullptr);
+    CHECK_EQ(overflow.outcome, JoinOutcome::kLobbyFull);
+}
+
 TEST_CASE("lobby: seat_index survives leave/join, lowest free seat is reused first") {
     Lobby lobby;
     lobby.id = 1;
