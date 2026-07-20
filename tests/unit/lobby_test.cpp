@@ -365,6 +365,60 @@ TEST_CASE("lobby: AddOrHijack reports full when at capacity") {
     CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(contract::kMaxLobbyMembers));
 }
 
+TEST_CASE("lobby: seat_index survives leave/join, lowest free seat is reused first") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = false;
+
+    lobby.AddOrHijack("Alice", nullptr);
+    lobby.AddOrHijack("Bob", nullptr);
+    lobby.AddOrHijack("Carol", nullptr);
+    lobby.AddOrHijack("Dave", nullptr);
+    REQUIRE_EQ(lobby.members.size(), 4);
+
+    auto seat_of = [&](const std::string& name) {
+        auto it = std::ranges::find(lobby.members, name, &LobbyMember::username);
+        REQUIRE(it != lobby.members.end());
+        return it->seat_index;
+    };
+    CHECK_EQ(seat_of("Alice"), 0);
+    CHECK_EQ(seat_of("Bob"), 1);
+    CHECK_EQ(seat_of("Carol"), 2);
+    CHECK_EQ(seat_of("Dave"), 3);
+
+    std::mt19937 rng(42);
+    lobby.RemoveMember("Bob", rng);
+    lobby.RemoveMember("Dave", rng);
+    REQUIRE_EQ(lobby.members.size(), 2);
+    CHECK_EQ(seat_of("Alice"), 0);
+    CHECK_EQ(seat_of("Carol"), 2);
+
+    lobby.AddOrHijack("Eve", nullptr);
+    lobby.AddOrHijack("Frank", nullptr);
+    REQUIRE_EQ(lobby.members.size(), 4);
+
+    CHECK_EQ(seat_of("Eve"), 1);
+    CHECK_EQ(seat_of("Frank"), 3);
+    CHECK_EQ(seat_of("Alice"), 0);
+    CHECK_EQ(seat_of("Carol"), 2);
+}
+
+TEST_CASE("lobby: AddOrHijack preserves seat_index when hijacking a bot slot") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false, 0);
+    lobby.members.emplace_back("Bot1", nullptr, true, true, 1);
+    lobby.members.emplace_back("Carol", nullptr, true, false, 2);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+    CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
+
+    auto it = std::ranges::find(lobby.members, "Charlie", &LobbyMember::username);
+    REQUIRE(it != lobby.members.end());
+    CHECK_EQ(it->seat_index, 1);
+}
+
 TEST_CASE("lobby: Create builds a sanitized lobby with the host as first member") {
     Lobby lobby = Lobby::Create(7, "Alice", nullptr, true, "Alice's Room",
                                  contract::kTurnTimeMinMs - 1, contract::kStartingCardsMax + 1,
