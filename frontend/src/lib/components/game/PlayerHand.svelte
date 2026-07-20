@@ -73,10 +73,32 @@
 	function handleCardClick(cardId: number) {
 		if (!dragging && !storeGame.isActionPending) storeGame.playCard(cardId);
 	}
+
+	// Default overlap (matches the previous fixed -0.35 margin) vs. how much
+	// horizontal room the hand is allowed to span, both in units of --cardSize.
+	const DEFAULT_OVERLAP_STEP = 0.65;
+	const MIN_OVERLAP_STEP = 0.25;
+	const MAX_HAND_SPAN = 9;
+
+	// TODO: this is a stopgap overflow fix (proportional overlap so N cards
+	// stay within MAX_HAND_SPAN). Revisit with a proper hand-overflow scheme
+	// (e.g. fanning, scrolling, or a second row) once it starts feeling wrong
+	// in practice at high player counts / large hands.
+	let overlapStep = $derived.by((): number => {
+		const n = items.length;
+		if (n <= 1) return DEFAULT_OVERLAP_STEP;
+		const fitStep = (MAX_HAND_SPAN - 1) / (n - 1);
+		return Math.max(MIN_OVERLAP_STEP, Math.min(DEFAULT_OVERLAP_STEP, fitStep));
+	});
 </script>
 
 <DragDropProvider {onDragStart} {onDragOver} {onDragEnd}>
-	<div bind:this={handEl} class="player_hand" class:is-active-drag={dragging}>
+	<div
+		bind:this={handEl}
+		class="player_hand"
+		class:is-active-drag={dragging}
+		style="--hand-overlap-step: {overlapStep};"
+	>
 		{#each items as card, index (card.id)}
 			<SortableCardSlot
 				{card}
@@ -110,7 +132,7 @@
 	}
 
 	.player_hand :global(.card-slot + .card-slot) {
-		margin-left: calc(var(--cardSize) * -0.35);
+		margin-left: calc(var(--cardSize) * (var(--hand-overlap-step) - 1));
 	}
 
 	.player_hand:not(.is-active-drag) :global(.card-slot) {
