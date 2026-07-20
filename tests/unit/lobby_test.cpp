@@ -121,10 +121,11 @@ TEST_CASE("lobby: SyncBots removes bots when bot_count is lowered") {
     CHECK_EQ(CountBots(lobby), 1);
 }
 
-TEST_CASE("lobby: SyncBots clamps desired bots to the lobby capacity") {
+TEST_CASE("lobby: SyncBots clamps desired bots to the lobby's max_players") {
     Lobby lobby;
     lobby.id = 1;
-    int human_count = contract::kMaxLobbyMembers - 1;
+    lobby.settings.max_players = 10;
+    int human_count = lobby.settings.max_players - 1;
     for (int i = 0; i < human_count; ++i)
         lobby.members.emplace_back("Human" + std::to_string(i), nullptr, true, false);
     lobby.settings.bot_count = human_count;
@@ -132,7 +133,7 @@ TEST_CASE("lobby: SyncBots clamps desired bots to the lobby capacity") {
     std::mt19937 rng(42);
     lobby.SyncBots(rng);
 
-    CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(contract::kMaxLobbyMembers));
+    CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(lobby.settings.max_players));
     CHECK_EQ(CountBots(lobby), 1);
 }
 
@@ -374,16 +375,30 @@ TEST_CASE("lobby: AddOrHijack fills an empty slot when no bots are hijackable") 
     CHECK_EQ(lobby.members.size(), 2);
 }
 
-TEST_CASE("lobby: AddOrHijack reports full when at capacity") {
+TEST_CASE("lobby: AddOrHijack reports full when at the lobby's max_players capacity") {
     Lobby lobby;
     lobby.id = 1;
-    for (int i = 0; i < contract::kMaxLobbyMembers; ++i)
+    lobby.settings.max_players = 8;
+    for (int i = 0; i < lobby.settings.max_players; ++i)
         lobby.members.emplace_back("Player" + std::to_string(i), nullptr, true, false);
 
     auto result = lobby.AddOrHijack("Overflow", nullptr);
 
     CHECK_EQ(result.outcome, JoinOutcome::kLobbyFull);
-    CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(contract::kMaxLobbyMembers));
+    CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(lobby.settings.max_players));
+}
+
+TEST_CASE("lobby: AddOrHijack allows more than 4 members up to max_players") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.max_players = 6;
+    for (int i = 0; i < 5; ++i)
+        lobby.members.emplace_back("Player" + std::to_string(i), nullptr, true, false);
+
+    auto result = lobby.AddOrHijack("Sixth", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kJoinedEmptySlot);
+    CHECK_EQ(lobby.members.size(), 6);
 }
 
 TEST_CASE("lobby: seat_index survives leave/join, lowest free seat is reused first") {

@@ -134,6 +134,7 @@ components:
                   name,
                   member_count,
                   bot_count,
+                  max_players,
                   invite_code,
                   status,
                   active_mods,
@@ -146,6 +147,8 @@ components:
                   type: integer
                 bot_count:
                   type: integer
+                max_players:
+                  $ref: "#/components/schemas/LobbyMemberCap"
                 invite_code:
                   $ref: "#/components/schemas/LobbyCode"
                 status:

@@ -64,7 +64,7 @@ int Lobby::NextFreeSeat() const {
     std::unordered_set<int> taken;
     for (const auto& member : members) taken.insert(member.seat_index);
 
-    for (int seat = 0; seat < contract::kMaxLobbyMembers; ++seat) {
+    for (int seat = 0; seat < settings.max_players; ++seat) {
         if (taken.find(seat) == taken.end()) return seat;
     }
     return static_cast<int>(members.size());
@@ -81,8 +81,8 @@ void Lobby::SyncBots(std::mt19937& rng) {
     }
 
     int desired_bots = settings.bot_count;
-    if (human_count + desired_bots > contract::kMaxLobbyMembers) {
-        desired_bots = contract::kMaxLobbyMembers - human_count;
+    if (human_count + desired_bots > settings.max_players) {
+        desired_bots = settings.max_players - human_count;
     }
 
     while (bot_count < desired_bots) {
@@ -191,7 +191,7 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
         }
     }
 
-    if (members.size() < contract::kMaxLobbyMembers) {
+    if (static_cast<int>(members.size()) < settings.max_players) {
         int seat = NextFreeSeat();
         members.emplace_back(username, socket, true, false, seat);
 

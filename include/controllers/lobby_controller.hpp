@@ -165,12 +165,6 @@ public:
      */
     std::size_t ActiveMatchCount() const;
 
-    /**
-     * @brief Maximum number of players allowed in a single lobby.
-     * @tag LOBBY-CFG-002
-     */
-    static constexpr int kMaxMembers = 4;
-
 private:
     /**
      * @brief Verifies the integrity of the current match data (e.g. host realignment).
