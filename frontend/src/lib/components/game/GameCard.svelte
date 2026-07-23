@@ -56,20 +56,24 @@
 	const slotAttach = (node: Element) => attach?.(node);
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="card {extraClass}"
 	class:card--dragging={isDragged}
 	class:card--drag-target={isDragTarget}
 	class:card--hidden={isHidden}
-	role="button"
-	tabindex="0"
+	class:card--turned={turned}
+	role={turned ? "presentation" : "button"}
+	tabindex={turned ? -1 : 0}
 	draggable="false"
 	style="{style || `left: calc(${index} * 2.2em + 1.1em)`}; --card-color: {cardColor};"
 	{@attach slotAttach}
 	onclick={() => {
+		if (turned) return;
 		onCardClick(card.id);
 	}}
 	onkeydown={(e) => {
+		if (turned) return;
 		if (e.key === "Enter") {
 			onCardClick(card.id);
 		}
@@ -121,9 +125,11 @@
 		border-radius: 0.8em;
 		overflow: hidden;
 		position: relative;
+		image-rendering: pixelated;
 	}
 
 	.layer-bg {
+		image-rendering: pixelated;
 		position: absolute;
 		top: 0;
 		left: 0;
@@ -159,19 +165,24 @@
 		font-size: 1em;
 	}
 
-	:global(.player_hand) .card:hover {
+	:global(.player_hand) .card:not(.card--turned):hover {
 		transform-origin: left bottom;
 		transform: rotate(-10deg) translateY(-0.7em);
 		box-shadow: var(--lowShadowHover);
 		z-index: 50;
 	}
 
-	:global(.player_hand) .card:hover ~ :global(.card) {
+	:global(.player_hand) .card:not(.card--turned):hover ~ :global(.card) {
 		transform: translateX(2em);
 	}
 
 	:global(.player_hand) .card:active {
 		cursor: grabbing;
+	}
+
+	.card--turned {
+		pointer-events: none;
+		cursor: default;
 	}
 
 	.card--hidden {
