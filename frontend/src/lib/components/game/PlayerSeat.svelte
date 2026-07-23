@@ -11,6 +11,7 @@
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 	import type { SeatPosition } from "./layout/seatLayout";
+	import { computeHandRingSlots } from "./layout/handRing";
 
 	let {
 		player,
@@ -45,7 +46,7 @@
 	});
 
 	let cardCount = $derived(player?.card_count ?? 0);
-	let handWidth = $derived(`calc(${cardCount} * 2.2em + 7.2em)`);
+	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player?.is_bot || player?.username?.toLowerCase().includes("bot"));
 
 	let isValidTarget = $derived(
@@ -114,17 +115,14 @@
 			<div
 				bind:this={handEl}
 				class="player_hand"
-				style="
-                    width: {handWidth};
-                    height: calc(var(--cardSize) * 1.5357);
-                    transform: {seat?.handTransform ?? ''};
-                "
+				style="transform: {seat?.handTransform ?? ''};"
 			>
-				{#each Array(cardCount) as _, n}
+				{#each ringSlots as slot, n (n)}
 					<GameCard
 						card={{ id: -1, type: "wild", value: "0" }}
-						index={n}
 						turned={true}
+						extraClass="ring-back"
+						style="left: 50%; top: 50%; transform: translate(-50%, -50%) translate({slot.x}em, {slot.y}em) rotate({slot.rotateDeg}deg);"
 						attach={player ? bus.slotAttachment(`opp:${player.username}:${n}`) : undefined}
 					/>
 				{/each}
@@ -219,7 +217,14 @@
 
 	.player_hand {
 		position: absolute;
-		top: 45%;
+		top: 50%;
 		left: 50%;
+	}
+
+	/* Opponent ring backs read smaller than the local hand's cards, clustering
+	   tightly around the avatar the way the reference art fans them. */
+	.player_hand :global(.card.ring-back) {
+		width: calc(var(--cardSize) * 0.62);
+		height: calc(var(--cardSize) * 0.62 * 1.5357);
 	}
 </style>
