@@ -22,10 +22,15 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Opponent hands ring around the avatar**: opponents' turned card-backs now wrap in a circle around their seat (`layout/handRing.ts`, pure + unit-tested) instead of a flat fan — a symmetric arc at low counts that closes into an evenly overlapping full ring as the hand grows, with each back aimed radially outward.
 - **Seat cross for 1–3 opponents**: `seatLayout.ts` now seats any small table (≤ 3 opponents) at exact compass points — 1 at due-top, 2 across left/right, 3 as the existing right/top/left cross — via a per-count angle table, reading as "across the table" rather than an arc approximation. The bare ring angles are single-sourced through `computeSeatAngles()`.
 - **World-space board geometry foundation**: pure, renderer-agnostic seat and hand modules for the in-progress Threlte/WebGL board — `layout/seatLayout3D.ts` projects the same seat angles onto a circular XZ ring (unit-tested), and `layout/handFan.ts` holds the local-hand fan geometry. Threlte (`@threlte/core`, `@threlte/extras`, `three`) added as dependencies.
+- **Opponents, piles, and camera move into a real Threlte/WebGL scene**: `three/Scene3D.svelte` (hosted by a `<Canvas>` in `GameBoard.svelte`) replaces the DOM opponent ring/piles with actual meshes — `three/PlayerSeat3D.svelte` (avatar + `computeHandRingSlots` card-back ring + name label beyond the ring's edge), `three/DrawPile3D.svelte`, `three/DiscardPile3D.svelte` (renders the full `discardHistory` scatter), and `three/CardMesh3D.svelte` (ports `GameCard.svelte`'s layered background/value/border texture recipe to WebGL planes). A new `layout/cameraRig.ts` (pure, unit-tested) solves camera position/fov from the viewport's aspect ratio so the opponent ring stays fully on screen on both narrow phones and wide desktops. The local hand stays an unchanged DOM overlay on top of the transparent canvas; the DOM `DrawPile.svelte`/`DiscardPile.svelte` and the CSS perspective-tilt hack on `GameBoard.svelte` are removed.
 
 ### Changed
 
 - **Turned card-backs are non-interactive**: face-down cards (opponent rings, pile backs) drop their button role, focusability, click/keyboard handlers and hover lift, and cards render with `image-rendering: pixelated` so the pixel-art stays crisp when scaled.
+
+### Known issues
+
+- Card-flight animations that target an individual opponent's hand slot (e.g. an opponent drawing a card) fall back to the screen center, since those slots were DOM elements the flight system located by rect and are now WebGL meshes; porting flights into the 3D scene is the next Threlte-migration phase.
 
 - **Local hand overlap now scales with card count**: `PlayerHand.svelte` shrinks the per-card overlap as the hand grows so N cards stay within a fixed span instead of overflowing; flagged with a TODO for a proper long-term overflow scheme (fanning/scrolling/second row).
 - **Per-seat player color stays a 4-color RGBY wraparound** rather than growing a richer palette past 4 seats, pending a future player-picked character color feature.
