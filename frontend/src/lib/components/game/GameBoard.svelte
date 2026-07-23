@@ -1,17 +1,33 @@
 <script lang="ts">
+	import { Canvas } from "@threlte/core";
 	import { storeGame } from "$stores/game.svelte";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
-	import { computeSeatPositions } from "./layout/seatLayout";
 	import PlayerSeat from "./PlayerSeat.svelte";
 	import PlayerHand from "./PlayerHand.svelte";
-	import DiscardPile from "./DiscardPile.svelte";
-	import DrawPile from "./DrawPile.svelte";
+	import Scene3D from "./three/Scene3D.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 
-	createCardBus();
+	const bus = createCardBus();
 	const layout = createGameLayoutContext();
+
+	// The piles are now real WebGL meshes (DrawPile3D/DiscardPile3D), but
+	// FlyingCardsOverlay's 2D flight animations still resolve their source/
+	// destination via card-bus DOM rects — these invisible anchors keep that
+	// resolution accurate without rendering a second, redundant DOM pile.
+	let discardAnchorEl = $state<HTMLElement | null>(null);
+	let drawAnchorEl = $state<HTMLElement | null>(null);
+
+	$effect(() => {
+		if (discardAnchorEl) bus.register("discard-pile", discardAnchorEl);
+		return () => bus.unregister("discard-pile");
+	});
+
+	$effect(() => {
+		if (drawAnchorEl) bus.register("draw-pile", drawAnchorEl);
+		return () => bus.unregister("draw-pile");
+	});
 
 	// Seat-position color, not a UNO card color: cycles through the 4 UNO
 	// colors regardless of player count. Dropped in favor of a real
@@ -24,8 +40,8 @@
 	}
 
 	// Rotate the player list so opponents read in turn order starting right
-	// after the local player, then hand that count + the current viewport to
-	// the seat layout engine — no more length-branching or fixed LEFT/TOP/RIGHT.
+	// after the local player, then hand that list + the current viewport to
+	// the Threlte scene's own seat solver (layout/seatLayout3D.ts).
 	let mappedOpponents = $derived.by(() => {
 		const players = storeGame.state?.players ?? [];
 		const myUsername = storeGame.localPlayer?.username;
@@ -36,13 +52,7 @@
 		const rotated =
 			myIdx === -1 ? rawOpponents : [...players.slice(myIdx + 1), ...players.slice(0, myIdx)];
 
-		const seats = computeSeatPositions(rotated.length, layout.viewport);
-
-		return rotated.map((player, i) => ({
-			player,
-			seat: seats[i],
-			busIndex: rawOpponents.findIndex((p) => p.username === player.username)
-		}));
+		return rotated.map((player) => ({ player }));
 	});
 </script>
 
@@ -50,23 +60,17 @@
 <DrawStackIndicator />
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
-	<div class="seat-layer">
-		{#each mappedOpponents as { player, seat, busIndex } (player.username)}
-			<PlayerSeat {player} {seat} {busIndex} color={colorFor(player.username)} />
-		{/each}
+	<div class="scene-layer">
+		<Canvas>
+			<Scene3D {mappedOpponents} viewport={layout.viewport} {colorFor} />
+		</Canvas>
 	</div>
 
-	<div class="piles-wrapper">
-		<DiscardPile />
-	</div>
+	<div class="pile-anchor discard-anchor" bind:this={discardAnchorEl}></div>
 
 	<div class="local-player-wrapper">
-		<DrawPile />
-		<PlayerSeat
-			player={storeGame.localPlayer}
-			isLocal
-			color={colorFor(storeGame.localPlayer?.username)}
-		>
+		<div class="pile-anchor draw-anchor" bind:this={drawAnchorEl}></div>
+		<PlayerSeat player={storeGame.localPlayer} color={colorFor(storeGame.localPlayer?.username)}>
 			{#snippet hand()}
 				<PlayerHand />
 			{/snippet}
@@ -105,22 +109,34 @@
 		user-select: none;
 	}
 
-	.game-field:not(.portrait) {
-		transform: perspective(1200px) rotateX(10deg);
-	}
-
-	.seat-layer {
+	.scene-layer {
 		position: absolute;
 		inset: 0;
 	}
 
-	.piles-wrapper {
+	.scene-layer :global(canvas) {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+
+	/* Zero-size, invisible — exists only so card-bus can resolve a screen
+	   point for flight animations; the actual pile art is the WebGL mesh. */
+	.pile-anchor {
 		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+
+	.discard-anchor {
 		left: 50%;
 		top: 50%;
-		width: clamp(14em, 60vw, 24em);
-		height: clamp(14em, 60vw, 24em);
-		transform: translate(-50%, -50%);
+	}
+
+	.draw-anchor {
+		left: 0;
+		bottom: 0;
 	}
 
 	.local-player-wrapper {
@@ -137,9 +153,8 @@
 		bottom: 2em;
 	}
 
-	.game-field.portrait .piles-wrapper {
+	.game-field.portrait .discard-anchor {
 		top: auto;
 		bottom: 9em;
-		transform: translateX(-50%);
 	}
 </style>
