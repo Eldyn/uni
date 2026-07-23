@@ -37,8 +37,6 @@
 		"vitest": "^2.1.9"
 	},
 	"dependencies": {
-		"@dnd-kit-svelte/svelte": "^0.1.6",
-		"@dnd-kit/svelte": "^0.4.0",
 		"@hackernoon/pixel-icon-library": "^1.1.0",
 		"@tailwindcss/vite": "^4.3.1",
 		"@threlte/core": "^8.5.16",

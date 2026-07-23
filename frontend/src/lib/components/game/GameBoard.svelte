@@ -3,14 +3,24 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
-	import PlayerSeat from "./PlayerSeat.svelte";
-	import PlayerHand from "./PlayerHand.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 
 	const bus = createCardBus();
 	const layout = createGameLayoutContext();
+
+	// The camera's aspect ratio must match the canvas's actual rendered box,
+	// not the raw window — GameScreen.svelte's HUD row shrinks
+	// .game-board-container below window.innerHeight, and the mismatch
+	// otherwise clips content (the local hand) at the true bottom edge.
+	let sceneWidth = $state(0);
+	let sceneHeight = $state(0);
+	let sceneViewport = $derived({
+		width: sceneWidth || layout.viewport.width,
+		height: sceneHeight || layout.viewport.height,
+		orientation: layout.viewport.orientation
+	});
 
 	// The piles are now real WebGL meshes (DrawPile3D/DiscardPile3D), but
 	// FlyingCardsOverlay's 2D flight animations still resolve their source/
@@ -60,22 +70,14 @@
 <DrawStackIndicator />
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
-	<div class="scene-layer">
+	<div class="scene-layer" bind:clientWidth={sceneWidth} bind:clientHeight={sceneHeight}>
 		<Canvas>
-			<Scene3D {mappedOpponents} viewport={layout.viewport} {colorFor} />
+			<Scene3D {mappedOpponents} viewport={sceneViewport} {colorFor} />
 		</Canvas>
 	</div>
 
 	<div class="pile-anchor discard-anchor" bind:this={discardAnchorEl}></div>
-
-	<div class="local-player-wrapper">
-		<div class="pile-anchor draw-anchor" bind:this={drawAnchorEl}></div>
-		<PlayerSeat player={storeGame.localPlayer} color={colorFor(storeGame.localPlayer?.username)}>
-			{#snippet hand()}
-				<PlayerHand />
-			{/snippet}
-		</PlayerSeat>
-	</div>
+	<div class="pile-anchor draw-anchor" bind:this={drawAnchorEl}></div>
 </div>
 
 <style>
@@ -103,8 +105,8 @@
 	.game-field {
 		position: relative;
 		z-index: 2;
-		width: 100vw;
-		height: 100vh;
+		width: 100%;
+		height: 100%;
 		-webkit-user-select: none;
 		user-select: none;
 	}
@@ -137,20 +139,6 @@
 	.draw-anchor {
 		left: 0;
 		bottom: 0;
-	}
-
-	.local-player-wrapper {
-		position: absolute;
-		left: 50%;
-		bottom: 6em;
-		transform: translateX(-50%);
-		display: flex;
-		align-items: flex-end;
-		gap: 1.5em;
-	}
-
-	.game-field.portrait .local-player-wrapper {
-		bottom: 2em;
 	}
 
 	.game-field.portrait .discard-anchor {

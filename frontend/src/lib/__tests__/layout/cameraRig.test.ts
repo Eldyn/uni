@@ -2,73 +2,58 @@ import { describe, it, expect } from "vitest";
 
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import { SEAT_RING_RADIUS } from "$components/game/layout/seatLayout3D";
+import { LOCAL_SEAT_Z } from "$components/game/three/units";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
 const narrowPortrait: ViewportInfo = { width: 360, height: 800, orientation: "portrait" };
 
-// Matches cameraRig.ts's own RING_COVERAGE margin — the horizontal half-width
-// the camera must be able to see at its distance so no opponent seat clips
-// off the sides of a narrow viewport.
-const RING_COVERAGE = SEAT_RING_RADIUS + 1.5;
-
-/** The horizontal half-width actually visible at the camera's distance from origin. */
-function visibleHalfWidth(rig: ReturnType<typeof computeCameraRig>, viewport: ViewportInfo): number {
-	const reach = Math.hypot(rig.position[1], rig.position[2]);
-	const aspect = viewport.width / viewport.height;
-	const hfov = Math.atan(Math.tan((rig.fov * Math.PI) / 360) * aspect);
-	return reach * Math.tan(hfov);
-}
+const HALF_WIDTH_COVERAGE = SEAT_RING_RADIUS + 1.5;
+const FAR_EDGE_Z = -SEAT_RING_RADIUS;
+const NEAR_EDGE_Z = LOCAL_SEAT_Z + 2.5;
 
 describe("computeCameraRig", () => {
-	it("always looks at the playmat center on the X/Y axes", () => {
+	it("looks straight down (top-down, no perspective) from directly above the content center", () => {
 		const rig = computeCameraRig(landscape, 3);
-		expect(rig.lookAt[0]).toBe(0);
-		expect(rig.lookAt[1]).toBe(0);
+		expect(rig.position[0]).toBe(rig.lookAt[0]);
+		expect(rig.position[2]).toBe(rig.lookAt[2]);
+		expect(rig.position[1]).toBeGreaterThan(0);
 	});
 
-	it("fits the full opponent ring inside the horizontal frustum in landscape", () => {
-		const rig = computeCameraRig(landscape, 9);
-		expect(visibleHalfWidth(rig, landscape)).toBeGreaterThanOrEqual(RING_COVERAGE - 1e-6);
+	it("centers the look-at point between the far opponent ring and the local seat", () => {
+		const rig = computeCameraRig(landscape, 3);
+		expect(rig.lookAt[2]).toBeCloseTo((FAR_EDGE_Z + NEAR_EDGE_Z) / 2, 5);
 	});
 
-	it("fits the full opponent ring inside the horizontal frustum in portrait", () => {
-		const rig = computeCameraRig(portrait, 9);
-		expect(visibleHalfWidth(rig, portrait)).toBeGreaterThanOrEqual(RING_COVERAGE - 1e-6);
-	});
+	for (const [name, viewport] of Object.entries({ landscape, portrait, narrowPortrait })) {
+		it(`fits both the opponent ring and the local seat in the frustum (${name})`, () => {
+			const rig = computeCameraRig(viewport, 9);
+			expect(rig.halfWidth).toBeGreaterThanOrEqual(HALF_WIDTH_COVERAGE - 1e-6);
+			const topZ = rig.lookAt[2] - rig.halfHeight;
+			const bottomZ = rig.lookAt[2] + rig.halfHeight;
+			expect(topZ).toBeLessThanOrEqual(FAR_EDGE_Z + 1e-6);
+			expect(bottomZ).toBeGreaterThanOrEqual(NEAR_EDGE_Z - 1e-6);
+		});
+	}
 
-	it("fits the ring on a narrower portrait phone too", () => {
-		const rig = computeCameraRig(narrowPortrait, 9);
-		expect(visibleHalfWidth(rig, narrowPortrait)).toBeGreaterThanOrEqual(RING_COVERAGE - 1e-6);
-	});
-
-	it("pitches portrait steeper (more top-down) than landscape", () => {
-		const land = computeCameraRig(landscape, 3);
-		const port = computeCameraRig(portrait, 3);
-		const landPitch = Math.atan2(land.position[1], land.position[2]);
-		const portPitch = Math.atan2(port.position[1], port.position[2]);
-		expect(portPitch).toBeGreaterThan(landPitch);
-	});
-
-	it("never dollies inside the opponent ring", () => {
+	it("keeps the frustum's aspect ratio matching the viewport", () => {
 		const rig = computeCameraRig(portrait, 3);
-		const reach = Math.hypot(rig.position[1], rig.position[2]);
-		expect(reach).toBeGreaterThan(SEAT_RING_RADIUS);
+		expect(rig.halfWidth / rig.halfHeight).toBeCloseTo(portrait.width / portrait.height, 5);
 	});
 
-	it("clamps zoom so distance never grows or shrinks without bound", () => {
+	it("clamps zoom so the frustum never grows or shrinks without bound", () => {
 		const hugeZoomIn = computeCameraRig(landscape, 3, 1000);
 		const hugeZoomOut = computeCameraRig(landscape, 3, 0.0001);
 		const zoomedIn = computeCameraRig(landscape, 3, 2);
 		const zoomedOut = computeCameraRig(landscape, 3, 0.5);
-		expect(hugeZoomIn.position[2]).toBeCloseTo(zoomedIn.position[2], 5);
-		expect(hugeZoomOut.position[2]).toBeCloseTo(zoomedOut.position[2], 5);
+		expect(hugeZoomIn.halfHeight).toBeCloseTo(zoomedIn.halfHeight, 5);
+		expect(hugeZoomOut.halfHeight).toBeCloseTo(zoomedOut.halfHeight, 5);
 	});
 
-	it("moving the camera closer (zoom > 1) shrinks distance from center", () => {
+	it("zooming in (zoom > 1) shrinks the visible frustum", () => {
 		const base = computeCameraRig(landscape, 3);
 		const zoomedIn = computeCameraRig(landscape, 3, 2);
-		expect(zoomedIn.position[2]).toBeLessThan(base.position[2]);
+		expect(zoomedIn.halfHeight).toBeLessThan(base.halfHeight);
 	});
 });
