@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { Card } from "$stores/game.svelte";
 import { storeAudio } from "$stores/audio.svelte";
+import { appendDiscard, type DiscardEntry } from "./layout/discardPile";
 
 export type ElementRole = "draw-pile" | "discard-pile" | "hand-local" | `hand-opponent-${number}`;
 
@@ -94,8 +95,13 @@ export class CardBus {
 	 *  flight so the new top card only appears once the animation has landed. */
 	discardTop = $state<Card | null>(null);
 
+	/** Accumulated pile of every card that has hit the discard, capped and
+	 *  scattered client-side (the server only ever sends the single top card). */
+	discardHistory = $state<DiscardEntry[]>([]);
+
 	setDiscardTop(card: Card | null) {
 		this.discardTop = card;
+		if (card) this.discardHistory = appendDiscard(this.discardHistory, card);
 	}
 
 	launch(
