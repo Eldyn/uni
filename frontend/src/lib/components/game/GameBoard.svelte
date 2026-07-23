@@ -61,6 +61,7 @@
 	</div>
 
 	<div class="local-player-wrapper">
+		<DrawPile />
 		<PlayerSeat
 			player={storeGame.localPlayer}
 			isLocal
@@ -70,7 +71,6 @@
 				<PlayerHand />
 			{/snippet}
 		</PlayerSeat>
-		<DrawPile />
 	</div>
 </div>
 
