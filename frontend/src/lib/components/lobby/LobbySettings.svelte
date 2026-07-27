@@ -61,6 +61,9 @@
 		}))
 	);
 
+	/** A lobby always needs at least one human seat, so bots can fill the rest. */
+	let botCountMax = $derived(Math.min(BOT_COUNT_MAX, settings.max_players - 1));
+
 	function commit(key: SettingsKey, value: boolean | number) {
 		if (!isHost) return;
 		storeLobby.updateSettings({ [key]: value });
@@ -164,7 +167,7 @@
 		label="Bot Count"
 		value={settings.bot_count}
 		min={BOT_COUNT_MIN}
-		max={BOT_COUNT_MAX}
+		max={botCountMax}
 		disabled={!isHost}
 		oncommit={(v) => commit("bot_count", v)}
 	/>

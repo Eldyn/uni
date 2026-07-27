@@ -105,6 +105,21 @@ inline std::optional<std::string> GetCookieValue(std::string_view cookie_header,
 }
 
 /**
+ * @brief Unwraps an IPv4-mapped IPv6 address ("::ffff:1.2.3.4") to plain IPv4
+ * ("1.2.3.4"). uWebSockets binds dual-stack sockets, so `getRemoteAddressAsText()`
+ * reports IPv4 clients in this mapped form; logs and rate-limit keys read far more
+ * usefully as plain IPv4. Genuine IPv6 addresses (and anything else) pass through
+ * untouched.
+ */
+constexpr std::string_view UnwrapIpv4MappedIpv6(std::string_view ip) {
+    constexpr std::string_view kPrefix = "::ffff:";
+    if (ip.substr(0, kPrefix.size()) == kPrefix) {
+        return ip.substr(kPrefix.size());
+    }
+    return ip;
+}
+
+/**
  * @brief Resolve the originating client IP for rate-limiting / logging.
  *
  * When `trust_proxy` is true the server is assumed to sit behind a single
@@ -117,7 +132,8 @@ inline std::optional<std::string> GetCookieValue(std::string_view cookie_header,
  * @param res Response, used for the socket peer address fallback.
  * @param req Request, source of the `X-Forwarded-For` header.
  * @param trust_proxy Whether to honour `X-Forwarded-For` (set behind a proxy).
- * @return std::string The resolved client IP (may be empty if unavailable).
+ * @return std::string The resolved client IP (may be empty if unavailable). IPv4
+ * clients are always reported as plain IPv4, never IPv4-mapped IPv6.
  */
 inline std::string GetClientIp(AppResponse* res, AppRequest* req, bool trust_proxy) {
     if (trust_proxy) {
@@ -127,10 +143,10 @@ inline std::string GetClientIp(AppResponse* res, AppRequest* req, bool trust_pro
             std::string_view last = (comma == std::string_view::npos)
                                         ? xff
                                         : xff.substr(comma + 1);
-            return std::string(TrimWhitespace(last));
+            return std::string(UnwrapIpv4MappedIpv6(TrimWhitespace(last)));
         }
     }
-    return std::string(res->getRemoteAddressAsText());
+    return std::string(UnwrapIpv4MappedIpv6(res->getRemoteAddressAsText()));
 }
 
 }

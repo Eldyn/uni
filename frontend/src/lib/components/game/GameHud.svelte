@@ -46,6 +46,18 @@
 		display: flex;
 		align-items: center;
 		gap: 15px;
+		min-width: 0;
+	}
+
+	/* Narrow screens: the strip can't fit beside the timer and Exit on one
+	   row, so the bar wraps and centers instead of pushing Exit off-screen. */
+	@media (max-width: 700px) {
+		.hud-container {
+			width: 100%;
+			flex-wrap: wrap;
+			justify-content: center;
+			row-gap: 6px;
+		}
 	}
 
 	.collapse-toggle {

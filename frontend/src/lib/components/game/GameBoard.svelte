@@ -6,6 +6,8 @@
 	import Scene3D from "./three/Scene3D.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
+	import { computeCameraRig } from "./layout/cameraRig";
+	import { computeBoardPlacement } from "./layout/boardPlacement";
 
 	const bus = createCardBus();
 	const layout = createGameLayoutContext();
@@ -64,6 +66,18 @@
 
 		return rotated.map((player) => ({ player }));
 	});
+
+	// The scene's world origin is the screen's exact center (designGrid.ts keeps
+	// it there on every aspect ratio), so the anchors only have to project each
+	// pile's own world offset from that center.
+	let rig = $derived(computeCameraRig(sceneViewport, mappedOpponents.length));
+	let placement = $derived(computeBoardPlacement(sceneViewport, rig));
+	let pxPerUnit = $derived(sceneViewport.height / (2 * rig.halfHeight));
+	const discardAnchorStyle = "left: 50%; top: 50%;";
+	let drawAnchorStyle = $derived(
+		`left: calc(50% + ${placement.drawPileX * pxPerUnit}px); ` +
+			`top: calc(50% + ${placement.localSeatZ * pxPerUnit}px);`
+	);
 </script>
 
 <FlyingCardsOverlay />
@@ -76,8 +90,8 @@
 		</Canvas>
 	</div>
 
-	<div class="pile-anchor discard-anchor" bind:this={discardAnchorEl}></div>
-	<div class="pile-anchor draw-anchor" bind:this={drawAnchorEl}></div>
+	<div class="pile-anchor" style={discardAnchorStyle} bind:this={discardAnchorEl}></div>
+	<div class="pile-anchor" style={drawAnchorStyle} bind:this={drawAnchorEl}></div>
 </div>
 
 <style>
@@ -123,26 +137,12 @@
 	}
 
 	/* Zero-size, invisible — exists only so card-bus can resolve a screen
-	   point for flight animations; the actual pile art is the WebGL mesh. */
+	   point for flight animations; the actual pile art is the WebGL mesh.
+	   Placement is inline, projected from the pile's real world position. */
 	.pile-anchor {
 		position: absolute;
 		width: 0;
 		height: 0;
 		pointer-events: none;
-	}
-
-	.discard-anchor {
-		left: 50%;
-		top: 50%;
-	}
-
-	.draw-anchor {
-		left: 0;
-		bottom: 0;
-	}
-
-	.game-field.portrait .discard-anchor {
-		top: auto;
-		bottom: 9em;
 	}
 </style>

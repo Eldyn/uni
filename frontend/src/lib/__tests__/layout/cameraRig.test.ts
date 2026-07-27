@@ -1,17 +1,25 @@
 import { describe, it, expect } from "vitest";
 
 import { computeCameraRig } from "$components/game/layout/cameraRig";
-import { SEAT_RING_RADIUS } from "$components/game/layout/seatLayout3D";
-import { LOCAL_SEAT_Z } from "$components/game/three/units";
+import { ringReachFor } from "$components/game/layout/designGrid";
+import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
+import { ringRadiiFor } from "$components/game/layout/seatLayout3D";
+import { CARD_HEIGHT } from "$components/game/three/units";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
+const wide: ViewportInfo = { width: 1920, height: 1080, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
 const narrowPortrait: ViewportInfo = { width: 360, height: 800, orientation: "portrait" };
 
-const HALF_WIDTH_COVERAGE = SEAT_RING_RADIUS + 1.5;
-const FAR_EDGE_Z = -SEAT_RING_RADIUS;
-const NEAR_EDGE_Z = LOCAL_SEAT_Z + 2.5;
+// The frustum must reach past the seat ring (plus each seat's card ring +
+// label reach) on both axes. ringRadiiFor's count default is the max table,
+// matching boardExtentsFor.
+function ringCoverageFor(viewport: ViewportInfo) {
+	const { rx, rz } = ringRadiiFor(viewport);
+	const reach = ringReachFor(viewport);
+	return { halfWidthCoverage: rx + reach, halfHeightCoverage: rz + reach };
+}
 
 describe("computeCameraRig", () => {
 	it("looks straight down (top-down, no perspective) from directly above the content center", () => {
@@ -21,19 +29,27 @@ describe("computeCameraRig", () => {
 		expect(rig.position[1]).toBeGreaterThan(0);
 	});
 
-	it("centers the look-at point between the far opponent ring and the local seat", () => {
-		const rig = computeCameraRig(landscape, 3);
-		expect(rig.lookAt[2]).toBeCloseTo((FAR_EDGE_Z + NEAR_EDGE_Z) / 2, 5);
-	});
-
-	for (const [name, viewport] of Object.entries({ landscape, portrait, narrowPortrait })) {
-		it(`fits both the opponent ring and the local seat in the frustum (${name})`, () => {
+	for (const [name, viewport] of Object.entries({ landscape, wide, portrait, narrowPortrait })) {
+		it(`keeps the world origin at the exact center of the screen (${name})`, () => {
+			// The playmat and the discard pile both live at the origin, so this is
+			// what makes them screen-centered on every aspect ratio.
 			const rig = computeCameraRig(viewport, 9);
-			expect(rig.halfWidth).toBeGreaterThanOrEqual(HALF_WIDTH_COVERAGE - 1e-6);
-			const topZ = rig.lookAt[2] - rig.halfHeight;
-			const bottomZ = rig.lookAt[2] + rig.halfHeight;
-			expect(topZ).toBeLessThanOrEqual(FAR_EDGE_Z + 1e-6);
-			expect(bottomZ).toBeGreaterThanOrEqual(NEAR_EDGE_Z - 1e-6);
+			expect(rig.lookAt[0]).toBeCloseTo(0, 6);
+			expect(rig.lookAt[2]).toBeCloseTo(0, 6);
+		});
+
+		it(`fits the whole opponent ring in the frustum (${name})`, () => {
+			const rig = computeCameraRig(viewport, 9);
+			const { halfWidthCoverage, halfHeightCoverage } = ringCoverageFor(viewport);
+			expect(rig.halfWidth).toBeGreaterThanOrEqual(halfWidthCoverage - 1e-6);
+			expect(rig.halfHeight).toBeGreaterThanOrEqual(halfHeightCoverage - 1e-6);
+		});
+
+		it(`leaves the local hand row inside the bottom edge (${name})`, () => {
+			const rig = computeCameraRig(viewport, 9);
+			const placement = computeBoardPlacement(viewport, rig);
+			const handFrontZ = placement.localSeatZ + (CARD_HEIGHT * placement.handScale) / 2;
+			expect(handFrontZ).toBeLessThanOrEqual(rig.halfHeight + 1e-6);
 		});
 	}
 

@@ -44,7 +44,7 @@ TEST_CASE("lobby: Sanitize clamps max_players against a caller-supplied ceiling"
 
 TEST_CASE("lobby: Sanitize clamps starting_cards down when it would exceed the deck size") {
     LobbySettings settings;
-    settings.max_players = 15;
+    settings.max_players = contract::kMaxLobbyMembers;
     settings.starting_cards = contract::kStartingCardsMax;
     settings.count_zeros = 1;
     settings.count_numbered = 1;
@@ -62,7 +62,7 @@ TEST_CASE("lobby: Sanitize clamps starting_cards down when it would exceed the d
 
 TEST_CASE("lobby: Sanitize floors the deck-size clamp at one card") {
     LobbySettings settings;
-    settings.max_players = 15;
+    settings.max_players = contract::kMaxLobbyMembers;
     settings.starting_cards = 7;
     settings.count_zeros = 0;
     settings.count_numbered = 0;

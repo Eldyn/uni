@@ -43,6 +43,14 @@
 	onMount(async () => {
 		storeAudio.init();
 
+		// Local screenshot harness: `?dev=match&players=N` renders a synthetic
+		// match offline, skipping login/lobby entirely. __DEV_HARNESS__ is a
+		// literal false in a production build, so the chunk is dropped there.
+		if (__DEV_HARNESS__) {
+			const { tryStartDevMatch } = await import("./lib/dev/devMatch");
+			if (tryStartDevMatch(window.location.search)) return;
+		}
+
 		await storeAuth.checkSession();
 
 		if (storeAuth.isLoggedIn) {
@@ -90,6 +98,8 @@
 
 	//@ts-ignore
 	declare const __APP_VERSION__: string;
+	//@ts-ignore
+	declare const __DEV_HARNESS__: boolean;
 </script>
 
 <div id="app">

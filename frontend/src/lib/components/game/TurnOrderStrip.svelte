@@ -35,9 +35,12 @@
 	.turn-order-strip {
 		display: flex;
 		align-items: center;
+		justify-content: center;
+		flex-wrap: wrap;
 		gap: 0.35em;
 		font-size: 0.7rem;
 		font-weight: bold;
+		min-width: 0;
 	}
 
 	.chip {

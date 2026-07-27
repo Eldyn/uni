@@ -5,8 +5,10 @@
 	import Listbox from "$components/common/Listbox.svelte";
 	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import PlayerSlotRow from "./PlayerSlotRow.svelte";
-	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { SORT_OPTIONS, type SortKey } from "$lib/data/lobbyCatalogs";
+
+	/** Fixed slot count for the sort-order preview, independent of any real lobby's max size. */
+	const PREVIEW_SLOTS = 4;
 
 	let {
 		nameQuery = $bindable(),
@@ -34,7 +36,7 @@
 {#snippet sortPreview(filledCount: number)}
 	<PlayerSlotRow
 		humans={filledCount}
-		empty={MAX_LOBBY_MEMBERS - filledCount}
+		empty={PREVIEW_SLOTS - filledCount}
 		sizeClass="h-4 w-4"
 		gapClass="gap-0.5"
 		labeled={false}

@@ -36,9 +36,7 @@ const pruneStaleChunksPlugin = {
 		const assetsDir = path.join(outDir, "assets");
 		if (!fs.existsSync(assetsDir)) return;
 
-		const currentFiles = new Set(
-			Object.keys(bundle).map((fileName) => path.basename(fileName))
-		);
+		const currentFiles = new Set(Object.keys(bundle).map((fileName) => path.basename(fileName)));
 
 		for (const entry of fs.readdirSync(assetsDir)) {
 			if (!/\.(js|css)$/.test(entry)) continue;
@@ -49,20 +47,38 @@ const pruneStaleChunksPlugin = {
 	}
 };
 
+const OUT_DIR = "../public";
+
+// The server ships a ".gz" sidecar whenever the client accepts gzip, so the
+// three.js/Threlte bundle goes over the wire compressed without costing any
+// per-request CPU. Runs in closeBundle, after pruneStaleChunksPlugin has
+// removed the chunks whose sidecars would otherwise be left orphaned.
+const gzipAssetsPlugin = {
+	name: "gzip-assets",
+	async closeBundle() {
+		const { gzipAssets, formatGzipSummary } = await import("./scripts/gzip-assets.js");
+		this.info(formatGzipSummary(gzipAssets(path.resolve(OUT_DIR))));
+	}
+};
+
 const appVersion = fs.readFileSync(path.resolve("../VERSION"), "utf8").trim();
 
 export default defineConfig(({ mode }) => {
 	const isDev = mode === "development";
-	const watch = isDev ? { watch: {} } : {};
+	// Keyed on the flag rather than the mode, so a development build can also be
+	// run one-shot (`vite build --mode development`) to produce a dev bundle for
+	// the screenshot harness without leaving a watcher behind.
+	const watch = process.argv.includes("--watch") ? { watch: {} } : {};
 
 	return {
 		// Only run the watch plugin when running in development/watch mode
 		plugins: [
-				tailwindcss(),
-				svelte(),
-				isDev && watchPublicDirPlugin,
-				isDev && pruneStaleChunksPlugin
-			].filter(Boolean),
+			tailwindcss(),
+			svelte(),
+			isDev && watchPublicDirPlugin,
+			isDev && pruneStaleChunksPlugin,
+			gzipAssetsPlugin
+		].filter(Boolean),
 		resolve: {
 			alias: {
 				$lib: path.resolve("./src/lib"),
@@ -73,11 +89,17 @@ export default defineConfig(({ mode }) => {
 			}
 		},
 		define: {
-			__APP_VERSION__: JSON.stringify(appVersion)
+			__APP_VERSION__: JSON.stringify(appVersion),
+			// Gate for the local screenshot harness (src/lib/dev). A literal
+			// `false` in a production build, so the bundler drops the guarded
+			// dynamic import and the harness never ships. `import.meta.env.DEV`
+			// cannot be used here: it is false for *any* `vite build`, including
+			// `--mode development`.
+			__DEV_HARNESS__: JSON.stringify(isDev)
 		},
 		base: "./",
 		build: {
-			outDir: "../public",
+			outDir: OUT_DIR,
 			emptyOutDir: true,
 			minify: isDev ? false : "esbuild",
 			sourcemap: isDev,

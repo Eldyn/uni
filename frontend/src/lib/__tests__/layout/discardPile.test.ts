@@ -4,6 +4,7 @@ import {
 	appendDiscard,
 	discardEntryFor,
 	DISCARD_CAP,
+	MAX_ROTATION_DEG,
 	type DiscardEntry
 } from "$components/game/layout/discardPile";
 import type { Card } from "$stores/game.svelte";
@@ -13,16 +14,24 @@ function card(id: number): Card {
 }
 
 describe("discardEntryFor", () => {
-	it("gives a stable rotation and jitter for the same card id", () => {
-		const a = discardEntryFor(card(42));
-		const b = discardEntryFor(card(42));
+	it("gives a stable rotation and jitter for the same card id + seq", () => {
+		const a = discardEntryFor(card(42), 7);
+		const b = discardEntryFor(card(42), 7);
 		expect(a.rotationDeg).toBe(b.rotationDeg);
 		expect(a.jitter).toEqual(b.jitter);
 	});
 
+	it("scatters the same card differently when it cycles back through the pile", () => {
+		const first = discardEntryFor(card(42), 1);
+		const again = discardEntryFor(card(42), 2);
+		expect(first.rotationDeg).not.toBe(again.rotationDeg);
+	});
+
 	it("keeps rotation within the scatter bound", () => {
 		for (let id = 0; id < 50; id++) {
-			expect(Math.abs(discardEntryFor(card(id)).rotationDeg)).toBeLessThanOrEqual(16);
+			expect(Math.abs(discardEntryFor(card(id)).rotationDeg)).toBeLessThanOrEqual(
+				MAX_ROTATION_DEG
+			);
 		}
 	});
 });
@@ -51,6 +60,22 @@ describe("appendDiscard", () => {
 		// oldest five (ids 0..4) fell off the front; newest is on the end
 		expect(history[0].card.id).toBe(5);
 		expect(history[history.length - 1].card.id).toBe(DISCARD_CAP + 4);
+	});
+
+	it("gives every entry a monotonically increasing seq, even for recycled ids", () => {
+		let history = appendDiscard([], card(1));
+		history = appendDiscard(history, card(2));
+		// id 1 recycled back out of the reshuffled draw pile
+		history = appendDiscard(history, card(1));
+		expect(history.map((e) => e.seq)).toEqual([1, 2, 3]);
+	});
+
+	it("keeps seq growing across cap evictions (never reuses a live seq)", () => {
+		let history: DiscardEntry[] = [];
+		for (let id = 0; id < 10; id++) history = appendDiscard(history, card(id), 3);
+		const seqs = history.map((e) => e.seq);
+		expect(new Set(seqs).size).toBe(seqs.length);
+		expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
 	});
 
 	it("respects a custom cap", () => {

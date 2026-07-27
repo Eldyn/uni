@@ -6,6 +6,8 @@
  * constants and 1/2/3-length branching.
  */
 
+import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
+
 export type Orientation = "landscape" | "portrait";
 
 export interface ViewportInfo {
@@ -54,7 +56,7 @@ const LANDSCAPE_BASE_HALF_SPAN_DEG = 90; // top half only, at/below CROSS_OPPONE
 // sides at low counts, matching the mobile mockup, and widens the same way.
 const PORTRAIT_RING_RX = 40; // % of field width
 const PORTRAIT_RING_RY = 44; // % of field height; capped at 50 so due-top stays on screen
-const PORTRAIT_BASE_HALF_SPAN_DEG = 140;
+const PORTRAIT_BASE_HALF_SPAN_DEG = 100;
 
 // Ocho-style mobile rail: opponents past the 4-player cross never sit near
 // due-top (that's HUD/timer territory) — they split into a left rail and a
@@ -63,18 +65,43 @@ const PORTRAIT_BASE_HALF_SPAN_DEG = 140;
 // read as (and render like) a "top" seat.
 const PORTRAIT_TOP_GAP_DEG = 30;
 
-// Both orientations converge on the same near-full ring at the max table
-// size, leaving only a gap at due-bottom for the local player's hand. Must
-// stay below 180 so 90±MAX_HALF_SPAN_DEG never crosses due-bottom (270) or
-// flips past due-top (-90) — either would swap which rail a seat's cos()
-// sign puts it on.
-const MAX_HALF_SPAN_DEG = 155;
-const MAX_OPPONENTS = 14; // BOT_COUNT_MAX; also the practical opponent ceiling
+// Each orientation widens toward its own max span at the full table, leaving
+// a clear gap at due-bottom for the local player's hand: the old shared 155°
+// max let the lowest seats sink far enough down the ring to clip the local
+// cards, so both caps now stop the arc well above the hand row (a reversed-U
+// arch, not a near-closed ring). Must stay below 180 so 90±max never crosses
+// due-bottom (270) or flips past due-top (-90) — either would swap which
+// rail a seat's cos() sign puts it on.
 
-function halfSpanFor(opponentCount: number, baseHalfSpan: number): number {
+// Landscape's safe ceiling isn't one number: designGrid.ts's frustum is
+// height-bound past ~1.9 aspect (see that file), where the local hand's
+// distance from the ring floor is a fixed worst case with ~zero slack — but
+// below that threshold the frustum widens for its own aspect, pushing the
+// hand row further back and opening real headroom the ring can use. Verified
+// numerically (worstSeatReach vs. handBackZ margin) at 1.6/1.73/1.85/1.95/
+// 2.37 aspect: only 1.6-1.85 has margin to spend, so the ramp is scoped to
+// exactly that window and pinned at the original 126 outside it.
+const LANDSCAPE_SPAN_NARROW_ASPECT = 1.6; // e.g. 1440x900 — most slack
+const LANDSCAPE_SPAN_WIDE_ASPECT = 1.85; // slack is ~gone by here
+const LANDSCAPE_SPAN_NARROW_MAX_DEG = 140;
+const LANDSCAPE_SPAN_WIDE_MAX_DEG = 126;
+const PORTRAIT_MAX_HALF_SPAN_DEG = 118;
+
+function landscapeMaxHalfSpanFor(viewport: ViewportInfo): number {
+	const aspect = viewport.width / viewport.height;
+	const t = Math.min(
+		1,
+		Math.max(0, (aspect - LANDSCAPE_SPAN_NARROW_ASPECT) / (LANDSCAPE_SPAN_WIDE_ASPECT - LANDSCAPE_SPAN_NARROW_ASPECT))
+	);
+	return LANDSCAPE_SPAN_NARROW_MAX_DEG + t * (LANDSCAPE_SPAN_WIDE_MAX_DEG - LANDSCAPE_SPAN_NARROW_MAX_DEG);
+}
+/** The contract's MAX_LOBBY_MEMBERS minus the local player's own seat. */
+export const MAX_OPPONENTS = MAX_LOBBY_MEMBERS - 1;
+
+function halfSpanFor(opponentCount: number, baseHalfSpan: number, maxHalfSpan: number): number {
 	if (opponentCount <= CROSS_OPPONENT_COUNT) return baseHalfSpan;
 	const t = Math.min(1, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT));
-	return baseHalfSpan + t * (MAX_HALF_SPAN_DEG - baseHalfSpan);
+	return baseHalfSpan + t * (maxHalfSpan - baseHalfSpan);
 }
 
 // With four players or fewer (up to 3 opponents), the local player anchors
@@ -83,7 +110,7 @@ function halfSpanFor(opponentCount: number, baseHalfSpan: number): number {
 //   1 opponent  -> due-top
 //   2 opponents -> due-right + due-left (across from each other)
 //   3 opponents -> due-right + due-top + due-left
-const CROSS_OPPONENT_COUNT = 3;
+export const CROSS_OPPONENT_COUNT = 3;
 const CROSS_ANGLES_BY_COUNT: Record<number, number[]> = {
 	1: [90],
 	2: [0, 180],
@@ -101,18 +128,43 @@ function scaleFor(opponentCount: number): number {
 	return Math.max(MIN_SCALE, OPPONENT_SCALE_BASE - over * SCALE_DROPOFF_STEP);
 }
 
-function arcAngles(n: number, startDeg: number, endDeg: number): number[] {
-	return Array.from({ length: n }, (_, i) => startDeg + ((i + 0.5) / n) * (endDeg - startDeg));
+/**
+ * Reshapes the even 0..1 spread of seats along one arc. Seats are evenly
+ * spaced in ANGLE by default, which only reads as even spacing on a circle —
+ * on the world board's stretched arch the sides turn far more slowly per
+ * degree than the top does, bunching the side seats together. A consumer that
+ * knows the arch's real proportions (seatLayout3D.ts) passes a warp that
+ * re-spreads them by arc length instead.
+ */
+export type ArcWarp = (t: number, startDeg: number, endDeg: number) => number;
+
+function arcAngles(
+	n: number,
+	startDeg: number,
+	endDeg: number,
+	warp?: ArcWarp
+): number[] {
+	return Array.from({ length: n }, (_, i) => {
+		const t = (i + 0.5) / n;
+		return startDeg + (warp ? warp(t, startDeg, endDeg) : t) * (endDeg - startDeg);
+	});
 }
 
 // Splits n opponents across a right rail and a left rail, each running from
 // just past the top gap out to the current half-span, so no seat is ever
 // placed near due-top in portrait once there are more than 4 players.
-function portraitRailAngles(n: number, halfSpan: number): number[] {
+
+// Seat index order must trace one continuous lap of the table, not each rail
+// top-down: opponent 0 is the very next turn after the local player, who sits
+// at due-bottom, so the lap starts on the right rail's end NEAREST the local
+// seat, climbs to the top gap, crosses to the left rail's top, then descends
+// back toward local — anything else zigzags (near-right, then jump to
+// far-left) instead of sweeping around like the seats actually sit.
+function portraitRailAngles(n: number, halfSpan: number, warp?: ArcWarp): number[] {
 	const leftCount = Math.ceil(n / 2); // odd counts put the extra seat on the left rail
 	const rightCount = n - leftCount;
-	const rightAngles = arcAngles(rightCount, 90 - PORTRAIT_TOP_GAP_DEG, 90 - halfSpan);
-	const leftAngles = arcAngles(leftCount, 90 + PORTRAIT_TOP_GAP_DEG, 90 + halfSpan);
+	const rightAngles = arcAngles(rightCount, 90 - halfSpan, 90 - PORTRAIT_TOP_GAP_DEG, warp);
+	const leftAngles = arcAngles(leftCount, 90 + PORTRAIT_TOP_GAP_DEG, 90 + halfSpan, warp);
 	return [...rightAngles, ...leftAngles];
 }
 
@@ -134,16 +186,21 @@ function portraitRailAngles(n: number, halfSpan: number): number[] {
  * arc vs. portrait-rail decision so seatLayout3D.ts places its world ring on
  * exactly the same seats as the DOM solver.
  */
-export function computeSeatAngles(opponentCount: number, viewport: ViewportInfo): number[] {
+export function computeSeatAngles(
+	opponentCount: number,
+	viewport: ViewportInfo,
+	warp?: ArcWarp
+): number[] {
 	if (opponentCount <= 0) return [];
 	const isPortrait = viewport.orientation === "portrait";
 	const baseHalfSpan = isPortrait ? PORTRAIT_BASE_HALF_SPAN_DEG : LANDSCAPE_BASE_HALF_SPAN_DEG;
-	const halfSpan = halfSpanFor(opponentCount, baseHalfSpan);
+	const maxHalfSpan = isPortrait ? PORTRAIT_MAX_HALF_SPAN_DEG : landscapeMaxHalfSpanFor(viewport);
+	const halfSpan = halfSpanFor(opponentCount, baseHalfSpan, maxHalfSpan);
 
 	if (opponentCount <= CROSS_OPPONENT_COUNT) return CROSS_ANGLES_BY_COUNT[opponentCount];
 	return isPortrait
-		? portraitRailAngles(opponentCount, halfSpan)
-		: arcAngles(opponentCount, 90 - halfSpan, 90 + halfSpan);
+		? portraitRailAngles(opponentCount, halfSpan, warp)
+		: arcAngles(opponentCount, 90 - halfSpan, 90 + halfSpan, warp);
 }
 
 export function computeSeatPositions(opponentCount: number, viewport: ViewportInfo): SeatPosition[] {

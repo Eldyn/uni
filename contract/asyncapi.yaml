@@ -607,7 +607,7 @@ components:
     LobbyMemberCap:
       type: integer
       minimum: 1
-      maximum: 15
+      maximum: 16
       description: >
         Absolute upper bound on players (humans + bots) per lobby, mirrored at
         runtime by the ABSOLUTE_MAX_LOBBY_MEMBERS env var (same default).
@@ -698,7 +698,7 @@ components:
           # least one human seat, so the absolute bot ceiling is
           # MaxLobbyMembers - 1. Per-lobby settings.max_players clamps this
           # further at runtime (see LobbySettings::Sanitize/AdjustBots).
-          maximum: 14
+          maximum: 15
           x-constants: { minimum: BotCountMin, maximum: BotCountMax }
         turn_time_limit_ms:
           type: integer

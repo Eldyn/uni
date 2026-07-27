@@ -63,6 +63,31 @@ std::optional<std::filesystem::path> ResolveSafePath(const std::filesystem::path
 std::string CacheControlFor(std::string_view relative_path);
 
 /**
+ * @brief Tells whether a client's Accept-Encoding header welcomes gzip.
+ *
+ * Deliberately lenient: any mention of "gzip" counts, except an explicit
+ * zero qvalue ("gzip;q=0"), which RFC 9110 defines as a refusal.
+ *
+ * @param accept_encoding The raw Accept-Encoding header value (may be empty).
+ * @return bool True if a gzip-encoded body may be sent.
+ */
+bool AcceptsGzip(std::string_view accept_encoding);
+
+/**
+ * @brief Locates the build-time gzip sidecar of a static asset, if one exists.
+ *
+ * The frontend build writes a "<file>.gz" next to every compressible asset
+ * (see frontend/scripts/gzip-assets.js), so the server can ship a compressed
+ * body without spending CPU per request. The JS bundle carrying three.js is
+ * what makes this worth it: it compresses to a fraction of its size.
+ *
+ * @param file The resolved, in-root path of the asset actually requested.
+ * @return std::optional<std::filesystem::path> The sidecar's path, or
+ *         std::nullopt when none exists or @p file is itself a ".gz".
+ */
+std::optional<std::filesystem::path> PrecompressedVariant(const std::filesystem::path& file);
+
+/**
  * @brief Derives a weak ETag from a file's size and last-write time.
  *
  * An opaque validator (RFC 7232) that only has to change when the file does:

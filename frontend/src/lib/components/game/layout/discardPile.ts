@@ -13,6 +13,11 @@ import type { Card } from "$stores/game.svelte";
 
 export interface DiscardEntry {
 	card: Card;
+	/** Monotonic per-pile sequence — the render key. Card ids recycle when the
+	 *  discard is reshuffled into the draw pile, so a replayed id can still sit
+	 *  in the capped history; keying by id would then reuse the old low-in-the-
+	 *  stack render block and the new card would appear UNDER the pile. */
+	seq: number;
 	/** Fixed rotation for this card on the pile, degrees. */
 	rotationDeg: number;
 	/** Fixed [x, y] offset from the pile center, em. */
@@ -20,8 +25,8 @@ export interface DiscardEntry {
 }
 
 export const DISCARD_CAP = 30;
-const MAX_ROTATION_DEG = 16;
-const MAX_JITTER_EM = 0.5;
+export const MAX_ROTATION_DEG = 30;
+const MAX_JITTER_EM = 1.1;
 
 /**
  * Deterministic pseudo-random in [0, 1) from an integer seed. Same seed always
@@ -33,13 +38,17 @@ function seeded(seed: number): number {
 	return x - Math.floor(x);
 }
 
-/** The fixed scatter (rotation + jitter) for a card, keyed off its id. */
-export function discardEntryFor(card: Card): DiscardEntry {
-	const r1 = seeded(card.id);
-	const r2 = seeded(card.id + 101);
-	const r3 = seeded(card.id + 211);
+/** The fixed scatter (rotation + jitter) for a card. Seeded off id AND seq so
+ *  the same physical card lands differently each time it cycles back through
+ *  the pile, instead of always retaking its one fixed spot. */
+export function discardEntryFor(card: Card, seq: number = 0): DiscardEntry {
+	const seed = card.id + seq * 7919;
+	const r1 = seeded(seed);
+	const r2 = seeded(seed + 101);
+	const r3 = seeded(seed + 211);
 	return {
 		card,
+		seq,
 		rotationDeg: (r1 * 2 - 1) * MAX_ROTATION_DEG,
 		jitter: [(r2 * 2 - 1) * MAX_JITTER_EM, (r3 * 2 - 1) * MAX_JITTER_EM]
 	};
@@ -59,6 +68,6 @@ export function appendDiscard(
 	const last = history[history.length - 1];
 	if (last && last.card.id === card.id) return history;
 
-	const next = [...history, discardEntryFor(card)];
+	const next = [...history, discardEntryFor(card, (last?.seq ?? 0) + 1)];
 	return next.length > cap ? next.slice(next.length - cap) : next;
 }

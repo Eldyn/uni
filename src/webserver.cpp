@@ -303,17 +303,31 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
     std::string url = std::string(req->getUrl());
     std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
     std::string if_none_match = std::string(req->getHeader("if-none-match"));
+    std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
 
     auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
 
     if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
         const fs::path& filePath = *resolved;
         std::string pathStr = filePath.string();
-        std::string etag = http::MakeETag(filePath);
+
+        // A HEAD must describe exactly the response a GET would produce, so it
+        // has to pick the same encoding and report that variant's ETag/length.
+        fs::path bodyPath = filePath;
+        bool gzipped = false;
+        if (http::AcceptsGzip(accept_encoding)) {
+            if (auto sidecar = http::PrecompressedVariant(filePath)) {
+                bodyPath = *sidecar;
+                gzipped  = true;
+            }
+        }
+
+        std::string etag = http::MakeETag(bodyPath);
 
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+                ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("ETag", etag)
                 ->end();
             return;
@@ -321,7 +335,11 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
 
         res->writeHeader("Content-Type", http::GetMimeType(pathStr))
             ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+            ->writeHeader("Vary", "Accept-Encoding")
             ->writeHeader("X-Content-Type-Options", "nosniff");
+        if (gzipped) {
+            res->writeHeader("Content-Encoding", "gzip");
+        }
         if (!etag.empty()) {
             res->writeHeader("ETag", etag);
         }
@@ -344,6 +362,7 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     //       the request object as soon as the response is written, so it
     //       cannot be read afterwards.
     std::string if_none_match = std::string(req->getHeader("if-none-match"));
+    std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
 
     // INFO: Resolve both the served root and the requested file to canonical
     //       form so that "../" segments and symlinks are collapsed, then
@@ -355,7 +374,25 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
         const fs::path& filePath = *resolved;
         std::string pathStr = filePath.string();
-        std::string etag = http::MakeETag(filePath);
+
+        // INFO: Prefer the build-time .gz sidecar whenever the client accepts
+        //       it. The bundle carrying three.js/Threlte is why this matters,
+        //       it is by far the heaviest asset we serve, and shipping a
+        //       precompressed body costs no per-request CPU. Content-Type still
+        //       comes from the *uncompressed* name: gzip is transport encoding,
+        //       not the media type.
+        fs::path bodyPath = filePath;
+        bool gzipped = false;
+        if (http::AcceptsGzip(accept_encoding)) {
+            if (auto sidecar = http::PrecompressedVariant(filePath)) {
+                bodyPath = *sidecar;
+                gzipped  = true;
+            }
+        }
+
+        // The two encodings are distinct representations, so they must not
+        // share a validator, MakeETag stats whichever one is actually sent.
+        std::string etag = http::MakeETag(bodyPath);
 
         // INFO: Conditional request: the client already holds this exact
         //       version, so skip resending the body. This is what makes
@@ -364,6 +401,7 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
         if (!etag.empty() && if_none_match == etag) {
             res->writeStatus("304 Not Modified")
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+                ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("ETag", etag)
                 ->end();
             return;
@@ -371,11 +409,15 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
         res->writeHeader("Content-Type", http::GetMimeType(pathStr))
             ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+            ->writeHeader("Vary", "Accept-Encoding")
             ->writeHeader("X-Content-Type-Options", "nosniff");
+        if (gzipped) {
+            res->writeHeader("Content-Encoding", "gzip");
+        }
         if (!etag.empty()) {
             res->writeHeader("ETag", etag);
         }
-        res->end(ReadFile(pathStr));
+        res->end(ReadFile(bodyPath.string()));
     } else {
         std::error_code ec;
         fs::path logged_path = fs::weakly_canonical(fs::path(frontend_path_) / relativePath, ec);

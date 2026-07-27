@@ -5,6 +5,9 @@
      PlayerSlotRow rendering, which stopped scaling once lobbies could exceed 4
      seats. -->
 <script lang="ts">
+	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import { AVATAR_COLORS } from "$lib/data/lobbyCatalogs";
+
 	const SLOTS = 4;
 
 	let {
@@ -23,6 +26,9 @@
 		const ratio = max > 0 ? filled / max : 0;
 		return Array.from({ length: SLOTS }, (_, i) => Math.max(0, Math.min(1, ratio * SLOTS - i)));
 	});
+
+	const randomColor = (): string =>
+		AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 </script>
 
 <div
@@ -43,7 +49,7 @@
 					class="absolute inset-0 overflow-hidden"
 					style="clip-path: inset(0 {(1 - frac) * 100}% 0 0);"
 				>
-					<img src="/assets/base_player.gif" alt="" class="h-full w-full object-contain" />
+					<TintedSprite src="/assets/base_player.gif" color={randomColor()} fit="contain" />
 				</div>
 			{/if}
 		</div>

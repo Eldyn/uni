@@ -3,16 +3,9 @@
 	import GameOverPopup from "./GameOverPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import GameActions from "./GameActions.svelte";
-	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import { storeGame } from "$stores/game.svelte";
 
 	let matchEnded = $state(false);
-	let activeColor = $state("red");
-
-	$effect(() => {
-		const type = storeGame.state?.active_type;
-		if (type && type !== "white") activeColor = type;
-	});
 
 	$effect(() => {
 		if (storeGame.state?.is_over && !matchEnded) {
@@ -24,17 +17,6 @@
 </script>
 
 <div class="game-screen">
-	<div class="bg-layer playmat-layout">
-		<TintedSprite src="/assets/playmat.png" color="var(--{activeColor})" />
-	</div>
-
-	<div class="bg-layer arrows-layout">
-		<TintedSprite
-			src="/assets/{(storeGame.state?.play_direction ?? 1) > 0 ? 'cw.png' : 'ccw.png'}"
-			color="var(--{activeColor})"
-		/>
-	</div>
-
 	<div class="ui-layer">
 		<GameOverPopup />
 
@@ -72,46 +54,49 @@
 		overflow: hidden;
 	}
 
-	/* --- OVERLAY LOGIC --- */
-	/* Both wrappers perfectly mirror the game-screen's dimensions */
-	.bg-layer {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		pointer-events: none; /* Let clicks pass straight through to the board */
-		z-index: 1;
-	}
-
-	/* Empty placeholder classes just in case you want to change layer order later */
-	.playmat-layout {
-		z-index: 1;
-	}
-	.arrows-layout {
-		z-index: 2; /* Keeps arrows visually stacked on top of the playmat */
-	}
+	/* The playmat and the turn arrows are meshes inside the canvas now
+	   (three/Playmat3D.svelte) — only the wood backdrop is still CSS. */
 
 	/* --- UI LAYOUT --- */
 	.ui-layer {
 		position: relative;
 		z-index: 10; /* Keeps interactive UI safely above all backgrounds */
-		display: flex;
-		flex-direction: column;
 		height: 100%;
 	}
 
+	/* The HUD floats on top of the board instead of stacking above it — the
+	   canvas must own the full screen or the scene's center drifts below the
+	   true screen center by half the HUD row's height. */
 	.game-controls {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 2;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		padding: 16px;
+		pointer-events: none;
+	}
+
+	/* Re-enable clicks on the HUD's actual widgets; the row's empty middle
+	   stays click-through so it never blocks the board underneath. */
+	.game-controls > :global(*) {
+		pointer-events: auto;
+	}
+
+	/* Narrow screens: the HUD wraps (see GameHud.svelte) — center the bar so
+	   the wrapped rows don't hug the left edge. */
+	@media (max-width: 700px) {
+		.game-controls {
+			justify-content: center;
+		}
 	}
 
 	.game-board-container {
-		flex-grow: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		position: relative;
+		position: absolute;
+		inset: 0;
+		z-index: 1;
 	}
 </style>

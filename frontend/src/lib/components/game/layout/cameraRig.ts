@@ -39,9 +39,10 @@ const MAX_ZOOM = 2;
  * `zoom` is a clamped magnification multiplier (>1 = pinch-in closer, <1 =
  * pinch-out farther) for future touch-zoom support; omit it for the default
  * framing. `opponentCount` is accepted for API symmetry with the rest of the
- * layout modules and future per-count framing tweaks, but seatLayout3D.ts's
- * ring radius (and so designGrid.ts's GRID_COLUMNS) is constant regardless
- * of count, so it isn't required for correctness today.
+ * layout modules and future per-count framing tweaks, but designGrid.ts sizes
+ * the board extents for the max table (ringRadiiFor's count default) so a
+ * mid-game join never reframes the whole board — count isn't required for
+ * correctness today.
  */
 export function computeCameraRig(
 	viewport: ViewportInfo,
