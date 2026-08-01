@@ -37,6 +37,12 @@
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import type { ViewportInfo } from "../layout/seatLayout";
 	import { pointerMode } from "../layout/pointerMode.svelte";
+	import {
+		pastDragThreshold,
+		computeScrollEm,
+		findNearestSlotIndex,
+		computeReorderedIds
+	} from "../layout/handGesture";
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 	import { ValueMap } from "$lib/generated/schemas";
 
@@ -222,13 +228,13 @@
 	function handleGestureMove(event: PointerEvent) {
 		if (gestureCardId === null) return;
 		const deltaPx = event.clientX - pointerStartX;
-		if (!gestureMoved && Math.abs(deltaPx) < DRAG_THRESHOLD_PX) return;
+		if (!gestureMoved && !pastDragThreshold(deltaPx, DRAG_THRESHOLD_PX)) return;
 		gestureMoved = true;
 
 		if (!gestureIsReorder) {
 			// Content follows the finger: dragging right reveals the cards off the
 			// left end, which is a decreasing scroll offset.
-			scrollEm = scrollStartEm - (deltaPx * worldPerPixelX) / handEmToWorld;
+			scrollEm = computeScrollEm(scrollStartEm, deltaPx, worldPerPixelX, handEmToWorld);
 			return;
 		}
 
@@ -237,21 +243,10 @@
 		dragOffsetX = deltaPx * worldPerPixelX;
 
 		const draggedX = slots[dragIndex].x + dragOffsetX / handEmToWorld;
-		let targetIndex = dragIndex;
-		let bestDist = Infinity;
-		slots.forEach((slot, i) => {
-			const dist = Math.abs(slot.x - draggedX);
-			if (dist < bestDist) {
-				bestDist = dist;
-				targetIndex = i;
-			}
-		});
+		const targetIndex = findNearestSlotIndex(slots, draggedX);
 
 		if (targetIndex !== dragIndex) {
-			const next = [...orderIds];
-			const [moved] = next.splice(dragIndex, 1);
-			next.splice(targetIndex, 0, moved);
-			orderIds = next;
+			orderIds = computeReorderedIds(orderIds, dragIndex, targetIndex);
 			dragIndex = targetIndex;
 			// re-anchor so the reshuffled order doesn't jump under the pointer
 			pointerStartX = event.clientX;
