@@ -1,7 +1,7 @@
 import { getContext, setContext } from "svelte";
-import type { Card } from "$stores/game.svelte";
+import type { Card, CardType } from "$stores/game.svelte";
 import { storeAudio } from "$stores/audio.svelte";
-import { appendDiscard, type DiscardEntry } from "./layout/discardPile";
+import { appendDiscard, paintTopWild, type DiscardEntry } from "./layout/discardPile";
 
 export type ElementRole = "draw-pile" | "discard-pile" | "hand-local" | `hand-opponent-${number}`;
 
@@ -99,9 +99,26 @@ export class CardBus {
 	 *  scattered client-side (the server only ever sends the single top card). */
 	discardHistory = $state<DiscardEntry[]>([]);
 
+	/** The color the table is currently playing on — "white" until the first
+	 *  card is down, and again for the instant between a wild landing and its
+	 *  owner being asked what it should become. */
+	activeType = $state<CardType>("white");
+
 	setDiscardTop(card: Card | null) {
 		this.discardTop = card;
-		if (card) this.discardHistory = appendDiscard(this.discardHistory, card);
+		if (!card) return;
+		// The two halves of a wild's identity arrive in either order: a bot's
+		// choice comes with the card, a human's comes while the card is still in
+		// flight. Painting on both paths means neither order leaves it colorless.
+		this.discardHistory = paintTopWild(
+			appendDiscard(this.discardHistory, card),
+			this.activeType
+		);
+	}
+
+	setActiveType(type: CardType) {
+		this.activeType = type;
+		this.discardHistory = paintTopWild(this.discardHistory, type);
 	}
 
 	launch(

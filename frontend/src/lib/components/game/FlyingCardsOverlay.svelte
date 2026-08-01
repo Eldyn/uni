@@ -20,11 +20,16 @@
 		const localUser = storeGame.localPlayer?.username;
 		const hand = storeGame.localPlayer?.hand ?? [];
 		const top = state?.top_card;
+		const activeType = state?.active_type;
 		const players = state?.players ?? [];
 		players.forEach((p) => p.card_count);
 
 		untrack(() => {
 			if (!state) return;
+
+			// Before the top-card block, so a wild that arrives with its color
+			// already decided is painted the moment it is appended.
+			if (activeType) bus.setActiveType(activeType);
 
 			// INFO: PLAY: a card just reached the top of the discard pile.
 			//       Animate it flying from the exact slot it was played from,

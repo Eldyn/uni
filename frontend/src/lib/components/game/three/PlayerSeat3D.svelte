@@ -17,9 +17,12 @@
 	import { HTML } from "@threlte/extras";
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { SeatPosition3D } from "../layout/seatLayout3D";
-	import { computeHandRingSlots, RING_RADIUS_EM } from "../layout/handRing";
+	import {
+		computeHandRingSlots,
+		opponentRingRadiusWorld,
+		RING_RADIUS_EM
+	} from "../layout/handRing";
 	import CardMesh3D from "./CardMesh3D.svelte";
-	import { CARD_HEIGHT } from "./units";
 
 	let {
 		player,
@@ -30,8 +33,8 @@
 		onSelect,
 		cardScale = 0.55,
 		avatarPx = 56,
-		labelEm = 1.15,
-		worldPerPx = 0
+		avatarWorld = 0.78,
+		labelEm = 1.15
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -44,34 +47,33 @@
 		/** Avatar box edge in px — small on portrait, where the card fan is the
 		 *  seat's focus and the icon is just a marker. */
 		avatarPx?: number;
+		/** The drawn figure's world height (avatarPx is its FRAME, padding
+		 *  included — see boardPlacement's AVATAR_SPRITE_FILL). The ring clears
+		 *  the figure, so it's this one that sets the radius. */
+		avatarWorld?: number;
 		/** Name label font size, em. */
 		labelEm?: number;
-		/** World units per CSS pixel at the current camera zoom — converts the
-		 *  avatar's on-screen size into the world-space clearance the ring needs. */
-		worldPerPx?: number;
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
 	// its neighbor's (z-fighting) — 0.02 clears that with margin.
 	const RING_STACK_STEP = 0.02;
 	const AVATAR_HEIGHT = 0.9;
-	// Gap left between the avatar's own edge and the nearest card's inner edge —
-	// enough to read as a ring around the icon rather than cards grazing it.
-	const RING_CLEARANCE_WORLD = 0.22;
-	// Ring-card opacity for every seat except the one whose turn it is.
-	const DIMMED_OPACITY = 0.45;
+	// The name sits beyond the ring's own outer edge (toward the mat, same
+	// local +Z the ring itself grows along — see handRing.ts's "angle 0 points
+	// toward the playmat center") rather than hanging off the avatar's own
+	// bottom edge: the avatar's own box is a much smaller, more crowded target,
+	// and the name reads as belonging to the whole seat — cards included —
+	// rather than just the icon.
+	const LABEL_BEYOND_RING_MARGIN = 0.35;
 
 	let cardCount = $derived(player.card_count ?? 0);
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
 
-	// The avatar's own footprint, in world units, at the seat's local center.
-	let avatarWorldRadius = $derived((avatarPx / 2) * worldPerPx);
-	// A ring card's near edge (the one facing the avatar) sits half a card's
-	// height inside its own center, so the center has to sit that much further
-	// out for the near edge to actually clear the avatar.
-	let cardHalfHeightWorld = $derived((CARD_HEIGHT * cardScale) / 2);
-	let ringRadiusWorld = $derived(avatarWorldRadius + cardHalfHeightWorld + RING_CLEARANCE_WORLD);
+	// Shared with the board's own center-clearance math (Scene3D), so the pile
+	// at the mat's center is sized against the exact radius drawn here.
+	let ringRadiusWorld = $derived(opponentRingRadiusWorld(avatarWorld, cardScale));
 	// handRing.ts's slots are unit directions scaled by its own fixed
 	// RING_RADIUS_EM; dividing that back out and reapplying ringRadiusWorld
 	// repoints them at the radius the avatar actually needs.
@@ -108,17 +110,14 @@
 			position={[slot.x * radialScale, i * RING_STACK_STEP, slot.y * radialScale]}
 			spinDeg={slot.rotateDeg + 180}
 			scale={cardScale}
-			opacity={dimmed ? DIMMED_OPACITY : 1}
+			{dimmed}
 		/>
 	{/each}
 
 	<HTML position.y={AVATAR_HEIGHT} center pointerEvents="auto">
-		<!-- The whole seat is the hover target, so pointing anywhere near the
-		     avatar reveals the name — not just the avatar's own few pixels. -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="seat"
-			style="font-size: {labelEm}em;"
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
 		>
@@ -131,13 +130,26 @@
 				disabled={!isValidTarget}
 				aria-label={isValidTarget ? `Target ${player.username}` : player.username}
 			>
-				<img src={isBot ? "/assets/bot_animated.gif" : "/assets/base_player.gif"} alt="" />
-				{#if !isBot}
-					<div class="tint" style="background-color: {color};"></div>
+				{#if isBot}
+					<img src="/assets/bot_animated.gif" alt="" />
+				{:else}
+					<div class="player-sprite" style="background-color: {color};"></div>
 				{/if}
 			</button>
-			<span class="seat-label" class:is-shown={showLabel}>{player.username}</span>
 		</div>
+	</HTML>
+
+	<!-- A second, independent anchor: the label projects from a different 3D
+	     point than the avatar (see LABEL_BEYOND_RING_MARGIN above), so it needs
+	     its own <HTML> rather than living in the avatar's flex column. -->
+	<HTML
+		position={[0, AVATAR_HEIGHT, ringRadiusWorld + LABEL_BEYOND_RING_MARGIN]}
+		center
+		pointerEvents="none"
+	>
+		<span class="seat-label" class:is-shown={showLabel} style="font-size: {labelEm}em;"
+			>{player.username}</span
+		>
 	</HTML>
 </T.Group>
 
@@ -163,27 +175,24 @@
 		image-rendering: pixelated;
 	}
 
-	/* Masked to the avatar sprite's own pixels — without the mask, multiply
-	   paints the img's transparent surroundings as a solid colored box. */
-	.tint {
-		position: absolute;
-		inset: 0;
-		mix-blend-mode: multiply;
-		pointer-events: none;
-		/* Both layers must rasterize the sprite the SAME way. Smooth-scaled pixel
-		   art has a soft, partially-transparent edge, and multiply through a
-		   partially-transparent mask only partly tints it — that was the untinted
-		   sliver visible around the icon. Pixelated on both gives hard edges, so
-		   every pixel is either fully tinted or fully absent. */
+	/* ONE layer, not an <img> with a multiply overlay on top: base_player.gif
+	   holds exactly two colours (#00000000 and #EDEDE9FF — verified with
+	   `magick base_player.gif[0] -unique-colors`), so a flat fill masked to the
+	   sprite is pixel-identical to multiplying the sprite by the seat colour.
+	   The two-layer version keeps coming back tinted wrong because it
+	   rasterizes the same 5-frame GIF twice and the two copies animate on
+	   independent clocks — there is no way to keep them in step, so don't
+	   reintroduce it. Bots keep a real <img>: their sprite is full-colour art,
+	   not a silhouette, and it isn't seat-tinted. The 137.1428% (96/70)
+	   mask-size crops the canvas's own built-in padding around the figure —
+	   see LocalSeat3D's matching rule and boardPlacement.ts's
+	   AVATAR_SPRITE_FILL for the measurement it's derived from. */
+	.player-sprite {
+		width: 100%;
+		height: 100%;
 		image-rendering: pixelated;
-		-webkit-mask-image: url("/assets/base_player.gif");
-		mask-image: url("/assets/base_player.gif");
-		-webkit-mask-size: contain;
-		mask-size: contain;
-		-webkit-mask-position: center;
-		mask-position: center;
-		-webkit-mask-repeat: no-repeat;
-		mask-repeat: no-repeat;
+		-webkit-mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
+		mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
 	}
 
 	/* The turn's own seat stays at full brightness; every other seat dims —
@@ -213,33 +222,28 @@
 		}
 	}
 
-	/* Avatar and name are one unit, the name hanging off the avatar's bottom
-	   edge — the label used to sit beyond the ring's far side, where it landed
-	   on whatever the neighbouring seat happened to be drawing. Font size comes
-	   from the inline labelEm. */
 	.seat {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 	}
 
-	/* A plate rather than floating text: whatever sits behind a seat's name (mat,
-	   wood, another player's cards) is arbitrary, so the contrast has to come
-	   from the label. Long names truncate instead of running across a neighbour.
-	   Hidden until the seat is relevant (see showLabel) — it still occupies its
-	   box, so revealing it never shifts the avatar. */
+	/* Its own anchor now (see LABEL_BEYOND_RING_MARGIN), not hanging off the
+	   avatar's flex column, so no margin-top is needed to tuck it in. Long
+	   names truncate instead of running across a neighbour. Hidden until the
+	   seat is relevant (see showLabel) — it still occupies its box, so
+	   revealing it never shifts anything else. Wider than the avatar's own
+	   label used to be: sitting past the ring instead of jammed under the
+	   avatar, a name has more room before it needs to compete with a neighbour. */
 	.seat-label {
-		margin-top: -0.5em;
-		max-width: 9em;
+		max-width: 13em;
 		font-family: var(--tiny);
 		line-height: 1;
-		color: white;
+		color: var(--table-text);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		padding: 0.2em 0.5em;
-		background: rgba(0, 0, 0, 0.72);
-		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
 		opacity: 0;
 		transition: opacity 0.15s ease;
 	}

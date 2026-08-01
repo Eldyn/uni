@@ -26,13 +26,8 @@
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import CardHighlight3D from "./CardHighlight3D.svelte";
-	import {
-		CARD_HEIGHT,
-		CARD_WIDTH,
-		EM_TO_WORLD,
-		CARD_HOVER_LIFT,
-		CARD_HOVER_SCALE
-	} from "./units";
+	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD, CARD_HOVER_LIFT, CARD_HOVER_SCALE } from "./units";
+	import { loadTexture } from "./textures";
 	import type { CameraRig } from "../layout/cameraRig";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import type { ViewportInfo } from "../layout/seatLayout";
@@ -90,14 +85,15 @@
 	// pile's right edge (pile half-width + card half-width = one scaled card)
 	// plus a small gap.
 	const HAND_PILE_GAP = 0.25;
-	// Distance over which a card at the row's end dissolves, in em — wide
-	// enough to read as a gradual fade rather than a hard cutoff.
-	const EDGE_FADE_EM = 3.5;
-	// A faded-out card never goes fully invisible — a ghost of it stays
-	// visible so the row still reads as continuing off-screen rather than
-	// abruptly ending.
-	const EDGE_FADE_MIN_OPACITY = 0.35;
-	const DIMMED_OPACITY_MULTIPLIER = 0.5;
+	// The fade reads off the actual screen, not the layout's own span cap: the
+	// draw pile pins maxHalfSpanEm well inside the true frustum edge (see
+	// maxHalfSpanEm below), so keying the fade off THAT used to fade a normal
+	// 7-card hand's end cards before they were anywhere near the edge of the
+	// screen. The middle third of the screen's width is always fully opaque;
+	// the outer two thirds fade linearly, reaching zero exactly where the
+	// card's own outer edge would touch the true screen edge (where it'd be
+	// clipped by the camera frustum anyway).
+	const EDGE_FADE_INNER_FRACTION = 1 / 3;
 	// Below this, a pointer gesture is a tap; above it, a drag. Without it every
 	// tap on a touch screen registers a few pixels of travel and scrolls the row.
 	const DRAG_THRESHOLD_PX = 6;
@@ -108,6 +104,26 @@
 	const RGBY_TYPE_ORDER = ["red", "green", "blue", "yellow", "white"];
 	// Gap between the draw pile's own left edge and the sort button beside it.
 	const SORT_BUTTON_GAP_EM = 3.2;
+	// How far the active (hovered/selected) card's immediate neighbors part to
+	// make room for it, in em, tapering off over NEIGHBOR_PUSH_FALLOFF_CARDS so
+	// only the handful of cards nearest the active one actually move — the ends
+	// of a long hand shouldn't shuffle just because something near the middle
+	// got picked up.
+	const NEIGHBOR_PUSH_EM = 0.7;
+	const NEIGHBOR_PUSH_FALLOFF_CARDS = 3;
+	// The active card tilts a few degrees toward the discard pile at the mat's
+	// center (x=0) — a small "already being aimed at where it's about to land"
+	// cue — ramped in with the same liftT tween as its lift/push.
+	const HOVER_TILT_DEG = 9;
+	// Same recipe as the discard pile's own card shadows (DiscardPile3D): a
+	// black-tinted copy of background.png at a low opacity, offset in WORLD
+	// units — same fixed 0.09 magnitude as the pile's, not scaled by handScale,
+	// so it reads as "the same shadow" rather than growing with the cards.
+	// Offset purely left (not diagonal), aimed at this row's own light
+	// direction instead of the pile's diagonal one.
+	const SHADOW_OFFSET = 0.09;
+	const SHADOW_OPACITY = 0.22;
+	const SHADOW_DROP_Y = STACK_STEP / 2;
 
 	// The placement's hand scale also scales the slot spacing and lift push so
 	// the row's overlap proportions stay the same at any card size.
@@ -167,12 +183,21 @@
 	let slots = $derived(line.slots);
 	let worldPerPixelX = $derived((2 * rig.halfWidth) / viewport.width);
 
-	// Cards dissolve as they pan past the row's ends instead of being sliced off
-	// at the frustum edge — which also makes it visible that the row scrolls.
+	// Cards dissolve as they pan toward the screen's true edges instead of
+	// being sliced off there — which also makes it visible that the row
+	// scrolls. Measured in the same em units the row's own slots use, against
+	// the frustum's real half-width converted through the current hand scale
+	// (screenHalfSpanEm), not against maxHalfSpanEm — that cap exists to keep
+	// the row clear of the draw pile, which is a much tighter box than the
+	// screen itself.
+	let screenHalfSpanEm = $derived(rig.halfWidth / handEmToWorld);
 	function edgeFade(x: number): number {
-		const distanceInside = maxHalfSpanEm + CARD_HALF_WIDTH_EM - Math.abs(x);
-		const t = Math.max(0, Math.min(1, distanceInside / EDGE_FADE_EM));
-		return EDGE_FADE_MIN_OPACITY + (1 - EDGE_FADE_MIN_OPACITY) * t;
+		const innerEm = screenHalfSpanEm * EDGE_FADE_INNER_FRACTION;
+		const cardOuterEdgeEm = Math.abs(x) + CARD_HALF_WIDTH_EM;
+		if (cardOuterEdgeEm <= innerEm) return 1;
+		const fadeSpanEm = screenHalfSpanEm - innerEm;
+		const t = fadeSpanEm <= 0 ? 1 : Math.min(1, (cardOuterEdgeEm - innerEm) / fadeSpanEm);
+		return 1 - t;
 	}
 
 	// The row can only ever be panned when it's actually wider than its
@@ -282,10 +307,52 @@
 		if (!pointerMode.canHover) return;
 		const handleWheel = (event: WheelEvent) => {
 			if (hoveredId === null) return;
-			scrollEm = line.scrollEm + event.deltaY * WHEEL_EM_PER_PIXEL;
+			// A trackpad's two-finger swipe reports its own motion as deltaX; a
+			// plain mouse wheel only ever reports deltaY. Taking whichever axis
+			// moved further means a horizontal trackpad swipe pans the row
+			// directly, instead of only the (unintuitive, but mouse-wheel-only)
+			// vertical scroll the row used to require.
+			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			scrollEm = line.scrollEm + delta * WHEEL_EM_PER_PIXEL;
 		};
 		window.addEventListener("wheel", handleWheel, { passive: true });
 		return () => window.removeEventListener("wheel", handleWheel);
+	});
+
+	// The card that's currently lifted — selection wins over hover (matches
+	// `lifted` per-card below), and a drag in progress isn't a "hover", or the
+	// row would part around a card mid-reorder.
+	let activeId = $derived(selectedId ?? (draggingId === null ? hoveredId : null));
+	let activeIndex = $derived(
+		activeId === null ? -1 : orderedCards.findIndex((c) => c.id === activeId)
+	);
+
+	// Neighbors on the active card's side shift a sliver further away, tapering
+	// off over a few cards so only the ones actually crowding it move.
+	function neighborPushEm(index: number): number {
+		if (activeIndex === -1) return 0;
+		const distance = index - activeIndex;
+		if (distance === 0) return 0;
+		const magnitude =
+			NEIGHBOR_PUSH_EM * Math.max(0, 1 - (Math.abs(distance) - 1) / NEIGHBOR_PUSH_FALLOFF_CARDS);
+		return Math.sign(distance) * magnitude;
+	}
+
+	// Tilts the active card's top edge toward the discard pile at x=0 — a card
+	// left of center tips right (positive spin), one right of center tips left.
+	function tiltTowardPileDeg(x: number): number {
+		return x > 0 ? -HOVER_TILT_DEG : HOVER_TILT_DEG;
+	}
+
+	let shadowTexture = $state<import("three").Texture | null>(null);
+	$effect(() => {
+		let cancelled = false;
+		loadTexture("/assets/cards/background.png").then((t) => {
+			if (!cancelled) shadowTexture = t;
+		});
+		return () => {
+			cancelled = true;
+		};
 	});
 </script>
 
@@ -293,7 +360,8 @@
 	{@const slot = slots[i]}
 	{@const isDragging = draggingId === card.id}
 	{@const isSelected = selectedId === card.id}
-	{@const x = slot.x * handEmToWorld + (isDragging ? dragOffsetX : 0)}
+	{@const neighborPush = isDragging ? 0 : neighborPushEm(i)}
+	{@const x = (slot.x + neighborPush) * handEmToWorld + (isDragging ? dragOffsetX : 0)}
 	{@const lifted = isSelected || (hoveredId === card.id && !isDragging)}
 	{@const fade = edgeFade(slot.x)}
 	{#if isSelected}
@@ -308,6 +376,29 @@
 			scale={placement.handScale * CARD_HOVER_SCALE}
 		/>
 	{/if}
+	{#if shadowTexture}
+		<!-- Same recipe as the discard pile's card shadows, aimed left instead of
+		     the pile's own diagonal — see SHADOW_OFFSET above. -->
+		<T.Mesh
+			position={[
+				x - SHADOW_OFFSET,
+				(isDragging ? DRAG_LIFT : i * STACK_STEP) - SHADOW_DROP_Y,
+				placement.localSeatZ
+			]}
+			rotation.x={-Math.PI / 2}
+			scale={placement.handScale}
+		>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+			<T.MeshBasicMaterial
+				map={shadowTexture}
+				color="#000000"
+				transparent
+				opacity={SHADOW_OPACITY * fade}
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
 	<CardMesh3D
 		{card}
 		position={[x, isDragging ? DRAG_LIFT : i * STACK_STEP, placement.localSeatZ]}
@@ -315,7 +406,9 @@
 		hovered={lifted}
 		instant={isSelected}
 		hoverPush={[0, HOVER_PUSH_EM * handEmToWorld]}
-		opacity={dimmed ? fade * DIMMED_OPACITY_MULTIPLIER : fade}
+		hoverSpinDeg={tiltTowardPileDeg(slot.x)}
+		opacity={fade}
+		{dimmed}
 	/>
 {/each}
 
@@ -357,7 +450,14 @@
 	center
 	pointerEvents="auto"
 >
-	<button class="sort-button pixel-corners" onclick={sortByRgby}>Sort</button>
+	<button
+		class="sort-button pixel-corners"
+		onclick={sortByRgby}
+		title="Sort hand"
+		aria-label="Sort hand"
+	>
+		<i class="hn pix hn-sort"></i>
+	</button>
 </HTML>
 
 <style>
@@ -366,14 +466,17 @@
 		opacity: 0.85;
 	}
 
+	/* Square: the glyph carries the meaning now, so the old text-width padding
+	   would leave it floating off-center in a wide box. */
 	.sort-button {
-		font-family: var(--tiny);
-		font-weight: bold;
-		font-size: 0.9em;
-		padding: 0.4em 0.8em;
+		display: grid;
+		place-items: center;
+		font-size: 1.1em;
+		line-height: 1;
+		padding: 0.4em;
 		border: none;
 		cursor: pointer;
-		background: var(--surface-2);
-		color: white;
+		background: var(--table-chip);
+		color: var(--table-text);
 	}
 </style>

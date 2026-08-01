@@ -9,7 +9,9 @@
 	import { T } from "@threlte/core";
 	import type { Texture } from "three";
 	import { storeGame } from "$stores/game.svelte";
+	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
+	import { coverSize } from "../layout/playmat";
 	import type { CameraRig } from "../layout/cameraRig";
 
 	let { rig }: { rig: CameraRig } = $props();
@@ -18,15 +20,9 @@
 	const MAT_Y = -0.02;
 	const ARROWS_Y = -0.01;
 
-	// The same palette GameScreen.svelte's :root defines for the DOM board —
-	// three.js needs real values, not var() references.
-	const TINTS: Record<string, string> = {
-		red: "#dc251c",
-		yellow: "#fcf604",
-		blue: "#0493de",
-		green: "#018d41",
-		black: "#1f1b18"
-	};
+	// The game's four colours, from the one module that defines them —
+	// three.js needs real values, not the var() references the DOM side uses.
+	const TINTS: Record<string, string> = { ...CARD_COLOR_MAP };
 	const FALLBACK_TINT = "#663399";
 
 	// active_type reads "white" while a wild is still being resolved; the mat
@@ -64,17 +60,16 @@
 		};
 	});
 
-	/** "cover" fit, exactly as the CSS background-size it replaces: scale by
-	 *  whichever axis needs more, so the art always fills the frustum. */
-	function coverSize(texture: Texture, halfWidth: number, halfHeight: number): [number, number] {
+	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
+	 *  sized against the felt this draws and all three have to agree on it. */
+	function fit(texture: Texture, halfWidth: number, halfHeight: number): [number, number] {
 		const image = texture.image as { width: number; height: number };
-		const scale = Math.max((halfWidth * 2) / image.width, (halfHeight * 2) / image.height);
-		return [image.width * scale, image.height * scale];
+		return coverSize(image.width, image.height, halfWidth, halfHeight);
 	}
 
-	let matSize = $derived(matTexture ? coverSize(matTexture, rig.halfWidth, rig.halfHeight) : null);
+	let matSize = $derived(matTexture ? fit(matTexture, rig.halfWidth, rig.halfHeight) : null);
 	let arrowsSize = $derived(
-		arrowsTexture ? coverSize(arrowsTexture, rig.halfWidth, rig.halfHeight) : null
+		arrowsTexture ? fit(arrowsTexture, rig.halfWidth, rig.halfHeight) : null
 	);
 </script>
 

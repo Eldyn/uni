@@ -1,15 +1,17 @@
 <!-- A single card, lying flat on the playmat plane (normal facing world +Y),
      built from the same layered texture recipe as GameCard.svelte: an
      untinted background, then a value image tinted to the card's color
-     (skipped for jolly cards, matching GameCard's valueTint/borderTint
-     rule), then a tinted border. Turned cards render a single back texture
+     (skipped for the four-color jolly swatch until a color has actually been
+     chosen for it — see paintedJolly), then a tinted border. Turned cards
+     render a single back texture
      instead. No Svelte transitions here — landing/flight animation is a
      later phase; this component only draws a static card at a given pose. -->
 <script lang="ts">
 	import { T, useTask } from "@threlte/core";
 	import { Color, DoubleSide } from "three";
-	import type { Card } from "$stores/game.svelte";
-	import { loadTexture } from "./textures";
+	import type { Card, CardType } from "$stores/game.svelte";
+	import { CARD_COLOR_MAP } from "$lib/palette";
+	import { loadSilhouette, loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, CARD_HOVER_LIFT, CARD_HOVER_SCALE } from "./units";
 
 	let {
@@ -23,7 +25,10 @@
 		hovered = false,
 		instant = false,
 		hoverPush = [0, 0],
-		opacity = 1
+		opacity = 1,
+		dimmed = false,
+		wildColor,
+		hoverSpinDeg = 0
 	}: {
 		card: Card;
 		turned?: boolean;
@@ -53,22 +58,40 @@
 		 *  ends so a scrollable hand dissolves at its edges instead of being cut
 		 *  off mid-card. */
 		opacity?: number;
+		/** Darkens the card's own texture tint instead of fading it out — used
+		 *  for opponents outside their turn, where the card must stay opaque
+		 *  and readable, just dimmer, rather than turning see-through. */
+		dimmed?: boolean;
+		/** The color a wild was turned into. A wild's own `type` is "white" —
+		 *  the absence of a color — so without this it stays untinted, which is
+		 *  correct for one sitting in a hand and wrong for one lying on the pile
+		 *  under a color that has already been chosen for it. */
+		wildColor?: CardType;
+		/** Extra spin (degrees) ramped in on top of `spinDeg` as the card lifts,
+		 *  same liftT tween as hoverPush — the local hand uses this to angle the
+		 *  hovered/selected card a little toward the discard pile, like it's
+		 *  already being aimed at where it's about to land. */
+		hoverSpinDeg?: number;
 	} = $props();
 
-	const COLOR_MAP: Record<string, string> = {
-		red: "#dc251c",
-		blue: "#0493de",
-		green: "#018d41",
-		yellow: "#fcf604",
-		white: "#ffffff",
-		black: "#1f1b18"
-	};
 	const WHITE = new Color("#ffffff");
+	const DIM_FACTOR = 0.45;
 	const HOVER_LERP_SPEED = 12;
 
-	let cardColor = $derived(new Color(COLOR_MAP[card.type] ?? "#ffffff"));
-	let valueTint = $derived(card.value !== "jolly");
-	let spinRad = $derived((spinDeg * Math.PI) / 180);
+	// A painted wild wears its chosen color exactly like a numbered card wears
+	// its own, so nothing downstream has to know it was ever a wild.
+	let paintedType = $derived(wildColor ?? card.type);
+	let cardColor = $derived(new Color(CARD_COLOR_MAP[paintedType] ?? "#ffffff"));
+	// jolly.png is the one piece of value art carrying colors of its own (the
+	// four-way swatch); multiplying a tint through it only muddies it, so it
+	// renders raw. Once a color has been chosen, the swatch has nothing left to
+	// say and is swapped for its own silhouette flooded with that color.
+	let paintedJolly = $derived(card.value === "jolly" && wildColor !== undefined);
+	let valueTint = $derived(card.value !== "jolly" || paintedJolly);
+	let bgColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
+	let tintColor = $derived(
+		(valueTint ? cardColor : WHITE).clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
+	);
 
 	let liftT = $state(0);
 	useTask((delta) => {
@@ -81,6 +104,8 @@
 		liftT += (target - liftT) * Math.min(1, delta * HOVER_LERP_SPEED);
 		if (Math.abs(target - liftT) < 0.001) liftT = target;
 	});
+
+	let spinRad = $derived(((spinDeg + hoverSpinDeg * liftT) * Math.PI) / 180);
 
 	let animatedPosition = $derived<[number, number, number]>([
 		position[0] + hoverPush[0] * liftT,
@@ -104,7 +129,8 @@
 			loadTexture("/assets/cards/background.png").then((t) => {
 				if (!cancelled) bgTexture = t;
 			});
-			loadTexture(`/assets/cards/${card.value}.png`).then((t) => {
+			const valueUrl = `/assets/cards/${card.value}.png`;
+			(paintedJolly ? loadSilhouette(valueUrl) : loadTexture(valueUrl)).then((t) => {
 				if (!cancelled) valueTexture = t;
 			});
 			loadTexture("/assets/cards/border.png").then((t) => {
@@ -131,6 +157,7 @@
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={backTexture}
+					color={bgColor}
 					transparent
 					{opacity}
 					toneMapped={false}
@@ -144,6 +171,7 @@
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={bgTexture}
+					color={bgColor}
 					transparent
 					{opacity}
 					toneMapped={false}
@@ -156,7 +184,7 @@
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={valueTexture}
-					color={valueTint ? cardColor : WHITE}
+					color={tintColor}
 					transparent
 					{opacity}
 					toneMapped={false}
@@ -169,7 +197,7 @@
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={borderTexture}
-					color={valueTint ? cardColor : WHITE}
+					color={tintColor}
 					transparent
 					{opacity}
 					toneMapped={false}

@@ -32,9 +32,7 @@
 	// per-card step smaller than that lets one card's layers interleave with
 	// its neighbor's (z-fighting) — 0.02 clears that with margin.
 	const STACK_STEP = 0.02;
-	// Reads as the table's focus without dwarfing the hand it's played from.
-	const FOCUS_MULTIPLIER = 1.1;
-	let scale = $derived(placement.handScale * FOCUS_MULTIPLIER);
+	let scale = $derived(placement.centerScale);
 
 	// The shadow reuses the card background texture as a silhouette (rounded
 	// corners included) tinted black. It sits just below its own card but above
@@ -82,7 +80,7 @@
 			]}
 			rotation.x={-Math.PI / 2}
 			rotation.z={(entry.rotationDeg * Math.PI) / 180}
-			scale={scale}
+			{scale}
 		>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<T.MeshBasicMaterial
@@ -97,6 +95,7 @@
 	{/if}
 	<CardMesh3D
 		card={entry.card}
+		wildColor={entry.wildColor}
 		position={[entry.jitter[0] * EM_TO_WORLD, i * STACK_STEP, entry.jitter[1] * EM_TO_WORLD]}
 		spinDeg={entry.rotationDeg}
 		{scale}
