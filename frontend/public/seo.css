@@ -24,18 +24,21 @@
 	font-display: swap;
 }
 
+/* Light-first here (the app's own app.css is dark-first); both files have to
+   agree on the values, so any change to one belongs in the other too. Warm
+   paper rather than #fff — see the light-mode note in app.css for why. */
 :root {
-	--text: #6b6375;
-	--text-h: #08060d;
-	--bg: #fff;
-	--surface: #faf9f7;
-	--border: #e5e4e7;
-	--accent: #aa3bff;
-	--accent-bg: rgba(170, 59, 255, 0.1);
-	--redCard: #dc251c;
-	--yellowCard: #fcf604;
-	--blueCard: #0493de;
-	--greenCard: #018d41;
+	--text: #5f5868;
+	--text-h: #17131f;
+	--bg: #f4f2ec;
+	--surface: #ebe7de;
+	--border: #d8d3c8;
+	--accent: #8f2ce0;
+	--accent-bg: rgba(143, 44, 224, 0.1);
+	--redCard: #bd3130;
+	--yellowCard: #f2cc47;
+	--blueCard: #0470dd;
+	--greenCard: #4aab42;
 
 	--heading: "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
 	--body: "text", system-ui, "Segoe UI", Roboto, sans-serif;
