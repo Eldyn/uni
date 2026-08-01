@@ -32,7 +32,8 @@ describe("parseMatchFixtureQuery", () => {
 			pendingDraws: 6,
 			seed: 1,
 			select: null,
-			hover: null
+			hover: null,
+			wildTop: null
 		});
 	});
 

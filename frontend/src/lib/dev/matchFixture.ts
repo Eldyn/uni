@@ -71,6 +71,10 @@ export interface MatchFixtureOptions {
 	select: number | null;
 	/** Hand index to pre-lift as hovered (mouse preview), or null. */
 	hover: number | null;
+	/** Forces the discard's top card to be a wild, so the "wild painted with the
+	 *  color that was chosen for it" state is reachable without playing a real
+	 *  match. The active colour stays whatever the fixture picked. */
+	wildTop: "jolly" | "jolly_draw4" | null;
 }
 
 const DEFAULTS: MatchFixtureOptions = {
@@ -81,7 +85,8 @@ const DEFAULTS: MatchFixtureOptions = {
 	pendingDraws: 0,
 	seed: 1,
 	select: null,
-	hover: null
+	hover: null,
+	wildTop: null
 };
 
 /**
@@ -125,7 +130,11 @@ export function parseMatchFixtureQuery(search: string): MatchFixtureOptions | nu
 		pendingDraws: clampInt(params.get("draws"), 0, 20, DEFAULTS.pendingDraws),
 		seed: clampInt(params.get("seed"), 0, Number.MAX_SAFE_INTEGER, DEFAULTS.seed),
 		select: params.has("select") ? clampInt(params.get("select"), 0, hand - 1, 0) : null,
-		hover: params.has("hover") ? clampInt(params.get("hover"), 0, hand - 1, 0) : null
+		hover: params.has("hover") ? clampInt(params.get("hover"), 0, hand - 1, 0) : null,
+		wildTop:
+			params.get("wildtop") === "jolly" || params.get("wildtop") === "jolly_draw4"
+				? (params.get("wildtop") as "jolly" | "jolly_draw4")
+				: DEFAULTS.wildTop
 	};
 }
 
@@ -173,22 +182,25 @@ export function buildMatchFixture(options: MatchFixtureOptions): GameState {
 	}
 
 	// The top card fixes the active colour, so a wild top card would leave the
-	// board without one — keep the discard's face coloured.
+	// board without one — keep the discard's face coloured. `wildTop` swaps the
+	// face for a wild while keeping that colour, which is precisely the state a
+	// wild reaches once its owner has been asked what it should become.
+	const activeType = TypeMap[Math.floor(random() * COLOUR_COUNT)];
 	const topCard: Card = {
 		id: nextId++,
-		type: TypeMap[Math.floor(random() * COLOUR_COUNT)],
-		value: ValueMap[Math.floor(random() * COLOUR_VALUE_COUNT)]
+		type: options.wildTop ? "white" : activeType,
+		value: options.wildTop ?? ValueMap[Math.floor(random() * COLOUR_VALUE_COUNT)]
 	};
 
 	// Mark the cards that legally answer the top card, mirroring the server's
 	// `can_play` hint the hand uses to dim unplayable cards.
 	for (const card of hand) {
 		card.can_play =
-			card.type === "white" || card.type === topCard.type || card.value === topCard.value;
+			card.type === "white" || card.type === activeType || card.value === topCard.value;
 	}
 
 	return {
-		active_type: topCard.type,
+		active_type: activeType,
 		current_turn: players[options.turn].username,
 		play_direction: options.direction,
 		top_card: topCard,
