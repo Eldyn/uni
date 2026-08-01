@@ -3,12 +3,16 @@ import { describe, it, expect } from "vitest";
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import {
 	computeBoardPlacement,
-	BASE_HAND_SCALE,
-	MAX_HAND_BOOST,
+	LOCAL_AVATAR_WORLD,
+	LOCAL_SEAT_GAP,
+	MAX_HAND_SCALE,
 	HAND_BOTTOM_MARGIN,
 	DRAW_PILE_HOME_X,
-	DRAW_PILE_EDGE_MARGIN
+	DRAW_PILE_EDGE_MARGIN,
+	MIN_CENTER_SCALE,
+	CENTER_RING_MARGIN
 } from "$components/game/layout/boardPlacement";
+import { matBounds } from "$components/game/layout/playmat";
 import { CARD_WIDTH, CARD_HEIGHT } from "$components/game/three/units";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
@@ -57,19 +61,54 @@ describe("computeBoardPlacement", () => {
 		);
 	});
 
-	// A phone's frustum is tall and thin, so the same world-space card reads far
-	// smaller than it does on a desktop — the boost buys that size back.
-	it("boosts the hand on portrait and leaves landscape at the base scale", () => {
-		expect(computeBoardPlacement(wide, computeCameraRig(wide, 9)).handScale).toBeCloseTo(
-			BASE_HAND_SCALE,
-			5
-		);
-		expect(placementFor(portrait).placement.handScale).toBeGreaterThan(BASE_HAND_SCALE);
+	// The hand is sized by the strip of table between the felt's near edge and
+	// the screen's bottom: fill it, and the player's own cards are as big as the
+	// board can afford without any part of the avatar climbing onto the felt.
+	it("sizes the hand so the local avatar's far edge comes to rest on the felt's near edge", () => {
+		for (const [name, viewport] of Object.entries(all)) {
+			const { rig, placement } = placementFor(viewport);
+			if (placement.handScale >= MAX_HAND_SCALE) continue; // bounded, see below
+			const avatarFarZ = placement.localAvatarZ - LOCAL_AVATAR_WORLD / 2;
+			expect(avatarFarZ, name).toBeCloseTo(matBounds(rig.halfWidth, rig.halfHeight).near, 5);
+		}
 	});
 
-	it("clamps the boost so an extreme aspect can't blow the hand up without bound", () => {
+	it("keeps one seat gap between the avatar and the hand row", () => {
+		const { placement } = placementFor(wide);
+		const handFarZ = placement.localSeatZ - (CARD_HEIGHT * placement.handScale) / 2;
+		expect(handFarZ - placement.localAvatarZ).toBeCloseTo(LOCAL_SEAT_GAP, 5);
+	});
+
+	it("bounds the hand so an extreme aspect can't blow it up without bound", () => {
 		const sliver: ViewportInfo = { width: 200, height: 2000, orientation: "portrait" };
 		const { placement } = placementFor(sliver);
-		expect(placement.handScale).toBeCloseTo(BASE_HAND_SCALE * MAX_HAND_BOOST, 5);
+		expect(placement.handScale).toBeCloseTo(MAX_HAND_SCALE, 5);
+	});
+
+	// The card you're about to play and the card it lands on are the same object
+	// as far as the player is concerned, so they're drawn the same size.
+	it("matches the discard pile to the hand's own cards", () => {
+		for (const [name, viewport] of Object.entries(all)) {
+			const { placement } = placementFor(viewport);
+			expect(placement.centerScale, name).toBeCloseTo(placement.handScale, 5);
+		}
+	});
+
+	it("shrinks the center pile only once a seat is close enough to collide", () => {
+		const rig = computeCameraRig(wide, 9);
+		const roomy = computeBoardPlacement(wide, rig, 4);
+		expect(roomy.centerScale).toBeCloseTo(roomy.handScale, 5);
+
+		const cramped = computeBoardPlacement(wide, rig, 1.2).centerScale;
+		expect(cramped).toBeLessThan(roomy.handScale);
+		expect(cramped).toBeGreaterThanOrEqual(MIN_CENTER_SCALE);
+		// Whatever it shrank to, the pile still has to fit the clearance it was
+		// given, margin included.
+		expect((CARD_HEIGHT * cramped) / 2).toBeLessThanOrEqual(1.2 - CENTER_RING_MARGIN + 1e-6);
+	});
+
+	it("never shrinks the center pile past its readable floor", () => {
+		const rig = computeCameraRig(wide, 9);
+		expect(computeBoardPlacement(wide, rig, 0).centerScale).toBeCloseTo(MIN_CENTER_SCALE, 5);
 	});
 });

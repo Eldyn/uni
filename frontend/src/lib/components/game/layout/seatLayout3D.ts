@@ -34,9 +34,19 @@ export interface SeatPosition3D {
 // flips the proportions so the rails run down the sides instead. Landscape
 // additionally widens toward RX + RX_MAX_EXTRA as the table fills, so a full
 // arch uses the 16:9 slack instead of crowding the side seats inward.
-export const LANDSCAPE_RING_RX = 8;
+export const LANDSCAPE_RING_RX = 6.2;
 export const LANDSCAPE_RING_RX_MAX_EXTRA = 1.4;
 export const LANDSCAPE_RING_RZ = 4.2;
+// ...but only this far past the count-based spread. Filling the frustum's full
+// width is what pinned a 4-player table's side seats to the screen edges while
+// its top seat sat close over the felt: a 16:9 window's horizontal slack is
+// slack the TABLE doesn't have, so spending all of it stretches three seats
+// into a flat bar with two of them stranded a screen-width from the mat.
+// A FULL table is the one case where that slack is real — the arch has to reach
+// wide or it closes into a circle and wraps down past the local hand — so the
+// allowance ramps with the same crowding ratio everything else here uses.
+export const LANDSCAPE_RING_RX_FILL_SPARSE = 1.05;
+export const LANDSCAPE_RING_RX_FILL_CROWDED = 1.3;
 // Portrait's proportions track the screen's, not just "taller than wide": the
 // frustum is a "contain" fit, so a ring whose width/depth ratio is flatter than
 // the phone's own ratio makes the horizontal axis the binding one and buys that
@@ -44,6 +54,11 @@ export const LANDSCAPE_RING_RZ = 4.2;
 // card on a phone read at half the size it could have.
 export const PORTRAIT_RING_RX = 3;
 export const PORTRAIT_RING_RZ = 7.6;
+
+// The deepest the landscape arch is allowed to grow when it fills vertical
+// slack (see ringRadiiFor's frustumHalfHeight). Past this the arch stops
+// reading as an arch over the mat and starts closing into a circle around it.
+export const LANDSCAPE_RING_RZ_MAX = 7;
 
 // A seat's ring cards + label extend roughly this far beyond the seat
 // position itself (RING_RADIUS_EM, PlayerSeat3D.svelte's label offset, plus
@@ -60,7 +75,7 @@ export const OPPONENT_RING_REACH = 2.6;
 // same way it widens the ring — a reach margin sized for the biggest avatar
 // stays the same width even once every seat is down to its smallest, which is
 // dead space by the same "wasted margin" logic as the ring-fill above.
-export const LANDSCAPE_RING_REACH_MIN = 1.3;
+export const LANDSCAPE_RING_REACH_MIN = 1.6;
 export const PORTRAIT_OPPONENT_RING_REACH = 1.15;
 
 export function ringReachFor(viewport: ViewportInfo, opponentCount: number = MAX_OPPONENTS): number {
@@ -83,18 +98,29 @@ export const PORTRAIT_RING_X_EXPONENT = 5;
 
 /**
  * @param frustumHalfWidth The camera frustum's actual half-width, in world
- * units. designGrid.ts sizes the frustum for the board's full height
- * regardless of how wide the viewport's aspect makes it — on a wide-but-not-
- * tall window that leaves the frustum wider than the ring alone needs, i.e.
- * dead space beyond the outermost seat. Passing the real frustum here lets
- * the landscape ring grow to fill it (never shrinks below the count-based
+ * units. designGrid.ts fits the board to the viewport's aspect without
+ * cropping either axis, so whichever axis isn't the binding one ends up with
+ * slack — dead space beyond the outermost seat. Passing the real frustum here
+ * lets the landscape ring grow to fill it (never shrinks below the count-based
  * spread), which is also what turns the arch into more of a flat "reverse U"
  * as it widens, exactly the shape a wide table has more of to give.
+ * @param maxRz The deepest the arch may sit, i.e. the frustum's half-height
+ * less whatever the caller knows a seat actually reaches past its own position
+ * (handRing.ts's opponentSeatReachWorld). This is the same idea on the depth
+ * axis and the reason a squarer window used to look wrong: the arch's depth was
+ * a hard constant, so every extra row of vertical slack piled up as empty mat
+ * ABOVE the top seat while that seat stayed pinned right on top of the center
+ * pile. The arch only ever occupies -Z (see archPoint), so growing it pushes
+ * seats away from the pile and toward the top edge without ever reaching down
+ * into the hand row. It takes the measured reach rather than ringReachFor's
+ * frustum-sizing estimate because this is the axis where the estimate being a
+ * fifth of a card short shows up directly as a clipped seat.
  */
 export function ringRadiiFor(
 	viewport: ViewportInfo,
 	opponentCount: number = MAX_OPPONENTS,
-	frustumHalfWidth?: number
+	frustumHalfWidth?: number,
+	maxRz?: number
 ): { rx: number; rz: number } {
 	if (viewport.orientation === "portrait") {
 		return { rx: PORTRAIT_RING_RX, rz: PORTRAIT_RING_RZ };
@@ -104,11 +130,21 @@ export function ringRadiiFor(
 		Math.max(0, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
 	);
 	const rx = LANDSCAPE_RING_RX + LANDSCAPE_RING_RX_MAX_EXTRA * t;
+	const maxFill =
+		LANDSCAPE_RING_RX_FILL_SPARSE +
+		(LANDSCAPE_RING_RX_FILL_CROWDED - LANDSCAPE_RING_RX_FILL_SPARSE) * t;
 	const filledRx =
 		frustumHalfWidth === undefined
 			? rx
-			: Math.max(rx, frustumHalfWidth - ringReachFor(viewport, opponentCount));
-	return { rx: filledRx, rz: LANDSCAPE_RING_RZ };
+			: Math.min(
+					rx * maxFill,
+					Math.max(rx, frustumHalfWidth - ringReachFor(viewport, opponentCount))
+				);
+	const filledRz =
+		maxRz === undefined
+			? LANDSCAPE_RING_RZ
+			: Math.min(LANDSCAPE_RING_RZ_MAX, Math.max(LANDSCAPE_RING_RZ, maxRz));
+	return { rx: filledRx, rz: filledRz };
 }
 
 // Resolution of the arc-length table below. The arch's curvature is gentle, so
@@ -176,9 +212,10 @@ function arcLengthWarp(rx: number, rz: number, xExponent: number): ArcWarp {
 export function computeSeatPositions3D(
 	opponentCount: number,
 	viewport: ViewportInfo,
-	frustumHalfWidth?: number
+	frustumHalfWidth?: number,
+	frustumHalfHeight?: number
 ): SeatPosition3D[] {
-	const { rx, rz } = ringRadiiFor(viewport, opponentCount, frustumHalfWidth);
+	const { rx, rz } = ringRadiiFor(viewport, opponentCount, frustumHalfWidth, frustumHalfHeight);
 	const xExponent =
 		viewport.orientation === "portrait" ? PORTRAIT_RING_X_EXPONENT : LANDSCAPE_RING_X_EXPONENT;
 	const warp = arcLengthWarp(rx, rz, xExponent);

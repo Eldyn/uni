@@ -20,6 +20,8 @@
  * cards (~20 at the default step).
  */
 
+import { CARD_HEIGHT, CARD_WIDTH } from "../three/units";
+
 export interface CardRingSlot {
 	/** Offset from the ring center, in em. */
 	x: number;
@@ -29,6 +31,33 @@ export interface CardRingSlot {
 
 export const RING_RADIUS_EM = 5; // distance of each card from the avatar at the center
 const RING_STEP_DEG = 18; // angle between adjacent cards while the hand still reads as an arc
+
+// Gap left between the avatar's own edge and the nearest ring card's inner
+// edge — enough to read as a ring around the icon rather than cards grazing it.
+export const RING_CLEARANCE_WORLD = 0.22;
+
+/**
+ * World-space radius the ring of cards has to sit at for a seat drawing its
+ * avatar at `avatarWorldSize` across and its cards at `cardScale`. A ring card's
+ * near edge sits half a card's height inside its own center, so the center has
+ * to sit that much further out again for the edge to actually clear the avatar.
+ */
+export function opponentRingRadiusWorld(avatarWorldSize: number, cardScale: number): number {
+	return avatarWorldSize / 2 + (CARD_HEIGHT * cardScale) / 2 + RING_CLEARANCE_WORLD;
+}
+
+/**
+ * How far a seat's drawn cards reach from the seat's own position — the ring
+ * radius plus the card sitting on it, measured to its CORNER rather than its
+ * edge. Ring cards are spun to stay radial (PlayerSeat3D), and a wide fan turns
+ * some of them far enough that a corner, not an edge, is the outermost point;
+ * measuring to the edge understates the reach by about a fifth of a card, which
+ * is exactly the sliver that ends up clipped off the top of the screen.
+ */
+export function opponentSeatReachWorld(avatarWorldSize: number, cardScale: number): number {
+	const cardHalfDiagonal = (Math.hypot(CARD_WIDTH, CARD_HEIGHT) * cardScale) / 2;
+	return opponentRingRadiusWorld(avatarWorldSize, cardScale) + cardHalfDiagonal;
+}
 
 /**
  * Returns one slot per card, centered on the line toward the playmat. Card i

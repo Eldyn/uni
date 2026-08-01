@@ -6,6 +6,7 @@ import {
 	LANDSCAPE_RING_RX,
 	LANDSCAPE_RING_RX_MAX_EXTRA,
 	LANDSCAPE_RING_RZ,
+	LANDSCAPE_RING_RZ_MAX,
 	LANDSCAPE_RING_X_EXPONENT,
 	PORTRAIT_RING_RX,
 	PORTRAIT_RING_RZ,
@@ -16,6 +17,7 @@ import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLa
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
 import { CARD_HEIGHT } from "$components/game/three/units";
+import { opponentSeatReachWorld } from "$components/game/layout/handRing";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 400, height: 800, orientation: "portrait" };
@@ -103,6 +105,34 @@ describe("computeSeatPositions3D", () => {
 			.slice(1)
 			.map((seat, i) => Math.hypot(seat.x - seats[i].x, seat.z - seats[i].z));
 		expect(Math.max(...gaps) / Math.min(...gaps)).toBeLessThan(1.15);
+	});
+
+	// The depth used to be a hard constant, so a squarer window's extra vertical
+	// room piled up as empty mat above the top seat while that seat stayed pinned
+	// on top of the center pile.
+	it("grows the landscape arch's depth into vertical frustum slack", () => {
+		const squarish: ViewportInfo = { width: 1400, height: 1050, orientation: "landscape" };
+		const rig = computeCameraRig(squarish, 3);
+		// What Scene3D passes: the frustum's half-height less the reach a seat's
+		// own drawn cards need above it.
+		const maxRz = rig.halfHeight - opponentSeatReachWorld(1.5, 0.85);
+		const filled = ringRadiiFor(squarish, 3, rig.halfWidth, maxRz);
+		expect(filled.rz).toBeGreaterThan(LANDSCAPE_RING_RZ);
+		expect(filled.rz).toBeLessThanOrEqual(LANDSCAPE_RING_RZ_MAX);
+		// Whatever it grew to, the outermost card still lands inside the frustum.
+		expect(filled.rz + opponentSeatReachWorld(1.5, 0.85)).toBeLessThanOrEqual(rig.halfHeight + 1e-6);
+		// The seats it pushes outward move AWAY from the pile, never toward it.
+		const base = computeSeatPositions3D(3, squarish, rig.halfWidth);
+		const grown = computeSeatPositions3D(3, squarish, rig.halfWidth, maxRz);
+		grown.forEach((seat, i) => expect(seat.z).toBeLessThanOrEqual(base[i].z + 1e-6));
+	});
+
+	it("never lets the arch's depth run past its cap or below its base", () => {
+		for (const halfHeight of [0, 3, 6, 12, 40]) {
+			const { rz } = ringRadiiFor(landscape, 8, 12, halfHeight);
+			expect(rz).toBeGreaterThanOrEqual(LANDSCAPE_RING_RZ);
+			expect(rz).toBeLessThanOrEqual(LANDSCAPE_RING_RZ_MAX);
+		}
 	});
 
 	it("flips the ring proportions in portrait (narrow in X, deep in Z)", () => {

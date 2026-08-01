@@ -5,12 +5,17 @@ import {
 	discardEntryFor,
 	DISCARD_CAP,
 	MAX_ROTATION_DEG,
+	paintTopWild,
 	type DiscardEntry
 } from "$components/game/layout/discardPile";
 import type { Card } from "$stores/game.svelte";
 
 function card(id: number): Card {
 	return { id, type: "red", value: "5" };
+}
+
+function wild(id: number): Card {
+	return { id, type: "white", value: "jolly" };
 }
 
 describe("discardEntryFor", () => {
@@ -83,5 +88,36 @@ describe("appendDiscard", () => {
 		for (let id = 0; id < 10; id++) history = appendDiscard(history, card(id), 3);
 		expect(history).toHaveLength(3);
 		expect(history.map((e) => e.card.id)).toEqual([7, 8, 9]);
+	});
+});
+
+describe("paintTopWild", () => {
+	it("records the chosen color on a wild sitting on top", () => {
+		const history = paintTopWild(appendDiscard([], wild(1)), "green");
+		expect(history[0].wildColor).toBe("green");
+	});
+
+	it("leaves the color once the wild is buried, rather than following the table", () => {
+		let history = paintTopWild(appendDiscard([], wild(1)), "green");
+		history = appendDiscard(history, card(2));
+		history = paintTopWild(history, "red");
+		expect(history[0].wildColor).toBe("green");
+		expect(history[1].wildColor).toBeUndefined();
+	});
+
+	it("treats white as no choice at all", () => {
+		const history = paintTopWild(appendDiscard([], wild(1)), "white");
+		expect(history[0].wildColor).toBeUndefined();
+	});
+
+	it("never paints a colored card", () => {
+		const history = appendDiscard([], card(1));
+		expect(paintTopWild(history, "green")).toBe(history);
+	});
+
+	it("returns the same array when there is nothing to change", () => {
+		const history = paintTopWild(appendDiscard([], wild(1)), "green");
+		expect(paintTopWild(history, "green")).toBe(history);
+		expect(paintTopWild([], "green")).toEqual([]);
 	});
 });

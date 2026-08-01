@@ -9,10 +9,16 @@
  * under the draw pile). No Svelte, no DOM — just the numbers the renderer draws.
  */
 
-import type { Card } from "$stores/game.svelte";
+import type { Card, CardType } from "$stores/game.svelte";
 
 export interface DiscardEntry {
 	card: Card;
+	/** The color a wild was turned into, once one has been chosen for it. A wild
+	 *  lands colorless and is told what it became a moment later — the server
+	 *  only asks for the choice once the card is already down — and it has to
+	 *  keep that color after the next card covers it, so it is recorded per
+	 *  entry rather than read live off the state's single `active_type`. */
+	wildColor?: CardType;
 	/** Monotonic per-pile sequence — the render key. Card ids recycle when the
 	 *  discard is reshuffled into the draw pile, so a replayed id can still sit
 	 *  in the capped history; keying by id would then reuse the old low-in-the-
@@ -70,4 +76,26 @@ export function appendDiscard(
 
 	const next = [...history, discardEntryFor(card, (last?.seq ?? 0) + 1)];
 	return next.length > cap ? next.slice(next.length - cap) : next;
+}
+
+const WILD_VALUES = new Set(["jolly", "jolly_draw4"]);
+
+export function isWildCard(card: Card): boolean {
+	return WILD_VALUES.has(card.value);
+}
+
+/**
+ * Records the table's active color on the pile's top card, if that card is a
+ * wild waiting to find out what it turned into. `"white"` is the absence of a
+ * choice, not a color, so it never paints anything. Never mutates the input —
+ * returns the same array when there is nothing to paint.
+ */
+export function paintTopWild(history: DiscardEntry[], color: CardType): DiscardEntry[] {
+	const top = history[history.length - 1];
+	if (!top || color === "white") return history;
+	if (!isWildCard(top.card) || top.wildColor === color) return history;
+
+	const next = [...history];
+	next[next.length - 1] = { ...top, wildColor: color };
+	return next;
 }
