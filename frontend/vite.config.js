@@ -86,7 +86,15 @@ export default defineConfig(({ mode }) => {
 				$stores: path.resolve("./src/lib/stores"),
 				$utils: path.resolve("./src/lib/utils"),
 				$data: path.resolve("./src/lib/data")
-			}
+			},
+			// Svelte's package.json exports a separate server build behind the
+			// default/node condition; under vitest's Node runtime that resolves
+			// ahead of "browser" unless forced, so a component test that mounts a
+			// component (via @testing-library/svelte) fails with "mount(...) is
+			// not available on the server". Vitest runs this config with
+			// mode "test" (never "development"/plain build), so this only ever
+			// affects test resolution, never the production/watch build.
+			conditions: mode === "test" ? ["browser"] : undefined
 		},
 		define: {
 			__APP_VERSION__: JSON.stringify(appVersion),
