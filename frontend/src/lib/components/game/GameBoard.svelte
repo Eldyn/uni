@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { Canvas } from "@threlte/core";
 	import { storeGame } from "$stores/game.svelte";
+	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
-	import { computeCameraRig } from "./layout/cameraRig";
-	import { computeBoardPlacement } from "./layout/boardPlacement";
+	import AccessibleHandControls from "./AccessibleHandControls.svelte";
+	import { computeSceneGeometry } from "./layout/sceneGeometry";
+	import { worldToScreenPercent } from "./layout/screenProjection";
 
 	const bus = createCardBus();
 	const layout = createGameLayoutContext();
@@ -41,14 +43,12 @@
 		return () => bus.unregister("draw-pile");
 	});
 
-	// Seat-position color, not a UNO card color: cycles through the 4 UNO
+	// Seat-position color, not a UNO card color: cycles through the 4 game
 	// colors regardless of player count. Dropped in favor of a real
 	// player-picked character color in a future pass.
-	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"]; // Blue, Green, Red, Yellow
-
 	function colorFor(username: string | undefined): string {
 		const idx = storeGame.state?.players?.findIndex((p) => p.username === username) ?? -1;
-		return idx !== -1 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : PLAYER_COLORS[0];
+		return playerColorFor(idx);
 	}
 
 	// Rotate the player list so opponents read in turn order starting right
@@ -67,26 +67,35 @@
 		return rotated.map((player) => ({ player }));
 	});
 
-	// The scene's world origin is the screen's exact center (designGrid.ts keeps
-	// it there on every aspect ratio), so the anchors only have to project each
-	// pile's own world offset from that center.
-	let rig = $derived(computeCameraRig(sceneViewport, mappedOpponents.length));
-	let placement = $derived(computeBoardPlacement(sceneViewport, rig));
-	let pxPerUnit = $derived(sceneViewport.height / (2 * rig.halfHeight));
-	const discardAnchorStyle = "left: 50%; top: 50%;";
+	// Single source of truth for the scene's camera/seat/pile geometry — Scene3D
+	// draws from this same object (passed down as a prop below), so the pile
+	// anchors below and the actual WebGL scene can never disagree about where
+	// the piles really sit (see layout/sceneGeometry.ts's file doc).
+	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
+
+	// The discard pile sits at the mat's own world origin — projected here
+	// instead of assumed, so this stays correct even if that ever stops being
+	// true (see layout/screenProjection.ts's file doc).
+	let discardAnchor = $derived(worldToScreenPercent(geometry.rig, 0, 0));
+	let drawAnchor = $derived(
+		worldToScreenPercent(geometry.rig, geometry.placement.drawPileX, geometry.placement.localSeatZ)
+	);
+	let discardAnchorStyle = $derived(
+		`left: ${discardAnchor.leftPercent}%; top: ${discardAnchor.topPercent}%;`
+	);
 	let drawAnchorStyle = $derived(
-		`left: calc(50% + ${placement.drawPileX * pxPerUnit}px); ` +
-			`top: calc(50% + ${placement.localSeatZ * pxPerUnit}px);`
+		`left: ${drawAnchor.leftPercent}%; top: ${drawAnchor.topPercent}%;`
 	);
 </script>
 
 <FlyingCardsOverlay />
 <DrawStackIndicator />
+<AccessibleHandControls />
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
 	<div class="scene-layer" bind:clientWidth={sceneWidth} bind:clientHeight={sceneHeight}>
 		<Canvas>
-			<Scene3D {mappedOpponents} viewport={sceneViewport} {colorFor} />
+			<Scene3D {mappedOpponents} viewport={sceneViewport} {geometry} {colorFor} />
 		</Canvas>
 	</div>
 

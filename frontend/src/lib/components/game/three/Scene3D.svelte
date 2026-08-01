@@ -9,10 +9,8 @@
 	import type { OrthographicCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 	import { useCardBus } from "../card-bus.svelte";
-	import { computeCameraRig } from "../layout/cameraRig";
-	import { computeBoardPlacement } from "../layout/boardPlacement";
-	import { computeSeatPositions3D, ringRadiiFor } from "../layout/seatLayout3D";
-	import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "../layout/seatLayout";
+	import type { SceneGeometry } from "../layout/sceneGeometry";
+	import type { ViewportInfo } from "../layout/seatLayout";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -26,70 +24,35 @@
 	// Whether the local player's own avatar/hand also dim outside their turn,
 	// the same way every opponent seat now does — kept as a single flip so the
 	// two variants can be screenshot and compared before picking one for real.
-	const DIM_LOCAL_WHEN_NOT_TURN = false;
+	const DIM_LOCAL_WHEN_NOT_TURN = true;
 
 	let {
 		mappedOpponents,
 		viewport,
+		geometry,
 		colorFor
 	}: {
 		mappedOpponents: { player: GamePlayer }[];
 		viewport: ViewportInfo;
+		/** Everything geometric — camera, seats, sizing, pile placement — computed
+		 *  once by GameBoard.svelte's computeSceneGeometry() call and threaded down
+		 *  here, so this component only composes children instead of also owning
+		 *  a second, independently-derived copy of the same math (see
+		 *  layout/sceneGeometry.ts's file doc for why that used to be a bug). */
+		geometry: SceneGeometry;
 		colorFor: (username: string | undefined) => string;
 	} = $props();
 
 	const bus = useCardBus();
 
-	let rig = $derived(computeCameraRig(viewport, mappedOpponents.length));
-	let placement = $derived(computeBoardPlacement(viewport, rig));
-	// The frustum is sized for the board's full height regardless of how wide
-	// the viewport's aspect makes it, so a wide-but-not-tall window can leave
-	// it wider than the ring alone needs — passing that width through lets the
-	// landscape ring widen to fill it instead of leaving it as dead space past
-	// the outermost seat.
-	let seats3D = $derived(computeSeatPositions3D(mappedOpponents.length, viewport, rig.halfWidth));
-
-	// Opponent presentation shrinks smoothly as the landscape table fills; on
-	// portrait the card fans stay full-size (they're the seat's focus) while
-	// the avatar and name drop to small markers so the fans stay readable.
-	let isPortrait = $derived(viewport.orientation === "portrait");
-	let crowdT = $derived(
-		Math.min(
-			1,
-			Math.max(0, (mappedOpponents.length - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
-		)
-	);
-	// How much wider the ring grew to fill the frustum's slack, past its own
-	// count-based spread — a wide table has that much more room per seat, so
-	// the seats and cards can grow with it instead of staying pinned to the
-	// crowd-only size a narrower window would've forced. Capped well under the
-	// full ratio so an emptied-out table doesn't blow the avatars up.
-	let ringWidthBoost = $derived(
-		isPortrait
-			? 1
-			: Math.min(
-					1.15,
-					ringRadiiFor(viewport, mappedOpponents.length, rig.halfWidth).rx /
-						ringRadiiFor(viewport, mappedOpponents.length).rx
-				)
-	);
-	// A near-empty landscape table has room to spare, so the seats start large
-	// and only shrink as they have to; the crowded end of each ramp is what a
-	// full 16-seat arch can actually fit.
-	let opponentCardScale = $derived((isPortrait ? 0.5 : 0.85 - 0.4 * crowdT) * ringWidthBoost);
-	let opponentAvatarPx = $derived(
-		Math.round((isPortrait ? 30 : 100 - 46 * crowdT) * ringWidthBoost)
-	);
-	// The name label reads fine well before the avatar does, so it's capped
-	// well short of the avatar's own growth — an empty table otherwise turns
-	// every name into a headline sized to match the biggest icon.
-	let opponentLabelEm = $derived(
-		Math.min(1.15, (isPortrait ? 0.8 : 1.6 - 0.6 * crowdT) * ringWidthBoost)
-	);
-	// Converts an opponent avatar's fixed CSS pixel size into world units, so
-	// PlayerSeat3D can size its own card ring around the avatar's actual
-	// on-screen footprint rather than a radius that only matched it by luck.
-	let worldPerPx = $derived((2 * rig.halfWidth) / viewport.width);
+	let rig = $derived(geometry.rig);
+	let seats3D = $derived(geometry.seats3D);
+	let opponentCardScale = $derived(geometry.opponentCardScale);
+	let opponentAvatarPx = $derived(geometry.opponentAvatarPx);
+	let opponentAvatarWorld = $derived(geometry.opponentAvatarWorld);
+	let localAvatarPx = $derived(geometry.localAvatarPx);
+	let opponentLabelEm = $derived(geometry.opponentLabelEm);
+	let placement = $derived(geometry.placement);
 
 	let camRef = $state<OrthographicCamera>();
 	$effect(() => {
@@ -157,8 +120,8 @@
 			onSelect={() => confirmTarget(player.username)}
 			cardScale={opponentCardScale}
 			avatarPx={opponentAvatarPx}
+			avatarWorld={opponentAvatarWorld}
 			labelEm={opponentLabelEm}
-			{worldPerPx}
 		/>
 	{/if}
 {/each}
@@ -168,6 +131,7 @@
 		player={storeGame.localPlayer}
 		color={colorFor(storeGame.localPlayer.username)}
 		{placement}
+		avatarPx={localAvatarPx}
 		dimmed={localDimmed}
 	/>
 	<LocalHand3D
