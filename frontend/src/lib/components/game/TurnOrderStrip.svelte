@@ -50,8 +50,8 @@
 		white-space: nowrap;
 		padding: 2px 8px;
 		border-radius: 4px;
-		background: var(--surface-2);
-		color: white;
+		background: var(--table-chip);
+		color: var(--table-text);
 	}
 
 	.chip.current {

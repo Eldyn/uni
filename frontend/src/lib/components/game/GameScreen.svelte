@@ -32,30 +32,18 @@
 </div>
 
 <style>
-	:root {
-		--cardSize: 5em;
-		--white: rebeccapurple; /* Fallback color */
-		--red: #dc251c;
-		--yellow: #fcf604;
-		--blue: #0493de;
-		--green: #018d41;
-		--black: #1f1b18;
-	}
-
+	/* The playmat and the turn arrows are meshes inside the canvas now
+	   (three/Playmat3D.svelte); the wood sprite that used to sit behind them is
+	   gone, replaced by the flat table colour. Not var(--bg): the board's whole
+	   job is to make four saturated card colours legible at a glance, and on a
+	   light canvas they lose the contrast they're read by. */
 	.game-screen {
 		width: 100%;
 		height: 100vh;
-		background: var(--bg);
+		background: var(--table);
 		position: relative;
-		background-image: url("/assets/background.png");
-		background-size: cover;
-		background-position: center;
-		background-repeat: no-repeat;
 		overflow: hidden;
 	}
-
-	/* The playmat and the turn arrows are meshes inside the canvas now
-	   (three/Playmat3D.svelte) — only the wood backdrop is still CSS. */
 
 	/* --- UI LAYOUT --- */
 	.ui-layer {

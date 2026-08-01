@@ -3,6 +3,7 @@
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
+	import { BOT_COLOR, playerColorFor } from "$lib/palette";
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
@@ -33,11 +34,7 @@
 
 	// INFO: Player seat colours mirror the lobby/board. Bots are intentionally
 	//       greyed out, they never get a player identity colour.
-	const PLAYER_COLORS = ["#0493de", "#018d41", "#dc251c", "#fcf604"];
-	const BOT_COLOR = "#6b6b6b";
-	let winnerColor = $derived(
-		winnerIsBot ? BOT_COLOR : winnerIdx !== -1 ? PLAYER_COLORS[winnerIdx % 4] : PLAYER_COLORS[0]
-	);
+	let winnerColor = $derived(winnerIsBot ? BOT_COLOR : playerColorFor(winnerIdx));
 </script>
 
 <Modal

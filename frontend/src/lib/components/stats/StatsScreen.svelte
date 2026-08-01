@@ -103,6 +103,12 @@
 </div>
 
 <style>
+	/* This screen is pinned dark in both themes — it's laid over the bg_stats.png
+	   pixel art, which is dark art, so the panel fills and the white/grey text on
+	   them are flat values on purpose rather than theme tokens that would turn
+	   cream in light mode and take the text with them. Same rule as --table in
+	   app.css. Only genuinely theme-following surfaces should use var(--surface*).
+	 */
 	.top-player-card {
 		background: #2a2a2d;
 		padding: 24px;

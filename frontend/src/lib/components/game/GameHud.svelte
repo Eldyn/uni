@@ -40,7 +40,7 @@
 
 <style>
 	.hud-container {
-		color: white;
+		color: var(--table-text);
 		font-weight: bold;
 		font-size: 1.2rem;
 		display: flex;
@@ -63,7 +63,7 @@
 	.collapse-toggle {
 		border: none;
 		background: transparent;
-		color: white;
+		color: var(--table-text);
 		cursor: pointer;
 		font-size: 1rem;
 		line-height: 1;

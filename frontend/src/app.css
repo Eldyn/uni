@@ -124,6 +124,16 @@
 	/* Pixel-art outline / stroke (dark in both themes by design) */
 	--pixel-shadow: #1a1a1a;
 
+	/* The play surface, and the chrome that floats on it. Deliberately NOT
+	   theme-dependent: a board is read by picking saturated cards out of their
+	   surroundings, which only works when the surroundings stay low-value, so
+	   the table is dark in light mode too (a card table is felt on dark wood in
+	   every room's lighting). That's also what makes `color: var(--table-text)`
+	   safe as a constant near-white in every component that sits on it. */
+	--table: #1b1d22;
+	--table-chip: #2e3138;
+	--table-text: #f3f4f6;
+
 	--social-bg: rgba(47, 48, 58, 0.5);
 	--shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 
@@ -139,13 +149,19 @@
 	--monogram: "Monogram", var(--pixel);
 	--pypx: "Pypx", var(--pixel);
 
-	/* Card colours & shadows (theme-independent) */
+	/* Card colours & shadows (theme-independent). Each of the four game colours
+	   has a *Light companion for highlighted/lit variants of the same surface;
+	   src/lib/palette.ts mirrors these for the WebGL scene. */
 	--cardSize: 5em;
 	--whiteCard: white;
-	--redCard: #dc251c;
-	--yellowCard: #fcf604;
-	--blueCard: #0493de;
-	--greenCard: #018d41;
+	--redCard: #bd3130;
+	--redCardLight: #ca4a49;
+	--yellowCard: #f2cc47;
+	--yellowCardLight: #f6d55e;
+	--blueCard: #0470dd;
+	--blueCardLight: #1790df;
+	--greenCard: #4aab42;
+	--greenCardLight: #79bd4c;
 	--blackCard: #1f1b18;
 	--lowShadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 	--lowShadowHover: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
@@ -168,28 +184,36 @@
 
 @media (prefers-color-scheme: light) {
 	:root {
-		--text: #6b6375;
-		--text-h: #08060d;
-		--bg: #fff;
-		--border: #e5e4e7;
-		--code-bg: #f4f3ec;
+		/* Warm paper, not paper-white. A #fff canvas under pixel art reads as an
+		   unfinished page: it's brighter than anything the art itself contains,
+		   so the art sits in a hole rather than on a surface, and every hairline
+		   --border has to fight the maximum possible contrast to stay visible.
+		   The whole light ladder is one warm neutral hue instead of the previous
+		   mix of a white bg with cool grey panels, and it mirrors dark mode's
+		   own ladder: --bg is the furthest surface and each step toward the
+		   viewer moves away from it (lighter there, darker here). */
+		--text: #5f5868;
+		--text-h: #17131f;
+		--bg: #f4f2ec;
+		--border: #d8d3c8;
+		--code-bg: #ebe7de;
 
-		--accent: #aa3bff;
-		--accent-h: #b658ff;
-		--accent-bg: rgba(170, 59, 255, 0.1);
-		--accent-border: rgba(170, 59, 255, 0.5);
-		--accent-violet: #aa3bff;
+		--accent: #8f2ce0;
+		--accent-h: #a044f0;
+		--accent-bg: rgba(143, 44, 224, 0.1);
+		--accent-border: rgba(143, 44, 224, 0.5);
+		--accent-violet: #8f2ce0;
 
-		--surface: #ededf0;
-		--surface-2: #d9d8dd;
-		--surface-deep: #f4f3ec;
-		--surface-violet: #ede0fb;
+		--surface: #e4e0d6;
+		--surface-2: #d3cec2;
+		--surface-deep: #ebe7de;
+		--surface-violet: #e6d8f7;
 
-		--danger: #cf4a46;
-		--success: #43885d;
-		--gold: #9a6a00;
+		--danger: #c0403c;
+		--success: #3b7c53;
+		--gold: #8a5d00;
 
-		--social-bg: rgba(244, 243, 236, 0.5);
+		--social-bg: rgba(235, 231, 222, 0.5);
 		--shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 	}
 }
@@ -215,10 +239,17 @@
 	--color-success: var(--success);
 	--color-gold: var(--gold);
 	--color-pixel-shadow: var(--pixel-shadow);
+	--color-table: var(--table);
+	--color-table-chip: var(--table-chip);
+	--color-table-text: var(--table-text);
 	--color-red-card: var(--redCard);
+	--color-red-card-light: var(--redCardLight);
 	--color-yellow-card: var(--yellowCard);
+	--color-yellow-card-light: var(--yellowCardLight);
 	--color-blue-card: var(--blueCard);
+	--color-blue-card-light: var(--blueCardLight);
 	--color-green-card: var(--greenCard);
+	--color-green-card-light: var(--greenCardLight);
 	--color-black-card: var(--blackCard);
 
 	--font-pixel: var(--pixel);
@@ -558,4 +589,3 @@ code,
 .scrollbar-accent::-webkit-scrollbar-thumb:hover {
 	background: var(--accent-h);
 }
-
