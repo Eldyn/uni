@@ -27,8 +27,7 @@
 		return Array.from({ length: SLOTS }, (_, i) => Math.max(0, Math.min(1, ratio * SLOTS - i)));
 	});
 
-	const randomColor = (): string =>
-		AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+	const randomColor = (): string => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 </script>
 
 <div

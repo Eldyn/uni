@@ -26,7 +26,12 @@
 	// their seat as an actual card face, not a generic avatar chip. Lobbies
 	// with more than 4 seats cycle through them until #13 (polish(game):
 	// color-identity fallback for >4 players) lands.
-	const SEAT_COLORS = ["var(--blueCard)", "var(--greenCard)", "var(--redCard)", "var(--yellowCard)"];
+	const SEAT_COLORS = [
+		"var(--blueCard)",
+		"var(--greenCard)",
+		"var(--redCard)",
+		"var(--yellowCard)"
+	];
 
 	let tableSeats = $derived(storeLobby.current?.settings.max_players ?? SEAT_COLORS.length);
 	let emptySeats = $derived(Math.max(0, tableSeats - (storeLobby.current?.members.length ?? 0)));
@@ -131,7 +136,9 @@
 	</header>
 
 	<!-- Saved matches + settings ----------------------------------------------- -->
-	<div class="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2 sm:px-6 lg:px-10">
+	<div
+		class="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2 sm:px-6 lg:px-10"
+	>
 		<details class="relative w-fit select-none">
 			<summary
 				class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
@@ -195,11 +202,7 @@
 							/>
 							<div class="absolute inset-[14%]">
 								{#if member.is_bot}
-									<img
-										src="/assets/bot_animated.gif"
-										alt=""
-										class="h-full w-full object-contain"
-									/>
+									<img src="/assets/bot_animated.gif" alt="" class="h-full w-full object-contain" />
 								{:else}
 									<TintedSprite src="/assets/base_player.gif" {color} fit="contain" />
 								{/if}
@@ -230,9 +233,7 @@
 						</p>
 
 						{#if activeMenu === member.username}
-							<div
-								class="absolute right-1 top-1 z-30 min-w-[140px] border-2 border-border bg-bg"
-							>
+							<div class="absolute right-1 top-1 z-30 min-w-[140px] border-2 border-border bg-bg">
 								<button
 									class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
 									style="color: lightgoldenrodyellow"
