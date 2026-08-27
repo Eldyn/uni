@@ -25,8 +25,7 @@
 	import { computeHandLine } from "../layout/handLine";
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
-	import CardHighlight3D from "./CardHighlight3D.svelte";
-	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD, CARD_HOVER_LIFT, CARD_HOVER_SCALE } from "./units";
+	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
 	import { loadTexture } from "./textures";
 	import type { CameraRig } from "../layout/cameraRig";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -48,7 +47,8 @@
 		selectedId = null,
 		onSelectionChange,
 		onPlay,
-		dimmed = false
+		dimmed = false,
+		focusedId = null
 	}: {
 		rig: CameraRig;
 		viewport: ViewportInfo;
@@ -60,6 +60,11 @@
 		/** Darkens the whole hand when it isn't this player's turn — see
 		 *  Scene3D's DIM_LOCAL_WHEN_NOT_TURN for why this is a toggle. */
 		dimmed?: boolean;
+		/** The keyboard-focused card, from AccessibleHandControls — lifts/highlights
+		 *  it the same way a mouse hover would, so Tab/Arrow navigation has the same
+		 *  visible feedback a pointer already gets instead of the DOM-only focus a
+		 *  screen-reader button would otherwise leave sighted keyboard users with. */
+		focusedId?: number | null;
 	} = $props();
 
 	const bus = useCardBus();
@@ -97,9 +102,12 @@
 	// Below this, a pointer gesture is a tap; above it, a drag. Without it every
 	// tap on a touch screen registers a few pixels of travel and scrolls the row.
 	const DRAG_THRESHOLD_PX = 6;
-	// One wheel notch pans the row by a card's width, so scrolling a long hand
-	// feels like flipping through it rather than nudging it.
-	const WHEEL_EM_PER_PIXEL = 0.02;
+	// Wheel/trackpad panning is lock-stepped one card at a time rather than
+	// smooth, so scrolling a long hand feels like flipping through it (and,
+	// later, can click a notch per step) instead of a continuous slide. This
+	// is the sensitivity knob: how many pixels of accumulated wheel motion
+	// buy one step.
+	const WHEEL_STEP_PX = 60;
 	// Red, Green, Blue, Yellow, then wilds last (they have no color of their own).
 	const RGBY_TYPE_ORDER = ["red", "green", "blue", "yellow", "white"];
 	// Gap between the draw pile's own left edge and the sort button beside it.
@@ -109,18 +117,20 @@
 	// only the handful of cards nearest the active one actually move — the ends
 	// of a long hand shouldn't shuffle just because something near the middle
 	// got picked up.
-	const NEIGHBOR_PUSH_EM = 0.7;
+	const NEIGHBOR_PUSH_EM = 1.05;
 	const NEIGHBOR_PUSH_FALLOFF_CARDS = 3;
 	// The active card tilts a few degrees toward the discard pile at the mat's
 	// center (x=0) — a small "already being aimed at where it's about to land"
 	// cue — ramped in with the same liftT tween as its lift/push.
 	const HOVER_TILT_DEG = 9;
 	// Same recipe as the discard pile's own card shadows (DiscardPile3D): a
-	// black-tinted copy of background.png at a low opacity, offset in WORLD
-	// units — same fixed 0.09 magnitude as the pile's, not scaled by handScale,
-	// so it reads as "the same shadow" rather than growing with the cards.
-	// Offset purely left (not diagonal), aimed at this row's own light
-	// direction instead of the pile's diagonal one.
+	// black-tinted copy of background.png at a low opacity. Passed to
+	// CardMesh3D as local offsets in the card's own group space (see its
+	// `shadow` prop) so the shadow is a genuine child of the card and rides
+	// its full transform — lift, push, spin and scale alike — rather than
+	// being tracked from outside. Offset purely along the card's own width
+	// axis (not diagonal), aimed at this row's own light direction instead of
+	// the pile's diagonal one.
 	const SHADOW_OFFSET = 0.09;
 	const SHADOW_OPACITY = 0.22;
 	const SHADOW_DROP_Y = STACK_STEP / 2;
@@ -130,12 +140,28 @@
 	let handEmToWorld = $derived(EM_TO_WORLD * placement.handScale);
 	// Two limits, whichever is tighter: the draw pile on the left, the frustum's
 	// own edge on the right (the row is centered on x=0, so the tighter of the
-	// two bounds both sides).
+	// two bounds both sides). Once the pile has moved up onto the mat
+	// (boardPlacement.ts's drawPileBesideHand) it no longer shares the row's
+	// line, so only the frustum edge is left — which is the whole point of
+	// moving it there.
+	let edgeHalfSpan = $derived(rig.halfWidth - (CARD_WIDTH * placement.handScale) / 2);
 	let maxHalfSpanEm = $derived(
-		Math.min(
-			Math.abs(placement.drawPileX) - CARD_WIDTH * placement.handScale - HAND_PILE_GAP,
-			rig.halfWidth - (CARD_WIDTH * placement.handScale) / 2
-		) / handEmToWorld
+		(placement.drawPileBesideHand
+			? Math.min(
+					Math.abs(placement.drawPileX) - CARD_WIDTH * placement.handScale - HAND_PILE_GAP,
+					edgeHalfSpan
+				)
+			: edgeHalfSpan) / handEmToWorld
+	);
+
+	// The sort button tucks against the draw pile while the pile shares the hand
+	// row. Once the pile moves onto the mat there is nothing to tuck against, so
+	// the button takes the row's own left end — mirroring the overflow hint on
+	// the right rather than floating in the gap the pile left behind.
+	let sortButtonX = $derived(
+		placement.drawPileBesideHand
+			? placement.drawPileX - SORT_BUTTON_GAP_EM * handEmToWorld
+			: -((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3)
 	);
 
 	let cards = $derived(
@@ -156,10 +182,15 @@
 		}
 	});
 
-	// A card that left the hand (played, or flying) can't stay selected, or the
-	// discard pile keeps offering to confirm something you no longer hold.
+	// A card that left the hand (played) can't stay selected, or the discard
+	// pile keeps offering to confirm something you no longer hold. Checked
+	// against the server's own hand, not the hidden-filtered `cards` above —
+	// a card mid-deal-in flight is only visually hidden, not actually gone,
+	// and clearing the selection out from under it is what silently ate a
+	// pre-armed selection for the whole draw-in animation window.
+	let rawHandIds = $derived(new Set((storeGame.localPlayer?.hand ?? []).map((card) => card.id)));
 	$effect(() => {
-		if (selectedId !== null && !cards.some((card) => card.id === selectedId)) {
+		if (selectedId !== null && !rawHandIds.has(selectedId)) {
 			onSelectionChange(null);
 		}
 	});
@@ -179,6 +210,9 @@
 	}
 
 	let scrollEm = $state(0);
+	// Sub-step wheel/trackpad motion banked toward the next WHEEL_STEP_PX
+	// threshold — not $state, the wheel handler is its only reader or writer.
+	let wheelAccumPx = 0;
 	let line = $derived(computeHandLine(orderedCards.length, maxHalfSpanEm, scrollEm));
 	let slots = $derived(line.slots);
 	let worldPerPixelX = $derived((2 * rig.halfWidth) / viewport.width);
@@ -220,6 +254,12 @@
 	);
 
 	let hoveredId = $state<number | null>(devFixturePreset.hoverId);
+	// Whether the pointer is actually over one of the hand's hit zones right
+	// now — distinct from `hoveredId`, which the wheel handler below also
+	// drives programmatically when the pointer isn't here at all. Without
+	// this, a scroll-picked hoveredId would be mistaken for a real hover on
+	// the next wheel tick and get carried forward instead of recentered.
+	let pointerOverHand = $state(false);
 	let draggingId = $state<number | null>(null);
 	let dragOffsetX = $state(0);
 	let dragIndex = 0;
@@ -299,30 +339,89 @@
 		window.removeEventListener("pointermove", handleGestureMove);
 	}
 
-	// Scoped to the row by what the pointer is over rather than by a DOM
-	// listener: the whole scene is one canvas element, so there is no
-	// hand-shaped node to hang a wheel handler on. Re-anchoring on the clamped
+	// On `window`, not the row itself, so scrolling works no matter where the
+	// pointer is — a card game's wheel scroll shouldn't require parking the
+	// mouse over a specific strip first. Re-anchoring on the clamped
 	// line.scrollEm rather than accumulating keeps the offset in range.
 	$effect(() => {
 		if (!pointerMode.canHover) return;
 		const handleWheel = (event: WheelEvent) => {
-			if (hoveredId === null) return;
+			if (!hasOverflow) return;
 			// A trackpad's two-finger swipe reports its own motion as deltaX; a
 			// plain mouse wheel only ever reports deltaY. Taking whichever axis
 			// moved further means a horizontal trackpad swipe pans the row
 			// directly, instead of only the (unintuitive, but mouse-wheel-only)
 			// vertical scroll the row used to require.
 			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-			scrollEm = line.scrollEm + delta * WHEEL_EM_PER_PIXEL;
+			wheelAccumPx += delta;
+
+			// Tracked locally rather than re-read from `line` each step — `line`
+			// won't reflect this handler's own `scrollEm` writes until the next
+			// render, so re-reading it mid-loop would just see the same clamped
+			// value on every iteration.
+			let tentativeScrollEm = line.scrollEm;
+			const maxScrollEm = line.maxScrollEm;
+			// Only meaningful while the pointer really is over the row — once the
+			// wheel handler itself starts writing hoveredId (the pointerOverHand
+			// === false branch below) this stays stale, which is fine, it's only
+			// read in that same branch's opposite.
+			const followingPointer = pointerOverHand && hoveredId !== null;
+
+			while (Math.abs(wheelAccumPx) >= WHEEL_STEP_PX) {
+				const step = Math.sign(wheelAccumPx);
+				wheelAccumPx -= step * WHEEL_STEP_PX;
+
+				const nextScrollEm = Math.max(
+					-maxScrollEm,
+					Math.min(maxScrollEm, tentativeScrollEm + step * line.spacingEm)
+				);
+				// Already at the scroll limit — the row didn't actually move this
+				// step, so neither should the hover. Forwarding it anyway is what
+				// used to lift a card the pointer was never over once scrolling
+				// hit the edge.
+				if (nextScrollEm === tentativeScrollEm) continue;
+				tentativeScrollEm = nextScrollEm;
+
+				// The row moved a whole card under a pointer that never itself
+				// moved — carry the hover forward by the same step, or a wheel
+				// scroll leaves it stranded on whichever card used to be there.
+				if (followingPointer) {
+					const hoveredIndex = orderedCards.findIndex((c) => c.id === hoveredId);
+					const nextIndex = hoveredIndex + step;
+					if (hoveredIndex !== -1 && nextIndex >= 0 && nextIndex < orderedCards.length) {
+						hoveredId = orderedCards[nextIndex].id;
+					}
+				}
+			}
+			scrollEm = tentativeScrollEm;
+
+			// The pointer isn't over the row (it might not even be over the
+			// window), so there's no card for it to be "on" — instead, whatever
+			// card ends up nearest screen-center becomes the highlighted one,
+			// recomputed every tick so it tracks the scroll live instead of
+			// snapping once the gesture ends.
+			if (!followingPointer) {
+				const centeredLine = computeHandLine(orderedCards.length, maxHalfSpanEm, tentativeScrollEm);
+				let centerIndex = -1;
+				let centerDistance = Infinity;
+				centeredLine.slots.forEach((slot, i) => {
+					const distance = Math.abs(slot.x);
+					if (distance < centerDistance) {
+						centerDistance = distance;
+						centerIndex = i;
+					}
+				});
+				hoveredId = centerIndex === -1 ? null : (orderedCards[centerIndex]?.id ?? null);
+			}
 		};
 		window.addEventListener("wheel", handleWheel, { passive: true });
 		return () => window.removeEventListener("wheel", handleWheel);
 	});
 
-	// The card that's currently lifted — selection wins over hover (matches
-	// `lifted` per-card below), and a drag in progress isn't a "hover", or the
-	// row would part around a card mid-reorder.
-	let activeId = $derived(selectedId ?? (draggingId === null ? hoveredId : null));
+	// The card that's currently lifted — selection wins over hover/keyboard
+	// focus (matches `lifted` per-card below), and a drag in progress isn't a
+	// "hover", or the row would part around a card mid-reorder.
+	let activeId = $derived(selectedId ?? (draggingId === null ? (hoveredId ?? focusedId) : null));
 	let activeIndex = $derived(
 		activeId === null ? -1 : orderedCards.findIndex((c) => c.id === activeId)
 	);
@@ -362,43 +461,9 @@
 	{@const isSelected = selectedId === card.id}
 	{@const neighborPush = isDragging ? 0 : neighborPushEm(i)}
 	{@const x = (slot.x + neighborPush) * handEmToWorld + (isDragging ? dragOffsetX : 0)}
-	{@const lifted = isSelected || (hoveredId === card.id && !isDragging)}
+	{@const lifted =
+		isSelected || ((hoveredId === card.id || focusedId === card.id) && !isDragging)}
 	{@const fade = edgeFade(slot.x)}
-	{#if isSelected}
-		<!-- Sits at the lifted card's own pose, one step under it, so the rim reads
-		     as an outline on the card rather than a plate on the row. -->
-		<CardHighlight3D
-			position={[
-				x,
-				i * STACK_STEP + CARD_HOVER_LIFT - 0.01,
-				placement.localSeatZ + HOVER_PUSH_EM * handEmToWorld
-			]}
-			scale={placement.handScale * CARD_HOVER_SCALE}
-		/>
-	{/if}
-	{#if shadowTexture}
-		<!-- Same recipe as the discard pile's card shadows, aimed left instead of
-		     the pile's own diagonal — see SHADOW_OFFSET above. -->
-		<T.Mesh
-			position={[
-				x - SHADOW_OFFSET,
-				(isDragging ? DRAG_LIFT : i * STACK_STEP) - SHADOW_DROP_Y,
-				placement.localSeatZ
-			]}
-			rotation.x={-Math.PI / 2}
-			scale={placement.handScale}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={shadowTexture}
-				color="#000000"
-				transparent
-				opacity={SHADOW_OPACITY * fade}
-				depthWrite={false}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
 	<CardMesh3D
 		{card}
 		position={[x, isDragging ? DRAG_LIFT : i * STACK_STEP, placement.localSeatZ]}
@@ -407,8 +472,12 @@
 		instant={isSelected}
 		hoverPush={[0, HOVER_PUSH_EM * handEmToWorld]}
 		hoverSpinDeg={tiltTowardPileDeg(slot.x)}
-		opacity={fade}
+		opacity={isSelected ? 1 : fade}
 		{dimmed}
+		shadow={shadowTexture
+			? { texture: shadowTexture, offsetX: SHADOW_OFFSET, dropZ: SHADOW_DROP_Y, opacity: SHADOW_OPACITY }
+			: undefined}
+		highlight={isSelected ? {} : undefined}
 	/>
 {/each}
 
@@ -417,8 +486,14 @@
 	<T.Mesh
 		position={[zone.centerX * handEmToWorld, HIT_PLANE_Y, placement.localSeatZ]}
 		rotation.x={-Math.PI / 2}
-		onpointerenter={() => draggingId === null && (hoveredId = card.id)}
-		onpointerleave={() => hoveredId === card.id && (hoveredId = null)}
+		onpointerenter={() => {
+			pointerOverHand = true;
+			if (draggingId === null) hoveredId = card.id;
+		}}
+		onpointerleave={() => {
+			pointerOverHand = false;
+			if (hoveredId === card.id) hoveredId = null;
+		}}
 		onpointerdown={(event: unknown) => startGesture(card.id, i, event)}
 	>
 		<T.PlaneGeometry args={[zone.widthEm * handEmToWorld, CARD_HEIGHT * placement.handScale]} />
@@ -446,7 +521,7 @@
 {/if}
 
 <HTML
-	position={[placement.drawPileX - SORT_BUTTON_GAP_EM * handEmToWorld, 1, placement.localSeatZ]}
+	position={[sortButtonX, 1, placement.localSeatZ]}
 	center
 	pointerEvents="auto"
 >
