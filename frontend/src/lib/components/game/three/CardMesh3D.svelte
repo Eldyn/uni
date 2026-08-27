@@ -111,6 +111,18 @@
 	// layers' own fixed z-steps rather than the shadow's scaled world offset.
 	const HIGHLIGHT_DROP_Z = -0.006;
 
+	// A faded card's own bg/value/border layers still alpha-blend against
+	// whatever is *already drawn* at that pixel — that's how blending works
+	// regardless of depth testing, so a translucent card sitting over another
+	// card (the local hand's overlapping row) shows the one underneath mixed
+	// into its own fade. This backdrop is a solid, opaque copy of the card's
+	// own silhouette dropped just behind bg — so a faded card blends against
+	// its own backdrop colour instead of the card behind it, and the one
+	// behind is never visible through it at all. Only drawn while actually
+	// fading; a fully opaque card has nothing to hide.
+	const BACKDROP_DROP_Z = -0.001;
+	const BACKDROP_COLOR = "#1c1c1e";
+
 	// A painted wild wears its chosen color exactly like a numbered card wears
 	// its own, so nothing downstream has to know it was ever a wild.
 	let paintedType = $derived(wildColor ?? card.type);
@@ -225,6 +237,19 @@
 				transparent
 				opacity={highlightOpacity}
 				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
+	{#if opacity < 1 && highlightTexture}
+		<T.Mesh position.z={BACKDROP_DROP_Z}>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+			<T.MeshBasicMaterial
+				map={highlightTexture}
+				color={BACKDROP_COLOR}
+				transparent
+				depthWrite
+				opacity={1}
 				toneMapped={false}
 			/>
 		</T.Mesh>
