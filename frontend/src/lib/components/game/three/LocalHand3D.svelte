@@ -48,7 +48,8 @@
 		onSelectionChange,
 		onPlay,
 		dimmed = false,
-		focusedId = null
+		focusedId = null,
+		onPointerHover
 	}: {
 		rig: CameraRig;
 		viewport: ViewportInfo;
@@ -65,6 +66,11 @@
 		 *  visible feedback a pointer already gets instead of the DOM-only focus a
 		 *  screen-reader button would otherwise leave sighted keyboard users with. */
 		focusedId?: number | null;
+		/** A real pointer entered one of the hand's own hit zones — not fired by
+		 *  the wheel handler's own programmatic hoveredId writes. Tells the owner
+		 *  to drop any keyboard focus, so the mouse taking over doesn't leave a
+		 *  keyboard-focused card lit at the same time as the hovered one. */
+		onPointerHover?: () => void;
 	} = $props();
 
 	const bus = useCardBus();
@@ -117,7 +123,7 @@
 	// only the handful of cards nearest the active one actually move — the ends
 	// of a long hand shouldn't shuffle just because something near the middle
 	// got picked up.
-	const NEIGHBOR_PUSH_EM = 1.05;
+	const NEIGHBOR_PUSH_EM = 1.6;
 	const NEIGHBOR_PUSH_FALLOFF_CARDS = 3;
 	// The active card tilts a few degrees toward the discard pile at the mat's
 	// center (x=0) — a small "already being aimed at where it's about to land"
@@ -418,10 +424,13 @@
 		return () => window.removeEventListener("wheel", handleWheel);
 	});
 
-	// The card that's currently lifted — selection wins over hover/keyboard
-	// focus (matches `lifted` per-card below), and a drag in progress isn't a
-	// "hover", or the row would part around a card mid-reorder.
-	let activeId = $derived(selectedId ?? (draggingId === null ? (hoveredId ?? focusedId) : null));
+	// The card that's currently lifted — selection wins outright, then a
+	// keyboard focus (an explicit, discrete action) wins over a merely
+	// resting mouse hover, or a stationary pointer left over a card from
+	// before the keyboard took over would light up two cards at once. A drag
+	// in progress isn't a "hover", or the row would part around a card
+	// mid-reorder.
+	let activeId = $derived(selectedId ?? (draggingId === null ? (focusedId ?? hoveredId) : null));
 	let activeIndex = $derived(
 		activeId === null ? -1 : orderedCards.findIndex((c) => c.id === activeId)
 	);
@@ -462,7 +471,8 @@
 	{@const neighborPush = isDragging ? 0 : neighborPushEm(i)}
 	{@const x = (slot.x + neighborPush) * handEmToWorld + (isDragging ? dragOffsetX : 0)}
 	{@const lifted =
-		isSelected || ((hoveredId === card.id || focusedId === card.id) && !isDragging)}
+		isSelected ||
+		((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging)}
 	{@const fade = edgeFade(slot.x)}
 	<CardMesh3D
 		{card}
@@ -488,6 +498,7 @@
 		rotation.x={-Math.PI / 2}
 		onpointerenter={() => {
 			pointerOverHand = true;
+			onPointerHover?.();
 			if (draggingId === null) hoveredId = card.id;
 		}}
 		onpointerleave={() => {
