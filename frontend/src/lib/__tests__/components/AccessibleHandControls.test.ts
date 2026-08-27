@@ -9,12 +9,20 @@ function card(id: number, overrides: Partial<Card> = {}): Card {
 	return { id, type: "red", value: "6", can_play: true, ...overrides };
 }
 
-function renderControls(selectedId: number | null = null) {
+function renderControls(
+	overrides: { selectedId?: number | null; focusedId?: number | null } = {}
+) {
 	const onSelectionChange = vi.fn();
 	const onPlay = vi.fn();
 	const onFocusChange = vi.fn();
 	const result = render(AccessibleHandControls, {
-		props: { selectedId, onSelectionChange, onPlay, onFocusChange }
+		props: {
+			selectedId: overrides.selectedId ?? null,
+			focusedId: overrides.focusedId ?? null,
+			onSelectionChange,
+			onPlay,
+			onFocusChange
+		}
 	});
 	return { ...result, onSelectionChange, onPlay, onFocusChange };
 }
@@ -71,7 +79,7 @@ describe("AccessibleHandControls", () => {
 	});
 
 	it("Enter on an already-picked card confirms the play", async () => {
-		const { onPlay } = renderControls(1);
+		const { onPlay } = renderControls({ selectedId: 1 });
 
 		const button = screen.getByRole("button", { name: "Confirm red 6" });
 		await fireEvent.keyDown(button, { key: "Enter" });
@@ -86,7 +94,7 @@ describe("AccessibleHandControls", () => {
 		expect(onSelectionChange).toHaveBeenCalledWith(1);
 
 		cleanup();
-		const { onPlay } = renderControls(1);
+		const { onPlay } = renderControls({ selectedId: 1 });
 		await fireEvent.click(screen.getByRole("button", { name: "Confirm red 6" }));
 		expect(onPlay).toHaveBeenCalledWith(1);
 	});
@@ -114,15 +122,36 @@ describe("AccessibleHandControls", () => {
 		expect(onFocusChange).toHaveBeenLastCalledWith(null);
 	});
 
-	it("ArrowRight moves focus to the next card", async () => {
-		renderControls();
-		const first = screen.getByRole("button", { name: "Play red 6" });
-		const second = screen.getByRole("button", { name: "Play red skip" });
+	it("ArrowRight reports the next card, regardless of where DOM focus is", async () => {
+		const { onFocusChange } = renderControls({ focusedId: 1 });
 
-		first.focus();
-		await fireEvent.keyDown(first, { key: "ArrowRight" });
+		// Nothing in the hand has DOM focus — this is the "always works" case
+		// the per-button-only design used to fail (see the component's file doc).
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
 
-		expect(second).toHaveFocus();
+		expect(onFocusChange).toHaveBeenCalledWith(2);
+	});
+
+	it("A/H are ArrowLeft aliases", async () => {
+		const { onFocusChange } = renderControls({ focusedId: 2 });
+		await fireEvent.keyDown(window, { key: "a" });
+		expect(onFocusChange).toHaveBeenCalledWith(1);
+
+		cleanup();
+		const { onFocusChange: onFocusChange2 } = renderControls({ focusedId: 2 });
+		await fireEvent.keyDown(window, { key: "h" });
+		expect(onFocusChange2).toHaveBeenCalledWith(1);
+	});
+
+	it("D/L are ArrowRight aliases", async () => {
+		const { onFocusChange } = renderControls({ focusedId: 1 });
+		await fireEvent.keyDown(window, { key: "d" });
+		expect(onFocusChange).toHaveBeenCalledWith(2);
+
+		cleanup();
+		const { onFocusChange: onFocusChange2 } = renderControls({ focusedId: 1 });
+		await fireEvent.keyDown(window, { key: "l" });
+		expect(onFocusChange2).toHaveBeenCalledWith(2);
 	});
 
 	it("the Draw card control calls storeGame.drawCard", async () => {

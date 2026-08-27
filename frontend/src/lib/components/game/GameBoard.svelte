@@ -121,6 +121,7 @@
 	selectedId={selectedCardId}
 	onSelectionChange={(id) => (selectedCardId = id)}
 	onPlay={play}
+	focusedId={keyboardFocusId}
 	onFocusChange={(id) => (keyboardFocusId = id)}
 />
 
@@ -136,6 +137,7 @@
 				onSelectionChange={(id) => (selectedCardId = id)}
 				onPlay={play}
 				focusedId={keyboardFocusId}
+				onPointerHover={() => (keyboardFocusId = null)}
 			/>
 		</Canvas>
 	</div>

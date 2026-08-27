@@ -5,14 +5,20 @@
      calls, guarded by the same isActionPending the store itself enforces, so
      there's no way to double-submit a play.
 
-     Selection and focus are shared with the pointer/3D path via props owned
-     by GameBoard: `selectedId` is the same two-step pick the touch gesture
-     uses (Enter picks, Enter again confirms — no separate "play" step, and
-     no live-region-only feedback), and `onFocusChange` lifts a card in the
-     3D hand the same way a mouse hover would, so Tab/Arrow navigation reads
-     as a moving highlight on the actual card instead of an on-screen text
-     strip. The buttons themselves stay screen-reader-only at all times (never
-     unhidden on focus) — the 3D highlight is the sighted feedback now. -->
+     Navigation is a `window` keydown listener, not per-button handlers —
+     tying it to whichever button happens to hold DOM focus meant arrow keys
+     only worked once Tab had landed on a card by chance, and "landed on"
+     could be anywhere in the hand, not wherever the player had last been.
+     `focusedId` (GameBoard's own state, also fed into the 3D hand so it
+     lifts the same card) is the single source of truth navigation moves
+     relative to; DOM focus is kept in sync with it purely so a screen reader
+     announces the same card, not because anything here depends on it.
+
+     Selection is shared with the pointer/3D path via props owned by
+     GameBoard: `selectedId` is the same two-step pick the touch gesture
+     uses (Enter picks, Enter again confirms — no separate "play" step). The
+     buttons themselves stay screen-reader-only at all times (never unhidden
+     on focus) — the 3D highlight is the sighted feedback now. -->
 <script lang="ts">
 	import { storeGame, type Card, type CardValue } from "$stores/game.svelte";
 
@@ -33,11 +39,13 @@
 		selectedId = null,
 		onSelectionChange,
 		onPlay,
+		focusedId = null,
 		onFocusChange
 	}: {
 		selectedId?: number | null;
 		onSelectionChange: (cardId: number | null) => void;
 		onPlay: (cardId: number) => void;
+		focusedId?: number | null;
 		onFocusChange: (cardId: number | null) => void;
 	} = $props();
 
@@ -62,50 +70,96 @@
 		}
 	}
 
+	// Moves DOM focus too (not just `focusedId`) purely so a screen reader
+	// narrates the same card the 3D hand just lit up — nothing here reads
+	// that DOM focus back.
 	function focusIndex(target: number) {
 		if (hand.length === 0) return;
 		const clamped = Math.max(0, Math.min(hand.length - 1, target));
-		buttonEls[clamped]?.focus();
+		const card = hand[clamped];
+		onFocusChange(card.id);
+		buttonEls[clamped]?.focus({ preventScroll: true });
 	}
 
-	function onCardKeydown(event: KeyboardEvent, card: Card, index: number) {
-		switch (event.key) {
-			case "Enter":
-			case " ":
-				event.preventDefault();
-				confirmOrSelect(card);
-				return;
-			case "ArrowRight":
-				event.preventDefault();
-				focusIndex(index + 1);
-				return;
-			case "ArrowLeft":
-				event.preventDefault();
-				focusIndex(index - 1);
-				return;
-			case "Home":
-				event.preventDefault();
-				focusIndex(0);
-				return;
-			case "End":
-				event.preventDefault();
-				focusIndex(hand.length - 1);
-				return;
-			case "PageDown":
-				event.preventDefault();
-				focusIndex(index + PAGE_JUMP_CARDS);
-				return;
-			case "PageUp":
-				event.preventDefault();
-				focusIndex(index - PAGE_JUMP_CARDS);
-				return;
-			default:
-				if (event.key >= "1" && event.key <= "9") {
-					event.preventDefault();
-					focusIndex(Number(event.key) - 1);
-				}
-		}
+	// Kept alongside the global listener below (not instead of it) — a real
+	// browser turns Enter/Space on a focused <button> into a click on its own,
+	// but that's not guaranteed everywhere (and isn't simulated by every test
+	// harness), so this handles it explicitly rather than relying on it.
+	function onButtonKeydown(event: KeyboardEvent, card: Card) {
+		if (event.key !== "Enter" && event.key !== " ") return;
+		event.preventDefault();
+		confirmOrSelect(card);
 	}
+
+	function isOwnButtonFocused(): boolean {
+		return typeof document !== "undefined" && buttonEls.includes(document.activeElement as never);
+	}
+
+	// Global rather than per-button: see the file doc for why keying this off
+	// DOM focus made navigation feel like it only worked "sometimes".
+	$effect(() => {
+		function onWindowKeydown(event: KeyboardEvent) {
+			if (!storeGame.state || hand.length === 0) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) {
+				return;
+			}
+
+			const currentIndex = focusedId === null ? -1 : hand.findIndex((c) => c.id === focusedId);
+
+			switch (event.key) {
+				case "ArrowRight":
+				case "d":
+				case "D":
+				case "l":
+				case "L":
+					event.preventDefault();
+					focusIndex(currentIndex === -1 ? 0 : currentIndex + 1);
+					return;
+				case "ArrowLeft":
+				case "a":
+				case "A":
+				case "h":
+				case "H":
+					event.preventDefault();
+					focusIndex(currentIndex === -1 ? 0 : currentIndex - 1);
+					return;
+				case "Home":
+					event.preventDefault();
+					focusIndex(0);
+					return;
+				case "End":
+					event.preventDefault();
+					focusIndex(hand.length - 1);
+					return;
+				case "PageDown":
+					event.preventDefault();
+					focusIndex((currentIndex === -1 ? 0 : currentIndex) + PAGE_JUMP_CARDS);
+					return;
+				case "PageUp":
+					event.preventDefault();
+					focusIndex((currentIndex === -1 ? 0 : currentIndex) - PAGE_JUMP_CARDS);
+					return;
+				case "Enter":
+				case " ": {
+					// A focused button already turns this same key into a native
+					// click — handling it here too would fire confirmOrSelect twice.
+					if (isOwnButtonFocused()) return;
+					event.preventDefault();
+					const card = currentIndex === -1 ? undefined : hand[currentIndex];
+					if (card) confirmOrSelect(card);
+					return;
+				}
+				default:
+					if (event.key >= "1" && event.key <= "9") {
+						event.preventDefault();
+						focusIndex(Number(event.key) - 1);
+					}
+			}
+		}
+		window.addEventListener("keydown", onWindowKeydown);
+		return () => window.removeEventListener("keydown", onWindowKeydown);
+	});
 
 	function drawCard() {
 		if (storeGame.isActionPending) return;
@@ -135,7 +189,7 @@
 						aria-pressed={selectedId === card.id}
 						aria-label={`${selectedId === card.id ? "Confirm" : "Play"} ${describeCard(card)}`}
 						onclick={() => confirmOrSelect(card)}
-						onkeydown={(event) => onCardKeydown(event, card, i)}
+						onkeydown={(event) => onButtonKeydown(event, card)}
 						onfocus={() => onFocusChange(card.id)}
 						onblur={() => onFocusChange(null)}
 					>

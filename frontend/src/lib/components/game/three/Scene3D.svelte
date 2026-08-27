@@ -33,7 +33,8 @@
 		selectedId,
 		onSelectionChange,
 		onPlay,
-		focusedId = null
+		focusedId = null,
+		onPointerHover
 	}: {
 		mappedOpponents: { player: GamePlayer }[];
 		viewport: ViewportInfo;
@@ -53,6 +54,9 @@
 		onPlay: (cardId: number) => void;
 		/** The keyboard-focused card, from AccessibleHandControls. */
 		focusedId?: number | null;
+		/** A real pointer entered the hand — tells GameBoard to drop keyboard
+		 *  focus so the two inputs can't both light up a card at once. */
+		onPointerHover?: () => void;
 	} = $props();
 
 	const bus = useCardBus();
@@ -136,6 +140,7 @@
 		{onSelectionChange}
 		{onPlay}
 		{focusedId}
+		{onPointerHover}
 	/>
 {/if}
 
