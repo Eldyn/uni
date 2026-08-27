@@ -22,17 +22,18 @@
 	// base has to clear both so the pile can never end up underneath a card
 	// whose XZ footprint happens to overlap it.
 	const PILE_BASE_HEIGHT = 0.6;
-	// Each deeper card peeks out a little past the one above it, so the pile
-	// reads as an actual stack instead of a single lone back. Peeking toward
-	// the mat (−Z) rather than the viewer keeps the pile's own near edge flush
-	// with the bottom edge of the local hand row instead of drooping past it.
+	// Each deeper back peeks out a little above the one below it, so the pile
+	// reads as an actual stack of cards instead of a single lone back. Peeking
+	// toward the mat (−Z) rather than the viewer keeps the pile's own near
+	// edge flush with the bottom edge of the local hand row instead of
+	// drooping past it. 0.07 only ever exposed the back texture's border, a
+	// thin white line that read as a single card with a smudge rather than a
+	// stack — wide enough now to show a sliver of each card's own face.
 	const PILE_PEEK_Z = 0.16;
-	// The buried cards are drawn as a flat white silhouette rather than their
-	// real turned-back texture — at a glance they're only ever a sliver, so
-	// the diamond pattern just read as noise. A thin dark silhouette peeking a
-	// little further than each white one reads as the shadow of the card
-	// underneath, the same "stacked sheets" cue as the shadow under a hand
-	// card (LocalHand3D's own `shadow` prop) rather than a second full card.
+	// A thin dark silhouette peeking a hair further than each card sells the
+	// "stacked sheets" cue — the same idea as the shadow under a hand card
+	// (LocalHand3D's own `shadow` prop), just offset along the stack's own
+	// peek axis (Z) instead of a hand row's horizontal one.
 	const SHADOW_PEEK_Z = 0.05;
 	const SHADOW_DROP_Y = STACK_STEP / 2;
 	const SHADOW_OPACITY = 0.3;
@@ -55,13 +56,13 @@
 	}
 </script>
 
-{#each Array.from({ length: STACK_SIZE - 1 }) as _, i (i)}
-	{#if silhouetteTexture}
+{#each Array.from({ length: STACK_SIZE }) as _, i (i)}
+	{#if i > 0 && silhouetteTexture}
 		<T.Mesh
 			position={[
 				placement.drawPileX,
 				PILE_BASE_HEIGHT + i * STACK_STEP - SHADOW_DROP_Y,
-				placement.drawPileZ - (i * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
+				placement.drawPileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
 			]}
 			rotation.x={-Math.PI / 2}
 			scale={placement.drawPileScale}
@@ -76,36 +77,16 @@
 				toneMapped={false}
 			/>
 		</T.Mesh>
-		<T.Mesh
-			position={[
-				placement.drawPileX,
-				PILE_BASE_HEIGHT + i * STACK_STEP,
-				placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
-			]}
-			rotation.x={-Math.PI / 2}
-			scale={placement.drawPileScale}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={silhouetteTexture}
-				color="#ffffff"
-				transparent
-				depthWrite
-				opacity={1}
-				toneMapped={false}
-			/>
-		</T.Mesh>
 	{/if}
+	<CardMesh3D
+		card={{ id: -1, type: "wild", value: "0" }}
+		turned={true}
+		position={[
+			placement.drawPileX,
+			PILE_BASE_HEIGHT + i * STACK_STEP,
+			placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
+		]}
+		scale={placement.drawPileScale}
+		onclick={i === STACK_SIZE - 1 ? handleDraw : undefined}
+	/>
 {/each}
-
-<CardMesh3D
-	card={{ id: -1, type: "wild", value: "0" }}
-	turned={true}
-	position={[
-		placement.drawPileX,
-		PILE_BASE_HEIGHT + (STACK_SIZE - 1) * STACK_STEP,
-		placement.drawPileZ - (STACK_SIZE - 1) * PILE_PEEK_Z * placement.drawPileScale
-	]}
-	scale={placement.drawPileScale}
-	onclick={handleDraw}
-/>
