@@ -9,6 +9,16 @@ function card(id: number, overrides: Partial<Card> = {}): Card {
 	return { id, type: "red", value: "6", can_play: true, ...overrides };
 }
 
+function renderControls(selectedId: number | null = null) {
+	const onSelectionChange = vi.fn();
+	const onPlay = vi.fn();
+	const onFocusChange = vi.fn();
+	const result = render(AccessibleHandControls, {
+		props: { selectedId, onSelectionChange, onPlay, onFocusChange }
+	});
+	return { ...result, onSelectionChange, onPlay, onFocusChange };
+}
+
 describe("AccessibleHandControls", () => {
 	beforeEach(() => {
 		storeAuth.username = "me";
@@ -38,51 +48,86 @@ describe("AccessibleHandControls", () => {
 	});
 
 	it("exposes a focusable, labelled control for every playable card", () => {
-		render(AccessibleHandControls);
+		renderControls();
 		const button = screen.getByRole("button", { name: "Play red 6" });
 		expect(button).toHaveAttribute("tabindex", "0");
 	});
 
 	it("marks a non-playable card as not focusable and disabled", () => {
-		render(AccessibleHandControls);
+		renderControls();
 		const button = screen.getByRole("button", { name: "Play red skip" });
 		expect(button).toHaveAttribute("tabindex", "-1");
 		expect(button).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("Enter on a playable card calls storeGame.playCard exactly once", async () => {
-		const playCard = vi.spyOn(storeGame, "playCard").mockImplementation(() => {});
-		render(AccessibleHandControls);
+	it("Enter on an unselected playable card picks it rather than playing it", async () => {
+		const { onSelectionChange, onPlay } = renderControls();
 
 		const button = screen.getByRole("button", { name: "Play red 6" });
 		await fireEvent.keyDown(button, { key: "Enter" });
 
-		expect(playCard).toHaveBeenCalledTimes(1);
-		expect(playCard).toHaveBeenCalledWith(1);
+		expect(onSelectionChange).toHaveBeenCalledWith(1);
+		expect(onPlay).not.toHaveBeenCalled();
 	});
 
-	it("a click has the same effect as Enter", async () => {
-		const playCard = vi.spyOn(storeGame, "playCard").mockImplementation(() => {});
-		render(AccessibleHandControls);
+	it("Enter on an already-picked card confirms the play", async () => {
+		const { onPlay } = renderControls(1);
 
+		const button = screen.getByRole("button", { name: "Confirm red 6" });
+		await fireEvent.keyDown(button, { key: "Enter" });
+
+		expect(onPlay).toHaveBeenCalledTimes(1);
+		expect(onPlay).toHaveBeenCalledWith(1);
+	});
+
+	it("a click mirrors Enter's pick-then-confirm behavior", async () => {
+		const { onSelectionChange } = renderControls();
 		await fireEvent.click(screen.getByRole("button", { name: "Play red 6" }));
+		expect(onSelectionChange).toHaveBeenCalledWith(1);
 
-		expect(playCard).toHaveBeenCalledWith(1);
+		cleanup();
+		const { onPlay } = renderControls(1);
+		await fireEvent.click(screen.getByRole("button", { name: "Confirm red 6" }));
+		expect(onPlay).toHaveBeenCalledWith(1);
 	});
 
 	it("Enter on a non-playable card is a no-op", async () => {
-		const playCard = vi.spyOn(storeGame, "playCard").mockImplementation(() => {});
-		render(AccessibleHandControls);
+		const { onSelectionChange, onPlay } = renderControls();
 
 		const button = screen.getByRole("button", { name: "Play red skip" });
 		await fireEvent.keyDown(button, { key: "Enter" });
 
-		expect(playCard).not.toHaveBeenCalled();
+		expect(onSelectionChange).not.toHaveBeenCalled();
+		expect(onPlay).not.toHaveBeenCalled();
+	});
+
+	it("focusing a card reports it via onFocusChange, and blurring clears it", async () => {
+		const { onFocusChange } = renderControls();
+		const button = screen.getByRole("button", { name: "Play red 6" });
+
+		button.focus();
+		await Promise.resolve();
+		expect(onFocusChange).toHaveBeenCalledWith(1);
+
+		button.blur();
+		await Promise.resolve();
+		expect(onFocusChange).toHaveBeenLastCalledWith(null);
+	});
+
+	it("ArrowRight moves focus to the next card", async () => {
+		renderControls();
+		const first = screen.getByRole("button", { name: "Play red 6" });
+		const second = screen.getByRole("button", { name: "Play red skip" });
+
+		first.focus();
+		await fireEvent.keyDown(first, { key: "ArrowRight" });
+
+		expect(second).toHaveFocus();
 	});
 
 	it("the Draw card control calls storeGame.drawCard", async () => {
 		const drawCard = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});
-		render(AccessibleHandControls);
+		renderControls();
 
 		await fireEvent.click(screen.getByRole("button", { name: "Draw card" }));
 

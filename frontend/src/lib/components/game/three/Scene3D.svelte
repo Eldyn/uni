@@ -17,7 +17,6 @@
 	import LocalHand3D from "./LocalHand3D.svelte";
 	import DrawPile3D from "./DrawPile3D.svelte";
 	import DiscardPile3D from "./DiscardPile3D.svelte";
-	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 
 	interactivity();
 
@@ -30,7 +29,11 @@
 		mappedOpponents,
 		viewport,
 		geometry,
-		colorFor
+		colorFor,
+		selectedId,
+		onSelectionChange,
+		onPlay,
+		focusedId = null
 	}: {
 		mappedOpponents: { player: GamePlayer }[];
 		viewport: ViewportInfo;
@@ -41,6 +44,15 @@
 		 *  layout/sceneGeometry.ts's file doc for why that used to be a bug). */
 		geometry: SceneGeometry;
 		colorFor: (username: string | undefined) => string;
+		/** Owned by GameBoard, not here — AccessibleHandControls sits outside the
+		 *  canvas entirely, so the touch-pick/keyboard-select state that both the
+		 *  hand and the discard pile's confirm target need to agree on has to live
+		 *  above both of them. */
+		selectedId: number | null;
+		onSelectionChange: (cardId: number | null) => void;
+		onPlay: (cardId: number) => void;
+		/** The keyboard-focused card, from AccessibleHandControls. */
+		focusedId?: number | null;
 	} = $props();
 
 	const bus = useCardBus();
@@ -67,25 +79,6 @@
 
 	let isLocalTurn = $derived(storeGame.state?.current_turn === storeGame.localPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);
-
-	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
-	// the discard pile to commit it. The selection lives here because the two
-	// halves of that gesture are two sibling components — the hand shows what's
-	// picked, the pile shows where it's going. Hover devices skip it entirely and
-	// play on click (see LocalHand3D), so the selection simply stays null there.
-	let selectedCardId = $state<number | null>(devFixturePreset.selectId);
-
-	// Nothing stays picked across a turn boundary; coming back to your turn with a
-	// stale card already armed is how you play a card you never meant to.
-	$effect(() => {
-		if (storeGame.state?.current_turn !== storeGame.localPlayer?.username) selectedCardId = null;
-	});
-
-	function play(cardId: number) {
-		if (storeGame.isActionPending) return;
-		storeGame.playCard(cardId);
-		selectedCardId = null;
-	}
 </script>
 
 <T.OrthographicCamera
@@ -104,7 +97,7 @@
 <T.AmbientLight intensity={1.1} />
 <T.DirectionalLight intensity={0.4} position={[3, 6, 4]} />
 
-<Playmat3D {rig} />
+<Playmat3D mat={placement.mat} showFelt={viewport.orientation !== "portrait"} />
 
 {#each mappedOpponents as { player }, i (player.username)}
 	{@const seat = seats3D[i]}
@@ -139,16 +132,22 @@
 		{viewport}
 		{placement}
 		dimmed={localDimmed}
-		selectedId={selectedCardId}
-		onSelectionChange={(id) => (selectedCardId = id)}
-		onPlay={play}
+		{selectedId}
+		{onSelectionChange}
+		{onPlay}
+		{focusedId}
 	/>
 {/if}
 
 <DrawPile3D {placement} />
-<DiscardPile3D
-	history={bus.discardHistory}
-	{placement}
-	armed={selectedCardId !== null}
-	onConfirm={() => selectedCardId !== null && play(selectedCardId)}
-/>
+<!-- The discard's own cards are all laid out around their pile's center, so the
+     pile moves as a group rather than every jitter/shadow offset having to
+     carry the placement's Z itself. -->
+<T.Group position.x={placement.discardX} position.z={placement.discardZ}>
+	<DiscardPile3D
+		history={bus.discardHistory}
+		{placement}
+		armed={selectedId !== null}
+		onConfirm={() => selectedId !== null && onPlay(selectedId)}
+	/>
+</T.Group>

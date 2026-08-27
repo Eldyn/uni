@@ -10,9 +10,34 @@
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { worldToScreenPercent } from "./layout/screenProjection";
+	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 
 	const bus = createCardBus();
 	const layout = createGameLayoutContext();
+
+	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
+	// the discard pile to commit it; on keyboard, Enter does the same two steps.
+	// The selection lives here, above both Scene3D (the hand + pile) and
+	// AccessibleHandControls (the keyboard path), because all three need to
+	// agree on what's picked. Hover devices skip it entirely and play on click,
+	// so the selection simply stays null there.
+	let selectedCardId = $state<number | null>(devFixturePreset.selectId);
+	// The keyboard-focused card, from AccessibleHandControls — threaded down
+	// into the 3D hand so Tab/Arrow navigation lifts/highlights a card the same
+	// way a mouse hover does.
+	let keyboardFocusId = $state<number | null>(null);
+
+	// Nothing stays picked across a turn boundary; coming back to your turn with a
+	// stale card already armed is how you play a card you never meant to.
+	$effect(() => {
+		if (storeGame.state?.current_turn !== storeGame.localPlayer?.username) selectedCardId = null;
+	});
+
+	function play(cardId: number) {
+		if (storeGame.isActionPending) return;
+		storeGame.playCard(cardId);
+		selectedCardId = null;
+	}
 
 	// The camera's aspect ratio must match the canvas's actual rendered box,
 	// not the raw window — GameScreen.svelte's HUD row shrinks
@@ -73,12 +98,14 @@
 	// the piles really sit (see layout/sceneGeometry.ts's file doc).
 	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
 
-	// The discard pile sits at the mat's own world origin — projected here
-	// instead of assumed, so this stays correct even if that ever stops being
-	// true (see layout/screenProjection.ts's file doc).
-	let discardAnchor = $derived(worldToScreenPercent(geometry.rig, 0, 0));
+	// The discard pile sits at the mat's own world origin on a wide screen and
+	// lower down the felt on a portrait one — projected from the placement
+	// rather than assumed (see layout/screenProjection.ts's file doc).
+	let discardAnchor = $derived(
+		worldToScreenPercent(geometry.rig, geometry.placement.discardX, geometry.placement.discardZ)
+	);
 	let drawAnchor = $derived(
-		worldToScreenPercent(geometry.rig, geometry.placement.drawPileX, geometry.placement.localSeatZ)
+		worldToScreenPercent(geometry.rig, geometry.placement.drawPileX, geometry.placement.drawPileZ)
 	);
 	let discardAnchorStyle = $derived(
 		`left: ${discardAnchor.leftPercent}%; top: ${discardAnchor.topPercent}%;`
@@ -90,12 +117,26 @@
 
 <FlyingCardsOverlay />
 <DrawStackIndicator />
-<AccessibleHandControls />
+<AccessibleHandControls
+	selectedId={selectedCardId}
+	onSelectionChange={(id) => (selectedCardId = id)}
+	onPlay={play}
+	onFocusChange={(id) => (keyboardFocusId = id)}
+/>
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
 	<div class="scene-layer" bind:clientWidth={sceneWidth} bind:clientHeight={sceneHeight}>
 		<Canvas>
-			<Scene3D {mappedOpponents} viewport={sceneViewport} {geometry} {colorFor} />
+			<Scene3D
+				{mappedOpponents}
+				viewport={sceneViewport}
+				{geometry}
+				{colorFor}
+				selectedId={selectedCardId}
+				onSelectionChange={(id) => (selectedCardId = id)}
+				onPlay={play}
+				focusedId={keyboardFocusId}
+			/>
 		</Canvas>
 	</div>
 
@@ -104,13 +145,6 @@
 </div>
 
 <style>
-	:global(body) {
-		margin: 0;
-		padding: 0;
-		overflow: hidden;
-		background-color: transparent;
-	}
-
 	:root {
 		--cardSize: 5em;
 		--shadowColor: rgba(0, 0, 0, 0.16);
