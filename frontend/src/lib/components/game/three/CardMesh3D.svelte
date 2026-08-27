@@ -28,7 +28,9 @@
 		opacity = 1,
 		dimmed = false,
 		wildColor,
-		hoverSpinDeg = 0
+		hoverSpinDeg = 0,
+		shadow,
+		highlight
 	}: {
 		card: Card;
 		turned?: boolean;
@@ -72,11 +74,42 @@
 		 *  hovered/selected card a little toward the discard pile, like it's
 		 *  already being aimed at where it's about to land. */
 		hoverSpinDeg?: number;
+		/** Drop shadow, nested inside this card's own group so it inherits the
+		 *  same lift/push/spin/scale tween instead of tracking it from outside
+		 *  (which only ever manages to copy the translation, not the rotation).
+		 *  Offsets are in the group's local, pre-flatten space: `offsetX` shifts
+		 *  along the card's own width axis, `dropZ` sinks it behind the card's
+		 *  own layer stack (see the 0.002/0.004 z-offsets below). */
+		shadow?: {
+			texture: import("three").Texture;
+			offsetX: number;
+			dropZ: number;
+			opacity: number;
+		};
+		/** Colored rim drawn just under the card, nested in this card's own group
+		 *  so it inherits the exact same lift/push/spin/scale tween instead of a
+		 *  sibling component computing its own approximate copy of that pose —
+		 *  the same desync the shadow used to have before it moved in here. */
+		highlight?: {
+			color?: string;
+			pulse?: boolean;
+		};
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
 	const DIM_FACTOR = 0.45;
 	const HOVER_LERP_SPEED = 12;
+
+	// Highlight rim: how far it reaches past the card's own edge, and its
+	// breathing opacity when marking the "tap here" confirm target.
+	const HIGHLIGHT_RIM_GROWTH = 0.14;
+	const HIGHLIGHT_BASE_OPACITY = 0.95;
+	const HIGHLIGHT_PULSE_DEPTH = 0.35;
+	const HIGHLIGHT_PULSE_SPEED = 3.4;
+	// Sits just behind the card's own bg layer (z=0) so only the rim past its
+	// edges shows — a flat epsilon, not scaled, matching the bg/value/border
+	// layers' own fixed z-steps rather than the shadow's scaled world offset.
+	const HIGHLIGHT_DROP_Z = -0.006;
 
 	// A painted wild wears its chosen color exactly like a numbered card wears
 	// its own, so nothing downstream has to know it was ever a wild.
@@ -113,11 +146,43 @@
 		position[2] + hoverPush[1] * liftT
 	]);
 	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
+	// A child's local offset gets multiplied by the group's own scale on the
+	// way to world space; dividing out animatedScale here cancels that, so
+	// the shadow's offset stays a fixed magnitude in world units (matching
+	// the flat, unscaled offset the standalone shadow mesh used before it
+	// moved in here) instead of shrinking with a compact hand or growing with
+	// the hover pop.
+	let shadowPosition = $derived<[number, number, number]>(
+		shadow ? [-shadow.offsetX / animatedScale, 0, -shadow.dropZ / animatedScale] : [0, 0, 0]
+	);
+
+	let highlightElapsed = $state(0);
+	useTask((delta) => {
+		if (!highlight?.pulse) return;
+		highlightElapsed += delta;
+	});
+	let highlightOpacity = $derived(
+		highlight?.pulse
+			? HIGHLIGHT_BASE_OPACITY -
+					HIGHLIGHT_PULSE_DEPTH * (0.5 - Math.cos(highlightElapsed * HIGHLIGHT_PULSE_SPEED) / 2)
+			: HIGHLIGHT_BASE_OPACITY
+	);
 
 	let backTexture = $state<import("three").Texture | null>(null);
 	let bgTexture = $state<import("three").Texture | null>(null);
 	let valueTexture = $state<import("three").Texture | null>(null);
 	let borderTexture = $state<import("three").Texture | null>(null);
+	let highlightTexture = $state<import("three").Texture | null>(null);
+
+	$effect(() => {
+		let cancelled = false;
+		loadSilhouette("/assets/cards/background.png").then((t) => {
+			if (!cancelled) highlightTexture = t;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	$effect(() => {
 		let cancelled = false;
@@ -151,6 +216,32 @@
 	{onclick}
 	{onpointerdown}
 >
+	{#if highlight && highlightTexture}
+		<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH}>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+			<T.MeshBasicMaterial
+				map={highlightTexture}
+				color={highlight.color ?? "#ffe27a"}
+				transparent
+				opacity={highlightOpacity}
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
+	{#if shadow}
+		<T.Mesh position={shadowPosition}>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+			<T.MeshBasicMaterial
+				map={shadow.texture}
+				color="#000000"
+				transparent
+				opacity={shadow.opacity * opacity}
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
 	{#if turned}
 		{#if backTexture}
 			<T.Mesh>
@@ -159,6 +250,7 @@
 					map={backTexture}
 					color={bgColor}
 					transparent
+					depthWrite
 					{opacity}
 					toneMapped={false}
 					side={DoubleSide}
@@ -173,6 +265,7 @@
 					map={bgTexture}
 					color={bgColor}
 					transparent
+					depthWrite
 					{opacity}
 					toneMapped={false}
 					side={DoubleSide}
@@ -186,6 +279,7 @@
 					map={valueTexture}
 					color={tintColor}
 					transparent
+					depthWrite
 					{opacity}
 					toneMapped={false}
 					side={DoubleSide}
@@ -199,6 +293,7 @@
 					map={borderTexture}
 					color={tintColor}
 					transparent
+					depthWrite
 					{opacity}
 					toneMapped={false}
 					side={DoubleSide}
