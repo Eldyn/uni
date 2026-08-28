@@ -85,7 +85,7 @@
 >
 	<!-- Background art: y-position tuned to align the dark cutout with the logo -->
 	<div
-		class="fixed inset-0 z-0 bg-cover"
+		class="fixed left-0 top-0 z-0 h-[100svh] w-full bg-cover"
 		style="
         background-image: url('/assets/bg_main.png');
         background-position: center 62%;
@@ -95,13 +95,15 @@
 	></div>
 
 	<!-- Dock gradient: fixed, always bottom-half of viewport, independent of content height -->
-	<div class="dock-bg pointer-events-none fixed bottom-0 left-0 right-0 z-[5]"></div>
+	<div
+		class="dock-bg pointer-events-none fixed bottom-0 left-0 right-0 z-[5] max-lg:landscape:hidden"
+	></div>
 
 	<!-- Hero zone: logo + welcome-back line, always centered in the space
 	     above the dock (not bottom-anchored, which left a growing empty gap
 	     up top the taller the dock got, worst on narrow/tall screens). -->
 	<div
-		class="relative z-10 flex min-h-screen flex-col items-center justify-center px-4"
+		class="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 max-lg:landscape:hidden"
 		style="padding-bottom: {dockHeight}px; transform: translateY(3rem);"
 	>
 		<div class="relative flex items-center justify-center">
@@ -141,7 +143,7 @@
 	     lot by auth state) never pushes the hero above around, only pads it. -->
 	<div
 		bind:clientHeight={dockHeight}
-		class="dock fixed inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
+		class="dock fixed inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6 max-lg:landscape:hidden"
 	>
 		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
 			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
@@ -224,6 +226,115 @@
 			</footer>
 		</div>
 	</div>
+
+	<!-- Mobile landscape: a phone rotated sideways has almost no vertical room,
+	     so the centered-hero + bottom-dock composition above (built for a tall
+	     screen) gets replaced outright rather than squeezed. Split into two
+	     columns instead: brand column (logo, site links, socials) on the left,
+	     action column (CTAs, hub tiles) on the right, both anchored to the
+	     bottom so eyes/thumbs travel the same short distance either side. Only
+	     kicks in under `lg` — an actual desktop/tablet in landscape already has
+	     the vertical space the portrait layout wants. -->
+	<div
+		class="relative z-10 hidden h-[100svh] w-full items-stretch gap-4 overflow-hidden px-4 py-3 max-lg:landscape:flex"
+	>
+		<div class="flex w-1/2 flex-col items-center overflow-y-auto">
+			<div class="flex flex-1 items-center justify-center">
+				<TextEffects
+					text="UNI!"
+					effect="undulate"
+					class="logo-text title-hero-landscape"
+					font="var(--heading)"
+					amplitude={12}
+					speed={1}
+					frequency={0.15}
+				/>
+			</div>
+
+			<footer class="flex flex-col items-center gap-1.5 pb-1">
+				<nav
+					class="flex flex-wrap justify-center gap-x-2 gap-y-1 font-tiny text-[0.65rem] text-text/50"
+					aria-label="Site links"
+				>
+					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
+					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
+					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
+					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+				</nav>
+				<nav class="flex items-center gap-2" aria-label="Social links">
+					{#each SOCIAL_LINKS as link}
+						<a
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="social-icon"
+							aria-label={link.label}
+						>
+							<img src="/assets/social/{link.img}" alt={link.label} width="24" height="24" />
+						</a>
+					{/each}
+				</nav>
+			</footer>
+		</div>
+
+		<div
+			class="flex w-1/2 flex-col items-center justify-end gap-2 overflow-y-auto border-l border-border pb-1 pl-4"
+		>
+			{#if storeAuth.isLoggedIn || storeAuth.isGuest}
+				<p class="text-center font-tiny text-[0.65rem] text-text/70">
+					{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+					<span class="text-accent">{storeAuth.username}</span>
+					<button
+						class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+						style="font-family: var(--pypx); font-weight: 800;"
+						onclick={handleLogout}
+						disabled={logoutPending}
+						>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
+					>
+				</p>
+			{/if}
+
+			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+				<button
+					class="btn pixel-corners w-full py-3 text-base tracking-wider"
+					onclick={() => storeNavigation.gotoAuth("login")}
+				>
+					Login
+				</button>
+				<button
+					class="btn pixel-corners w-full py-3 text-base tracking-wider"
+					disabled={storeAuth.isLoading}
+					onclick={playAsGuest}
+				>
+					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
+				</button>
+			{:else}
+				<button
+					class="btn pixel-corners w-full py-3 text-base tracking-wider"
+					onclick={() => storeNavigation.goto("lobbies")}
+				>
+					Browse Lobbies
+				</button>
+
+				<div class="grid w-full grid-cols-4 gap-1.5">
+					{#each HUB_TILES as tile}
+						<button
+							class="hub-tile pixel-bordered flex flex-col items-center gap-0.5 py-2 text-center
+							       {tile.action ? '' : 'opacity-50'}"
+							style="--pc-fill: var(--surface); --pc-border: var(--border);"
+							aria-disabled={!tile.action}
+							onclick={() => tile.action?.()}
+							aria-label="{tile.label}{tile.badge ? `, ${tile.badge}` : ''}"
+						>
+							<i class="hn pix {tile.icon} text-base {tile.accent}"></i>
+							<span class="font-tiny text-[0.55rem] leading-tight text-text-h">{tile.label}</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</div>
 </div>
 
 <style>
@@ -235,6 +346,13 @@
 	   stays at 10rem on wide/desktop. clamp handles it without a hard breakpoint. */
 	:global(.logo-text.title-hero) {
 		font-size: clamp(4rem, 26vw, 10rem);
+	}
+
+	/* Mobile-landscape logo: scales off the shorter dimension (height) since
+	   the column is height-constrained, not width-constrained, on a rotated
+	   phone. */
+	:global(.logo-text.title-hero-landscape) {
+		font-size: clamp(2.25rem, 16vh, 4rem);
 	}
 
 	/* Square halo, generously oversized relative to the logo text so it reads
