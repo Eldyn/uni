@@ -108,7 +108,7 @@
 			<h3
 				class="pypx-thick mb-3 text-base text-accent [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
 			>
-				Top 50 Players
+				TOP 50 PLAYERS
 			</h3>
 
 			{#if storeStats.isLoading}
@@ -131,7 +131,7 @@
 							>
 								#{player.rank}
 							</span>
-							<span class="min-w-0 truncate font-pixel text-sm sm:text-base">
+							<span class="min-w-0 truncate font-tiny text-sm text-white sm:text-base">
 								{player.username}
 							</span>
 							<span
@@ -152,7 +152,7 @@
 							<span class="w-9 shrink-0 font-pixel text-sm text-text/50 sm:w-12 sm:text-base">
 								#{storeStats.myStats.rank ? storeStats.myStats.rank : "?"}
 							</span>
-							<span class="min-w-0 truncate font-pixel text-sm sm:text-base">
+							<span class="min-w-0 truncate font-tiny text-sm text-white sm:text-base">
 								{storeStats.myStats.username} (You)
 							</span>
 							<span
@@ -197,7 +197,7 @@
 	/* Pypx at 800 — the thick cut (pypx-thick.woff2), the heaviest face the
 	   family ships. Carries the numbers and rank callouts (the #1 badge, the
 	   list heading, each row's W-L) so the scoring reads as scoreboard type
-	   against the plainer pixel face used for player names. */
+	   against the lighter --tiny face used for player names. */
 	.pypx-thick {
 		font-family: var(--pypx);
 		font-weight: 800;
