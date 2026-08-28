@@ -21,7 +21,6 @@
  * * Works closely with the `ILobbyStore` to identify the match
  * associated with the user. This class is also responsible for the lifecycle of the
  * turn timers (via ITimerService) to handle AFK players or bot takeover.
- * @tag CTRL-GAME-001
  */
 class MatchController {
 public:
@@ -32,7 +31,6 @@ public:
      * @param broadcast Transport layer for sends/publishes (DI seam).
      * @param timers    Timer service for turn timers (DI seam).
      * @param lobby_store Interface to the lobby store for lobby lookup and match lifecycle hooks.
-     * @tag CTRL-GAME-MTH-001
      */
     MatchController(IActionRouter& router, IBroadcaster& broadcast,
                     ITimerService& timers, ILobbyStore& lobby_store);
@@ -60,7 +58,6 @@ private:
      * @brief Handles the request to play a card.
      * @param context Context of the calling socket.
      * @param message JSON payload containing the `card_id` field.
-     * @tag CTRL-GAME-ACT-001
      */
     void HandlePlayCard(WsContext context, const nlohmann::json& message);
 
@@ -68,7 +65,6 @@ private:
      * @brief Handles the request to draw a card from the deck.
      * @param context Context of the calling socket.
      * @param message JSON payload of the request.
-     * @tag CTRL-GAME-ACT-002
      */
     void HandleDrawCard(WsContext context, const nlohmann::json& message);
 
@@ -76,7 +72,6 @@ private:
      * @brief Handles the submission of input from the client for a pending effect (e.g. colour choice).
      * @param context Context of the calling socket.
      * @param message JSON payload containing the chosen data.
-     * @tag CTRL-GAME-ACT-003
      */
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
@@ -86,7 +81,6 @@ private:
      * @brief Callback/Hook triggered at the start of each new player turn.
      * Starts/resets the AFK timer based on the lobby settings.
      * @param active_lobby Pointer to the lobby whose turn has started.
-     * @tag CTRL-GAME-FLW-001
      */
     void OnTurnStarted(Lobby* active_lobby);
 
@@ -95,7 +89,6 @@ private:
      * Iterating over each user, it uses `MatchInstance::SerializePlayerState` to
      * hide opponents' hands and forwards the WS message.
      * @param current_lobby Pointer to the lobby to update.
-     * @tag CTRL-GAME-FLW-002
      */
     void BroadcastMatchState(Lobby* current_lobby);
 
@@ -106,14 +99,12 @@ private:
      * @param lobby_id ID of the ongoing lobby.
      * @param timeout_ms Milliseconds before the timeout fires.
      * @param callback Function to execute when the timer expires.
-     * @tag CTRL-GAME-TMR-001
      */
     void SetTurnTimer(uint32_t lobby_id, int timeout_ms, std::function<void()> callback);
 
     /**
      * @brief Stops the active timer for a given lobby.
      * @param lobby_id ID of the lobby whose timer to cancel.
-     * @tag CTRL-GAME-TMR-002
      */
     void ClearTurnTimer(uint32_t lobby_id);
 };

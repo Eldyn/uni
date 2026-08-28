@@ -162,7 +162,10 @@
 	-moz-osx-font-smoothing: unset;
 
 	@media (max-width: 1024px) {
-		font-size: 16px;
+		/* Scaled off the Redmi Note 13 Pro's ~412px CSS viewport (16px there);
+		   narrower phones like the Galaxy A36 (~384px) shrink proportionally
+		   instead of rendering every rem-sized element larger. */
+		font-size: clamp(14px, 3.9vw, 16px);
 	}
 }
 

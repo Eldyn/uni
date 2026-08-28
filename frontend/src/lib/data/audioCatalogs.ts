@@ -68,7 +68,7 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	// Once converted, wiring it in is just adding:
 	//   "music.fuzzsong.stems": { kind: "multi-folder", folder: "fuzzsong",
 	//     count: 9, start: 1, loop: true }
-	//, the multi-channel engine already handles this shape, no new code needed.
+	//the multi-channel engine already handles this shape, no new code needed.
 };
 
 // INFO: All PLACEHOLDER-SFX for now, no real SFX files exist yet.

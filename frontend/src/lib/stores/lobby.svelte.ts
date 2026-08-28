@@ -182,7 +182,6 @@ function parseLobby(raw: unknown): Lobby | null {
 /**
  * @class StoreLobby
  * @brief Singleton store that manages all lobby-related state and the associated WebSocket interactions.
- * @tag FRONT-LOBBY-001
  */
 class StoreLobby {
 	/** Saved matches compatible with the current player list. Null if not in a lobby. */
@@ -231,7 +230,6 @@ class StoreLobby {
 
 	/**
 	 * @brief Initializes the store and binds the basic connection events.
-	 * @tag FRONT-LOBBY-MTH-001
 	 */
 	constructor() {
 		this.#registerListeners();
@@ -243,7 +241,6 @@ class StoreLobby {
 	/**
 	 * @brief Promotes a user to the host role of the lobby.
 	 * @param username The name of the player to promote.
-	 * @tag FRONT-LOBBY-MTH-002
 	 */
 	async promote(username: string): Promise<void> {
 		await ws.connect();
@@ -263,7 +260,6 @@ class StoreLobby {
 	/**
 	 * @brief Kicks a player from the lobby.
 	 * @param username The name of the player to kick.
-	 * @tag FRONT-LOBBY-MTH-003
 	 */
 	async kick(username: string): Promise<void> {
 		await ws.connect();
@@ -283,7 +279,6 @@ class StoreLobby {
 	/**
 	 * @brief Requests the server to start the match for the current lobby.
 	 * Shows an error toast if the server rejects the request.
-	 * @tag FRONT-LOBBY-MTH-004A
 	 */
 	async startMatch(): Promise<void> {
 		if (this.isLoadingStart) return;
@@ -311,7 +306,6 @@ class StoreLobby {
 	 * guarantee completion; the full ruleset is reported instead by `match_settings`
 	 * at match end, alongside `match_end`/`match_saved`. See analytics.svelte.ts for
 	 * the data-use policy: gameplay research only, no personal data.
-	 * @tag FRONT-LOBBY-PRIV-002
 	 */
 	#trackMatchStart(): void {
 		const s = this.current?.settings;
@@ -327,7 +321,6 @@ class StoreLobby {
 	/**
 	 * @brief Updates the lobby settings (including name and visibility).
 	 * @param settings The settings fields to modify.
-	 * @tag FRONT-LOBBY-MTH-004
 	 */
 	async updateSettings(settings: Partial<LobbySettings> & Partial<{ name: string }>) {
 		try {
@@ -350,7 +343,6 @@ class StoreLobby {
 	 * Automatically connects to the WebSocket and emits the creation payload.
 	 * @param data The configuration for the new lobby.
 	 * @returns True when the lobby was created, false on rejection or network error.
-	 * @tag FRONT-LOBBY-MTH-005
 	 */
 	async create(data: { is_public: boolean; name: string }): Promise<boolean> {
 		this.isLoadingJoin = true;
@@ -380,7 +372,6 @@ class StoreLobby {
 	 * @brief Joins an existing lobby using a 6-character invite code.
 	 * @param code The unique 6-character identifier of the lobby.
 	 * @returns True when the lobby was joined, false on rejection or network error.
-	 * @tag FRONT-LOBBY-MTH-006
 	 */
 	async join(code: string): Promise<boolean> {
 		if (!code) {
@@ -415,7 +406,6 @@ class StoreLobby {
 	 * @brief Fetches the updated list of available public lobbies from the server.
 	 * Updates the `available` state array.
 	 * @returns A Promise that resolves when the list has been updated.
-	 * @tag FRONT-LOBBY-MTH-007
 	 */
 	async fetchList(): Promise<void> {
 		if (this.isLoadingList) return; // Poll ticks must not overlap an in-flight fetch.
@@ -452,7 +442,6 @@ class StoreLobby {
 
 	/**
 	 * @brief Emits a request to leave the current lobby.
-	 * @tag FRONT-LOBBY-MTH-008
 	 */
 	async leave(): Promise<void> {
 		// Optimistic: drop local lobby state and navigate away immediately
@@ -477,7 +466,6 @@ class StoreLobby {
 	/**
 	 * @brief Subscribes to all WebSocket events sent by the server related to lobbies.
 	 * Handles events such as joining, receiving updates or being evicted.
-	 * @tag FRONT-LOBBY-PRIV-001
 	 */
 	#registerListeners(): void {
 		if (this.#listenersRegistered) return;
@@ -566,7 +554,6 @@ class StoreLobby {
 
 	/**
 	 * @brief Fetches from the server the previous saves compatible with the players in the lobby.
-	 * @tag FRONT-LOBBY-PRIV-002
 	 */
 	async #fetchSavedMatches(): Promise<void> {
 		if (!this.current) return;
@@ -591,7 +578,6 @@ class StoreLobby {
 	 * @brief Silently attempts to reconnect to a lobby using a stored session code.
 	 * Reads `lobby_code` from localStorage. Triggered automatically after a reload or disconnection.
 	 * @returns A Promise that resolves when the reconnection flow completes.
-	 * @tag FRONT-LOBBY-PRIV-003
 	 */
 	async #tryRejoin(): Promise<void> {
 		const code = localStorage.getItem("lobby_code");
@@ -631,7 +617,6 @@ class StoreLobby {
 
 	/**
 	 * @brief Clears the active lobby state and local storage.
-	 * @tag FRONT-LOBBY-PRIV-004
 	 */
 	#reset(): void {
 		this.current = null;

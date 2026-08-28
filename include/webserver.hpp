@@ -28,7 +28,6 @@
  * * Initializes the SSL application (if configured), configures the HTTP and WebSocket routers,
  * maintains a registry of the active connections and provides hooks for connection open/close events.
  * Does not support copying or assignment (non-copyable class).
- * * @tag SRV-CORE-000
  */
 class WebServer {
 public:
@@ -39,7 +38,6 @@ public:
      * @param certFile Path to the SSL certificate file.
      * @param dbFile Path to the SQLite database file.
      * @param frontendPath Path to the directory holding the built frontend static files.
-     * @tag SRV-CORE-001
      */
     explicit WebServer(int port,
                        std::string_view keyFile      = "key.pem",
@@ -49,7 +47,6 @@ public:
 
     /**
      * @brief Destructor. Takes care of releasing any pending resources.
-     * @tag SRV-CORE-002
      */
     ~WebServer();
 
@@ -59,63 +56,54 @@ public:
     /**
      * @brief Starts the server's listening loop (blocking method).
      * Puts uWebSockets into listening mode on the specified port.
-     * @tag SRV-CORE-003
      */
     void Run();
 
     /**
      * @brief Retrieves a reference to the WebSocket action router.
      * @return IActionRouter& Router to register the WS message handlers.
-     * @tag SRV-CORE-004
      */
     IActionRouter& GetActionRouter()   { return ws_router_;    }
 
     /**
      * @brief Retrieves a reference to the HTTP request router.
      * @return HttpRouter& Router to register the REST/HTTP routes.
-     * @tag SRV-CORE-005
      */
     HttpRouter&    GetHTTPRouter()     { return http_router_;  }
 
     /**
      * @brief Retrieves the underlying instance of the uWebSockets application.
      * @return AppHttp& The uWS application (SSL or plain per kAppSSL).
-     * @tag SRV-CORE-006
      */
     AppHttp&       GetApp()            { return app_;          }
 
     /**
      * @brief Retrieves the broadcaster (transport layer for WS sends/publishes).
      * @return IBroadcaster& The production broadcaster backed by uWS.
-     * @tag SRV-CORE-010
      */
     IBroadcaster&  GetBroadcaster()    { return broadcaster_;  }
 
     /**
      * @brief Retrieves the timer service for scheduling keyed timers.
      * @return ITimerService& The production timer service backed by libuv.
-     * @tag SRV-CORE-011
      */
     ITimerService& GetTimerService()   { return timer_service_; }
 
     /**
      * @typedef ConnectionHandler
      * @brief Callback invoked when a WebSocket is opened or closed.
-     * @tag SRV-TYP-001
      */
     using ConnectionHandler = std::function<void(AppWebSocket*, PerSocketData*)>;
 
     /**
      * @brief Adds a callback to execute when a new WS connection opens.
      * @param handler The function to register.
-     * @tag SRV-CORE-007
      */
     void OnConnectionOpen(ConnectionHandler handler);
 
     /**
      * @brief Adds a callback to execute when a WS connection closes.
      * @param handler The function to register.
-     * @tag SRV-CORE-008
      */
     void OnConnectionClose(ConnectionHandler handler);
 
@@ -124,7 +112,6 @@ public:
      * Wired by the LobbyController (which owns the live lobbies) and read by the
      * internal `/internal/active-games` route used to gate zero-downtime deploys.
      * @param provider Callable returning the number of active matches.
-     * @tag SRV-CORE-009
      */
     void SetActiveMatchProvider(std::function<std::size_t()> provider) {
         active_match_provider_ = std::move(provider);
@@ -158,51 +145,43 @@ private:
     /**
      * @brief Initializes the database connection and applies the schema if necessary.
      * @return true if the initialization succeeded, false otherwise.
-     * @tag SRV-PRIV-001
      */
     bool InitDB();
 
     /**
      * @brief Periodically drops idle rate-limiter buckets (at most once a minute)
      *        so the per-IP maps cannot grow without bound. Called from middleware.
-     * @tag SRV-PRIV-009
      */
     void MaybeEvict();
 
     /**
      * @brief Registers the internal routes and applies the wildcards (middleware) to the uWS app.
-     * @tag SRV-PRIV-002
      */
     void RegisterRoutes();
 
     /**
      * @brief Generic handler for HTTP POST requests (delegated to the HttpRouter).
-     * @tag SRV-PRIV-003
      */
     void HandlePost(AppResponse*, AppRequest*);
 
     /**
      * @brief Generic handler for HTTP GET requests (delegated to the HttpRouter).
-     * @tag SRV-PRIV-004
      */
     void HandleGet(AppResponse*, AppRequest*);
     void HandleHead(AppResponse*, AppRequest*);
 
     /**
      * @brief Handles the successful WebSocket upgrade event.
-     * @tag SRV-PRIV-005
      */
     void OnSocketOpen(AppWebSocket*);
 
     /**
      * @brief Receives the incoming WebSocket frames and forwards them to the ActionRouter.
-     * @tag SRV-PRIV-006
      */
     void OnSocketMessage(AppWebSocket*, std::string_view, uWS::OpCode);
 
     /**
      * @brief Handles the disconnection event of a socket.
-     * @tag SRV-PRIV-007
      */
     void OnSocketClosed(AppWebSocket*);
 
@@ -212,7 +191,6 @@ private:
      * otherwise (e.g. a file created after startup, or the cache being disabled).
      * @param path Path of the file.
      * @return std::string The content of the file.
-     * @tag SRV-UTIL-001
      */
     std::string             ReadFile(std::string_view path) const;
 
@@ -223,7 +201,6 @@ private:
      * `http::MakeETag`) so a file replaced on disk after startup still revalidates
      * correctly even though its cached bytes are stale; only newly added files are
      * not served until the process restarts and re-populates the cache.
-     * @tag SRV-PRIV-010
      */
     void LoadStaticFileCache();
 

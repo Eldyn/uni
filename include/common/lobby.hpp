@@ -21,7 +21,6 @@ namespace match {
 /**
  * @enum BotTakeoverMode
  * @brief Behaviour mode when a bot takes over or is replaced.
- * @tag CMN-LOBBY-ENUM-001
  */
 enum class BotTakeoverMode {
     kPlayInstantly,     /**< The bot plays instantly as soon as it is its turn. */
@@ -37,7 +36,6 @@ NLOHMANN_JSON_SERIALIZE_ENUM(BotTakeoverMode, {
  * @struct LobbySettings
  * @brief Contains the detailed configuration and rules of a specific lobby.
  * These settings are JSON-serializable to be transmitted to the clients.
- * @tag CMN-LOBBY-STR-001
  */
 struct LobbySettings {
     /**< Indicates whether the lobby appears in the public list. */
@@ -69,7 +67,6 @@ struct LobbySettings {
     /**
      * @brief Clamps numeric fields into contract bounds and strips unknown or
      * duplicate entries from active_mods in place.
-     * @tag CMN-LOBBY-MTH-001
      */
     void Sanitize();
 };
@@ -82,7 +79,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
 /**
  * @struct LobbyMember
  * @brief Represents a single participant within a lobby.
- * @tag CMN-LOBBY-STR-002
  */
 struct LobbyMember {
     std::string     username;      /**< Username of the member. */
@@ -102,7 +98,6 @@ struct LobbyMember {
 /**
  * @enum MemberRemovalOutcome
  * @brief Describes how an in-progress match, if any, was affected by a member removal.
- * @tag CMN-LOBBY-ENUM-002
  */
 enum class MemberRemovalOutcome {
     kMatchUnaffected,        /**< No match in progress, or match unaffected by this removal. */
@@ -114,7 +109,6 @@ enum class MemberRemovalOutcome {
 /**
  * @struct MemberRemovalResult
  * @brief Outcome of a Lobby::RemoveMember call, for the caller to react to.
- * @tag CMN-LOBBY-STR-003
  */
 struct MemberRemovalResult {
     bool found = false;          /**< False if the member wasn't in lobby.members at all. */
@@ -135,7 +129,6 @@ struct MemberRemovalResult {
 /**
  * @enum JoinOutcome
  * @brief Describes which path Lobby::AddOrHijack took to admit a new member.
- * @tag CMN-LOBBY-ENUM-003
  */
 enum class JoinOutcome {
     kHijackedBot,      /**< An existing bot member was replaced by the joiner. */
@@ -146,7 +139,6 @@ enum class JoinOutcome {
 /**
  * @struct JoinResult
  * @brief Outcome of a Lobby::AddOrHijack call, for the caller to react to.
- * @tag CMN-LOBBY-STR-004
  */
 struct JoinResult {
     JoinOutcome outcome;
@@ -157,7 +149,6 @@ struct JoinResult {
 /**
  * @struct Lobby
  * @brief Aggregates the entire structural state of a game room.
- * @tag CMN-LOBBY-STR-005
  */
 struct Lobby {
     uint32_t                 id;            /**< Unique internal numeric identifier of the lobby. */
@@ -179,7 +170,6 @@ struct Lobby {
      * until the bot count matches (clamped to the lobby capacity). No-op
      * while a match is in progress.
      * @param rng Shared RNG used to pick unique bot display names.
-     * @tag CMN-LOBBY-MTH-002
      */
     void SyncBots(std::mt19937& rng);
 
@@ -188,7 +178,6 @@ struct Lobby {
      * Falls back to a sequential "Bot_N" name if every reserved name is taken.
      * @param rng Shared RNG used for the random pick.
      * @return std::string An available bot display name.
-     * @tag CMN-LOBBY-MTH-003
      */
     std::string PickBotName(std::mt19937& rng) const;
 
@@ -196,7 +185,6 @@ struct Lobby {
      * @brief Generates a cryptographically random alphanumeric token, used both
      * for lobby invite codes and match identifiers.
      * @return std::string Random alphanumeric token.
-     * @tag CMN-LOBBY-MTH-004
      */
     static std::string GenerateInviteCode();
 
@@ -213,7 +201,6 @@ struct Lobby {
      * @return MemberRemovalResult describing what happened, for the caller to
      * react to (broadcasting, persistence, callbacks), this method does not
      * touch sockets, the database, or controller-level callback lists.
-     * @tag CMN-LOBBY-MTH-005
      */
     MemberRemovalResult RemoveMember(const std::string& username, std::mt19937& rng);
 
@@ -221,7 +208,6 @@ struct Lobby {
      * @brief Promotes the first connected non-bot member to host. No-op if no
      * such member exists.
      * @return true if a new host was promoted, false if no eligible member was found.
-     * @tag CMN-LOBBY-MTH-006
      */
     bool PromoteNextHost();
 
@@ -232,7 +218,6 @@ struct Lobby {
      * @param username Username of the joining player.
      * @param socket Their websocket connection.
      * @return JoinResult describing which path was taken.
-     * @tag CMN-LOBBY-MTH-007
      */
     JoinResult AddOrHijack(const std::string& username, AppWebSocket* socket);
 
@@ -252,7 +237,6 @@ struct Lobby {
      * @return The populated Lobby, ready to be inserted into the caller's registry.
      * @throws std::runtime_error if no unique code could be generated in 10 attempts,
      * matching the previous LobbyController::HandleCreate behavior exactly.
-     * @tag CMN-LOBBY-MTH-008
      */
     static Lobby Create(uint32_t id, const std::string& host, AppWebSocket* host_socket,
                          bool is_public, const std::string& name, int turn_time_limit_ms,
@@ -267,7 +251,6 @@ struct Lobby {
      * @param grace_ms Grace period in milliseconds before a disconnected
      * member is considered expired.
      * @return std::vector<std::string> Usernames of expired members.
-     * @tag CMN-LOBBY-MTH-009
      */
     std::vector<std::string> CollectExpiredDisconnects(
         std::chrono::steady_clock::time_point now, int64_t grace_ms) const;

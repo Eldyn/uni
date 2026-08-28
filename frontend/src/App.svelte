@@ -3,8 +3,8 @@
 	import Toast from "./lib/components/common/Toast.svelte";
 	import ChatDock from "$components/chat/ChatDock.svelte";
 
-	// INFO: Screens are lazy-loaded such that our website loads fast instead
-	//       of downloading ALL the resources before even showing our landing.
+	// INFO: Screens are lazy-loaded so the site loads fast instead of
+	//       downloading ALL the resources before showing the landing.
 	//       AuthScreen is kept separate because it is the only one taking props.
 	const loadAuthScreen = () => import("./lib/components/auth/AuthScreen.svelte");
 	const lazyScreens = {

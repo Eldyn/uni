@@ -8,7 +8,6 @@
  *
  * Keys are arbitrary strings; repeated `Schedule` with the same key
  * cancels the previous timer before arming the new one.
- * @tag TIMER-IFACE-001
  */
 class ITimerService {
 public:

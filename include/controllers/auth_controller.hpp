@@ -15,7 +15,6 @@
  * Parses requests, delegates to AuthService, and serializes the result
  * (cookies, JSON body, status code) back to the client. Holds no
  * authentication policy itself.
- * @tag CTRL-AUTH-CLS-001
  */
 class AuthController {
 public:
@@ -23,7 +22,6 @@ public:
      * @brief Constructor of the AuthController.
      * Automatically registers the POST and GET routes on the provided HTTP router (`/auth/register`, `/auth/login`, etc.).
      * * @param router Reference to the central HTTP router. Must outlive this class.
-     * @tag CTRL-AUTH-MTH-001
      */
     explicit AuthController(HttpRouter& router);
 
@@ -36,7 +34,6 @@ private:
      * and stores the new user in the database.
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-AUTH-ACT-001
      */
     void HandleRegister(AppResponse* res, AppRequest* req);
 
@@ -46,7 +43,6 @@ private:
      * and, on success, issues and returns a signed JWT.
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-AUTH-ACT-002
      */
     void HandleLogin(AppResponse* res, AppRequest* req);
 
@@ -59,7 +55,6 @@ private:
      * so a guest can never collide with a registered account.
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-AUTH-ACT-005
      */
     void HandleGuest(AppResponse* res, AppRequest* req);
 
@@ -68,7 +63,6 @@ private:
      * Invalidates the session on the client side (e.g. by requesting deletion of the JWT cookie).
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-AUTH-ACT-003
      */
     void HandleLogout(AppResponse* res, AppRequest* req);
 
@@ -77,13 +71,12 @@ private:
      * Returns the details of the currently authenticated user by evaluating their token.
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-AUTH-ACT-004
      */
     void HandleMe(AppResponse* res, AppRequest* req);
 
     // --- Validation and Security Parameters ---
 
-    /**< @brief Limit in bytes for the HTTP payload (Anti-DDoS). @tag CTRL-AUTH-CFG-004 */
+    /**< @brief Limit in bytes for the HTTP payload (Anti-DDoS). */
     static constexpr int kMaxBodyBytes   = 4096;
 
     bool trust_proxy_;      /**< Honour X-Forwarded-For when resolving the client IP. */

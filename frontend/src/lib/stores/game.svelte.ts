@@ -114,7 +114,6 @@ export interface LastPlay {
 /**
  * @class StoreGame
  * @brief Synchronizes the frontend state with the server Game Engine in real time.
- * @tag FRONT-GAME-001
  */
 class StoreGame {
 	/** The current state of the match (players, deck, cards on the table). */
@@ -158,7 +157,6 @@ class StoreGame {
 
 	/**
 	 * @brief Stops the active timers and closes the match screen, returning to the lobby.
-	 * @tag FRONT-GAME-MTH-001
 	 */
 	returnToLobby() {
 		this.#clearTimer();
@@ -175,7 +173,6 @@ class StoreGame {
 	/**
 	 * @brief Registers the listeners for the WebSocket events related to the game.
 	 * Intercepts the end of the match and the state updates sent by the server.
-	 * @tag FRONT-GAME-MTH-002
 	 */
 	#registerListeners() {
 		ws.on(ServerAction.MatchOver, (data) => {
@@ -307,7 +304,6 @@ class StoreGame {
 
 	/**
 	 * @brief Cancels and destroys the currently running turn timer.
-	 * @tag FRONT-GAME-MTH-003
 	 */
 	#clearTimer() {
 		if (this.#timerInterval !== null) {
@@ -320,7 +316,6 @@ class StoreGame {
 	 * @brief Synchronizes the local timer, computing it from the remaining milliseconds received from the server.
 	 * Starts a `setInterval` to decrement the time reactively on the UI every second.
 	 * @param remainingMs The remaining time provided by the server payload (in ms).
-	 * @tag FRONT-GAME-MTH-004
 	 */
 	#syncTurnTimer(remainingMs: number) {
 		this.#clearTimer();
@@ -339,7 +334,6 @@ class StoreGame {
 	 * @brief Helper function to map the compact numeric output of a card to the textual enum values.
 	 * @param rawCard The raw payload containing id, type (int) and value (int).
 	 * @returns A formatted object of type Card.
-	 * @tag FRONT-GAME-MTH-005
 	 */
 	#parseCard(rawCard: z.infer<typeof RawCardSchema>): Card {
 		return {
@@ -353,7 +347,6 @@ class StoreGame {
 	/**
 	 * @brief Sends the move to play a specific card in hand.
 	 * @param cardId Unique 16-bit identifier of the selected card.
-	 * @tag FRONT-GAME-MTH-006
 	 */
 	playCard(cardId: number) {
 		if (this.isActionPending) return;
@@ -369,7 +362,6 @@ class StoreGame {
 
 	/**
 	 * @brief Sends the request to draw a card from the central deck to the server.
-	 * @tag FRONT-GAME-MTH-007
 	 */
 	drawCard() {
 		if (this.isActionPending) return;
@@ -386,7 +378,6 @@ class StoreGame {
 	/**
 	 * @brief Resolves a currently suspended effect by forwarding the user input.
 	 * @param value The value chosen by the user via modal (e.g. the type index for the Wild).
-	 * @tag FRONT-GAME-MTH-009
 	 */
 	submitInput(value: string) {
 		if (this.isActionPending) return;

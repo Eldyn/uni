@@ -12,7 +12,6 @@
 /**
  * @class StatsController
  * @brief Exposes the REST endpoints needed by the frontend for the Profile and Leaderboard panel.
- * @tag CTRL-STATS-001
  */
 class StatsController {
 public:
@@ -20,7 +19,6 @@ public:
      * @brief Constructor of the StatsController.
      * Registers the HTTP routes (GET methods) on the provided HttpRouter.
      * @param router The central HTTP router of the application.
-     * @tag CTRL-STATS-MTH-001
      */
     explicit StatsController(HttpRouter& router);
 
@@ -31,7 +29,6 @@ private:
      * of the currently authenticated player (by evaluating the JWT in the header).
      * @param res Pointer to the HTTP response (uWS).
      * @param req Pointer to the HTTP request (uWS).
-     * @tag CTRL-STATS-ACT-001
      */
     void HandleGetMe(AppResponse* res, AppRequest* req);
 
@@ -41,7 +38,6 @@ private:
      * ordered by descending number of wins.
      * @param res Pointer to the HTTP response.
      * @param req Pointer to the HTTP request.
-     * @tag CTRL-STATS-ACT-002
      */
     void HandleGetLeaderboard(AppResponse* res, AppRequest* req);
 

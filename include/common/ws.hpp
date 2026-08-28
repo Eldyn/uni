@@ -31,7 +31,6 @@ namespace ws {
      * @param json Incoming JSON payload (untrusted).
      * @param key Key of the attribute to look up.
      * @return Result<T> The extracted value or an encapsulated error state.
-     * @tag WS-UTIL-001
      */
     template <typename T>
     inline Result<T> Get(const nlohmann::json& json, std::string_view key) {
@@ -75,7 +74,6 @@ namespace ws {
      * @param key Key of the attribute to look up.
      * @param default_value Fallback value returned if the data is absent/invalid.
      * @return T The extracted value or the provided fallback.
-     * @tag WS-UTIL-002
      */
     template <typename T>
     inline T GetOr(const nlohmann::json& json, std::string_view key, const T& default_value) {
@@ -88,7 +86,6 @@ namespace ws {
      * @param action The ServerAction type to insert into the payload.
      * @param request_id (Optional) ID of the original request for frontend tracking.
      * @return nlohmann::json JSON structure ready to be populated with other fields.
-     * @tag WS-UTIL-003
      */
     inline nlohmann::json MakeResponse(ws::ServerAction action,
                                         const std::string& request_id = "") {
@@ -113,7 +110,6 @@ namespace ws {
      * @param request_id The ID of the packet that triggered the error.
      * @param detail (Optional) supplementary context for dynamic errors (e.g. a
      *               payload parse message). Never the primary user-facing string.
-     * @tag WS-UTIL-004
      */
     inline void SendError(AppWebSocket* ws, uWS::OpCode op, contract::ErrorCode code,
                           const std::string& request_id, const std::string& detail = "") {
@@ -129,7 +125,6 @@ namespace ws {
      * @param op The uWebSockets OpCode (e.g. text).
      * @param request_id The ID of the request being acknowledged.
      * @param data (Optional) JSON object merged into the response envelope.
-     * @tag WS-UTIL-005
      */
     inline void SendSuccess(AppWebSocket* ws, uWS::OpCode op, const std::string& request_id,
                             nlohmann::json data = nlohmann::json::object()) {

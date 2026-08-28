@@ -18,7 +18,6 @@ namespace match {
      * * This effect does not physically swap the cards, but collects the user's input.
      * Once the input (the target's name) is received, it typically enqueues a `PassHandsEffect`
      * or a similar effect targeted at the two players involved.
-     * @tag EFFECT-SWAP-001
      */
     class DecideSwapTargetEffect : public Effect {
     public:
@@ -35,14 +34,12 @@ namespace match {
          * @param state The game state.
          * @param match The match instance.
          * @return EffectResult Returns kNeedsInput to query the client.
-         * @tag EFFECT-SWAP-MTH-001
          */
         EffectResult Resolve(MatchState* state, MatchInstance* match) override;
 
         /**
          * @brief Returns the enumerative type of the effect.
          * @return EffectType Identifier kDecideSwapTarget.
-         * @tag EFFECT-SWAP-MTH-002
          */
         EffectType GetType() const override { return EffectType::kDecideSwapTarget; }
         nlohmann::json ToJson() const override {

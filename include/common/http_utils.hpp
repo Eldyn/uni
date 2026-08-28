@@ -19,7 +19,6 @@ namespace http {
  * @param path The file path (or bare extension) to inspect.
  * @return std::string The MIME Type (e.g. "text/html"), or
  *         "application/octet-stream" if the extension is unrecognised.
- * @tag CMN-HTTP-MTH-005
  */
 std::string GetMimeType(std::string_view path);
 
@@ -36,7 +35,6 @@ std::string GetMimeType(std::string_view path);
  * @param request_path The path portion of the incoming request, relative to @p root.
  * @return std::optional<std::filesystem::path> The canonical, in-root file path,
  *         or std::nullopt if canonicalisation failed or the result escapes @p root.
- * @tag CMN-HTTP-MTH-006
  */
 std::optional<std::filesystem::path> ResolveSafePath(const std::filesystem::path& root,
                                                        std::string_view request_path);
@@ -61,7 +59,6 @@ std::optional<std::filesystem::path> ResolveSafePath(const std::filesystem::path
  *
  * @param relative_path The asset's path relative to the served root.
  * @return std::string The Cache-Control header value to send.
- * @tag CMN-HTTP-MTH-007
  */
 std::string CacheControlFor(std::string_view relative_path);
 
@@ -74,7 +71,6 @@ std::string CacheControlFor(std::string_view relative_path);
  * @param file The file to stat.
  * @return std::string The ETag value, or an empty string if the file could
  *         not be stat'd (in which case the caller should omit the header).
- * @tag CMN-HTTP-MTH-008
  */
 std::string MakeETag(const std::filesystem::path& file);
 

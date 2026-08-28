@@ -27,7 +27,6 @@ export interface Toast {
 /**
  * @class StoreToast
  * @brief Manages the reactive notification queue and their temporal lifecycle.
- * @tag FRONT-TOAST-001
  */
 class StoreToast {
 	/** Reactive array containing the notifications currently active and visible. */
@@ -42,7 +41,6 @@ class StoreToast {
 	 * @param type The severity/category of the notification (Default: "info").
 	 * @param durationMs Milliseconds before automatic disappearance (Default: 5000ms). If 0, the toast does not expire.
 	 * @returns A callback function that, when invoked, removes the notification prematurely.
-	 * @tag FRONT-TOAST-MTH-001
 	 */
 	add(message: string, type: ToastType = "info", durationMs = 5_000): () => void {
 		const id = this.#nextId++;
@@ -57,7 +55,6 @@ class StoreToast {
 	 * @brief Immediately removes a notification from the array by filtering it by ID.
 	 * The Svelte UI will update the list by removing the component from the DOM.
 	 * @param id The numeric identifier of the notification to delete.
-	 * @tag FRONT-TOAST-MTH-002
 	 */
 	remove(id: number): void {
 		this.items = this.items.filter((t) => t.id !== id);

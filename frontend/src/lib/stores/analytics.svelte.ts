@@ -47,7 +47,6 @@ declare global {
 /**
  * @class StoreAnalytics
  * @brief Emits GA4 custom events, no-op when gtag is unavailable.
- * @tag FRONT-ANALYTICS-001
  */
 class StoreAnalytics {
 	/**

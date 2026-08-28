@@ -16,7 +16,6 @@
  * * The uWebSockets library owns the memory of this structure
  * for the entire lifetime of the socket. It is used to track the identity
  * of the connected user without having to use external lookup maps.
- * @tag WS-CTX-STR-001
  */
 struct PerSocketData {
     std::string username;   /**< Username set post-upgrade after JWT verification. */
@@ -47,28 +46,24 @@ inline constexpr bool kAppSSL = UNI_ENABLE_SSL;
 /**
  * @typedef AppHttp
  * @brief The uWS application type: `uWS::SSLApp` when TLS is on, `uWS::App` when off.
- * @tag WS-CTX-TYP-000
  */
 using AppHttp = uWS::TemplatedApp<kAppSSL>;
 
 /**
  * @typedef AppWebSocket
  * @brief Alias for the complex uWebSockets socket type configured for routing.
- * @tag WS-CTX-TYP-001
  */
 using AppWebSocket = uWS::WebSocket<kAppSSL, true, PerSocketData>;
 
 /**
  * @typedef AppRequest
  * @brief Alias for the incoming uWebSockets HTTP request.
- * @tag WS-CTX-TYP-002
  */
 using AppRequest   = uWS::HttpRequest;
 
 /**
  * @typedef AppResponse
  * @brief Alias for the outgoing uWebSockets HTTP response (TLS flag follows kAppSSL).
- * @tag WS-CTX-TYP-003
  */
 using AppResponse  = uWS::HttpResponse<kAppSSL>;
 
@@ -77,7 +72,6 @@ using AppResponse  = uWS::HttpResponse<kAppSSL>;
  * @brief Execution context passed to every handler of the `ActionRouter`.
  * * Encapsulates everything a handler needs to process a message and
  * respond, removing the need to access global state.
- * @tag WS-CTX-STR-002
  */
 struct WsContext {
     AppWebSocket* socket;       /**< Pointer to the socket that sent the message. */

@@ -94,7 +94,6 @@ def main():
         "    /**",
         "     * @struct ClientAction",
         "     * @brief String constants for every action sent from Clients to the Server.",
-        "     * @tag WS-STR-001",
         "     */",
         "    struct ClientAction {",
     ]
@@ -110,7 +109,6 @@ def main():
         "    /**",
         "     * @enum ServerAction",
         "     * @brief Actions sent from the Server to the connected Clients.",
-        "     * @tag WS-ENUM-001",
         "     */",
         "    enum class ServerAction : uint8_t {",
     ]

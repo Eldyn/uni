@@ -22,7 +22,6 @@ namespace match {
     /**
      * @class EffectRegistry
      * @brief Global registry mapping effect string id → factory (Meyers' Singleton).
-     * @tag EFFECT-REG-CLS-001
      */
     class EffectRegistry {
     public:
@@ -46,7 +45,6 @@ namespace match {
      * @struct EffectRegistrar
      * @brief Static initializer that registers an effect factory at program startup.
      *        Place one static instance at the bottom of each effect's .cpp.
-     * @tag EFFECT-REG-STR-001
      */
     struct EffectRegistrar {
         EffectRegistrar(EffectType type, EffectFactory factory) {

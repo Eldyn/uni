@@ -15,7 +15,6 @@
  * @typedef HttpHandler
  * @brief Signature for HTTP request handlers.
  * Receives pointers to the uWS `AppResponse` and `AppRequest` objects.
- * @tag HTTP-RTR-TYP-001
  */
 using HttpHandler = std::function<void(AppResponse*, AppRequest*)>;
 
@@ -24,7 +23,6 @@ using HttpHandler = std::function<void(AppResponse*, AppRequest*)>;
  * @brief Handles the registration and routing of HTTP calls (GET, POST and middleware).
  * * The approach differs slightly from the ActionRouter because uWebSockets requires
  * HTTP routes to be registered explicitly directly on its native instance.
- * @tag HTTP-RTR-CLS-001
  */
 class HttpRouter {
 public:
@@ -38,7 +36,6 @@ public:
      * @param path The URI path, must start with "/".
      * @param handler The function to execute.
      * @return HttpRouter& Reference for chaining.
-     * @tag HTTP-RTR-MTH-001
      */
     HttpRouter& Get(const std::string& path, HttpHandler handler);
 
@@ -47,7 +44,6 @@ public:
      * @param path The URI path, must start with "/".
      * @param handler The function to execute.
      * @return HttpRouter& Reference for chaining.
-     * @tag HTTP-RTR-MTH-002
      */
     HttpRouter& Post(const std::string& path, HttpHandler handler);
 
@@ -58,7 +54,6 @@ public:
      * must take care of sending the HTTP response to the client itself.
      * @param handler The middleware function.
      * @return HttpRouter& Reference for chaining.
-     * @tag HTTP-RTR-MTH-003
      */
     HttpRouter& OnAny(std::function<bool(AppResponse*, AppRequest*)> handler);
 
@@ -66,7 +61,6 @@ public:
      * @brief Applies all the accumulated routes (and their middleware) to the native uWebSockets instance.
      * Must be called exactly once by the `WebServer` before `Run()`.
      * @param app Reference to the current uWebSockets instance.
-     * @tag HTTP-RTR-MTH-004
      */
     void Attach(AppHttp& app);
 
@@ -87,7 +81,6 @@ public:
      * @param res Pointer to the HTTP response passed through to the handler.
      * @param req Pointer to the HTTP request passed through to the handler.
      * @return true if a matching handler was found and invoked, false otherwise.
-     * @tag HTTP-RTR-MTH-005
      */
     bool Dispatch(const std::string& method, const std::string& path,
                   AppResponse* res, AppRequest* req) const;
@@ -96,7 +89,6 @@ private:
     /**
      * @struct Route
      * @brief Internal structure that temporarily stores the routes before loading.
-     * @tag HTTP-RTR-STR-001
      */
     struct Route {
         std::string method;   /**< HTTP method ("GET" or "POST"). */
@@ -113,7 +105,6 @@ private:
      * @brief Wraps a specific handler so that it first runs the registered wildcards.
      * @param handler The original handler to decorate.
      * @return HttpHandler The handler packaged with the middleware logic.
-     * @tag HTTP-RTR-PRIV-001
      */
     HttpHandler WrapWithWildcards(HttpHandler handler);
 };

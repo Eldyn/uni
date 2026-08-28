@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { storeGame } from "$lib/stores/game.svelte";
 
 // ws.emit is a no-op when the socket is not connected (checked in #validateAndSend),
-// so we can test the latch behavior without a real WebSocket.
+// so the test can check the latch behavior without a real WebSocket.
 
 describe("game store: double-submit prevention", () => {
 	beforeEach(() => {

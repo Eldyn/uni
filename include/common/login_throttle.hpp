@@ -22,7 +22,6 @@
  *
  * Not thread-safe (single event loop). The time source is injectable (`*At`
  * overloads) for deterministic unit tests.
- * @tag CMN-LT-CLS-001
  */
 class LoginThrottle {
 public:

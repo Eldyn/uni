@@ -107,7 +107,7 @@ void AuthController::HandleGuest(AppResponse* res, AppRequest* /*req*/) {
 
 void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
     // INFO: Resolve the IP synchronously: req is invalid once ReadBody's
-    //       async callback runs, so capture what we need by value now.
+    //       async callback runs, so capture what is needed by value now.
     const std::string ip = http::GetClientIp(response, req, trust_proxy_);
 
     http::ReadBody(response, kMaxBodyBytes, [this, response, ip](const std::string& body) {

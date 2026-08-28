@@ -18,7 +18,6 @@
 /**
  * @typedef DbValue
  * @brief Variant that encapsulates the base data types allowed in the SQLite database.
- * @tag DB-TYP-001
  */
 using DbValue = std::variant<int, double, std::string, std::nullptr_t>;
 
@@ -26,7 +25,6 @@ using DbValue = std::variant<int, double, std::string, std::nullptr_t>;
  * @class DbRow
  * @brief Represents a single row returned by a SQL query.
  * Stores the data using the column keys as indices of the internal map.
- * @tag DB-ROW-001
  */
 class DbRow {
 public:
@@ -34,7 +32,6 @@ public:
      * @brief Sets a value in the row for a specific column.
      * @param col The name of the column.
      * @param val The typed value.
-     * @tag DB-ROW-MTH-001
      */
     void Set(const std::string& col, DbValue val);
 
@@ -44,7 +41,6 @@ public:
      * @param col Name of the column.
      * @return T Extracted value.
      * @throws std::runtime_error if the column does not exist.
-     * @tag DB-ROW-MTH-002
      */
     template<typename T>
     T Get(const std::string& col) const {
@@ -60,7 +56,6 @@ public:
      * @param col Name of the column.
      * @param fallback Default value in case of a NULL/missing column.
      * @return T The extracted value or the fallback.
-     * @tag DB-ROW-MTH-003
      */
     template<typename T>
     T GetOr(const std::string& col, T fallback) const {
@@ -74,7 +69,6 @@ public:
      * @brief Checks whether the row possesses the specified column.
      * @param col Name of the column.
      * @return true if present, false otherwise.
-     * @tag DB-ROW-MTH-004
      */
     bool Has(const std::string& col) const;
 
@@ -87,14 +81,12 @@ private:
  * @brief Singleton pattern that encapsulates the unique, shared connection to the SQLite DB.
  * * All the query methods are "No-Throw" and return monadic results (Result) for
  * proper error handling without C++ exceptions.
- * @tag DB-CLS-001
  */
 class Database {
 public:
     /**
      * @brief Retrieves the single active instance of the Database.
      * @return Database& Reference to the Singleton.
-     * @tag DB-MTH-001
      */
     static Database& Get();
 
@@ -102,7 +94,6 @@ public:
      * @brief Opens or creates the SQLite database file at the provided path.
      * @param path Path on disk.
      * @return VoidResult Result of the open attempt.
-     * @tag DB-MTH-002
      */
     VoidResult Open(std::string_view path);
 
@@ -110,20 +101,17 @@ public:
      * @brief Applies direct SQL commands to the database (used mainly for Schema files).
      * @param sql Raw SQL query string.
      * @return VoidResult.
-     * @tag DB-MTH-003
      */
     VoidResult ApplySchema(const char* sql);
 
     /**
      * @brief Explicitly closes the active SQLite connection.
-     * @tag DB-MTH-004
      */
     void       Close();
 
     /**
      * @brief Checks whether the DB is currently ready for use.
      * @return true if open.
-     * @tag DB-MTH-005
      */
     bool       IsOpen() const;
 
@@ -132,7 +120,6 @@ public:
      * @param sql The SQL string (which may contain `?` placeholders).
      * @param params The optional typed parameters to bind to the query.
      * @return VoidResult Error in case of query failure or constraint violation.
-     * @tag DB-MTH-006
      */
     VoidResult                          Exec(const char* sql,
                                                std::vector<DbValue> params = {});
@@ -142,7 +129,6 @@ public:
      * @param sql Parametrized query string.
      * @param params List of parameters associated with the placeholders.
      * @return Result<std::vector<DbRow>> The vector of resulting rows.
-     * @tag DB-MTH-007
      */
     Result<std::vector<DbRow>>          Query(const char* sql,
                                                std::vector<DbValue> params = {});
@@ -152,7 +138,6 @@ public:
      * @param sql Parametrized query string.
      * @param params List of parameters.
      * @return Result<std::optional<DbRow>> Result containing the record or empty (std::nullopt).
-     * @tag DB-MTH-008
      */
     Result<std::optional<DbRow>>        QueryOne(const char* sql,
                                                   std::vector<DbValue> params = {});
@@ -160,7 +145,6 @@ public:
     /**
      * @brief Applies all pending schema migrations in version order.
      * @return VoidResult Error if any migration or version update fails.
-     * @tag DB-MTH-009
      */
     VoidResult RunMigrations();
 
@@ -185,7 +169,6 @@ private:
  * automatically triggers a ROLLBACK (if `Commit()` was not called explicitly),
  * avoiding inconsistencies in the database. Construction never throws; callers
  * must check `Ok()` before using the guard.
- * @tag DB-TX-001
  */
 class TransactionGuard {
 public:
@@ -193,7 +176,6 @@ public:
      * @brief Begins the transaction by executing "BEGIN TRANSACTION".
      * Never throws; check `Ok()` to determine whether the transaction began.
      * @param db The database to operate on.
-     * @tag DB-TX-MTH-001
      */
     explicit TransactionGuard(Database& db) : db_(db), committed_(false) {
         auto res = db_.Exec("BEGIN TRANSACTION;");
@@ -204,7 +186,6 @@ public:
 
     /**
      * @brief Destructor: Executes "ROLLBACK" if a started transaction was not committed.
-     * @tag DB-TX-MTH-002
      */
     ~TransactionGuard() {
         if (Ok() && !committed_) {
@@ -216,7 +197,6 @@ public:
     /**
      * @brief Checks whether the transaction was successfully started.
      * @return true if "BEGIN TRANSACTION" succeeded.
-     * @tag DB-TX-MTH-003
      */
     bool Ok() const { return !error_.has_value(); }
 
@@ -224,7 +204,6 @@ public:
      * @brief Returns the error captured during construction or Commit().
      * Only valid to call when `Ok()` (or the last `Commit()`) returned false.
      * @return const Error& The stored error.
-     * @tag DB-TX-MTH-004
      */
     const Error& GetError() const { return *error_; }
 
@@ -232,7 +211,6 @@ public:
      * @brief Marks the transaction for a successful completion (executes "COMMIT").
      * If called, it cancels the rollback effect upon destruction of the Guard.
      * @return VoidResult Error if the transaction never began or COMMIT failed.
-     * @tag DB-TX-MTH-005
      */
     VoidResult Commit() {
         if (!Ok()) {

@@ -29,7 +29,6 @@
  * `Log`, `WS`, `Lobby` and `HTTP` are per-message trace helpers and log at
  * `Debug` — noisy by default, so they're suppressed unless `LOG_LEVEL=debug`
  * is set. `Info`/`Warn`/`Error` map to their own levels.
- * @tag LOG-ENM-001
  */
 enum class LogLevel { Debug = 0, Info = 1, Warn = 2, Error = 3, Silent = 4 };
 
@@ -40,7 +39,6 @@ enum class LogLevel { Debug = 0, Info = 1, Warn = 2, Error = 3, Silent = 4 };
  * and automatically formats the messages with millisecond timestamps and aligned tags.
  * Configuration (minimum level, optional file sink) is read once from the
  * process environment (`LOG_LEVEL`, `LOG_FILE`) on first use.
- * @tag LOG-CLS-001
  */
 struct Logger {
 private:
@@ -64,7 +62,6 @@ private:
     /**
      * @brief Parses `LOG_LEVEL` values ("debug"/"info"/"warn"/"error"/"silent",
      * case-insensitive) into a LogLevel, falling back to Info on anything else.
-     * @tag LOG-PRIV-004
      */
     static LogLevel ParseLevel(std::string_view raw) {
         std::string s(raw);
@@ -80,7 +77,6 @@ private:
     /**
      * @brief One-time setup: enables ANSI on Windows, reads `LOG_LEVEL` to set
      * the print threshold, and opens `LOG_FILE` as a plain-text sink if set.
-     * @tag LOG-PRIV-001
      */
     static void Init() {
         if (is_initialized) return;
@@ -106,7 +102,6 @@ private:
     /**
      * @brief Generates a timestamp formatted with milliseconds (e.g. "[14:32:01.045]").
      * @param colored Wraps the timestamp in the grey ANSI code when true (console output).
-     * @tag LOG-PRIV-002
      */
     static std::string timestamp(bool colored) {
         auto now = std::chrono::system_clock::now();
@@ -138,7 +133,6 @@ private:
      * ANSI-free mirror line to the file sink — both share the same
      * `[HH:MM:SS.mmm] [TAG] message` shape so either is trivially greppable.
      * Uses C++17 fold expressions to efficiently unpack the variadic arguments.
-     * @tag LOG-PRIV-003
      */
     template<typename... Args>
     static void Print(LogLevel level, std::string_view color, std::string_view tag,
@@ -167,7 +161,6 @@ private:
 public:
     /**
      * @brief Logs a generic informational message (Green).
-     * @tag LOG-MTH-001
      */
     template<typename... Args>
     static void Info(Args&&... args) {
@@ -176,7 +169,6 @@ public:
 
     /**
      * @brief Logs a non-blocking warning (Yellow).
-     * @tag LOG-MTH-002
      */
     template<typename... Args>
     static void Warn(Args&&... args) {
@@ -185,7 +177,6 @@ public:
 
     /**
      * @brief Logs a critical error (Red).
-     * @tag LOG-MTH-003
      */
     template<typename... Args>
     static void Error(Args&&... args) {
@@ -194,7 +185,6 @@ public:
 
     /**
      * @brief Logs an event specific to the WebSocket layer (Cyan). Trace-level.
-     * @tag LOG-MTH-004
      */
     template<typename... Args>
     static void WS(Args&&... args) {
@@ -203,7 +193,6 @@ public:
 
     /**
      * @brief Logs an event specific to the LobbyController (dark Yellow). Trace-level.
-     * @tag LOG-MTH-005
      */
     template<typename... Args>
     static void Lobby(Args&&... args) {
@@ -212,7 +201,6 @@ public:
 
     /**
      * @brief Logs an event specific to HTTP requests (Magenta). Trace-level.
-     * @tag LOG-MTH-006
      */
     template<typename... Args>
     static void HTTP(Args&&... args) {
@@ -221,7 +209,6 @@ public:
 
     /**
      * @brief Logs a basic debug message (White). Trace-level.
-     * @tag LOG-MTH-007
      */
     template<typename... Args>
     static void Log(Args&&... args) {

@@ -16,7 +16,6 @@
  * * Supports the use of "wildcards" (middleware) that are executed before every specific
  * action. If a wildcard returns `false`, the specific handler is never called.
  * Inherits from `IActionRouter` (DI interface).
- * @tag ACT-RTR-CLS-001
  */
 class ActionRouter : public IActionRouter {
 public:
@@ -29,7 +28,6 @@ public:
      * @param action The name of the action (e.g. "play_card").
      * @param handler The function to execute when the action is received.
      * @return ActionRouter& Reference to itself for chaining.
-     * @tag ACT-RTR-MTH-001
      */
     ActionRouter& On(const std::string& action, ActionHandler handler) override;
 
@@ -38,7 +36,6 @@ public:
      * Middleware are executed in registration order before every specific handler.
      * @param handler The function to execute. If it returns false, it blocks the chain.
      * @return ActionRouter& Reference to itself.
-     * @tag ACT-RTR-MTH-002
      */
     ActionRouter& OnAny(ActionHandler handler) override;
 
@@ -49,7 +46,6 @@ public:
      * @param ctx The context of the WebSocket connection.
      * @param msg The JSON payload received from the client.
      * @return true if a specific handler was found and executed, false if no handler exists.
-     * @tag ACT-RTR-MTH-003
      */
     bool Dispatch(WsContext ctx, const json& msg) const;
 

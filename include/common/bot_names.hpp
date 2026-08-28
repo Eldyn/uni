@@ -14,7 +14,6 @@ namespace match {
      * @brief Static global list containing predefined names for the CPU-driven bots.
      * Contains references to pop culture, sci-fi and random names. Used during
      * the automatic takeover of bots or the lobby initialization.
-     * @tag CMN-BOT-001
      */
     inline const std::vector<std::string> kReservedBotNames = {
         "GLaDOS", "HAL9000", "Bender", "Wall-E", "R2-D2", "C-3PO",

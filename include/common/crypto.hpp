@@ -23,7 +23,6 @@ inline constexpr size_t kTagBytes   = 16;  // GCM authentication tag size
  * @struct EncryptedBlob
  * @brief A ciphertext with the nonce needed to decrypt it, both base64-encoded
  * for storage as TEXT columns.
- * @tag CMN-CRYPTO-STR-001
  */
 struct EncryptedBlob {
     std::string nonce_b64;
@@ -34,7 +33,6 @@ struct EncryptedBlob {
  * @brief Reads the 32-byte AES-256 key from the `CHAT_DM_KEY` environment
  * variable (base64-encoded). Fails fast at startup rather than deep in a
  * request handler if the key is missing or the wrong size.
- * @tag CMN-CRYPTO-MTH-001
  */
 inline std::vector<uint8_t> LoadKey() {
     auto key = Base64::Decode(Env::Require("CHAT_DM_KEY"));
@@ -47,7 +45,6 @@ inline std::vector<uint8_t> LoadKey() {
 /**
  * @brief Encrypts `plaintext` with AES-256-GCM under `key`, using a fresh
  * random nonce per call.
- * @tag CMN-CRYPTO-MTH-002
  */
 inline Result<EncryptedBlob> Encrypt(const std::string& plaintext,
                                      const std::vector<uint8_t>& key) {
@@ -97,7 +94,6 @@ inline Result<EncryptedBlob> Encrypt(const std::string& plaintext,
  * @brief Decrypts a blob produced by Encrypt(), verifying the GCM tag.
  * @return Result<std::string> The plaintext, or an Error if the key/nonce is
  * wrong or the ciphertext was tampered with (tag mismatch).
- * @tag CMN-CRYPTO-MTH-003
  */
 inline Result<std::string> Decrypt(const EncryptedBlob& blob, const std::vector<uint8_t>& key) {
     std::vector<uint8_t> nonce = Base64::Decode(blob.nonce_b64);

@@ -30,7 +30,6 @@ export interface AuthFieldErrors {
 /**
  * @class StoreAuth
  * @brief Manages the reactive state of the authenticated user (Username, Avatar).
- * @tag FRONT-AUTH-001
  */
 class StoreAuth {
 	/** Username of the currently connected account. */

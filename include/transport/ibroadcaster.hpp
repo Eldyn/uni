@@ -16,7 +16,6 @@
  *
  * The `compress` flag is forwarded to the uWS production adapter;
  * the fake ignores it.
- * @tag BCAST-IFACE-001
  */
 class IBroadcaster {
 public:
