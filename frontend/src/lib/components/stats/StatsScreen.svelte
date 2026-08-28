@@ -73,7 +73,7 @@
 					class="mb-4 flex flex-col items-center gap-2 border-b-4 border-accent pb-3 lg:flex-row lg:justify-between"
 				>
 					<h2
-						class="flex min-w-0 items-center justify-center gap-2 font-pixel text-xl text-accent [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-2xl"
+						class="flex min-w-0 items-center justify-center gap-2 font-pixel! text-xl text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-2xl"
 					>
 						<i class="hn pix hn-crown shrink-0 text-gold"></i>
 						<span class="truncate">{topPlayer.username}</span>
@@ -105,8 +105,13 @@
 		{/if}
 
 		<div class="panel pixel-corners flex flex-col p-3 shadow-[inset_0_0_0_4px_#333] sm:p-5">
+			<!-- '!' on the font/colour: app.css sets h1–h6 unlayered, which beats
+			     Tailwind's utility layer, so the plain utilities would silently
+			     lose to var(--heading)/var(--text-h). Same reason .title-screen
+			     headings elsewhere carry '!' overrides. --pixel is the face the
+			     .btn controls use, so the heading matches Back/Arsenal. -->
 			<h3
-				class="mb-3 text-center font-pixel text-base text-accent [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
+				class="mb-4 pb-1.5 text-center font-pixel! text-base text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
 			>
 				TOP 50 PLAYERS
 			</h3>
