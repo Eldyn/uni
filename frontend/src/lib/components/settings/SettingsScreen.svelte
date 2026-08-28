@@ -7,7 +7,7 @@
 </script>
 
 <div
-	class="fixed inset-0 flex flex-col overflow-y-auto bg-cover bg-center"
+	class="fixed left-0 top-0 flex h-[100svh] w-full flex-col overflow-y-auto bg-cover bg-center"
 	style="
         background-image: url('/assets/bg_main.png');
         background-position: center 62%;

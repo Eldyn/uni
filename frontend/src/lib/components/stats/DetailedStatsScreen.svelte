@@ -110,7 +110,10 @@
 <style>
 	.doodle-bg {
 		position: fixed;
-		inset: 0;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100svh;
 		background-color: #121212;
 		background-image: url("/assets/bg_stats.png");
 		background-size: cover;

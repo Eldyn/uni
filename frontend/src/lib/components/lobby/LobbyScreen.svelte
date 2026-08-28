@@ -70,7 +70,7 @@
 </script>
 
 <div
-	class="fixed inset-0 flex flex-col overflow-hidden bg-cover bg-center"
+	class="fixed left-0 top-0 flex h-[100svh] w-full flex-col overflow-hidden bg-cover bg-center"
 	style="background-image: url('/assets/bg_full.png'); image-rendering: pixelated;"
 >
 	<!-- Header: title (editable by host) + invite code + leave ------------- -->
