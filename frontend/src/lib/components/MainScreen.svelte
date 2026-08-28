@@ -229,111 +229,122 @@
 
 	<!-- Mobile landscape: a phone rotated sideways has almost no vertical room,
 	     so the centered-hero + bottom-dock composition above (built for a tall
-	     screen) gets replaced outright rather than squeezed. Split into two
-	     columns instead: brand column (logo, site links, socials) on the left,
-	     action column (CTAs, hub tiles) on the right, both anchored to the
-	     bottom so eyes/thumbs travel the same short distance either side. Only
-	     kicks in under `lg` — an actual desktop/tablet in landscape already has
-	     the vertical space the portrait layout wants. -->
-	<div
-		class="relative z-10 hidden h-[100svh] w-full items-stretch gap-4 overflow-hidden px-4 py-3 max-lg:landscape:flex"
-	>
-		<div class="flex w-1/2 flex-col items-center overflow-y-auto">
-			<div class="flex flex-1 items-center justify-center">
-				<TextEffects
-					text="UNI!"
-					effect="undulate"
-					class="logo-text title-hero-landscape"
-					font="var(--heading)"
-					amplitude={12}
-					speed={1}
-					frequency={0.15}
-				/>
+	     screen) gets rebalanced rather than squeezed. The brand column keeps the
+	     portrait reading order (halo + logo, then the welcome line, then the
+	     primary CTA) so the screen still looks like itself; only the four hub
+	     tiles move out to a rail on the right edge, where the width freed up by
+	     the rotation actually exists. Site links and socials collapse into one
+	     full-width bottom row. Only kicks in under `lg` — a desktop or tablet in
+	     landscape already has the vertical space the portrait layout wants. -->
+	<div class="relative z-10 hidden h-[100svh] w-full flex-col max-lg:landscape:flex">
+		<div class="relative flex flex-1 items-center justify-center overflow-hidden px-4">
+			<div class="flex max-w-sm flex-col items-center gap-2">
+				<div class="relative flex items-center justify-center">
+					<div
+						class="dither-halo-landscape pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
+						style="background-image: url('/assets/dither-radial.png');"
+					></div>
+					<TextEffects
+						text="UNI!"
+						effect="undulate"
+						class="logo-text title-hero title-hero-landscape relative z-10"
+						font="var(--heading)"
+						amplitude={12}
+						speed={1}
+						frequency={0.15}
+					/>
+				</div>
+
+				{#if storeAuth.isLoggedIn || storeAuth.isGuest}
+					<p class="relative z-20 text-center font-tiny text-xs text-text/70">
+						{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+						<span class="text-accent">{storeAuth.username}</span>
+						<button
+							class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+							style="font-family: var(--pypx); font-weight: 800;"
+							onclick={handleLogout}
+							disabled={logoutPending}
+							>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
+						>
+					</p>
+				{/if}
+
+				{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+					<div class="relative z-20 flex w-64 flex-col gap-2">
+						<button
+							class="btn pixel-corners w-full py-2.5 tracking-wider"
+							onclick={() => storeNavigation.gotoAuth("login")}
+						>
+							Login
+						</button>
+						<button
+							class="btn pixel-corners w-full py-2.5 tracking-wider"
+							disabled={storeAuth.isLoading}
+							onclick={playAsGuest}
+						>
+							{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
+						</button>
+					</div>
+				{:else}
+					<button
+						class="btn pixel-corners relative z-20 w-64 py-2.5 tracking-wider"
+						onclick={() => storeNavigation.goto("lobbies")}
+					>
+						Browse Lobbies
+					</button>
+				{/if}
 			</div>
 
-			<footer class="flex flex-col items-center gap-1.5 pb-1">
-				<nav
-					class="flex flex-wrap justify-center gap-x-2 gap-y-1 font-tiny text-[0.65rem] text-text/50"
-					aria-label="Site links"
-				>
-					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
-					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
-					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
-					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
-					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
-				</nav>
-				<nav class="flex items-center gap-2" aria-label="Social links">
-					{#each SOCIAL_LINKS as link}
-						<a
-							href={link.href}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="social-icon"
-							aria-label={link.label}
-						>
-							<img src="/assets/social/{link.img}" alt={link.label} width="24" height="24" />
-						</a>
-					{/each}
-				</nav>
-			</footer>
-		</div>
-
-		<div
-			class="flex w-1/2 flex-col items-center justify-end gap-2 overflow-y-auto border-l border-border pb-1 pl-4"
-		>
+			<!-- Hub rail: vertically centred against the hero area only, so it
+			     never reaches the chat launcher pinned to the bottom-right. -->
 			{#if storeAuth.isLoggedIn || storeAuth.isGuest}
-				<p class="text-center font-tiny text-[0.65rem] text-text/70">
-					{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
-					<span class="text-accent">{storeAuth.username}</span>
-					<button
-						class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
-						style="font-family: var(--pypx); font-weight: 800;"
-						onclick={handleLogout}
-						disabled={logoutPending}
-						>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
-					>
-				</p>
-			{/if}
-
-			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
-				<button
-					class="btn pixel-corners w-full py-3 text-base tracking-wider"
-					onclick={() => storeNavigation.gotoAuth("login")}
-				>
-					Login
-				</button>
-				<button
-					class="btn pixel-corners w-full py-3 text-base tracking-wider"
-					disabled={storeAuth.isLoading}
-					onclick={playAsGuest}
-				>
-					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
-				</button>
-			{:else}
-				<button
-					class="btn pixel-corners w-full py-3 text-base tracking-wider"
-					onclick={() => storeNavigation.goto("lobbies")}
-				>
-					Browse Lobbies
-				</button>
-
-				<div class="grid w-full grid-cols-4 gap-1.5">
+				<div class="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5">
 					{#each HUB_TILES as tile}
 						<button
-							class="hub-tile pixel-bordered flex flex-col items-center gap-0.5 py-2 text-center
+							class="hub-tile pixel-bordered flex w-24 items-center gap-2 px-2 py-1.5 text-left
 							       {tile.action ? '' : 'opacity-50'}"
 							style="--pc-fill: var(--surface); --pc-border: var(--border);"
 							aria-disabled={!tile.action}
 							onclick={() => tile.action?.()}
 							aria-label="{tile.label}{tile.badge ? `, ${tile.badge}` : ''}"
 						>
-							<i class="hn pix {tile.icon} text-base {tile.accent}"></i>
-							<span class="font-tiny text-[0.55rem] leading-tight text-text-h">{tile.label}</span>
+							<i class="hn pix {tile.icon} shrink-0 text-sm {tile.accent}"></i>
+							<span class="font-tiny text-[0.6rem] leading-tight text-text-h">{tile.label}</span>
 						</button>
 					{/each}
 				</div>
 			{/if}
 		</div>
+
+		<!-- Bottom row: site links and socials on one line across the full width.
+		     Right padding keeps the last social icon clear of the chat launcher. -->
+		<footer
+			class="flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 pb-1.5 pr-16"
+		>
+			<nav
+				class="flex flex-wrap items-center gap-x-3 gap-y-1 font-tiny text-[0.7rem] text-text/50"
+				aria-label="Site links"
+			>
+				<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
+				<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
+				<a href="/about.html" class="transition-colors hover:text-accent">About</a>
+				<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+				<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+			</nav>
+			<nav class="flex items-center gap-2.5" aria-label="Social links">
+				{#each SOCIAL_LINKS as link}
+					<a
+						href={link.href}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="social-icon"
+						aria-label={link.label}
+					>
+						<img src="/assets/social/{link.img}" alt={link.label} width="22" height="22" />
+					</a>
+				{/each}
+			</nav>
+		</footer>
 	</div>
 </div>
 
@@ -348,11 +359,19 @@
 		font-size: clamp(4rem, 26vw, 10rem);
 	}
 
-	/* Mobile-landscape logo: scales off the shorter dimension (height) since
-	   the column is height-constrained, not width-constrained, on a rotated
-	   phone. */
-	:global(.logo-text.title-hero-landscape) {
-		font-size: clamp(2.25rem, 16vh, 4rem);
+	/* Mobile landscape keeps .title-hero (and its white fill) and only retunes
+	   the size, scaling off height — the axis that's actually scarce on a
+	   rotated phone — rather than the portrait rule's viewport width. */
+	:global(.logo-text.title-hero.title-hero-landscape) {
+		font-size: clamp(2.25rem, 17vh, 4.5rem);
+	}
+
+	/* Same aura as the portrait halo, sized against the short axis so it stays
+	   proportional to the smaller landscape logo instead of flooding the row. */
+	.dither-halo-landscape {
+		width: clamp(14rem, 62vh, 26rem);
+		height: clamp(14rem, 62vh, 26rem);
+		image-rendering: pixelated;
 	}
 
 	/* Square halo, generously oversized relative to the logo text so it reads
