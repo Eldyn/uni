@@ -106,7 +106,7 @@
 
 		<div class="panel pixel-corners flex flex-col p-3 shadow-[inset_0_0_0_4px_#333] sm:p-5">
 			<h3
-				class="pypx-thick mb-3 text-base text-accent [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
+				class="mb-3 text-center font-pixel text-base text-accent [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
 			>
 				TOP 50 PLAYERS
 			</h3>
@@ -195,9 +195,9 @@
 	}
 
 	/* Pypx at 800 — the thick cut (pypx-thick.woff2), the heaviest face the
-	   family ships. Carries the numbers and rank callouts (the #1 badge, the
-	   list heading, each row's W-L) so the scoring reads as scoreboard type
-	   against the lighter --tiny face used for player names. */
+	   family ships. Carries the rank callouts (the #1 badge, each row's W-L) so
+	   the scoring reads as scoreboard type against the lighter --tiny face used
+	   for player names. */
 	.pypx-thick {
 		font-family: var(--pypx);
 		font-weight: 800;
