@@ -217,7 +217,20 @@ export class WebSocketClient {
 
 	on(action: ServerActionDef | "*", handler: MessageHandler): () => void {
 		if (!this.onHandlers.has(action)) this.onHandlers.set(action, new Set());
-		this.onHandlers.get(action)!.add(handler);
+		const handlers = this.onHandlers.get(action)!;
+
+		// Every duplicate-delivery bug in this codebase has had the same shape: a
+		// second handler for an action that should only ever have one, registered
+		// by a store that discarded its unsubscribe. "*" is exempt because
+		// middleware legitimately stacks there.
+		if (import.meta.env.DEV && action !== "*" && handlers.size >= 1) {
+			console.warn(
+				`[ws] "${action}" now has ${handlers.size + 1} handlers. ` +
+					`If this is not deliberate, a previous registration was never unsubscribed.`
+			);
+		}
+
+		handlers.add(handler);
 		return () => this.onHandlers.get(action)?.delete(handler);
 	}
 
