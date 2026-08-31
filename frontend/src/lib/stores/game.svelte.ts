@@ -399,6 +399,8 @@ class StoreGame implements SessionStore {
 	 * a fresh match does not briefly render an expired timer.
 	 */
 	reset(): void {
+		this.#clearTimer();
+		this.#clearActionPending();
 		this.state = null;
 		this.actionRequired = null;
 		this.actionContext = null;

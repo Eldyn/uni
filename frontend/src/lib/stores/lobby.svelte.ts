@@ -639,6 +639,7 @@ class StoreLobby implements SessionStore {
 	 * `#listenersRegistered` and registered once per module lifetime).
 	 */
 	reset(): void {
+		this.#disarmMatchRedirect();
 		this.current = null;
 		this.available = [];
 		this.savedMatches = null;
