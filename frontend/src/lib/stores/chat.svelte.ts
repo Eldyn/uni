@@ -105,6 +105,7 @@ class StoreChat implements SessionStore {
 	private unread = $state<Record<string, number>>({});
 
 	#listenersRegistered = false;
+	#unsubscribers: Array<() => void> = [];
 	#composerErrorTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor() {
@@ -118,10 +119,12 @@ class StoreChat implements SessionStore {
 			// localStorage unavailable or drafts payload malformed, start empty.
 		}
 
-		this.#registerListeners();
-		ws.onOpen(() => {
-			ws.emit(ClientAction.FriendListRequest);
-		});
+		this.registerListeners();
+		this.#unsubscribers.push(
+			ws.onOpen(() => {
+				ws.emit(ClientAction.FriendListRequest);
+			})
+		);
 	}
 
 	get friends(): ChatFriend[] {
@@ -416,24 +419,38 @@ class StoreChat implements SessionStore {
 		}
 	}
 
-	#registerListeners(): void {
+	/**
+	 * @brief Removes every WebSocket registration this store made.
+	 *
+	 * Clears the registration guard too, so `registerListeners()` can re-establish
+	 * them afterwards without duplicating.
+	 */
+	dispose(): void {
+		for (const unsubscribe of this.#unsubscribers) unsubscribe();
+		this.#unsubscribers = [];
+		this.#listenersRegistered = false;
+	}
+
+	registerListeners(): void {
 		if (this.#listenersRegistered) return;
 		this.#listenersRegistered = true;
 
-		ws.on(ServerAction.ChatMessage, (data) => {
-			const username = data.username as string;
-			const message = data.message as string;
-			const channel = data.channel as string;
-			const target = data.target as string | undefined;
-			const line = makeLine(username, message);
+		this.#unsubscribers.push(
+			ws.on(ServerAction.ChatMessage, (data) => {
+				const username = data.username as string;
+				const message = data.message as string;
+				const channel = data.channel as string;
+				const target = data.target as string | undefined;
+				const line = makeLine(username, message);
 
-			if (channel === "global") this.receiveLine("global", line);
-			else if (channel === "lobby") this.receiveLine("party", line);
-			else if (channel === "dm") {
-				const other = username === storeAuth.username ? target : username;
-				if (other) this.receiveLine({ friendId: other }, line);
-			}
-		});
+				if (channel === "global") this.receiveLine("global", line);
+				else if (channel === "lobby") this.receiveLine("party", line);
+				else if (channel === "dm") {
+					const other = username === storeAuth.username ? target : username;
+					if (other) this.receiveLine({ friendId: other }, line);
+				}
+			})
+		);
 
 		// Unsolicited push on join (see ChatController::OnOpen /
 		// CHAT_GLOBAL_HISTORY_ON_JOIN), replaces #global outright rather than
@@ -444,33 +461,39 @@ class StoreChat implements SessionStore {
 		// the on-join snapshot" from "this is a shard response someone already
 		// handled", without it, an in-flight loadMoreHistory("global") would
 		// have its #prepend() result immediately clobbered by this handler.
-		ws.on(ServerAction.ChatHistory, (data) => {
-			if (data.request_id || data.channel !== "global") return;
-			const messages =
-				(data.messages as Array<{ id: number; username: string; message: string }>) ?? [];
-			this.#global = messages.map((m) => makeLine(m.username, m.message, m.id));
-			this.#hasMore = { ...this.#hasMore, global: (data.has_more as boolean) ?? false };
-		});
+		this.#unsubscribers.push(
+			ws.on(ServerAction.ChatHistory, (data) => {
+				if (data.request_id || data.channel !== "global") return;
+				const messages =
+					(data.messages as Array<{ id: number; username: string; message: string }>) ?? [];
+				this.#global = messages.map((m) => makeLine(m.username, m.message, m.id));
+				this.#hasMore = { ...this.#hasMore, global: (data.has_more as boolean) ?? false };
+			})
+		);
 
-		ws.on(ServerAction.FriendList, (data) => {
-			const friends = (data.friends as Array<{ username: string; online: boolean }>) ?? [];
-			this.#friends = friends.map((f) => ({
-				username: f.username,
-				status: f.online ? "online" : "offline",
-				color: colorFor(f.username)
-			}));
-			this.incomingRequests = (data.incoming_requests as string[]) ?? [];
-			this.outgoingRequests = (data.outgoing_requests as string[]) ?? [];
-		});
+		this.#unsubscribers.push(
+			ws.on(ServerAction.FriendList, (data) => {
+				const friends = (data.friends as Array<{ username: string; online: boolean }>) ?? [];
+				this.#friends = friends.map((f) => ({
+					username: f.username,
+					status: f.online ? "online" : "offline",
+					color: colorFor(f.username)
+				}));
+				this.incomingRequests = (data.incoming_requests as string[]) ?? [];
+				this.outgoingRequests = (data.outgoing_requests as string[]) ?? [];
+			})
+		);
 
 		// Fire-and-forget actions (chat_send) send an empty request_id on
 		// failure, so their errors arrive unsolicited rather than through
 		// emitAndWait, only surface them while the composer is visible.
-		ws.on(ServerAction.Error, (data) => {
-			if (!this.isOpen) return;
-			const text = errorText(data.code as string | undefined, data.detail as string | undefined);
-			if (text) this.#showComposerError(text);
-		});
+		this.#unsubscribers.push(
+			ws.on(ServerAction.Error, (data) => {
+				if (!this.isOpen) return;
+				const text = errorText(data.code as string | undefined, data.detail as string | undefined);
+				if (text) this.#showComposerError(text);
+			})
+		);
 	}
 }
 
