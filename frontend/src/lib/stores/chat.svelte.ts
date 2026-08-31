@@ -6,6 +6,7 @@
  * `friend_list_request`/`friend_list`/`friend_request`/`friend_response`.
  */
 
+import type { SessionStore } from "$stores/sessionStore";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeLobby } from "./lobby.svelte";
 import { storeToast } from "./toast.svelte";
@@ -61,7 +62,7 @@ function makeLine(username: string, text: string, serverId?: number): ChatLine {
 	return { id: `srv-${++nextLineId}`, serverId, username, color: colorFor(username), text };
 }
 
-class StoreChat {
+class StoreChat implements SessionStore {
 	/** Whether the chat dock panel is expanded. */
 	isOpen = $state(false);
 	/**
@@ -377,6 +378,42 @@ class StoreChat {
 		this.#composerErrorTimer = setTimeout(() => {
 			this.composerError = "";
 		}, COMPOSER_ERROR_DURATION_MS);
+	}
+
+	/**
+	 * @brief Clears every piece of session-scoped chat state.
+	 *
+	 * Handler registrations are deliberately left in place: they are registered
+	 * once per module lifetime and guarded by `#listenersRegistered`, so removing
+	 * them here would leave the next session with no chat at all. Persisted
+	 * drafts in localStorage are also left alone, since they are keyed to the
+	 * device rather than the account.
+	 */
+	reset(): void {
+		this.isOpen = false;
+		this.dockHeight = 0;
+		this.activeChannel = "global";
+		this.composerError = "";
+
+		this.#global = [];
+		this.#party = [];
+		this.#friendThreads = {};
+		this.#hydratedThreads.clear();
+		this.#hasMore = { global: true, party: true };
+		this.#loadingMore = {};
+		this.#partyHydratedLobby = null;
+
+		this.#friends = [];
+		this.incomingRequests = [];
+		this.outgoingRequests = [];
+
+		this.drafts = {};
+		this.unread = {};
+
+		if (this.#composerErrorTimer) {
+			clearTimeout(this.#composerErrorTimer);
+			this.#composerErrorTimer = null;
+		}
 	}
 
 	#registerListeners(): void {
