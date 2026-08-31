@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import type { SessionStore } from "$stores/sessionStore";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
@@ -115,7 +116,7 @@ export interface LastPlay {
  * @class StoreGame
  * @brief Synchronizes the frontend state with the server Game Engine in real time.
  */
-class StoreGame {
+class StoreGame implements SessionStore {
 	/** The current state of the match (players, deck, cards on the table). */
 	state = $state<GameState | null>(null);
 	/** Action the engine is waiting for (Action enum value), or null if none. */
@@ -389,6 +390,20 @@ class StoreGame {
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
 		storeAudio.playSfx("sfx.action.submit-input");
 		ws.emit(ClientAction.MatchSubmitInput, { value: value });
+	}
+
+	/**
+	 * @brief Clears session-scoped match state.
+	 *
+	 * `turnTimeRemaining` returns to its constructed default rather than zero, so
+	 * a fresh match does not briefly render an expired timer.
+	 */
+	reset(): void {
+		this.state = null;
+		this.actionRequired = null;
+		this.actionContext = null;
+		this.isActionPending = false;
+		this.turnTimeRemaining = 15;
 	}
 }
 

@@ -4,6 +4,7 @@
  * Interfaces with the REST backend to retrieve the user's data and the Top 50.
  */
 
+import type { SessionStore } from "$stores/sessionStore";
 import { storeToast } from "./toast.svelte";
 
 /**
@@ -65,7 +66,7 @@ export interface PlayerStats {
  * @class StoreStats
  * @brief Encapsulates the state and methods to retrieve statistics from the server.
  */
-class StoreStats {
+class StoreStats implements SessionStore {
 	/** Reactive state containing the personal statistics of the logged-in user. */
 	myStats = $state<PlayerStats | null>(null);
 
@@ -123,6 +124,13 @@ class StoreStats {
 		} finally {
 			this.isLoading = false;
 		}
+	}
+
+	/** @brief Clears the previous account's stats and cached leaderboard. */
+	reset(): void {
+		this.myStats = null;
+		this.leaderboard = [];
+		this.isLoading = false;
 	}
 }
 

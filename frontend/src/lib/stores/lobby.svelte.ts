@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import type { SessionStore } from "$stores/sessionStore";
 import { failureText } from "./errors";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
@@ -188,7 +189,7 @@ function parseLobby(raw: unknown): Lobby | null {
  * @class StoreLobby
  * @brief Singleton store that manages all lobby-related state and the associated WebSocket interactions.
  */
-class StoreLobby {
+class StoreLobby implements SessionStore {
 	/** Saved matches compatible with the current player list. Null if not in a lobby. */
 	savedMatches = $state<SavedMatch[] | null>(null);
 	/** The lobby the user is currently in. Null if not in a lobby. */
@@ -629,6 +630,23 @@ class StoreLobby {
 	#reset(): void {
 		this.current = null;
 		localStorage.removeItem("lobby_code");
+	}
+
+	/**
+	 * @brief Clears session-scoped lobby state.
+	 *
+	 * WebSocket handlers stay registered (they are guarded by
+	 * `#listenersRegistered` and registered once per module lifetime).
+	 */
+	reset(): void {
+		this.current = null;
+		this.available = [];
+		this.savedMatches = null;
+		this.isLoadingList = false;
+		this.isLoadingJoin = false;
+		this.isLoadingStart = false;
+		this.isLoadingSavedMatchList = false;
+		this.listError = false;
 	}
 }
 
