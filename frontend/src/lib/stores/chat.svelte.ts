@@ -127,6 +127,11 @@ class StoreChat {
 		return this.#friends;
 	}
 
+	/** Read-only view of the global thread, for consumers and tests. */
+	get global(): ChatLine[] {
+		return this.#global;
+	}
+
 	/** True when the socket has joined a lobby, gates the party tab/send. */
 	get isPartyAvailable(): boolean {
 		return !!storeLobby.current?.invite_code;
