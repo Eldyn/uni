@@ -41,4 +41,25 @@ describe("session resets", () => {
 
 		expect(chatReset).toHaveBeenCalledTimes(1);
 	});
+
+	it("isolates each store's reset: one throwing must not skip the others", async () => {
+		chatReset.mockImplementation(() => {
+			throw new Error("boom");
+		});
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const { storeAuth } = await import("$lib/stores/auth.svelte");
+		const { installSessionResets } = await import("$lib/stores/session");
+
+		installSessionResets();
+		(storeAuth as unknown as { setLoggedOut: () => void }).setLoggedOut();
+
+		expect(chatReset).toHaveBeenCalledTimes(1);
+		expect(lobbyReset).toHaveBeenCalledTimes(1);
+		expect(gameReset).toHaveBeenCalledTimes(1);
+		expect(statsReset).toHaveBeenCalledTimes(1);
+		expect(errorSpy).toHaveBeenCalledTimes(1);
+
+		errorSpy.mockRestore();
+	});
 });

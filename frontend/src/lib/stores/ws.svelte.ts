@@ -33,6 +33,20 @@ export type ServerActionDef = ServerActionType | string;
 export type MessageHandler = (data: Record<string, unknown>) => void;
 
 /**
+ * Actions known to legitimately carry more than one handler, exempted from
+ * the dev-only duplicate-handler warning in `on()`.
+ */
+const MULTI_HANDLER_EXEMPT_ACTIONS = new Set<string>([
+	// App.svelte's boot-time analytics/toast handler and chat.svelte.ts's
+	// composer-error handler are both permanent and both register at boot.
+	"error",
+	// game.svelte.ts's permanent match-state handler and lobby.svelte.ts's
+	// transient #armMatchRedirect handler (rearmed on every rejoin/match start)
+	// legitimately coexist.
+	"match_state_updated"
+]);
+
+/**
  * @interface ConnectionStatus
  * @brief Represents the reactive state of the WebSocket connection.
  */
@@ -222,8 +236,15 @@ export class WebSocketClient {
 		// Every duplicate-delivery bug in this codebase has had the same shape: a
 		// second handler for an action that should only ever have one, registered
 		// by a store that discarded its unsubscribe. "*" is exempt because
-		// middleware legitimately stacks there.
-		if (import.meta.env.DEV && action !== "*" && handlers.size >= 1) {
+		// middleware legitimately stacks there. A few other actions are known to
+		// legitimately carry more than one permanent/transient handler; don't
+		// delete these without re-checking their call sites first.
+		if (
+			import.meta.env.DEV &&
+			action !== "*" &&
+			!MULTI_HANDLER_EXEMPT_ACTIONS.has(action) &&
+			handlers.size >= 1
+		) {
 			console.warn(
 				`[ws] "${action}" now has ${handlers.size + 1} handlers. ` +
 					`If this is not deliberate, a previous registration was never unsubscribed.`

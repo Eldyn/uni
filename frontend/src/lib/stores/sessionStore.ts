@@ -10,11 +10,14 @@
  */
 export interface SessionStore {
 	/**
-	 * Returns the store to its constructed state.
+	 * Restores the store's session-scoped state (the fields particular to the
+	 * logged-in session) to its constructed defaults.
 	 *
-	 * Clears session data only. WebSocket handler registrations are NOT
-	 * removed: they are registered once for the lifetime of the module and
-	 * must survive a session change, or the next session receives nothing.
+	 * This interface makes no guarantee about WebSocket handler registration
+	 * lifecycle one way or the other — that's each implementation's own
+	 * concern, and is documented on that implementation's `reset()` (and,
+	 * where relevant, on its own separate teardown method, e.g.
+	 * `chatStore.dispose()`) rather than here.
 	 */
 	reset(): void;
 }

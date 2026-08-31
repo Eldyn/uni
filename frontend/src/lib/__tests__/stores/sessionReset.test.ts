@@ -35,6 +35,15 @@ describe("storeLobby.reset", () => {
 		expect(storeLobby.isLoadingSavedMatchList).toBe(false);
 		expect(storeLobby.listError).toBe(false);
 	});
+
+	it("removes the persisted lobby_code so a reconnect can't rejoin the previous account's lobby", async () => {
+		const { storeLobby } = await import("$lib/stores/lobby.svelte");
+
+		localStorage.setItem("lobby_code", "ABCD12");
+		storeLobby.reset();
+
+		expect(localStorage.getItem("lobby_code")).toBeNull();
+	});
 });
 
 describe("storeGame.reset", () => {

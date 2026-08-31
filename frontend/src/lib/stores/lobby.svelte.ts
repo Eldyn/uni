@@ -522,9 +522,7 @@ class StoreLobby implements SessionStore {
 				// last fetchList(), but track full/open live from the member count.
 				if (this.available[idx].status !== "in-game") {
 					this.available[idx].status =
-						updatedLobby.members.length >= updatedLobby.settings.max_players
-							? "full"
-							: "open";
+						updatedLobby.members.length >= updatedLobby.settings.max_players ? "full" : "open";
 				}
 			}
 
@@ -637,10 +635,13 @@ class StoreLobby implements SessionStore {
 	 *
 	 * WebSocket handlers stay registered (they are guarded by
 	 * `#listenersRegistered` and registered once per module lifetime).
+	 * Delegates to `#reset()` for the `current`/localStorage cleanup so the
+	 * stored `lobby_code` never survives into the next session (it would
+	 * otherwise arm a rejoin attempt against the previous account's lobby).
 	 */
 	reset(): void {
 		this.#disarmMatchRedirect();
-		this.current = null;
+		this.#reset();
 		this.available = [];
 		this.savedMatches = null;
 		this.isLoadingList = false;

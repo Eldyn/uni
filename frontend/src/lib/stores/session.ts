@@ -27,6 +27,12 @@ export function installSessionResets(): void {
 	installed = true;
 
 	storeAuth.onLoggedOut(() => {
-		for (const store of sessionStores) store.reset();
+		for (const store of sessionStores) {
+			try {
+				store.reset();
+			} catch (e) {
+				console.error("Session store reset failed:", e);
+			}
+		}
 	});
 }

@@ -334,10 +334,7 @@ class StoreChat implements SessionStore {
 				"messages",
 				[]
 			);
-			this.#party = [
-				...messages.map((m) => makeLine(m.username, m.message, m.id)),
-				...this.#party
-			];
+			this.#party = [...messages.map((m) => makeLine(m.username, m.message, m.id)), ...this.#party];
 			this.#hasMore = { ...this.#hasMore, party: res.getOr<boolean>("has_more", false) };
 		} catch {
 			this.#partyHydratedLobby = null;
@@ -386,11 +383,12 @@ class StoreChat implements SessionStore {
 	/**
 	 * @brief Clears every piece of session-scoped chat state.
 	 *
-	 * Handler registrations are deliberately left in place: they are registered
-	 * once per module lifetime and guarded by `#listenersRegistered`, so removing
-	 * them here would leave the next session with no chat at all. Persisted
-	 * drafts in localStorage are also left alone, since they are keyed to the
-	 * device rather than the account.
+	 * This method deliberately leaves WebSocket handler registrations in
+	 * place: `dispose()` is the separate method that removes them. Persisted
+	 * global/party drafts in localStorage are also left alone, since they are
+	 * keyed to the device rather than the account; DM drafts, however, are
+	 * account-scoped (keyed by the other account's username), so those are
+	 * stripped from the persisted draft map below.
 	 */
 	reset(): void {
 		this.isOpen = false;
@@ -416,6 +414,29 @@ class StoreChat implements SessionStore {
 		if (this.#composerErrorTimer) {
 			clearTimeout(this.#composerErrorTimer);
 			this.#composerErrorTimer = null;
+		}
+
+		this.#stripPersistedDmDrafts();
+	}
+
+	/**
+	 * @brief Removes DM-channel drafts from the persisted localStorage draft
+	 * map, since they're keyed by the other account's username and so leak
+	 * into the next session. Global/party drafts stay, since those are
+	 * keyed to the device rather than the account.
+	 */
+	#stripPersistedDmDrafts(): void {
+		try {
+			const raw = localStorage.getItem(DRAFTS_STORAGE_KEY);
+			if (!raw) return;
+
+			const stored = JSON.parse(raw) as Record<string, string>;
+			const filtered = Object.fromEntries(
+				Object.entries(stored).filter(([key]) => !key.startsWith("friend:"))
+			);
+			localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(filtered));
+		} catch {
+			// localStorage unavailable or corrupt, nothing to clean up.
 		}
 	}
 

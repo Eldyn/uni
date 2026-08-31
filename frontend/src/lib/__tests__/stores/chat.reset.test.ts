@@ -77,4 +77,18 @@ describe("chatStore.reset", () => {
 
 		expect(handlers["chat_message"]).toHaveLength(1);
 	});
+
+	it("strips DM drafts but keeps global/party drafts in localStorage", async () => {
+		const { chatStore } = await import("$lib/stores/chat.svelte");
+
+		localStorage.setItem(
+			"uni:chat:drafts",
+			JSON.stringify({ global: "gg wp", party: "ready?", "friend:nyx": "hey there" })
+		);
+
+		chatStore.reset();
+
+		const stored = JSON.parse(localStorage.getItem("uni:chat:drafts") ?? "{}");
+		expect(stored).toEqual({ global: "gg wp", party: "ready?" });
+	});
 });

@@ -31,4 +31,15 @@ describe("ws duplicate handler detector", () => {
 
 		expect(warn).not.toHaveBeenCalled();
 	});
+
+	it("does not warn for actions exempted as legitimately multi-handler", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		ws.on("error" as never, vi.fn());
+		ws.on("error" as never, vi.fn());
+		ws.on("match_state_updated" as never, vi.fn());
+		ws.on("match_state_updated" as never, vi.fn());
+
+		expect(warn).not.toHaveBeenCalled();
+	});
 });
