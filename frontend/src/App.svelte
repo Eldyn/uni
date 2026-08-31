@@ -31,6 +31,7 @@
 	// with the lazy GameScreen chunk and miss the match's first state broadcast,
 	// leaving the board empty (rebeccapurple playmat, no cards).
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
+	import { installSessionResets } from "$stores/session";
 
 	let _unsubError: (() => void) | null = null;
 
@@ -41,6 +42,7 @@
 	});
 
 	onMount(async () => {
+		installSessionResets();
 		storeAudio.init();
 
 		// Local screenshot harness: `?dev=match&players=N` renders a synthetic
@@ -104,10 +106,13 @@
 
 <div id="app">
 	<Toast />
+	<!-- Both sit in the match board's own bottom-left corner, which the local
+	     hand row now reaches into on every viewport — the stamp is reference
+	     information, not something worth printing over the player's cards. -->
 	{#if storeNavigation.current !== "game"}
 		<ChatDock />
+		<span class="version-badge">v{__APP_VERSION__}</span>
 	{/if}
-	<span class="version-badge">v{__APP_VERSION__}</span>
 
 	{#if storeNavigation.current === "main"}
 		<MainScreen />

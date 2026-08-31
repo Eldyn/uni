@@ -42,6 +42,7 @@ class StoreAuth {
 	isGuest = $state(false);
 	/** Flag to show the loading indicators (spinners) during HTTP calls. */
 	isLoading = $state(false);
+	#loggedOutHandlers = new Set<() => void>();
 
 	/**
 	 * @brief Called on app startup to restore a pre-existing session.
@@ -261,7 +262,7 @@ class StoreAuth {
 			storeToast.error("Logout failed, please try again.");
 			return;
 		}
-		this.#setLoggedOut();
+		this.setLoggedOut();
 		await this.#resyncSocket();
 		storeAnalytics.track("logout");
 		storeNavigation.goto("main");
@@ -287,11 +288,31 @@ class StoreAuth {
 		this.isGuest = false;
 	}
 
-	#setLoggedOut(): void {
+	/**
+	 * @brief Registers a callback fired after the session ends.
+	 *
+	 * A registry rather than direct imports of the session stores: chat.svelte.ts
+	 * already imports this module, so importing back would be circular.
+	 * @returns An unsubscribe function.
+	 */
+	onLoggedOut(handler: () => void): () => void {
+		this.#loggedOutHandlers.add(handler);
+		return () => this.#loggedOutHandlers.delete(handler);
+	}
+
+	setLoggedOut(): void {
 		this.username = "";
 		this.avatar = "";
 		this.isLoggedIn = false;
 		this.isGuest = false;
+
+		for (const handler of this.#loggedOutHandlers) {
+			try {
+				handler();
+			} catch (e) {
+				console.error("onLoggedOut handler failed:", e);
+			}
+		}
 	}
 }
 
