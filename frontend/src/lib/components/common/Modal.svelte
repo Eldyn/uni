@@ -84,7 +84,7 @@
 </script>
 
 {#if open}
-	<div class="modal-overlay {overlayClass}" role="presentation" onclick={handleOverlayClick}>
+	<div class="modal-overlay dither-4 {overlayClass}" role="presentation" onclick={handleOverlayClick}>
 		<div
 			class="modal-content {contentClass}"
 			role="dialog"

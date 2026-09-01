@@ -16,18 +16,15 @@ beforeAll(() => {
 	sheet = styleEl.sheet as CSSStyleSheet;
 });
 
-function findRule(selectorSubstring: string): CSSStyleRule | undefined {
+function findRule(selector: string): CSSStyleRule | undefined {
 	for (const rule of Array.from(sheet.cssRules)) {
-		if (rule instanceof CSSStyleRule && rule.selectorText?.includes(selectorSubstring)) {
+		if (rule instanceof CSSStyleRule && rule.selectorText === selector) {
 			return rule;
 		}
 		// Search recursively through nested rules (e.g., @layer blocks)
 		if ("cssRules" in rule) {
 			for (const nestedRule of Array.from((rule as any).cssRules)) {
-				if (
-					nestedRule instanceof CSSStyleRule &&
-					nestedRule.selectorText?.includes(selectorSubstring)
-				) {
+				if (nestedRule instanceof CSSStyleRule && nestedRule.selectorText === selector) {
 					return nestedRule;
 				}
 			}

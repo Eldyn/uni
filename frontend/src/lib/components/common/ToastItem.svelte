@@ -162,7 +162,7 @@
 		font-size: 14px;
 		background: var(--surface);
 		color: var(--text-h);
-		box-shadow: var(--shadow);
+		box-shadow: var(--elevation-2);
 		animation: slideIn 0.3s ease-out;
 		pointer-events: auto;
 		max-width: 400px;

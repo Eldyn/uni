@@ -107,7 +107,7 @@
 	.card {
 		display: inline-block;
 		border-radius: 0.8em;
-		box-shadow: var(--lowShadow);
+		box-shadow: var(--elevation-1);
 		transition:
 			transform 200ms ease,
 			box-shadow 200ms ease,
@@ -178,7 +178,7 @@
 	:global(.player_hand) .card:not(.card--turned):hover {
 		transform-origin: left bottom;
 		transform: rotate(-10deg) translateY(-0.7em);
-		box-shadow: var(--lowShadowHover);
+		box-shadow: var(--elevation-1);
 		z-index: 50;
 	}
 

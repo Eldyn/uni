@@ -194,7 +194,7 @@
 							if (e.key === "Enter" || e.key === " ") handleSeatMenu(member, e);
 						}}
 					>
-						<div class="absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--lowShadow)]">
+						<div class="absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]">
 							<img
 								src="/assets/cards/background.png"
 								alt=""
@@ -267,7 +267,7 @@
 						style="aspect-ratio: 1 / 1.5357; --card-color: {color};"
 					>
 						<div
-							class="seat-empty absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--lowShadow)]"
+							class="seat-empty absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]"
 							style="filter: grayscale(0.55) brightness(0.85);"
 							use:syncPulse
 						>

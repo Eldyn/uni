@@ -9,6 +9,15 @@
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 	}
+
+	/* The global :focus-visible rule draws an outline at the border edge, which
+	   the clip-path above then clips away, leaving keyboard focus invisible on
+	   every plain button. An inset box-shadow draws inside the clipped shape
+	   instead, so it survives. */
+	button:not(.pixel-bordered):focus-visible {
+		outline:none;
+		box-shadow: inset 0 0 0 2px var(--accent);
+	}
 }
 
 @font-face {
@@ -644,15 +653,6 @@ button:not(.pixel-bordered) {
 	clip-path: var(--notch-clip);
 }
 
-/* The global :focus-visible rule draws an outline at the border edge, which
-   the clip-path above then clips away, leaving keyboard focus invisible on
-   every plain button. An inset box-shadow draws inside the clipped shape
-   instead, so it survives. */
-button:not(.pixel-bordered):focus-visible {
-	outline:none;
-	box-shadow: inset 0 0 0 2px var(--accent);
-}
-
 h1,
 h2,
 h3,
@@ -666,10 +666,10 @@ h6 {
 }
 
 h1 {
-	font-size: var(--text-hero);
+	font-size: var(--text-display);
 }
 h2 {
-	font-size: var(--text-display);
+	font-size: var(--text-title);
 	margin-bottom: 0.5rem;
 }
 h3 {
