@@ -115,6 +115,10 @@ export default defineConfig(({ mode }) => {
 		},
 		test: {
 			environment: "jsdom",
+			// Components' scoped <style> blocks are emitted as separate CSS
+			// modules; without this, Vitest stubs those imports to empty and
+			// no component styles ever reach jsdom's getComputedStyle.
+			css: true,
 			globals: true,
 			setupFiles: ["./src/lib/__tests__/setup.ts"],
 			include: ["src/**/*.{test,spec}.{ts,svelte.ts}"]

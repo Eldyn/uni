@@ -45,7 +45,7 @@
 			/>
 			{#if frac > 0}
 				<div
-					class="absolute inset-0 overflow-hidden"
+					class="clip-fill absolute inset-0 overflow-hidden"
 					style="clip-path: inset(0 {(1 - frac) * 100}% 0 0);"
 				>
 					<TintedSprite src="/assets/base_player.gif" color={randomColor()} fit="contain" />
@@ -54,3 +54,14 @@
 		</div>
 	{/each}
 </div>
+
+<style>
+	/* `sizeClass` sizes this gauge's icons responsively (36-48px depending on
+	   card width) — no fixed TintedSprite step matches, so keep it filling
+	   its clip-path wrapper like before. Overrides TintedSprite's inline
+	   width/height, hence !important. */
+	.clip-fill :global(.tinted-sprite) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+</style>

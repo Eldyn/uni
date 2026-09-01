@@ -389,4 +389,13 @@
 			opacity: 0.7;
 		}
 	}
+
+	/* Seat cards are responsively sized (w-32/36/44) and TintedSprite here
+	   fills either the seat's avatar cutout or the whole card as a border
+	   overlay — no fixed step matches, so keep it filling its wrapper like
+	   before. Overrides TintedSprite's inline width/height, hence !important. */
+	.seat-card :global(.tinted-sprite) {
+		width: 100% !important;
+		height: 100% !important;
+	}
 </style>

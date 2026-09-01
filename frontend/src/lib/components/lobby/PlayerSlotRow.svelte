@@ -34,7 +34,7 @@
 	{#each Array(humans) as _}
 		<div class={sizeClass} title={labeled ? "Player" : undefined}>
 			{#if labeled}<span class="sr-only">Player</span>{/if}
-			<TintedSprite src="/assets/base_player.gif" color={humanColor()} fit="contain" />
+			<TintedSprite src="/assets/base_player.gif" color={humanColor()} fit="contain" size={16} />
 		</div>
 	{/each}
 	{#each Array(bots) as _}

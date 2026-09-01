@@ -147,6 +147,16 @@
 		pointer-events: none;
 	}
 
+	/* TintedSprite now defaults to a fixed icon size (16/32/48/64px), but here
+	   it's stretched as a full-bleed mask over the card's own (non-square,
+	   responsively-sized) art — no fixed step fits, so it keeps filling
+	   .layer-mask like before. Overrides TintedSprite's inline width/height,
+	   hence !important. */
+	.layer-mask :global(.tinted-sprite) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
 	.layer-text {
 		position: absolute;
 		inset: 0;

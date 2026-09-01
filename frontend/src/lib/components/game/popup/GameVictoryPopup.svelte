@@ -50,7 +50,7 @@
 	<div class="avatar-stage">
 		<div class="avatar-glow"></div>
 		<div class="avatar-frame">
-			<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" />
+			<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" size={64} />
 			<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
 		</div>
 	</div>
@@ -141,6 +141,12 @@
 		position: relative;
 		width: 128px;
 		height: 128px;
+		/* TintedSprite now caps at its largest fixed step (64px) rather than
+		   filling this 128px frame, so centre it — the crown (absolutely
+		   positioned, unaffected by flex) still overlays the full frame. */
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		animation: float 2.2s ease-in-out infinite;
 	}
 	.crown {

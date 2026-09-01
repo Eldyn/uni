@@ -1,12 +1,15 @@
 <script lang="ts">
+	type SpriteSize = 16 | 32 | 48 | 64;
+
 	let {
 		src,
 		color,
 		// Sizing for both the mask and the blended background. Mirrors the
 		// per-site mask-size the masked elements used before (e.g. "100% 100%"
 		// to stretch, "contain" to fit, "cover" by default).
+		size = 32,
 		fit = "cover"
-	}: { src: string; color: string; fit?: string } = $props();
+	}: { src: string; color: string; size?: SpriteSize; fit?: string } = $props();
 </script>
 
 <div
@@ -15,14 +18,22 @@
 		--sprite-img: url('{src}');
 		--sprite-color: {color};
 		--sprite-fit: {fit};
+		width: {size}px;
+		height: {size}px;
 	"
 ></div>
 
 <style>
 	.tinted-sprite {
-		/* Take up 100% of whatever bounding box the parent dictates */
-		width: 100%;
-		height: 100%;
+		/* Sized by the `size` prop (see the component script) to one of a fixed
+		   set of integer steps — pixel art scales by whole multiples only.
+		   image-rendering is set explicitly because the global `img { ... }`
+		   rule in app.css does not reach a masked element. crisp-edges is
+		   declared first as a fallback so the more specific `pixelated`
+		   keyword — which wins the cascade when both are recognized — is
+		   the one actually applied. */
+		image-rendering: crisp-edges;
+		image-rendering: pixelated;
 
 		/* Presentation & Blend engine */
 		background-color: var(--sprite-color);
