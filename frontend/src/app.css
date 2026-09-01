@@ -166,6 +166,17 @@
 	--lowShadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 	--lowShadowHover: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
 
+	/* Spacing scale, 4px base. Every hardcoded padding/margin in a component
+	   is replaced by one of these steps — see the P1b design system plan. */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-12: 48px;
+	--space-16: 64px;
+
 	font-size: 18px;
 	font-family: var(--pixel);
 	letter-spacing: 0;
@@ -251,6 +262,15 @@
 	--color-green-card: var(--greenCard);
 	--color-green-card-light: var(--greenCardLight);
 	--color-black-card: var(--blackCard);
+
+	--spacing-1: var(--space-1);
+	--spacing-2: var(--space-2);
+	--spacing-3: var(--space-3);
+	--spacing-4: var(--space-4);
+	--spacing-6: var(--space-6);
+	--spacing-8: var(--space-8);
+	--spacing-12: var(--space-12);
+	--spacing-16: var(--space-16);
 
 	--font-pixel: var(--pixel);
 	--font-heading: var(--heading);
