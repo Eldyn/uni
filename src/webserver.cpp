@@ -418,6 +418,20 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             res->writeHeader("ETag", etag);
         }
         res->end(ReadFile(bodyPath.string()));
+    } else if (http::IsClientRoute(relativePath)) {
+        // Not a real file, but shaped like a client-side route (no dot in its
+        // final segment) rather than a missing asset — serve the app shell so
+        // client-side routing can take over. A genuinely missing asset
+        // (favicon.ico, a mistyped .js path) still falls through to 404 below.
+        auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
+        if (index_resolved && fs::exists(*index_resolved)) {
+            res->writeHeader("Content-Type", http::GetMimeType("index.html"))
+                ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
+                ->writeHeader("X-Content-Type-Options", "nosniff")
+                ->end(ReadFile(index_resolved->string()));
+        } else {
+            res->writeStatus("404 Not Found")->end("File not found");
+        }
     } else {
         std::error_code ec;
         fs::path logged_path = fs::weakly_canonical(fs::path(frontend_path_) / relativePath, ec);

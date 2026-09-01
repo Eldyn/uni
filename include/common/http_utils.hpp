@@ -23,6 +23,23 @@ namespace http {
 std::string GetMimeType(std::string_view path);
 
 /**
+ * @brief Tells whether an unresolved request path is a client-side route
+ *        that should fall back to index.html, rather than a missing asset
+ *        that should 404.
+ *
+ * A client-side route has no dot in its final path segment (e.g. "browse",
+ * "profile/stats"); a real asset request always does ("index-abc.js",
+ * "favicon.ico"). This only needs to be checked when the literal file was
+ * NOT found on disk — an existing file is always served as itself,
+ * regardless of what this function would say about its path.
+ *
+ * @param relative_path The request path, without the served root, that
+ *        failed to resolve to a real file.
+ * @return bool True if the caller should serve index.html instead of 404.
+ */
+bool IsClientRoute(std::string_view relative_path);
+
+/**
  * @brief Resolves a request path against a served root, guarding against
  *        path traversal.
  *

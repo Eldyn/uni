@@ -21,6 +21,16 @@ std::string GetMimeType(std::string_view path) {
     return "application/octet-stream";
 }
 
+bool IsClientRoute(std::string_view relative_path) {
+    if (relative_path.empty()) return false;
+
+    const auto last_slash = relative_path.find_last_of('/');
+    const std::string_view final_segment =
+        last_slash == std::string_view::npos ? relative_path : relative_path.substr(last_slash + 1);
+
+    return final_segment.find('.') == std::string_view::npos;
+}
+
 std::optional<fs::path> ResolveSafePath(const fs::path& root, std::string_view request_path) {
     std::error_code ec;
     fs::path canonical_root = fs::weakly_canonical(root, ec);
