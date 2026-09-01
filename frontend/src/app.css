@@ -545,6 +545,15 @@ button:not(.pixel-bordered) {
 	clip-path: var(--notch-clip);
 }
 
+/* The global :focus-visible rule draws an outline at the border edge, which
+   the clip-path above then clips away, leaving keyboard focus invisible on
+   every plain button. An inset box-shadow draws inside the clipped shape
+   instead, so it survives. */
+button:not(.pixel-bordered):focus-visible {
+	outline:none;
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 h1,
 h2,
 h3,
