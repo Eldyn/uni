@@ -2,6 +2,7 @@
 	import MainScreen from "./lib/components/MainScreen.svelte";
 	import Toast from "./lib/components/common/Toast.svelte";
 	import ChatDock from "$components/chat/ChatDock.svelte";
+	import ShellFrame from "./lib/components/shell/ShellFrame.svelte";
 
 	// INFO: Screens are lazy-loaded so the site loads fast instead of
 	//       downloading ALL the resources before showing the landing.
@@ -13,7 +14,9 @@
 		game: () => import("./lib/components/game/GameScreen.svelte"),
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
-		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
+		settings: () => import("./lib/components/settings/SettingsScreen.svelte"),
+		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
+		shop: () => import("./lib/components/shop/ShopScreen.svelte")
 	} as const;
 
 	import { onMount, onDestroy } from "svelte";
@@ -114,12 +117,24 @@
 		<span class="version-badge">v{__APP_VERSION__}</span>
 	{/if}
 
-	{#if storeNavigation.current === "main"}
-		<MainScreen />
-	{:else if storeNavigation.current in lazyScreens}
-		{#await lazyScreens[storeNavigation.current as keyof typeof lazyScreens]() then { default: Screen }}
+	{#if storeNavigation.current === "game"}
+		{#await lazyScreens.game() then { default: Screen }}
 			<Screen />
 		{/await}
+	{:else if storeNavigation.current === "main" && !storeAuth.isLoggedIn && !storeAuth.isGuest}
+		<MainScreen />
+	{:else}
+		<ShellFrame>
+			{#snippet children()}
+				{#if storeNavigation.current === "main"}
+					<MainScreen />
+				{:else if storeNavigation.current in lazyScreens}
+					{#await lazyScreens[storeNavigation.current as keyof typeof lazyScreens]() then { default: Screen }}
+						<Screen />
+					{/await}
+				{/if}
+			{/snippet}
+		</ShellFrame>
 	{/if}
 
 	{#if storeNavigation.isAuthModalOpen}
