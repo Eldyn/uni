@@ -16,13 +16,7 @@ import { ws } from "./ws.svelte";
  * @brief List of the screens available in the frontend application.
  */
 export type AppScreen =
-	| "main"
-	| "lobbies"
-	| "lobby"
-	| "game"
-	| "settings"
-	| "stats"
-	| "detailedStats";
+	"main" | "lobbies" | "lobby" | "game" | "settings" | "stats" | "detailedStats" | "decks" | "shop";
 
 const SCREEN_PATHS: Record<AppScreen, string> = {
 	main: "/",
@@ -31,7 +25,9 @@ const SCREEN_PATHS: Record<AppScreen, string> = {
 	game: "/play",
 	settings: "/settings",
 	stats: "/profile/stats",
-	detailedStats: "/profile/stats/all"
+	detailedStats: "/profile/stats/all",
+	decks: "/decks",
+	shop: "/shop"
 };
 
 const PATH_SCREENS: Record<string, AppScreen> = Object.fromEntries(
@@ -86,7 +82,9 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"lobbies",
 	"settings",
 	"stats",
-	"detailedStats"
+	"detailedStats",
+	"decks",
+	"shop"
 ]);
 
 /**
@@ -242,6 +240,12 @@ class StoreNavigation {
 	back(): void {
 		window.history.back();
 	}
+
+	/**
+	 * @brief Placeholder for the settings menu, wired up by NavBar's Menu item.
+	 * TODO: replace with the real implementation.
+	 */
+	openSettings(): void {}
 }
 
 export const storeNavigation = new StoreNavigation();
