@@ -24,6 +24,29 @@ export type AppScreen =
 	| "stats"
 	| "detailedStats";
 
+const SCREEN_PATHS: Record<AppScreen, string> = {
+	main: "/",
+	lobbies: "/browse",
+	lobby: "/lobby",
+	game: "/play",
+	settings: "/settings",
+	stats: "/profile/stats",
+	detailedStats: "/profile/stats/all"
+};
+
+const PATH_SCREENS: Record<string, AppScreen> = Object.fromEntries(
+	Object.entries(SCREEN_PATHS).map(([screen, path]) => [path, screen as AppScreen])
+);
+
+/** Maps a screen to the URL path it should be reachable at. */
+export function pathForScreen(screen: AppScreen): string {
+	return SCREEN_PATHS[screen];
+}
+
+/** Maps a URL path back to its screen, or null if it isn't one of ours. */
+export function screenForPath(path: string): AppScreen | null {
+	return PATH_SCREENS[path] ?? null;
+}
 /**
  * @typedef HistoryState
  * @brief Shape of the object pushed to `window.history` on every navigation,
@@ -100,7 +123,7 @@ class StoreNavigation {
 		// after any in-app navigation lands on that `null` entry, we'd have
 		// nothing to restore from and the *next* back would skip straight past
 		// the app (closing the tab/going to the real previous page).
-		window.history.replaceState(this.#historyState, "");
+		window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
 		window.addEventListener("popstate", this.#onPopState);
 
 		ws.onOpen(() => {
@@ -153,7 +176,7 @@ class StoreNavigation {
 		// browser's own pop, instead of applying an invalid destination.
 		const guard = SCREEN_GUARDS[to];
 		if (guard && !guard()) {
-			window.history.pushState(this.#historyState, "");
+			window.history.pushState(this.#historyState, "", pathForScreen(this.current));
 			return;
 		}
 
@@ -185,7 +208,7 @@ class StoreNavigation {
 			localStorage.setItem("currentScreen", screen);
 		}
 		storeAnalytics.track("screen_view", { screen, account_type: this.#accountType });
-		window.history.pushState(this.#historyState, "");
+		window.history.pushState(this.#historyState, "", pathForScreen(this.current));
 		return true;
 	}
 
@@ -198,7 +221,7 @@ class StoreNavigation {
 	gotoAuth(tab: "login" | "register" = "login"): void {
 		this.authTab = tab;
 		this.isAuthModalOpen = true;
-		window.history.pushState(this.#historyState, "");
+		window.history.pushState(this.#historyState, "", pathForScreen(this.current));
 	}
 
 	/**
@@ -210,7 +233,7 @@ class StoreNavigation {
 	closeAuthModal(): void {
 		if (!this.isAuthModalOpen) return;
 		this.isAuthModalOpen = false;
-		window.history.replaceState(this.#historyState, "");
+		window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
 	}
 
 	/**
