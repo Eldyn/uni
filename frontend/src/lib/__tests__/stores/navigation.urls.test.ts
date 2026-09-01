@@ -8,7 +8,6 @@ describe("pathForScreen / screenForPath", () => {
 		["lobbies", "/browse"],
 		["lobby", "/lobby"],
 		["game", "/play"],
-		["settings", "/settings"],
 		["stats", "/profile/stats"],
 		["detailedStats", "/profile/stats/all"]
 	] satisfies Array<[AppScreen, string]>)("%s maps to %s and back", (screen, path) => {

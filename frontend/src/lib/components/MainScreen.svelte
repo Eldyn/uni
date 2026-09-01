@@ -56,7 +56,7 @@
 			label: "Settings",
 			icon: "hn-cog",
 			accent: "text-accent",
-			action: () => storeNavigation.goto("settings")
+			action: () => storeNavigation.openSettings()
 		}
 	]);
 

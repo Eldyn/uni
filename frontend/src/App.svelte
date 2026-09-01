@@ -14,7 +14,6 @@
 		game: () => import("./lib/components/game/GameScreen.svelte"),
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
-		settings: () => import("./lib/components/settings/SettingsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
 		shop: () => import("./lib/components/shop/ShopScreen.svelte")
 	} as const;
@@ -140,6 +139,12 @@
 	{#if storeNavigation.isAuthModalOpen}
 		{#await loadAuthScreen() then { default: AuthScreen }}
 			<AuthScreen onAuthSuccess={handleAuthSuccess} initialTab={storeNavigation.authTab} />
+		{/await}
+	{/if}
+
+	{#if storeNavigation.isSettingsOpen}
+		{#await import("./lib/components/settings/SettingsModal.svelte") then { default: SettingsModal }}
+			<SettingsModal />
 		{/await}
 	{/if}
 </div>

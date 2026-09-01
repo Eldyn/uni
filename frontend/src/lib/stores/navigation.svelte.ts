@@ -16,14 +16,13 @@ import { ws } from "./ws.svelte";
  * @brief List of the screens available in the frontend application.
  */
 export type AppScreen =
-	"main" | "lobbies" | "lobby" | "game" | "settings" | "stats" | "detailedStats" | "decks" | "shop";
+	"main" | "lobbies" | "lobby" | "game" | "stats" | "detailedStats" | "decks" | "shop";
 
 const SCREEN_PATHS: Record<AppScreen, string> = {
 	main: "/",
 	lobbies: "/browse",
 	lobby: "/lobby",
 	game: "/play",
-	settings: "/settings",
 	stats: "/profile/stats",
 	detailedStats: "/profile/stats/all",
 	decks: "/decks",
@@ -52,12 +51,13 @@ interface HistoryState {
 	screen: AppScreen;
 	authModalOpen: boolean;
 	authTab: "login" | "register";
+	settingsOpen: boolean;
 }
 
 /**
  * @brief Per-screen validity checks, keyed by screen name.
- * A screen with no entry here is always valid (e.g. "main", "lobbies",
- * "settings" don't depend on any transient state). Screens absent from this
+ * A screen with no entry here is always valid (e.g. "main", "decks",
+ * "shop" don't depend on any transient state). Screens absent from this
  * map are backed by state that a stale `window.history` entry can outlive
  * (the lobby/match/session may have ended since that entry was pushed), so
  * a back/forward gesture landing on one must be re-checked against the
@@ -80,7 +80,6 @@ const SCREEN_GUARDS: Partial<Record<AppScreen, () => boolean>> = {
 const PERSISTED_SCREENS = new Set<AppScreen>([
 	"main",
 	"lobbies",
-	"settings",
 	"stats",
 	"detailedStats",
 	"decks",
@@ -105,6 +104,9 @@ class StoreNavigation {
 
 	/** Which tab the AuthScreen modal should open on. */
 	authTab = $state<"login" | "register">("login");
+
+	/** Whether the Settings modal is open, overlaid on top of whatever screen is current. */
+	isSettingsOpen = $state(false);
 
 	#screenRestored = false;
 
@@ -140,7 +142,12 @@ class StoreNavigation {
 	}
 
 	get #historyState(): HistoryState {
-		return { screen: this.current, authModalOpen: this.isAuthModalOpen, authTab: this.authTab };
+		return {
+			screen: this.current,
+			authModalOpen: this.isAuthModalOpen,
+			authTab: this.authTab,
+			settingsOpen: this.isSettingsOpen
+		};
 	}
 
 	/** Restores a screen/modal state popped off `window.history` by a back or
@@ -181,6 +188,7 @@ class StoreNavigation {
 		this.current = to;
 		this.isAuthModalOpen = state.authModalOpen;
 		this.authTab = state.authTab;
+		this.isSettingsOpen = state.settingsOpen;
 		localStorage.setItem("currentScreen", to);
 	};
 
@@ -242,10 +250,24 @@ class StoreNavigation {
 	}
 
 	/**
-	 * @brief Placeholder for the settings menu, wired up by NavBar's Menu item.
-	 * TODO: replace with the real implementation.
+	 * @brief Opens the Settings modal on top of the current screen.
+	 * Pushed as its own history entry, so a back gesture closes it instead of
+	 * leaving the screen underneath it — same pattern as gotoAuth.
 	 */
-	openSettings(): void {}
+	openSettings(): void {
+		this.isSettingsOpen = true;
+		window.history.pushState(this.#historyState, "", pathForScreen(this.current));
+	}
+
+	/**
+	 * @brief Closes the Settings modal, leaving the current screen untouched.
+	 * Replaces (rather than pushes) the history entry openSettings pushed.
+	 */
+	closeSettings(): void {
+		if (!this.isSettingsOpen) return;
+		this.isSettingsOpen = false;
+		window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
+	}
 }
 
 export const storeNavigation = new StoreNavigation();
