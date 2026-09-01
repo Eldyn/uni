@@ -177,6 +177,15 @@
 	--space-12: 48px;
 	--space-16: 64px;
 
+	/* Motion. --ease-step suits discrete pixel-art transforms (card flips,
+	   notch reveals); --ease-standard suits continuous colour/opacity fades,
+	   where a stepped curve would look like judder rather than intent. */
+	--duration-fast: 120ms;
+	--duration-base: 200ms;
+	--duration-slow: 320ms;
+	--ease-step: steps(4, jump-end);
+	--ease-standard: ease;
+
 	font-size: 18px;
 	font-family: var(--pixel);
 	letter-spacing: 0;
@@ -608,4 +617,18 @@ code,
 }
 .scrollbar-accent::-webkit-scrollbar-thumb:hover {
 	background: var(--accent-h);
+}
+
+/* Reduced motion: neutralise every transition/animation this file defines.
+   Components that add their own animations must also respect this — this
+   block only covers rules declared here. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }
