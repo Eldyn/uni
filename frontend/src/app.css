@@ -135,7 +135,12 @@
 	--table-text: #f3f4f6;
 
 	--social-bg: rgba(47, 48, 58, 0.5);
-	--shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+	/* Elevation. Hard offsets only — this is the pixel-art idiom the modal
+	   already used; soft shadows are not used anywhere in this system. */
+	--elevation-1: 2px 2px 0 var(--pixel-shadow);
+	--elevation-2: 4px 4px 0 var(--pixel-shadow);
+	--elevation-3: 8px 8px 0 var(--pixel-shadow);
 
 	/* Fonts */
 	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
@@ -163,8 +168,6 @@
 	--greenCard: #4aab42;
 	--greenCardLight: #79bd4c;
 	--blackCard: #1f1b18;
-	--lowShadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-	--lowShadowHover: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
 
 	/* Spacing scale, 4px base. Every hardcoded padding/margin in a component
 	   is replaced by one of these steps — see the P1b design system plan. */
@@ -234,7 +237,6 @@
 		--gold: #8a5d00;
 
 		--social-bg: rgba(235, 231, 222, 0.5);
-		--shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 	}
 }
 
@@ -378,7 +380,7 @@
 	}
 	.card-outline:hover {
 		border-color: var(--accent);
-		box-shadow: var(--lowShadowHover);
+		box-shadow: var(--elevation-1);
 	}
 
 	/*
@@ -480,8 +482,8 @@
 		max-width: 600px;
 		background: var(--bg);
 		border: 1px solid var(--border);
-		padding: 40px;
-		box-shadow: var(--shadow);
+		padding: var(--space-8);
+		box-shadow: var(--elevation-2);
 	}
 }
 
