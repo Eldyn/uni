@@ -40,3 +40,5 @@ cert.pem
 frontend/public/assets/audio/**/*.wav
 frontend/public/assets/audio/**/*.flac
 frontend/public/assets/audio/**/*.aiff
+
+.worktrees/
