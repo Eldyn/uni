@@ -53,6 +53,20 @@ const SCREEN_GUARDS: Partial<Record<AppScreen, () => boolean>> = {
 };
 
 /**
+ * Screens safe to restore from localStorage on next login. lobby and game
+ * are deliberately excluded — the server re-establishes both on connect
+ * (LobbyController::OnOpen resends lobby_joined and match state), and a
+ * stale local guess could contradict that.
+ */
+const PERSISTED_SCREENS = new Set<AppScreen>([
+	"main",
+	"lobbies",
+	"settings",
+	"stats",
+	"detailedStats"
+]);
+
+/**
  * @class StoreNavigation
  * @brief Reactive store for screen switching.
  * Uses localStorage to persist the current screen and restore it
@@ -150,17 +164,29 @@ class StoreNavigation {
 	};
 
 	/**
-	 * @brief Changes the current screen.
-	 * Automatically saves the screen to `localStorage` and pushes a new
-	 * `window.history` entry so the back gesture can return here.
-	 * @param screen The new destination screen.
+	 * @brief Changes the current screen, refusing when its backing state is
+	 * absent.
+	 *
+	 * Applies the same SCREEN_GUARDS check #onPopState already runs on a
+	 * back/forward gesture. Without this, a stale localStorage restore or a
+	 * caller passing a screen the app isn't actually in (no active lobby, no
+	 * live match) could land on a dead screen with no way out — the exact
+	 * corrupted-relogin symptom this fixes.
+	 * @returns True if the navigation was applied, false if a guard refused it.
 	 */
-	goto(screen: AppScreen): void {
-		if (screen === this.current) return;
+	goto(screen: AppScreen): boolean {
+		if (screen === this.current) return true;
+
+		const guard = SCREEN_GUARDS[screen];
+		if (guard && !guard()) return false;
+
 		this.current = screen;
-		localStorage.setItem("currentScreen", screen);
+		if (PERSISTED_SCREENS.has(screen)) {
+			localStorage.setItem("currentScreen", screen);
+		}
 		storeAnalytics.track("screen_view", { screen, account_type: this.#accountType });
 		window.history.pushState(this.#historyState, "");
+		return true;
 	}
 
 	/**
