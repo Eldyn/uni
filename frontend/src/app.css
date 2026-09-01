@@ -172,6 +172,16 @@
 	--monogram: "Monogram", var(--pixel);
 	--pypx: "Pypx", var(--pixel);
 
+	/* Fluid type ramp. Bounds are chosen to land close to a whole pixel at
+	   390/768/1024/1440px, since the pixel display faces don't interpolate
+	   cleanly at fractional sizes — this is a reduction of the fixed 10rem/
+	   56px/3rem sizes that overflowed at 390px, not a perfect snap. */
+	--text-hero: clamp(2.5rem, 6vw + 1rem, 10rem);
+	--text-display: clamp(1.75rem, 4vw + 0.5rem, 3.5rem);
+	--text-title: clamp(1.25rem, 2.5vw + 0.5rem, 2rem);
+	--text-body: clamp(1rem, 0.5vw + 0.85rem, 1.125rem);
+	--text-small: clamp(0.75rem, 0.3vw + 0.65rem, 0.875rem);
+
 	/* Card colours & shadows (theme-independent). Each of the four game colours
 	   has a *Light companion for highlighted/lit variants of the same surface;
 	   src/lib/palette.ts mirrors these for the WebGL scene. */
@@ -337,13 +347,13 @@
 	/* Titles */
 	.title-hero {
 		font-family: var(--heading);
-		font-size: 10rem;
+		font-size: var(--text-hero);
 		line-height: 1;
 		color: #fff;
 	}
 	.title-screen {
 		font-family: var(--heading);
-		font-size: 56px;
+		font-size: var(--text-display);
 		color: #fff;
 		text-shadow: 2px 2px 0px var(--pixel-shadow);
 	}
@@ -567,23 +577,23 @@ h6 {
 }
 
 h1 {
-	font-size: 3rem;
+	font-size: var(--text-hero);
 }
 h2 {
-	font-size: 2rem;
+	font-size: var(--text-display);
 	margin-bottom: 0.5rem;
 }
 h3 {
-	font-size: 1.5rem;
+	font-size: var(--text-title);
 }
 h4 {
-	font-size: 1.25rem;
+	font-size: var(--text-body);
 }
 h5 {
-	font-size: 1rem;
+	font-size: var(--text-small);
 }
 h6 {
-	font-size: 0.875rem;
+	font-size: var(--text-small);
 }
 p {
 	margin: 0;
