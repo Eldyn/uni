@@ -124,6 +124,24 @@
 	/* Pixel-art outline / stroke (dark in both themes by design) */
 	--pixel-shadow: #1a1a1a;
 
+	/* Shared 4px pixel-corner notch, referenced by .pixel-corners,
+	   .pixel-bordered, and the default button rule below, so the three
+	   cannot drift out of sync with each other. */
+	--notch-clip: polygon(
+		0 4px,
+		4px 4px,
+		4px 0,
+		calc(100% - 4px) 0,
+		calc(100% - 4px) 4px,
+		100% 4px,
+		100% calc(100% - 4px),
+		calc(100% - 4px) calc(100% - 4px),
+		calc(100% - 4px) 100%,
+		4px 100%,
+		4px calc(100% - 4px),
+		0 calc(100% - 4px)
+	);
+
 	/* The play surface, and the chrome that floats on it. Deliberately NOT
 	   theme-dependent: a board is read by picking saturated cards out of their
 	   surroundings, which only works when the surroundings stay low-value, so
@@ -407,20 +425,7 @@
 		content: "";
 		position: absolute;
 		transition: background-color 0.12s ease;
-		clip-path: polygon(
-			0 4px,
-			4px 4px,
-			4px 0,
-			calc(100% - 4px) 0,
-			calc(100% - 4px) 4px,
-			100% 4px,
-			100% calc(100% - 4px),
-			calc(100% - 4px) calc(100% - 4px),
-			calc(100% - 4px) 100%,
-			4px 100%,
-			4px calc(100% - 4px),
-			0 calc(100% - 4px)
-		);
+		clip-path: var(--notch-clip);
 	}
 	.pixel-bordered::before {
 		inset: 0;
@@ -485,20 +490,7 @@
 @layer utilities {
 	.pixel-corners {
 		border-radius: 0 !important;
-		clip-path: polygon(
-			0 4px,
-			4px 4px,
-			4px 0,
-			calc(100% - 4px) 0,
-			calc(100% - 4px) 4px,
-			100% 4px,
-			100% calc(100% - 4px),
-			calc(100% - 4px) calc(100% - 4px),
-			calc(100% - 4px) 100%,
-			4px 100%,
-			4px calc(100% - 4px),
-			0 calc(100% - 4px)
-		);
+		clip-path: var(--notch-clip);
 	}
 	/* Ordered-dither family, mathematical rather than an image asset. Each
 	   step is a checkerboard of translucent black at a different cell size;
@@ -550,20 +542,7 @@ svg {
 
 button:not(.pixel-bordered) {
 	border-radius: 0 !important;
-	clip-path: polygon(
-		0 4px,
-		4px 4px,
-		4px 0,
-		calc(100% - 4px) 0,
-		calc(100% - 4px) 4px,
-		100% 4px,
-		100% calc(100% - 4px),
-		calc(100% - 4px) calc(100% - 4px),
-		calc(100% - 4px) 100%,
-		4px 100%,
-		4px calc(100% - 4px),
-		0 calc(100% - 4px)
-	);
+	clip-path: var(--notch-clip);
 }
 
 h1,
