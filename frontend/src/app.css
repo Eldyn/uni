@@ -461,6 +461,26 @@
 		background: rgba(0, 0, 0, 0.3);
 	}
 
+	/* Field wrapper: label + input + a reserved error slot. The error slot's
+	   min-height equals one line of --text-small so validation text appearing
+	   or disappearing never shifts the layout around it. */
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.field label {
+		font-family: var(--tiny);
+		font-size: var(--text-small);
+		color: var(--text-h);
+	}
+	.field-error {
+		min-height: 1.2em;
+		font-family: var(--tiny);
+		font-size: var(--text-small);
+		color: var(--danger);
+	}
+
 	/* Surfaces */
 	.panel {
 		background: var(--bg);
