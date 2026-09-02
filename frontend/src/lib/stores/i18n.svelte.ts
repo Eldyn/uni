@@ -29,3 +29,14 @@ class StoreI18n {
 }
 
 export const storeI18n = new StoreI18n();
+
+/**
+ * @brief Applies a previously chosen locale on startup, if one was saved and
+ * is still supported. Call once, before anything reads storeI18n.locale.
+ */
+export function restorePersistedLocale(): void {
+	const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
+	if (saved && (locales as readonly string[]).includes(saved)) {
+		storeI18n.setLocale(saved);
+	}
+}

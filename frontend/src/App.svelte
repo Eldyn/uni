@@ -34,6 +34,7 @@
 	// leaving the board empty (rebeccapurple playmat, no cards).
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
 	import { installSessionResets } from "$stores/session";
+	import { restorePersistedLocale } from "$stores/i18n.svelte";
 
 	let _unsubError: (() => void) | null = null;
 
@@ -44,6 +45,7 @@
 	});
 
 	onMount(async () => {
+		restorePersistedLocale();
 		installSessionResets();
 		storeAudio.init();
 
