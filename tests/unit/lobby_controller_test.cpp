@@ -46,6 +46,10 @@ static json start_msg(const std::string& req = "req-5") {
     return {{"action", ws::ClientAction::kLobbyStartMatch}, {"request_id", req}};
 }
 
+static json toggle_ready_msg(const std::string& req = "req-9") {
+    return {{"action", ws::ClientAction::kLobbyToggleReady}, {"request_id", req}};
+}
+
 static json kick_msg(const std::string& target, const std::string& req = "req-6") {
     return {{"action", ws::ClientAction::kLobbyKick},
             {"request_id", req},
@@ -184,6 +188,74 @@ TEST_CASE("start: not-host returns error") {
     auto resp = json::parse(f.bus.FramesFor(f.bob_sock).back().payload);
     CHECK(resp.value("action", "") == "error");
     CHECK(resp.value("code", "") == "not_host");
+}
+
+TEST_CASE("toggle_ready: flips the caller's own ready state") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    bool bob_ready = false;
+    for (const auto& m : lp->members) {
+        if (m.username == "bob") bob_ready = m.is_ready;
+    }
+    CHECK(bob_ready);
+}
+
+TEST_CASE("toggle_ready: a second toggle flips it back") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    bool bob_ready = true;
+    for (const auto& m : lp->members) {
+        if (m.username == "bob") bob_ready = m.is_ready;
+    }
+    CHECK_FALSE(bob_ready);
+}
+
+TEST_CASE("start: refuses when a human member is not ready") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    // Alice (host) readies up; bob never does.
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "not_enough_ready");
+}
+
+TEST_CASE("start: succeeds once every human member is ready") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->match != nullptr);
 }
 
 TEST_CASE("kick: host can kick bob") {

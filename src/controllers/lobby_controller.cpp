@@ -104,6 +104,12 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kLobbyToggleReady,
+                      [this](WsContext context, const nlohmann::json& message) {
+        HandleToggleReady(context, message);
+        return true;
+    });
+
     timer_service_.Schedule("lobby_eviction", 1000, true, [this] {
         auto  now  = steady_clock::now();
 
@@ -952,6 +958,34 @@ void LobbyController::HandleResumeSavedMatch(WsContext context, const json& mess
 }
 
 /**
+ * @brief Flips the caller's own ready state and broadcasts the updated lobby.
+ * @param context Caller's socket/session context.
+ * @param message Incoming lobby_toggle_ready payload.
+ */
+void LobbyController::HandleToggleReady(WsContext context, const nlohmann::json& message) {
+    const std::string& code       = context.socket_data->lobby_code;
+    const std::string& request_id = ws::GetOr<std::string>(message, "request_id", "");
+
+    Lobby* lobby_ptr = GetLobbyByCode(code);
+    if (!lobby_ptr) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kLobbyNotFound, request_id);
+        return;
+    }
+    Lobby& lobby = *lobby_ptr;
+
+    for (auto& member : lobby.members) {
+        if (member.username == context.socket_data->username) {
+            member.is_ready = !member.is_ready;
+            break;
+        }
+    }
+
+    BroadcastUpdate(lobby);
+    broadcaster_.SendSuccess(context.socket, context.op_code, request_id);
+}
+
+/**
  * @brief Commits initialization arrays instantiating a fresh active MatchInstance environment.
  * @param context Payload context wrapping request sockets and raw buffers.
  * @param message Structured message parameter data from client frames.
@@ -983,6 +1017,15 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     if (lobby.members.size() < 2) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kNotEnoughPlayers, request_id);
+        return;
+    }
+
+    const bool everyone_ready = std::ranges::all_of(lobby.members, [](const LobbyMember& m) {
+        return m.is_bot || m.is_ready;
+    });
+    if (!everyone_ready) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kNotEnoughReady, request_id);
         return;
     }
 

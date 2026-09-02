@@ -257,6 +257,13 @@ private:
     void HandleStartGame(WsContext context, const nlohmann::json& message);
 
     /**
+     * @brief Flips the caller's own ready state and broadcasts the updated lobby.
+     * @param context Caller's socket/session context.
+     * @param message Incoming lobby_toggle_ready payload.
+     */
+    void HandleToggleReady(WsContext context, const nlohmann::json& message);
+
+    /**
      * @brief Serializes the member list into JSON format for sending via WebSocket.
      * @param lobby The lobby whose members to serialize.
      * @return json JSON object representing the members.
