@@ -61,7 +61,7 @@
 		</div>
 	{:else}
 		<button
-			class="pixel-bordered fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+			class="chat-launcher pixel-bordered fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 			title="Open chat"
 			aria-label="Open chat"
 			onclick={open}
@@ -77,3 +77,21 @@
 		</button>
 	{/if}
 {/if}
+
+<style>
+	/* On the bottom-bar breakpoint (narrow width + tall viewport, the same
+	   condition under which NavBar/ShellFrame render the bottom nav bar
+	   instead of a side rail), lift the launcher above it so it doesn't
+	   overlap the rightmost "Menu" destination. Above that breakpoint, or
+	   whenever the rail is showing instead, the nav sits to the side rather
+	   than along the bottom, so the default bottom-4 placement is fine. */
+	.chat-launcher {
+		bottom: calc(1rem + 62px);
+	}
+
+	@media (min-width: 768px), (max-height: 599px) {
+		.chat-launcher {
+			bottom: 1rem;
+		}
+	}
+</style>
