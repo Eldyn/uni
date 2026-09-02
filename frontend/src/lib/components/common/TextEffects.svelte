@@ -85,7 +85,7 @@
 <style>
 	.char-wrap {
 		display: inline-flex;
-		align-items: center;
+		align-items: baseline;
 		/* Reserve real layout room equal to the animation travel so a translated
 		   char is never clipped by the wrapper or an ancestor that sizes/clips to
 		   this box (e.g. a flex button). */
