@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
 import fs from "node:fs";
 import path from "node:path";
@@ -73,6 +74,10 @@ export default defineConfig(({ mode }) => {
 	return {
 		// Only run the watch plugin when running in development/watch mode
 		plugins: [
+			paraglideVitePlugin({
+				project: "./project.inlang",
+				outdir: "./src/lib/paraglide"
+			}),
 			tailwindcss(),
 			svelte(),
 			isDev && watchPublicDirPlugin,
