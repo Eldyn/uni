@@ -98,6 +98,8 @@ export interface LobbyMember {
 	is_host: boolean;
 	/** True if this "member" is actually a bot account managed by the server. */
 	is_bot: boolean;
+	/** True if this player has indicated they are ready to start the match. */
+	is_ready: boolean;
 }
 
 /**
@@ -149,7 +151,8 @@ const LobbyMemberSchema = z.looseObject({
 	username: z.string(),
 	is_connected: z.boolean(),
 	is_host: z.boolean(),
-	is_bot: z.boolean()
+	is_bot: z.boolean(),
+	is_ready: z.boolean()
 });
 
 const LobbySchema = z.looseObject({
@@ -303,6 +306,39 @@ class StoreLobby implements SessionStore {
 		} finally {
 			this.isLoadingStart = false;
 		}
+	}
+
+	/**
+	 * @brief Flips the local player's own ready state.
+	 * The server is authoritative: this doesn't optimistically flip local
+	 * state, the broadcast that follows (handled by the existing lobby_updated
+	 * listener) is what actually updates `current`.
+	 */
+	async toggleReady(): Promise<void> {
+		await ws.emitAndWait(ClientAction.LobbyToggleReady, undefined, 5000);
+	}
+
+	/**
+	 * @brief Whether the host can currently press Start, and why not if not.
+	 * Mirrors the server's own HandleStartGame checks so the button can
+	 * explain itself instead of just being disabled.
+	 */
+	get startEligibility(): { canStart: boolean; reason: string | null } {
+		if (!this.current) return { canStart: false, reason: null };
+
+		if (this.current.members.length < 2) {
+			return { canStart: false, reason: "Waiting for at least 2 players" };
+		}
+
+		const notReady = this.current.members.filter((m) => !m.is_bot && !m.is_ready);
+		if (notReady.length > 0) {
+			return {
+				canStart: false,
+				reason: `Waiting on ${notReady.length} player${notReady.length === 1 ? "" : "s"} to ready up`
+			};
+		}
+
+		return { canStart: true, reason: null };
 	}
 
 	/**
