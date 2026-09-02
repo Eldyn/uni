@@ -114,6 +114,11 @@ struct LobbyMember {
      * leaving/joining. Drives the player's color/seat identity on the client. */
     int             seat_index;
 
+    /**< Whether this member has marked themselves ready to start. Bots are
+     * always treated as ready by the caller (see LobbyController's start-gate
+     * check), this field itself defaults false for them like everyone else. */
+    bool is_ready = false;
+
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 

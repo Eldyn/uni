@@ -8,6 +8,11 @@
 #include <string>
 #include <vector>
 
+TEST_CASE("LobbyMember defaults to not ready") {
+    LobbyMember member("alice", nullptr, true, false, 0);
+    CHECK_FALSE(member.is_ready);
+}
+
 TEST_CASE("lobby: Sanitize clamps out-of-range numeric fields") {
     LobbySettings settings;
     settings.turn_time_limit_ms = contract::kTurnTimeMinMs - 1;
