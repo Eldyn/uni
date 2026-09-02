@@ -344,6 +344,19 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
             res->writeHeader("ETag", etag);
         }
         res->end();
+    } else if (http::IsClientRoute(relativePath)) {
+        // Mirrors HandleGet's client-route fallback: a HEAD must describe
+        // exactly what the equivalent GET would produce, and that GET serves
+        // the app shell for a client-side route rather than 404ing.
+        auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
+        if (index_resolved && fs::exists(*index_resolved)) {
+            res->writeHeader("Content-Type", http::GetMimeType("index.html"))
+                ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
+                ->writeHeader("X-Content-Type-Options", "nosniff")
+                ->end();
+        } else {
+            res->writeStatus("404 Not Found")->end();
+        }
     } else {
         res->writeStatus("404 Not Found")->end();
     }
