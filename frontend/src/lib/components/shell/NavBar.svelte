@@ -46,6 +46,8 @@
 
 <style>
 	.shell-navbar {
+		position: relative;
+		z-index: 10;
 		display: flex;
 		background: var(--bg);
 		border-top: 2px solid var(--border);

@@ -80,12 +80,15 @@
 </script>
 
 <div
-	class="relative min-h-screen overflow-hidden bg-bg"
+	class="relative min-h-full overflow-hidden bg-bg"
 	style="-webkit-font-smoothing: none; -moz-osx-font-smoothing: grayscale; font-smooth: never;"
 >
-	<!-- Background art: y-position tuned to align the dark cutout with the logo -->
+	<!-- Background art: y-position tuned to align the dark cutout with the logo.
+	     Absolute (scoped to MainScreen's own box), not fixed to the viewport —
+	     MainScreen now lives inside ShellFrame's .shell-content alongside the
+	     TopBar/NavBar chrome, which a fixed layer would paint over. -->
 	<div
-		class="fixed inset-0 z-0 bg-cover"
+		class="absolute inset-0 z-0 bg-cover"
 		style="
         background-image: url('/assets/bg_main.png');
         background-position: center 62%;
@@ -94,14 +97,14 @@
         "
 	></div>
 
-	<!-- Dock gradient: fixed, always bottom-half of viewport, independent of content height -->
-	<div class="dock-bg pointer-events-none fixed bottom-0 left-0 right-0 z-[5]"></div>
+	<!-- Dock gradient: absolute, always bottom-half of MainScreen's own box, independent of content height -->
+	<div class="dock-bg pointer-events-none absolute bottom-0 left-0 right-0 z-[5]"></div>
 
 	<!-- Hero zone: logo + welcome-back line, always centered in the space
 	     above the dock (not bottom-anchored, which left a growing empty gap
 	     up top the taller the dock got, worst on narrow/tall screens). -->
 	<div
-		class="relative z-10 flex min-h-screen flex-col items-center justify-center px-4"
+		class="relative z-10 flex min-h-full flex-col items-center justify-center px-4"
 		style="padding-bottom: {dockHeight}px; transform: translateY(3rem);"
 	>
 		<div class="relative flex items-center justify-center">
@@ -141,7 +144,7 @@
 	     lot by auth state) never pushes the hero above around, only pads it. -->
 	<div
 		bind:clientHeight={dockHeight}
-		class="dock fixed inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
+		class="dock absolute inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
 	>
 		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
 			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
