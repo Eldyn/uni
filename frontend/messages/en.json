@@ -1,10 +1,9 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format",
-  "example_message": "Hello world {username}",
-  "settings_title": "Settings",
-  "settings_close": "Close",
-  "settings_audio_heading": "Audio",
-  "settings_music_volume": "Music volume",
-  "settings_sfx_volume": "Sound effects volume",
-  "settings_language_heading": "Language"
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"settings_title": "Settings",
+	"settings_close": "Close",
+	"settings_audio_heading": "Audio",
+	"settings_music_volume": "Music volume",
+	"settings_sfx_volume": "Sound effects volume",
+	"settings_language_heading": "Language"
 }
