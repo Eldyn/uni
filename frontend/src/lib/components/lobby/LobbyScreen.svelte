@@ -9,7 +9,6 @@
 	import TextEffects from "$components/common/TextEffects.svelte";
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
-	let startable = $derived((storeLobby.current?.members.length ?? 0) >= 2);
 
 	let isEditingName = $state(false);
 	let editedName = $state("");
@@ -232,6 +231,25 @@
 							<span class="truncate">{member.username}</span>
 						</p>
 
+						{#if member.username === storeAuth.username && !member.is_bot}
+							<button
+								class="btn-secondary pixel-corners absolute left-1 top-1 z-20 px-2 py-1 text-[10px] uppercase"
+								aria-pressed={member.is_ready}
+								onclick={(e) => {
+									e.stopPropagation();
+									storeLobby.toggleReady();
+								}}
+							>
+								{member.is_ready ? "Ready ✓" : "Ready?"}
+							</button>
+						{:else if member.is_ready}
+							<span
+								class="pointer-events-none absolute left-1 top-1 z-20 bg-black/60 px-2 py-1 text-[10px] uppercase text-success"
+							>
+								Ready
+							</span>
+						{/if}
+
 						{#if activeMenu === member.username}
 							<div class="absolute right-1 top-1 z-30 min-w-[140px] border-2 border-border bg-bg">
 								<button
@@ -289,11 +307,12 @@
 				{/each}
 			</ul>
 
-			<div class="flex items-center justify-center">
+			<div class="flex flex-col items-center justify-center">
 				<button
 					class="start-button flex items-center justify-center border-none bg-transparent p-0"
 					onclick={() => storeLobby.startMatch()}
-					disabled={!isHost || !startable || storeLobby.isLoadingStart}
+					disabled={!isHost || !storeLobby.startEligibility.canStart || storeLobby.isLoadingStart}
+					aria-describedby="start-eligibility-reason"
 				>
 					<div
 						class="flex gap-1 text-4xl tracking-[6px] text-white [-webkit-text-stroke:1.5px_var(--pixel-shadow)] [font-family:'FatPixel'] [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-5xl"
@@ -309,6 +328,11 @@
 						/>
 					</div>
 				</button>
+				{#if storeLobby.startEligibility.reason}
+					<p id="start-eligibility-reason" class="mt-2 text-center font-tiny text-xs text-text">
+						{storeLobby.startEligibility.reason}
+					</p>
+				{/if}
 			</div>
 		</div>
 	</div>
