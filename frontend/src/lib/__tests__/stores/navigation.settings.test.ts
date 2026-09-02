@@ -10,7 +10,7 @@ vi.mock("$lib/stores/auth.svelte", () => ({ storeAuth: { isLoggedIn: true, isGue
 
 beforeEach(() => {
 	vi.resetModules();
-	window.history.replaceState(null, "");
+	window.history.replaceState(null, "", "/");
 });
 
 describe("settings modal", () => {

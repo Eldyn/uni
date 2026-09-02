@@ -118,6 +118,21 @@ class StoreNavigation {
 	}
 
 	constructor() {
+		// A hard refresh/deep link lands the browser on a URL (e.g. `/browse`)
+		// before this store exists. Resolve it back to a screen so the
+		// `replaceState` below writes a URL that matches what's shown, instead
+		// of unconditionally rewriting it to "/" and showing Home. Falls
+		// through to the "main" default (silently) if the path isn't ours or
+		// the resolved screen's guard rejects it — same stale-state guard the
+		// back/forward gesture already goes through.
+		const deepLinkedScreen = screenForPath(window.location.pathname);
+		if (deepLinkedScreen) {
+			const guard = SCREEN_GUARDS[deepLinkedScreen];
+			if (!guard || guard()) {
+				this.current = deepLinkedScreen;
+			}
+		}
+
 		// Seed the entry the browser already loaded us on with our state shape,
 		// instead of leaving it `null`. Without this, the first back gesture
 		// after any in-app navigation lands on that `null` entry, we'd have
@@ -133,6 +148,10 @@ class StoreNavigation {
 			const localScreen = localStorage.getItem("currentScreen");
 			if (!localScreen) return;
 			if (!storeAuth.isLoggedIn) {
+				localStorage.removeItem("currentScreen");
+				return;
+			}
+			if (!PERSISTED_SCREENS.has(localScreen as AppScreen)) {
 				localStorage.removeItem("currentScreen");
 				return;
 			}
@@ -189,7 +208,9 @@ class StoreNavigation {
 		this.isAuthModalOpen = state.authModalOpen;
 		this.authTab = state.authTab;
 		this.isSettingsOpen = state.settingsOpen;
-		localStorage.setItem("currentScreen", to);
+		if (PERSISTED_SCREENS.has(to)) {
+			localStorage.setItem("currentScreen", to);
+		}
 	};
 
 	/**

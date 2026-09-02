@@ -22,7 +22,7 @@ beforeEach(() => {
 	lobbyState.current = null;
 	vi.resetModules();
 	window.localStorage.clear();
-	window.history.replaceState(null, "");
+	window.history.replaceState(null, "", "/");
 });
 
 describe("storeNavigation.goto guard enforcement", () => {
@@ -45,9 +45,15 @@ describe("storeNavigation.goto guard enforcement", () => {
 		expect(storeNavigation.current).toBe("lobby");
 	});
 
-	it("allows navigation to a screen with no guard regardless of other state", async () => {
+	it("refuses lobbies when neither logged in nor guest", async () => {
 		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
 
 		expect(storeNavigation.goto("lobbies")).toBe(false); // no auth, no guest
+	});
+
+	it("allows navigation to a screen with no guard regardless of other state", async () => {
+		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
+
+		expect(storeNavigation.goto("decks")).toBe(true);
 	});
 });

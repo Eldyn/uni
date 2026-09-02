@@ -21,7 +21,7 @@ beforeEach(() => {
 	openHandlers.length = 0;
 	vi.resetModules();
 	window.localStorage.clear();
-	window.history.replaceState(null, "");
+	window.history.replaceState(null, "", "/");
 });
 
 describe("navigation restore on connect", () => {
@@ -52,5 +52,54 @@ describe("navigation restore on connect", () => {
 		storeNavigation.goto("lobby");
 
 		expect(window.localStorage.getItem("currentScreen")).not.toBe("lobby");
+	});
+
+	it("never writes lobby or game to localStorage via a popstate gesture", async () => {
+		vi.doMock("$lib/stores/lobby.svelte", () => ({
+			storeLobby: { get isInLobby() { return true; }, leave: vi.fn() }
+		}));
+		await import("$lib/stores/navigation.svelte");
+
+		window.dispatchEvent(
+			new PopStateEvent("popstate", {
+				state: {
+					screen: "lobby",
+					authModalOpen: false,
+					authTab: "login",
+					settingsOpen: false
+				}
+			})
+		);
+
+		expect(window.localStorage.getItem("currentScreen")).not.toBe("lobby");
+	});
+
+	it("seeds the current screen from the URL on a hard refresh/deep link", async () => {
+		window.history.replaceState(null, "", "/browse");
+		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
+
+		expect(storeNavigation.current).toBe("lobbies");
+		expect(window.location.pathname).toBe("/browse");
+	});
+
+	it("falls back to main when a deep link's guard fails", async () => {
+		vi.doMock("$lib/stores/auth.svelte", () => ({
+			storeAuth: { isLoggedIn: false, isGuest: false }
+		}));
+		window.history.replaceState(null, "", "/browse");
+		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
+
+		expect(storeNavigation.current).toBe("main");
+		expect(window.location.pathname).toBe("/");
+	});
+
+	it("clears a stale 'settings' value from localStorage instead of navigating to it", async () => {
+		window.localStorage.setItem("currentScreen", "settings");
+		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
+
+		for (const handler of openHandlers) handler();
+
+		expect(window.localStorage.getItem("currentScreen")).toBeNull();
+		expect(storeNavigation.current).toBe("main");
 	});
 });
