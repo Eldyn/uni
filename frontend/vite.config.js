@@ -76,7 +76,12 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			paraglideVitePlugin({
 				project: "./project.inlang",
-				outdir: "./src/lib/paraglide"
+				outdir: "./src/lib/paraglide",
+				// Cookie stays first (canonical default order keeps baseLocale as
+				// the final fallback); localStorage slots in right after so a
+				// locale chosen when cookies are blocked still survives reloads,
+				// without changing precedence for browsers that support both.
+				strategy: ["cookie", "localStorage", "globalVariable", "baseLocale"]
 			}),
 			tailwindcss(),
 			svelte(),

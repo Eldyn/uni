@@ -5,14 +5,13 @@ const paraglideState = { locale: "en" };
 vi.mock("$lib/paraglide/runtime.js", () => ({
 	locales: ["en", "it"],
 	getLocale: () => paraglideState.locale,
-	setLocale: vi.fn((locale: string) => {
+	setLocale: vi.fn((locale: string, _options?: { reload?: boolean }) => {
 		paraglideState.locale = locale;
 	})
 }));
 
 beforeEach(() => {
 	paraglideState.locale = "en";
-	window.localStorage.clear();
 	document.documentElement.lang = "";
 	vi.resetModules();
 });
@@ -23,14 +22,19 @@ describe("storeI18n", () => {
 		expect(storeI18n.locale).toBe("en");
 	});
 
-	it("setLocale updates Paraglide, localStorage and the document lang attribute", async () => {
+	it("setLocale updates Paraglide's locale, storeI18n.locale and the document lang attribute", async () => {
 		const { storeI18n } = await import("$lib/stores/i18n.svelte");
 
 		storeI18n.setLocale("it");
 
 		expect(storeI18n.locale).toBe("it");
-		expect(window.localStorage.getItem("locale")).toBe("it");
 		expect(document.documentElement.lang).toBe("it");
+	});
+
+	it("setLocale does not throw or hang given the mocked runtime", async () => {
+		const { storeI18n } = await import("$lib/stores/i18n.svelte");
+
+		expect(() => storeI18n.setLocale("it")).not.toThrow();
 	});
 
 	it("exposes the supported locale list", async () => {

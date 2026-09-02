@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/svelte";
+import { render, screen, fireEvent } from "@testing-library/svelte";
 
 vi.mock("$lib/stores/navigation.svelte", () => ({
 	storeNavigation: { closeSettings: vi.fn() }
@@ -13,7 +13,7 @@ vi.mock("$lib/paraglide/runtime.js", () => ({
 	locales: ["en", "it"],
 	experimentalStaticLocale: undefined,
 	getLocale: () => paraglideState.locale,
-	setLocale: vi.fn((locale: string) => {
+	setLocale: vi.fn((locale: string, _options?: { reload?: boolean }) => {
 		paraglideState.locale = locale;
 	})
 }));
@@ -32,11 +32,23 @@ describe("SettingsModal i18n", () => {
 		expect(screen.getByText("Language")).toBeInTheDocument();
 	});
 
-	it("renders Italian copy once the locale is switched", async () => {
-		paraglideState.locale = "it";
+	it("switches every string in the modal live, with no reload, when Italiano is clicked", async () => {
 		render(SettingsModal);
+		expect(screen.getByText("Settings")).toBeInTheDocument();
+
+		const italianoButton = screen.getByRole("button", { name: /italiano/i });
+		await fireEvent.click(italianoButton);
+
 		expect(screen.getByText("Impostazioni")).toBeInTheDocument();
+		expect(screen.getByText("Audio")).toBeInTheDocument();
 		expect(screen.getByText("Lingua")).toBeInTheDocument();
+		expect(screen.queryByText("Settings")).not.toBeInTheDocument();
+
+		const englishButton = screen.getByRole("button", { name: /english/i });
+		await fireEvent.click(englishButton);
+
+		expect(screen.getByText("Settings")).toBeInTheDocument();
+		expect(screen.queryByText("Impostazioni")).not.toBeInTheDocument();
 	});
 
 	it("offers a control for each supported locale", () => {
