@@ -54,6 +54,7 @@ channels:
           - $ref: "#/components/messages/LobbyJoin"
           - $ref: "#/components/messages/LobbyRejoin"
           - $ref: "#/components/messages/LobbyLeave"
+          - $ref: "#/components/messages/LobbyToggleReady"
           - $ref: "#/components/messages/LobbyPromote"
           - $ref: "#/components/messages/LobbyKick"
           - $ref: "#/components/messages/LobbyUpdateSettings"
@@ -453,6 +454,18 @@ components:
           action:
             type: string
             enum: ["lobby_leave"]
+          request_id:
+            type: string
+
+    LobbyToggleReady:
+      name: lobby_toggle_ready
+      title: Toggle Your Ready State
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_toggle_ready"]
           request_id:
             type: string
 
@@ -861,6 +874,7 @@ components:
         LobbyExpired: lobby_expired
         NotHost: not_host
         NotEnoughPlayers: not_enough_players
+        NotEnoughReady: not_enough_ready
         MatchAlreadyStarted: match_already_started
         JoinDisabledInMatch: join_disabled_in_match
         UserNotInLobby: user_not_in_lobby
