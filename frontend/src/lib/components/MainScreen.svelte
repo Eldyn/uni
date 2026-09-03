@@ -2,6 +2,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import TextEffects from "./common/TextEffects.svelte";
+	import HomeScreen from "$components/home/HomeScreen.svelte";
 
 	let logoutPending = $state(false);
 	/** Measured height of the fixed bottom dock, so the hero above it can
@@ -24,41 +25,6 @@
 			logoutPending = false;
 		}
 	}
-
-	interface HubTile {
-		label: string;
-		icon: string;
-		accent: string;
-		/** Absent = tile has no action (still shows its badge, if any). */
-		action?: () => void;
-		/** Small caption under the label, e.g. "Soon" or "Log In!". */
-		badge?: string;
-	}
-
-	// This hub only ever renders once signed in (guest or full account, see
-	// the template below), so Stats is the only tile that still branches on
-	// auth state: a guest taps it to open the login modal, a full account
-	// goes straight to their stats. Settings is local browser state, works
-	// either way. Decks/Skins have no action either way, unbuilt.
-	const HUB_TILES = $derived<HubTile[]>([
-		{
-			label: "Stats",
-			icon: "hn-crown",
-			accent: "text-blue-card",
-			action: storeAuth.isLoggedIn
-				? () => storeNavigation.goto("stats")
-				: () => storeNavigation.gotoAuth("login"),
-			badge: storeAuth.isLoggedIn ? undefined : "Log In!"
-		},
-		{ label: "Decks", icon: "hn-viewblocks", accent: "text-green-card", badge: "Soon" },
-		{ label: "Skins", icon: "hn-credit-card", accent: "text-red-card", badge: "Soon" },
-		{
-			label: "Settings",
-			icon: "hn-cog",
-			accent: "text-accent",
-			action: () => storeNavigation.openSettings()
-		}
-	]);
 
 	const SOCIAL_LINKS = [
 		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
@@ -169,34 +135,8 @@
 					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
 				</button>
 			{:else}
-				<!-- Logged-in or guest: primary CTA -->
-				<button
-					class="btn pixel-corners w-full py-4 text-xl tracking-wider"
-					onclick={() => storeNavigation.goto("lobbies")}
-				>
-					Browse Lobbies
-				</button>
-
-				<!-- Hub: 4-tile horizontal action bar -->
-				<div class="grid grid-cols-4 gap-2">
-					{#each HUB_TILES as tile}
-						<button
-							class="hub-tile pixel-bordered flex flex-col items-center gap-1 py-3 text-center
-							       {tile.action ? '' : 'opacity-50'}"
-							style="--pc-fill: var(--surface); --pc-border: var(--border);"
-							aria-disabled={!tile.action}
-							onclick={() => tile.action?.()}
-							aria-label="{tile.label}{tile.badge ? `, ${tile.badge}` : ''}"
-						>
-							<i class="hn pix {tile.icon} text-xl {tile.accent}"></i>
-							<span class="font-tiny text-xs leading-tight text-text-h">{tile.label}</span>
-							{#if tile.badge}
-								<span class="font-tiny text-[0.6rem] leading-none text-accent/60">{tile.badge}</span
-								>
-							{/if}
-						</button>
-					{/each}
-				</div>
+				<!-- Logged-in or guest: Quick Play / Join / Create / Continue -->
+				<HomeScreen />
 			{/if}
 
 			<!-- Site links + social icons -->
@@ -255,11 +195,6 @@
 		background-size: 4px 4px;
 		-webkit-mask-image: linear-gradient(to top, black 35%, transparent 100%);
 		mask-image: linear-gradient(to top, black 35%, transparent 100%);
-	}
-
-	.hub-tile:not([aria-disabled="true"]):hover {
-		--pc-border: var(--accent);
-		cursor: pointer;
 	}
 
 	.logout-inline {

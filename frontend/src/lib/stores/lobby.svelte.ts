@@ -445,6 +445,15 @@ class StoreLobby implements SessionStore {
 	}
 
 	/**
+	 * @brief Joins the fullest available public lobby, or creates one if none exist.
+	 * TODO: stopgap until real matchmaking exists. Replace with the
+	 * server-backed quick-join implementation; this stub just reuses `join`.
+	 */
+	async quickJoin(): Promise<void> {
+		await this.join("");
+	}
+
+	/**
 	 * @brief Fetches the updated list of available public lobbies from the server.
 	 * Updates the `available` state array.
 	 * @returns A Promise that resolves when the list has been updated.
