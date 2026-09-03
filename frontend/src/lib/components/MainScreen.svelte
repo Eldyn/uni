@@ -71,7 +71,7 @@
 	     above the dock (not bottom-anchored, which left a growing empty gap
 	     up top the taller the dock got, worst on narrow/tall screens). -->
 	<div
-		class="relative z-10 flex min-h-full flex-col items-center justify-center px-4"
+		class="landing-hero relative z-10 flex min-h-full flex-col items-center justify-center px-4"
 		style="padding-bottom: {dockHeight}px; transform: translateY(3rem);"
 	>
 		<div class="relative flex items-center justify-center">
@@ -228,5 +228,90 @@
 	}
 	.social-icon:hover {
 		opacity: 1;
+	}
+
+	/* Scroll-driven reveal: the logo/hero shrinks and the dock's actions
+	   dock to the bottom as the user scrolls into the marketing content
+	   below. Only opacity/transform animate; that is non-negotiable, since
+	   anything gated behind
+	   display/visibility is discounted by search engines, defeating the
+	   entire point of this content existing). Every rule below defaults to
+	   its normal, unanimated appearance; the animation only kicks in inside
+	   the @supports block, so browsers without animation-timeline still get
+	   a fully visible, fully sized, statically positioned page. */
+	:global(html) {
+		scroll-timeline: --landing-scroll block;
+	}
+
+	.landing-hero {
+		transform: none;
+	}
+
+	.dock {
+		transform: none;
+	}
+
+	:global(.landing-content) {
+		opacity: 1;
+	}
+
+	@supports (animation-timeline: scroll()) {
+		.landing-hero {
+			animation: landing-hero-shrink linear both;
+			animation-timeline: --landing-scroll;
+			animation-range: 0 60vh;
+		}
+
+		.dock {
+			animation: landing-dock-settle linear both;
+			animation-timeline: --landing-scroll;
+			animation-range: 0 60vh;
+		}
+
+		:global(.landing-content) {
+			opacity: 0;
+			animation: landing-reveal linear both;
+			animation-timeline: --landing-scroll;
+			animation-range: 20vh 80vh;
+		}
+	}
+
+	@keyframes landing-hero-shrink {
+		from {
+			transform: scale(1);
+		}
+		to {
+			transform: scale(0.6) translateY(-2rem);
+		}
+	}
+
+	@keyframes landing-dock-settle {
+		from {
+			transform: translateY(0);
+		}
+		to {
+			transform: translateY(0) scale(0.85);
+		}
+	}
+
+	@keyframes landing-reveal {
+		from {
+			opacity: 0;
+			transform: translateY(24px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.landing-hero,
+		.dock,
+		:global(.landing-content) {
+			animation: none;
+			opacity: 1;
+			transform: none;
+		}
 	}
 </style>
