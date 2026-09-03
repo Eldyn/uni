@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from "svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeStats } from "$stores/stats.svelte";
@@ -6,6 +7,12 @@
 
 	// storeStats.myStats is a PlayerStats (see stats.svelte.ts): username,
 	// total_wins, total_losses, rank — there is no wins/matches_played field.
+
+	onMount(() => {
+		if (!storeStats.myStats) {
+			storeStats.fetchMe();
+		}
+	});
 </script>
 
 <div class="flex flex-1 flex-col gap-6 p-6">
