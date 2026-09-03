@@ -9,6 +9,7 @@
 		lobby: "Lobby",
 		decks: "Decks",
 		shop: "Shop",
+		profile: "Profile",
 		stats: "Profile",
 		detailedStats: "Leaderboard"
 		// "main" deliberately has no title — the home screen isn't labelled.
