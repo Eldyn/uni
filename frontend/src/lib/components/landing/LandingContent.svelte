@@ -7,7 +7,7 @@
 			genre.
 		</p>
 		<p class="landing-legal">
-			UNO® is a registered trademark. UNI is similar to UNO but is an independent project not affiliated with or endorsed by any trademark holder.
+			UNO® is a registered trademark of Mattel. UNI is similar to UNO but not affiliated with or endorsed by Mattel.
 		</p>
 	</section>
 
@@ -97,7 +97,7 @@
 			</div>
 			<div>
 				<dt>Is this made by Mattel?</dt>
-				<dd>No. UNI! is an independent, open-source project and isn't affiliated with or endorsed by the trademark holder.</dd>
+				<dd>No. UNI! is an independent, open-source project and isn't affiliated with or endorsed by Mattel.</dd>
 			</div>
 		</dl>
 	</section>
