@@ -6,10 +6,13 @@
 	let joining = $state(false);
 
 	async function quickPlay() {
-		// Stopgap: no matchmaking exists yet. Reuses the
-		// browse list's own fullest-first sort; a real matchmaking service
-		// replaces this call without touching this screen.
-		await storeLobby.quickJoin();
+		// Stopgap: no matchmaking exists yet. Server picks the
+		// fullest open public lobby with a free slot; a real matchmaking
+		// service replaces this call without touching this screen.
+		const joined = await storeLobby.quickJoin();
+		if (!joined) {
+			storeNavigation.goto("lobbies");
+		}
 	}
 
 	async function joinByCode() {

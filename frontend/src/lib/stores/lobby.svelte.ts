@@ -445,12 +445,19 @@ class StoreLobby implements SessionStore {
 	}
 
 	/**
-	 * @brief Joins the fullest available public lobby, or creates one if none exist.
-	 * TODO: stopgap until real matchmaking exists. Replace with the
-	 * server-backed quick-join implementation; this stub just reuses `join`.
+	 * @brief Joins the fullest open public lobby with a free slot.
+	 * Stopgap until ranked matchmaking exists — this is
+	 * intentionally simple and server-side, so concurrent quick-joiners can't
+	 * race each other into a lobby that just filled on the client's stale view.
+	 * @returns True if a lobby was joined, false if none was available.
 	 */
-	async quickJoin(): Promise<void> {
-		await this.join("");
+	async quickJoin(): Promise<boolean> {
+		try {
+			await ws.emitAndWait(ClientAction.LobbyQuickJoin);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	/**

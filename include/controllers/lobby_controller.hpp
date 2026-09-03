@@ -173,6 +173,13 @@ private:
     void HandleJoin(WsContext ctx, const json& msg);
 
     /**
+     * @brief Joins the caller to the fullest open public lobby with a free slot.
+     * @param context Caller's socket/session context.
+     * @param message Incoming lobby_quick_join payload.
+     */
+    void HandleQuickJoin(WsContext context, const nlohmann::json& message);
+
+    /**
      * @brief Handles the request to reconnect to a lobby.
      * @param ctx WebSocket context of the request.
      * @param msg Associated JSON payload.

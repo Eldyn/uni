@@ -38,6 +38,10 @@ static json leave_msg(const std::string& req = "req-3") {
     return {{"action", ws::ClientAction::kLobbyLeave}, {"request_id", req}};
 }
 
+static json quick_join_msg(const std::string& req = "req-qj") {
+    return {{"action", ws::ClientAction::kLobbyQuickJoin}, {"request_id", req}};
+}
+
 static json list_msg(const std::string& req = "req-4") {
     return {{"action", ws::ClientAction::kLobbyList}, {"request_id", req}};
 }
@@ -158,6 +162,43 @@ TEST_CASE("join: non-existent code returns error") {
     f.router.Dispatch(f.actx(), join_msg("ZZZZZZ"));
     auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
     CHECK(resp.value("action", "") == "error");
+}
+
+TEST_CASE("quick_join: joins the fullest open public lobby") {
+    LobbyFixture f;
+    std::string small_code = f.alice_creates(/*is_public=*/true);
+
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    WsContext cctx = make_ctx(carol_sock, &carol_sd);
+
+    f.bus.Clear();
+    f.router.Dispatch(cctx, quick_join_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(small_code);
+    REQUIRE(lp);
+    bool carol_present = false;
+    for (const auto& m : lp->members) {
+        if (m.username == "carol") carol_present = true;
+    }
+    CHECK(carol_present);
+}
+
+TEST_CASE("quick_join: errors when no public lobby is open") {
+    LobbyFixture f;
+    f.alice_creates(/*is_public=*/false);
+
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    WsContext cctx = make_ctx(carol_sock, &carol_sd);
+
+    f.router.Dispatch(cctx, quick_join_msg());
+
+    auto resp = json::parse(f.bus.FramesFor(carol_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "lobby_not_found");
 }
 
 TEST_CASE("leave: solo creator destroys lobby") {

@@ -53,6 +53,7 @@ channels:
           - $ref: "#/components/messages/LobbyCreate"
           - $ref: "#/components/messages/LobbyJoin"
           - $ref: "#/components/messages/LobbyRejoin"
+          - $ref: "#/components/messages/LobbyQuickJoin"
           - $ref: "#/components/messages/LobbyLeave"
           - $ref: "#/components/messages/LobbyToggleReady"
           - $ref: "#/components/messages/LobbyPromote"
@@ -444,6 +445,18 @@ components:
       title: Rejoin After Disconnection
       payload:
         $ref: "#/components/schemas/LobbyRejoinPayload"
+
+    LobbyQuickJoin:
+      name: lobby_quick_join
+      title: Join the Fullest Open Public Lobby
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["lobby_quick_join"]
+          request_id:
+            type: string
 
     LobbyLeave:
       name: lobby_leave

@@ -44,6 +44,12 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kLobbyQuickJoin,
+                      [this](WsContext context, const nlohmann::json& message) {
+        HandleQuickJoin(context, message);
+        return true;
+    });
+
     action_router_.On(ws::ClientAction::kLobbyRejoin, [this](WsContext ctx, const json& msg) {
         HandleRejoin(ctx, msg);
         return true;
@@ -463,6 +469,34 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         game_resp["match_state"] = lobby.match->SerializePlayerState(username);
         broadcaster_.Send(ctx.socket, game_resp.dump(), ctx.op_code);
     }
+}
+
+/**
+ * @brief Joins the caller to the fullest open public lobby with a free slot.
+ * @param context Caller's socket/session context.
+ * @param message Incoming lobby_quick_join payload.
+ */
+void LobbyController::HandleQuickJoin(WsContext context, const nlohmann::json& message) {
+    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
+
+    Lobby* best = nullptr;
+    for (auto& [id, lobby] : lobbies_) {
+        if (!lobby.settings.is_public) continue;
+        if (lobby.match != nullptr) continue;
+        if (static_cast<int>(lobby.members.size()) >= lobby.settings.max_players) continue;
+        if (!best || lobby.members.size() > best->members.size()) best = &lobby;
+    }
+
+    if (!best) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kLobbyNotFound, request_id);
+        return;
+    }
+
+    // Delegates to the same join path HandleJoin uses, rather than
+    // duplicating it.
+    HandleJoin(context, json({{"action", "lobby_join"}, {"request_id", request_id},
+                              {"code", best->invite_code}}));
 }
 
 /**
