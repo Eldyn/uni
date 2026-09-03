@@ -185,6 +185,33 @@ TEST_CASE("quick_join: joins the fullest open public lobby") {
     CHECK(carol_present);
 }
 
+TEST_CASE("quick_join: selects a bot-filled lobby when bot takeover is enabled") {
+    LobbyFixture f;
+    std::string code = f.alice_creates(/*is_public=*/true);
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                      {"request_id", "req-set"},
+                                      {"max_players", 2},
+                                      {"bot_count", 1},
+                                      {"allow_bot_takeover", true}});
+    f.bus.Clear();
+
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    WsContext cctx = make_ctx(carol_sock, &carol_sd);
+
+    f.router.Dispatch(cctx, quick_join_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    bool carol_present = false;
+    for (const auto& m : lp->members) {
+        if (m.username == "carol") carol_present = true;
+    }
+    CHECK(carol_present);
+}
+
 TEST_CASE("quick_join: errors when no public lobby is open") {
     LobbyFixture f;
     f.alice_creates(/*is_public=*/false);

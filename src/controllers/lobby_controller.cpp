@@ -483,7 +483,14 @@ void LobbyController::HandleQuickJoin(WsContext context, const nlohmann::json& m
     for (auto& [id, lobby] : lobbies_) {
         if (!lobby.settings.is_public) continue;
         if (lobby.match != nullptr) continue;
-        if (static_cast<int>(lobby.members.size()) >= lobby.settings.max_players) continue;
+        if (static_cast<int>(lobby.members.size()) >= lobby.settings.max_players) {
+            // A lobby that's full only because bots occupy every seat is
+            // still joinable when bot-takeover is enabled, the same
+            // hijack condition Lobby::AddOrHijack checks.
+            bool hijackable = lobby.settings.allow_bot_takeover &&
+                std::ranges::any_of(lobby.members, &LobbyMember::is_bot);
+            if (!hijackable) continue;
+        }
         if (!best || lobby.members.size() > best->members.size()) best = &lobby;
     }
 
