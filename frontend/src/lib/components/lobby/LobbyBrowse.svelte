@@ -50,11 +50,19 @@
 	// --- Responsive measurement ------------------------------------------------ //
 
 	let winW = $state(1440);
+	let winH = $state(900);
 	let gridW = $state(0);
 
 	// Mirror the CSS grid (md:grid-cols-2) so card metrics track real card width.
 	const cols = $derived(winW >= 768 ? 2 : 1);
 	const cardW = $derived(gridW > 0 ? (gridW - (cols - 1) * 12) / cols : 9999);
+
+	// Mirrors ShellFrame's rail-vs-bottom-nav breakpoint (`@media (min-width:
+	// 768px), (max-height: 599px)`): true only for the portrait-phone row,
+	// where the nav sits as a bottom bar rather than a side rail. Create
+	// becomes a FAB there so it doesn't compete with the toolbar's cramped
+	// single row.
+	const isPortraitPhone = $derived(winW < 768 && winH > 599);
 
 	// --- Filter / sort state ---------------------------------------------------- //
 
@@ -108,7 +116,7 @@
 	}
 </script>
 
-<svelte:window bind:innerWidth={winW} />
+<svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
 
 <div
 	class="fixed inset-0 flex flex-col overflow-x-hidden bg-cover bg-center"
@@ -160,6 +168,7 @@
 		bind:quickHideInGame
 		bind:sortBy
 		{advCount}
+		hideCreate={isPortraitPhone}
 		oncreate={() => (createOpen = true)}
 		onadvanced={() => (advancedOpen = true)}
 	/>
@@ -176,7 +185,11 @@
 				frequency={0.15}
 			/>
 
-			<div bind:clientWidth={gridW} class="grid grid-cols-1 gap-3 md:grid-cols-2">
+			<div
+				bind:clientWidth={gridW}
+				data-testid="lobby-list"
+				class="grid grid-cols-1 gap-3 pb-24 md:grid-cols-2"
+			>
 				{#each visible as lobby (lobby.invite_code)}
 					<LobbyCard {lobby} {cardW} onjoin={(code) => storeLobby.join(code)} />
 				{/each}
@@ -233,6 +246,18 @@
 		</div>
 	</div>
 </div>
+
+<!-- Create FAB: portrait phone only, mirrors ShellFrame's bottom-nav breakpoint
+     so it never fights the toolbar's cramped single row there. -->
+{#if isPortraitPhone}
+	<button
+		class="pixel-bordered fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center bg-accent text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+		onclick={() => (createOpen = true)}
+		aria-label="Create lobby"
+	>
+		<i class="hn pix hn-plus text-xl" aria-hidden="true"></i>
+	</button>
+{/if}
 
 <!-- Advanced search modal (darkening overlay, LobbySettings-style) --------- -->
 {#if advancedOpen}

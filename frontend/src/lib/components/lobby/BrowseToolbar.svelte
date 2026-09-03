@@ -16,6 +16,7 @@
 		quickHideInGame = $bindable(),
 		sortBy = $bindable(),
 		advCount,
+		hideCreate = false,
 		oncreate,
 		onadvanced
 	}: {
@@ -25,6 +26,8 @@
 		sortBy: SortKey;
 		/** Number of active advanced filters, shown as a badge. */
 		advCount: number;
+		/** True on portrait phone, where Create renders as a FAB instead. */
+		hideCreate?: boolean;
 		oncreate: () => void;
 		onadvanced: () => void;
 	} = $props();
@@ -97,14 +100,16 @@
 	</Listbox>
 
 	<div class="ml-auto flex items-center gap-2 sm:gap-3">
-		<button
-			class="pixel-bordered px-3 py-2 font-pixel text-sm uppercase text-white transition hover:brightness-110 lg:px-4 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-			title="Create lobby"
-			onclick={oncreate}
-		>
-			<i class="hn pix hn-plus hidden text-lg leading-none max-lg:inline-block"></i>
-			<span class="max-lg:hidden">+ Create</span>
-		</button>
+		{#if !hideCreate}
+			<button
+				class="pixel-bordered px-3 py-2 font-pixel text-sm uppercase text-white transition hover:brightness-110 lg:px-4 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+				title="Create lobby"
+				onclick={oncreate}
+			>
+				<i class="hn pix hn-plus hidden text-lg leading-none max-lg:inline-block"></i>
+				<span class="max-lg:hidden">+ Create</span>
+			</button>
+		{/if}
 		<!-- advanced search trigger -->
 		<button
 			class="pixel-bordered relative px-3 py-2 font-pixel text-sm text-accent-h transition hover:brightness-125 lg:px-4 [--pc-border:var(--accent)]"
