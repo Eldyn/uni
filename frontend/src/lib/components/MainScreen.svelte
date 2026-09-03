@@ -108,7 +108,10 @@
 	</div>
 
 	{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
-		<LandingContent />
+		<a href="#landing-content" class="skip-link">More about UNI!</a>
+		<div id="landing-content">
+			<LandingContent />
+		</div>
 	{/if}
 
 	<!-- Bottom dock: actions + nav, fixed so its own height (which varies a
@@ -219,6 +222,20 @@
 	.logout-inline:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
+	}
+
+	.skip-link {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		z-index: 30;
+		padding: var(--space-2) var(--space-4);
+		background: var(--accent);
+		color: #fff;
+	}
+	.skip-link:focus {
+		left: var(--space-4);
+		top: var(--space-4);
 	}
 
 	.social-icon {
