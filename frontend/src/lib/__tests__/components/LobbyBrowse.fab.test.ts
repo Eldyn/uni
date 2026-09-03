@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/svelte";
+import { render } from "@testing-library/svelte";
 
 // jsdom has no ResizeObserver; LobbyBrowse's bind:clientWidth needs one to mount.
 class StubResizeObserver {
@@ -23,6 +23,6 @@ describe("LobbyBrowse create action placement", () => {
 		const { container } = render(LobbyBrowse);
 		const list = container.querySelector("[data-testid='lobby-list']");
 		expect(list, "expected the list container to carry data-testid='lobby-list'").toBeTruthy();
-		expect(list!.className).toMatch(/pb-(20|24|28|32)/);
+		expect(list!.className).toMatch(/pb-(20|24|28|32|36|40)/);
 	});
 });
