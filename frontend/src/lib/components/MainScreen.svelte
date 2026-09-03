@@ -3,6 +3,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import TextEffects from "./common/TextEffects.svelte";
 	import HomeScreen from "$components/home/HomeScreen.svelte";
+	import LandingContent from "$components/landing/LandingContent.svelte";
 
 	let logoutPending = $state(false);
 	/** Measured height of the fixed bottom dock, so the hero above it can
@@ -105,6 +106,10 @@
 			</p>
 		{/if}
 	</div>
+
+	{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+		<LandingContent />
+	{/if}
 
 	<!-- Bottom dock: actions + nav, fixed so its own height (which varies a
 	     lot by auth state) never pushes the hero above around, only pads it. -->
