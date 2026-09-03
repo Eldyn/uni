@@ -12,6 +12,7 @@
 		lobbies: () => import("./lib/components/lobby/LobbyBrowse.svelte"),
 		lobby: () => import("./lib/components/lobby/LobbyScreen.svelte"),
 		game: () => import("./lib/components/game/GameScreen.svelte"),
+		profile: () => import("./lib/components/profile/ProfileScreen.svelte"),
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),

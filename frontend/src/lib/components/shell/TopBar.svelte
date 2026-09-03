@@ -30,9 +30,7 @@
 	}
 
 	function openProfile() {
-		// TODO: Replace with storeNavigation.goto("profile") once the
-		// Profile screen exists.
-		storeNavigation.goto("stats");
+		storeNavigation.goto("profile");
 	}
 </script>
 
