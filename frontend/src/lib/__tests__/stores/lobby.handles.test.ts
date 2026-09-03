@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockEmitAndWait, mockEmit } = vi.hoisted(() => ({
+const { mockEmitAndWait, mockEmit, mockConnect } = vi.hoisted(() => ({
 	mockEmitAndWait: vi.fn(),
-	mockEmit: vi.fn()
+	mockEmit: vi.fn(),
+	mockConnect: vi.fn()
 }));
 
 vi.mock("$lib/stores/ws.svelte", () => ({
@@ -11,7 +12,7 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 		emit: mockEmit,
 		on: vi.fn(() => vi.fn()),
 		onOpen: vi.fn(() => vi.fn()),
-		connect: vi.fn()
+		connect: mockConnect
 	},
 	ServerAction: {
 		LobbyJoined: "lobby_joined",
@@ -23,6 +24,7 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 	ClientAction: {
 		LobbyCreate: "lobby_create",
 		LobbyJoin: "lobby_join",
+		LobbyQuickJoin: "lobby_quick_join",
 		LobbyStartMatch: "lobby_start_match",
 		LobbyPromote: "lobby_promote",
 		LobbyKick: "lobby_kick",
@@ -79,6 +81,21 @@ describe("lobby store: handle methods", () => {
 	it("join resolves to false when response.ok is false", async () => {
 		mockEmitAndWait.mockResolvedValue(errorResponse);
 		await expect(storeLobby.join("AAAAAA")).resolves.toBe(false);
+	});
+
+	it("quickJoin connects then calls emitAndWait with LobbyQuickJoin action", async () => {
+		await storeLobby.quickJoin();
+		expect(mockConnect).toHaveBeenCalled();
+		expect(mockEmitAndWait).toHaveBeenCalledWith("lobby_quick_join");
+	});
+
+	it("quickJoin resolves to true when response.ok is true", async () => {
+		await expect(storeLobby.quickJoin()).resolves.toBe(true);
+	});
+
+	it("quickJoin resolves to false when response.ok is false", async () => {
+		mockEmitAndWait.mockResolvedValue(errorResponse);
+		await expect(storeLobby.quickJoin()).resolves.toBe(false);
 	});
 
 	it("startMatch calls emitAndWait with LobbyStartMatch action", async () => {

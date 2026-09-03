@@ -453,9 +453,16 @@ class StoreLobby implements SessionStore {
 	 */
 	async quickJoin(): Promise<boolean> {
 		try {
-			await ws.emitAndWait(ClientAction.LobbyQuickJoin);
+			await ws.connect();
+			const response = await ws.emitAndWait(ClientAction.LobbyQuickJoin);
+
+			if (!response.ok) {
+				storeToast.error(response.message);
+				return false;
+			}
 			return true;
-		} catch {
+		} catch (error) {
+			storeToast.error(failureText(error));
 			return false;
 		}
 	}
