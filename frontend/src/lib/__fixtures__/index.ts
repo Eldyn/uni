@@ -55,8 +55,8 @@ export function makeLobby(overrides?: Partial<Lobby>): Lobby {
 		count_wild_draw_four: 4
 	};
 	const members: LobbyMember[] = [
-		{ username: "player1", is_connected: true, is_host: true, is_bot: false },
-		{ username: "player2", is_connected: true, is_host: false, is_bot: false }
+		{ username: "player1", is_connected: true, is_host: true, is_bot: false, is_ready: false },
+		{ username: "player2", is_connected: true, is_host: false, is_bot: false, is_ready: false }
 	];
 	return {
 		invite_code: "AAAAAA",
