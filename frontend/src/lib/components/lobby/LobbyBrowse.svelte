@@ -188,7 +188,8 @@
 			<div
 				bind:clientWidth={gridW}
 				data-testid="lobby-list"
-				class="grid grid-cols-1 gap-3 pb-40 md:grid-cols-2"
+				class="grid grid-cols-1 gap-3 md:grid-cols-2"
+					class:pb-40={isPortraitPhone}
 			>
 				{#each visible as lobby (lobby.invite_code)}
 					<LobbyCard {lobby} {cardW} onjoin={(code) => storeLobby.join(code)} />
