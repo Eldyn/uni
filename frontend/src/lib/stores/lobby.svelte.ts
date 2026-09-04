@@ -7,6 +7,7 @@
 import { z } from "zod";
 import type { SessionStore } from "$stores/sessionStore";
 import { failureText } from "./errors";
+import { ErrorCode } from "$lib/generated/schemas";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
@@ -457,7 +458,11 @@ class StoreLobby implements SessionStore {
 			const response = await ws.emitAndWait(ClientAction.LobbyQuickJoin);
 
 			if (!response.ok) {
-				storeToast.error(response.message);
+				const message =
+					response.code === ErrorCode.LobbyNotFound
+						? "No lobbies are currently open to quick play with."
+						: response.message;
+				storeToast.error(message);
 				return false;
 			}
 			return true;

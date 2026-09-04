@@ -9,10 +9,7 @@
 		// Stopgap: no matchmaking exists yet. Server picks the
 		// fullest open public lobby with a free slot; a real matchmaking
 		// service replaces this call without touching this screen.
-		const joined = await storeLobby.quickJoin();
-		if (!joined) {
-			storeNavigation.goto("lobbies");
-		}
+		await storeLobby.quickJoin();
 	}
 
 	async function joinByCode() {

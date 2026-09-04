@@ -98,6 +98,40 @@ describe("lobby store: handle methods", () => {
 		await expect(storeLobby.quickJoin()).resolves.toBe(false);
 	});
 
+	it("quickJoin shows a quick-play-specific message when the code is lobby_not_found", async () => {
+		const { storeToast } = await import("$lib/stores/toast.svelte");
+		const toastSpy = vi.spyOn(storeToast, "error");
+		mockEmitAndWait.mockResolvedValue({
+			ok: false,
+			code: "lobby_not_found",
+			message: "This code has no lobby associated.",
+			action: "error",
+			get: () => null,
+			getOr: (_key: string, fallback: unknown) => fallback
+		});
+
+		await storeLobby.quickJoin();
+
+		expect(toastSpy).toHaveBeenCalledWith("No lobbies are currently open to quick play with.");
+	});
+
+	it("join still shows the join-by-code message when the code is lobby_not_found", async () => {
+		const { storeToast } = await import("$lib/stores/toast.svelte");
+		const toastSpy = vi.spyOn(storeToast, "error");
+		mockEmitAndWait.mockResolvedValue({
+			ok: false,
+			code: "lobby_not_found",
+			message: "This code has no lobby associated.",
+			action: "error",
+			get: () => null,
+			getOr: (_key: string, fallback: unknown) => fallback
+		});
+
+		await storeLobby.join("AAAAAA");
+
+		expect(toastSpy).toHaveBeenCalledWith("This code has no lobby associated.");
+	});
+
 	it("startMatch calls emitAndWait with LobbyStartMatch action", async () => {
 		await storeLobby.startMatch();
 		expect(mockEmitAndWait).toHaveBeenCalledWith("lobby_start_match");
