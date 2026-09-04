@@ -1,18 +1,20 @@
 <script lang="ts">
+	import type { Snippet } from "svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
 
 	const SCREEN_TITLES: Partial<Record<string, string>> = {
+		main: "UNI!",
 		lobbies: "Browse",
 		lobby: "Lobby",
 		decks: "Decks",
 		shop: "Shop",
 		profile: "Profile",
 		stats: "Profile",
-		detailedStats: "Leaderboard"
-		// "main" deliberately has no title — the home screen isn't labelled.
+		detailedStats: "Leaderboard",
+		settings: "Settings"
 	};
 
 	const title = $derived(SCREEN_TITLES[storeNavigation.current] ?? "");
@@ -33,10 +35,18 @@
 	function openProfile() {
 		storeNavigation.goto("profile");
 	}
+
+	let { content }: { content?: Snippet } = $props();
 </script>
 
 <header class="shell-topbar">
 	<h1 class="shell-topbar-title">{title}</h1>
+
+	{#if content}
+		<div class="shell-topbar-content">
+			{@render content()}
+		</div>
+	{/if}
 
 	<div class="shell-topbar-right">
 		{#if storeLobby.isInLobby}
@@ -70,6 +80,12 @@
 		font-family: var(--heading);
 		font-size: var(--text-title);
 		margin: 0;
+	}
+	.shell-topbar-content {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		justify-content: center;
 	}
 	.shell-topbar-right {
 		display: flex;
