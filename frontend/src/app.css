@@ -689,7 +689,8 @@ p {
 }
 
 code,
-#app {
+#app,
+#svelte-root {
 	width: 100%;
 	height: 100vh;
 	margin: 0 auto;
@@ -698,6 +699,13 @@ code,
 	background: var(--bg);
 	display: flex;
 	flex-direction: column;
+}
+
+/* Author-origin rules targeting #app (above) always beat the UA stylesheet's
+   [hidden] { display: none } rule, so main.js hiding the static splash via
+   the hidden attribute alone isn't enough — this makes the hide stick. */
+#app[hidden] {
+	display: none !important;
 }
 
 /* Reusable accent scrollbar for any scrollable panel (chat log, friends

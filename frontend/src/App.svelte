@@ -109,7 +109,7 @@
 	declare const __DEV_HARNESS__: boolean;
 </script>
 
-<div id="app">
+<div id="svelte-root">
 	<Toast />
 	<!-- Both sit in the match board's own bottom-left corner, which the local
 	     hand row now reaches into on every viewport — the stamp is reference
@@ -158,7 +158,7 @@
 		padding: 0;
 	}
 
-	#app {
+	#svelte-root {
 		width: 100%;
 		color-scheme: light dark;
 		color: var(--text);
