@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
+	import { storeModal } from "$lib/stores/modal.svelte";
 
 	let {
 		open = $bindable(false),
@@ -37,6 +38,8 @@
 
 	$effect(() => {
 		if (!open || !contentEl) return;
+
+		storeModal.register();
 
 		const previouslyFocused = document.activeElement as HTMLElement | null;
 
@@ -79,6 +82,7 @@
 		return () => {
 			document.removeEventListener("keydown", onKeydown, true);
 			previouslyFocused?.focus?.();
+			storeModal.unregister();
 		};
 	});
 </script>
