@@ -2,7 +2,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
-	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import Avatar from "$components/common/Avatar.svelte";
 
 	const SCREEN_TITLES: Partial<Record<string, string>> = {
 		lobbies: "Browse",
@@ -47,7 +47,7 @@
 		{/if}
 
 		<button class="shell-topbar-identity" onclick={openProfile}>
-			<TintedSprite src={storeAuth.avatar || "/assets/default_avatar.png"} color="#ffffff" size={32} />
+			<Avatar src={storeAuth.avatar} size={32} />
 			<span>{storeAuth.username}</span>
 		</button>
 	</div>

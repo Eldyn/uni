@@ -3,7 +3,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeStats } from "$stores/stats.svelte";
-	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import Avatar from "$components/common/Avatar.svelte";
 
 	// storeStats.myStats is a PlayerStats (see stats.svelte.ts): username,
 	// total_wins, total_losses, rank — there is no wins/matches_played field.
@@ -17,7 +17,7 @@
 
 <div class="flex flex-1 flex-col gap-6 p-6">
 	<header class="flex items-center gap-4">
-		<TintedSprite src={storeAuth.avatar || "/assets/default_avatar.png"} color="#ffffff" size={64} />
+		<Avatar src={storeAuth.avatar} size={64} />
 		<h1 class="title-screen">{storeAuth.username}</h1>
 	</header>
 
