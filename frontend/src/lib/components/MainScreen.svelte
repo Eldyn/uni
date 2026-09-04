@@ -47,134 +47,141 @@
 </script>
 
 <div
-	class="relative min-h-full overflow-hidden bg-bg"
+	class="main-screen-root relative min-h-full overflow-y-auto bg-bg"
 	style="-webkit-font-smoothing: none; -moz-osx-font-smoothing: grayscale; font-smooth: never;"
 >
-	<!-- Background art: y-position tuned to align the dark cutout with the logo.
-	     Absolute (scoped to MainScreen's own box), not fixed to the viewport —
-	     MainScreen now lives inside ShellFrame's .shell-content alongside the
-	     TopBar/NavBar chrome, which a fixed layer would paint over. -->
-	<div
-		class="absolute inset-0 z-0 bg-cover"
-		style="
+	<!-- Hero zone: pinned to roughly one viewport tall so the background art,
+	     logo and bottom dock stay anchored near the top of the page instead of
+	     chasing the user down the scrollable marketing content below (that
+	     content flows as a normal sibling, outside this box). -->
+	<div class="hero-zone relative min-h-screen">
+		<!-- Background art: y-position tuned to align the dark cutout with the logo.
+		     Absolute (scoped to the hero zone), not fixed to the viewport —
+		     MainScreen now lives inside ShellFrame's .shell-content alongside the
+		     TopBar/NavBar chrome, which a fixed layer would paint over. -->
+		<div
+			class="absolute inset-0 z-0 bg-cover"
+			style="
         background-image: url('/assets/bg_main.png');
         background-position: center 62%;
 	    image-rendering: pixelated;
 	    image-rendering: crisp-edges;
         "
-	></div>
+		></div>
 
-	<!-- Dock gradient: absolute, always bottom-half of MainScreen's own box, independent of content height -->
-	<div class="dock-bg pointer-events-none absolute bottom-0 left-0 right-0 z-[5]"></div>
+		<!-- Dock gradient: absolute, always bottom-half of the hero zone, independent of content height -->
+		<div class="dock-bg pointer-events-none absolute bottom-0 left-0 right-0 z-[5]"></div>
 
-	<!-- Hero zone: logo + welcome-back line, always centered in the space
-	     above the dock (not bottom-anchored, which left a growing empty gap
-	     up top the taller the dock got, worst on narrow/tall screens). -->
-	<div
-		class="landing-hero relative z-10 flex min-h-full flex-col items-center justify-center px-4"
-		style="padding-bottom: {dockHeight}px; transform: translateY(3rem);"
-	>
-		<div class="relative flex items-center justify-center">
-			<!-- Dither halo behind the logo: sized/centered on the text itself so
-			     it floats along with it, instead of the old page-fixed radial cutout
-			     baked into bg_main.png, which no longer tracks a centered logo. -->
-			<div
-				class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
-				style="background-image: url('/assets/dither-radial.png');"
-			></div>
-			<TextEffects
-				text="UNI!"
-				effect="undulate"
-				class="logo-text title-hero relative z-10"
-				font="var(--heading)"
-				amplitude={20}
-				speed={1}
-				frequency={0.15}
-			/>
+		<!-- Hero: logo + welcome-back line, always centered in the space
+		     above the dock (not bottom-anchored, which left a growing empty gap
+		     up top the taller the dock got, worst on narrow/tall screens). -->
+		<div
+			class="landing-hero relative z-10 flex min-h-full flex-col items-center justify-center px-4"
+			style="padding-bottom: {dockHeight}px;"
+		>
+			<div class="relative flex items-center justify-center">
+				<!-- Dither halo behind the logo: sized/centered on the text itself so
+				     it floats along with it, instead of the old page-fixed radial cutout
+				     baked into bg_main.png, which no longer tracks a centered logo. -->
+				<div
+					class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
+					style="background-image: url('/assets/dither-radial.png');"
+				></div>
+				<TextEffects
+					text="UNI!"
+					effect="undulate"
+					class="logo-text title-hero relative z-10"
+					font="var(--heading)"
+					amplitude={20}
+					speed={1}
+					frequency={0.15}
+				/>
+			</div>
+			{#if storeAuth.isLoggedIn || storeAuth.isGuest}
+				<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
+					{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+					<span class="text-accent">{storeAuth.username}</span>
+					<button
+						class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+						style="font-family: var(--pypx); font-weight: 800;"
+						onclick={handleLogout}
+						disabled={logoutPending}
+						>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
+					>
+				</p>
+			{/if}
 		</div>
-		{#if storeAuth.isLoggedIn || storeAuth.isGuest}
-			<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
-				{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
-				<span class="text-accent">{storeAuth.username}</span>
-				<button
-					class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
-					style="font-family: var(--pypx); font-weight: 800;"
-					onclick={handleLogout}
-					disabled={logoutPending}
-					>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
-				>
-			</p>
-		{/if}
+
+		<!-- Bottom dock: actions + nav, fixed to the hero zone so its own height
+		     (which varies a lot by auth state) never pushes the hero above
+		     around, only pads it. -->
+		<div
+			bind:clientHeight={dockHeight}
+			class="dock absolute inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
+		>
+			<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
+				{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
+					<!-- Signed out entirely: login + guest CTA -->
+					<button
+						class="btn pixel-corners w-full py-5 text-xl tracking-wider"
+						onclick={() => storeNavigation.gotoAuth("login")}
+					>
+						Login
+					</button>
+					<p
+						class="text-center font-extrabold uppercase tracking-widest text-text/30"
+						style="font-family: var(--pypx);"
+					>
+						- or -
+					</p>
+					<button
+						class="btn pixel-corners w-full py-5 text-xl tracking-wider"
+						disabled={storeAuth.isLoading}
+						onclick={playAsGuest}
+					>
+						{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
+					</button>
+				{:else}
+					<!-- Logged-in or guest: Quick Play / Join / Create / Continue -->
+					<HomeScreen />
+				{/if}
+
+				<!-- Site links + social icons -->
+				<footer class="flex flex-col items-center gap-2">
+					<nav
+						class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
+						aria-label="Site links"
+					>
+						<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
+						<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
+						<a href="/about.html" class="transition-colors hover:text-accent">About</a>
+						<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+						<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+					</nav>
+					<nav class="flex items-center gap-3" aria-label="Social links">
+						{#each SOCIAL_LINKS as link}
+							<a
+								href={link.href}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="social-icon"
+								aria-label={link.label}
+							>
+								<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
+							</a>
+						{/each}
+					</nav>
+				</footer>
+			</div>
+		</div>
 	</div>
 
 	{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
 		<a href="#landing-content" class="skip-link">More about UNI!</a>
-		<div id="landing-content">
+		<div id="landing-content" tabindex="-1">
 			<LandingContent />
 		</div>
 	{/if}
-
-	<!-- Bottom dock: actions + nav, fixed so its own height (which varies a
-	     lot by auth state) never pushes the hero above around, only pads it. -->
-	<div
-		bind:clientHeight={dockHeight}
-		class="dock absolute inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
-	>
-		<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
-			{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
-				<!-- Signed out entirely: login + guest CTA -->
-				<button
-					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
-					onclick={() => storeNavigation.gotoAuth("login")}
-				>
-					Login
-				</button>
-				<p
-					class="text-center font-extrabold uppercase tracking-widest text-text/30"
-					style="font-family: var(--pypx);"
-				>
-					- or -
-				</p>
-				<button
-					class="btn pixel-corners w-full py-5 text-xl tracking-wider"
-					disabled={storeAuth.isLoading}
-					onclick={playAsGuest}
-				>
-					{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
-				</button>
-			{:else}
-				<!-- Logged-in or guest: Quick Play / Join / Create / Continue -->
-				<HomeScreen />
-			{/if}
-
-			<!-- Site links + social icons -->
-			<footer class="flex flex-col items-center gap-2">
-				<nav
-					class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
-					aria-label="Site links"
-				>
-					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
-					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
-					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
-					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
-					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
-				</nav>
-				<nav class="flex items-center gap-3" aria-label="Social links">
-					{#each SOCIAL_LINKS as link}
-						<a
-							href={link.href}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="social-icon"
-							aria-label={link.label}
-						>
-							<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
-						</a>
-					{/each}
-				</nav>
-			</footer>
-		</div>
-	</div>
 </div>
 
 <style>
@@ -256,12 +263,15 @@
 	   its normal, unanimated appearance; the animation only kicks in inside
 	   the @supports block, so browsers without animation-timeline still get
 	   a fully visible, fully sized, statically positioned page. */
-	:global(html) {
+	/* The named scroll timeline lives on the element that actually scrolls —
+	   MainScreen's own root, now that it's the scroll container (see the
+	   overflow-y-auto above) — not on html, which never scrolls here. */
+	.main-screen-root {
 		scroll-timeline: --landing-scroll block;
 	}
 
 	.landing-hero {
-		transform: none;
+		transform: translateY(3rem);
 	}
 
 	.dock {
@@ -285,8 +295,13 @@
 			animation-range: 0 60vh;
 		}
 
+		/* No static opacity here: if the timeline never resolves (e.g. this
+		   isn't the scrolling element after all in some browser/layout), an
+		   inactive scroll-linked animation applies no effect at all, per spec —
+		   so the base opacity: 1 above stays in force and the content stays
+		   visible. Only a genuinely active, resolved timeline drives this via
+		   the keyframes' own `from` state. */
 		:global(.landing-content) {
-			opacity: 0;
 			animation: landing-reveal linear both;
 			animation-timeline: --landing-scroll;
 			animation-range: 20vh 80vh;
@@ -295,7 +310,7 @@
 
 	@keyframes landing-hero-shrink {
 		from {
-			transform: scale(1);
+			transform: translateY(3rem) scale(1);
 		}
 		to {
 			transform: scale(0.6) translateY(-2rem);
@@ -323,7 +338,11 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.landing-hero,
+		.landing-hero {
+			animation: none;
+			opacity: 1;
+			transform: translateY(3rem);
+		}
 		.dock,
 		:global(.landing-content) {
 			animation: none;

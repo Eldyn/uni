@@ -25,4 +25,11 @@ describe("MainScreen keyboard reachability", () => {
 		const target = document.querySelector(href!);
 		expect(target).not.toBeNull();
 	});
+
+	it("makes the skip link's target focusable, so activating it moves keyboard focus", () => {
+		render(MainScreen);
+		const skipLink = screen.getByRole("link", { name: /more about uni/i });
+		const target = document.querySelector(skipLink.getAttribute("href")!);
+		expect(target?.getAttribute("tabindex")).toBe("-1");
+	});
 });
