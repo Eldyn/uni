@@ -1,6 +1,6 @@
 <div class="landing-content">
 	<section class="landing-section">
-		<h2>What is this</h2>
+		<h1>What is this</h1>
 		<p>
 			UNI! is a free, open-source online multiplayer card game. Play in your browser with up to
 			4 players in real time — a fast, friendly take on the classic colour-and-number card game
@@ -112,6 +112,7 @@
 		margin: 0 auto;
 		padding: var(--space-8) var(--space-4);
 	}
+	.landing-section h1,
 	.landing-section h2 {
 		font-family: var(--heading);
 		font-size: var(--text-title);
