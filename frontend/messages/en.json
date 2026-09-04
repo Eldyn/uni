@@ -5,5 +5,10 @@
 	"settings_audio_heading": "Audio",
 	"settings_music_volume": "Music volume",
 	"settings_sfx_volume": "Sound effects volume",
-	"settings_language_heading": "Language"
+	"settings_language_heading": "Language",
+	"settings_account_heading": "Account",
+	"settings_credits_heading": "Credits",
+	"settings_danger_zone_heading": "Danger zone",
+	"settings_quit_match": "Quit match",
+	"settings_leave_lobby": "Leave lobby"
 }

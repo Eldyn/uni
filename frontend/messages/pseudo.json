@@ -5,5 +5,10 @@
 	"settings_audio_heading": "[Åüdíø šéttîñgš]",
 	"settings_music_volume": "[Müsîc völümé lévél]",
 	"settings_sfx_volume": "[Šöünd éffécts völümé lévél]",
-	"settings_language_heading": "[Låñgüågé chöíçé]"
+	"settings_language_heading": "[Låñgüågé chöíçé]",
+	"settings_account_heading": "[Åccöüñt détåíls]",
+	"settings_credits_heading": "[Crédîts åñd thåñks]",
+	"settings_danger_zone_heading": "[Dåñgér zöñé åhéåd]",
+	"settings_quit_match": "[Qüît thé måtch]",
+	"settings_leave_lobby": "[Léåvé thé löbby]"
 }

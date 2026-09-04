@@ -5,5 +5,10 @@
 	"settings_audio_heading": "Audio",
 	"settings_music_volume": "Volume musica",
 	"settings_sfx_volume": "Volume effetti sonori",
-	"settings_language_heading": "Lingua"
+	"settings_language_heading": "Lingua",
+	"settings_account_heading": "Account",
+	"settings_credits_heading": "Crediti",
+	"settings_danger_zone_heading": "Zona pericolosa",
+	"settings_quit_match": "Abbandona la partita",
+	"settings_leave_lobby": "Lascia la lobby"
 }
