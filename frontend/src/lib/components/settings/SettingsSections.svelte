@@ -45,6 +45,7 @@
 				value={Math.round(storeAudio.musicVolume * 100)}
 				min={0}
 				max={100}
+				live={true}
 				format={(v) => pct(v / 100)}
 				oncommit={(v) => storeAudio.setMusicVolume(v / 100)}
 			/>
@@ -55,6 +56,7 @@
 				value={Math.round(storeAudio.sfxVolume * 100)}
 				min={0}
 				max={100}
+				live={true}
 				format={(v) => pct(v / 100)}
 				oncommit={(v) => storeAudio.setSfxVolume(v / 100)}
 			/>

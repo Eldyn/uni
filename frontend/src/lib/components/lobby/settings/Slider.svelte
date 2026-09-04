@@ -9,6 +9,7 @@
 		min,
 		max,
 		disabled = false,
+		live = false,
 		format = (v: number) => String(v),
 		oncommit
 	}: {
@@ -19,7 +20,8 @@
 		min: number;
 		max: number;
 		disabled?: boolean;
-		/** Optional display formatter, e.g. (v) => `${v}s` */
+		/** When true, oncommit fires on every drag tick instead of only on release. Client-side-only controls (e.g. audio volume) want this; anything that sends a server update on commit must leave this false to avoid flooding the server mid-drag. */
+		live?: boolean;
 		format?: (value: number) => string;
 		oncommit: (value: number) => void;
 	} = $props();
@@ -46,7 +48,10 @@
 			{max}
 			bind:value={localValue}
 			{disabled}
-			oninput={(e) => (localValue = parseInt((e.target as HTMLInputElement).value, 10))}
+			oninput={(e) => {
+				localValue = parseInt((e.target as HTMLInputElement).value, 10);
+				if (live) oncommit(localValue);
+			}}
 			onchange={() => oncommit(localValue)}
 			class="custom-slider"
 			class:disabled
