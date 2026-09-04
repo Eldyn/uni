@@ -47,7 +47,7 @@
 		</button>
 		<button
 			class="btn-secondary px-4 py-3 text-left"
-			onclick={() => storeNavigation.openSettings()}
+			onclick={() => storeNavigation.goto("settings")}
 		>
 			Settings
 		</button>

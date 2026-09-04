@@ -36,7 +36,7 @@
 {/snippet}
 
 <div class="settings-sections flex flex-col gap-6">
-	<section class="panel" style="box-shadow: var(--elevation-1); padding: var(--space-6);">
+	<section class="panel settings-panel">
 		{@render sectionHeading(m.settings_audio_heading({}, { locale: storeI18n.locale }))}
 		<div class="mt-4 flex flex-col gap-4">
 			<Slider
@@ -63,7 +63,7 @@
 		</div>
 	</section>
 
-	<section class="panel" style="box-shadow: var(--elevation-1); padding: var(--space-6);">
+	<section class="panel settings-panel">
 		{@render sectionHeading(m.settings_language_heading({}, { locale: storeI18n.locale }))}
 		<div class="mt-4 flex gap-2">
 			{#each storeI18n.locales as locale (locale)}
@@ -78,13 +78,13 @@
 		</div>
 	</section>
 
-	<section class="panel" style="box-shadow: var(--elevation-1); padding: var(--space-6);">
+	<section class="panel settings-panel">
 		{@render sectionHeading(m.settings_account_heading({}, { locale: storeI18n.locale }))}
 		<p class="mt-4 font-tiny text-base text-text-h">{storeAuth.username}</p>
 	</section>
 
 	{#if showCredits}
-		<section class="panel" style="box-shadow: var(--elevation-1); padding: var(--space-6);">
+		<section class="panel settings-panel">
 			{@render sectionHeading(m.settings_credits_heading({}, { locale: storeI18n.locale }))}
 			<nav class="mt-4 flex flex-wrap gap-3 font-tiny text-sm text-text/70" aria-label="Credits links">
 				{#each SOCIAL_LINKS as link}
@@ -97,7 +97,7 @@
 	{/if}
 
 	{#if showDangerZone && (inLobby || inMatch)}
-		<section class="panel" style="box-shadow: var(--elevation-1); padding: var(--space-6); border-color: var(--danger);">
+		<section class="panel settings-panel settings-panel--danger">
 			{@render sectionHeading(m.settings_danger_zone_heading({}, { locale: storeI18n.locale }))}
 			<div class="mt-4 flex flex-col gap-2">
 				{#if inMatch}
@@ -113,3 +113,13 @@
 		</section>
 	{/if}
 </div>
+
+<style>
+	.settings-panel {
+		box-shadow: var(--elevation-1);
+		padding: var(--space-6);
+	}
+	.settings-panel--danger {
+		border-color: var(--danger);
+	}
+</style>

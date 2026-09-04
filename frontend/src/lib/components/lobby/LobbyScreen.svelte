@@ -233,7 +233,7 @@
 
 						{#if member.username === storeAuth.username && !member.is_bot}
 							<button
-								class="btn-secondary pixel-corners absolute left-1 top-1 z-20 px-2 py-1 text-[10px] uppercase"
+								class="btn-secondary absolute left-1 top-1 z-20 px-2 py-1 text-[10px] uppercase"
 								aria-pressed={member.is_ready}
 								onclick={(e) => {
 									e.stopPropagation();

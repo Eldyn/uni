@@ -111,9 +111,9 @@
 							onclick={handleLogout}
 							disabled={logoutPending}
 							>{logoutPending
-								? "Logging out…"
+								? m.home_logging_out({}, { locale: storeI18n.locale })
 								: storeAuth.isGuest
-									? "Log out"
+									? m.home_log_out_guest({}, { locale: storeI18n.locale })
 									: m.home_logout({}, { locale: storeI18n.locale })}</button
 						>
 					</p>
@@ -128,20 +128,22 @@
 						class="btn pixel-corners w-full py-5 text-xl tracking-wider"
 						onclick={() => storeNavigation.gotoAuth("login")}
 					>
-						Login
+						{m.home_login({}, { locale: storeI18n.locale })}
 					</button>
 					<p
 						class="text-center font-extrabold uppercase tracking-widest text-text/30"
 						style="font-family: var(--pypx);"
 					>
-						- or -
+						{m.home_or_separator({}, { locale: storeI18n.locale })}
 					</p>
 					<button
 						class="btn pixel-corners w-full py-5 text-xl tracking-wider"
 						disabled={storeAuth.isLoading}
 						onclick={playAsGuest}
 					>
-						{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
+						{storeAuth.isLoading
+							? m.home_connecting({}, { locale: storeI18n.locale })
+							: m.home_play_as_guest({}, { locale: storeI18n.locale })}
 					</button>
 				{:else}
 					<HomeScreen />

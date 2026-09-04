@@ -5,7 +5,8 @@
 	import FriendsList from "$components/chat/FriendsList.svelte";
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
-	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
+	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
+	import { storeI18n } from "$stores/i18n.svelte";
 
 	let showFriendsList = $state(false);
 	let panelHeight = $state(0);
@@ -65,7 +66,7 @@
 			class="chat-launcher pixel-corners fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
 			title="Open chat"
 			aria-label="Open chat"
-			aria-keyshortcuts={ACCELERATOR_KEYS.chat}
+			aria-keyshortcuts={acceleratorKey("chat", storeI18n.locale)}
 			onclick={open}
 		>
 			<i class="hn pix hn-message-dots text-xl"></i>

@@ -5,6 +5,7 @@
 	import Listbox from "$components/common/Listbox.svelte";
 	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import PlayerSlotRow from "./PlayerSlotRow.svelte";
+	import LobbySearchField from "./LobbySearchField.svelte";
 	import { SORT_OPTIONS, type SortKey } from "$lib/data/lobbyCatalogs";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -19,6 +20,7 @@
 		sortBy = $bindable(),
 		advCount,
 		hideCreate = false,
+		showSearchInline = false,
 		oncreate,
 		onadvanced
 	}: {
@@ -30,6 +32,9 @@
 		advCount: number;
 		/** True on portrait phone, where Create renders as a FAB instead. */
 		hideCreate?: boolean;
+		/** True on portrait phone, where the search field lives here instead of
+		 *  in TopBar's rail-mode search slot (see LobbyBrowse's isPortraitPhone). */
+		showSearchInline?: boolean;
 		oncreate: () => void;
 		onadvanced: () => void;
 	} = $props();
@@ -51,24 +56,12 @@
 <div
 	class="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:gap-3 sm:px-6 max-lg:landscape:py-1.5 lg:px-10"
 >
-	<div
-		class="pixel-bordered flex w-full min-w-0 items-center gap-2 px-3 py-2 focus-within:[--pc-border:var(--accent)] sm:w-auto sm:min-w-60 sm:flex-1 lg:hidden"
-	>
-		<i class="hn pix hn-search text-lg text-text"></i>
-		<input
-			class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
-			placeholder={m.browse_search_placeholder({}, { locale: storeI18n.locale })}
-			aria-label="Search lobby name"
-			bind:value={nameQuery}
+	{#if showSearchInline}
+		<LobbySearchField
+			bind:nameQuery
+			class="w-full min-w-0 sm:w-auto sm:min-w-60 sm:flex-1"
 		/>
-		{#if nameQuery}
-			<button
-				class="text-text hover:text-text-h"
-				title="Clear search"
-				onclick={() => (nameQuery = "")}><i class="hn pix hn-times text-sm"></i></button
-			>
-		{/if}
-	</div>
+	{/if}
 
 	<!-- fast settings: shown only on desktop (lg+) where the toolbar has room
 	     for a single uncluttered row; on mobile (portrait and landscape) they

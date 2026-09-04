@@ -3,10 +3,11 @@
 
 	type AvatarSize = 16 | 32 | 48 | 64;
 
-	let {
-		src = "/assets/base_player.gif",
-		size = 32
-	}: { src?: string; size?: AvatarSize } = $props();
+	const FALLBACK_SRC = "/assets/base_player.gif";
+
+	let { src, size = 32 }: { src?: string; size?: AvatarSize } = $props();
+
+	const resolvedSrc = $derived(src || FALLBACK_SRC);
 </script>
 
-<TintedSprite {src} color="#ffffff" size={size} fit="contain" />
+<TintedSprite src={resolvedSrc} color="#ffffff" size={size} fit="contain" />

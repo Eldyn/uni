@@ -2,24 +2,26 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
-	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
+	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
-	const SCREEN_TITLES: Partial<Record<string, string>> = {
-		main: "UNI!",
-		lobbies: "Browse",
-		lobby: "Lobby",
-		decks: "Decks",
-		shop: "Shop",
-		profile: "Profile",
-		stats: "Profile",
-		detailedStats: "Leaderboard",
-		settings: "Settings"
+	const SCREEN_TITLES: Partial<Record<string, () => string>> = {
+		main: () => m.main_title({}, { locale: storeI18n.locale }),
+		lobbies: () => m.browse_title({}, { locale: storeI18n.locale }),
+		lobby: () => m.lobby_title({}, { locale: storeI18n.locale }),
+		decks: () => m.decks_title({}, { locale: storeI18n.locale }),
+		shop: () => m.shop_title({}, { locale: storeI18n.locale }),
+		profile: () => m.profile_title({}, { locale: storeI18n.locale }),
+		stats: () => m.profile_title({}, { locale: storeI18n.locale }),
+		detailedStats: () => m.leaderboard_title({}, { locale: storeI18n.locale }),
+		settings: () => m.settings_title({}, { locale: storeI18n.locale })
 	};
 
-	const title = $derived(SCREEN_TITLES[storeNavigation.current] ?? "");
+	const title = $derived(SCREEN_TITLES[storeNavigation.current]?.() ?? "");
 
 	const readyCount = $derived(
 		storeLobby.current
@@ -59,7 +61,7 @@
 		<button
 			class="shell-topbar-identity"
 			onclick={openProfile}
-			aria-keyshortcuts={ACCELERATOR_KEYS.profile}
+			aria-keyshortcuts={acceleratorKey("profile", storeI18n.locale)}
 		>
 			<Avatar src={storeAuth.avatar} size={32} />
 			<TextEffects

@@ -356,9 +356,13 @@
 		cursor: not-allowed;
 	}
 
+	/*
+	 * .btn-secondary composes the .pixel-bordered mechanism below (its
+	 * pseudo-element rules are shared via the merged selector list on
+	 * .pixel-bordered, not redeclared here) — it just supplies its own
+	 * colours/layout and --pc-border/--pc-fill defaults.
+	 */
 	.btn-secondary {
-		position: relative;
-		isolation: isolate;
 		font-family: var(--pixel);
 		color: var(--accent);
 		background: transparent;
@@ -368,23 +372,6 @@
 		transition: background-color var(--duration-fast) var(--ease-standard);
 		--pc-border: var(--accent);
 		--pc-fill: transparent;
-	}
-	.btn-secondary::before,
-	.btn-secondary::after {
-		content: "";
-		position: absolute;
-		transition: background-color 0.12s ease;
-		clip-path: var(--notch-clip);
-	}
-	.btn-secondary::before {
-		inset: 0;
-		z-index: -2;
-		background: var(--pc-border);
-	}
-	.btn-secondary::after {
-		inset: var(--pc-width, 2px);
-		z-index: -1;
-		background: var(--pc-fill);
 	}
 	.btn-secondary:hover:not(:disabled) {
 		--pc-fill: var(--accent-bg);
@@ -548,23 +535,28 @@
 	 * Keep --pc-fill opaque (a translucent fill lets the border colour bleed
 	 * through in the pseudo fallback). Don't add a bg-* utility, use --pc-fill.
 	 */
-	.pixel-bordered {
+	.pixel-bordered,
+	.btn-secondary {
 		position: relative;
 		isolation: isolate;
 	}
 	.pixel-bordered::before,
-	.pixel-bordered::after {
+	.pixel-bordered::after,
+	.btn-secondary::before,
+	.btn-secondary::after {
 		content: "";
 		position: absolute;
 		transition: background-color 0.12s ease;
 		clip-path: var(--notch-clip);
 	}
-	.pixel-bordered::before {
+	.pixel-bordered::before,
+	.btn-secondary::before {
 		inset: 0;
 		z-index: -2;
 		background: var(--pc-border, var(--border));
 	}
-	.pixel-bordered::after {
+	.pixel-bordered::after,
+	.btn-secondary::after {
 		inset: var(--pc-width, 2px);
 		z-index: -1;
 		background: var(--pc-fill, var(--bg));

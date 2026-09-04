@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { storeNavigation, pathForScreen } from "$stores/navigation.svelte";
 	import type { AppScreen } from "$stores/navigation.svelte";
-	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
+	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
@@ -20,28 +20,28 @@
 			label: m.nav_home({}, { locale: storeI18n.locale }),
 			icon: "hn-home",
 			color: "var(--accent)",
-			key: ACCELERATOR_KEYS.home
+			key: acceleratorKey("home", storeI18n.locale)
 		},
 		{
 			screen: "lobbies",
 			label: m.nav_browse({}, { locale: storeI18n.locale }),
 			icon: "hn-search",
 			color: "var(--blueCard)",
-			key: ACCELERATOR_KEYS.browse
+			key: acceleratorKey("browse", storeI18n.locale)
 		},
 		{
 			screen: "decks",
 			label: m.nav_decks({}, { locale: storeI18n.locale }),
 			icon: "hn-viewblocks",
 			color: "var(--greenCard)",
-			key: ACCELERATOR_KEYS.decks
+			key: acceleratorKey("decks", storeI18n.locale)
 		},
 		{
 			screen: "shop",
 			label: m.nav_shop({}, { locale: storeI18n.locale }),
 			icon: "hn-credit-card",
 			color: "var(--yellowCard)",
-			key: ACCELERATOR_KEYS.shop
+			key: acceleratorKey("shop", storeI18n.locale)
 		}
 	]);
 
@@ -57,8 +57,11 @@
 </script>
 
 {#snippet mnemonicLabel(label: string, key: string)}
-	{#if label.toUpperCase().startsWith(key)}
-		<span class="mnemonic-key">{label[0]}</span>{label.slice(1)}
+	{@const index = label.toUpperCase().indexOf(key.toUpperCase())}
+	{#if index >= 0}
+		{label.slice(0, index)}<span class="mnemonic-key">{label[index]}</span>{label.slice(
+			index + 1
+		)}
 	{:else}
 		{label}
 	{/if}
@@ -83,12 +86,15 @@
 		class="shell-navbar-item"
 		style="--nav-item-color: var(--accent)"
 		aria-current={storeNavigation.current === "settings" ? "page" : undefined}
-		aria-keyshortcuts={ACCELERATOR_KEYS.menu}
+		aria-keyshortcuts={acceleratorKey("menu", storeI18n.locale)}
 		onclick={openMenu}
 	>
 		<i class="hn pix hn-menu text-xl leading-none" aria-hidden="true"></i>
 		<span class="shell-navbar-label"
-			>{@render mnemonicLabel(m.nav_menu({}, { locale: storeI18n.locale }), ACCELERATOR_KEYS.menu)}</span
+			>{@render mnemonicLabel(
+				m.nav_menu({}, { locale: storeI18n.locale }),
+				acceleratorKey("menu", storeI18n.locale)
+			)}</span
 		>
 	</a>
 </nav>

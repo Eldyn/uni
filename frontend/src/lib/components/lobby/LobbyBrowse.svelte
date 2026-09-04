@@ -8,6 +8,7 @@
 	import TextEffects from "$components/common/TextEffects.svelte";
 	import AdvancedSearchModal from "./AdvancedSearchModal.svelte";
 	import BrowseToolbar from "./BrowseToolbar.svelte";
+	import LobbySearchField from "./LobbySearchField.svelte";
 	import LobbyCard from "./LobbyCard.svelte";
 	import LobbyCreateForm from "./LobbyCreateForm.svelte";
 	import LobbyJoinForm from "./LobbyJoinForm.svelte";
@@ -18,8 +19,6 @@
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
-	import { storeI18n } from "$stores/i18n.svelte";
-	import * as m from "$lib/paraglide/messages.js";
 
 	// --- Server-backed lobby list --------------------------------------------- //
 
@@ -116,7 +115,15 @@
 		advDecks = {};
 	}
 
+	// The search field lives in exactly one place at a time: inline in
+	// BrowseToolbar on the bottom-nav/portrait-phone breakpoint, or handed to
+	// TopBar's rail-mode search slot everywhere else — never both, which is
+	// what rendering it unconditionally in each place used to do.
 	$effect(() => {
+		if (isPortraitPhone) {
+			storeTopbarContent.current = undefined;
+			return;
+		}
 		storeTopbarContent.current = browseSearchSlot;
 		return () => {
 			storeTopbarContent.current = undefined;
@@ -125,24 +132,7 @@
 </script>
 
 {#snippet browseSearchSlot()}
-	<div
-		class="pixel-bordered mx-auto flex w-full max-w-xs items-center gap-2 px-3 py-1.5 focus-within:[--pc-border:var(--accent)]"
-	>
-		<i class="hn pix hn-search text-sm text-text"></i>
-		<input
-			class="w-full min-w-0 bg-transparent font-tiny text-sm text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
-			placeholder={m.browse_search_placeholder({}, { locale: storeI18n.locale })}
-			aria-label="Search lobby name"
-			bind:value={nameQuery}
-		/>
-		{#if nameQuery}
-			<button
-				class="text-text hover:text-text-h"
-				title="Clear search"
-				onclick={() => (nameQuery = "")}><i class="hn pix hn-times text-xs"></i></button
-			>
-		{/if}
-	</div>
+	<LobbySearchField bind:nameQuery compact class="mx-auto w-full max-w-xs" />
 {/snippet}
 
 <svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
@@ -163,6 +153,7 @@
 		bind:sortBy
 		{advCount}
 		hideCreate={isPortraitPhone}
+		showSearchInline={isPortraitPhone}
 		oncreate={() => (createOpen = true)}
 		onadvanced={() => (advancedOpen = true)}
 	/>
