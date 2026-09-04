@@ -5,6 +5,7 @@
 	import FriendsList from "$components/chat/FriendsList.svelte";
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
 
 	let showFriendsList = $state(false);
 	let panelHeight = $state(0);
@@ -61,9 +62,10 @@
 		</div>
 	{:else}
 		<button
-			class="chat-launcher pixel-bordered fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+			class="chat-launcher pixel-bordered fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
 			title="Open chat"
 			aria-label="Open chat"
+			aria-keyshortcuts={ACCELERATOR_KEYS.chat}
 			onclick={open}
 		>
 			<i class="hn pix hn-message-dots text-xl"></i>

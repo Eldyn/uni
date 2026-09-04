@@ -2,8 +2,12 @@
 	import TopBar from "./TopBar.svelte";
 	import NavBar from "./NavBar.svelte";
 	import type { Snippet } from "svelte";
+	import { onMount } from "svelte";
+	import { initKeyboardAccelerators } from "$lib/actions/keyboardAccelerators";
 
 	let { children }: { children: Snippet } = $props();
+
+	onMount(() => initKeyboardAccelerators());
 </script>
 
 <div class="shell-frame">
