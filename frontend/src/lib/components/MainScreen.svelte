@@ -6,10 +6,6 @@
 	import LandingContent from "$components/landing/LandingContent.svelte";
 
 	let logoutPending = $state(false);
-	/** Measured height of the fixed bottom dock, so the hero above it can
-	 *  center itself in the space that's actually free, not the raw viewport
-	 *  (which the dock would otherwise overlap on short/tall screens). */
-	let dockHeight = $state(0);
 
 	async function playAsGuest() {
 		// INFO: No forced navigation, playing as guest from Main leaves you on
@@ -76,59 +72,50 @@
 		     above the dock (not bottom-anchored, which left a growing empty gap
 		     up top the taller the dock got, worst on narrow/tall screens). -->
 		<div
-			class="landing-hero relative z-10 flex min-h-full flex-col items-center justify-center px-4"
-			style="padding-bottom: {dockHeight}px;"
+			class="landing-grid relative z-10 flex min-h-full flex-col px-4"
 		>
-			<div class="relative flex items-center justify-center">
-				<!-- Dither halo behind the logo: sized/centered on the text itself so
-				     it floats along with it, instead of the old page-fixed radial cutout
-				     baked into bg_main.png, which no longer tracks a centered logo. -->
-				<div
-					class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
-					style="background-image: url('/assets/dither-radial.png');"
-				></div>
-				<TextEffects
-					text="UNI!"
-					effect="undulate"
-					class="logo-text title-hero relative z-10"
-					font="var(--heading)"
-					amplitude={20}
-					speed={1}
-					frequency={0.15}
-				/>
-			</div>
-			{#if storeAuth.isLoggedIn || storeAuth.isGuest}
-				<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
-					{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+			<div class="landing-title flex flex-col items-center justify-center pt-8">
+				<div class="relative flex items-center justify-center">
+					<div
+						class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
+						style="background-image: url('/assets/dither-radial.png');"
+					></div>
 					<TextEffects
-						text={storeAuth.username}
+						text="UNI!"
 						effect="undulate"
-						class="font-tiny text-accent"
-						amplitude={6}
-						speed={2}
+						class="logo-text title-hero relative z-10"
+						font="var(--heading)"
+						amplitude={20}
+						speed={1}
 						frequency={0.15}
 					/>
-					<button
-						class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
-						style="font-family: var(--pypx); font-weight: 800;"
-						onclick={handleLogout}
-						disabled={logoutPending}
-						>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
-					>
-				</p>
-			{/if}
-		</div>
+				</div>
+				{#if storeAuth.isLoggedIn || storeAuth.isGuest}
+					<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
+						{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+						<TextEffects
+							text={storeAuth.username}
+							effect="undulate"
+							class="font-tiny text-accent"
+							amplitude={6}
+							speed={2}
+							frequency={0.15}
+						/>
+						<button
+							class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+							style="font-family: var(--pypx); font-weight: 800;"
+							onclick={handleLogout}
+							disabled={logoutPending}
+							>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
+						>
+					</p>
+				{/if}
+			</div>
 
-		<!-- Bottom dock: actions + nav, fixed to the hero zone so its own height
-		     (which varies a lot by auth state) never pushes the hero above
-		     around, only pads it. -->
-		<div
-			bind:clientHeight={dockHeight}
-			class="dock absolute inset-x-0 bottom-0 z-10 w-full px-4 pb-6 pt-6"
-		>
-			<div class="relative mx-auto flex w-full max-w-sm flex-col gap-3">
+			<div class="landing-spacer" aria-hidden="true"></div>
+
+			<div class="landing-actions mx-auto flex w-full max-w-sm flex-col gap-3">
 				{#if !storeAuth.isLoggedIn && !storeAuth.isGuest}
-					<!-- Signed out entirely: login + guest CTA -->
 					<button
 						class="btn pixel-corners w-full py-5 text-xl tracking-wider"
 						onclick={() => storeNavigation.gotoAuth("login")}
@@ -149,37 +136,37 @@
 						{storeAuth.isLoading ? "Connecting…" : "Play as Guest"}
 					</button>
 				{:else}
-					<!-- Logged-in or guest: Quick Play / Join / Create / Continue -->
 					<HomeScreen />
 				{/if}
-
-				<!-- Site links + social icons -->
-				<footer class="flex flex-col items-center gap-2">
-					<nav
-						class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
-						aria-label="Site links"
-					>
-						<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
-						<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
-						<a href="/about.html" class="transition-colors hover:text-accent">About</a>
-						<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
-						<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
-					</nav>
-					<nav class="flex items-center gap-3" aria-label="Social links">
-						{#each SOCIAL_LINKS as link}
-							<a
-								href={link.href}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="social-icon"
-								aria-label={link.label}
-							>
-								<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
-							</a>
-						{/each}
-					</nav>
-				</footer>
 			</div>
+
+			<div class="landing-spacer" aria-hidden="true"></div>
+
+			<footer class="landing-footer flex flex-col items-center gap-2 pb-6">
+				<nav
+					class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
+					aria-label="Site links"
+				>
+					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
+					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
+					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
+					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
+					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+				</nav>
+				<nav class="flex items-center gap-3" aria-label="Social links">
+					{#each SOCIAL_LINKS as link}
+						<a
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="social-icon"
+							aria-label={link.label}
+						>
+							<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
+						</a>
+					{/each}
+				</nav>
+			</footer>
 		</div>
 	</div>
 
@@ -277,37 +264,23 @@
 		scroll-timeline: --landing-scroll block;
 	}
 
-	.landing-hero {
-		transform: translateY(3rem);
+	.landing-grid {
+		display: grid;
+		grid-template-rows: auto 1fr auto 1fr auto;
+		min-height: 100svh;
 	}
 
-	.dock {
-		transform: none;
-	}
-
-	:global(.landing-content) {
-		opacity: 1;
+	.landing-spacer {
+		min-height: 0;
 	}
 
 	@supports (animation-timeline: scroll()) {
-		.landing-hero {
+		.landing-grid {
 			animation: landing-hero-shrink linear both;
 			animation-timeline: --landing-scroll;
 			animation-range: 0 60vh;
 		}
 
-		.dock {
-			animation: landing-dock-settle linear both;
-			animation-timeline: --landing-scroll;
-			animation-range: 0 60vh;
-		}
-
-		/* No static opacity here: if the timeline never resolves (e.g. this
-		   isn't the scrolling element after all in some browser/layout), an
-		   inactive scroll-linked animation applies no effect at all, per spec —
-		   so the base opacity: 1 above stays in force and the content stays
-		   visible. Only a genuinely active, resolved timeline drives this via
-		   the keyframes' own `from` state. */
 		:global(.landing-content) {
 			animation: landing-reveal linear both;
 			animation-timeline: --landing-scroll;
@@ -317,19 +290,10 @@
 
 	@keyframes landing-hero-shrink {
 		from {
-			transform: translateY(3rem) scale(1);
+			transform: scale(1);
 		}
 		to {
-			transform: scale(0.6) translateY(-2rem);
-		}
-	}
-
-	@keyframes landing-dock-settle {
-		from {
-			transform: translateY(0);
-		}
-		to {
-			transform: translateY(0) scale(0.85);
+			transform: scale(0.92);
 		}
 	}
 
@@ -345,12 +309,10 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.landing-hero {
+		.landing-grid {
 			animation: none;
-			opacity: 1;
-			transform: translateY(3rem);
+			transform: none;
 		}
-		.dock,
 		:global(.landing-content) {
 			animation: none;
 			opacity: 1;

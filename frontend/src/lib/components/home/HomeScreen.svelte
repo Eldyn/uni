@@ -30,7 +30,7 @@
 
 	<div class="flex w-full max-w-sm gap-2">
 		<input
-			class="input-pixel flex-1"
+			class="input-pixel font-tiny flex-1"
 			type="text"
 			aria-label="Lobby code"
 			placeholder="Got a code?"
