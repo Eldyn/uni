@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
 	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
+	import { storeTopbarContent } from "$stores/topbarContent.svelte";
 
 	const SCREEN_TITLES: Partial<Record<string, string>> = {
 		main: "UNI!",
@@ -37,16 +37,14 @@
 	function openProfile() {
 		storeNavigation.goto("profile");
 	}
-
-	let { content }: { content?: Snippet } = $props();
 </script>
 
 <header class="shell-topbar">
 	<h1 class="shell-topbar-title">{title}</h1>
 
-	{#if content}
+	{#if storeTopbarContent.current}
 		<div class="shell-topbar-content">
-			{@render content()}
+			{@render storeTopbarContent.current()}
 		</div>
 	{/if}
 

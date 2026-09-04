@@ -50,7 +50,7 @@
 	class="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:gap-3 sm:px-6 max-lg:landscape:py-1.5 lg:px-10"
 >
 	<div
-		class="pixel-bordered flex w-full min-w-0 items-center gap-2 px-3 py-2 focus-within:[--pc-border:var(--accent)] sm:w-auto sm:min-w-60 sm:flex-1"
+		class="pixel-bordered flex w-full min-w-0 items-center gap-2 px-3 py-2 focus-within:[--pc-border:var(--accent)] sm:w-auto sm:min-w-60 sm:flex-1 lg:hidden"
 	>
 		<i class="hn pix hn-search text-lg text-text"></i>
 		<input

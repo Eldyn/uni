@@ -15,10 +15,9 @@
 	import type { SortKey } from "$lib/data/lobbyCatalogs";
 	import { DECKS } from "$lib/data/lobbyCatalogs";
 	import { filterLobbies, sortLobbies, toBrowseLobby } from "$lib/utils/lobbyBrowse";
-	import { storeAuth } from "$stores/auth.svelte";
 	import { storeCatalog } from "$stores/catalog.svelte";
-	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeTopbarContent } from "$stores/topbarContent.svelte";
 
 	// --- Server-backed lobby list --------------------------------------------- //
 
@@ -114,7 +113,35 @@
 		advRules = {};
 		advDecks = {};
 	}
+
+	$effect(() => {
+		storeTopbarContent.current = browseSearchSlot;
+		return () => {
+			storeTopbarContent.current = undefined;
+		};
+	});
 </script>
+
+{#snippet browseSearchSlot()}
+	<div
+		class="pixel-bordered mx-auto flex w-full max-w-xs items-center gap-2 px-3 py-1.5 focus-within:[--pc-border:var(--accent)]"
+	>
+		<i class="hn pix hn-search text-sm text-text"></i>
+		<input
+			class="w-full min-w-0 bg-transparent font-tiny text-sm text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
+			placeholder="Search lobby name…"
+			aria-label="Search lobby name"
+			bind:value={nameQuery}
+		/>
+		{#if nameQuery}
+			<button
+				class="text-text hover:text-text-h"
+				title="Clear search"
+				onclick={() => (nameQuery = "")}><i class="hn pix hn-times text-xs"></i></button
+			>
+		{/if}
+	</div>
+{/snippet}
 
 <svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
 
@@ -127,41 +154,6 @@
 	    image-rendering: crisp-edges;
         "
 >
-	<!-- Header ------------------------------------------------------------- -->
-	<header
-		class="flex items-center justify-between gap-3 border-b-2 border-border bg-bg px-4 py-2 sm:px-6 sm:py-3 max-lg:landscape:py-1 lg:px-10"
-	>
-		<div class="flex min-w-0 items-baseline gap-4">
-			<h1
-				class="title-screen shrink-0 text-2xl sm:text-3xl lg:text-4xl max-lg:text-2xl! max-lg:landscape:text-xl!"
-			>
-				Lobbies
-			</h1>
-			<p class="hidden truncate font-tiny text-base text-text-h md:block">
-				Welcome,
-				<TextEffects
-					text={storeAuth.username}
-					effect="undulate"
-					class="font-tiny text-accent"
-					amplitude={6}
-					speed={2}
-					frequency={0.15}
-				/>
-			</p>
-		</div>
-		<div class="flex shrink-0 items-center gap-2">
-			<button
-				class="btn pixel-corners px-3 py-2 sm:px-5 sm:py-3"
-				title="Back"
-				aria-label="Back"
-				onclick={() => storeNavigation.goto("main")}
-			>
-				<i class="hn pix hn-arrow-left text-lg leading-none sm:hidden"></i>
-				<span class="hidden text-base uppercase sm:inline">Back</span>
-			</button>
-		</div>
-	</header>
-
 	<BrowseToolbar
 		bind:nameQuery
 		bind:quickOpenOnly
