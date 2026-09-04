@@ -13,39 +13,90 @@
 		if (total === 0) return "0%";
 		return Math.round((wins / total) * 100) + "%";
 	}
+
+	// Podium tints. Gold is the one that exists as a theme token; silver and
+	// bronze are podium-only and have no equivalent in the palette, so they
+	// stay local rather than borrowing an unrelated card colour.
+	function rankClass(rank: number): string {
+		if (rank === 1) return "text-gold";
+		if (rank === 2) return "rank-silver";
+		if (rank === 3) return "rank-bronze";
+		return "text-text/50";
+	}
 </script>
 
 <div class="doodle-bg"></div>
 
-<div class="stats-container">
-	<header class="top-bar">
-		<button class="btn pixel-corners" onclick={() => storeNavigation.goto("main")}> Back </button>
-		<h1>GLOBAL LEADERBOARD</h1>
-		<button class="btn pixel-corners" onclick={() => storeNavigation.goto("detailedStats")}>
-			Arsenal
+<div class="relative z-1 flex h-[100svh] flex-col text-white">
+	<header
+		class="flex shrink-0 items-center justify-between gap-2 border-b-2 border-border bg-bg px-3 py-2 sm:px-6 sm:py-3 lg:px-10 max-lg:landscape:py-1"
+	>
+		<button
+			class="btn pixel-corners shrink-0 px-3 py-2 sm:px-4"
+			onclick={() => storeNavigation.goto("main")}
+			aria-label="Back"
+		>
+			<i class="hn pix hn-arrow-left text-lg leading-none sm:hidden"></i>
+			<span class="hidden uppercase sm:inline">Back</span>
+		</button>
+
+		<!-- Scales instead of truncating: "GLOBAL LEADERBOARD" is long enough that
+		     a fixed size ellipsised to "GLO…" between the two buttons on a phone.
+		     Same ladder idiom as LobbyBrowse's header, retuned for the longer
+		     string ('!' because .title-screen hardcodes 56px). -->
+		<h1
+			class="title-screen shrink-0 text-center text-lg sm:text-2xl lg:text-3xl max-lg:text-lg! max-lg:landscape:text-base!"
+		>
+			GLOBAL LEADERBOARD
+		</h1>
+
+		<button
+			class="btn pixel-corners shrink-0 px-3 py-2 sm:px-4"
+			onclick={() => storeNavigation.goto("detailedStats")}
+			aria-label="Card Arsenal"
+		>
+			<i class="hn pix hn-viewblocks text-lg leading-none sm:hidden"></i>
+			<span class="hidden uppercase sm:inline">Arsenal</span>
 		</button>
 	</header>
 
-	<div class="content">
+	<div
+		class="scrollbar-accent mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-3 py-4 pb-12 sm:gap-6 sm:px-5"
+	>
 		{#if storeStats.leaderboard.length > 0}
 			{@const topPlayer = storeStats.leaderboard[0]}
-			<div class="top-player-card pixel-corners">
-				<div class="profile-section">
-					<h2><i class="hn pix hn-crown text-gold"></i> {topPlayer.username}</h2>
-					<span class="rank-badge pixel-corners">#1 In the world!</span>
+			<div class="panel pixel-corners p-4 shadow-[inset_0_0_0_4px_var(--accent)] sm:p-6">
+				<!-- Crown, name and badge stack centred on phones (portrait and
+				     landscape) where a split row reads as two stray fragments; from
+				     `lg` up there's room for the original spread row. -->
+				<div
+					class="mb-4 flex flex-col items-center gap-2 border-b-4 border-accent pb-3 lg:flex-row lg:justify-between"
+				>
+					<h2
+						class="flex min-w-0 items-center justify-center gap-2 font-pixel! text-xl text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-2xl"
+					>
+						<i class="hn pix hn-crown shrink-0 text-gold"></i>
+						<span class="truncate">{topPlayer.username}</span>
+					</h2>
+					<span
+						class="pypx-thick pixel-corners shrink-0 bg-accent px-3 py-1.5 text-xs uppercase text-black sm:text-sm"
+					>
+						#1 In the world!
+					</span>
 				</div>
-				<div class="stats-grid">
-					<div class="stat-box">
-						<span class="stat-label">Wins</span>
-						<span class="stat-value text-green">{topPlayer.total_wins}</span>
+
+				<div class="grid grid-cols-3 gap-2 text-center">
+					<div class="flex flex-col gap-1">
+						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">Wins</span>
+						<span class="stat-value text-success">{topPlayer.total_wins}</span>
 					</div>
-					<div class="stat-box">
-						<span class="stat-label">Losses</span>
-						<span class="stat-value text-red">{topPlayer.total_losses}</span>
+					<div class="flex flex-col gap-1">
+						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">Losses</span>
+						<span class="stat-value text-danger">{topPlayer.total_losses}</span>
 					</div>
-					<div class="stat-box">
-						<span class="stat-label">W/L Ratio</span>
-						<span class="stat-value text-purple">
+					<div class="flex flex-col gap-1">
+						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">W/L</span>
+						<span class="stat-value text-accent">
 							{getWinRate(topPlayer.total_wins, topPlayer.total_losses)}
 						</span>
 					</div>
@@ -53,50 +104,72 @@
 			</div>
 		{/if}
 
-		<div class="leaderboard-section pixel-corners">
-			<h3>Top 50 Players</h3>
+		<div class="panel pixel-corners flex flex-col p-3 shadow-[inset_0_0_0_4px_#333] sm:p-5">
+			<!-- '!' on the font/colour: app.css sets h1–h6 unlayered, which beats
+			     Tailwind's utility layer, so the plain utilities would silently
+			     lose to var(--heading)/var(--text-h). Same reason .title-screen
+			     headings elsewhere carry '!' overrides. --pixel is the face the
+			     .btn controls use, so the heading matches Back/Arsenal. -->
+			<h3
+				class="mb-4 pb-1.5 text-center font-pixel! text-base text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
+			>
+				TOP 50 PLAYERS
+			</h3>
 
 			{#if storeStats.isLoading}
-				<p class="loading-text">Loading leaderboard...</p>
+				<p class="py-6 text-center font-tiny text-sm text-text/50">Loading leaderboard...</p>
 			{:else if storeStats.leaderboard.length === 0}
-				<p class="loading-text">Something seems to have gone wrong!</p>
+				<p class="py-6 text-center font-tiny text-sm text-text/50">
+					Something seems to have gone wrong!
+				</p>
 			{:else}
-				<div class="leaderboard-list">
-					{#each storeStats.leaderboard as player}
-						<div
-							class="leaderboard-row pixel-corners"
+				<ul class="flex list-none flex-col gap-2 p-0">
+					{#each storeStats.leaderboard as player (player.username)}
+						<li
+							class="row pixel-corners grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2.5 py-2 sm:gap-3 sm:px-4 sm:py-3"
 							class:is-me={player.username === storeStats.myStats?.username}
 						>
-							<div
-								class="rank-col"
-								class:first={player.rank === 1}
-								class:second={player.rank === 2}
-								class:third={player.rank === 3}
+							<span
+								class="w-9 shrink-0 font-pixel text-sm sm:w-12 sm:text-base {rankClass(
+									player.rank
+								)}"
 							>
 								#{player.rank}
-							</div>
-							<div class="name-col">{player.username}</div>
-							<div class="score-col">
-								<span class="wins">{player.total_wins}W</span> -
-								<span class="losses">{player.total_losses}L</span>
-							</div>
-						</div>
+							</span>
+							<span class="min-w-0 truncate font-tiny text-sm text-white sm:text-base">
+								{player.username}
+							</span>
+							<span
+								class="pypx-thick shrink-0 whitespace-nowrap text-xs [text-shadow:1px_1px_0_var(--pixel-shadow)] sm:text-sm"
+							>
+								<span class="text-success">{player.total_wins}W</span>
+								<span class="text-text/40">-</span>
+								<span class="text-danger">{player.total_losses}L</span>
+							</span>
+						</li>
 					{/each}
 
 					{#if storeStats.myStats && (storeStats.myStats.rank === null || storeStats.myStats.rank > storeStats.leaderboard.length)}
-						<div class="sticky-divider"></div>
-						<div class="leaderboard-row is-me sticky-me pixel-corners">
-							<div class="rank-col">
+						<li aria-hidden="true" class="h-3"></li>
+						<li
+							class="row is-me sticky-me pixel-corners grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2.5 py-2 sm:gap-3 sm:px-4 sm:py-3"
+						>
+							<span class="w-9 shrink-0 font-pixel text-sm text-text/50 sm:w-12 sm:text-base">
 								#{storeStats.myStats.rank ? storeStats.myStats.rank : "?"}
-							</div>
-							<div class="name-col">{storeStats.myStats.username} (You)</div>
-							<div class="score-col">
-								<span class="wins">{storeStats.myStats.total_wins}W</span> -
-								<span class="losses">{storeStats.myStats.total_losses}L</span>
-							</div>
-						</div>
+							</span>
+							<span class="min-w-0 truncate font-tiny text-sm text-white sm:text-base">
+								{storeStats.myStats.username} (You)
+							</span>
+							<span
+								class="pypx-thick shrink-0 whitespace-nowrap text-xs [text-shadow:1px_1px_0_var(--pixel-shadow)] sm:text-sm"
+							>
+								<span class="text-success">{storeStats.myStats.total_wins}W</span>
+								<span class="text-text/40">-</span>
+								<span class="text-danger">{storeStats.myStats.total_losses}L</span>
+							</span>
+						</li>
 					{/if}
-				</div>
+				</ul>
 			{/if}
 		</div>
 	</div>
@@ -117,7 +190,10 @@
 	}
 	.doodle-bg {
 		position: fixed;
-		inset: 0;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100svh;
 		background-color: #121212;
 		background-image: url("/assets/bg_stats.png");
 		image-rendering: pixelated;
@@ -125,212 +201,58 @@
 		z-index: 0;
 	}
 
-	.profile-section h2,
-	.top-bar h1 {
-		line-height: 1.3;
-		padding-top: 2px;
-		font-family: "Pixel", sans-serif;
-	}
-
-	.stats-container {
-		position: relative;
-		z-index: 1;
-		display: flex;
-		flex-direction: column;
-		height: 100vh;
-		color: white;
-	}
-
-	.top-bar {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 20px;
-		background-color: #1c1c1e;
-		border-bottom: 4px solid #333;
-	}
-
-	.top-bar h1 {
-		margin: 0;
-		font-size: 1.5rem;
-		color: #ffcc00;
-		text-shadow: 2px 2px 0px #000;
-	}
-
-	.content {
-		flex: 1;
-		overflow-y: auto;
-		padding: 20px;
-		max-width: 800px;
-		margin: 0 auto;
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-		gap: 30px;
-		padding-bottom: 60px;
-	}
-
-	.top-player-card {
-		background: #2a2a2d;
-		padding: 24px;
-		box-shadow: inset 0 0 0 4px var(--accent);
-		position: relative;
-	}
-
-	.profile-section {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 20px;
-		border-bottom: 4px solid var(--accent);
-		padding-bottom: 15px;
-	}
-
-	.profile-section h2 {
-		margin: 0;
-		font-size: 1.8rem;
-		color: var(--accent);
-		text-shadow: 2px 2px 0px #000;
-	}
-
-	.rank-badge {
-		background: var(--accent);
-		color: #000;
-		padding: 8px 16px;
-		font-weight: 900;
-		font-size: 1.1rem;
-	}
-
-	.stats-grid {
-		display: flex;
-		justify-content: space-around;
-		text-align: center;
-	}
-
-	.stat-box {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-	.stat-label {
-		color: #8e8e93;
-		font-size: 0.9rem;
-		text-transform: uppercase;
-		letter-spacing: 1px;
-	}
-	.stat-value {
-		font-size: 2rem;
-		font-weight: bold;
-		text-shadow: 2px 2px 0px #000;
-	}
-	.text-green {
-		color: #34c759;
-	}
-	.text-red {
-		color: #ff3b30;
-	}
-	.text-purple {
-		color: #9b5de5;
-	}
-
-	/* Leaderboard list */
-	.leaderboard-section {
+	.panel {
 		background: #1c1c1e;
-		padding: 20px;
-		box-shadow: inset 0 0 0 4px #333;
-		position: relative;
 	}
 
-	.leaderboard-section h3 {
-		margin-top: 0;
-		color: var(--accent);
-		margin-bottom: 15px;
-		text-shadow: 2px 2px 0px #000;
+	/* Pypx at 800 — the thick cut (pypx-thick.woff2), the heaviest face the
+	   family ships. Carries the rank callouts (the #1 badge, each row's W-L) so
+	   the scoring reads as scoreboard type against the lighter --tiny face used
+	   for player names. */
+	.pypx-thick {
+		font-family: var(--pypx);
+		font-weight: 800;
 	}
 
-	.leaderboard-list {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+	.stat-value {
+		font-family: var(--pixel);
+		font-size: clamp(1.25rem, 5vw, 2rem);
+		font-weight: bold;
+		text-shadow: 2px 2px 0 var(--pixel-shadow);
 	}
 
-	.leaderboard-row {
-		display: flex;
-		align-items: center;
+	.row {
 		background: #2a2a2d;
-		padding: 12px 16px;
-		transition: transform 0.1s;
+		transition: background 0.1s ease;
 	}
-
-	.leaderboard-row:hover {
-		transform: scale(1.01);
+	.row:hover {
 		background: #323236;
 	}
-
-	.leaderboard-row.is-me {
+	.row.is-me {
 		background: #3a1b5c;
-		box-shadow: inset 0 0 0 4px #9b5de5;
+		box-shadow: inset 0 0 0 4px var(--accent);
 	}
 
-	.rank-col {
-		width: 75px;
-		font-weight: bold;
-		color: #8e8e93;
-		font-size: 1.2rem;
+	.rank-silver {
+		color: #d4d4d8;
 	}
-	.rank-col.first {
-		width: 75px;
-		font-weight: bold;
-		color: gold;
-		font-size: 1.2rem;
+	.rank-bronze {
+		color: #cd7f32;
 	}
 
-	.rank-col.second {
-		width: 75px;
-		font-weight: bold;
-		color: white;
-		font-size: 1.2rem;
-	}
-
-	.rank-col.third {
-		width: 75px;
-		font-weight: bold;
-		color: orange;
-		font-size: 1.2rem;
-	}
-
-	.name-col {
-		flex: 1;
-		font-weight: 600;
-		font-size: 1.1rem;
-	}
-	.score-col {
-		font-weight: bold;
-		font-size: 1.1rem;
-		text-shadow: 1px 1px 0px #000;
-	}
-	.wins {
-		color: #34c759;
-	}
-	.losses {
-		color: #ff3b30;
-	}
-
-	.sticky-divider {
-		height: 12px;
-	}
-
+	/* Pins the viewer's own row to the bottom of the scroll area when they rank
+	   outside the visible top 50, so it stays readable while they scroll. */
 	.sticky-me {
 		position: sticky;
-		bottom: -20px;
+		bottom: -1rem;
 		margin-top: auto;
 		z-index: 10;
-		filter: drop-shadow(0px -4px 6px rgba(0, 0, 0, 0.6));
+		filter: drop-shadow(0 -4px 6px rgba(0, 0, 0, 0.6));
 	}
 
-	.loading-text {
-		text-align: center;
-		color: #8e8e93;
-		font-style: italic;
+	@media (prefers-reduced-motion: reduce) {
+		.row {
+			transition: none;
+		}
 	}
 </style>

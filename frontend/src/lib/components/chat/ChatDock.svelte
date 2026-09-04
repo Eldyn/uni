@@ -45,7 +45,7 @@
 	{#if chatStore.isOpen}
 		<div
 			bind:clientHeight={panelHeight}
-			class="pixel-bordered fixed inset-x-0 bottom-0 z-50 flex h-[70vh] flex-col [--pc-border:var(--accent)] md:inset-x-auto md:bottom-4 md:right-4 md:h-[28rem] md:w-96"
+			class="chat-panel pixel-bordered fixed inset-x-0 bottom-0 z-50 flex h-[70svh] flex-col [--pc-border:var(--accent)] md:inset-x-auto md:bottom-4 md:right-4 md:h-[28rem] md:w-96"
 		>
 			<ChatChannelTabs bind:showFriendsList onclose={close} />
 
@@ -92,6 +92,22 @@
 	@media (min-width: 768px), (max-height: 599px) {
 		.chat-launcher {
 			bottom: 1rem;
+		}
+	}
+
+	/* Mobile landscape: a rotated phone is wide enough to match `md:`, so the
+	   dock would otherwise take that branch's 28rem-tall floating panel — taller
+	   than the viewport itself. The bottom-sheet branch is no better here, since
+	   70svh of a short viewport leaves the composer squeezed against the log.
+	   A right-edge drawer fits the shape the rotation actually gives us: full
+	   height, and only as wide as the conversation needs. Unlayered, so it wins
+	   over the Tailwind utilities on the same element regardless of their order.
+	   Above `lg` the desktop floating panel is correct again. */
+	@media (max-width: 1023.98px) and (orientation: landscape) {
+		.chat-panel {
+			inset: 0 0 0 auto;
+			width: min(22rem, 55vw);
+			height: 100svh;
 		}
 	}
 </style>
