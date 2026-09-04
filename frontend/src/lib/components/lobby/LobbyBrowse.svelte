@@ -18,6 +18,8 @@
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	// --- Server-backed lobby list --------------------------------------------- //
 
@@ -129,7 +131,7 @@
 		<i class="hn pix hn-search text-sm text-text"></i>
 		<input
 			class="w-full min-w-0 bg-transparent font-tiny text-sm text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
-			placeholder="Search lobby name…"
+			placeholder={m.browse_search_placeholder({}, { locale: storeI18n.locale })}
 			aria-label="Search lobby name"
 			bind:value={nameQuery}
 		/>

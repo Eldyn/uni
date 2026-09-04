@@ -2,6 +2,8 @@
 	import { storeNavigation, pathForScreen } from "$stores/navigation.svelte";
 	import type { AppScreen } from "$stores/navigation.svelte";
 	import { ACCELERATOR_KEYS } from "$lib/actions/keyboardAccelerators";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	interface Destination {
 		screen: AppScreen;
@@ -12,24 +14,36 @@
 		key: string;
 	}
 
-	const DESTINATIONS: Destination[] = [
-		{ screen: "main", label: "Home", icon: "hn-home", color: "var(--accent)", key: ACCELERATOR_KEYS.home },
+	const DESTINATIONS = $derived<Destination[]>([
+		{
+			screen: "main",
+			label: m.nav_home({}, { locale: storeI18n.locale }),
+			icon: "hn-home",
+			color: "var(--accent)",
+			key: ACCELERATOR_KEYS.home
+		},
 		{
 			screen: "lobbies",
-			label: "Browse",
+			label: m.nav_browse({}, { locale: storeI18n.locale }),
 			icon: "hn-search",
 			color: "var(--blueCard)",
 			key: ACCELERATOR_KEYS.browse
 		},
 		{
 			screen: "decks",
-			label: "Decks",
+			label: m.nav_decks({}, { locale: storeI18n.locale }),
 			icon: "hn-viewblocks",
 			color: "var(--greenCard)",
 			key: ACCELERATOR_KEYS.decks
 		},
-		{ screen: "shop", label: "Shop", icon: "hn-credit-card", color: "var(--yellowCard)", key: ACCELERATOR_KEYS.shop }
-	];
+		{
+			screen: "shop",
+			label: m.nav_shop({}, { locale: storeI18n.locale }),
+			icon: "hn-credit-card",
+			color: "var(--yellowCard)",
+			key: ACCELERATOR_KEYS.shop
+		}
+	]);
 
 	function go(event: MouseEvent, screen: AppScreen) {
 		event.preventDefault();
@@ -73,7 +87,9 @@
 		onclick={openMenu}
 	>
 		<i class="hn pix hn-menu text-xl leading-none" aria-hidden="true"></i>
-		<span class="shell-navbar-label">{@render mnemonicLabel("Menu", ACCELERATOR_KEYS.menu)}</span>
+		<span class="shell-navbar-label"
+			>{@render mnemonicLabel(m.nav_menu({}, { locale: storeI18n.locale }), ACCELERATOR_KEYS.menu)}</span
+		>
 	</a>
 </nav>
 

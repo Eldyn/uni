@@ -6,6 +6,8 @@
 	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import PlayerSlotRow from "./PlayerSlotRow.svelte";
 	import { SORT_OPTIONS, type SortKey } from "$lib/data/lobbyCatalogs";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	/** Fixed slot count for the sort-order preview, independent of any real lobby's max size. */
 	const PREVIEW_SLOTS = 4;
@@ -55,7 +57,7 @@
 		<i class="hn pix hn-search text-lg text-text"></i>
 		<input
 			class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
-			placeholder="Search lobby name…"
+			placeholder={m.browse_search_placeholder({}, { locale: storeI18n.locale })}
 			aria-label="Search lobby name"
 			bind:value={nameQuery}
 		/>
@@ -74,12 +76,14 @@
 	<ToggleChip
 		active={quickOpenOnly}
 		onclick={() => (quickOpenOnly = !quickOpenOnly)}
-		class="hidden lg:inline-flex">Open slots</ToggleChip
+		class="hidden lg:inline-flex"
+		>{m.browse_open_slots({}, { locale: storeI18n.locale })}</ToggleChip
 	>
 	<ToggleChip
 		active={quickHideInGame}
 		onclick={() => (quickHideInGame = !quickHideInGame)}
-		class="hidden lg:inline-flex">Hide in-game</ToggleChip
+		class="hidden lg:inline-flex"
+		>{m.browse_hide_in_game({}, { locale: storeI18n.locale })}</ToggleChip
 	>
 
 	<Listbox
@@ -107,7 +111,7 @@
 				onclick={oncreate}
 			>
 				<i class="hn pix hn-plus hidden text-lg leading-none max-lg:inline-block"></i>
-				<span class="max-lg:hidden">+ Create</span>
+				<span class="max-lg:hidden">{m.browse_create({}, { locale: storeI18n.locale })}</span>
 			</button>
 		{/if}
 		<!-- advanced search trigger -->
@@ -116,7 +120,8 @@
 			title="Advanced search"
 			onclick={onadvanced}
 		>
-			<i class="hn pix hn-filter"></i> <span class="max-lg:hidden">Advanced</span>
+			<i class="hn pix hn-filter"></i>
+			<span class="max-lg:hidden">{m.browse_advanced({}, { locale: storeI18n.locale })}</span>
 			{#if advCount > 0}
 				<span
 					class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center bg-accent px-1 font-mono text-xs text-white"

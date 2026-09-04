@@ -13,6 +13,8 @@ import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
+import { storeI18n } from "./i18n.svelte";
+import * as m from "$lib/paraglide/messages.js";
 
 /**
  * @enum BotTakeoverMode
@@ -460,7 +462,7 @@ class StoreLobby implements SessionStore {
 			if (!response.ok) {
 				const message =
 					response.code === ErrorCode.LobbyNotFound
-						? "No lobbies are currently open to quick play with."
+						? m.lobby_toast_no_open_lobbies({}, { locale: storeI18n.locale })
 						: response.message;
 				storeToast.error(message);
 				return false;

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 	import TextEffects from "./common/TextEffects.svelte";
 	import HomeScreen from "$components/home/HomeScreen.svelte";
 	import LandingContent from "$components/landing/LandingContent.svelte";
@@ -92,7 +94,9 @@
 				</div>
 				{#if storeAuth.isLoggedIn || storeAuth.isGuest}
 					<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
-						{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
+						{storeAuth.isLoggedIn
+							? m.home_welcome_back({}, { locale: storeI18n.locale })
+							: m.home_playing_as({}, { locale: storeI18n.locale })}
 						<TextEffects
 							text={storeAuth.username}
 							effect="undulate"
@@ -106,7 +110,11 @@
 							style="font-family: var(--pypx); font-weight: 800;"
 							onclick={handleLogout}
 							disabled={logoutPending}
-							>{logoutPending ? "Logging out…" : storeAuth.isGuest ? "Log out" : "Logout"}</button
+							>{logoutPending
+								? "Logging out…"
+								: storeAuth.isGuest
+									? "Log out"
+									: m.home_logout({}, { locale: storeI18n.locale })}</button
 						>
 					</p>
 				{/if}
@@ -147,11 +155,21 @@
 					class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
 					aria-label="Site links"
 				>
-					<a href="/how-to-play.html" class="transition-colors hover:text-accent">How to Play</a>
-					<a href="/faq.html" class="transition-colors hover:text-accent">FAQ</a>
-					<a href="/about.html" class="transition-colors hover:text-accent">About</a>
-					<a href="/changelog.html" class="transition-colors hover:text-accent">Changelog</a>
-					<a href="/credits.html" class="transition-colors hover:text-accent">Credits</a>
+					<a href="/how-to-play.html" class="transition-colors hover:text-accent"
+						>{m.home_footer_how_to_play({}, { locale: storeI18n.locale })}</a
+					>
+					<a href="/faq.html" class="transition-colors hover:text-accent"
+						>{m.home_footer_faq({}, { locale: storeI18n.locale })}</a
+					>
+					<a href="/about.html" class="transition-colors hover:text-accent"
+						>{m.home_footer_about({}, { locale: storeI18n.locale })}</a
+					>
+					<a href="/changelog.html" class="transition-colors hover:text-accent"
+						>{m.home_footer_changelog({}, { locale: storeI18n.locale })}</a
+					>
+					<a href="/credits.html" class="transition-colors hover:text-accent"
+						>{m.home_footer_credits({}, { locale: storeI18n.locale })}</a
+					>
 				</nav>
 				<nav class="flex items-center gap-3" aria-label="Social links">
 					{#each SOCIAL_LINKS as link}
