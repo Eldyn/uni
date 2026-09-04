@@ -100,7 +100,14 @@
 			{#if storeAuth.isLoggedIn || storeAuth.isGuest}
 				<p class="relative z-20 mt-4 text-center font-tiny text-sm text-text/70">
 					{storeAuth.isLoggedIn ? "Welcome back," : "Playing as"}
-					<span class="text-accent">{storeAuth.username}</span>
+					<TextEffects
+						text={storeAuth.username}
+						effect="undulate"
+						class="font-tiny text-accent"
+						amplitude={6}
+						speed={2}
+						frequency={0.15}
+					/>
 					<button
 						class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
 						style="font-family: var(--pypx); font-weight: 800;"

@@ -4,6 +4,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
+	import TextEffects from "$components/common/TextEffects.svelte";
 
 	const SCREEN_TITLES: Partial<Record<string, string>> = {
 		main: "UNI!",
@@ -58,7 +59,14 @@
 
 		<button class="shell-topbar-identity" onclick={openProfile}>
 			<Avatar src={storeAuth.avatar} size={32} />
-			<span>{storeAuth.username}</span>
+			<TextEffects
+				text={storeAuth.username}
+				effect="undulate"
+				class="font-tiny text-accent"
+				amplitude={6}
+				speed={2}
+				frequency={0.15}
+			/>
 		</button>
 	</div>
 </header>

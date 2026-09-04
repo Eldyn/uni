@@ -143,9 +143,9 @@
 					text={storeAuth.username}
 					effect="undulate"
 					class="font-tiny text-accent"
-					amplitude={3}
+					amplitude={6}
 					speed={2}
-					frequency={0.2}
+					frequency={0.15}
 				/>
 			</p>
 		</div>
