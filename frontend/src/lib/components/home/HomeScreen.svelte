@@ -36,13 +36,13 @@
 			placeholder="Got a code?"
 			bind:value={joinCode}
 		/>
-		<button class="btn-secondary pixel-corners px-4" onclick={joinByCode} disabled={joining}>
+		<button class="btn-secondary px-4" onclick={joinByCode} disabled={joining}>
 			Join
 		</button>
 	</div>
 
 	<button
-		class="btn-secondary pixel-corners w-full max-w-sm py-3"
+		class="btn-secondary w-full max-w-sm py-3"
 		onclick={() => storeNavigation.goto("lobbies")}
 	>
 		+ Create Lobby

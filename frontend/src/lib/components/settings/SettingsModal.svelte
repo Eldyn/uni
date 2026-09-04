@@ -65,7 +65,7 @@
 			<div class="flex gap-2">
 				{#each storeI18n.locales as locale (locale)}
 					<button
-						class="btn-secondary pixel-corners px-4 py-2"
+						class="btn-secondary px-4 py-2"
 						aria-pressed={storeI18n.locale === locale}
 						onclick={() => storeI18n.setLocale(locale)}
 					>

@@ -40,13 +40,13 @@
 
 	<div class="flex flex-col gap-3">
 		<button
-			class="btn-secondary pixel-corners px-4 py-3 text-left"
+			class="btn-secondary px-4 py-3 text-left"
 			onclick={() => storeNavigation.goto("detailedStats")}
 		>
 			Leaderboard &amp; detailed stats
 		</button>
 		<button
-			class="btn-secondary pixel-corners px-4 py-3 text-left"
+			class="btn-secondary px-4 py-3 text-left"
 			onclick={() => storeNavigation.openSettings()}
 		>
 			Settings
