@@ -62,7 +62,7 @@
 		</div>
 	{:else}
 		<button
-			class="chat-launcher pixel-bordered fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
+			class="chat-launcher pixel-corners fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
 			title="Open chat"
 			aria-label="Open chat"
 			aria-keyshortcuts={ACCELERATOR_KEYS.chat}
