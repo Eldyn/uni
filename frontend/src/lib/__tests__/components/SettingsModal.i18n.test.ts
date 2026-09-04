@@ -2,11 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 
 vi.mock("$lib/stores/navigation.svelte", () => ({
-	storeNavigation: { closeSettings: vi.fn() }
+	storeNavigation: { isSettingsOpen: true, closeSettings: vi.fn() }
 }));
 vi.mock("$lib/stores/audio.svelte", () => ({
 	storeAudio: { musicVolume: 0.5, sfxVolume: 0.5, setMusicVolume: vi.fn(), setSfxVolume: vi.fn() }
 }));
+vi.mock("$lib/stores/auth.svelte", () => ({ storeAuth: { username: "eldyn", logout: vi.fn() } }));
+vi.mock("$lib/stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false, leave: vi.fn() } }));
+vi.mock("$lib/stores/game.svelte", () => ({ storeGame: { state: null, returnToLobby: vi.fn() } }));
 
 const paraglideState = vi.hoisted(() => ({ locale: "en" }));
 vi.mock("$lib/paraglide/runtime.js", () => ({

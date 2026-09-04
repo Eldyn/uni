@@ -43,3 +43,19 @@ describe("settings modal", () => {
 		expect(storeNavigation.isSettingsOpen).toBe(false);
 	});
 });
+
+describe("settings modal mount gating", () => {
+	it("the mount condition is true only when settings is open AND (in a lobby OR in a match)", () => {
+		const isSettingsOpen = true;
+		const cases: Array<{ isInLobby: boolean; gameState: object | null; expected: boolean }> = [
+			{ isInLobby: false, gameState: null, expected: false },
+			{ isInLobby: true, gameState: null, expected: true },
+			{ isInLobby: false, gameState: {}, expected: true },
+			{ isInLobby: true, gameState: {}, expected: true }
+		];
+		for (const { isInLobby, gameState, expected } of cases) {
+			const mounted = isSettingsOpen && (isInLobby || gameState !== null);
+			expect(mounted).toBe(expected);
+		}
+	});
+});

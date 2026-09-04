@@ -146,7 +146,7 @@
 		{/await}
 	{/if}
 
-	{#if storeNavigation.isSettingsOpen}
+	{#if storeNavigation.isSettingsOpen && (_storeLobby.isInLobby || _storeGame.state !== null)}
 		{#await import("./lib/components/settings/SettingsModal.svelte") then { default: SettingsModal }}
 			<SettingsModal />
 		{/await}
