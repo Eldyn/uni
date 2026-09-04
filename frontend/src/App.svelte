@@ -16,7 +16,8 @@
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
-		shop: () => import("./lib/components/shop/ShopScreen.svelte")
+		shop: () => import("./lib/components/shop/ShopScreen.svelte"),
+		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
 	} as const;
 
 	import { onMount, onDestroy } from "svelte";

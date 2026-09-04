@@ -38,7 +38,7 @@
 
 	function openMenu(event: MouseEvent) {
 		event.preventDefault();
-		storeNavigation.openSettings();
+		storeNavigation.goto("settings");
 	}
 </script>
 
@@ -65,9 +65,10 @@
 		</a>
 	{/each}
 	<a
-		href="#menu"
+		href={pathForScreen("settings")}
 		class="shell-navbar-item"
 		style="--nav-item-color: var(--accent)"
+		aria-current={storeNavigation.current === "settings" ? "page" : undefined}
 		aria-keyshortcuts={ACCELERATOR_KEYS.menu}
 		onclick={openMenu}
 	>

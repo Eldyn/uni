@@ -24,7 +24,8 @@ export type AppScreen =
 	| "stats"
 	| "detailedStats"
 	| "decks"
-	| "shop";
+	| "shop"
+	| "settings";
 
 const SCREEN_PATHS: Record<AppScreen, string> = {
 	main: "/",
@@ -35,7 +36,8 @@ const SCREEN_PATHS: Record<AppScreen, string> = {
 	stats: "/profile/stats",
 	detailedStats: "/profile/stats/all",
 	decks: "/decks",
-	shop: "/shop"
+	shop: "/shop",
+	settings: "/settings"
 };
 
 const PATH_SCREENS: Record<string, AppScreen> = Object.fromEntries(
@@ -94,7 +96,8 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"stats",
 	"detailedStats",
 	"decks",
-	"shop"
+	"shop",
+	"settings"
 ]);
 
 /**
