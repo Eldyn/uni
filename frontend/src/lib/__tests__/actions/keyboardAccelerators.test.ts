@@ -40,18 +40,18 @@ describe("keyboard accelerators", () => {
 		cleanup();
 	});
 
-	it("H navigates home", () => {
-		press("h");
+	it("1 navigates home", () => {
+		press("1");
 		expect(gotoMock).toHaveBeenCalledWith("main");
 	});
 
-	it("B navigates to browse", () => {
-		press("b");
+	it("2 navigates to browse", () => {
+		press("2");
 		expect(gotoMock).toHaveBeenCalledWith("lobbies");
 	});
 
-	it("M navigates to the settings screen", () => {
-		press("m");
+	it("5 navigates to the settings screen", () => {
+		press("5");
 		expect(gotoMock).toHaveBeenCalledWith("settings");
 	});
 
@@ -73,21 +73,21 @@ describe("keyboard accelerators", () => {
 
 	it("ignores keys while a modal is open", () => {
 		storeModal.isAnyOpen = true;
-		press("h");
+		press("1");
 		expect(gotoMock).not.toHaveBeenCalled();
 	});
 
 	it("ignores keys while focus is in a text input", () => {
 		const input = document.createElement("input");
 		document.body.appendChild(input);
-		press("h", input);
+		press("1", input);
 		expect(gotoMock).not.toHaveBeenCalled();
 		input.remove();
 	});
 
 	it("cleanup removes the listener", () => {
 		cleanup();
-		press("h");
+		press("1");
 		expect(gotoMock).not.toHaveBeenCalled();
 	});
 });

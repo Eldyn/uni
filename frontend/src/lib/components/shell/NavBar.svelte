@@ -20,28 +20,28 @@
 			label: m.nav_home({}, { locale: storeI18n.locale }),
 			icon: "hn-home",
 			color: "var(--accent)",
-			key: acceleratorKey("home", storeI18n.locale)
+			key: acceleratorKey("home")
 		},
 		{
 			screen: "lobbies",
 			label: m.nav_browse({}, { locale: storeI18n.locale }),
 			icon: "hn-search",
 			color: "var(--blueCard)",
-			key: acceleratorKey("browse", storeI18n.locale)
+			key: acceleratorKey("browse")
 		},
 		{
 			screen: "decks",
 			label: m.nav_decks({}, { locale: storeI18n.locale }),
 			icon: "hn-viewblocks",
 			color: "var(--greenCard)",
-			key: acceleratorKey("decks", storeI18n.locale)
+			key: acceleratorKey("decks")
 		},
 		{
 			screen: "shop",
 			label: m.nav_shop({}, { locale: storeI18n.locale }),
 			icon: "hn-credit-card",
 			color: "var(--yellowCard)",
-			key: acceleratorKey("shop", storeI18n.locale)
+			key: acceleratorKey("shop")
 		}
 	]);
 
@@ -56,17 +56,6 @@
 	}
 </script>
 
-{#snippet mnemonicLabel(label: string, key: string)}
-	{@const index = label.toUpperCase().indexOf(key.toUpperCase())}
-	{#if index >= 0}
-		{label.slice(0, index)}<span class="mnemonic-key">{label[index]}</span>{label.slice(
-			index + 1
-		)}
-	{:else}
-		{label}
-	{/if}
-{/snippet}
-
 <nav aria-label="Primary" class="shell-navbar">
 	{#each DESTINATIONS as dest (dest.screen)}
 		<a
@@ -78,7 +67,8 @@
 			onclick={(e) => go(e, dest.screen)}
 		>
 			<i class="hn pix {dest.icon} text-xl leading-none" aria-hidden="true"></i>
-			<span class="shell-navbar-label">{@render mnemonicLabel(dest.label, dest.key)}</span>
+			<span class="shell-navbar-label">{dest.label}</span>
+			<span class="shell-navbar-key" aria-hidden="true">{dest.key}</span>
 		</a>
 	{/each}
 	<a
@@ -86,16 +76,12 @@
 		class="shell-navbar-item"
 		style="--nav-item-color: var(--accent)"
 		aria-current={storeNavigation.current === "settings" ? "page" : undefined}
-		aria-keyshortcuts={acceleratorKey("menu", storeI18n.locale)}
+		aria-keyshortcuts={acceleratorKey("menu")}
 		onclick={openMenu}
 	>
 		<i class="hn pix hn-menu text-xl leading-none" aria-hidden="true"></i>
-		<span class="shell-navbar-label"
-			>{@render mnemonicLabel(
-				m.nav_menu({}, { locale: storeI18n.locale }),
-				acceleratorKey("menu", storeI18n.locale)
-			)}</span
-		>
+		<span class="shell-navbar-label">{m.nav_menu({}, { locale: storeI18n.locale })}</span>
+		<span class="shell-navbar-key" aria-hidden="true">{acceleratorKey("menu")}</span>
 	</a>
 </nav>
 
@@ -138,15 +124,18 @@
 		font-size: var(--text-small);
 	}
 
-	.mnemonic-key {
-		text-decoration: none;
+	.shell-navbar-key {
+		display: none;
+		font-family: var(--tiny);
+		font-size: var(--text-small);
+		color: var(--text);
+		opacity: 0.6;
+		margin-left: auto;
 	}
 
 	@media (min-width: 768px), (max-height: 599px) {
-		.mnemonic-key {
-			text-decoration: underline;
-			text-decoration-thickness: 2px;
-			text-underline-offset: 2px;
+		.shell-navbar-key {
+			display: inline;
 		}
 	}
 

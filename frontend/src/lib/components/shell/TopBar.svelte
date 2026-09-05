@@ -61,7 +61,7 @@
 		<button
 			class="shell-topbar-identity"
 			onclick={openProfile}
-			aria-keyshortcuts={acceleratorKey("profile", storeI18n.locale)}
+			aria-keyshortcuts={acceleratorKey("profile")}
 		>
 			<Avatar src={storeAuth.avatar} size={32} />
 			<TextEffects

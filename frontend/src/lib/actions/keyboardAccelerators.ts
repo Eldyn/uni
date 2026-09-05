@@ -8,34 +8,30 @@ import { storeModal } from "$stores/modal.svelte";
 import { storeLobby } from "$stores/lobby.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { chatStore } from "$stores/chat.svelte";
-import { storeI18n } from "$stores/i18n.svelte";
 import type { AppScreen } from "$stores/navigation.svelte";
 
 export type AcceleratorId = "home" | "browse" | "decks" | "shop" | "profile" | "chat" | "menu";
 
 /**
- * Mnemonic letter per destination, per locale. Each letter must actually
- * appear in that locale's nav label (see NavBar.svelte's mnemonicLabel
- * snippet, which underlines the matching letter) so the visible mnemonic and
- * the advertised `aria-keyshortcuts` stay truthful when the label changes
- * with the locale. "profile" and "chat" have no visible mnemonic label
- * (icon-only / avatar entry points), so their key is locale-invariant.
+ * Accelerator key per destination. The sidebar destinations (home/browse/
+ * decks/shop/menu) use plain digits so the shortcut is locale-invariant and
+ * doesn't depend on which letter happens to appear in the localized label.
+ * "profile" and "chat" are icon-only / avatar entry points with no visible
+ * label, so they keep a mnemonic letter.
  */
-const ACCELERATOR_KEYS_BY_LOCALE: Record<string, Record<AcceleratorId, string>> = {
-	en: { home: "H", browse: "B", decks: "D", shop: "S", profile: "P", chat: "C", menu: "M" },
-	// it labels: Home, Sfoglia, Mazzi, Negozio, Menu — H/S collide with nothing,
-	// but Mazzi and Menu both start with M, so Decks/Menu borrow a later,
-	// still-present letter (Z from "MaZzi", U from "MenU") to stay unique.
-	it: { home: "H", browse: "S", decks: "Z", shop: "N", profile: "P", chat: "C", menu: "U" },
-	// pseudo labels wrap the English word in brackets/diacritics but keep its
-	// first real letter (e.g. "[Höme swéét höme]"), so the English keys still
-	// each appear in their label.
-	pseudo: { home: "H", browse: "B", decks: "D", shop: "S", profile: "P", chat: "C", menu: "M" }
+const ACCELERATOR_KEYS: Record<AcceleratorId, string> = {
+	home: "1",
+	browse: "2",
+	decks: "3",
+	shop: "4",
+	menu: "5",
+	profile: "P",
+	chat: "C"
 };
 
-/** Returns the accelerator letter for `id` in the given locale, falling back to English. */
-export function acceleratorKey(id: AcceleratorId, locale: string): string {
-	return (ACCELERATOR_KEYS_BY_LOCALE[locale] ?? ACCELERATOR_KEYS_BY_LOCALE.en)[id];
+/** Returns the accelerator key for `id`. */
+export function acceleratorKey(id: AcceleratorId): string {
+	return ACCELERATOR_KEYS[id];
 }
 
 const SCREEN_BY_ACCELERATOR: Partial<Record<AcceleratorId, AppScreen>> = {
@@ -47,11 +43,10 @@ const SCREEN_BY_ACCELERATOR: Partial<Record<AcceleratorId, AppScreen>> = {
 	menu: "settings"
 };
 
-/** Resolves a pressed (lowercased) key to a screen, honoring the active locale's accelerator map. */
-function screenForKey(key: string, locale: string): AppScreen | undefined {
-	const map = ACCELERATOR_KEYS_BY_LOCALE[locale] ?? ACCELERATOR_KEYS_BY_LOCALE.en;
+/** Resolves a pressed (lowercased) key to a screen. */
+function screenForKey(key: string): AppScreen | undefined {
 	for (const id of Object.keys(SCREEN_BY_ACCELERATOR) as AcceleratorId[]) {
-		if (map[id].toLowerCase() === key) return SCREEN_BY_ACCELERATOR[id];
+		if (ACCELERATOR_KEYS[id].toLowerCase() === key) return SCREEN_BY_ACCELERATOR[id];
 	}
 	return undefined;
 }
@@ -83,7 +78,7 @@ function onKeydown(event: KeyboardEvent): void {
 		return;
 	}
 
-	const screen = screenForKey(key, storeI18n.locale);
+	const screen = screenForKey(key);
 	if (screen) {
 		storeNavigation.goto(screen);
 	}
