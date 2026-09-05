@@ -138,7 +138,7 @@
 <svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
 
 <div
-	class="fixed left-0 top-0 flex h-[100svh] w-full flex-col overflow-x-hidden bg-cover bg-center"
+	class="flex h-full w-full flex-col overflow-x-hidden bg-cover bg-center"
 	style="
         background-image: url('/assets/bg_full.png');
         background-position: center 62%;
