@@ -8,6 +8,8 @@
 	import { BotTakeoverMode, type LobbySettings, storeLobby } from "$stores/lobby.svelte";
 	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 	import {
 		STARTING_CARDS_MIN,
 		STARTING_CARDS_MAX,
@@ -77,27 +79,34 @@
 	}
 </script>
 
-<div class="lobby-settings-panel" role="region" aria-label="Lobby Settings">
-	<h3 class="settings-title"><i class="hn pix hn-cog text-accent"></i> Lobby Settings</h3>
+<div
+	class="lobby-settings-panel"
+	role="region"
+	aria-label={m.lobby_settings_heading({}, { locale: storeI18n.locale })}
+>
+	<h3 class="settings-title">
+		<i class="hn pix hn-cog text-accent"></i>
+		{m.lobby_settings_heading({}, { locale: storeI18n.locale })}
+	</h3>
 
 	<Toggle
-		label="Public Lobby"
+		label={m.lobby_settings_public_lobby({}, { locale: storeI18n.locale })}
 		checked={settings.is_public}
 		disabled={!isHost}
 		oncommit={(v) => commit("is_public", v)}
 	/>
 
 	<Toggle
-		label="Quitting stops the Match"
-		description="When a player quits, all players return to lobby."
+		label={m.lobby_settings_quit_stops_match({}, { locale: storeI18n.locale })}
+		description={m.lobby_settings_quit_stops_match_desc({}, { locale: storeI18n.locale })}
 		checked={settings.quit_deletes_match}
 		disabled={!isHost}
 		oncommit={(v) => commit("quit_deletes_match", v)}
 	/>
 
 	<Toggle
-		label="Save Match"
-		description="When you quit, the match will be saved (must enable 'Quitting stops the Match')"
+		label={m.lobby_settings_save_match({}, { locale: storeI18n.locale })}
+		description={m.lobby_settings_save_match_desc({}, { locale: storeI18n.locale })}
 		checked={settings.save_state}
 		disabled={!isHost}
 		oncommit={(v) => commit("save_state", v)}
@@ -106,16 +115,16 @@
 	<hr class="settings-divider" />
 
 	<Toggle
-		label="Allow Bot Takeover"
-		description="When a player wants to join the lobby and a bot is present, the player takes the bot's place"
+		label={m.lobby_settings_allow_bot_takeover({}, { locale: storeI18n.locale })}
+		description={m.lobby_settings_allow_bot_takeover_desc({}, { locale: storeI18n.locale })}
 		checked={settings.allow_bot_takeover}
 		disabled={!isHost}
 		oncommit={(v) => commit("allow_bot_takeover", v)}
 	/>
 
 	<Toggle
-		label="Allow Player Replacement"
-		description="When a Player leaves (and quitting does not stop the match), a bot takes the player's place"
+		label={m.lobby_settings_allow_player_replacement({}, { locale: storeI18n.locale })}
+		description={m.lobby_settings_allow_player_replacement_desc({}, { locale: storeI18n.locale })}
 		checked={settings.allow_bot_replacement}
 		disabled={!isHost}
 		oncommit={(v) => commit("allow_bot_replacement", v)}
@@ -125,12 +134,12 @@
 
 	<Slider
 		id="card-count"
-		label="Starting Hand Size"
+		label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}
 		value={settings.starting_cards}
 		min={STARTING_CARDS_MIN}
 		max={STARTING_CARDS_MAX}
 		disabled={!isHost}
-		format={(v) => `${v} cards`}
+		format={(v) => m.lobby_settings_cards_format({ count: v }, { locale: storeI18n.locale })}
 		oncommit={(v) => commit("starting_cards", v)}
 	/>
 
@@ -138,12 +147,12 @@
 
 	<Slider
 		id="turn-timer"
-		label="Turn Timer"
+		label={m.lobby_settings_turn_timer({}, { locale: storeI18n.locale })}
 		value={settings.turn_time_limit_ms / 1000}
 		min={TURN_TIME_MIN_MS / 1000}
 		max={TURN_TIME_MAX_MS / 1000}
 		disabled={!isHost}
-		format={(v) => `${v}s`}
+		format={(v) => m.lobby_settings_seconds_format({ count: v }, { locale: storeI18n.locale })}
 		oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
 	/>
 
@@ -151,12 +160,12 @@
 
 	<Slider
 		id="max-players"
-		label="Max Players"
+		label={m.lobby_settings_max_players({}, { locale: storeI18n.locale })}
 		value={settings.max_players}
 		min={MIN_MAX_PLAYERS}
 		max={MAX_LOBBY_MEMBERS}
 		disabled={!isHost}
-		format={(v) => `${v} players`}
+		format={(v) => m.lobby_settings_players_format({ count: v }, { locale: storeI18n.locale })}
 		oncommit={(v) => commit("max_players", v)}
 	/>
 
@@ -164,7 +173,7 @@
 
 	<Slider
 		id="bot-count"
-		label="Bot Count"
+		label={m.lobby_settings_bot_count({}, { locale: storeI18n.locale })}
 		value={settings.bot_count}
 		min={BOT_COUNT_MIN}
 		max={botCountMax}
@@ -176,16 +185,19 @@
 
 	<EnumSelector
 		extraClass="bot-mode"
-		label="Bot Mode"
-		description="Decide how bots play their turn"
+		label={m.lobby_settings_bot_mode({}, { locale: storeI18n.locale })}
+		description={m.lobby_settings_bot_mode_desc({}, { locale: storeI18n.locale })}
 		value={settings.bot_mode}
 		options={[
-			{ value: 0, label: "Play Instantly", description: "The bot plays its turn instantaneously" },
+			{
+				value: 0,
+				label: m.lobby_settings_bot_mode_instant({}, { locale: storeI18n.locale }),
+				description: m.lobby_settings_bot_mode_instant_desc({}, { locale: storeI18n.locale })
+			},
 			{
 				value: 1,
-				label: "Wait For Turn End Timer",
-				description:
-					"The bot plays its own turn after at most 5 seconds, and waits for the turn end for players."
+				label: m.lobby_settings_bot_mode_wait({}, { locale: storeI18n.locale }),
+				description: m.lobby_settings_bot_mode_wait_desc({}, { locale: storeI18n.locale })
 			}
 		]}
 		oncommit={(v) => commit("bot_mode", v)}

@@ -7,6 +7,8 @@
 	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { DECKS, ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
 	import { storeCatalog } from "$stores/catalog.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let {
 		open = $bindable(),
@@ -33,11 +35,11 @@
 		onclear: () => void;
 	} = $props();
 
-	const STATUS_LABELS = [
-		["open", "Open"],
-		["inGame", "In Game"],
-		["full", "Full"]
-	] as const;
+	const STATUS_LABELS = $derived([
+		["open", m.adv_search_status_open({}, { locale: storeI18n.locale })],
+		["inGame", m.adv_search_status_in_game({}, { locale: storeI18n.locale })],
+		["full", m.adv_search_status_full({}, { locale: storeI18n.locale })]
+	] as const);
 </script>
 
 <Modal
@@ -46,24 +48,28 @@
 	contentClass="pixel-corners flex max-h-[85vh] w-[680px] max-w-[92vw] flex-col gap-6 overflow-y-auto"
 >
 	<div class="flex items-center justify-between">
-		<h2 id="adv-search-title" class="m-0 font-heading text-2xl text-text-h">Advanced Search</h2>
+		<h2 id="adv-search-title" class="m-0 font-heading text-2xl text-text-h">
+			{m.adv_search_title({}, { locale: storeI18n.locale })}
+		</h2>
 		<button
 			class="text-2xl text-text hover:text-text-h"
-			title="Close"
-			aria-label="Close"
+			title={m.settings_close({}, { locale: storeI18n.locale })}
+			aria-label={m.settings_close({}, { locale: storeI18n.locale })}
 			onclick={() => (open = false)}><i class="hn pix hn-times"></i></button
 		>
 	</div>
 
 	<!-- Quick toggles (mirrored here for small screens) -->
 	<section class="flex flex-col gap-2">
-		<span class="font-pixel text-sm uppercase text-text">Quick</span>
+		<span class="font-pixel text-sm uppercase text-text"
+			>{m.adv_search_quick({}, { locale: storeI18n.locale })}</span
+		>
 		<div class="flex flex-wrap gap-2">
 			<ToggleChip active={quickOpenOnly} onclick={() => (quickOpenOnly = !quickOpenOnly)}
-				>Open slots</ToggleChip
+				>{m.browse_open_slots({}, { locale: storeI18n.locale })}</ToggleChip
 			>
 			<ToggleChip active={quickHideInGame} onclick={() => (quickHideInGame = !quickHideInGame)}
-				>Hide in-game</ToggleChip
+				>{m.browse_hide_in_game({}, { locale: storeI18n.locale })}</ToggleChip
 			>
 		</div>
 	</section>
@@ -72,7 +78,9 @@
 
 	<!-- Status -->
 	<section class="flex flex-col gap-2">
-		<span class="font-pixel text-sm uppercase text-text">Status</span>
+		<span class="font-pixel text-sm uppercase text-text"
+			>{m.adv_search_status({}, { locale: storeI18n.locale })}</span
+		>
 		<div class="flex flex-wrap gap-2">
 			{#each STATUS_LABELS as [key, label]}
 				<ToggleChip
@@ -88,7 +96,8 @@
 	<!-- Open slots -->
 	<section class="flex flex-col gap-2">
 		<span class="font-pixel text-sm uppercase text-text"
-			>Min. open slots: <span class="text-accent">{advMinOpenSlots}</span></span
+			>{m.adv_search_min_open_slots({}, { locale: storeI18n.locale })}
+			<span class="text-accent">{advMinOpenSlots}</span></span
 		>
 		<input
 			type="range"
@@ -103,7 +112,9 @@
 
 	<!-- Deck -->
 	<section class="flex flex-col gap-2">
-		<span class="font-pixel text-sm uppercase text-text">Deck</span>
+		<span class="font-pixel text-sm uppercase text-text"
+			>{m.adv_search_deck({}, { locale: storeI18n.locale })}</span
+		>
 		<div class="flex flex-wrap gap-2">
 			{#each DECKS as deck}
 				<ToggleChip
@@ -118,7 +129,9 @@
 
 	<!-- Rules (must include) -->
 	<section class="flex flex-col gap-2">
-		<span class="font-pixel text-sm uppercase text-text">Must include rules</span>
+		<span class="font-pixel text-sm uppercase text-text"
+			>{m.adv_search_must_include_rules({}, { locale: storeI18n.locale })}</span
+		>
 		<div class="flex flex-wrap gap-2">
 			{#each storeCatalog.rules as rule (rule.id)}
 				<ToggleChip
@@ -136,20 +149,25 @@
 
 	<!-- Bots -->
 	<section class="flex items-center justify-between gap-4">
-		<span class="font-tiny text-sm text-text-h">Only lobbies that allow bot takeover</span>
+		<span class="font-tiny text-sm text-text-h"
+			>{m.adv_search_bot_takeover_only({}, { locale: storeI18n.locale })}</span
+		>
 		<ToggleChip active={advTakeoverOnly} onclick={() => (advTakeoverOnly = !advTakeoverOnly)}
-			>{advTakeoverOnly ? "On" : "Off"}</ToggleChip
+			>{advTakeoverOnly
+				? m.adv_search_on({}, { locale: storeI18n.locale })
+				: m.adv_search_off({}, { locale: storeI18n.locale })}</ToggleChip
 		>
 	</section>
 
 	<!-- Footer: instant results, no submit -->
 	<div class="mt-2 flex items-center justify-between border-t-2 border-border pt-4">
 		<button class="font-pixel text-sm text-text hover:text-text-h" onclick={onclear}
-			>Clear filters</button
+			>{m.adv_search_clear_filters({}, { locale: storeI18n.locale })}</button
 		>
 		<button
 			class="pixel-bordered px-6 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-			onclick={() => (open = false)}>Show {resultCount} lobbies</button
+			onclick={() => (open = false)}
+			>{m.adv_search_show_lobbies({ count: resultCount }, { locale: storeI18n.locale })}</button
 		>
 	</div>
 </Modal>
