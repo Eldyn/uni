@@ -284,14 +284,18 @@
 		scroll-timeline: --landing-scroll block;
 	}
 
+	/* Fixed-height spacer rows (not 1fr) so the title/buttons/footer sit as
+	   one tight, cohesive block instead of being stretched across the full
+	   viewport; align-content centers that block within the hero zone. */
 	.landing-grid {
 		display: grid;
-		grid-template-rows: auto 1fr auto 1fr auto;
+		grid-template-rows: auto auto auto auto auto;
+		align-content: center;
 		min-height: 100svh;
 	}
 
 	.landing-spacer {
-		min-height: 0;
+		min-height: var(--space-8);
 	}
 
 	@supports (animation-timeline: scroll()) {

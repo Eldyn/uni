@@ -116,9 +116,14 @@
 		gap: var(--space-1);
 		min-height: 44px;
 		padding: var(--space-2) 0;
-		color: var(--nav-item-color, var(--text));
+		/* Neutral gray by default; only the active destination gets its
+		   assigned accent colour (see the [aria-current="page"] rule below). */
+		color: var(--text);
 		text-decoration: none;
 		position: relative;
+	}
+	.shell-navbar-item[aria-current="page"] {
+		color: var(--nav-item-color, var(--accent));
 	}
 	.shell-navbar-item[aria-current="page"]::after {
 		content: "";
