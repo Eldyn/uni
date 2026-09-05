@@ -174,5 +174,15 @@
 		z-index: 15;
 		pointer-events: none;
 		user-select: none;
+		/* Hidden in bottom-bar nav mode: the badge's fixed viewport corner
+		   collides with NavBar's bottom bar there. Shown again in rail mode,
+		   where NavBar sits beside content instead of overlapping this corner. */
+		display: none;
+	}
+
+	@media (min-width: 768px), (max-height: 599px) {
+		.version-badge {
+			display: block;
+		}
 	}
 </style>

@@ -45,14 +45,17 @@
 </script>
 
 <div
-	class="main-screen-root relative min-h-full overflow-y-auto bg-bg"
+	class="main-screen-root relative h-full overflow-y-auto bg-bg"
 	style="-webkit-font-smoothing: none; -moz-osx-font-smoothing: grayscale; font-smooth: never;"
 >
-	<!-- Hero zone: pinned to roughly one viewport tall so the background art,
-	     logo and bottom dock stay anchored near the top of the page instead of
-	     chasing the user down the scrollable marketing content below (that
-	     content flows as a normal sibling, outside this box). -->
-	<div class="hero-zone relative min-h-screen">
+	<!-- Hero zone: fills its parent's available height (not a viewport unit —
+	     MainScreen renders both as a standalone full page and nested inside
+	     ShellFrame below the TopBar, so a hardcoded 100vh would overshoot the
+	     nested case and force a phantom scroll past the real content). This
+	     keeps the background art, logo and bottom dock anchored near the top
+	     instead of chasing the user down the scrollable marketing content
+	     below (that content flows as a normal sibling, outside this box). -->
+	<div class="hero-zone relative h-full">
 		<!-- Background art: y-position tuned to align the dark cutout with the logo.
 		     Absolute (scoped to the hero zone), not fixed to the viewport —
 		     MainScreen now lives inside ShellFrame's .shell-content alongside the
@@ -291,7 +294,7 @@
 		display: grid;
 		grid-template-rows: auto auto auto auto auto;
 		align-content: center;
-		min-height: 100svh;
+		height: 100%;
 	}
 
 	.landing-spacer {

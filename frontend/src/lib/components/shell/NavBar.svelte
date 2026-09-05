@@ -79,7 +79,7 @@
 		aria-keyshortcuts={acceleratorKey("menu")}
 		onclick={openMenu}
 	>
-		<i class="hn pix hn-menu text-xl leading-none" aria-hidden="true"></i>
+		<i class="hn pix hn-bars text-xl leading-none" aria-hidden="true"></i>
 		<span class="shell-navbar-label">{m.nav_menu({}, { locale: storeI18n.locale })}</span>
 		<span class="shell-navbar-key" aria-hidden="true">{acceleratorKey("menu")}</span>
 	</a>
