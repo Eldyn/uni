@@ -41,7 +41,7 @@
 	<div class="flex flex-col gap-3">
 		<button
 			class="btn-secondary px-4 py-3 text-left"
-			onclick={() => storeNavigation.goto("detailedStats")}
+			onclick={() => storeNavigation.goto("stats")}
 		>
 			Leaderboard &amp; detailed stats
 		</button>
