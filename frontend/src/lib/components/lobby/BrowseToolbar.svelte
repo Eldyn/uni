@@ -37,6 +37,24 @@
 	} = $props();
 
 	const currentSort = $derived(SORT_OPTIONS.find((o) => o.value === sortBy)!);
+
+	const SORT_LABELS: Record<SortKey, () => string> = {
+		fullest: () => m.browse_sort_fullest({}, { locale: storeI18n.locale }),
+		emptiest: () => m.browse_sort_emptiest({}, { locale: storeI18n.locale })
+	};
+
+	// These two thresholds used to be Tailwind's `lg:`/`max-lg:` viewport
+	// breakpoints (1024px), which assumed the toolbar spans the full window.
+	// Once NavBar renders as a side rail, the toolbar's real width is the
+	// viewport minus the rail's (content-sized, not fixed) width — so a raw
+	// viewport check fires too early relative to the toolbar's actual room.
+	// Measuring the toolbar itself sidesteps the rail entirely, same fix as
+	// LobbyBrowse's card grid. The two pixel targets are unchanged from the
+	// original design intent — they were always meant as
+	// "toolbar width", not "screen width".
+	let toolbarW = $state(0);
+	const showQuickFilters = $derived(toolbarW >= 768);
+	const showButtonText = $derived(toolbarW >= 1024);
 </script>
 
 <!-- 4-slot player preview encodes the sort order at a glance -->
@@ -51,6 +69,7 @@
 {/snippet}
 
 <div
+	bind:clientWidth={toolbarW}
 	class="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:gap-3 sm:px-6 max-lg:landscape:py-1.5 lg:px-10"
 >
 	{#if showSearchInline}
@@ -60,21 +79,17 @@
 		/>
 	{/if}
 
-	<!-- fast settings: shown only on desktop (lg+) where the toolbar has room
-	     for a single uncluttered row; on mobile (portrait and landscape) they
-	     collapse into the Advanced modal so the nav stays one short row. -->
-	<ToggleChip
-		active={quickOpenOnly}
-		onclick={() => (quickOpenOnly = !quickOpenOnly)}
-		class="hidden lg:inline-flex"
-		>{m.browse_open_slots({}, { locale: storeI18n.locale })}</ToggleChip
-	>
-	<ToggleChip
-		active={quickHideInGame}
-		onclick={() => (quickHideInGame = !quickHideInGame)}
-		class="hidden lg:inline-flex"
-		>{m.browse_hide_in_game({}, { locale: storeI18n.locale })}</ToggleChip
-	>
+	<!-- fast settings: shown only once the toolbar itself has room for a
+	     single uncluttered row; below that they collapse into the Advanced
+	     modal so the nav stays one short row. -->
+	{#if showQuickFilters}
+		<ToggleChip active={quickOpenOnly} onclick={() => (quickOpenOnly = !quickOpenOnly)}
+			>{m.browse_open_slots({}, { locale: storeI18n.locale })}</ToggleChip
+		>
+		<ToggleChip active={quickHideInGame} onclick={() => (quickHideInGame = !quickHideInGame)}
+			>{m.browse_hide_in_game({}, { locale: storeI18n.locale })}</ToggleChip
+		>
+	{/if}
 
 	<Listbox
 		id="sort"
@@ -85,31 +100,38 @@
 	>
 		{#snippet trigger()}
 			{@render sortPreview(currentSort.filled)}
-			<span class="font-tiny text-sm text-text/50">({currentSort.label})</span>
+			<span class="font-tiny text-sm text-text/50">({SORT_LABELS[currentSort.value]()})</span>
 		{/snippet}
 		{#snippet option(opt)}
 			{@render sortPreview(opt.filled)}
-			<span class="font-tiny text-sm text-text/60">({opt.label})</span>
+			<span class="font-tiny text-sm text-text/60">({SORT_LABELS[opt.value]()})</span>
 		{/snippet}
 	</Listbox>
 
 	<div class="ml-auto flex items-center gap-2 sm:gap-3">
 		<button
-			class="pixel-bordered px-3 py-2 font-pixel text-sm uppercase text-white transition hover:brightness-110 lg:px-4 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+			class="pixel-bordered px-3 py-2 font-pixel text-sm uppercase text-white transition hover:brightness-110 {showButtonText
+				? 'lg:px-4'
+				: ''} [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 			title="Create lobby"
 			onclick={oncreate}
 		>
-			<i class="pia pixelart-icons-font-plus hidden text-lg leading-none max-lg:inline-block"></i>
-			<span class="max-lg:hidden">{m.browse_create({}, { locale: storeI18n.locale })}</span>
+			{#if showButtonText}
+				<span>{m.browse_create({}, { locale: storeI18n.locale })}</span>
+			{:else}
+				<i class="pia pixelart-icons-font-plus text-lg leading-none"></i>
+			{/if}
 		</button>
 		<!-- advanced search trigger -->
 		<button
-			class="btn-secondary relative px-3 py-2 text-sm lg:px-4"
+			class="btn-secondary relative px-3 py-2 text-sm {showButtonText ? 'lg:px-4' : ''}"
 			title="Advanced search"
 			onclick={onadvanced}
 		>
 			<i class="pia pixelart-icons-font-filter"></i>
-			<span class="max-lg:hidden">{m.browse_advanced({}, { locale: storeI18n.locale })}</span>
+			{#if showButtonText}
+				<span>{m.browse_advanced({}, { locale: storeI18n.locale })}</span>
+			{/if}
 			{#if advCount > 0}
 				<span
 					class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center bg-accent px-1 font-mono text-xs text-white"
