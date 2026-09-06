@@ -51,8 +51,10 @@ export const AVATAR_COLORS = [
 
 export type SortKey = "fullest" | "emptiest";
 
-/** `filled` drives the 4-slot player preview shown in the sort control. */
-export const SORT_OPTIONS: { value: SortKey; label: string; filled: number }[] = [
-	{ value: "fullest", label: "fullest", filled: 3 },
-	{ value: "emptiest", label: "emptiest", filled: 1 }
+/** `filled` drives the 4-slot player preview shown in the sort control.
+ *  Display labels are i18n'd at the point of use (see BrowseToolbar's
+ *  SORT_LABELS), not stored here. */
+export const SORT_OPTIONS: { value: SortKey; filled: number }[] = [
+	{ value: "fullest", filled: 3 },
+	{ value: "emptiest", filled: 1 }
 ];

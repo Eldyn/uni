@@ -19,6 +19,8 @@
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	// --- Server-backed lobby list --------------------------------------------- //
 
@@ -263,19 +265,21 @@
 {#if createOpen}
 	<Modal
 		bind:open={createOpen}
-		ariaLabel="Create or join a lobby"
+		ariaLabel={m.lobby_create_or_join_modal_aria({}, { locale: storeI18n.locale })}
 		contentClass="pixel-corners relative flex max-h-[90vh] w-full max-w-[44rem] flex-col overflow-y-auto p-5 sm:p-7.5"
 	>
 		<button
 			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
-			title="Close"
-			aria-label="Close"
+			title={m.settings_close({}, { locale: storeI18n.locale })}
+			aria-label={m.settings_close({}, { locale: storeI18n.locale })}
 			onclick={() => (createOpen = false)}><i class="pia pixelart-icons-font-close"></i></button
 		>
 
 		<div class="flex flex-col gap-6 sm:flex-row sm:gap-8">
 			<section class="flex flex-1 flex-col gap-4">
-				<h2 class="m-0 font-heading text-2xl text-text-h">Create</h2>
+				<h2 class="m-0 font-heading text-2xl text-text-h">
+					{m.lobby_create_modal_heading({}, { locale: storeI18n.locale })}
+				</h2>
 				<LobbyCreateForm initialName={nameQuery} />
 			</section>
 
@@ -283,7 +287,9 @@
 			<div class="hidden w-0.5 self-stretch bg-border opacity-60 sm:block"></div>
 
 			<section class="flex flex-1 flex-col gap-4">
-				<h2 class="m-0 font-heading text-2xl text-text-h">Join</h2>
+				<h2 class="m-0 font-heading text-2xl text-text-h">
+					{m.lobby_join_modal_heading({}, { locale: storeI18n.locale })}
+				</h2>
 				<LobbyJoinForm />
 			</section>
 		</div>

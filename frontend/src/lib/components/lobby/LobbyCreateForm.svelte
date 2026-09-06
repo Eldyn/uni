@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let { initialName = "" }: { initialName: string } = $props();
 
@@ -19,16 +21,18 @@
 
 <form onsubmit={handleSubmit} class="flex flex-col gap-4">
 	<div class="flex flex-col gap-2">
-		<label for="name" class="font-tiny text-sm uppercase text-text">Lobby Name</label>
+		<label for="name" class="font-tiny text-sm uppercase text-text"
+			>{m.lobby_create_name_label({}, { locale: storeI18n.locale })}</label
+		>
 		<div
 			class="pixel-bordered flex items-center px-3 py-2.5 [--pc-fill:var(--surface-deep)] focus-within:[--pc-border:var(--accent)]"
 		>
 			<input
 				id="name"
 				type="text"
-				class="w-full min-w-0 bg-transparent font-pixel text-base text-text-h outline-none placeholder:text-text/50"
+				class="w-full min-w-0 bg-transparent font-tiny text-base text-text-h outline-none placeholder:text-text/50"
 				bind:value={name}
-				placeholder="Enter name…"
+				placeholder={m.lobby_create_name_placeholder({}, { locale: storeI18n.locale })}
 				required
 				autocomplete="off"
 			/>
@@ -42,9 +46,13 @@
 			class="pixel-bordered flex w-12 shrink-0 items-center justify-center text-xl transition {isPrivate
 				? 'text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]'
 				: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'}"
-			title={isPrivate ? "Private, invite only" : "Public, anyone can join"}
+			title={isPrivate
+				? m.lobby_create_privacy_private_title({}, { locale: storeI18n.locale })
+				: m.lobby_create_privacy_public_title({}, { locale: storeI18n.locale })}
 			aria-pressed={isPrivate}
-			aria-label={isPrivate ? "Private lobby" : "Public lobby"}
+			aria-label={isPrivate
+				? m.lobby_create_privacy_private_label({}, { locale: storeI18n.locale })
+				: m.lobby_create_privacy_public_label({}, { locale: storeI18n.locale })}
 			onclick={() => (isPrivate = !isPrivate)}
 		>
 			<i class="pia {isPrivate ? 'pixelart-icons-font-lock' : 'pixelart-icons-font-unlock'}"></i>
@@ -54,7 +62,7 @@
 			class="pixel-bordered flex-1 px-5 py-3 font-pixel text-lg uppercase text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 			disabled={!name}
 		>
-			Create
+			{m.lobby_create_submit({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
 </form>
