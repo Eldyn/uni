@@ -16,6 +16,11 @@
 		it: "Italiano"
 	};
 
+	const localeFlags: Record<string, string> = {
+		en: "🇬🇧",
+		it: "🇮🇹"
+	};
+
 	const SOCIAL_LINKS = [
 		{ label: "GitHub", href: "https://github.com/Eldyn/uni" },
 		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e" },
@@ -63,14 +68,17 @@
 
 	<section class="panel settings-panel">
 		{@render sectionHeading(m.settings_language_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex gap-2">
+		<div class="mt-4 flex gap-3">
 			{#each storeI18n.locales as locale (locale)}
 				<button
-					class="btn-secondary px-4 py-2"
+					class="locale-flag-btn"
+					class:active={storeI18n.locale === locale}
 					aria-pressed={storeI18n.locale === locale}
+					title={localeDisplayNames[locale] ?? locale}
+					aria-label={localeDisplayNames[locale] ?? locale}
 					onclick={() => storeI18n.setLocale(locale)}
 				>
-					{localeDisplayNames[locale] ?? locale}
+					{localeFlags[locale] ?? locale}
 				</button>
 			{/each}
 		</div>
@@ -116,5 +124,28 @@
 	}
 	.settings-panel--danger {
 		border-color: var(--danger);
+	}
+
+	.locale-flag-btn {
+		background: transparent;
+		border: none;
+		padding: 0;
+		font-size: 2rem;
+		line-height: 1;
+		cursor: pointer;
+		/* No border/fill to notch here (plain emoji glyph) — override the
+		   global button pixel-notch reset, which would otherwise nibble the
+		   flag's corners for no visual reason. */
+		clip-path: none !important;
+		filter: grayscale(1);
+		opacity: 0.6;
+		transition:
+			filter var(--duration-fast) var(--ease-standard),
+			opacity var(--duration-fast) var(--ease-standard);
+	}
+	.locale-flag-btn:hover,
+	.locale-flag-btn.active {
+		filter: grayscale(0);
+		opacity: 1;
 	}
 </style>
