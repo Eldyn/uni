@@ -31,14 +31,18 @@
 	</button>
 
 	<div class="flex w-full max-w-sm gap-2">
-		<input
-			class="input-pixel font-tiny flex-1"
-			type="text"
-			aria-label="Lobby code"
-			placeholder={m.home_join_code_placeholder({}, { locale: storeI18n.locale })}
-			bind:value={joinCode}
-		/>
-		<button class="btn-secondary px-4" onclick={joinByCode} disabled={joining}>
+		<div
+			class="pixel-bordered flex min-w-0 flex-1 items-center px-3 py-2.5 [--pc-fill:var(--surface-deep)] focus-within:[--pc-border:var(--accent)]"
+		>
+			<input
+				class="w-full min-w-0 bg-transparent font-pixel text-base text-text-h outline-none placeholder:text-text/50"
+				type="text"
+				aria-label="Lobby code"
+				placeholder={m.home_join_code_placeholder({}, { locale: storeI18n.locale })}
+				bind:value={joinCode}
+			/>
+		</div>
+		<button class="btn-secondary shrink-0 px-4" onclick={joinByCode} disabled={joining}>
 			{m.home_join_button({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
