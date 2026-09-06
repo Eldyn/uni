@@ -127,10 +127,9 @@
 	.shell-navbar-key {
 		display: none;
 		font-family: var(--tiny);
-		font-size: var(--text-small);
+		font-size: 0.7em;
 		color: var(--text);
 		opacity: 0.6;
-		margin-left: auto;
 	}
 
 	@media (min-width: 768px), (max-height: 599px) {
