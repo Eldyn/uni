@@ -369,18 +369,22 @@
 		border: none;
 		padding: 0.75rem 1.5rem;
 		cursor: pointer;
-		transition: background-color var(--duration-fast) var(--ease-standard);
+		transition: filter var(--duration-fast) var(--ease-standard);
 		/* --pc-fill must stay opaque (see the .pixel-bordered contract below):
 		   the fill pseudo paints over the border pseudo, not over whatever is
 		   truly behind the button, so a translucent/transparent value here
 		   doesn't reveal the page — it just lets the border colour show
 		   through, filling the whole button and hiding the label on top of
-		   it. --bg reads as "ghost button on the page/panel surface". */
+		   it. --bg reads as "ghost button on the page/panel surface". A prior
+		   hover rule swapped --pc-fill to the translucent --accent-bg instead
+		   of brightening, which broke exactly this contract: the opaque
+		   border layer underneath bled through the translucent fill and the
+		   whole button read as solid accent with no visible label or ring. */
 		--pc-border: var(--accent);
 		--pc-fill: var(--bg);
 	}
 	.btn-secondary:hover:not(:disabled) {
-		--pc-fill: var(--accent-bg);
+		filter: brightness(1.25);
 	}
 	.btn-secondary:disabled {
 		opacity: 0.5;
