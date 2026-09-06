@@ -1,5 +1,9 @@
 import { mount } from "svelte";
+// NOTE: hackernoon's iconfont is still imported for the game/** components
+// (mid-flight on a separate branch of work, out of scope here) — everything
+// else uses pixelarticons instead, see the `.pia`/`.pia-*` rules in app.css.
 import "@hackernoon/pixel-icon-library/fonts/iconfont.css";
+import "pixelarticons/fonts/pixelart-icons-font.css";
 import "./app.css";
 import App from "./App.svelte";
 

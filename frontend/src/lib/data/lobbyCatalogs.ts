@@ -11,15 +11,15 @@ import type { RuleDefinition } from "$lib/stores/catalog.svelte";
 /** Icon class per rule id (backend RuleRegistrar names). Unknown ids fall
  *  back to DEFAULT_RULE_ICON. */
 export const RULE_ICONS: Record<string, string> = {
-	draw_stacking: "hn-viewblocks",
-	seven_zero: "hn-shuffle",
-	jump_in: "hn-login",
-	force_play: "hn-download",
-	no_bluffing: "hn-hockey-mask",
-	progressive: "hn-bolt"
+	draw_stacking: "pixelart-icons-font-grid-3x3",
+	seven_zero: "pixelart-icons-font-shuffle",
+	jump_in: "pixelart-icons-font-login",
+	force_play: "pixelart-icons-font-download",
+	no_bluffing: "pixelart-icons-font-skull",
+	progressive: "pixelart-icons-font-zap"
 };
 
-export const DEFAULT_RULE_ICON = "hn-star";
+export const DEFAULT_RULE_ICON = "pixelart-icons-font-star";
 
 export function ruleIcon(id: string): string {
 	return RULE_ICONS[id] ?? DEFAULT_RULE_ICON;

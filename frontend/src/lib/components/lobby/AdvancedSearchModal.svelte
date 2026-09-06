@@ -55,7 +55,7 @@
 			class="text-2xl text-text hover:text-text-h"
 			title={m.settings_close({}, { locale: storeI18n.locale })}
 			aria-label={m.settings_close({}, { locale: storeI18n.locale })}
-			onclick={() => (open = false)}><i class="hn pix hn-times"></i></button
+			onclick={() => (open = false)}><i class="pia pixelart-icons-font-close"></i></button
 		>
 	</div>
 

@@ -101,7 +101,7 @@
 		}}
 	>
 		{@render trigger()}
-		<i class="hn pix hn-angle-down text-xs text-text"></i>
+		<i class="pia pixelart-icons-font-chevron-down text-xs text-text"></i>
 	</button>
 
 	{#if open}

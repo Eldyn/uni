@@ -44,6 +44,7 @@
 		"@threlte/extras": "^9.21.0",
 		"esbuild": "^0.28.0",
 		"howler": "^2.2.4",
+		"pixelarticons": "^2.4.1",
 		"svelte-dnd-action": "^0.9.69",
 		"svelte-gestures": "^5.2.2",
 		"tailwindcss": "^4.3.3",

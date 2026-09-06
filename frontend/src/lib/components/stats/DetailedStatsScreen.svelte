@@ -79,7 +79,7 @@
 <div class="stats-container">
 	<header class="top-bar">
 		<button class="btn pixel-corners" onclick={() => storeNavigation.back()}>
-			<i class="hn pix hn-arrow-left"></i> Back
+			<i class="pia pixelart-icons-font-arrow-left"></i> Back
 		</button>
 		<h1>CARD ARSENAL</h1>
 		<div style="width: 80px;"></div>

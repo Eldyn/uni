@@ -27,5 +27,5 @@
 	{title}
 	{onclick}
 >
-	{#if icon}<i class="hn pix {icon} text-base"></i>{/if}{@render children()}
+	{#if icon}<i class="pia {icon} text-base"></i>{/if}{@render children()}
 </button>

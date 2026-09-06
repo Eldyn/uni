@@ -78,7 +78,7 @@
 				{#each ruleView.shown as rid}
 					<span
 						class="pixel-corners bg-surface-deep flex h-6 w-6 items-center justify-center text-sm text-accent"
-						title={ruleTitle(rid)}><i class="hn pix {ruleIcon(rid)}"></i></span
+						title={ruleTitle(rid)}><i class="pia {ruleIcon(rid)}"></i></span
 					>
 				{/each}
 				{#if ruleView.overflow > 0}
@@ -92,7 +92,7 @@
 				class="pixel-corners bg-surface-deep flex items-center gap-1.5 px-2 py-0.5 font-micro text-xs text-text-h"
 				title="Deck: {lobby.deck}"
 			>
-				<i class="hn pix hn-credit-card text-xs text-accent"></i>{lobby.deck}
+				<i class="pia pixelart-icons-font-credit-card text-xs text-accent"></i>{lobby.deck}
 			</span>
 		</div>
 	</div>

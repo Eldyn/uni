@@ -36,7 +36,7 @@
 			onclick={() => storeNavigation.goto("main")}
 			aria-label="Back"
 		>
-			<i class="hn pix hn-arrow-left text-lg leading-none sm:hidden"></i>
+			<i class="pia pixelart-icons-font-arrow-left text-lg leading-none sm:hidden"></i>
 			<span class="hidden uppercase sm:inline">Back</span>
 		</button>
 
@@ -55,7 +55,7 @@
 			onclick={() => storeNavigation.goto("detailedStats")}
 			aria-label="Card Arsenal"
 		>
-			<i class="hn pix hn-viewblocks text-lg leading-none sm:hidden"></i>
+			<i class="pia pixelart-icons-font-grid-3x3 text-lg leading-none sm:hidden"></i>
 			<span class="hidden uppercase sm:inline">Arsenal</span>
 		</button>
 	</header>
@@ -75,7 +75,7 @@
 					<h2
 						class="flex min-w-0 items-center justify-center gap-2 font-pixel! text-xl text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-2xl"
 					>
-						<i class="hn pix hn-crown shrink-0 text-gold"></i>
+						<i class="pia pixelart-icons-font-crown shrink-0 text-gold"></i>
 						<span class="truncate">{topPlayer.username}</span>
 					</h2>
 					<span

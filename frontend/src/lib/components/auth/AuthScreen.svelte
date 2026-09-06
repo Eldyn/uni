@@ -24,7 +24,7 @@
 		aria-label="Close"
 		title="Close"
 	>
-		<i class="hn pix hn-times"></i>
+		<i class="pia pixelart-icons-font-close"></i>
 	</button>
 
 	<div class="auth-tabs">

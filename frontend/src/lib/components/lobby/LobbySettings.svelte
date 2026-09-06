@@ -85,7 +85,7 @@
 	aria-label={m.lobby_settings_heading({}, { locale: storeI18n.locale })}
 >
 	<h3 class="settings-title">
-		<i class="hn pix hn-cog text-accent"></i>
+		<i class="pia pixelart-icons-font-gear text-accent"></i>
 		{m.lobby_settings_heading({}, { locale: storeI18n.locale })}
 	</h3>
 

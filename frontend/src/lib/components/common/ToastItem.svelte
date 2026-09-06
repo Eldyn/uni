@@ -128,13 +128,13 @@
 	<div class="toast-content">
 		<span class="text-base shrink-0">
 			{#if toast.type === "success"}
-				<i class="hn pix hn-check-circle"></i>
+				<i class="pia pixelart-icons-font-check"></i>
 			{:else if toast.type === "error"}
-				<i class="hn pix hn-times-circle"></i>
+				<i class="pia pixelart-icons-font-close"></i>
 			{:else if toast.type === "warning"}
-				<i class="hn pix hn-exclamation-triangle"></i>
+				<i class="pia pixelart-icons-font-warning-diamond"></i>
 			{:else}
-				<i class="hn pix hn-info-circle"></i>
+				<i class="pia pixelart-icons-font-circle-info"></i>
 			{/if}
 		</span>
 		<span class="toast-message">

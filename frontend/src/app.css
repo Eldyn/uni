@@ -589,6 +589,16 @@
 	vertical-align: middle;
 }
 
+/* pixelarticons ships `[class^="pixelart-icons-font-"] { font-size: 24px !important }`,
+   which would stomp every text-sm/text-lg/etc. size utility on our icons.
+   `.pia` re-forces our own size so utility classes win again; unlayered like
+   `.pix` above, for the same reason (responsive `hidden`/`inline-block`
+   utilities still need to win over it too). */
+.pia::before {
+	font-size: inherit !important;
+	vertical-align: middle;
+}
+
 @layer components {
 	/* Modals (continued) */
 	.modal-overlay {

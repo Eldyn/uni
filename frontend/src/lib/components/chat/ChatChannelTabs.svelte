@@ -51,6 +51,6 @@
 		onclick={onclose}
 		aria-label="Close chat"
 	>
-		<i class="hn pix hn-times"></i>
+		<i class="pia pixelart-icons-font-close"></i>
 	</button>
 </div>

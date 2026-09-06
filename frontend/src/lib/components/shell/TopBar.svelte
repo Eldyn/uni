@@ -53,7 +53,7 @@
 	<div class="shell-topbar-right">
 		{#if storeLobby.isInLobby}
 			<button class="shell-topbar-chip" onclick={openLobby}>
-				<i class="hn pix hn-diamond text-sm" aria-hidden="true"></i>
+				<i class="pia pixelart-icons-font-diamond-gem text-sm" aria-hidden="true"></i>
 				{readyCount}/{memberCount}
 			</button>
 		{/if}

@@ -47,7 +47,7 @@
 			aria-label={isPrivate ? "Private lobby" : "Public lobby"}
 			onclick={() => (isPrivate = !isPrivate)}
 		>
-			<i class="hn pix {isPrivate ? 'hn-lock' : 'hn-lock-open'}"></i>
+			<i class="pia {isPrivate ? 'pixelart-icons-font-lock' : 'pixelart-icons-font-unlock'}"></i>
 		</button>
 		<button
 			type="submit"

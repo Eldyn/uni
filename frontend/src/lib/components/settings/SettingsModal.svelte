@@ -22,7 +22,7 @@
 			aria-label={m.settings_close({}, { locale: storeI18n.locale })}
 			onclick={() => storeNavigation.closeSettings()}
 		>
-			<i class="hn pix hn-close text-lg leading-none"></i>
+			<i class="pia pixelart-icons-font-close text-lg leading-none"></i>
 		</button>
 	</header>
 

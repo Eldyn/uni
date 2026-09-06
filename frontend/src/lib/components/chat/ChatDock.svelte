@@ -68,7 +68,7 @@
 			aria-keyshortcuts={acceleratorKey("chat")}
 			onclick={open}
 		>
-			<i class="hn pix hn-message-dots text-xl"></i>
+			<i class="pia pixelart-icons-font-message text-xl"></i>
 			{#if unreadBadge}
 				<span
 					class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 font-mono text-[10px] leading-none text-white ring-2 ring-bg"
