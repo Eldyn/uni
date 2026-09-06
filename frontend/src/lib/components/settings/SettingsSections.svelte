@@ -2,7 +2,6 @@
 	import { storeAudio } from "$stores/audio.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
-	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -28,7 +27,6 @@
 	];
 
 	const inMatch = $derived(storeGame.state !== null);
-	const inLobby = $derived(storeLobby.isInLobby);
 </script>
 
 {#snippet sectionHeading(text: string)}
@@ -96,19 +94,16 @@
 		</section>
 	{/if}
 
-	{#if showDangerZone && (inLobby || inMatch)}
+	<!-- Leaving a lobby is a plain action available directly in the lobby's own
+	     header/exit button now (see LobbyScreen), not a destructive one that
+	     belongs here — only quitting an in-progress match still does. -->
+	{#if showDangerZone && inMatch}
 		<section class="panel settings-panel settings-panel--danger">
 			{@render sectionHeading(m.settings_danger_zone_heading({}, { locale: storeI18n.locale }))}
 			<div class="mt-4 flex flex-col gap-2">
-				{#if inMatch}
-					<button class="btn-secondary px-4 py-2" style="--pc-border: var(--danger); color: var(--danger);" onclick={() => storeGame.returnToLobby()}>
-						{m.settings_quit_match({}, { locale: storeI18n.locale })}
-					</button>
-				{:else if inLobby}
-					<button class="btn-secondary px-4 py-2" style="--pc-border: var(--danger); color: var(--danger);" onclick={() => storeLobby.leave()}>
-						{m.settings_leave_lobby({}, { locale: storeI18n.locale })}
-					</button>
-				{/if}
+				<button class="btn-secondary px-4 py-2" style="--pc-border: var(--danger); color: var(--danger);" onclick={() => storeGame.returnToLobby()}>
+					{m.settings_quit_match({}, { locale: storeI18n.locale })}
+				</button>
 			</div>
 		</section>
 	{/if}

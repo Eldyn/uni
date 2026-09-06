@@ -32,14 +32,17 @@ describe("SettingsSections", () => {
 
 	it("omits the danger zone when showDangerZone is false", () => {
 		const { queryByText } = render(SettingsSections, { props: { showDangerZone: false } });
-		expect(queryByText("Leave lobby")).not.toBeInTheDocument();
+		expect(queryByText("Quit match")).not.toBeInTheDocument();
 	});
 
-	it("shows Leave lobby in the danger zone when in a lobby", async () => {
+	// Leaving a lobby is a plain action on the lobby screen's own header now
+	// (see LobbyScreen), not a danger-zone entry here — only quitting an
+	// in-progress match still is.
+	it("does not show Leave lobby in the danger zone, even in a lobby", async () => {
 		const { storeLobby } = await import("$stores/lobby.svelte");
 		storeLobby.isInLobby = true;
-		const { getByText } = render(SettingsSections, { props: { showDangerZone: true } });
-		expect(getByText("Leave lobby")).toBeInTheDocument();
+		const { queryByText } = render(SettingsSections, { props: { showDangerZone: true } });
+		expect(queryByText("Leave lobby")).not.toBeInTheDocument();
 		storeLobby.isInLobby = false;
 	});
 

@@ -76,17 +76,20 @@
 </script>
 
 <div
-	class="fixed left-0 top-0 flex h-[100svh] w-full flex-col overflow-hidden bg-cover bg-center"
+	class="flex h-full w-full flex-col overflow-hidden bg-cover bg-center"
 	style="background-image: url('/assets/bg_full.png'); image-rendering: pixelated;"
 >
-	<!-- Header: title (editable by host) + invite code + leave ------------- -->
+	<!-- Lobby bar: title (editable by host), invite code, saves, settings and
+	     exit all in one row, matching BrowseToolbar's bg-surface-deep so the
+	     lobby screen reads as one shell surface instead of two stacked bars
+	     bleeding into the shell chrome above/beside it. -->
 	<header
-		class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-border bg-bg px-4 py-2 sm:px-6 sm:py-3 lg:px-10"
+		class="flex flex-wrap items-center gap-3 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:px-6 lg:px-10"
 	>
 		<div class="min-w-0 flex-1">
 			{#if isEditingName && isHost}
 				<input
-					class="title-screen w-full max-w-full truncate border-none bg-transparent p-0 text-3xl tracking-[-1.68px] outline-none [clip-path:none!important] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
+					class="title-screen w-full max-w-full truncate border-none bg-transparent p-0 text-xl tracking-[-0.5px] outline-none [clip-path:none!important] sm:text-2xl"
 					bind:value={editedName}
 					onblur={saveName}
 					onkeydown={(e) => e.key === "Enter" && saveName()}
@@ -96,21 +99,19 @@
 			{:else if isHost}
 				<button
 					type="button"
-					class="title-screen block max-w-full truncate border-none bg-transparent p-0 text-left text-3xl tracking-[-1.68px] [clip-path:none!important] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
+					class="title-screen block max-w-full truncate border-none bg-transparent p-0 text-left text-xl tracking-[-0.5px] [clip-path:none!important] sm:text-2xl"
 					onclick={startEditing}
 				>
 					{storeLobby.current?.name}
 				</button>
 			{:else}
-				<h1
-					class="title-screen max-w-full truncate text-3xl tracking-[-1.68px] sm:text-4xl lg:text-[56px] max-lg:text-2xl! max-lg:landscape:text-xl!"
-				>
+				<h1 class="title-screen max-w-full truncate text-xl tracking-[-0.5px] sm:text-2xl">
 					{storeLobby.current?.name}
 				</h1>
 			{/if}
 		</div>
 
-		<div class="flex shrink-0 items-center gap-2">
+		<div class="flex flex-wrap items-center gap-2">
 			<div class="flex items-center gap-1 bg-black px-3 py-2">
 				<span class="w-20 text-center font-mono text-sm text-text sm:text-base">
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
@@ -120,12 +121,42 @@
 					onclick={() => (showInviteCode = !showInviteCode)}
 					title={showInviteCode ? "Hide code" : "Show code"}
 				>
-					<i class="hn pix {showInviteCode ? 'hn-eye' : 'hn-eye-cross'} text-lg"></i>
+					<i class="pia {showInviteCode ? 'pixelart-icons-font-eye' : 'pixelart-icons-font-eye-off'} text-lg"></i>
 				</button>
 			</div>
 
+			<details class="relative w-fit select-none">
+				<summary
+					class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
+				>
+					{storeLobby.savedMatches?.length ?? 0} Saves
+				</summary>
+				<ul
+					class="scrollbar-accent absolute left-0 top-[calc(100%+10px)] z-50 max-h-96 w-80 max-w-[90vw] list-none overflow-y-auto border-2 border-border bg-bg p-2 shadow-lg"
+				>
+					{#each storeLobby.savedMatches ?? [] as save}
+						<LobbySave {save} />
+					{/each}
+					{#if (storeLobby.savedMatches?.length ?? 0) === 0}
+						<li class="p-2.5 text-xs text-text">No saved matches</li>
+					{/if}
+				</ul>
+			</details>
+
 			<button
-				class="btn pixel-corners bg-danger px-3 py-2 sm:px-4"
+				class="btn pixel-corners px-3 py-2 sm:px-4"
+				onclick={() => (settingsOpen = true)}
+				title="Lobby settings"
+			>
+				<i class="pia pixelart-icons-font-gear"></i>
+				<span class="ml-2 hidden uppercase sm:inline">Settings</span>
+			</button>
+
+			<!-- Leaving is a normal lobby action, not a destructive one worth a
+			     "danger zone" — it's a plain button right here rather than
+			     buried in Settings' danger section (see SettingsSections). -->
+			<button
+				class="btn pixel-corners px-3 py-2 sm:px-4"
 				onclick={() => storeLobby.leave()}
 				title="Exit Lobby"
 			>
@@ -133,38 +164,6 @@
 			</button>
 		</div>
 	</header>
-
-	<!-- Saved matches + settings ----------------------------------------------- -->
-	<div
-		class="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2 sm:px-6 lg:px-10"
-	>
-		<details class="relative w-fit select-none">
-			<summary
-				class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
-			>
-				{storeLobby.savedMatches?.length ?? 0} Saves
-			</summary>
-			<ul
-				class="scrollbar-accent absolute left-0 top-[calc(100%+10px)] z-50 max-h-96 w-80 max-w-[90vw] list-none overflow-y-auto border-2 border-border bg-bg p-2 shadow-lg"
-			>
-				{#each storeLobby.savedMatches ?? [] as save}
-					<LobbySave {save} />
-				{/each}
-				{#if (storeLobby.savedMatches?.length ?? 0) === 0}
-					<li class="p-2.5 text-xs text-text">No saved matches</li>
-				{/if}
-			</ul>
-		</details>
-
-		<button
-			class="btn pixel-corners px-3 py-2 sm:px-4"
-			onclick={() => (settingsOpen = true)}
-			title="Lobby settings"
-		>
-			<i class="hn pix hn-cog"></i>
-			<span class="ml-2 hidden uppercase sm:inline">Settings</span>
-		</button>
-	</div>
 
 	<!-- Table: dealt seats + controls ----------------------------------------- -->
 	<div class="scrollbar-accent flex-1 overflow-y-auto">
@@ -226,7 +225,7 @@
 							class="absolute inset-x-0 -bottom-5 flex items-center justify-center gap-1 text-center font-tiny text-[10px] uppercase text-white sm:text-xs"
 						>
 							{#if member.is_bot}
-								<i class="hn pix hn-robot" style="color: lightblue"></i>
+								<i class="pia pixelart-icons-font-robot" style="color: lightblue"></i>
 							{/if}
 							<span class="truncate">{member.username}</span>
 						</p>
@@ -348,7 +347,7 @@
 			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
 			title="Close"
 			aria-label="Close"
-			onclick={() => (settingsOpen = false)}><i class="hn pix hn-times"></i></button
+			onclick={() => (settingsOpen = false)}><i class="pia pixelart-icons-font-close"></i></button
 		>
 		<LobbySettings />
 	</Modal>
