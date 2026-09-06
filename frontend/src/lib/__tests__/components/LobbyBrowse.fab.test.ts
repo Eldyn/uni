@@ -34,26 +34,22 @@ afterEach(() => {
 	setViewport(DEFAULT_WIDTH, DEFAULT_HEIGHT);
 });
 
+// The floating Create FAB used to sit at the same bottom-right corner as the
+// ChatDock launcher on a portrait phone, hiding behind it. Create now lives
+// in the toolbar next to Advanced on every viewport, so there's no separate
+// FAB to hide the chat launcher's clearance padding was reserved for.
 describe("LobbyBrowse create action placement", () => {
-	it("renders a Create FAB and reserves bottom padding on a portrait phone", () => {
+	it("renders Create in the toolbar on a portrait phone", () => {
 		setViewport(390, 844);
-		const { container, getByLabelText } = render(LobbyBrowse);
+		const { getByTitle } = render(LobbyBrowse);
 
-		expect(getByLabelText("Create lobby")).toBeInTheDocument();
-
-		const list = container.querySelector("[data-testid='lobby-list']");
-		expect(list, "expected the list container to carry data-testid='lobby-list'").toBeTruthy();
-		expect(list!.className).toMatch(/pb-(20|24|28|32|36|40)/);
+		expect(getByTitle("Create lobby")).toBeInTheDocument();
 	});
 
-	it("does not render the FAB or reserve its padding on desktop", () => {
+	it("renders Create in the toolbar on desktop", () => {
 		setViewport(1440, 900);
-		const { container, queryByLabelText } = render(LobbyBrowse);
+		const { getByTitle } = render(LobbyBrowse);
 
-		expect(queryByLabelText("Create lobby")).not.toBeInTheDocument();
-
-		const list = container.querySelector("[data-testid='lobby-list']");
-		expect(list, "expected the list container to carry data-testid='lobby-list'").toBeTruthy();
-		expect(list!.className).not.toMatch(/pb-(20|24|28|32|36|40)/);
+		expect(getByTitle("Create lobby")).toBeInTheDocument();
 	});
 });

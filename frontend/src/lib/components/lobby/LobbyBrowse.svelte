@@ -53,9 +53,19 @@
 	let winH = $state(900);
 	let gridW = $state(0);
 
-	// Mirror the CSS grid (md:grid-cols-2) so card metrics track real card width.
-	const cols = $derived(winW >= 768 ? 2 : 1);
-	const cardW = $derived(gridW > 0 ? (gridW - (cols - 1) * 12) / cols : 9999);
+	// Mirror the grid's own auto-fit breakpoint (see .lobby-grid below) so card
+	// metrics track the real rendered card width. A raw viewport-width check
+	// (winW >= 768) used to drive this instead, which ignored NavBar's rail
+	// eating into the actual content width — at a window width just past the
+	// rail breakpoint, two columns of raw-`winW`-sized cards would be forced
+	// even though the real (sidebar-narrowed) container couldn't fit them,
+	// pushing each card's Play button out of its bounds. Measuring the
+	// container itself (gridW, already bound below) sidesteps the sidebar
+	// entirely instead of trying to account for its width by hand.
+	const MIN_CARD_WIDTH = 320;
+	const GRID_GAP = 12;
+	const cols = $derived(gridW >= MIN_CARD_WIDTH * 2 + GRID_GAP ? 2 : 1);
+	const cardW = $derived(gridW > 0 ? (gridW - (cols - 1) * GRID_GAP) / cols : 9999);
 
 	// Mirrors ShellFrame's rail-vs-bottom-nav breakpoint (`@media (min-width:
 	// 768px), (max-height: 599px)`): true only for the portrait-phone row,
@@ -132,7 +142,7 @@
 </script>
 
 {#snippet browseSearchSlot()}
-	<LobbySearchField bind:nameQuery compact class="mx-auto w-full max-w-xs" />
+	<LobbySearchField bind:nameQuery compact class="mx-auto w-full max-w-sm" />
 {/snippet}
 
 <svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
@@ -152,7 +162,6 @@
 		bind:quickHideInGame
 		bind:sortBy
 		{advCount}
-		hideCreate={isPortraitPhone}
 		showSearchInline={isPortraitPhone}
 		oncreate={() => (createOpen = true)}
 		onadvanced={() => (advancedOpen = true)}
@@ -173,7 +182,7 @@
 			<div
 				bind:clientWidth={gridW}
 				data-testid="lobby-list"
-				class="grid grid-cols-1 gap-3 md:grid-cols-2"
+				class="lobby-grid grid gap-3"
 					class:pb-40={isPortraitPhone}
 			>
 				{#each visible as lobby (lobby.invite_code)}
@@ -233,17 +242,6 @@
 	</div>
 </div>
 
-<!-- Create FAB: portrait phone only, mirrors ShellFrame's bottom-nav breakpoint
-     so it never fights the toolbar's cramped single row there. -->
-{#if isPortraitPhone}
-	<button
-		class="pixel-bordered fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center bg-accent text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-		onclick={() => (createOpen = true)}
-		aria-label="Create lobby"
-	>
-		<i class="hn pix hn-plus text-xl" aria-hidden="true"></i>
-	</button>
-{/if}
 
 <!-- Advanced search modal (darkening overlay, LobbySettings-style) --------- -->
 {#if advancedOpen}
@@ -272,7 +270,7 @@
 			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
 			title="Close"
 			aria-label="Close"
-			onclick={() => (createOpen = false)}><i class="hn pix hn-times"></i></button
+			onclick={() => (createOpen = false)}><i class="pia pixelart-icons-font-close"></i></button
 		>
 
 		<div class="flex flex-col gap-6 sm:flex-row sm:gap-8">
@@ -291,3 +289,13 @@
 		</div>
 	</Modal>
 {/if}
+
+<style>
+	/* Caps at 2 columns, but only once the container is actually wide enough
+	   for both at >=320px each — auto-fit wraps to a single column on its own
+	   once it isn't, tracking the container's real width (post-NavBar-rail)
+	   instead of a raw viewport breakpoint that doesn't know the rail exists. */
+	.lobby-grid {
+		grid-template-columns: repeat(auto-fit, minmax(max(320px, calc(50% - 6px)), 1fr));
+	}
+</style>
