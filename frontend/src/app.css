@@ -63,7 +63,12 @@
    the browser fetches only the weight/style actually rendered. */
 @font-face {
 	font-family: "Monogram";
-	src: url("/fonts/monogram.woff2?v=10") format("woff2");
+	/* Swapped for the "extended" build (full Ukrainian/Cyrillic coverage) —
+	   only every trades Greek letters and a handful of typographic symbols
+	   (em dash, curly quotes, arrows) that this font never actually renders
+	   in the app today (its one live use is the composer's italic "I"
+	   button label). Bumped ?v to bust any cached copy of the old file. */
+	src: url("/fonts/monogram.woff2?v=11") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
