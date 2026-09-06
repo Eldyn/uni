@@ -79,7 +79,7 @@
 		bind:value={text}
 		{onkeydown}
 		oninput={persistDraft}
-		class="min-w-0 flex-1 bg-transparent px-1 font-tiny text-sm text-text-h placeholder:text-text/60"
+		class="min-w-0 flex-1 bg-transparent px-1 font-micro text-sm text-text-h placeholder:text-text/60"
 		placeholder="Message…"
 		aria-label="Chat message"
 	/>

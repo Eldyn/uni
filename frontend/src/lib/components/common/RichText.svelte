@@ -26,12 +26,15 @@
 				text={censorText(segment.text)}
 				effect={segment.effect}
 				color={segment.color ?? ""}
-				font={segment.bold ? "var(--pypx)" : ""}
 			/>
 		{:else}
+			<!-- Chat text inherits TinyUnicode (see ChatLog/ChatComposer) for near-
+			     full unicode coverage; bold/italic apply as plain CSS instead of
+			     switching to Pypx/Monogram, which don't cover most alphabets and
+			     would break rendering for players typing in other languages. -->
 			<span
-				style="{segment.bold ? 'font-family: var(--pypx); font-weight: 800;' : ''}{segment.italic
-					? 'font-family: var(--monogram); font-style: italic;'
+				style="{segment.bold ? 'font-weight: 800;' : ''}{segment.italic
+					? 'font-style: italic;'
 					: ''}{segment.color ? `color: ${segment.color};` : ''}"
 			>
 				{censorText(segment.text)}
