@@ -9,39 +9,50 @@
 	let { children, tooltipContent }: Props = $props();
 
 	let isVisible = $state(false);
-	let mouseX = $state(0);
-	let mouseY = $state(0);
+	let tooltipEl: HTMLElement | undefined = $state();
 
-	let shiftX = $state(0); // 0 = right of cursor, 1 = left of cursor
-	let shiftY = $state(0); // 0 = below cursor, 1 = above cursor
+	const EDGE_MARGIN = 8;
+	const CURSOR_OFFSET = 15;
 
-	let tooltipWidth = $state(0);
-	let tooltipHeight = $state(0);
+	let left = $state(0);
+	let top = $state(0);
 
 	// INFO: clip-path on ancestor containers (e.g. .pixel-corners) clips position:fixed
 	// descendants. Moving the floating div to the document body escapes any clipped subtree
 	// while Svelte's scoped class keeps the style rules intact.
-	// Measurement happens after appendChild so offsetWidth/offsetHeight reflect real layout.
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
-		tooltipWidth = node.offsetWidth;
-		tooltipHeight = node.offsetHeight;
 		return { destroy: () => node.remove() };
 	}
 
+	// Re-measures the tooltip's real, current rendered size on every move
+	// instead of once at mount — a one-shot measurement (the previous
+	// approach) locks in whatever size happened to exist at that instant,
+	// which is wrong for the very first frame content actually renders in.
+	// The final position is then clamped into the viewport directly rather
+	// than a binary left/right-of-cursor flip, which still overflowed the
+	// far edge whenever the tooltip was wider than the remaining space on
+	// BOTH sides of the cursor (e.g. long descriptions on a narrow viewport).
 	function handleMouseMove(e: MouseEvent) {
-		mouseX = e.clientX;
-		mouseY = e.clientY;
+		const width = tooltipEl?.offsetWidth ?? 0;
+		const height = tooltipEl?.offsetHeight ?? 0;
 
-		shiftX = mouseX + tooltipWidth > window.innerWidth ? 1 : 0;
-		shiftY = mouseY + tooltipHeight > window.innerHeight ? 1 : 0;
+		const maxLeft = window.innerWidth - width - EDGE_MARGIN;
+		const maxTop = window.innerHeight - height - EDGE_MARGIN;
+
+		left = Math.min(Math.max(EDGE_MARGIN, e.clientX + CURSOR_OFFSET), Math.max(EDGE_MARGIN, maxLeft));
+		top = Math.min(Math.max(EDGE_MARGIN, e.clientY + CURSOR_OFFSET), Math.max(EDGE_MARGIN, maxTop));
 	}
 </script>
 
 <div
 	class="tooltip-container"
 	role="tooltip"
-	onmouseenter={() => (isVisible = true)}
+	onmouseenter={(e) => {
+		isVisible = true;
+		left = e.clientX + CURSOR_OFFSET;
+		top = e.clientY + CURSOR_OFFSET;
+	}}
 	onmouseleave={() => (isVisible = false)}
 	onmousemove={handleMouseMove}
 >
@@ -49,12 +60,11 @@
 
 	{#if isVisible}
 		<div
+			bind:this={tooltipEl}
 			class="minecraft-floating-tooltip"
 			use:portal
-			style:--mouse-x="{mouseX}px"
-			style:--mouse-y="{mouseY}px"
-			style:--shift-x={shiftX ? "-100%" : "15px"}
-			style:--shift-y={shiftY ? "-100%" : "15px"}
+			style:left="{left}px"
+			style:top="{top}px"
 		>
 			{@render tooltipContent()}
 		</div>
@@ -69,11 +79,6 @@
 
 	.minecraft-floating-tooltip {
 		position: fixed;
-		top: var(--mouse-y);
-		left: var(--mouse-x);
-
-		transform: translate(var(--shift-x), var(--shift-y));
-
 		pointer-events: none;
 		z-index: 10001;
 
@@ -84,6 +89,10 @@
 		border-radius: 4px;
 		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 		font-family: var(--mono);
-		white-space: nowrap;
+		/* Wraps instead of stretching indefinitely — a long (nowrap) rule
+		   description could make the tooltip wider than the viewport itself,
+		   which no amount of position-clamping alone can keep on-screen. */
+		white-space: normal;
+		max-width: min(320px, calc(100vw - 2 * 8px));
 	}
 </style>
