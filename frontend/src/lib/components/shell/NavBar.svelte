@@ -130,6 +130,10 @@
 		font-size: 0.7em;
 		color: var(--text);
 		opacity: 0.6;
+		/* Right-anchored so every row's digit lines up at the same edge
+		   regardless of how long that row's own label is, rather than sitting
+		   right after the label at a different x-position on every row. */
+		margin-left: auto;
 	}
 
 	@media (min-width: 768px), (max-height: 599px) {
