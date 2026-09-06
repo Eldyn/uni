@@ -19,10 +19,10 @@
 
 <div
 	class="pixel-bordered flex items-center gap-2 focus-within:[--pc-border:var(--accent)] {compact
-		? 'px-3 py-1.5'
+		? 'px-4 py-2'
 		: 'px-3 py-2'} {className}"
 >
-	<i class="hn pix hn-search {compact ? 'text-sm' : 'text-lg'} text-text"></i>
+	<i class="pia pixelart-icons-font-search {compact ? 'text-sm' : 'text-lg'} text-text"></i>
 	<input
 		class="w-full min-w-0 bg-transparent font-tiny {compact
 			? 'text-sm'
@@ -36,7 +36,7 @@
 			class="text-text hover:text-text-h"
 			title="Clear search"
 			onclick={() => (nameQuery = "")}
-			><i class="hn pix hn-times {compact ? 'text-xs' : 'text-sm'}"></i></button
+			><i class="pia pixelart-icons-font-close {compact ? 'text-xs' : 'text-sm'}"></i></button
 		>
 	{/if}
 </div>
