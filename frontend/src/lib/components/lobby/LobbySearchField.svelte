@@ -15,7 +15,19 @@
 		compact?: boolean;
 		class?: string;
 	} = $props();
+
+	let inputEl: HTMLInputElement | undefined = $state();
+
+	function onWindowKeydown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+			event.preventDefault();
+			inputEl?.focus();
+			inputEl?.select();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div
 	class="pixel-bordered flex items-center gap-2 focus-within:[--pc-border:var(--accent)] {compact
@@ -24,11 +36,13 @@
 >
 	<i class="pia pixelart-icons-font-search {compact ? 'text-sm' : 'text-lg'} text-text"></i>
 	<input
+		bind:this={inputEl}
 		class="w-full min-w-0 bg-transparent font-tiny {compact
 			? 'text-sm'
 			: 'text-base'} text-text-h outline-none focus-visible:outline-none placeholder:text-text/60"
 		placeholder={m.browse_search_placeholder({}, { locale: storeI18n.locale })}
 		aria-label="Search lobby name"
+		title="Search (Ctrl+K)"
 		bind:value={nameQuery}
 	/>
 	{#if nameQuery}
