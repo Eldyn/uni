@@ -603,13 +603,19 @@
 	vertical-align: middle;
 }
 
-/* pixelarticons ships `[class^="pixelart-icons-font-"] { font-size: 24px !important }`,
-   which would stomp every text-sm/text-lg/etc. size utility on our icons.
-   `.pia` re-forces our own size so utility classes win again; unlayered like
-   `.pix` above, for the same reason (responsive `hidden`/`inline-block`
-   utilities still need to win over it too). */
-.pia::before {
+/* pixelarticons ships `[class^="pixelart-icons-font-"] { font-size: 24px !important }`
+   on the ICON ELEMENT ITSELF, not just its glyph — overriding only `::before`
+   (as an earlier version of this rule did) leaves the element's own line box
+   pinned to a 24px-tall font context regardless of what size the glyph
+   actually renders at, inflating and vertically misaligning every button/
+   chip/field that contains one. `.pia` has to win that fight on the same
+   selector the library used, unlayered like `.pix` above so responsive
+   `hidden`/`inline-block` utilities still win over it too. Also mirrors
+   hackernoon's own `.hn { line-height: 1 }`, which pixelarticons has no
+   equivalent of. */
+.pia {
 	font-size: inherit !important;
+	line-height: 1;
 	vertical-align: middle;
 }
 
