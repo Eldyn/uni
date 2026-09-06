@@ -18,28 +18,28 @@
 		{
 			screen: "main",
 			label: m.nav_home({}, { locale: storeI18n.locale }),
-			icon: "hn-home",
+			icon: "pixelart-icons-font-home",
 			color: "var(--accent)",
 			key: acceleratorKey("home")
 		},
 		{
 			screen: "lobbies",
 			label: m.nav_browse({}, { locale: storeI18n.locale }),
-			icon: "hn-search",
+			icon: "pixelart-icons-font-search",
 			color: "var(--blueCard)",
 			key: acceleratorKey("browse")
 		},
 		{
 			screen: "decks",
 			label: m.nav_decks({}, { locale: storeI18n.locale }),
-			icon: "hn-viewblocks",
+			icon: "pixelart-icons-font-grid-3x3",
 			color: "var(--greenCard)",
 			key: acceleratorKey("decks")
 		},
 		{
 			screen: "shop",
 			label: m.nav_shop({}, { locale: storeI18n.locale }),
-			icon: "hn-credit-card",
+			icon: "pixelart-icons-font-credit-card",
 			color: "var(--yellowCard)",
 			key: acceleratorKey("shop")
 		}
@@ -66,7 +66,7 @@
 			aria-keyshortcuts={dest.key}
 			onclick={(e) => go(e, dest.screen)}
 		>
-			<i class="hn pix {dest.icon} text-xl leading-none" aria-hidden="true"></i>
+			<i class="pia {dest.icon} text-xl leading-none" aria-hidden="true"></i>
 			<span class="shell-navbar-label">{dest.label}</span>
 			<span class="shell-navbar-key" aria-hidden="true">{dest.key}</span>
 		</a>
@@ -79,7 +79,7 @@
 		aria-keyshortcuts={acceleratorKey("menu")}
 		onclick={openMenu}
 	>
-		<i class="hn pix hn-bars text-xl leading-none" aria-hidden="true"></i>
+		<i class="pia pixelart-icons-font-menu text-xl leading-none" aria-hidden="true"></i>
 		<span class="shell-navbar-label">{m.nav_menu({}, { locale: storeI18n.locale })}</span>
 		<span class="shell-navbar-key" aria-hidden="true">{acceleratorKey("menu")}</span>
 	</a>
