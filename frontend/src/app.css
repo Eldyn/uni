@@ -20,12 +20,17 @@
 	}
 }
 
+/* These three (FatPixel/Pixel/Habbo) are the pixel-art identity's core
+   display faces, and each file is under 2.5KB — effectively instant to
+   fetch — so `font-display: block` (hold rendering briefly for the real
+   font rather than flashing a fallback first) costs nothing in practice but
+   avoids a visible flash of a smooth, non-pixelated fallback font. */
 @font-face {
 	font-family: "FatPixel";
 	src: url("/fonts/fatpixel.woff2?v=11") format("woff2");
 	font-weight: 400;
 	font-style: normal;
-	font-display: swap;
+	font-display: block;
 }
 
 @font-face {
@@ -33,7 +38,7 @@
 	src: url("/fonts/pixel.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
-	font-display: swap;
+	font-display: block;
 }
 
 /* Small-text pixel fonts (NB Pixel Font Bundle, Nimble Beasts Collective).
@@ -43,7 +48,7 @@
 	src: url("/fonts/habbo.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
-	font-display: swap;
+	font-display: block;
 }
 
 @font-face {
