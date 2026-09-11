@@ -41,6 +41,7 @@ const RawGameStateSchema = z.object({
 	top_card: RawCardSchema.optional(),
 	players: z.array(RawPlayerSchema),
 	pending_draws: z.number().int().default(0),
+	draw_pile_size: z.number().int().default(0),
 	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
 	turn_time_remaining_ms: z.number().optional()
 });
@@ -93,6 +94,8 @@ export interface GameState {
 	players: GamePlayer[];
 	/** Accumulated cards (+2/+4 chain) that the next player will have to draw. */
 	pending_draws: number;
+	/** How many cards remain in the draw pile — drives the pile's visible stack height and reshuffle detection. */
+	draw_pile_size: number;
 	/** Origin of the last played card, used to animate it from its source slot. */
 	last_play?: LastPlay;
 	/** Flag indicating whether the match has reached a terminal state. */
@@ -268,6 +271,7 @@ class StoreGame implements SessionStore {
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
 				pending_draws: stateJson.pending_draws,
+				draw_pile_size: stateJson.draw_pile_size,
 				last_play: stateJson.last_play,
 				is_over: undefined,
 				winner: undefined
