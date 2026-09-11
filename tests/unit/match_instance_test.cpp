@@ -66,6 +66,25 @@ TEST_CASE("match: draw card grows hand") {
     CHECK(hand_after >= hand_before);
 }
 
+TEST_CASE("match: SerializeBaseState draw_pile_size matches the real draw pile, and never grows on a normal draw") {
+    MatchInstance m(two_humans(), default_settings());
+    m.Start();
+
+    nlohmann::json base = m.SerializeBaseState();
+    nlohmann::json exported = m.ExportState();
+    CHECK_EQ(base["draw_pile_size"].get<size_t>(), exported["draw_pile"].size());
+
+    const std::string current = m.GetCurrentPlayerUsername();
+    size_t before = base["draw_pile_size"].get<size_t>();
+    m.DrawCard(current);
+    size_t after = m.SerializeBaseState()["draw_pile_size"].get<size_t>();
+
+    // INFO: Either it shrank by one (normal draw) or stayed the same
+    //       (draw-locked turn) — same tolerance as the existing
+    //       "draw card grows hand" test above.
+    CHECK(after <= before);
+}
+
 TEST_CASE("match: serialization round-trip") {
     MatchInstance m(two_humans(), default_settings());
     m.Start();

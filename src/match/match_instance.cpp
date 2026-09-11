@@ -805,6 +805,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
         root["current_turn"] = GetCurrentPlayerUsername();
         root["play_direction"] = state_.play_direction;
         root["discard_pile_size"] = state_.discard_pile.size();
+        root["draw_pile_size"] = state_.draw_pile.size();
         root["pending_draws"] = state_.pending_draws;
 
         if (state_.last_play.valid) {
