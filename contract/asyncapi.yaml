@@ -826,6 +826,48 @@ components:
         accept:
           type: boolean
 
+    AnimationSequence:
+      type: object
+      description: >
+        NOT YET emitted by any message — reserved for a future server-push
+        animation event once the moddable ruleset engine exists. Documented
+        here for the schema's own versioning; the authoritative TypeScript
+        types are hand-written in
+        frontend/src/lib/components/game/animation/types.ts (this generator
+        does not code-generate server-push shapes — see LobbyList/ListedLobby
+        for the existing precedent).
+      required: [version, beats]
+      properties:
+        version:
+          type: integer
+          description: >
+            Schema version. Evolve additively (new optional fields, new op
+            values); never repurpose an existing field.
+        beats:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/AnimationStep"
+
+    AnimationStep:
+      type: object
+      required: [op, target]
+      properties:
+        op:
+          type: string
+          description: >
+            Renderer key. Unknown ops (client older than schema version) must
+            no-op, not fail the sequence.
+        target:
+          type: string
+          description: Card id, player/seat id, or the literal "screen".
+        payload:
+          type: object
+          description: >
+            Op-specific fields (e.g. move's destination slot, screenEffect's
+            effect name and duration).
+
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)
   # -------------------------------------------------------------------------
