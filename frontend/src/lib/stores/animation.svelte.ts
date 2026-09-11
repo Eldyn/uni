@@ -1,0 +1,67 @@
+/**
+ * @file animation.svelte.ts
+ * @brief Reactive store owning the game board's animation speed and on/off
+ * setting. `enabled` defaults to the inverse of the OS-level
+ * prefers-reduced-motion signal (storeWebglCapability.reducedMotion) but is
+ * independently user-overridable.
+ */
+
+import { storeWebglCapability } from "./webglCapability.svelte";
+
+const SETTINGS_STORAGE_KEY = "uni:animation:settings";
+const DEFAULT_SPEED_MULTIPLIER = 1;
+
+interface AnimationSettings {
+	speedMultiplier: number;
+	enabled: boolean;
+}
+
+class StoreAnimation {
+	speedMultiplier = $state<number>(DEFAULT_SPEED_MULTIPLIER);
+	enabled = $state<boolean>(!storeWebglCapability.reducedMotion);
+	userOverrodeEnabled = false;
+
+	constructor() {
+		try {
+			const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+			const parsed = raw ? (JSON.parse(raw) as Partial<AnimationSettings>) : null;
+			if (typeof parsed?.speedMultiplier === "number") this.speedMultiplier = parsed.speedMultiplier;
+			if (typeof parsed?.enabled === "boolean") {
+				this.enabled = parsed.enabled;
+				this.userOverrodeEnabled = true;
+			}
+		} catch {
+			// INFO: localStorage unavailable or malformed, fall back to defaults.
+		}
+
+		if (typeof window !== "undefined") {
+			window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (e) => {
+				if (!this.userOverrodeEnabled) this.enabled = !e.matches;
+			});
+		}
+	}
+
+	#persist(): void {
+		try {
+			localStorage.setItem(
+				SETTINGS_STORAGE_KEY,
+				JSON.stringify({ speedMultiplier: this.speedMultiplier, enabled: this.enabled })
+			);
+		} catch {
+			// INFO: localStorage unavailable, setting stays in-memory only.
+		}
+	}
+
+	setSpeedMultiplier(value: number): void {
+		this.speedMultiplier = value;
+		this.#persist();
+	}
+
+	setEnabled(value: boolean): void {
+		this.enabled = value;
+		this.userOverrodeEnabled = true;
+		this.#persist();
+	}
+}
+
+export const storeAnimation = new StoreAnimation();
