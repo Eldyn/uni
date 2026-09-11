@@ -12,7 +12,14 @@
 
 	let { placement }: { placement: BoardPlacement } = $props();
 
-	const STACK_SIZE = 6;
+	// Visual cap: rendering one plane per real card would draw 80+ overlapping
+	// meshes once the deck is full. The stack still reads as "a pile of cards"
+	// at any depth past a handful, so cap it and let depth communicate "still
+	// plenty left" rather than trying to render every card.
+	const MAX_VISIBLE_STACK = 6;
+	let visibleStackSize = $derived(
+		Math.max(0, Math.min(MAX_VISIBLE_STACK, storeGame.state?.draw_pile_size ?? 0))
+	);
 	// Same z-fighting fix as the other piles/hands: keep the step clear of
 	// CardMesh3D's own internal layer span (up to 0.004 world units).
 	const STACK_STEP = 0.02;
@@ -56,7 +63,7 @@
 	}
 </script>
 
-{#each Array.from({ length: STACK_SIZE }) as _, i (i)}
+{#each Array.from({ length: visibleStackSize }) as _, i (i)}
 	{#if i > 0 && silhouetteTexture}
 		<T.Mesh
 			position={[
@@ -87,6 +94,6 @@
 			placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
 		]}
 		scale={placement.drawPileScale}
-		onclick={i === STACK_SIZE - 1 ? handleDraw : undefined}
+		onclick={i === visibleStackSize - 1 ? handleDraw : undefined}
 	/>
 {/each}
