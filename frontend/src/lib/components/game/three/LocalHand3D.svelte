@@ -123,7 +123,7 @@
 	// only the handful of cards nearest the active one actually move — the ends
 	// of a long hand shouldn't shuffle just because something near the middle
 	// got picked up.
-	const NEIGHBOR_PUSH_EM = 1.6;
+	const NEIGHBOR_PUSH_EM = 1.5;
 	const NEIGHBOR_PUSH_FALLOFF_CARDS = 3;
 	// The active card tilts a few degrees toward the discard pile at the mat's
 	// center (x=0) — a small "already being aimed at where it's about to land"
@@ -469,7 +469,7 @@
 	{@const isDragging = draggingId === card.id}
 	{@const isSelected = selectedId === card.id}
 	{@const neighborPush = isDragging ? 0 : neighborPushEm(i)}
-	{@const x = (slot.x + neighborPush) * handEmToWorld + (isDragging ? dragOffsetX : 0)}
+	{@const x = slot.x * handEmToWorld + (isDragging ? dragOffsetX : 0)}
 	{@const lifted =
 		isSelected ||
 		((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging)}
@@ -481,6 +481,7 @@
 		hovered={lifted}
 		instant={isSelected}
 		hoverPush={[0, HOVER_PUSH_EM * handEmToWorld]}
+		pushX={neighborPush * handEmToWorld}
 		hoverSpinDeg={tiltTowardPileDeg(slot.x)}
 		opacity={isSelected ? 1 : fade}
 		{dimmed}

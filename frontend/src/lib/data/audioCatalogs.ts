@@ -82,6 +82,5 @@ export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {
 	lobbies: "music.fuzzsong",
 	lobby: "music.fuzzsong",
 	settings: "music.fuzzsong",
-	stats: "music.fuzzsong",
-	detailedStats: "music.fuzzsong"
+	stats: "music.fuzzsong"
 };

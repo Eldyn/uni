@@ -68,15 +68,9 @@
 	/>
 {/snippet}
 
-<div
-	bind:clientWidth={toolbarW}
-	class="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:gap-3 sm:px-6 max-lg:landscape:py-1.5 lg:px-10"
->
+<div bind:clientWidth={toolbarW} class="shell-topbar-secondary max-lg:landscape:py-1.5">
 	{#if showSearchInline}
-		<LobbySearchField
-			bind:nameQuery
-			class="w-full min-w-0 sm:w-auto sm:min-w-60 sm:flex-1"
-		/>
+		<LobbySearchField bind:nameQuery class="w-full min-w-0 sm:w-auto sm:min-w-60 sm:flex-1" />
 	{/if}
 
 	<!-- fast settings: shown only once the toolbar itself has room for a

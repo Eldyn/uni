@@ -49,14 +49,27 @@
 		min-width: 0;
 	}
 
-	/* Narrow screens: the strip can't fit beside the timer and Exit on one
-	   row, so the bar wraps and centers instead of pushing Exit off-screen. */
+	/* Narrow screens: everything stays on ONE row, with the turn-order strip
+	   taking the slack and scrolling sideways inside it (see TurnOrderStrip).
+	   Wrapping instead used to push Exit onto a second line, and on a phone the
+	   HUD's height comes straight out of the board's. */
 	@media (max-width: 700px) {
 		.hud-container {
 			width: 100%;
-			flex-wrap: wrap;
-			justify-content: center;
-			row-gap: 6px;
+			gap: 8px;
+			font-size: 1rem;
+		}
+
+		.timer {
+			flex: none;
+			padding: 3px 6px;
+			font-size: 0.8rem;
+		}
+
+		.exit-btn {
+			flex: none;
+			padding: 4px 10px;
+			font-size: 0.8rem;
 		}
 	}
 

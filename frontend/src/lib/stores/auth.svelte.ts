@@ -67,10 +67,31 @@ class StoreAuth {
 				return true;
 			}
 
-			return false;
+			return await this.#restoreGuestSession();
 		} catch {
 			// INFO: Network failure on boot, open the auth modal, let the user try manually
 			storeNavigation.gotoAuth("login");
+			return false;
+		}
+	}
+
+	/**
+	 * @brief Restores an ephemeral guest session from the ws_token cookie.
+	 * Called only after `/auth/me` found no full account, so a page refresh
+	 * (or an invite link opened in a fresh tab) reuses the existing guest
+	 * identity instead of `loginAsGuest` minting a brand-new one.
+	 * @returns {Promise<boolean>} True if a guest session was restored.
+	 */
+	async #restoreGuestSession(): Promise<boolean> {
+		try {
+			const res = await fetch("/auth/guest/me", { credentials: "include" });
+			if (!res.ok) return false;
+
+			const { username } = (await res.json()) as { username: string };
+			this.username = username;
+			this.isGuest = true;
+			return true;
+		} catch {
 			return false;
 		}
 	}

@@ -18,6 +18,7 @@
 	import { filterLobbies, sortLobbies, toBrowseLobby } from "$lib/utils/lobbyBrowse";
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -31,6 +32,10 @@
 	onMount(() => {
 		storeLobby.fetchList();
 		storeCatalog.ensureLoaded();
+		if (storeNavigation.openCreateLobbyOnArrival) {
+			storeNavigation.openCreateLobbyOnArrival = false;
+			createOpen = true;
+		}
 		const poll = setInterval(() => storeLobby.fetchList(), LIST_POLL_MS);
 		return () => clearInterval(poll);
 	});
@@ -147,6 +152,32 @@
 	<LobbySearchField bind:nameQuery compact class="mx-auto w-full max-w-sm" />
 {/snippet}
 
+<!-- Mirrors MainScreen's login/guest stack: two full-width pixel buttons
+     split by a pypx "-or-" label, styled the same as the app's other primary
+     choice point rather than a single bare "Retry". -->
+{#snippet createOrRefreshCta()}
+	<div class="mx-auto mt-4 flex w-full max-w-xs flex-col gap-3">
+		<button
+			class="btn pixel-corners w-full py-4 text-base tracking-wider"
+			onclick={() => (createOpen = true)}
+		>
+			{m.browse_create({}, { locale: storeI18n.locale })}
+		</button>
+		<p
+			class="text-center font-extrabold uppercase tracking-widest text-text/30"
+			style="font-family: var(--pypx);"
+		>
+			{m.home_or_separator({}, { locale: storeI18n.locale })}
+		</p>
+		<button
+			class="btn pixel-corners w-full py-4 text-base tracking-wider"
+			onclick={() => storeLobby.fetchList()}
+		>
+			{m.common_refresh({}, { locale: storeI18n.locale })}
+		</button>
+	</div>
+{/snippet}
+
 <svelte:window bind:innerWidth={winW} bind:innerHeight={winH} />
 
 <div
@@ -172,20 +203,31 @@
 	<!-- Lobby cards: centred max-width column gives desktop gutters ---------- -->
 	<div class="flex-1 overflow-y-auto overflow-x-hidden">
 		<div class="mx-auto w-full max-w-330 px-4 py-4 sm:px-6">
-			<TextEffects
-				text="{visible.length} lobbies"
-				effect="undulate"
-				class="mb-3 font-tiny text-sm text-text"
-				amplitude={6}
-				speed={2}
-				frequency={0.15}
-			/>
+			<div class="mb-3 flex items-center gap-2">
+				<TextEffects
+					text={visible.length === 1
+						? m.browse_lobby_count_one({ count: visible.length }, { locale: storeI18n.locale })
+						: m.browse_lobby_count_other({ count: visible.length }, { locale: storeI18n.locale })}
+					effect="undulate"
+					class="font-tiny text-sm text-text"
+					amplitude={6}
+					speed={2}
+					frequency={0.15}
+				/>
+				<button
+					class="text-link-inline flex items-center gap-1 font-tiny text-sm text-text/50 transition-colors hover:text-accent"
+					onclick={() => storeLobby.fetchList()}
+				>
+					<i class="pia pixelart-icons-font-refresh text-sm" aria-hidden="true"></i>
+					{m.common_refresh({}, { locale: storeI18n.locale })}
+				</button>
+			</div>
 
 			<div
 				bind:clientWidth={gridW}
 				data-testid="lobby-list"
 				class="lobby-grid grid gap-3"
-					class:pb-40={isPortraitPhone}
+				class:pb-40={isPortraitPhone}
 			>
 				{#each visible as lobby (lobby.invite_code)}
 					<LobbyCard {lobby} {cardW} onjoin={(code) => storeLobby.join(code)} />
@@ -197,36 +239,34 @@
 					</div>
 				{:else if storeLobby.listError && lobbies.length === 0}
 					<div class="p-12 text-center md:col-span-2">
-						<p class="mb-4 font-pixel text-xl uppercase text-text-h">Couldn't load lobbies</p>
+						<p class="mb-4 font-pixel text-xl uppercase text-text-h">
+							{m.browse_error_title({}, { locale: storeI18n.locale })}
+						</p>
 						<p class="mb-4 font-tiny text-sm text-text">
-							Something went wrong while reaching the server :(
+							{m.browse_error_desc({}, { locale: storeI18n.locale })}
 						</p>
 						{#if errorIllustration}
 							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
 						{/if}
-						<button
-							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-							onclick={() => storeLobby.fetchList()}>Retry</button
-						>
+						{@render createOrRefreshCta()}
 					</div>
 				{:else if lobbies.length === 0}
 					<div class="p-12 text-center md:col-span-2">
 						<p class="mb-4 font-pixel text-xl uppercase text-text-h">
-							No lobbies are currently open.
+							{m.browse_empty_title({}, { locale: storeI18n.locale })}
 						</p>
-						<p class="mb-4 font-tiny text-sm text-text">How sad :(</p>
+						<p class="mb-4 font-tiny text-sm text-text">
+							{m.browse_empty_desc({}, { locale: storeI18n.locale })}
+						</p>
 						{#if errorIllustration}
 							<img src={errorIllustration} alt="" class="mx-auto mb-4 h-24 w-24" />
 						{/if}
-						<button
-							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
-							onclick={() => storeLobby.fetchList()}>Retry</button
-						>
+						{@render createOrRefreshCta()}
 					</div>
 				{:else if visible.length === 0}
 					<div class="p-12 text-center md:col-span-2">
 						<p class="mb-4 font-pixel text-xl uppercase text-text-h">
-							No lobbies match your filters
+							{m.browse_no_match_title({}, { locale: storeI18n.locale })}
 						</p>
 						<button
 							class="pixel-bordered px-5 py-3 font-pixel text-sm uppercase text-white transition hover:brightness-110 [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
@@ -235,7 +275,7 @@
 								quickOpenOnly = false;
 								quickHideInGame = false;
 								clearFilters();
-							}}>Clear all filters</button
+							}}>{m.browse_clear_all_filters({}, { locale: storeI18n.locale })}</button
 						>
 					</div>
 				{/if}
@@ -243,7 +283,6 @@
 		</div>
 	</div>
 </div>
-
 
 <!-- Advanced search modal (darkening overlay, LobbySettings-style) --------- -->
 {#if advancedOpen}

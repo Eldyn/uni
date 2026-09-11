@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { storeStats } from "$stores/stats.svelte";
-	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	onMount(() => {
 		storeStats.fetchMe();
@@ -28,38 +29,10 @@
 <div class="doodle-bg"></div>
 
 <div class="relative z-1 flex h-[100svh] flex-col text-white">
-	<header
-		class="flex shrink-0 items-center justify-between gap-2 border-b-2 border-border bg-bg px-3 py-2 sm:px-6 sm:py-3 lg:px-10 max-lg:landscape:py-1"
-	>
-		<button
-			class="btn pixel-corners shrink-0 px-3 py-2 sm:px-4"
-			onclick={() => storeNavigation.goto("main")}
-			aria-label="Back"
-		>
-			<i class="pia pixelart-icons-font-arrow-left text-lg leading-none sm:hidden"></i>
-			<span class="hidden uppercase sm:inline">Back</span>
-		</button>
-
-		<!-- Scales instead of truncating: "GLOBAL LEADERBOARD" is long enough that
-		     a fixed size ellipsised to "GLO…" between the two buttons on a phone.
-		     Same ladder idiom as LobbyBrowse's header, retuned for the longer
-		     string ('!' because .title-screen hardcodes 56px). -->
-		<h1
-			class="title-screen shrink-0 text-center text-lg sm:text-2xl lg:text-3xl max-lg:text-lg! max-lg:landscape:text-base!"
-		>
-			GLOBAL LEADERBOARD
-		</h1>
-
-		<button
-			class="btn pixel-corners shrink-0 px-3 py-2 sm:px-4"
-			onclick={() => storeNavigation.goto("detailedStats")}
-			aria-label="Card Arsenal"
-		>
-			<i class="pia pixelart-icons-font-grid-3x3 text-lg leading-none sm:hidden"></i>
-			<span class="hidden uppercase sm:inline">Arsenal</span>
-		</button>
-	</header>
-
+	<!-- No second topbar here — the real TopBar already shows this screen's
+	     title (leaderboard_title) and its avatar/username button doubles as
+	     "back to Profile", so a duplicate header with its own back button
+	     would just be a second bar bleeding into the shell chrome above it. -->
 	<div
 		class="scrollbar-accent mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-3 py-4 pb-12 sm:gap-6 sm:px-5"
 	>
@@ -81,21 +54,27 @@
 					<span
 						class="pypx-thick pixel-corners shrink-0 bg-accent px-3 py-1.5 text-xs uppercase text-black sm:text-sm"
 					>
-						#1 In the world!
+						{m.leaderboard_number_one({}, { locale: storeI18n.locale })}
 					</span>
 				</div>
 
 				<div class="grid grid-cols-3 gap-2 text-center">
 					<div class="flex flex-col gap-1">
-						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">Wins</span>
+						<span class="pypx-thick text-[0.7rem] uppercase tracking-wide text-text/50"
+							>{m.leaderboard_wins({}, { locale: storeI18n.locale })}</span
+						>
 						<span class="stat-value text-success">{topPlayer.total_wins}</span>
 					</div>
 					<div class="flex flex-col gap-1">
-						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">Losses</span>
+						<span class="pypx-thick text-[0.7rem] uppercase tracking-wide text-text/50"
+							>{m.leaderboard_losses({}, { locale: storeI18n.locale })}</span
+						>
 						<span class="stat-value text-danger">{topPlayer.total_losses}</span>
 					</div>
 					<div class="flex flex-col gap-1">
-						<span class="font-tiny text-[0.7rem] uppercase tracking-wide text-text/50">W/L</span>
+						<span class="pypx-thick text-[0.7rem] uppercase tracking-wide text-text/50"
+							>{m.leaderboard_wl({}, { locale: storeI18n.locale })}</span
+						>
 						<span class="stat-value text-accent">
 							{getWinRate(topPlayer.total_wins, topPlayer.total_losses)}
 						</span>
@@ -109,18 +88,20 @@
 			     Tailwind's utility layer, so the plain utilities would silently
 			     lose to var(--heading)/var(--text-h). Same reason .title-screen
 			     headings elsewhere carry '!' overrides. --pixel is the face the
-			     .btn controls use, so the heading matches Back/Arsenal. -->
+			     .btn controls use, so the heading matches the rest of this panel. -->
 			<h3
 				class="mb-4 pb-1.5 text-center font-pixel! text-base text-accent! [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-lg"
 			>
-				TOP 50 PLAYERS
+				{m.leaderboard_top50({}, { locale: storeI18n.locale })}
 			</h3>
 
 			{#if storeStats.isLoading}
-				<p class="py-6 text-center font-tiny text-sm text-text/50">Loading leaderboard...</p>
+				<p class="py-6 text-center font-tiny text-sm text-text/50">
+					{m.leaderboard_loading({}, { locale: storeI18n.locale })}
+				</p>
 			{:else if storeStats.leaderboard.length === 0}
 				<p class="py-6 text-center font-tiny text-sm text-text/50">
-					Something seems to have gone wrong!
+					{m.leaderboard_error({}, { locale: storeI18n.locale })}
 				</p>
 			{:else}
 				<ul class="flex list-none flex-col gap-2 p-0">
@@ -158,7 +139,10 @@
 								#{storeStats.myStats.rank ? storeStats.myStats.rank : "?"}
 							</span>
 							<span class="min-w-0 truncate font-tiny text-sm text-white sm:text-base">
-								{storeStats.myStats.username} (You)
+								{m.leaderboard_you_row(
+									{ name: storeStats.myStats.username },
+									{ locale: storeI18n.locale }
+								)}
 							</span>
 							<span
 								class="pypx-thick shrink-0 whitespace-nowrap text-xs [text-shadow:1px_1px_0_var(--pixel-shadow)] sm:text-sm"

@@ -4,6 +4,11 @@
   "locales": [
     "en",
     "it",
+    "es",
+    "de",
+    "ko",
+    "zh",
+    "ja",
     "pseudo"
   ],
   "modules": [

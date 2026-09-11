@@ -8,8 +8,7 @@ describe("pathForScreen / screenForPath", () => {
 		["lobbies", "/browse"],
 		["lobby", "/lobby"],
 		["game", "/play"],
-		["stats", "/profile/stats"],
-		["detailedStats", "/profile/stats/all"]
+		["stats", "/profile/stats"]
 	] satisfies Array<[AppScreen, string]>)("%s maps to %s and back", (screen, path) => {
 		expect(pathForScreen(screen)).toBe(path);
 		expect(screenForPath(path)).toBe(screen);

@@ -16,16 +16,7 @@ import { ws } from "./ws.svelte";
  * @brief List of the screens available in the frontend application.
  */
 export type AppScreen =
-	| "main"
-	| "lobbies"
-	| "lobby"
-	| "game"
-	| "profile"
-	| "stats"
-	| "detailedStats"
-	| "decks"
-	| "shop"
-	| "settings";
+	"main" | "lobbies" | "lobby" | "game" | "profile" | "stats" | "decks" | "shop" | "settings";
 
 const SCREEN_PATHS: Record<AppScreen, string> = {
 	main: "/",
@@ -34,7 +25,6 @@ const SCREEN_PATHS: Record<AppScreen, string> = {
 	game: "/play",
 	profile: "/profile",
 	stats: "/profile/stats",
-	detailedStats: "/profile/stats/all",
 	decks: "/decks",
 	shop: "/shop",
 	settings: "/settings"
@@ -53,6 +43,9 @@ export function pathForScreen(screen: AppScreen): string {
 export function screenForPath(path: string): AppScreen | null {
 	return PATH_SCREENS[path] ?? null;
 }
+
+/** Matches the share-link format produced by LobbyScreen's invite copy button. */
+const INVITE_PATH = /^\/invite\/([A-Za-z0-9]{6})$/;
 /**
  * @typedef HistoryState
  * @brief Shape of the object pushed to `window.history` on every navigation,
@@ -79,8 +72,7 @@ const SCREEN_GUARDS: Partial<Record<AppScreen, () => boolean>> = {
 	lobby: () => storeLobby.isInLobby,
 	game: () => storeGame.state !== null,
 	profile: () => storeAuth.isLoggedIn || storeAuth.isGuest,
-	stats: () => storeAuth.isLoggedIn || storeAuth.isGuest,
-	detailedStats: () => storeAuth.isLoggedIn || storeAuth.isGuest
+	stats: () => storeAuth.isLoggedIn || storeAuth.isGuest
 };
 
 /**
@@ -94,7 +86,6 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"lobbies",
 	"profile",
 	"stats",
-	"detailedStats",
 	"decks",
 	"shop",
 	"settings"
@@ -122,6 +113,21 @@ class StoreNavigation {
 	/** Whether the Settings modal is open, overlaid on top of whatever screen is current. */
 	isSettingsOpen = $state(false);
 
+	/**
+	 * An invite code captured off a deep-linked `/invite/<code>` URL, waiting
+	 * for a logged-in-or-guest session before it can be consumed (see App.svelte).
+	 * Cleared once that consumer picks it up.
+	 */
+	pendingInviteCode = $state<string | null>(null);
+
+	/**
+	 * Set by HomeScreen's "+ Create Lobby" button right before navigating to
+	 * "lobbies", so LobbyBrowse can pop its create modal open on arrival
+	 * instead of the button just landing on a bare list. Consumed (and reset)
+	 * by LobbyBrowse's own onMount.
+	 */
+	openCreateLobbyOnArrival = $state(false);
+
 	#screenRestored = false;
 
 	/** Coarse, non-identifying account bucket for analytics segmentation. */
@@ -139,6 +145,11 @@ class StoreNavigation {
 		// through to the "main" default (silently) if the path isn't ours or
 		// the resolved screen's guard rejects it — same stale-state guard the
 		// back/forward gesture already goes through.
+		const inviteMatch = window.location.pathname.match(INVITE_PATH);
+		if (inviteMatch) {
+			this.pendingInviteCode = inviteMatch[1].toUpperCase();
+		}
+
 		const deepLinkedScreen = screenForPath(window.location.pathname);
 		if (deepLinkedScreen) {
 			const guard = SCREEN_GUARDS[deepLinkedScreen];

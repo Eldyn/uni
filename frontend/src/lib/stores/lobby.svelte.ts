@@ -10,6 +10,7 @@ import { failureText } from "./errors";
 import { ErrorCode } from "$lib/generated/schemas";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
+import { storeAuth } from "./auth.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
@@ -438,6 +439,7 @@ class StoreLobby implements SessionStore {
 			// player successfully joins a lobby via invite code.
 			storeAudio.playSfx("sfx.lobby.join");
 			storeAnalytics.track("lobby_join");
+			storeToast.success(m.lobby_toast_joined({}, { locale: storeI18n.locale }));
 			return true;
 		} catch (error) {
 			storeToast.error(failureText(error));
@@ -561,6 +563,14 @@ class StoreLobby implements SessionStore {
 
 			storeNavigation.goto("lobby");
 			await this.#fetchSavedMatches();
+
+			// Ready up automatically the moment the player actually enters this
+			// lobby (fresh join/create), not on every re-render of the lobby
+			// screen from switching screens back and forth within the app.
+			const self = lobby.members.find((member) => member.username === storeAuth.username);
+			if (self && !self.is_bot && !self.is_ready) {
+				this.toggleReady();
+			}
 		});
 
 		ws.on(ServerAction.LobbyUpdated, async (data) => {

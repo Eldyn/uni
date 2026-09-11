@@ -32,7 +32,7 @@ export interface DiscardEntry {
 
 export const DISCARD_CAP = 30;
 export const MAX_ROTATION_DEG = 30;
-const MAX_JITTER_EM = 1.1;
+export const MAX_JITTER_EM = 1.1;
 
 /**
  * Deterministic pseudo-random in [0, 1) from an integer seed. Same seed always

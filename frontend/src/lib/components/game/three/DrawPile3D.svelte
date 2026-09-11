@@ -26,15 +26,15 @@
 	// reads as an actual stack of cards instead of a single lone back. Peeking
 	// toward the mat (−Z) rather than the viewer keeps the pile's own near
 	// edge flush with the bottom edge of the local hand row instead of
-	// drooping past it. 0.07 only ever exposed the back texture's border, a
-	// thin white line that read as a single card with a smudge rather than a
-	// stack — wide enough now to show a sliver of each card's own face.
-	const PILE_PEEK_Z = 0.16;
+	// drooping past it. Kept to a hairline on purpose — just enough of each
+	// card's own bottom edge to read as "another sheet", not enough to show
+	// its face.
+	const PILE_PEEK_Z = 0.02;
 	// A thin dark silhouette peeking a hair further than each card sells the
 	// "stacked sheets" cue — the same idea as the shadow under a hand card
 	// (LocalHand3D's own `shadow` prop), just offset along the stack's own
 	// peek axis (Z) instead of a hand row's horizontal one.
-	const SHADOW_PEEK_Z = 0.05;
+	const SHADOW_PEEK_Z = 0.006;
 	const SHADOW_DROP_Y = STACK_STEP / 2;
 	const SHADOW_OPACITY = 0.3;
 

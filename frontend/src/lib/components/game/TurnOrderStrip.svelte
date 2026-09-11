@@ -43,6 +43,30 @@
 		min-width: 0;
 	}
 
+	/* Narrow screens keep the whole HUD on one row (see GameHud.svelte), so the
+	   strip scrolls sideways rather than wrapping the bar onto a second line:
+	   a second row costs the board ~50px of height on the viewport that has the
+	   least of it, and the turn order is a glanceable strip, not a list that has
+	   to be read in full. */
+	@media (max-width: 700px) {
+		.turn-order-strip {
+			flex: 1 1 auto;
+			flex-wrap: nowrap;
+			justify-content: flex-start;
+			overflow-x: auto;
+			scrollbar-width: none;
+		}
+
+		.turn-order-strip::-webkit-scrollbar {
+			display: none;
+		}
+
+		.chip {
+			flex: none;
+			max-width: 4.5em;
+		}
+	}
+
 	.chip {
 		max-width: 6em;
 		overflow: hidden;

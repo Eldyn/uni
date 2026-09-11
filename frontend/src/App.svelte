@@ -14,7 +14,6 @@
 		game: () => import("./lib/components/game/GameScreen.svelte"),
 		profile: () => import("./lib/components/profile/ProfileScreen.svelte"),
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
-		detailedStats: () => import("./lib/components/stats/DetailedStatsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
 		shop: () => import("./lib/components/shop/ShopScreen.svelte"),
 		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
@@ -29,7 +28,7 @@
 	import { storeAnalytics } from "./lib/stores/analytics.svelte";
 	import { storeAuth } from "./lib/stores/auth.svelte";
 	import { storeAudio } from "./lib/stores/audio.svelte";
-	import { storeLobby as _storeLobby } from "./lib/stores/lobby.svelte";
+	import { storeLobby } from "./lib/stores/lobby.svelte";
 	// Eagerly construct the game store so its WebSocket listeners (state capture
 	// and the lobby→game switch) are live from boot. Otherwise it would only load
 	// with the lazy GameScreen chunk and miss the match's first state broadcast,
@@ -44,6 +43,23 @@
 	// a blank frame when the first state broadcast switches to the game screen.
 	$effect(() => {
 		if (storeNavigation.current === "lobby") lazyScreens.game();
+	});
+
+	// Consumes an invite code captured off a deep-linked `/invite/<code>` URL
+	// (see navigation.svelte.ts). Held until a session exists (guest or
+	// logged-in) since joining requires an authenticated WS connection —
+	// fires the moment MainScreen's login/guest flow satisfies that.
+	$effect(() => {
+		const code = storeNavigation.pendingInviteCode;
+		if (!code) return;
+		if (!storeAuth.isLoggedIn && !storeAuth.isGuest) return;
+
+		storeNavigation.pendingInviteCode = null;
+		(async () => {
+			await ws.connect();
+			const joined = await storeLobby.join(code);
+			if (joined) storeNavigation.goto("lobby");
+		})();
 	});
 
 	onMount(async () => {
@@ -61,7 +77,7 @@
 
 		await storeAuth.checkSession();
 
-		if (storeAuth.isLoggedIn) {
+		if (storeAuth.isLoggedIn || storeAuth.isGuest) {
 			await ws.connect();
 
 			if (storeNavigation.isAuthModalOpen) {
@@ -105,8 +121,6 @@
 	}
 
 	//@ts-ignore
-	declare const __APP_VERSION__: string;
-	//@ts-ignore
 	declare const __DEV_HARNESS__: boolean;
 </script>
 
@@ -117,7 +131,6 @@
 	     information, not something worth printing over the player's cards. -->
 	{#if storeNavigation.current !== "game"}
 		<ChatDock />
-		<span class="version-badge">v{__APP_VERSION__}</span>
 	{/if}
 
 	{#if storeNavigation.current === "game"}
@@ -146,7 +159,7 @@
 		{/await}
 	{/if}
 
-	{#if storeNavigation.isSettingsOpen && (_storeLobby.isInLobby || _storeGame.state !== null)}
+	{#if storeNavigation.isSettingsOpen && (storeLobby.isInLobby || _storeGame.state !== null)}
 		{#await import("./lib/components/settings/SettingsModal.svelte") then { default: SettingsModal }}
 			<SettingsModal />
 		{/await}
@@ -164,25 +177,5 @@
 		color-scheme: light dark;
 		color: var(--text);
 		background: var(--bg);
-	}
-	.version-badge {
-		position: fixed;
-		bottom: 10px;
-		left: 12px;
-		font-size: 0.65rem;
-		color: #888;
-		z-index: 15;
-		pointer-events: none;
-		user-select: none;
-		/* Hidden in bottom-bar nav mode: the badge's fixed viewport corner
-		   collides with NavBar's bottom bar there. Shown again in rail mode,
-		   where NavBar sits beside content instead of overlapping this corner. */
-		display: none;
-	}
-
-	@media (min-width: 768px), (max-height: 599px) {
-		.version-badge {
-			display: block;
-		}
 	}
 </style>

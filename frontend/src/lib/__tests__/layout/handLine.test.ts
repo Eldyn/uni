@@ -43,7 +43,7 @@ describe("computeHandLine", () => {
 		const overflowing = computeHandLine(20, maxHalfSpan);
 		expect(overflowing.spacingEm).toBeCloseTo(CARD_LINE_MIN_SPACING_EM, 5);
 		expect(overflowing.halfSpanEm).toBeGreaterThan(maxHalfSpan);
-		expect(overflowing.maxScrollEm).toBeCloseTo(overflowing.halfSpanEm - maxHalfSpan, 5);
+		expect(overflowing.maxScrollEm).toBeCloseTo(overflowing.halfSpanEm, 5);
 	});
 
 	it("never reports scroll range while the row still fits", () => {

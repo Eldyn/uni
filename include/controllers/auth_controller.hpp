@@ -74,6 +74,17 @@ private:
      */
     void HandleMe(AppResponse* res, AppRequest* req);
 
+    /**
+     * @brief Handles the GET route `/auth/guest/me`.
+     * Restores an ephemeral guest session from the ws_token cookie, without
+     * promoting it to a full account (no auth_token is read or issued).
+     * Lets a page refresh keep an existing guest identity instead of the
+     * client minting a brand-new one.
+     * @param res Pointer to the HTTP response.
+     * @param req Pointer to the HTTP request.
+     */
+    void HandleGuestMe(AppResponse* res, AppRequest* req);
+
     // --- Validation and Security Parameters ---
 
     /**< @brief Limit in bytes for the HTTP payload (Anti-DDoS). */

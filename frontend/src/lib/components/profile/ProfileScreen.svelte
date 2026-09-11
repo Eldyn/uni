@@ -3,6 +3,8 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeStats } from "$stores/stats.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 	import Avatar from "$components/common/Avatar.svelte";
 
 	// storeStats.myStats is a PlayerStats (see stats.svelte.ts): username,
@@ -24,32 +26,35 @@
 	{#if storeStats.myStats}
 		<div class="pixel-corners flex gap-6 bg-surface p-5 [--pc-border:var(--border)]">
 			<div>
-				<p class="font-tiny text-xs uppercase text-text">Wins</p>
+				<p class="font-tiny text-xs uppercase text-text">
+					{m.leaderboard_wins({}, { locale: storeI18n.locale })}
+				</p>
 				<p class="title-stats">{storeStats.myStats.total_wins}</p>
 			</div>
 			<div>
-				<p class="font-tiny text-xs uppercase text-text">Losses</p>
+				<p class="font-tiny text-xs uppercase text-text">
+					{m.leaderboard_losses({}, { locale: storeI18n.locale })}
+				</p>
 				<p class="title-stats">{storeStats.myStats.total_losses}</p>
 			</div>
 			<div>
-				<p class="font-tiny text-xs uppercase text-text">Rank</p>
+				<p class="font-tiny text-xs uppercase text-text">
+					{m.profile_rank({}, { locale: storeI18n.locale })}
+				</p>
 				<p class="title-stats">{storeStats.myStats.rank ?? "?"}</p>
 			</div>
 		</div>
 	{/if}
 
 	<div class="flex flex-col gap-3">
-		<button
-			class="btn-secondary px-4 py-3 text-left"
-			onclick={() => storeNavigation.goto("stats")}
-		>
-			Leaderboard &amp; detailed stats
+		<button class="btn-secondary px-4 py-3 text-left" onclick={() => storeNavigation.goto("stats")}>
+			{m.profile_leaderboard_button({}, { locale: storeI18n.locale })}
 		</button>
 		<button
 			class="btn-secondary px-4 py-3 text-left"
 			onclick={() => storeNavigation.goto("settings")}
 		>
-			Settings
+			{m.profile_settings_button({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
 </div>

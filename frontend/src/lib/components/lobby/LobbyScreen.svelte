@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeToast } from "$stores/toast.svelte";
+	import { storeTopbarContent } from "$stores/topbarContent.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import LobbySave from "./LobbySave.svelte";
@@ -58,6 +62,14 @@
 		node.focus();
 	}
 
+	async function copyInviteLink() {
+		const code = storeLobby.current?.invite_code;
+		if (!code) return;
+		const url = `${location.origin}/invite/${code}`;
+		await navigator.clipboard.writeText(url);
+		storeToast.success(m.lobby_share_link_copied({}, { locale: storeI18n.locale }));
+	}
+
 	function saveName() {
 		isEditingName = false;
 		const trimmed = editedName.trim();
@@ -65,6 +77,17 @@
 			storeLobby.updateSettings({ name: trimmed });
 		}
 	}
+
+	// Lobby name lives in the primary TopBar's contextual center slot (the
+	// same mechanism LobbyBrowse uses for its search field), not in this
+	// screen's own secondary header — that bar is reserved for the invite
+	// code/saves/settings/exit controls.
+	$effect(() => {
+		storeTopbarContent.current = lobbyNameSlot;
+		return () => {
+			storeTopbarContent.current = undefined;
+		};
+	});
 
 	// Anchors the pulse's phase to wall-clock time (negative delay) so seats
 	// that mount at different moments (e.g. a player leaving mid-cycle) still
@@ -75,53 +98,64 @@
 	}
 </script>
 
+{#snippet lobbyNameSlot()}
+	{#if isEditingName && isHost}
+		<input
+			class="lobby-name w-full max-w-xs truncate border-none bg-transparent p-0 text-center outline-none [clip-path:none!important]"
+			bind:value={editedName}
+			onblur={saveName}
+			onkeydown={(e) => e.key === "Enter" && saveName()}
+			maxlength="22"
+			use:focusOnMount
+		/>
+	{:else if isHost}
+		<button
+			type="button"
+			class="lobby-name block max-w-xs truncate border-none bg-transparent p-0 text-center [clip-path:none!important]"
+			onclick={startEditing}
+		>
+			{storeLobby.current?.name}
+		</button>
+	{:else}
+		<span class="lobby-name block max-w-xs truncate text-center">
+			{storeLobby.current?.name}
+		</span>
+	{/if}
+{/snippet}
+
 <div
 	class="flex h-full w-full flex-col overflow-hidden bg-cover bg-center"
 	style="background-image: url('/assets/bg_full.png'); image-rendering: pixelated;"
 >
-	<!-- Lobby bar: title (editable by host), invite code, saves, settings and
-	     exit all in one row, matching BrowseToolbar's bg-surface-deep so the
-	     lobby screen reads as one shell surface instead of two stacked bars
-	     bleeding into the shell chrome above/beside it. -->
-	<header
-		class="flex flex-wrap items-center gap-3 border-b-2 border-border bg-surface-deep px-4 py-2.5 sm:px-6 lg:px-10"
-	>
-		<div class="min-w-0 flex-1">
-			{#if isEditingName && isHost}
-				<input
-					class="title-screen w-full max-w-full truncate border-none bg-transparent p-0 text-xl tracking-[-0.5px] outline-none [clip-path:none!important] sm:text-2xl"
-					bind:value={editedName}
-					onblur={saveName}
-					onkeydown={(e) => e.key === "Enter" && saveName()}
-					maxlength="22"
-					use:focusOnMount
-				/>
-			{:else if isHost}
-				<button
-					type="button"
-					class="title-screen block max-w-full truncate border-none bg-transparent p-0 text-left text-xl tracking-[-0.5px] [clip-path:none!important] sm:text-2xl"
-					onclick={startEditing}
-				>
-					{storeLobby.current?.name}
-				</button>
-			{:else}
-				<h1 class="title-screen max-w-full truncate text-xl tracking-[-0.5px] sm:text-2xl">
-					{storeLobby.current?.name}
-				</h1>
-			{/if}
-		</div>
-
+	<!-- Lobby bar: invite code + saves on the left, settings/exit (icon-only)
+	     on the right. The lobby name itself lives in the primary TopBar's
+	     contextual center slot (see lobbyNameSlot above), not here. -->
+	<header class="shell-topbar-secondary">
 		<div class="flex flex-wrap items-center gap-2">
 			<div class="flex items-center gap-1 bg-black px-3 py-2">
-				<span class="w-20 text-center font-mono text-sm text-text sm:text-base">
+				<span class="font-monogram w-24 text-center text-lg text-text sm:text-xl">
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
 				<button
 					class="flex items-center leading-none text-white"
 					onclick={() => (showInviteCode = !showInviteCode)}
-					title={showInviteCode ? "Hide code" : "Show code"}
+					title={showInviteCode
+						? m.lobby_hide_code({}, { locale: storeI18n.locale })
+						: m.lobby_show_code({}, { locale: storeI18n.locale })}
 				>
-					<i class="pia {showInviteCode ? 'pixelart-icons-font-eye' : 'pixelart-icons-font-eye-off'} text-lg"></i>
+					<i
+						class="pia {showInviteCode
+							? 'pixelart-icons-font-eye'
+							: 'pixelart-icons-font-eye-off'} text-lg"
+					></i>
+				</button>
+				<button
+					class="flex items-center leading-none text-white"
+					onclick={copyInviteLink}
+					title={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
+					aria-label={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
+				>
+					<i class="pia pixelart-icons-font-share text-lg"></i>
 				</button>
 			</div>
 
@@ -129,7 +163,10 @@
 				<summary
 					class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
 				>
-					{storeLobby.savedMatches?.length ?? 0} Saves
+					{m.lobby_saves_format(
+						{ count: storeLobby.savedMatches?.length ?? 0 },
+						{ locale: storeI18n.locale }
+					)}
 				</summary>
 				<ul
 					class="scrollbar-accent absolute left-0 top-[calc(100%+10px)] z-50 max-h-96 w-80 max-w-[90vw] list-none overflow-y-auto border-2 border-border bg-bg p-2 shadow-lg"
@@ -138,29 +175,36 @@
 						<LobbySave {save} />
 					{/each}
 					{#if (storeLobby.savedMatches?.length ?? 0) === 0}
-						<li class="p-2.5 text-xs text-text">No saved matches</li>
+						<li class="p-2.5 text-xs text-text">
+							{m.lobby_no_saved_matches({}, { locale: storeI18n.locale })}
+						</li>
 					{/if}
 				</ul>
 			</details>
+		</div>
 
+		<div class="ml-auto flex items-center gap-2">
 			<button
-				class="btn pixel-corners px-3 py-2 sm:px-4"
+				class="btn pixel-corners flex h-11 w-11 items-center justify-center p-0"
 				onclick={() => (settingsOpen = true)}
-				title="Lobby settings"
+				title={m.lobby_settings_tooltip({}, { locale: storeI18n.locale })}
+				aria-label={m.lobby_settings_tooltip({}, { locale: storeI18n.locale })}
 			>
-				<i class="pia pixelart-icons-font-gear"></i>
-				<span class="ml-2 hidden uppercase sm:inline">Settings</span>
+				<i class="pia pixelart-icons-font-settings-2 text-lg"></i>
 			</button>
 
 			<!-- Leaving is a normal lobby action, not a destructive one worth a
 			     "danger zone" — it's a plain button right here rather than
-			     buried in Settings' danger section (see SettingsSections). -->
+			     buried in Settings' danger section (see SettingsSections). Still
+			     styled as a danger action (red, logout icon) since it does end
+			     the member's presence in the lobby immediately. -->
 			<button
-				class="btn pixel-corners px-3 py-2 sm:px-4"
+				class="btn-danger pixel-corners flex h-11 w-11 items-center justify-center p-0"
 				onclick={() => storeLobby.leave()}
-				title="Exit Lobby"
+				title={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
+				aria-label={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
 			>
-				<img src="/assets/exit.png" alt="Exit" class="h-5 w-5" />
+				<i class="pia pixelart-icons-font-logout text-lg"></i>
 			</button>
 		</div>
 	</header>
@@ -175,24 +219,34 @@
 			>
 				{#each storeLobby.current?.members ?? [] as member, i}
 					{@const color = member.is_bot ? "var(--blackCard)" : SEAT_COLORS[i % SEAT_COLORS.length]}
+					{@const isSelf = member.username === storeAuth.username && !member.is_bot}
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -- seat stays an <li> for
-						list semantics but is host-interactive (kick/promote) when tabindex is set -->
+						list semantics but is host-interactive (kick/promote) when tabindex is set,
+						and self-interactive (ready toggle) for the local player's own seat -->
 					<li
 						class="seat-card group relative w-32 shrink-0 sm:w-36 lg:w-44"
 						class:cursor-context-menu={isHost && !member.is_host}
+						class:cursor-pointer={isSelf}
 						style="aspect-ratio: 1 / 1.5357; --card-color: {color};"
-						role={isHost && !member.is_host ? "button" : undefined}
-						tabindex={isHost && !member.is_host ? 0 : undefined}
+						role={isHost && !member.is_host ? "button" : isSelf ? "button" : undefined}
+						tabindex={isHost && !member.is_host ? 0 : isSelf ? 0 : undefined}
+						aria-pressed={isSelf ? member.is_ready : undefined}
 						onpointerdown={(e) => (pointerKind = e.pointerType)}
 						oncontextmenu={(e) => handleSeatMenu(member, e)}
 						onclick={(e) => {
 							if (pointerKind === "touch") handleSeatMenu(member, e);
+							if (isSelf) storeLobby.toggleReady();
 						}}
 						onkeydown={(e) => {
-							if (e.key === "Enter" || e.key === " ") handleSeatMenu(member, e);
+							if (e.key === "Enter" || e.key === " ") {
+								handleSeatMenu(member, e);
+								if (isSelf) storeLobby.toggleReady();
+							}
 						}}
 					>
-						<div class="absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]">
+						<div
+							class="absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]"
+						>
 							<img
 								src="/assets/cards/background.png"
 								alt=""
@@ -211,7 +265,7 @@
 								{#if member.is_host}
 									<img
 										src="/assets/crown_host.gif"
-										alt="Host"
+										alt={m.lobby_host_badge_alt({}, { locale: storeI18n.locale })}
 										class="pointer-events-none absolute inset-0 h-full w-full object-contain"
 									/>
 								{/if}
@@ -239,13 +293,15 @@
 									storeLobby.toggleReady();
 								}}
 							>
-								{member.is_ready ? "Ready ✓" : "Ready?"}
+								{member.is_ready
+									? m.lobby_ready_confirmed({}, { locale: storeI18n.locale })
+									: m.lobby_ready_prompt({}, { locale: storeI18n.locale })}
 							</button>
 						{:else if member.is_ready}
 							<span
 								class="pointer-events-none absolute left-1 top-1 z-20 bg-black/60 px-2 py-1 text-[10px] uppercase text-success"
 							>
-								Ready
+								{m.lobby_ready_status({}, { locale: storeI18n.locale })}
 							</span>
 						{/if}
 
@@ -259,7 +315,7 @@
 										activeMenu = null;
 									}}
 								>
-									Promote
+									{m.lobby_promote({}, { locale: storeI18n.locale })}
 								</button>
 								<button
 									class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
@@ -269,7 +325,7 @@
 										activeMenu = null;
 									}}
 								>
-									Kick
+									{m.lobby_kick({}, { locale: storeI18n.locale })}
 								</button>
 							</div>
 						{/if}
@@ -300,7 +356,7 @@
 						<p
 							class="absolute inset-x-0 -bottom-5 text-center font-tiny text-[10px] uppercase text-text sm:text-xs"
 						>
-							Waiting…
+							{m.lobby_waiting({}, { locale: storeI18n.locale })}
 						</p>
 					</li>
 				{/each}
@@ -340,13 +396,13 @@
 {#if settingsOpen}
 	<Modal
 		bind:open={settingsOpen}
-		ariaLabel="Lobby settings"
+		ariaLabel={m.lobby_settings_tooltip({}, { locale: storeI18n.locale })}
 		contentClass="pixel-corners relative flex max-h-[85vh] w-full max-w-xl flex-col overflow-y-auto p-5 sm:p-7"
 	>
 		<button
 			class="absolute right-3 top-3 text-2xl text-text hover:text-text-h"
-			title="Close"
-			aria-label="Close"
+			title={m.settings_close({}, { locale: storeI18n.locale })}
+			aria-label={m.settings_close({}, { locale: storeI18n.locale })}
 			onclick={() => (settingsOpen = false)}><i class="pia pixelart-icons-font-close"></i></button
 		>
 		<LobbySettings />
@@ -420,5 +476,24 @@
 	.seat-card :global(.tinted-sprite) {
 		width: 100% !important;
 		height: 100% !important;
+	}
+
+	/* Lobby name, rendered into the primary TopBar's contextual center slot.
+	   TinyUnicode (--micro) covers far more scripts than Pypx, so it's the
+	   first choice for arbitrary player-entered lobby names; bolded via
+	   font-weight since the family ships only one weight. If this renders
+	   broken glyphs for some scripts in practice, swap to .pypx-thick
+	   (app.css) instead — Latin-only but guaranteed to render cleanly. */
+	:global(.lobby-name) {
+		font-family: var(--micro);
+		font-weight: 700;
+		font-size: 1.25rem;
+		color: var(--text-h);
+		text-shadow: 2px 2px 0 var(--pixel-shadow);
+	}
+	@media (min-width: 640px) {
+		:global(.lobby-name) {
+			font-size: 1.5rem;
+		}
 	}
 </style>

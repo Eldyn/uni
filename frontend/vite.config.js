@@ -115,7 +115,7 @@ export default defineConfig(({ mode }) => {
 			// `--mode development`.
 			__DEV_HARNESS__: JSON.stringify(isDev)
 		},
-		base: "./",
+		base: "/",
 		build: {
 			outDir: OUT_DIR,
 			emptyOutDir: true,

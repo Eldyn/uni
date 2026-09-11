@@ -28,9 +28,9 @@ function legacyPercent(
 
 describe("worldToScreenPercent", () => {
 	for (const [name, viewport] of Object.entries(viewports)) {
-		it(`projects the world origin to dead center (${name})`, () => {
+		it(`projects the point the camera looks at to dead center (${name})`, () => {
 			const rig = computeCameraRig(viewport, 9);
-			const { leftPercent, topPercent } = worldToScreenPercent(rig, 0, 0);
+			const { leftPercent, topPercent } = worldToScreenPercent(rig, 0, rig.centerZ);
 			expect(leftPercent).toBeCloseTo(50, 5);
 			expect(topPercent).toBeCloseTo(50, 5);
 		});
@@ -49,8 +49,15 @@ describe("worldToScreenPercent", () => {
 				legacyPercent(viewport, rig.halfHeight, placement.drawPileX, viewport.width),
 				5
 			);
+			// The legacy formula measured every offset from the world origin, which
+			// is only the screen's center while the camera looks straight at it.
 			expect(topPercent).toBeCloseTo(
-				legacyPercent(viewport, rig.halfHeight, placement.localSeatZ, viewport.height),
+				legacyPercent(
+					viewport,
+					rig.halfHeight,
+					placement.localSeatZ - rig.centerZ,
+					viewport.height
+				),
 				5
 			);
 		});

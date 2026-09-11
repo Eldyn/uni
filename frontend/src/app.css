@@ -106,6 +106,32 @@
 	font-display: swap;
 }
 
+/* None of the Latin pixel display faces above carry CJK glyphs, so ja/ko/zh
+   would silently fall back to a smooth system font and break the pixel-art
+   look. LanaPixel covers Japanese/Korean/Chinese in the same bitmap-pixel
+   style; it's swapped in only for those locales below, never for the rest. */
+@font-face {
+	font-family: "LanaPixel";
+	src: url("/fonts/lanapixel.woff2?v=2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* html[lang] is kept in sync with the active Paraglide locale by
+   storeI18n (see i18n.svelte.ts init()/setLocale()), so this scoping
+   tracks the live locale, not just the initial page load. */
+:root:lang(ja),
+:root:lang(ko),
+:root:lang(zh) {
+	--pixel: "LanaPixel", "Pixel", var(--sans);
+	--heading: "LanaPixel", "FatPixel", system-ui, "Segoe UI", Roboto, sans-serif;
+	--tiny: "LanaPixel", "Habbo", var(--pixel);
+	--micro: "LanaPixel", "TinyUnicode", var(--pixel);
+	--monogram: "LanaPixel", "Monogram", var(--pixel);
+	--pypx: "LanaPixel", "Pypx", var(--pixel);
+}
+
 /*
  * Dark is the primary theme, its values live in :root.
  * Light is the secondary theme, applied via the prefers-color-scheme: light
@@ -519,6 +545,53 @@
 		font-family: var(--tiny);
 		font-size: var(--text-small);
 		color: var(--danger);
+	}
+
+	/* Inline text-as-button link (e.g. logout, refresh). No button chrome at
+	   all — reads as plain text until hovered/focused. */
+	.text-link-inline {
+		display: inline;
+		background: transparent;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		clip-path: none !important;
+		border-radius: 0 !important;
+		font-size: inherit;
+	}
+	.text-link-inline:hover {
+		text-decoration: underline;
+		text-decoration-thickness: 2px;
+	}
+	.text-link-inline:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	/* Secondary topbar: the surface-deep bar directly under the shell's main
+	   TopBar, used by both Browse's toolbar and the Lobby screen's header so
+	   they read as one shell surface instead of independently-styled bars. */
+	.shell-topbar-secondary {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		border-bottom: 2px solid var(--border);
+		background: var(--surface-deep);
+		padding: 0.625rem 1rem;
+	}
+	@media (min-width: 640px) {
+		.shell-topbar-secondary {
+			gap: var(--space-3);
+			padding-left: 1.5rem;
+			padding-right: 1.5rem;
+		}
+	}
+	@media (min-width: 1024px) {
+		.shell-topbar-secondary {
+			padding-left: 2.5rem;
+			padding-right: 2.5rem;
+		}
 	}
 
 	/* Surfaces */

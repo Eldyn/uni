@@ -25,12 +25,19 @@ describe("computeDesignGrid", () => {
 		}
 	});
 
-	// The playmat and the discard pile both sit at the world origin; centering the
-	// grid there is what puts them at the exact center of the screen.
-	it("stays centered on the world origin on every aspect ratio", () => {
-		for (const viewport of [landscape, portrait, square]) {
+	// A landscape board's rows are what bind its frustum, so there is no slack to
+	// spend and the grid stays centered on the world origin the ring is built
+	// around. Portrait fits the same board into a much taller frustum, and that
+	// leftover depth goes to the near side, where the hand can use it, instead of
+	// being split evenly with the empty band above the table.
+	it("centers on the world origin unless portrait has slack to spend", () => {
+		for (const viewport of [landscape, square]) {
 			expect(computeDesignGrid(viewport, 1).centerZ).toBe(0);
 		}
+
+		const { centerZ, halfHeightUnits } = computeDesignGrid(portrait, 1);
+		expect(centerZ).toBeGreaterThan(0);
+		expect(centerZ).toBeLessThan(halfHeightUnits - boardExtentsFor(portrait).rows / 2 + 1e-6);
 	});
 
 	it("sizes the board from the opponent ring alone, symmetric about the origin", () => {

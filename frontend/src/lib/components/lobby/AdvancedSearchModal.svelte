@@ -139,7 +139,7 @@
 					icon={ruleIcon(rule.id)}
 					title={rule.description}
 					onclick={() => (advRules = { ...advRules, [rule.id]: !advRules[rule.id] })}
-					>{ruleLabel(rule)}</ToggleChip
+					>{ruleLabel(rule, storeI18n.locale)}</ToggleChip
 				>
 			{/each}
 		</div>

@@ -7,6 +7,10 @@
  */
 
 import type { RuleDefinition } from "$lib/stores/catalog.svelte";
+import { locales } from "$lib/paraglide/runtime.js";
+import * as m from "$lib/paraglide/messages.js";
+
+type Locale = (typeof locales)[number];
 
 /** Icon class per rule id (backend RuleRegistrar names). Unknown ids fall
  *  back to DEFAULT_RULE_ICON. */
@@ -25,14 +29,18 @@ export function ruleIcon(id: string): string {
 	return RULE_ICONS[id] ?? DEFAULT_RULE_ICON;
 }
 
-/**
- * Translation overrides keyed by rule id. Placeholder for the future i18n
- * system: when a rule id has an entry here it wins over the server label.
- */
-export const RULE_TEXT: Record<string, { label: string; description?: string }> = {};
+/** i18n label per known rule id; unknown ids fall back to the server's label. */
+const RULE_LABELS: Record<string, (locale: Locale) => string> = {
+	draw_stacking: (locale) => m.rule_label_draw_stacking({}, { locale }),
+	seven_zero: (locale) => m.rule_label_seven_zero({}, { locale }),
+	jump_in: (locale) => m.rule_label_jump_in({}, { locale }),
+	force_play: (locale) => m.rule_label_force_play({}, { locale }),
+	no_bluffing: (locale) => m.rule_label_no_bluffing({}, { locale }),
+	progressive: (locale) => m.rule_label_progressive({}, { locale })
+};
 
-export function ruleLabel(rule: RuleDefinition): string {
-	return RULE_TEXT[rule.id]?.label ?? rule.label;
+export function ruleLabel(rule: RuleDefinition, locale: Locale): string {
+	return RULE_LABELS[rule.id]?.(locale) ?? rule.label;
 }
 
 /** TODO: mocked, the backend has no deck concept yet. */

@@ -7,6 +7,10 @@
 
 import type { SortKey } from "$lib/data/lobbyCatalogs";
 import type { ListedLobby } from "$lib/stores/lobby.svelte";
+import { locales } from "$lib/paraglide/runtime.js";
+import * as m from "$lib/paraglide/messages.js";
+
+type Locale = (typeof locales)[number];
 
 export interface BrowseLobby {
 	invite_code: string;
@@ -66,38 +70,51 @@ export function category(l: BrowseLobby): "open" | "inGame" | "full" {
 	return "open";
 }
 
-export function joinInfo(l: BrowseLobby): JoinInfo {
+export function joinInfo(l: BrowseLobby, locale: Locale): JoinInfo {
+	// A bot occupying a slot can be overtaken by a joiner; without that, a
+	// lobby at capacity is unjoinable regardless of its reported status.
+	const canOvertake = l.allowBotTakeover && l.bots > 0;
+	const atCapacity = filled(l) >= l.max;
+
 	if (l.status === "in-game") {
-		if (l.allowBotTakeover && l.bots > 0)
+		if (canOvertake)
 			return {
 				dot: "bg-orange-400",
-				label: "Join",
+				label: m.browse_join_label({}, { locale }),
 				bg: "bg-orange-500",
 				disabled: false,
-				title: "In game, joinable by replacing a bot"
+				title: m.browse_join_title_takeover({}, { locale })
 			};
 		return {
 			dot: "bg-red-500",
 			label: null,
 			bg: "",
 			disabled: true,
-			title: "Match in progress"
+			title: m.browse_join_title_ingame({}, { locale })
 		};
 	}
-	if (l.status === "full")
+	if (l.status === "full" || (atCapacity && !canOvertake))
 		return {
 			dot: "bg-zinc-500",
-			label: "Full",
+			label: m.browse_full_label({}, { locale }),
 			bg: "bg-surface-2",
 			disabled: true,
-			title: "Lobby is full"
+			title: m.browse_join_title_full({}, { locale })
+		};
+	if (atCapacity && canOvertake)
+		return {
+			dot: "bg-orange-400",
+			label: m.browse_join_label({}, { locale }),
+			bg: "bg-orange-500",
+			disabled: false,
+			title: m.browse_join_title_takeover({}, { locale })
 		};
 	return {
 		dot: "bg-green-500",
-		label: "Play",
+		label: m.browse_play_label({}, { locale }),
 		bg: "bg-accent",
 		disabled: false,
-		title: "Open, join now"
+		title: m.browse_join_title_open({}, { locale })
 	};
 }
 

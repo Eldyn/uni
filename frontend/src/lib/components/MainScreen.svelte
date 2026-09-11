@@ -6,6 +6,7 @@
 	import TextEffects from "./common/TextEffects.svelte";
 	import HomeScreen from "$components/home/HomeScreen.svelte";
 	import LandingContent from "$components/landing/LandingContent.svelte";
+	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 
 	let logoutPending = $state(false);
 
@@ -55,36 +56,57 @@
 	     keeps the background art, logo and bottom dock anchored near the top
 	     instead of chasing the user down the scrollable marketing content
 	     below (that content flows as a normal sibling, outside this box). -->
-	<div class="hero-zone relative h-full">
-		<!-- Background art: y-position tuned to align the dark cutout with the logo.
-		     Absolute (scoped to the hero zone), not fixed to the viewport —
-		     MainScreen now lives inside ShellFrame's .shell-content alongside the
-		     TopBar/NavBar chrome, which a fixed layer would paint over. -->
-		<div
-			class="absolute inset-0 z-0 bg-cover"
-			style="
-        background-image: url('/assets/bg_main.png');
-        background-position: center 62%;
-	    image-rendering: pixelated;
-	    image-rendering: crisp-edges;
-        "
-		></div>
+	<div class="hero-zone relative z-0 h-full">
+		{#if storeWebglCapability.shaderBackgroundEnabled}
+			{#await import("./home/ShaderBackground.svelte") then { default: ShaderBackground }}
+				<div class="absolute inset-0 -z-10">
+					<ShaderBackground />
+				</div>
+			{/await}
+		{:else}
+			<!-- Background art: y-position tuned to align the dark cutout with the logo.
+			     The BOX stays absolute/scoped to the hero zone (a fixed-position box
+			     would paint over ShellFrame's TopBar/NavBar chrome), but the image
+			     itself is sized and anchored to the viewport (background-attachment:
+			     fixed + vw/vh sizing), not the hero zone's own box. Otherwise, since
+			     .hero-zone's width tracks .shell-content (which shrinks/grows every
+			     time the sidebar collapses/expands), background-size: cover would
+			     recompute the crop against that changing width and visibly zoom/pan
+			     the art on every toggle. -->
+			<div
+				class="absolute inset-0 -z-10"
+				style="
+	        background-image: url('/assets/bg_main.png');
+	        background-position: center 62%;
+	        background-size: 100vw 100vh;
+	        background-attachment: fixed;
+		    image-rendering: pixelated;
+		    image-rendering: crisp-edges;
+	        "
+			></div>
+		{/if}
 
-		<!-- Dock gradient: absolute, always bottom-half of the hero zone, independent of content height -->
-		<div class="dock-bg pointer-events-none absolute bottom-0 left-0 right-0 z-[5]"></div>
+		{#if !storeWebglCapability.shaderBackgroundEnabled}
+			<!-- Dock gradient: absolute, always bottom-half of the hero zone,
+			     independent of content height. Built to darken the busy PNG art
+			     behind the buttons/actions for legibility — the shader background
+			     is already flat and dark by design, so it's redundant (and was
+			     visibly darkening/tinting the whole bottom half) when that's active. -->
+			<div class="dock-bg pointer-events-none absolute bottom-0 left-0 right-0 z-[5]"></div>
+		{/if}
 
 		<!-- Hero: logo + welcome-back line, always centered in the space
 		     above the dock (not bottom-anchored, which left a growing empty gap
 		     up top the taller the dock got, worst on narrow/tall screens). -->
-		<div
-			class="landing-grid relative z-10 flex min-h-full flex-col px-4"
-		>
+		<div class="landing-grid relative z-10 flex min-h-full flex-col px-4">
 			<div class="landing-title flex flex-col items-center justify-center pt-8">
 				<div class="relative flex items-center justify-center">
-					<div
-						class="dither-halo pointer-events-none absolute z-0 bg-contain bg-center bg-no-repeat"
-						style="background-image: url('/assets/dither-radial.png');"
-					></div>
+					{#if !storeWebglCapability.shaderBackgroundEnabled}
+						<div
+							class="dither-halo pointer-events-none absolute -z-10 bg-contain bg-center bg-no-repeat"
+							style="background-image: url('/assets/dither-radial.png');"
+						></div>
+					{/if}
 					<TextEffects
 						text="UNI!"
 						effect="undulate"
@@ -109,7 +131,7 @@
 							frequency={0.15}
 						/>
 						<button
-							class="logout-inline uppercase text-text/35 transition-colors hover:text-danger"
+							class="text-link-inline uppercase text-text/35 transition-colors hover:text-danger"
 							style="font-family: var(--pypx); font-weight: 800;"
 							onclick={handleLogout}
 							disabled={logoutPending}
@@ -227,25 +249,6 @@
 		background-size: 4px 4px;
 		-webkit-mask-image: linear-gradient(to top, black 35%, transparent 100%);
 		mask-image: linear-gradient(to top, black 35%, transparent 100%);
-	}
-
-	.logout-inline {
-		display: inline;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-		clip-path: none !important;
-		border-radius: 0 !important;
-		font-size: inherit;
-	}
-	.logout-inline:hover {
-		text-decoration: underline;
-		text-decoration-thickness: 2px;
-	}
-	.logout-inline:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
 	}
 
 	.skip-link {

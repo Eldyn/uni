@@ -71,7 +71,12 @@ export function computeHandLine(
 	);
 
 	const halfSpanEm = (spacingEm * (cardCount - 1)) / 2;
-	const maxScrollEm = Math.max(0, halfSpanEm - maxHalfSpanEm);
+	// Once the row overflows, the scroll range spans the row's whole half-span
+	// rather than just the overhang past maxHalfSpanEm — that overhang-only
+	// range used to strand the outermost cards inside the edge-fade zone,
+	// never reachable at full opacity, because it capped scrolling well short
+	// of center. The full half-span lets the outermost card reach x=0.
+	const maxScrollEm = halfSpanEm > maxHalfSpanEm ? halfSpanEm : 0;
 	const clampedScroll = Math.max(-maxScrollEm, Math.min(maxScrollEm, scrollEm));
 
 	const center = (cardCount - 1) / 2;

@@ -16,8 +16,7 @@
 		decks: () => m.decks_title({}, { locale: storeI18n.locale }),
 		shop: () => m.shop_title({}, { locale: storeI18n.locale }),
 		profile: () => m.profile_title({}, { locale: storeI18n.locale }),
-		stats: () => m.profile_title({}, { locale: storeI18n.locale }),
-		detailedStats: () => m.leaderboard_title({}, { locale: storeI18n.locale }),
+		stats: () => m.leaderboard_title({}, { locale: storeI18n.locale }),
 		settings: () => m.settings_title({}, { locale: storeI18n.locale })
 	};
 
@@ -25,9 +24,8 @@
 
 	const readyCount = $derived(
 		storeLobby.current
-			? (storeLobby.current.members as Array<{ is_ready?: boolean }>).filter(
-					(m) => m.is_ready
-				).length
+			? (storeLobby.current.members as Array<{ is_ready?: boolean }>).filter((m) => m.is_ready)
+					.length
 			: 0
 	);
 	const memberCount = $derived(storeLobby.current?.members.length ?? 0);
@@ -42,7 +40,9 @@
 </script>
 
 <header class="shell-topbar">
-	<h1 class="shell-topbar-title">{title}</h1>
+	<div class="shell-topbar-left">
+		<h1 class="shell-topbar-title">{title}</h1>
+	</div>
 
 	{#if storeTopbarContent.current}
 		<div class="shell-topbar-content">
@@ -52,12 +52,24 @@
 
 	<div class="shell-topbar-right">
 		{#if storeLobby.isInLobby}
-			<button class="shell-topbar-chip" onclick={openLobby}>
-				<i class="pia pixelart-icons-font-diamond-gem text-sm" aria-hidden="true"></i>
-				{readyCount}/{memberCount}
+			<button
+				class="shell-topbar-chip"
+				onclick={openLobby}
+				title={m.lobby_topbar_open_tooltip({}, { locale: storeI18n.locale })}
+			>
+				<i class="pia pixelart-icons-font-users text-sm" aria-hidden="true"></i>
+				<span class="opacity-60">{readyCount}/{memberCount}</span>
+				<i class="pia pixelart-icons-font-check text-sm" aria-hidden="true"></i>
+			</button>
+			<button
+				class="shell-topbar-exit"
+				onclick={() => storeLobby.leave()}
+				title={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
+				aria-label={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
+			>
+				<i class="pia pixelart-icons-font-logout text-sm" aria-hidden="true"></i>
 			</button>
 		{/if}
-
 		<button
 			class="shell-topbar-identity"
 			onclick={openProfile}
@@ -89,10 +101,29 @@
 		background: var(--bg);
 		border-bottom: 2px solid var(--border);
 	}
+	.shell-topbar-left {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
 	.shell-topbar-title {
 		font-family: var(--heading);
 		font-size: var(--text-title);
 		margin: 0;
+	}
+	.shell-topbar-exit {
+		display: flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 var(--space-2);
+		background: transparent;
+		border: none;
+		color: var(--danger);
+		cursor: pointer;
+	}
+	.shell-topbar-exit:hover {
+		filter: brightness(1.25);
 	}
 	.shell-topbar-content {
 		flex: 1;

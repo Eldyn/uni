@@ -16,7 +16,7 @@ export const EM_TO_WORLD = CARD_WIDTH / 5;
  *  depth test, which is exactly enough to reveal a covered one. */
 export const CARD_HOVER_LIFT = 0.5;
 /** Multiplier applied to a lifted card, so anything drawn around one (see
- *  CardHighlight3D) can match its grown size. */
+ *  CardMesh3D's `highlight` prop) can match its grown size. */
 export const CARD_HOVER_SCALE = 1.08;
 
 // Where the local hand row, the draw pile and their card size actually land is

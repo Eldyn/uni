@@ -20,6 +20,10 @@ AuthController::AuthController(HttpRouter& router)
         HandleGuest(res, req);
     });
 
+    router.Get("/auth/guest/me", [this](AppResponse* res, AppRequest* req) {
+        HandleGuestMe(res, req);
+    });
+
     router.Post("/auth/logout", [this](AppResponse* res, AppRequest* req) {
         res->writeStatus("200 OK")
            ->writeHeader("Set-Cookie",
@@ -103,6 +107,28 @@ void AuthController::HandleGuest(AppResponse* res, AppRequest* /*req*/) {
                      "ws_token=" + session->token + "; HttpOnly; Secure; SameSite=None; Path=/")
        ->writeHeader("Content-Type", "application/json")
        ->end("{\"username\": \"" + session->username + "\"}");
+}
+
+void AuthController::HandleGuestMe(AppResponse* res, AppRequest* req) {
+    std::string_view cookies = req->getHeader("cookie");
+    auto token = http::GetCookieValue(cookies, "ws_token");
+
+    if (!token) {
+        res->writeStatus("401 Unauthorized")->end();
+        return;
+    }
+
+    auto payload = AuthService::VerifyToken(*token);
+    if (!payload) {
+        Logger::Warn("[HTTP] Rejected guest-me, invalid token");
+        res->writeStatus("401 Unauthorized")->end();
+        return;
+    }
+
+    // INFO: No auth_token is set here: a restored guest stays a guest, it
+    //       is never promoted to a full account by this endpoint.
+    res->writeHeader("Content-Type", "application/json")
+       ->end("{\"username\": \"" + payload->username + "\"}");
 }
 
 void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {

@@ -11,10 +11,24 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
-	import { coverSize } from "../layout/playmat";
-	import type { CameraRig } from "../layout/cameraRig";
+	import type { MatPlacement } from "../layout/playmat";
 
-	let { rig }: { rig: CameraRig } = $props();
+	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
+	 *  sized against the felt this draws and all three have to agree on it. The
+	 *  arrows share the mat's exact size and offset rather than fitting
+	 *  themselves: they are painted on the same 16:9 sheet, so any independent
+	 *  fit would slide them off the felt as soon as the two fits disagreed. */
+	let {
+		mat,
+		showFelt = true
+	}: {
+		mat: MatPlacement;
+		/** Portrait drops the felt sheet — a table players visually "sit on top
+		 *  of" reads wrong on a phone-sized board — while keeping the turn-
+		 *  direction arrows, which are their own texture/mesh, not baked into
+		 *  the felt's. */
+		showFelt?: boolean;
+	} = $props();
 
 	// Both sit below the cards' y=0 plane, arrows over the mat.
 	const MAT_Y = -0.02;
@@ -41,6 +55,7 @@
 	let arrowsTexture = $state<Texture | null>(null);
 
 	$effect(() => {
+		if (!showFelt) return;
 		let cancelled = false;
 		loadTexture("/assets/playmat.png").then((t) => {
 			if (!cancelled) matTexture = t;
@@ -60,22 +75,11 @@
 		};
 	});
 
-	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
-	 *  sized against the felt this draws and all three have to agree on it. */
-	function fit(texture: Texture, halfWidth: number, halfHeight: number): [number, number] {
-		const image = texture.image as { width: number; height: number };
-		return coverSize(image.width, image.height, halfWidth, halfHeight);
-	}
-
-	let matSize = $derived(matTexture ? fit(matTexture, rig.halfWidth, rig.halfHeight) : null);
-	let arrowsSize = $derived(
-		arrowsTexture ? fit(arrowsTexture, rig.halfWidth, rig.halfHeight) : null
-	);
 </script>
 
-{#if matTexture && matSize}
-	<T.Mesh position.y={MAT_Y} rotation.x={-Math.PI / 2}>
-		<T.PlaneGeometry args={matSize} />
+{#if showFelt && matTexture}
+	<T.Mesh position.y={MAT_Y} position.z={mat.offsetZ} rotation.x={-Math.PI / 2}>
+		<T.PlaneGeometry args={mat.size} />
 		<T.MeshBasicMaterial
 			map={matTexture}
 			color={activeTint}
@@ -86,9 +90,9 @@
 	</T.Mesh>
 {/if}
 
-{#if arrowsTexture && arrowsSize}
-	<T.Mesh position.y={ARROWS_Y} rotation.x={-Math.PI / 2}>
-		<T.PlaneGeometry args={arrowsSize} />
+{#if arrowsTexture}
+	<T.Mesh position.y={ARROWS_Y} position.z={mat.offsetZ} rotation.x={-Math.PI / 2}>
+		<T.PlaneGeometry args={mat.size} />
 		<T.MeshBasicMaterial
 			map={arrowsTexture}
 			color={activeTint}

@@ -30,12 +30,17 @@ describe("computeCameraRig", () => {
 	});
 
 	for (const [name, viewport] of Object.entries({ landscape, wide, portrait, narrowPortrait })) {
-		it(`keeps the world origin at the exact center of the screen (${name})`, () => {
-			// The playmat and the discard pile both live at the origin, so this is
-			// what makes them screen-centered on every aspect ratio.
+		it(`keeps the board horizontally centered and only ever biases toward the player (${name})`, () => {
+			// The table stays on the screen's vertical center line on every aspect
+			// ratio. On the near/far axis a portrait screen has vertical slack the
+			// board's own rows don't need, and the camera spends it toward the local
+			// player rather than leaving half of it as dead mat under the HUD (see
+			// designGrid.ts's PORTRAIT_NEAR_BIAS) — never away from them.
 			const rig = computeCameraRig(viewport, 9);
 			expect(rig.lookAt[0]).toBeCloseTo(0, 6);
-			expect(rig.lookAt[2]).toBeCloseTo(0, 6);
+			expect(rig.lookAt[2]).toBe(rig.centerZ);
+			expect(rig.centerZ).toBeGreaterThanOrEqual(0);
+			if (viewport.orientation === "landscape") expect(rig.centerZ).toBeCloseTo(0, 6);
 		});
 
 		it(`fits the whole opponent ring in the frustum (${name})`, () => {
@@ -49,7 +54,7 @@ describe("computeCameraRig", () => {
 			const rig = computeCameraRig(viewport, 9);
 			const placement = computeBoardPlacement(viewport, rig);
 			const handFrontZ = placement.localSeatZ + (CARD_HEIGHT * placement.handScale) / 2;
-			expect(handFrontZ).toBeLessThanOrEqual(rig.halfHeight + 1e-6);
+			expect(handFrontZ).toBeLessThanOrEqual(rig.centerZ + rig.halfHeight + 1e-6);
 		});
 	}
 

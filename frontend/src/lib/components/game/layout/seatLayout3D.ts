@@ -52,8 +52,20 @@ export const LANDSCAPE_RING_RX_FILL_CROWDED = 1.3;
 // the phone's own ratio makes the horizontal axis the binding one and buys that
 // slack back as dead space above and below — which is exactly what made every
 // card on a phone read at half the size it could have.
-export const PORTRAIT_RING_RX = 3;
-export const PORTRAIT_RING_RZ = 7.6;
+// Depth is what the phone pays for twice over: the frustum is sized to hold
+// the ring's rows, and a ring deeper than the felt leaves the distance between
+// the top seats and the table as empty background — 235px of it under the HUD
+// at, roughly a third of the screen. The rails now sit just outside the
+// felt's own far corner instead, so the arch reads as seats AROUND the table
+// rather than seats stranded above it.
+// The rails also sit further in than the frustum's own edge than the reach
+// margin alone would suggest: a side seat's fan opens ACROSS the rail, so the
+// outermost card of a full 16-player table clears the seat by more than the
+// avatar and label do, and at the edge that overhang is simply cropped. Trading
+// radius for reach keeps the columns (and so the hand's card size) identical
+// while moving every seat's overhang back inside the frustum.
+export const PORTRAIT_RING_RX = 2.9;
+export const PORTRAIT_RING_RZ = 4.6;
 
 // The deepest the landscape arch is allowed to grow when it fills vertical
 // slack (see ringRadiiFor's frustumHalfHeight). Past this the arch stops
@@ -76,7 +88,7 @@ export const OPPONENT_RING_REACH = 2.6;
 // stays the same width even once every seat is down to its smallest, which is
 // dead space by the same "wasted margin" logic as the ring-fill above.
 export const LANDSCAPE_RING_REACH_MIN = 1.6;
-export const PORTRAIT_OPPONENT_RING_REACH = 1.15;
+export const PORTRAIT_OPPONENT_RING_REACH = 1.55;
 
 export function ringReachFor(viewport: ViewportInfo, opponentCount: number = MAX_OPPONENTS): number {
 	if (viewport.orientation === "portrait") return PORTRAIT_OPPONENT_RING_REACH;

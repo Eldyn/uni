@@ -24,6 +24,11 @@ export interface CameraRig {
 	halfWidth: number;
 	/** Half-height of the orthographic frustum, in world units. */
 	halfHeight: number;
+	/** World Z the frustum is centered on. Zero in landscape; pushed toward the
+	 *  near side in portrait, where the width-bound fit leaves vertical slack
+	 *  that is worth more under the table than above it (see designGrid.ts).
+	 *  Anything measuring from a frustum EDGE must offset by this. */
+	centerZ: number;
 }
 
 // How high above the table the camera sits. An orthographic camera's
@@ -56,6 +61,7 @@ export function computeCameraRig(
 		position: [0, CAMERA_HEIGHT, grid.centerZ],
 		lookAt: [0, 0, grid.centerZ],
 		halfWidth: grid.halfWidthUnits,
-		halfHeight: grid.halfHeightUnits
+		halfHeight: grid.halfHeightUnits,
+		centerZ: grid.centerZ
 	};
 }

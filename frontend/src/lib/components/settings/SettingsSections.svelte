@@ -13,12 +13,22 @@
 
 	const localeDisplayNames: Record<string, string> = {
 		en: "English",
-		it: "Italiano"
+		it: "Italiano",
+		es: "Español",
+		de: "Deutsch",
+		ko: "한국어",
+		zh: "中文",
+		ja: "日本語"
 	};
 
 	const localeFlags: Record<string, string> = {
 		en: "🇬🇧",
-		it: "🇮🇹"
+		it: "🇮🇹",
+		es: "🇪🇸",
+		de: "🇩🇪",
+		ko: "🇰🇷",
+		zh: "🇨🇳",
+		ja: "🇯🇵"
 	};
 
 	const SOCIAL_LINKS = [

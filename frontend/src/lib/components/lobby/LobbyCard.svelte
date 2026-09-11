@@ -6,6 +6,7 @@
 	import { ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
 	import { filled, joinInfo, type BrowseLobby } from "$lib/utils/lobbyBrowse";
 	import { storeCatalog } from "$stores/catalog.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
 
 	let {
 		lobby,
@@ -21,7 +22,7 @@
 	const ruleById = $derived(new Map(storeCatalog.rules.map((r) => [r.id, r])));
 	const ruleTitle = (id: string): string => {
 		const rule = ruleById.get(id);
-		return rule ? ruleLabel(rule) : id;
+		return rule ? ruleLabel(rule, storeI18n.locale) : id;
 	};
 
 	// Estimated pixel metrics for the header row. Rough by design: they only
@@ -60,7 +61,7 @@
 		cardW < 400 ? "px-3 py-2 text-base" : cardW < 500 ? "px-4 py-2.5 text-lg" : "px-6 py-3 text-xl"
 	);
 
-	const join = $derived(joinInfo(lobby));
+	const join = $derived(joinInfo(lobby, storeI18n.locale));
 </script>
 
 <div

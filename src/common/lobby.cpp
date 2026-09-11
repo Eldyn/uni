@@ -136,6 +136,7 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
         member_it->username = new_bot_name;
         member_it->is_bot = true;
         member_it->is_connected = true;
+        member_it->socket = nullptr;
 
         match::Player* engine_player = match->GetPlayer(old_name);
         if (engine_player) {

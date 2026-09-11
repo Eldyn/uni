@@ -98,30 +98,57 @@ describe("category", () => {
 
 describe("joinInfo", () => {
 	it("open lobby is joinable as Play", () => {
-		const info = joinInfo(makeBrowse({ status: "open" }));
+		const info = joinInfo(makeBrowse({ status: "open" }), "en");
 		expect(info.label).toBe("Play");
 		expect(info.disabled).toBe(false);
 	});
 
 	it("full lobby shows disabled Full", () => {
-		const info = joinInfo(makeBrowse({ status: "full" }));
+		const info = joinInfo(makeBrowse({ status: "full" }), "en");
 		expect(info.label).toBe("Full");
 		expect(info.disabled).toBe(true);
 	});
 
+	it("open lobby at capacity without takeover shows disabled Full", () => {
+		const info = joinInfo(
+			makeBrowse({ status: "open", humans: 3, bots: 1, max: 4, allowBotTakeover: false }),
+			"en"
+		);
+		expect(info.label).toBe("Full");
+		expect(info.disabled).toBe(true);
+	});
+
+	it("open lobby at capacity with takeover and a bot still offers Join", () => {
+		const info = joinInfo(
+			makeBrowse({ status: "open", humans: 3, bots: 1, max: 4, allowBotTakeover: true }),
+			"en"
+		);
+		expect(info.label).toBe("Join");
+		expect(info.disabled).toBe(false);
+	});
+
 	it("in-game with takeover and bots offers Join", () => {
-		const info = joinInfo(makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 1 }));
+		const info = joinInfo(
+			makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 1 }),
+			"en"
+		);
 		expect(info.label).toBe("Join");
 		expect(info.disabled).toBe(false);
 	});
 
 	it("in-game with takeover but no bots renders no button", () => {
-		const info = joinInfo(makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 0 }));
+		const info = joinInfo(
+			makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 0 }),
+			"en"
+		);
 		expect(info.label).toBeNull();
 	});
 
 	it("in-game without takeover renders no button", () => {
-		const info = joinInfo(makeBrowse({ status: "in-game", allowBotTakeover: false, bots: 2 }));
+		const info = joinInfo(
+			makeBrowse({ status: "in-game", allowBotTakeover: false, bots: 2 }),
+			"en"
+		);
 		expect(info.label).toBeNull();
 		expect(info.disabled).toBe(true);
 	});

@@ -25,6 +25,7 @@
 		hovered = false,
 		instant = false,
 		hoverPush = [0, 0],
+		pushX = 0,
 		opacity = 1,
 		dimmed = false,
 		wildColor,
@@ -56,6 +57,11 @@
 		 *  lift (which alone already wins the depth test against overlapping
 		 *  neighbors in this top-down ortho view). */
 		hoverPush?: [number, number];
+		/** World-space X offset the neighbors of an active card ease toward to
+		 *  make room for it (LocalHand3D's neighborPushEm) — tweened here rather
+		 *  than baked into `position` directly, so the row parting around a
+		 *  newly-active card eases in instead of snapping. */
+		pushX?: number;
 		/** Fades the whole card out — the local hand ramps this down at the row's
 		 *  ends so a scrollable hand dissolves at its edges instead of being cut
 		 *  off mid-card. */
@@ -152,8 +158,20 @@
 
 	let spinRad = $derived(((spinDeg + hoverSpinDeg * liftT) * Math.PI) / 180);
 
+	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
+	// `liftT` above but tracking an arbitrary target value instead of a 0-1
+	// transition, since neighboring cards can be asked to move again before
+	// the previous move finished settling.
+	const PUSH_TWEEN_SECONDS = 0.1;
+	let animatedPushX = $state(0);
+	useTask((delta) => {
+		if (animatedPushX === pushX) return;
+		animatedPushX += (pushX - animatedPushX) * Math.min(1, delta / PUSH_TWEEN_SECONDS);
+		if (Math.abs(pushX - animatedPushX) < 0.0001) animatedPushX = pushX;
+	});
+
 	let animatedPosition = $derived<[number, number, number]>([
-		position[0] + hoverPush[0] * liftT,
+		position[0] + hoverPush[0] * liftT + animatedPushX,
 		position[1] + CARD_HOVER_LIFT * liftT,
 		position[2] + hoverPush[1] * liftT
 	]);

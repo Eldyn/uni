@@ -28,8 +28,8 @@ import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLa
 // card tall; portrait's is a bare marker, since there the card fan is the
 // seat and the icon only has to say who owns it.
 const LANDSCAPE_AVATAR_WORLD = LOCAL_AVATAR_WORLD;
-const AVATAR_CROWD_SHRINK = 0.36;
-const PORTRAIT_AVATAR_WORLD = 0.45;
+const AVATAR_CROWD_SHRINK = 0.2;
+const PORTRAIT_AVATAR_WORLD = 0.78;
 
 // Opponent cards are drawn at a fraction of the size the LAYOUT reserves for
 // them: the seats stay where a full-size ring would have put them, so
@@ -137,7 +137,9 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// ring needs above it before the top edge, and equally the room the discard
 	// pile has below it before the nearest seat.
 	const opponentSeatReach = opponentSeatReachWorld(opponentAvatarWorld, opponentCardLayoutScale);
-	const maxRingRz = rig.halfHeight - opponentSeatReach;
+	// Measured from the FAR edge, which portrait's near-biased camera moves in
+	// (see cameraRig.ts's centerZ) — the ring keeps its own headroom either way.
+	const maxRingRz = rig.halfHeight - rig.centerZ - opponentSeatReach;
 	const ringRadii = ringRadiiFor(viewport, opponentCount, rig.halfWidth, maxRingRz);
 	const seats3D = computeSeatPositions3D(opponentCount, viewport, rig.halfWidth, maxRingRz);
 

@@ -10,7 +10,6 @@
 	import { T } from "@threlte/core";
 	import type { DiscardEntry } from "../layout/discardPile";
 	import CardMesh3D from "./CardMesh3D.svelte";
-	import CardHighlight3D from "./CardHighlight3D.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -43,11 +42,6 @@
 	const SHADOW_OFFSET = 0.09;
 	const SHADOW_DROP_Y = STACK_STEP / 2;
 	const SHADOW_OPACITY = 0.22;
-	// The confirm halo also sits below the top card, but half a step down lands
-	// it exactly on the shadow's own plane — two transparent silhouettes fighting
-	// for the same depth. Splitting the difference clears both the shadow above
-	// and the previous card's top layer below.
-	const HALO_DROP_Y = SHADOW_DROP_Y + STACK_STEP / 4;
 
 	// The halo hugs the top card so the pile reads as "tap this one", and the tap
 	// target is a plain plane over it — big enough to hit with a thumb, and above
@@ -55,7 +49,6 @@
 	// pile still has to be tappable (the opening play lands on nothing).
 	const CONFIRM_TARGET_Y = 1;
 	const CONFIRM_TARGET_SCALE = 1.6;
-	let topEntry = $derived(history[history.length - 1]);
 	let topIndex = $derived(history.length - 1);
 
 	let shadowTexture = $state<import("three").Texture | null>(null);
@@ -99,20 +92,11 @@
 		position={[entry.jitter[0] * EM_TO_WORLD, i * STACK_STEP, entry.jitter[1] * EM_TO_WORLD]}
 		spinDeg={entry.rotationDeg}
 		{scale}
+		highlight={armed && i === topIndex ? { pulse: true } : undefined}
 	/>
 {/each}
 
 {#if armed}
-	<CardHighlight3D
-		position={[
-			(topEntry?.jitter[0] ?? 0) * EM_TO_WORLD,
-			Math.max(0, topIndex * STACK_STEP - HALO_DROP_Y),
-			(topEntry?.jitter[1] ?? 0) * EM_TO_WORLD
-		]}
-		spinDeg={topEntry?.rotationDeg ?? 0}
-		{scale}
-		pulse
-	/>
 	<T.Mesh position.y={CONFIRM_TARGET_Y} rotation.x={-Math.PI / 2} onclick={() => onConfirm?.()}>
 		<T.PlaneGeometry
 			args={[CARD_WIDTH * scale * CONFIRM_TARGET_SCALE, CARD_HEIGHT * scale * CONFIRM_TARGET_SCALE]}
