@@ -54,7 +54,8 @@ export class AnimationQueue {
 	 *  (e.g. its hand slot) instead of getPose's own startPose fallback,
 	 *  which only applies the first time a card id is ever seen. */
 	seedPose(cardId: string, pose: FlightPose): void {
-		this.#poses.set(cardId, { ...pose });
+		const reactivePose = $state({ ...pose });
+		this.#poses.set(cardId, reactivePose);
 	}
 
 	/** Queues a batch of beats. `anchors` supplies every named world position
@@ -95,57 +96,75 @@ export class AnimationQueue {
 		}
 
 		const beat = batch.beats[beatIndex];
-		const ctx: RenderContext = {
-			getPose: (cardId, startPose) => {
-				if (!this.#poses.has(cardId)) {
-					const pose = { ...startPose };
-					this.#poses.set(cardId, pose);
-					const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
-					this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
+		try {
+			const ctx: RenderContext = {
+				getPose: (cardId, startPose) => {
+					let pose = this.#poses.get(cardId);
+					if (!pose) {
+						const reactivePose = $state({ ...startPose });
+						pose = reactivePose;
+						this.#poses.set(cardId, pose);
+					}
+					if (!this.activeFlights.some((f) => f.id === cardId)) {
+						const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
+						this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
+					}
+					return pose;
+				},
+				resolveAnchor: (name) => {
+					const anchor = batch.anchors[name];
+					if (!anchor) throw new Error(`AnimationQueue: no anchor registered for "${name}"`);
+					return anchor;
 				}
-				return this.#poses.get(cardId)!;
-			},
-			resolveAnchor: (name) => {
-				const anchor = batch.anchors[name];
-				if (!anchor) throw new Error(`AnimationQueue: no anchor registered for "${name}"`);
-				return anchor;
-			}
-		};
+			};
 
-		const timeline = gsap.timeline();
-		for (const step of beat) {
-			const renderer = this.#registry[step.op];
-			if (!renderer) {
-				console.warn(`AnimationQueue: unknown op "${step.op}" for target "${step.target}" — skipping.`);
-				continue;
+			const timeline = gsap.timeline();
+			for (const step of beat) {
+				const renderer = this.#registry[step.op];
+				if (!renderer) {
+					console.warn(`AnimationQueue: unknown op "${step.op}" for target "${step.target}" — skipping.`);
+					continue;
+				}
+				try {
+					timeline.add(renderer(step, ctx), 0);
+				} catch (err) {
+					console.error(
+						`AnimationQueue: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
+						err
+					);
+				}
 			}
-			timeline.add(renderer(step, ctx), 0);
-		}
-		timeline.timeScale(storeAnimation.speedMultiplier);
-		this.#currentTimeline = timeline;
+			timeline.timeScale(storeAnimation.speedMultiplier);
+			this.#currentTimeline = timeline;
 
-		// GSAP's suppressEvents (passed by skipCurrent's progress(1, true)) suppresses
-		// ALL callbacks, including onComplete — confirmed by direct experiment in an
-		// earlier run. finishBeat must therefore be reachable from BOTH
-		// a natural onComplete firing AND an explicit call from skipCurrent, guarded
-		// so it only ever runs once per beat.
-		let settled = false;
-		const finishBeat = () => {
-			if (settled) return;
-			settled = true;
-			for (const step of beat) this.#retireFlight(step.target);
-			this.onBeatComplete?.(beatIndex);
+			// GSAP's suppressEvents (passed by skipCurrent's progress(1, true)) suppresses
+			// ALL callbacks, including onComplete — confirmed by direct experiment in an
+			// earlier run. finishBeat must therefore be reachable from BOTH
+			// a natural onComplete firing AND an explicit call from skipCurrent, guarded
+			// so it only ever runs once per beat.
+			let settled = false;
+			const finishBeat = () => {
+				if (settled) return;
+				settled = true;
+				for (const step of beat) this.#retireFlight(step.target);
+				this.onBeatComplete?.(beatIndex);
+				this.#currentTimeline = null;
+				this.#finishCurrentBeat = null;
+				this.#playBatch(batch, beatIndex + 1);
+			};
+
+			timeline.eventCallback("onComplete", finishBeat);
+			this.#finishCurrentBeat = finishBeat;
+
+			if (!storeAnimation.enabled) {
+				timeline.progress(1, true);
+				finishBeat();
+			}
+		} catch (err) {
+			console.error(`AnimationQueue: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);
-		};
-
-		timeline.eventCallback("onComplete", finishBeat);
-		this.#finishCurrentBeat = finishBeat;
-
-		if (!storeAnimation.enabled) {
-			timeline.progress(1, true);
-			finishBeat();
 		}
 	}
 
