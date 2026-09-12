@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDrawBeat, opponentSeatAnchor } from "$components/game/animation/baseBeats";
+import { buildDrawBeat, opponentSeatAnchor } from "$components/game/animation/baseBeats.svelte";
 
 describe("buildDrawBeat", () => {
 	it("builds a flip-onto-itself beat for a local draw", () => {

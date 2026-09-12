@@ -4,7 +4,7 @@
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createAnimationQueue } from "./animation/animationQueue.svelte";
-	import { createBaseBeatsWatcher } from "./animation/baseBeats";
+	import { createBaseBeatsWatcher } from "./animation/baseBeats.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPlayBeat } from "$components/game/animation/baseBeats";
+import { buildPlayBeat } from "$components/game/animation/baseBeats.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {

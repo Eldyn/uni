@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectReshuffle, buildReshuffleBeat } from "$components/game/animation/baseBeats";
+import { detectReshuffle, buildReshuffleBeat } from "$components/game/animation/baseBeats.svelte";
 import type { DiscardEntry } from "$components/game/layout/discardPile";
 
 describe("detectReshuffle", () => {
