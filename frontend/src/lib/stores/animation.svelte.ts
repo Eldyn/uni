@@ -10,10 +10,23 @@ import { storeWebglCapability } from "./webglCapability.svelte";
 
 const SETTINGS_STORAGE_KEY = "uni:animation:settings";
 const DEFAULT_SPEED_MULTIPLIER = 1;
+const MIN_SPEED_MULTIPLIER = 0.5;
+const MAX_SPEED_MULTIPLIER = 3;
 
 interface AnimationSettings {
 	speedMultiplier: number;
 	enabled: boolean;
+}
+
+/** A timeline's timeScale(0) or timeScale(NaN) never reaches progress===1, so
+ *  onComplete never fires and AnimationQueue wedges forever (same symptom as
+ *  an uncaught renderer throw) — clamp on both load and write since
+ *  localStorage is user-writable directly, bypassing the Settings slider's
+ *  own 50-300 clamp. */
+function clampSpeedMultiplier(value: number): number {
+	return Number.isFinite(value)
+		? Math.min(MAX_SPEED_MULTIPLIER, Math.max(MIN_SPEED_MULTIPLIER, value))
+		: DEFAULT_SPEED_MULTIPLIER;
 }
 
 class StoreAnimation {
@@ -25,7 +38,8 @@ class StoreAnimation {
 		try {
 			const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
 			const parsed = raw ? (JSON.parse(raw) as Partial<AnimationSettings>) : null;
-			if (typeof parsed?.speedMultiplier === "number") this.speedMultiplier = parsed.speedMultiplier;
+			if (typeof parsed?.speedMultiplier === "number")
+				this.speedMultiplier = clampSpeedMultiplier(parsed.speedMultiplier);
 			if (typeof parsed?.enabled === "boolean") {
 				this.enabled = parsed.enabled;
 				this.userOverrodeEnabled = true;
@@ -53,7 +67,7 @@ class StoreAnimation {
 	}
 
 	setSpeedMultiplier(value: number): void {
-		this.speedMultiplier = value;
+		this.speedMultiplier = clampSpeedMultiplier(value);
 		this.#persist();
 	}
 

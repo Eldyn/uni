@@ -25,4 +25,26 @@ describe("storeAnimation", () => {
 		storeAnimation.setEnabled(false);
 		expect(JSON.parse(localStorage.getItem("uni:animation:settings")!).enabled).toBe(false);
 	});
+
+	it("setSpeedMultiplier clamps out-of-range and non-finite values instead of wedging the queue", async () => {
+		const { storeAnimation } = await import("$stores/animation.svelte");
+
+		storeAnimation.setSpeedMultiplier(0);
+		expect(storeAnimation.speedMultiplier).toBeGreaterThanOrEqual(0.5);
+
+		storeAnimation.setSpeedMultiplier(-5);
+		expect(storeAnimation.speedMultiplier).toBeGreaterThanOrEqual(0.5);
+
+		storeAnimation.setSpeedMultiplier(NaN);
+		expect(Number.isFinite(storeAnimation.speedMultiplier)).toBe(true);
+
+		storeAnimation.setSpeedMultiplier(999);
+		expect(storeAnimation.speedMultiplier).toBeLessThanOrEqual(3);
+	});
+
+	it("rejects an unvalidated speedMultiplier written directly to localStorage (user-writable), instead of loading 0", async () => {
+		localStorage.setItem("uni:animation:settings", JSON.stringify({ speedMultiplier: 0 }));
+		const { storeAnimation } = await import("$stores/animation.svelte");
+		expect(storeAnimation.speedMultiplier).toBeGreaterThanOrEqual(0.5);
+	});
 });
