@@ -74,8 +74,9 @@ export class AnimationQueue {
 	}
 
 	skipCurrent(): void {
+		const finish = this.#finishCurrentBeat;
 		this.#currentTimeline?.progress(1, true);
-		this.#finishCurrentBeat?.();
+		finish?.();
 	}
 
 	#pump(): void {
@@ -134,6 +135,9 @@ export class AnimationQueue {
 					);
 				}
 			}
+			// Read once per beat, not per tick — changing speed mid-flight only
+			// takes effect starting the next beat. Acceptable: beats are short
+			// (sub-second), so this isn't a real "changed nothing" bug.
 			timeline.timeScale(storeAnimation.speedMultiplier);
 			this.#currentTimeline = timeline;
 
@@ -170,6 +174,7 @@ export class AnimationQueue {
 
 	#retireFlight(cardId: string): void {
 		this.#poses.delete(cardId);
+		this.#cardMeta.delete(cardId);
 		this.activeFlights = this.activeFlights.filter((f) => f.id !== cardId);
 	}
 }
