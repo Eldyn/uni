@@ -49,6 +49,14 @@ export class AnimationQueue {
 		this.#cardMeta.set(cardId, card);
 	}
 
+	/** Pre-seeds a card's flight pose before it is first requested via
+	 *  getPose, so a beat's move step starts from its real current position
+	 *  (e.g. its hand slot) instead of getPose's own startPose fallback,
+	 *  which only applies the first time a card id is ever seen. */
+	seedPose(cardId: string, pose: FlightPose): void {
+		this.#poses.set(cardId, { ...pose });
+	}
+
 	/** Queues a batch of beats. `anchors` supplies every named world position
 	 *  this batch's steps may reference via resolveAnchor. Returns a promise
 	 *  resolving once every beat in the batch has completed (or been
