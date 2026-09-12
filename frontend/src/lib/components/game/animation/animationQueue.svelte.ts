@@ -156,7 +156,16 @@ export function createAnimationQueue(): AnimationQueue {
 		// queue directly (via the returned instance) without mounting a
 		// component, so registering the context is best-effort here.
 		setContext(ANIMATION_QUEUE_KEY, queue);
-	} catch {
+	} catch (err) {
+		// Svelte 5's setContext throws when called outside component initialization.
+		// The error message is a URL pointing to the lifecycle_outside_component
+		// documentation. Only swallow that specific error; rethrow anything else.
+		if (
+			!(err instanceof Error) ||
+			!err.message.includes("lifecycle_outside_component")
+		) {
+			throw err;
+		}
 		// Not inside component initialisation — fine for callers that only use
 		// the returned instance rather than useAnimationQueue().
 	}
