@@ -82,15 +82,31 @@
 	// the piles really sit (see layout/sceneGeometry.ts's file doc).
 	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
 
-	createBaseBeatsWatcher({
+	const disposeBaseBeatsWatcher = createBaseBeatsWatcher({
 		bus,
 		animationQueue,
 		getPlacement: () => geometry.placement,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+			if (idx === -1) {
+				console.warn(`GameBoard: no seat found for opponent "${username}" — falling back to discard pile.`);
+				return [geometry.placement.discardX, 0, geometry.placement.discardZ];
+			}
 			const seat = geometry.seats3D[idx];
 			return seat ? [seat.x, 0, seat.z] : [0, 0, 0];
 		}
+	});
+
+	$effect(() => disposeBaseBeatsWatcher);
+
+	// The "skippable queue" had no reachable UI trigger — Escape is free
+	// (AccessibleHandControls claims arrows/Enter/Space/digits, never Escape).
+	$effect(() => {
+		function onWindowKeydown(event: KeyboardEvent) {
+			if (event.key === "Escape") animationQueue.skipCurrent();
+		}
+		window.addEventListener("keydown", onWindowKeydown);
+		return () => window.removeEventListener("keydown", onWindowKeydown);
 	});
 </script>
 
@@ -104,7 +120,12 @@
 />
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
-	<div class="scene-layer" bind:clientWidth={sceneWidth} bind:clientHeight={sceneHeight}>
+	<div
+		class="scene-layer"
+		bind:clientWidth={sceneWidth}
+		bind:clientHeight={sceneHeight}
+		onpointerdown={() => animationQueue.skipCurrent()}
+	>
 		<Canvas>
 			<Scene3D
 				{mappedOpponents}
