@@ -3,6 +3,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
+	import { createAnimationQueue } from "./animation/animationQueue.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
@@ -13,6 +14,7 @@
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 
 	const bus = createCardBus();
+	const animationQueue = createAnimationQueue();
 	const layout = createGameLayoutContext();
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
