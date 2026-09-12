@@ -3,7 +3,9 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
+	import Toggle from "$components/lobby/settings/Toggle.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let { showCredits = false, showDangerZone = false }: { showCredits?: boolean; showDangerZone?: boolean } =
@@ -72,6 +74,29 @@
 				live={true}
 				format={(v) => pct(v / 100)}
 				oncommit={(v) => storeAudio.setSfxVolume(v / 100)}
+			/>
+		</div>
+	</section>
+
+	<section class="panel settings-panel">
+		{@render sectionHeading(m.settings_animation_heading({}, { locale: storeI18n.locale }))}
+		<div class="mt-4 flex flex-col gap-4">
+			<Toggle
+				label={m.settings_animation_enabled({}, { locale: storeI18n.locale })}
+				checked={storeAnimation.enabled}
+				oncommit={(v) => storeAnimation.setEnabled(v)}
+			/>
+
+			<Slider
+				id="animation-speed"
+				label={m.settings_animation_speed({}, { locale: storeI18n.locale })}
+				value={Math.round(storeAnimation.speedMultiplier * 100)}
+				min={50}
+				max={300}
+				disabled={!storeAnimation.enabled}
+				live={true}
+				format={(v) => `${(v / 100).toFixed(2)}x`}
+				oncommit={(v) => storeAnimation.setSpeedMultiplier(v / 100)}
 			/>
 		</div>
 	</section>
