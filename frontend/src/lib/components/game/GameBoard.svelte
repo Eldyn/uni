@@ -4,13 +4,12 @@
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createAnimationQueue } from "./animation/animationQueue.svelte";
+	import { createBaseBeatsWatcher } from "./animation/baseBeats";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
-	import FlyingCardsOverlay from "./FlyingCardsOverlay.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
-	import { worldToScreenPercent } from "./layout/screenProjection";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 
 	const bus = createCardBus();
@@ -53,23 +52,6 @@
 		orientation: layout.viewport.orientation
 	});
 
-	// The piles are now real WebGL meshes (DrawPile3D/DiscardPile3D), but
-	// FlyingCardsOverlay's 2D flight animations still resolve their source/
-	// destination via card-bus DOM rects — these invisible anchors keep that
-	// resolution accurate without rendering a second, redundant DOM pile.
-	let discardAnchorEl = $state<HTMLElement | null>(null);
-	let drawAnchorEl = $state<HTMLElement | null>(null);
-
-	$effect(() => {
-		if (discardAnchorEl) bus.register("discard-pile", discardAnchorEl);
-		return () => bus.unregister("discard-pile");
-	});
-
-	$effect(() => {
-		if (drawAnchorEl) bus.register("draw-pile", drawAnchorEl);
-		return () => bus.unregister("draw-pile");
-	});
-
 	// Seat-position color, not a UNO card color: cycles through the 4 game
 	// colors regardless of player count. Dropped in favor of a real
 	// player-picked character color in a future pass.
@@ -100,24 +82,18 @@
 	// the piles really sit (see layout/sceneGeometry.ts's file doc).
 	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
 
-	// The discard pile sits at the mat's own world origin on a wide screen and
-	// lower down the felt on a portrait one — projected from the placement
-	// rather than assumed (see layout/screenProjection.ts's file doc).
-	let discardAnchor = $derived(
-		worldToScreenPercent(geometry.rig, geometry.placement.discardX, geometry.placement.discardZ)
-	);
-	let drawAnchor = $derived(
-		worldToScreenPercent(geometry.rig, geometry.placement.drawPileX, geometry.placement.drawPileZ)
-	);
-	let discardAnchorStyle = $derived(
-		`left: ${discardAnchor.leftPercent}%; top: ${discardAnchor.topPercent}%;`
-	);
-	let drawAnchorStyle = $derived(
-		`left: ${drawAnchor.leftPercent}%; top: ${drawAnchor.topPercent}%;`
-	);
+	createBaseBeatsWatcher({
+		bus,
+		animationQueue,
+		getPlacement: () => geometry.placement,
+		getOpponentSeatAnchor: (username) => {
+			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+			const seat = geometry.seats3D[idx];
+			return seat ? [seat.x, 0, seat.z] : [0, 0, 0];
+		}
+	});
 </script>
 
-<FlyingCardsOverlay />
 <DrawStackIndicator />
 <AccessibleHandControls
 	selectedId={selectedCardId}
@@ -143,9 +119,6 @@
 			/>
 		</Canvas>
 	</div>
-
-	<div class="pile-anchor" style={discardAnchorStyle} bind:this={discardAnchorEl}></div>
-	<div class="pile-anchor" style={drawAnchorStyle} bind:this={drawAnchorEl}></div>
 </div>
 
 <style>
@@ -181,15 +154,5 @@
 		width: 100%;
 		height: 100%;
 		display: block;
-	}
-
-	/* Zero-size, invisible — exists only so card-bus can resolve a screen
-	   point for flight animations; the actual pile art is the WebGL mesh.
-	   Placement is inline, projected from the pile's real world position. */
-	.pile-anchor {
-		position: absolute;
-		width: 0;
-		height: 0;
-		pointer-events: none;
 	}
 </style>
