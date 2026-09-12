@@ -59,10 +59,37 @@ function localCardAnchor(
 	return [x, 0, placement.localSeatZ];
 }
 
+/** Anchor key for an opponent's seat — resolved to real world coordinates by
+ *  createBaseBeatsWatcher via computeSeatPositions3D, same key format used
+ *  by both the opponent-draw and opponent-play-source lookups so they can
+ *  never disagree about what "bob's seat" means. */
+export function opponentSeatAnchor(username: string): string {
+	return `seat:${username}`;
+}
+
+export function buildDrawBeat(args: {
+	cardId: string;
+	forLocalPlayer: boolean;
+	opponentUsername?: string;
+}): AnimationBeat {
+	if (args.forLocalPlayer) {
+		return [
+			{ op: "move", target: args.cardId, payload: { to: "local-hand-rightmost" } },
+			{ op: "flip", target: args.cardId, payload: { turned: false } }
+		];
+	}
+
+	if (!args.opponentUsername) {
+		throw new Error("buildDrawBeat: opponentUsername is required when forLocalPlayer is false");
+	}
+	return [{ op: "move", target: args.cardId, payload: { to: opponentSeatAnchor(args.opponentUsername) } }];
+}
+
 export function createBaseBeatsWatcher(deps: {
 	bus: CardBus;
 	animationQueue: AnimationQueue;
 	getPlacement: () => BoardPlacement;
+	getOpponentSeatAnchor: (username: string) => [number, number, number];
 }): () => void {
 	let prevTopCardId: number | null = null;
 
@@ -87,6 +114,10 @@ export function createBaseBeatsWatcher(deps: {
 			const anchors: Record<string, [number, number, number]> = {
 				"discard-pile": [placement.discardX, 0, placement.discardZ]
 			};
+			for (const p of state.players ?? []) {
+				if (p.username === localUsername) continue;
+				anchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
+			}
 
 			deps.animationQueue.registerCardMeta(String(top.id), { type: top.type, value: top.value });
 
@@ -102,10 +133,16 @@ export function createBaseBeatsWatcher(deps: {
 					opacity: 1
 				});
 			} else {
-				// Opponent source: aim at their seat via computeSeatPositions3D — deferred
-				// until the opponent-draw beats land, which need the same
-				// seat-position lookup and should share one helper rather than two
-				// slightly-different copies.
+				const [sx, sy, sz] = deps.getOpponentSeatAnchor(lastPlay.player);
+				deps.animationQueue.seedPose(String(top.id), {
+					x: sx,
+					y: sy,
+					z: sz,
+					spinDeg: 0,
+					scale: placement.centerScale,
+					turned: true,
+					opacity: 1
+				});
 			}
 
 			const beat = buildPlayBeat({
