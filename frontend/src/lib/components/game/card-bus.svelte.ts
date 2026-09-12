@@ -166,6 +166,19 @@ export class CardBus {
 
 	hiddenCardIds = $state(new Set<number>());
 
+	/** LocalHand3D's own current ordering/scroll — shared so baseBeats.ts can
+	 *  recompute the exact same computeHandLine() call to find a card's true
+	 *  current slot (post-drag, post-scroll) without any DOM measurement. */
+	localHandSnapshot = $state<{ orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }>({
+		orderIds: [],
+		scrollEm: 0,
+		maxHalfSpanEm: 0
+	});
+
+	setLocalHandSnapshot(snapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }): void {
+		this.localHandSnapshot = snapshot;
+	}
+
 	hide(id: number) {
 		this.hiddenCardIds = new Set([...this.hiddenCardIds, id]);
 	}

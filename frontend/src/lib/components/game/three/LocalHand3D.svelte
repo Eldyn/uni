@@ -188,6 +188,10 @@
 		}
 	});
 
+	$effect(() => {
+		bus.setLocalHandSnapshot({ orderIds, scrollEm: line.scrollEm, maxHalfSpanEm });
+	});
+
 	// A card that left the hand (played) can't stay selected, or the discard
 	// pile keeps offering to confirm something you no longer hold. Checked
 	// against the server's own hand, not the hidden-filtered `cards` above —
