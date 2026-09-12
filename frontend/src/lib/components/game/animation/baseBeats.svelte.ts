@@ -50,9 +50,9 @@ export function buildPlayBeat(args: {
 	localHandSnapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number };
 }): AnimationBeat {
 	if (args.playedByMe) {
-		// Value already visible for your own play — a single move step, the
-		// shake happens as its own follow-on beat once it lands (kept separate
-		// so a skip of the move doesn't also swallow the landing punch).
+		// Value already visible for your own play — a single move step. No
+		// landing-shake beat is enqueued after it yet: shakeRenderer exists and
+		// is registered, but nothing currently calls it (see progress.md).
 		return [{ op: "move", target: args.cardId, payload: { to: "discard-pile" } }];
 	}
 
@@ -67,20 +67,38 @@ export function buildPlayBeat(args: {
 	];
 }
 
+type HandSnapshot = { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number };
+
 /** Computes the local hand's card-N slot as a world-space anchor, using the
- *  exact same computeHandLine call LocalHand3D itself makes — see the
- *  file doc for why this state has to be shared instead of measured. */
-function localCardAnchor(
+ *  exact same computeHandLine call LocalHand3D itself makes. The state has
+ *  to be shared instead of measured.
+ *
+ *  `snapshot` can miss the card (index -1) when LocalHand3D's own effect for
+ *  this state update hasn't run yet — an $effect-run-order race, not a real
+ *  absence. Falls back to `previousSnapshot` rather than silently defaulting
+ *  to hand-center (x=0), and warns so a genuine miss (card truly gone from
+ *  both snapshots) is visible instead of silent. */
+export function localCardAnchor(
 	cardId: number,
 	placement: BoardPlacement,
-	snapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }
+	snapshot: HandSnapshot,
+	previousSnapshot: HandSnapshot | null = null
 ): [number, number, number] {
-	const index = snapshot.orderIds.indexOf(cardId);
 	const handEmToWorld = EM_TO_WORLD * placement.handScale;
-	const line = computeHandLine(snapshot.orderIds.length, snapshot.maxHalfSpanEm, snapshot.scrollEm);
-	const slot = line.slots[index];
-	const x = slot ? slot.x * handEmToWorld : 0;
-	return [x, 0, placement.localSeatZ];
+
+	for (const candidate of [snapshot, previousSnapshot]) {
+		if (!candidate) continue;
+		const index = candidate.orderIds.indexOf(cardId);
+		if (index === -1) continue;
+		const line = computeHandLine(candidate.orderIds.length, candidate.maxHalfSpanEm, candidate.scrollEm);
+		const slot = line.slots[index];
+		if (slot) return [slot.x * handEmToWorld, 0, placement.localSeatZ];
+	}
+
+	console.warn(
+		`baseBeats: card ${cardId} not found in current or previous local hand snapshot — falling back to hand-center anchor.`
+	);
+	return [0, 0, placement.localSeatZ];
 }
 
 /** Anchor key for an opponent's seat — resolved to real world coordinates by
@@ -131,6 +149,18 @@ export function createBaseBeatsWatcher(deps: {
 				};
 				for (const entry of deps.bus.discardHistory) {
 					deps.animationQueue.registerCardMeta(String(entry.card.id), entry.card);
+					// Without this, moveRenderer's own all-zero fallback startPose
+					// applies and reshuffled cards fly from the table origin at full
+					// scale instead of from the discard pile they're actually leaving.
+					deps.animationQueue.seedPose(String(entry.card.id), {
+						x: placement.discardX,
+						y: 0,
+						z: placement.discardZ,
+						spinDeg: 0,
+						scale: placement.centerScale,
+						turned: false,
+						opacity: 1
+					});
 				}
 				deps.animationQueue.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
 			}
@@ -161,7 +191,12 @@ export function createBaseBeatsWatcher(deps: {
 			deps.animationQueue.registerCardMeta(String(top.id), { type: top.type, value: top.value });
 
 			if (playedByMe) {
-				const [sx, sy, sz] = localCardAnchor(top.id, placement, deps.bus.localHandSnapshot);
+				const [sx, sy, sz] = localCardAnchor(
+					top.id,
+					placement,
+					deps.bus.localHandSnapshot,
+					deps.bus.previousLocalHandSnapshot
+				);
 				deps.animationQueue.seedPose(String(top.id), {
 					x: sx,
 					y: sy,
@@ -191,8 +226,15 @@ export function createBaseBeatsWatcher(deps: {
 				localHandSnapshot: deps.bus.localHandSnapshot
 			});
 
+			// The server's hand list already drops the played card the instant it's
+			// applied, but LocalHand3D's own render still shows it until that state
+			// update reaches it — hiding it here for the flight's duration avoids a
+			// brief double-render (once in hand, once flying).
+			if (playedByMe) deps.bus.hide(top.id);
+
 			deps.animationQueue.enqueue([beat], anchors).then(() => {
 				deps.bus.setDiscardTop(top);
+				if (playedByMe) deps.bus.show(top.id);
 			});
 		});
 	});

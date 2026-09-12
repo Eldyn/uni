@@ -44,7 +44,14 @@ export class CardBus {
 		maxHalfSpanEm: 0
 	});
 
+	/** The snapshot before the current one — baseBeats.ts falls back to this when
+	 *  a play lands before LocalHand3D's own effect has re-run for the same
+	 *  state update (an $effect-run-order race), rather than defaulting to
+	 *  hand-center (see baseBeats.svelte.ts's localCardAnchor). */
+	previousLocalHandSnapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number } | null = null;
+
 	setLocalHandSnapshot(snapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }): void {
+		this.previousLocalHandSnapshot = this.localHandSnapshot;
 		this.localHandSnapshot = snapshot;
 	}
 

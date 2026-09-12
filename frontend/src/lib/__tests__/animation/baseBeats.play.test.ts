@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { buildPlayBeat } from "$components/game/animation/baseBeats.svelte";
+import { describe, it, expect, vi } from "vitest";
+import { buildPlayBeat, localCardAnchor } from "$components/game/animation/baseBeats.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {
@@ -40,5 +40,25 @@ describe("buildPlayBeat", () => {
 		});
 
 		expect(beat.map((s) => s.op)).toEqual(["move", "flip"]);
+	});
+});
+
+describe("localCardAnchor", () => {
+	it("falls back to the previous snapshot when the card is missing from the current one", () => {
+		const current = { orderIds: [2, 3], scrollEm: 0, maxHalfSpanEm: 10 };
+		const previous = { orderIds: [1, 2, 3], scrollEm: 0, maxHalfSpanEm: 10 };
+
+		const fromPrevious = localCardAnchor(1, placement, previous, null);
+		const fromCurrentMiss = localCardAnchor(1, placement, current, previous);
+
+		expect(fromCurrentMiss).toEqual(fromPrevious);
+	});
+
+	it("warns and falls back to hand-center when the card is in neither snapshot", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const [x] = localCardAnchor(999, placement, { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 }, null);
+		expect(x).toBe(0);
+		expect(warn).toHaveBeenCalled();
+		warn.mockRestore();
 	});
 });
