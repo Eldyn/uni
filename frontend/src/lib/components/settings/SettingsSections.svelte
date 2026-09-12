@@ -94,7 +94,7 @@
 				min={50}
 				max={300}
 				disabled={!storeAnimation.enabled}
-				live={true}
+				live={false}
 				format={(v) => `${(v / 100).toFixed(2)}x`}
 				oncommit={(v) => storeAnimation.setSpeedMultiplier(v / 100)}
 			/>
