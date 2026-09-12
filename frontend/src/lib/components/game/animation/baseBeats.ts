@@ -13,8 +13,32 @@ import type { CardBus } from "../card-bus.svelte";
 import type { AnimationQueue } from "./animationQueue.svelte";
 import { computeHandLine } from "../layout/handLine";
 import type { BoardPlacement } from "../layout/boardPlacement";
+import type { DiscardEntry } from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
 import type { AnimationBeat } from "./types";
+
+/** draw_pile_size can only ever decrease (a draw) or hold (no draw happened)
+ *  under normal play — an increase is only possible when the engine just
+ *  reshuffled the discard pile back into it. */
+export function detectReshuffle(prevDrawPileSize: number, currentDrawPileSize: number): boolean {
+	return currentDrawPileSize > prevDrawPileSize;
+}
+
+/** All but the top discard card fly back onto the draw pile, as one
+ *  simultaneous beat (a real shuffle reads as "all these move together," not
+ *  a staggered trickle — staggering, if wanted later, is a tuning change to
+ *  this one function, not an architecture change). */
+export function buildReshuffleBeat(history: DiscardEntry[]): AnimationBeat[] {
+	const toReshuffle = history.slice(0, -1);
+	if (toReshuffle.length === 0) return [];
+	return [
+		toReshuffle.map((entry) => ({
+			op: "move" as const,
+			target: String(entry.card.id),
+			payload: { to: "draw-pile" }
+		}))
+	];
+}
 
 /** Builds the beat for a single play landing on the discard pile. Exported
  *  standalone (not just used internally) so it's unit-testable without a
@@ -92,14 +116,30 @@ export function createBaseBeatsWatcher(deps: {
 	getOpponentSeatAnchor: (username: string) => [number, number, number];
 }): () => void {
 	let prevTopCardId: number | null = null;
+	let prevDrawPileSize: number | null = null;
 
 	return $effect.root(() => {
 		$effect(() => {
 			const state = storeGame.state;
-			const lastPlay = state?.last_play;
-			const top = state?.top_card;
+			if (!state) return;
+			const placement = deps.getPlacement();
+
+			const currentDrawPileSize = state.draw_pile_size;
+			if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
+				const anchors = {
+					"draw-pile": [placement.drawPileX, 0, placement.drawPileZ] as [number, number, number]
+				};
+				for (const entry of deps.bus.discardHistory) {
+					deps.animationQueue.registerCardMeta(String(entry.card.id), entry.card);
+				}
+				deps.animationQueue.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
+			}
+			prevDrawPileSize = currentDrawPileSize;
+
+			const lastPlay = state.last_play;
+			const top = state.top_card;
 			const localUsername = storeGame.localPlayer?.username;
-			if (!state || !top) return;
+			if (!top) return;
 			if (top.id === prevTopCardId) return;
 
 			const isFirst = prevTopCardId === null;
@@ -110,7 +150,6 @@ export function createBaseBeatsWatcher(deps: {
 			}
 
 			const playedByMe = lastPlay.player === localUsername;
-			const placement = deps.getPlacement();
 			const anchors: Record<string, [number, number, number]> = {
 				"discard-pile": [placement.discardX, 0, placement.discardZ]
 			};
