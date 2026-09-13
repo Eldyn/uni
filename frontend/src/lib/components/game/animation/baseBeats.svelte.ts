@@ -13,6 +13,7 @@ import type { CardBus } from "../card-bus.svelte";
 import type { AnimationQueue } from "./animationQueue.svelte";
 import { computeHandLine } from "../layout/handLine";
 import type { BoardPlacement } from "../layout/boardPlacement";
+import { drawPileTopPose } from "../layout/drawPile";
 import { DISCARD_CAP, DISCARD_STACK_STEP, previewDiscardLanding, type DiscardEntry } from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
@@ -425,10 +426,11 @@ export function createBaseBeatsWatcher(deps: {
 							// hand before its own draw animation has even started.
 							deps.bus.hide(cardId);
 							deps.animationQueue.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 							deps.animationQueue.seedPose(String(cardId), {
-								x: placement.drawPileX,
-								y: 0,
-								z: placement.drawPileZ,
+								x: px,
+								y: py,
+								z: pz,
 								spinDeg: 0,
 								scale: placement.drawPileScale,
 								turned: true,
@@ -447,10 +449,11 @@ export function createBaseBeatsWatcher(deps: {
 						for (let i = 0; i < drawnCount; i++) {
 							const cardId = `draw:${p.username}:${drawIdCounter++}`;
 							cardIds.push(cardId);
+							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 							deps.animationQueue.seedPose(cardId, {
-								x: placement.drawPileX,
-								y: 0,
-								z: placement.drawPileZ,
+								x: px,
+								y: py,
+								z: pz,
 								spinDeg: 0,
 								scale: opponentCardScale,
 								turned: true,

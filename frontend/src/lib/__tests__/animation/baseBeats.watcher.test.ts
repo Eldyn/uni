@@ -216,4 +216,58 @@ describe("createBaseBeatsWatcher", () => {
 
 		dispose();
 	});
+
+	it("seeds a local draw's flight at the draw pile's real top-of-stack Y/Z, not the pile's base", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] }
+			],
+			pending_draws: 0,
+			draw_pile_size: 3
+		} as never;
+
+		const bus = new CardBus();
+		const animationQueue = new AnimationQueue();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			animationQueue,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "blue", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 2
+		} as never;
+		flushSync();
+
+		const flight = animationQueue.activeFlights.find((f) => f.id === "2");
+		expect(flight).toBeDefined();
+		// draw_pile_size was 3 pre-draw -> visible stack size 3 -> top index 2.
+		expect(flight!.pose.y).toBeCloseTo(0.6 + 2 * 0.02);
+		expect(flight!.pose.z).toBeCloseTo(placement.drawPileZ - 2 * 0.02 * placement.drawPileScale);
+
+		dispose();
+	});
 });
