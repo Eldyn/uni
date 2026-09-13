@@ -14,7 +14,7 @@
 
 import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "../three/units";
 import type { CameraRig } from "./cameraRig";
-import { MAX_JITTER_EM, MAX_ROTATION_DEG } from "./discardPile";
+import { MAX_JITTER_EM } from "./discardPile";
 import {
 	landscapeMatPlacement,
 	matBounds,
@@ -160,17 +160,20 @@ export const HAND_SPACING_RATIO = 0.8;
 
 /**
  * Worst-case half-width the discard pile's own scattered cards can reach from
- * its center, at a given card scale: a card rotated up to MAX_ROTATION_DEG
- * reaches further sideways than an upright one, on top of its own (unscaled —
- * see discardPile.ts) jitter offset. Used to give the draw pile real
- * clearance instead of gapping off a bare, unrotated card width that the
- * scatter routinely reaches past.
+ * its center, at a given card scale, on top of its own (unscaled — see
+ * discardPile.ts) jitter offset. A landing card's rotation is no longer
+ * bounded by MAX_ROTATION_DEG alone — discardEntryFor now layers that jitter
+ * on top of a seat-relative base rotation that can be anywhere from 0 to a
+ * full sideways ~90deg, so the old "assume a near-upright card" formula would
+ * under-measure the real worst case. The rectangle's own diagonal is the true
+ * worst-case half-width at ANY rotation angle, so this no longer needs to
+ * know the angle at all. Used to give the draw pile real clearance instead of
+ * gapping off a bare, unrotated card width that the scatter routinely reaches
+ * past.
  */
 function discardFootprintHalfWidth(scale: number): number {
-	const rotationRad = (MAX_ROTATION_DEG * Math.PI) / 180;
-	const rotatedHalfWidth =
-		(CARD_WIDTH * Math.cos(rotationRad) + CARD_HEIGHT * Math.sin(rotationRad)) / 2;
-	return rotatedHalfWidth * scale + MAX_JITTER_EM * EM_TO_WORLD;
+	const diagonal = Math.sqrt(CARD_WIDTH * CARD_WIDTH + CARD_HEIGHT * CARD_HEIGHT);
+	return (diagonal / 2) * scale + MAX_JITTER_EM * EM_TO_WORLD;
 }
 
 /**

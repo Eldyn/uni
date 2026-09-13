@@ -2,7 +2,7 @@ import { gsap } from "gsap";
 import type { AnimationStep } from "../types";
 import type { RenderContext } from "../renderContext";
 
-const FLIP_DURATION_S = 0.3;
+export const FLIP_DURATION_S = 0.225;
 // A full flip is 180deg of spin; the face swap happens at the midpoint, where
 // the card is edge-on and the swap is invisible. Using timeline.set() rather
 // than an onComplete callback for the face-swap write: GSAP's suppressEvents

@@ -22,13 +22,15 @@ describe("buildPlayBeat", () => {
 			cardId: "card-1",
 			playedByMe: true,
 			placement,
-			localHandSnapshot: { orderIds: [1], scrollEm: 0, maxHalfSpanEm: 10 }
+			localHandSnapshot: { orderIds: [1], scrollEm: 0, maxHalfSpanEm: 10 },
+			landingSpinDeg: 12
 		});
 
 		expect(beat).toHaveLength(1);
 		expect(beat[0].op).toBe("move");
 		expect(beat[0].target).toBe("card-1");
 		expect(beat[0].payload?.to).toBe("discard-pile");
+		expect(beat[0].payload?.toSpinDeg).toBe(12);
 	});
 
 	it("builds a flip-then-move beat for an opponent's play (covered until it lands)", () => {
@@ -36,7 +38,8 @@ describe("buildPlayBeat", () => {
 			cardId: "card-2",
 			playedByMe: false,
 			placement,
-			localHandSnapshot: { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 }
+			localHandSnapshot: { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 },
+			landingSpinDeg: 12
 		});
 
 		expect(beat.map((s) => s.op)).toEqual(["move", "flip"]);

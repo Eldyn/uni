@@ -14,6 +14,12 @@ export interface AnimationStep {
 	target: string;
 	/** Op-specific fields, shape depends on `op`. */
 	payload?: Record<string, unknown>;
+	/** Seconds into the beat's own timeline this step starts at (default 0,
+	 *  i.e. together with every other step in the beat). Used to stagger
+	 *  multiple cards within a single beat — e.g. a multi-card draw — without
+	 *  losing the "beat N+1 waits for beat N" guarantee a real separate beat
+	 *  per card would give up. */
+	atS?: number;
 }
 
 /** Every step in a beat starts together; beats themselves play one after another. */

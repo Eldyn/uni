@@ -79,6 +79,20 @@ export class AnimationQueue {
 		finish?.();
 	}
 
+	/** Fast-forwards every beat currently playing AND every batch still
+	 *  waiting, without animating any of it, then drains the queue completely.
+	 *  For when the tab goes into the background: nothing is being watched, so
+	 *  there's no frame worth animating, and letting a whole backlog build up
+	 *  silently just to replay it all at once the moment the tab comes back is
+	 *  worse than snapping straight to the final state now. */
+	flushImmediately(): void {
+		let guard = 0;
+		while ((this.#currentTimeline || this.#pending.length > 0) && guard++ < 10_000) {
+			if (this.#currentTimeline) this.skipCurrent();
+			else this.#pump();
+		}
+	}
+
 	#pump(): void {
 		if (this.#playing) return;
 		const batch = this.#pending[0];
@@ -127,7 +141,7 @@ export class AnimationQueue {
 					continue;
 				}
 				try {
-					timeline.add(renderer(step, ctx), 0);
+					timeline.add(renderer(step, ctx), step.atS ?? 0);
 				} catch (err) {
 					console.error(
 						`AnimationQueue: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
@@ -150,7 +164,21 @@ export class AnimationQueue {
 			const finishBeat = () => {
 				if (settled) return;
 				settled = true;
-				for (const step of beat) this.#retireFlight(step.target);
+				// A later beat in this SAME batch (e.g. the landing shake queued
+				// right after a play's move+flip beat) can target the very same
+				// card id. Retiring unconditionally here deletes both its pose AND
+				// its registered meta the instant this beat ends — the next beat's
+				// getPose then free-falls to the all-zero/dummy-meta fallback
+				// (world origin, {type:"wild",value:"0"}), which is exactly the
+				// stray "0" card that flashed center-screen between a play landing
+				// and its shake. Only retire targets no later beat in this batch
+				// still needs.
+				for (const step of beat) {
+					const usedLater = batch.beats
+						.slice(beatIndex + 1)
+						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
+					if (!usedLater) this.#retireFlight(step.target);
+				}
 				this.onBeatComplete?.(beatIndex);
 				this.#currentTimeline = null;
 				this.#finishCurrentBeat = null;

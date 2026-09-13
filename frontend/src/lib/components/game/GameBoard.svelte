@@ -86,6 +86,7 @@
 		bus,
 		animationQueue,
 		getPlacement: () => geometry.placement,
+		getOpponentCardScale: () => geometry.opponentCardScale,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
@@ -94,6 +95,11 @@
 			}
 			const seat = geometry.seats3D[idx];
 			return seat ? [seat.x, 0, seat.z] : [0, 0, 0];
+		},
+		getOpponentSeatRotationDeg: (username) => {
+			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+			const seat = idx === -1 ? undefined : geometry.seats3D[idx];
+			return seat ? (seat.rotationY * 180) / Math.PI : 0;
 		}
 	});
 
@@ -107,6 +113,19 @@
 		}
 		window.addEventListener("keydown", onWindowKeydown);
 		return () => window.removeEventListener("keydown", onWindowKeydown);
+	});
+
+	// A backgrounded tab still receives state updates (and so still queues
+	// beats) while nobody is watching. Flush on both transitions: hiding
+	// drains what's already queued, and returning drains anything that
+	// queued up *after* that first flush while still backgrounded — without
+	// the second flush, that backlog plays through the moment focus returns.
+	$effect(() => {
+		function onVisibilityChange() {
+			animationQueue.flushImmediately();
+		}
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		return () => document.removeEventListener("visibilitychange", onVisibilityChange);
 	});
 </script>
 

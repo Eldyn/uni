@@ -8,7 +8,7 @@
      cards, none faked" rule the rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
-	import type { DiscardEntry } from "../layout/discardPile";
+	import { DISCARD_STACK_STEP, type DiscardEntry } from "../layout/discardPile";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
@@ -27,10 +27,9 @@
 		onConfirm?: () => void;
 	} = $props();
 
-	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
-	// per-card step smaller than that lets one card's layers interleave with
-	// its neighbor's (z-fighting) — 0.02 clears that with margin.
-	const STACK_STEP = 0.02;
+	// Shared with discardPile.ts's previewDiscardLanding, so a card's flight
+	// lands at exactly the height it's about to statically render at here.
+	const STACK_STEP = DISCARD_STACK_STEP;
 	let scale = $derived(placement.centerScale);
 
 	// The shadow reuses the card background texture as a silhouette (rounded

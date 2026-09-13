@@ -8,13 +8,14 @@
  * movements only; draw/reshuffle land later.
  */
 
-import { storeGame } from "$stores/game.svelte";
+import { storeGame, type CardType } from "$stores/game.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { AnimationQueue } from "./animationQueue.svelte";
 import { computeHandLine } from "../layout/handLine";
 import type { BoardPlacement } from "../layout/boardPlacement";
-import type { DiscardEntry } from "../layout/discardPile";
+import { DISCARD_CAP, DISCARD_STACK_STEP, previewDiscardLanding, type DiscardEntry } from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
+import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import type { AnimationBeat } from "./types";
 
 /** draw_pile_size can only ever decrease (a draw) or hold (no draw happened)
@@ -48,21 +49,43 @@ export function buildPlayBeat(args: {
 	playedByMe: boolean;
 	placement: BoardPlacement;
 	localHandSnapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number };
+	/** The exact rotation this card will rest at once it's a static discard
+	 *  pile entry (discardPile.ts's own random-but-stable scatter) — tweened
+	 *  to over the move instead of snapped to on handoff, so the pile's
+	 *  scatter reads as something the card rotates INTO rather than a random
+	 *  angle it teleports to the instant the flight ends. */
+	landingSpinDeg: number;
 }): AnimationBeat {
 	if (args.playedByMe) {
-		// Value already visible for your own play — a single move step. No
-		// landing-shake beat is enqueued after it yet: shakeRenderer exists and
-		// is registered, but nothing currently calls it (see progress.md).
-		return [{ op: "move", target: args.cardId, payload: { to: "discard-pile" } }];
+		// Value already visible for your own play — a single move step.
+		return [
+			{
+				op: "move",
+				target: args.cardId,
+				payload: { to: "discard-pile", toSpinDeg: args.landingSpinDeg }
+			}
+		];
 	}
 
 	// Opponent's play: starts covered, flips to reveal mid-flight. Both steps
 	// share the same beat (start together) — the flip's own timing (
 	// FLIP_DURATION_S) is short enough relative to the move that it reads as
 	// "revealed partway through the flight," matching "shows value
-	// mid flight" requirement.
+	// mid flight" requirement. It's also seeded at the opponent's own (smaller)
+	// seat card scale, so toScale grows it to the discard pile's real size
+	// over the same move — without this it either starts oversized (seeded at
+	// centerScale, as if their hand cards were full discard-pile size) or lands
+	// undersized (seeded at seat scale with no growth). No toSpinDeg here: the
+	// flip step below already tweens the SAME pose.spinDeg property for its own
+	// reveal trick, and two concurrent tweens fighting over one property is
+	// worse than the small residual rotation snap this leaves — which the
+	// flip's own edge-on midpoint already mostly hides. The seed pose already
+	// carries the seat's own throw orientation and the flip always sweeps a
+	// further +180deg from wherever it started, so the residual snap is just
+	// the jitter term discardEntryFor adds on top of that same base — see
+	// createBaseBeatsWatcher's landingBaseDeg.
 	return [
-		{ op: "move", target: args.cardId, payload: { to: "discard-pile" } },
+		{ op: "move", target: args.cardId, payload: { to: "discard-pile", toScale: args.placement.centerScale } },
 		{ op: "flip", target: args.cardId, payload: { turned: false } }
 	];
 }
@@ -101,6 +124,23 @@ export function localCardAnchor(
 	return [0, 0, placement.localSeatZ];
 }
 
+/** Where a newly drawn card lands in the local hand: slot `slotIndex` of the
+ *  row's final layout for a hand of `handCount` cards — new ids always append
+ *  at the end (see LocalHand3D's own orderIds effect), so the Nth new card
+ *  among a multi-card draw belongs at the Nth-from-last slot, not all of them
+ *  piling onto the single rightmost one. */
+export function localHandSlotAnchor(
+	handCount: number,
+	slotIndex: number,
+	placement: BoardPlacement,
+	snapshot: HandSnapshot
+): [number, number, number] {
+	const handEmToWorld = EM_TO_WORLD * placement.handScale;
+	const line = computeHandLine(handCount, snapshot.maxHalfSpanEm, snapshot.scrollEm);
+	const slot = line.slots[slotIndex];
+	return slot ? [slot.x * handEmToWorld, 0, placement.localSeatZ] : [0, 0, placement.localSeatZ];
+}
+
 /** Anchor key for an opponent's seat — resolved to real world coordinates by
  *  createBaseBeatsWatcher via computeSeatPositions3D, same key format used
  *  by both the opponent-draw and opponent-play-source lookups so they can
@@ -109,22 +149,72 @@ export function opponentSeatAnchor(username: string): string {
 	return `seat:${username}`;
 }
 
-export function buildDrawBeat(args: {
-	cardId: string;
+/** Anchor key for the `i`-th new card in a multi-card local draw — a shared
+ *  format so buildDrawBeats' move steps and createBaseBeatsWatcher's own
+ *  localHandSlotAnchor calls (which fill in the actual world position for
+ *  each key) can never disagree about which card a key refers to. */
+export function localHandSlotAnchorKey(i: number): string {
+	return `local-hand-slot:${i}`;
+}
+
+/** Stagger (seconds) between consecutive cards in a multi-card draw:
+ *  tight for a +2, slower and more readable for a +4 or worse — a big
+ *  penalty draw is the moment a viewer most wants to actually count the
+ *  cards landing, not watch them blur past. */
+export function drawStaggerFor(cardCount: number): number {
+	return cardCount >= 4 ? 0.5 : 0.1;
+}
+
+/** Builds the beat(s) for one or more cards drawn by the same player on the
+ *  same tick (a plain draw is `cardIds.length === 1`; a +2/+4 penalty draws
+ *  several at once). All cards share ONE beat, each card's steps offset by
+ *  `drawStaggerFor`'s stagger — a separate beat per card would only start
+ *  card N+1 once card N's own beat had FULLY completed (AnimationQueue's
+ *  beats are strictly sequential), which reads as a slow one-at-a-time crawl
+ *  rather than a staggered multi-card draw. */
+export function buildDrawBeats(args: {
+	cardIds: string[];
 	forLocalPlayer: boolean;
 	opponentUsername?: string;
-}): AnimationBeat {
+	placement: BoardPlacement;
+}): AnimationBeat[] {
+	const stagger = drawStaggerFor(args.cardIds.length);
+
 	if (args.forLocalPlayer) {
-		return [
-			{ op: "move", target: args.cardId, payload: { to: "local-hand-rightmost" } },
-			{ op: "flip", target: args.cardId, payload: { turned: false } }
-		];
+		// Each card flips face-up in place at the draw pile FIRST (correct
+		// orientation throughout — no random spin), THEN moves to the hand
+		// already showing its value — the real hand card only appears at that
+		// final moment, not before. toScale grows the card from the draw
+		// pile's own (small, deck-stack) scale up to the hand's real scale
+		// over the move — without it the card stays pinned at deck scale for
+		// the whole flight and only snaps to hand scale on handoff. toSpinDeg
+		// resets the flip's own residual 180deg spin back to upright before
+		// the card settles into the hand.
+		const steps: AnimationBeat = [];
+		for (const [i, cardId] of args.cardIds.entries()) {
+			const flipAtS = i * stagger;
+			steps.push({ op: "flip", target: cardId, payload: { turned: false }, atS: flipAtS });
+			steps.push({
+				op: "move",
+				target: cardId,
+				payload: { to: localHandSlotAnchorKey(i), toScale: args.placement.handScale, toSpinDeg: 0 },
+				atS: flipAtS + FLIP_DURATION_S
+			});
+		}
+		return [steps];
 	}
 
 	if (!args.opponentUsername) {
-		throw new Error("buildDrawBeat: opponentUsername is required when forLocalPlayer is false");
+		throw new Error("buildDrawBeats: opponentUsername is required when forLocalPlayer is false");
 	}
-	return [{ op: "move", target: args.cardId, payload: { to: opponentSeatAnchor(args.opponentUsername) } }];
+	const opponentUsername = args.opponentUsername;
+	const steps: AnimationBeat = args.cardIds.map((cardId, i) => ({
+		op: "move",
+		target: cardId,
+		payload: { to: opponentSeatAnchor(opponentUsername) },
+		atS: i * stagger
+	}));
+	return [steps];
 }
 
 export function createBaseBeatsWatcher(deps: {
@@ -132,110 +222,279 @@ export function createBaseBeatsWatcher(deps: {
 	animationQueue: AnimationQueue;
 	getPlacement: () => BoardPlacement;
 	getOpponentSeatAnchor: (username: string) => [number, number, number];
+	/** Draw scale for opponents' seat cards — the size their own mini-hand
+	 *  reads at, so a played/drawn card seeds at the size it's actually
+	 *  leaving/arriving at rather than the discard pile's own (bigger) size.
+	 *  Falls back to centerScale (the pre-existing behavior) if omitted. */
+	getOpponentCardScale?: () => number;
+	/** The seat's own card orientation (degrees) — PlayerSeat3D's ring cards
+	 *  sit inside a group rotated by seatLayout3D's own SeatPosition3D.rotationY,
+	 *  so a played card should leave already turned to roughly that same
+	 *  facing instead of resetting to upright (spinDeg 0) first. Falls back to
+	 *  0 (the pre-existing behavior) if omitted. */
+	getOpponentSeatRotationDeg?: (username: string) => number;
 }): () => void {
 	let prevTopCardId: number | null = null;
 	let prevDrawPileSize: number | null = null;
+	// null until the first state snapshot has been observed — the initial
+	// dealt hand must not read as everyone simultaneously drawing their whole
+	// starting hand (mirrors prevTopCardId/prevDrawPileSize's own "isFirst"
+	// gating just below).
+	let prevCardCounts: Map<string, number> | null = null;
+	let prevLocalHandIds: Set<number> = new Set();
+	let drawIdCounter = 0;
 
 	return $effect.root(() => {
 		$effect(() => {
 			const state = storeGame.state;
 			if (!state) return;
 			const placement = deps.getPlacement();
+			const localUsername = storeGame.localPlayer?.username;
 
-			const currentDrawPileSize = state.draw_pile_size;
-			if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
-				const anchors = {
-					"draw-pile": [placement.drawPileX, 0, placement.drawPileZ] as [number, number, number]
+			// Lost when FlyingCardsOverlay.svelte was removed in favor of this
+			// watcher and never re-wired — a wild's chosen color (+4/jolly) never
+			// reached the pile at all, so it kept rendering colorless. Idempotent
+			// (paintTopWild no-ops once the top card already carries this color),
+			// so running it unconditionally every tick is cheap and correct.
+			deps.bus.setActiveType(state.active_type as CardType);
+
+			// Runs BEFORE the draw/reshuffle blocks below: a +2/+4 lands both a
+			// top_card change (this play) AND a card_count increase (the forced
+			// draw it causes) in the SAME tick, and the queue is strict FIFO
+			// across independent enqueue() calls — whichever block enqueues
+			// first is what the viewer sees first. Enqueueing the play here
+			// means the card is always seen traveling to the discard pile
+			// BEFORE any forced draw it triggers animates, matching the real
+			// causal order (play lands, THEN its effect resolves) instead of
+			// the effect appearing to happen before its own cause.
+			function processPlay(): void {
+				const lastPlay = state!.last_play;
+				const top = state!.top_card;
+				if (!top) return;
+				if (top.id === prevTopCardId) return;
+
+				const isFirst = prevTopCardId === null;
+				prevTopCardId = top.id;
+				if (isFirst || !lastPlay) {
+					deps.bus.setDiscardTop(top);
+					return;
+				}
+
+				const playedByMe = lastPlay.player === localUsername;
+				// The seat-relative angle this exact card was thrown from: 0 for
+				// your own play (a hand card is already "facing you"), or the
+				// playing opponent's own seat facing plus the 180deg the flip
+				// step always sweeps through — matching this is what keeps the
+				// flight's own final orientation and the pile's static resting
+				// rotation from popping to two different angles on handoff (see
+				// buildPlayBeat's opponent branch and discardEntryFor).
+				const landingBaseDeg = playedByMe
+					? 0
+					: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0) + 180;
+				// Where this exact card will statically rest once it's a real discard
+				// pile entry (discardPile.ts's own deterministic scatter) — flying it
+				// straight to this precise spot (position AND rotation, see
+				// buildPlayBeat's landingSpinDeg below) is what turns the flight-to-pile
+				// handoff into a no-op instead of a visible pop to a different pose.
+				const { entry: landingEntry, index: landingIndex } = previewDiscardLanding(
+					deps.bus.discardHistory,
+					top,
+					DISCARD_CAP,
+					landingBaseDeg
+				);
+				const anchors: Record<string, [number, number, number]> = {
+					"discard-pile": [
+						placement.discardX + landingEntry.jitter[0] * EM_TO_WORLD,
+						landingIndex * DISCARD_STACK_STEP,
+						placement.discardZ + landingEntry.jitter[1] * EM_TO_WORLD
+					]
 				};
-				for (const entry of deps.bus.discardHistory) {
-					deps.animationQueue.registerCardMeta(String(entry.card.id), entry.card);
-					// Without this, moveRenderer's own all-zero fallback startPose
-					// applies and reshuffled cards fly from the table origin at full
-					// scale instead of from the discard pile they're actually leaving.
-					deps.animationQueue.seedPose(String(entry.card.id), {
-						x: placement.discardX,
-						y: 0,
-						z: placement.discardZ,
+				for (const p of state!.players ?? []) {
+					if (p.username === localUsername) continue;
+					anchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
+				}
+
+				deps.animationQueue.registerCardMeta(String(top.id), { type: top.type, value: top.value });
+
+				if (playedByMe) {
+					const [sx, sy, sz] = localCardAnchor(
+						top.id,
+						placement,
+						deps.bus.localHandSnapshot,
+						deps.bus.previousLocalHandSnapshot
+					);
+					deps.animationQueue.seedPose(String(top.id), {
+						x: sx,
+						y: sy,
+						z: sz,
 						spinDeg: 0,
-						scale: placement.centerScale,
+						scale: placement.handScale,
 						turned: false,
 						opacity: 1
 					});
+				} else {
+					const [sx, sy, sz] = deps.getOpponentSeatAnchor(lastPlay.player);
+					deps.animationQueue.seedPose(String(top.id), {
+						x: sx,
+						y: sy,
+						z: sz,
+						// The seat's own throw orientation, not upright — a card flung by
+						// an opponent leaves however their hand fan already had it turned,
+						// it doesn't reset to face the local viewer first.
+						spinDeg: deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0,
+						scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+						turned: true,
+						opacity: 1
+					});
 				}
-				deps.animationQueue.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
-			}
-			prevDrawPileSize = currentDrawPileSize;
 
-			const lastPlay = state.last_play;
-			const top = state.top_card;
-			const localUsername = storeGame.localPlayer?.username;
-			if (!top) return;
-			if (top.id === prevTopCardId) return;
-
-			const isFirst = prevTopCardId === null;
-			prevTopCardId = top.id;
-			if (isFirst || !lastPlay) {
-				deps.bus.setDiscardTop(top);
-				return;
-			}
-
-			const playedByMe = lastPlay.player === localUsername;
-			const anchors: Record<string, [number, number, number]> = {
-				"discard-pile": [placement.discardX, 0, placement.discardZ]
-			};
-			for (const p of state.players ?? []) {
-				if (p.username === localUsername) continue;
-				anchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
-			}
-
-			deps.animationQueue.registerCardMeta(String(top.id), { type: top.type, value: top.value });
-
-			if (playedByMe) {
-				const [sx, sy, sz] = localCardAnchor(
-					top.id,
+				const beat = buildPlayBeat({
+					cardId: String(top.id),
+					playedByMe,
 					placement,
-					deps.bus.localHandSnapshot,
-					deps.bus.previousLocalHandSnapshot
-				);
-				deps.animationQueue.seedPose(String(top.id), {
-					x: sx,
-					y: sy,
-					z: sz,
-					spinDeg: 0,
-					scale: placement.handScale,
-					turned: false,
-					opacity: 1
+					localHandSnapshot: deps.bus.localHandSnapshot,
+					landingSpinDeg: landingEntry.rotationDeg
 				});
-			} else {
-				const [sx, sy, sz] = deps.getOpponentSeatAnchor(lastPlay.player);
-				deps.animationQueue.seedPose(String(top.id), {
-					x: sx,
-					y: sy,
-					z: sz,
-					spinDeg: 0,
-					scale: placement.centerScale,
-					turned: true,
-					opacity: 1
+				// A punchy landing impact rather than the move's own ease-out — see
+				// move.ts's MOVE_EASE, now an accelerating "fling" with no deceleration
+				// of its own, so the stop has to come from somewhere or the card just
+				// halts dead. Queued as its own beat so it runs strictly after landing.
+				const shakeBeat: AnimationBeat = [{ op: "shake", target: String(top.id), payload: {} }];
+
+				// The server's hand list already drops the played card the instant it's
+				// applied, but LocalHand3D's own render still shows it until that state
+				// update reaches it — hiding it here for the flight's duration avoids a
+				// brief double-render (once in hand, once flying).
+				if (playedByMe) deps.bus.hide(top.id);
+
+				deps.animationQueue.enqueue([beat, shakeBeat], anchors).then(() => {
+					deps.bus.setDiscardTop(top, landingBaseDeg);
+					if (playedByMe) deps.bus.show(top.id);
 				});
 			}
 
-			const beat = buildPlayBeat({
-				cardId: String(top.id),
-				playedByMe,
-				placement,
-				localHandSnapshot: deps.bus.localHandSnapshot
-			});
+			function processDraws(): void {
+				if (prevCardCounts === null) {
+					if (localUsername) {
+						prevLocalHandIds = new Set(
+							(state!.players.find((p) => p.username === localUsername)?.hand ?? []).map((c) => c.id)
+						);
+					}
+					prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
+					return;
+				}
 
-			// The server's hand list already drops the played card the instant it's
-			// applied, but LocalHand3D's own render still shows it until that state
-			// update reaches it — hiding it here for the flight's duration avoids a
-			// brief double-render (once in hand, once flying).
-			if (playedByMe) deps.bus.hide(top.id);
+				const opponentAnchors: Record<string, [number, number, number]> = {};
+				for (const p of state!.players ?? []) {
+					if (p.username !== localUsername) opponentAnchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
+				}
 
-			deps.animationQueue.enqueue([beat], anchors).then(() => {
-				deps.bus.setDiscardTop(top);
-				if (playedByMe) deps.bus.show(top.id);
-			});
+				for (const p of state!.players ?? []) {
+					const prevCount = prevCardCounts.get(p.username);
+					if (prevCount === undefined || p.card_count <= prevCount) continue;
+
+					if (p.username === localUsername) {
+						const localHand = p.hand ?? [];
+						const currentIds = new Set(localHand.map((c) => c.id));
+						const newIds = localHand.map((c) => c.id).filter((id) => !prevLocalHandIds.has(id));
+	if (newIds.length === 0) {
+							prevLocalHandIds = currentIds;
+							continue;
+						}
+						// One anchor PER new card, at its own eventual slot in the
+						// final (post-draw) hand — new ids always append at the end,
+						// so the Nth new card belongs at the Nth-from-last slot.
+						// Every card sharing the single old "rightmost" anchor was
+						// the bug: every card in a multi-card draw converged on the
+						// exact same hand slot instead of fanning out into their own.
+						const anchors: Record<string, [number, number, number]> = { ...opponentAnchors };
+						newIds.forEach((_id, i) => {
+							anchors[localHandSlotAnchorKey(i)] = localHandSlotAnchor(
+								p.card_count,
+								p.card_count - newIds.length + i,
+								placement,
+								deps.bus.localHandSnapshot
+							);
+						});
+						for (const cardId of newIds) {
+							const card = localHand.find((c) => c.id === cardId);
+							if (!card) continue;
+							// LocalHand3D's own render already shows the new card the
+							// instant the server's hand list includes it — hiding it here
+							// for the draw's duration is what stops it appearing in the
+							// hand before its own draw animation has even started.
+							deps.bus.hide(cardId);
+							deps.animationQueue.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+							deps.animationQueue.seedPose(String(cardId), {
+								x: placement.drawPileX,
+								y: 0,
+								z: placement.drawPileZ,
+								spinDeg: 0,
+								scale: placement.drawPileScale,
+								turned: true,
+								opacity: 1
+							});
+						}
+						const cardIds = newIds.map(String);
+						deps.animationQueue
+							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), anchors)
+							.then(() => cardIds.forEach((id) => deps.bus.show(Number(id))));
+						prevLocalHandIds = currentIds;
+					} else {
+						const drawnCount = p.card_count - prevCount;
+						const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
+						const cardIds: string[] = [];
+						for (let i = 0; i < drawnCount; i++) {
+							const cardId = `draw:${p.username}:${drawIdCounter++}`;
+							cardIds.push(cardId);
+							deps.animationQueue.seedPose(cardId, {
+								x: placement.drawPileX,
+								y: 0,
+								z: placement.drawPileZ,
+								spinDeg: 0,
+								scale: opponentCardScale,
+								turned: true,
+								opacity: 1
+							});
+						}
+						deps.animationQueue.enqueue(
+							buildDrawBeats({ cardIds, forLocalPlayer: false, opponentUsername: p.username, placement }),
+							opponentAnchors
+						);
+					}
+				}
+				prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
+			}
+
+			function processReshuffle(): void {
+				const currentDrawPileSize = state!.draw_pile_size;
+				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
+					const anchors = {
+						"draw-pile": [placement.drawPileX, 0, placement.drawPileZ] as [number, number, number]
+					};
+					for (const entry of deps.bus.discardHistory) {
+						deps.animationQueue.registerCardMeta(String(entry.card.id), entry.card);
+						// Without this, moveRenderer's own all-zero fallback startPose
+						// applies and reshuffled cards fly from the table origin at full
+						// scale instead of from the discard pile they're actually leaving.
+						deps.animationQueue.seedPose(String(entry.card.id), {
+							x: placement.discardX,
+							y: 0,
+							z: placement.discardZ,
+							spinDeg: 0,
+							scale: placement.centerScale,
+							turned: false,
+							opacity: 1
+						});
+					}
+					deps.animationQueue.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
+				}
+				prevDrawPileSize = currentDrawPileSize;
+			}
+
+			processPlay();
+			processDraws();
+			processReshuffle();
 		});
 	});
 }

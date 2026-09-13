@@ -1,6 +1,6 @@
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, untrack } from "svelte";
 import type { Card, CardType } from "$stores/game.svelte";
-import { appendDiscard, paintTopWild, type DiscardEntry } from "./layout/discardPile";
+import { appendDiscard, DISCARD_CAP, paintTopWild, type DiscardEntry } from "./layout/discardPile";
 
 export class CardBus {
 	/** Card currently shown on top of the discard pile. Held back during a play
@@ -16,14 +16,19 @@ export class CardBus {
 	 *  owner being asked what it should become. */
 	activeType = $state<CardType>("white");
 
-	setDiscardTop(card: Card | null) {
+	/** `baseRotationDeg`: the seat-relative orientation the card was thrown
+	 *  from (0 for the local player, the playing opponent's seat facing for
+	 *  everyone else) — see baseBeats.svelte.ts. Must match whatever the
+	 *  flight itself landed at, or the pile's static render pops to a
+	 *  different angle the instant the flight hands off to it. */
+	setDiscardTop(card: Card | null, baseRotationDeg: number = 0) {
 		this.discardTop = card;
 		if (!card) return;
 		// The two halves of a wild's identity arrive in either order: a bot's
 		// choice comes with the card, a human's comes while the card is still in
 		// flight. Painting on both paths means neither order leaves it colorless.
 		this.discardHistory = paintTopWild(
-			appendDiscard(this.discardHistory, card),
+			appendDiscard(this.discardHistory, card, DISCARD_CAP, baseRotationDeg),
 			this.activeType
 		);
 	}
@@ -51,7 +56,12 @@ export class CardBus {
 	previousLocalHandSnapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number } | null = null;
 
 	setLocalHandSnapshot(snapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }): void {
-		this.previousLocalHandSnapshot = this.localHandSnapshot;
+		// untrack: this is called from LocalHand3D's own $effect, which always
+		// writes a brand-new localHandSnapshot object on every run (no equality
+		// guard). A plain reactive read here would register as a dependency of
+		// that same effect — read old value, write new one, dependency changed,
+		// effect reruns, read, write, forever (effect_update_depth_exceeded).
+		this.previousLocalHandSnapshot = untrack(() => this.localHandSnapshot);
 		this.localHandSnapshot = snapshot;
 	}
 
