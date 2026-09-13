@@ -105,9 +105,9 @@
 	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card.id))}
 		<T.Mesh
 			position={[
-				entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
+				placement.discardX + entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
 				i * STACK_STEP - SHADOW_DROP_Y,
-				entry.jitter[1] * EM_TO_WORLD + SHADOW_OFFSET
+				placement.discardZ + entry.jitter[1] * EM_TO_WORLD + SHADOW_OFFSET
 			]}
 			rotation.x={-Math.PI / 2}
 			rotation.z={(entry.rotationDeg * Math.PI) / 180}
