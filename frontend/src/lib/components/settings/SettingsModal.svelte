@@ -10,9 +10,9 @@
 	open={storeNavigation.isSettingsOpen}
 	onclose={() => storeNavigation.closeSettings()}
 	titleId="settings-title"
-	contentClass="pixel-corners w-full max-w-lg p-6 [--pc-border:var(--border)]"
+	contentClass="pixel-corners flex max-h-[85vh] w-full max-w-2xl flex-col p-5 sm:p-7 [--pc-border:var(--border)]"
 >
-	<header class="mb-4 flex items-center justify-between gap-3">
+	<header class="mb-4 flex shrink-0 items-center justify-between gap-3">
 		<h1 id="settings-title" class="title-screen text-2xl">
 			{m.settings_title({}, { locale: storeI18n.locale })}
 		</h1>
@@ -26,5 +26,7 @@
 		</button>
 	</header>
 
-	<SettingsSections showCredits={false} showDangerZone={true} />
+	<div class="flex-1 overflow-y-auto pr-1 pb-1 scrollbar-accent">
+		<SettingsSections showCredits={false} showDangerZone={true} />
+	</div>
 </Modal>

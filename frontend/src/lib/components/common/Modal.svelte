@@ -89,6 +89,7 @@
 
 {#if open}
 	<div class="modal-overlay dither-4 {overlayClass}" role="presentation" onclick={handleOverlayClick}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div
 			class="modal-content {contentClass}"
 			role="dialog"

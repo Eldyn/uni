@@ -110,7 +110,7 @@
 
 	<section class="panel settings-panel">
 		{@render sectionHeading(m.settings_language_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex gap-3">
+		<div class="mt-4 flex flex-wrap gap-3">
 			{#each storeI18n.locales as locale (locale)}
 				<button
 					class="locale-flag-btn"

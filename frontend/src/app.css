@@ -702,12 +702,19 @@
 		align-items: center;
 		justify-content: center;
 		background-color: rgba(0, 0, 0, 0.55);
+		padding: var(--space-4);
+		overflow-y: auto;
 	}
 	.modal-content {
 		background: var(--bg);
 		border: 4px solid var(--accent);
 		padding: 30px;
 		box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.6);
+		max-height: min(88vh, 88dvh);
+		max-width: min(100%, calc(100vw - 2 * var(--space-4)));
+		overflow-y: auto;
+		box-sizing: border-box;
+		margin: auto;
 	}
 
 	/* Auth container */
@@ -838,23 +845,28 @@ code,
    rounded thumb. Firefox uses scrollbar-color; Chrome/Safari/Edge use the
    ::-webkit-scrollbar pseudo-elements, both are declared so it's styled
    consistently everywhere. */
-.scrollbar-accent {
+.scrollbar-accent,
+.modal-content {
 	scrollbar-width: thin;
 	scrollbar-color: var(--accent) var(--surface-deep);
 }
-.scrollbar-accent::-webkit-scrollbar {
+.scrollbar-accent::-webkit-scrollbar,
+.modal-content::-webkit-scrollbar {
 	width: 10px;
 	height: 10px;
 }
-.scrollbar-accent::-webkit-scrollbar-track {
+.scrollbar-accent::-webkit-scrollbar-track,
+.modal-content::-webkit-scrollbar-track {
 	background: var(--surface-deep);
 }
-.scrollbar-accent::-webkit-scrollbar-thumb {
+.scrollbar-accent::-webkit-scrollbar-thumb,
+.modal-content::-webkit-scrollbar-thumb {
 	background: var(--accent);
 	border: 2px solid var(--surface-deep);
 	border-radius: 0;
 }
-.scrollbar-accent::-webkit-scrollbar-thumb:hover {
+.scrollbar-accent::-webkit-scrollbar-thumb:hover,
+.modal-content::-webkit-scrollbar-thumb:hover {
 	background: var(--accent-h);
 }
 
