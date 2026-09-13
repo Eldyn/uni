@@ -36,7 +36,7 @@
 		flipDeg={flight.pose.flipDeg}
 		flipAxis={flight.pose.flipAxis}
 		scale={flight.pose.scale}
-		renderOrder={1}
+		renderOrder={flight.decoration?.renderOrder ?? 1}
 		opacity={flight.decoration?.opacity ?? flight.pose.opacity}
 		hovered={flight.decoration?.hovered}
 		instant={flight.decoration?.instant}

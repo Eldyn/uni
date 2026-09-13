@@ -46,7 +46,7 @@ export const MAX_JITTER_EM = 1.1;
  *  DiscardPile3D (which stacks entries at this step) and baseBeats.ts (which
  *  has to know a landing card's exact future height to avoid a visible pop
  *  when it hands off from its flight to this static pile). */
-export const DISCARD_STACK_STEP = 0.02;
+export const DISCARD_STACK_STEP = 0.025;
 
 /**
  * Deterministic pseudo-random in [0, 1) from an integer seed. Same seed always
