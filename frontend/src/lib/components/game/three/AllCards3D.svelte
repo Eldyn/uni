@@ -17,6 +17,7 @@
 		position={[flight.pose.x, flight.pose.y, flight.pose.z]}
 		spinDeg={flight.pose.spinDeg}
 		scale={flight.pose.scale}
+		renderOrder={1}
 		opacity={flight.decoration?.opacity ?? flight.pose.opacity}
 		hovered={flight.decoration?.hovered}
 		instant={flight.decoration?.instant}

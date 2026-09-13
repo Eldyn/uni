@@ -31,7 +31,8 @@
 		wildColor,
 		hoverSpinDeg = 0,
 		shadow,
-		highlight
+		highlight,
+		renderOrder = 0
 	}: {
 		card: Card;
 		turned?: boolean;
@@ -100,6 +101,19 @@
 			color?: string;
 			pulse?: boolean;
 		};
+		/** Three.js paint-order override, independent of depth. Every transparent
+		 *  MeshBasicMaterial here disables depth testing's occlusion guarantee
+		 *  for objects at (near-)identical depth — a freshly-seeded flight card
+		 *  starts EXACTLY where its owner's own idle mesh currently sits (by
+		 *  design, see drawPileTopPose/ringSlotWorldPose), so for at least the
+		 *  first frame the two genuinely tie on depth. Without an explicit
+		 *  order, that tie resolves by scene-graph/render-list position, which
+		 *  can leave the just-spawned flight painted BEHIND the still-rendered
+		 *  idle card it's supposed to be replacing — reading as "the card pops
+		 *  out from under the pile." AllCards3D (Task A9) passes a higher value
+		 *  than the idle-count owners' (DrawPile3D/PlayerSeat3D) default 0, so
+		 *  an in-transit flight always wins the tie. */
+		renderOrder?: number;
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
@@ -247,7 +261,7 @@
 	{onpointerdown}
 >
 	{#if highlight && highlightTexture}
-		<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH}>
+		<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} {renderOrder}>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<T.MeshBasicMaterial
 				map={highlightTexture}
@@ -260,7 +274,7 @@
 		</T.Mesh>
 	{/if}
 	{#if opacity < 1 && highlightTexture}
-		<T.Mesh position.z={BACKDROP_DROP_Z}>
+		<T.Mesh position.z={BACKDROP_DROP_Z} {renderOrder}>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<T.MeshBasicMaterial
 				map={highlightTexture}
@@ -273,7 +287,7 @@
 		</T.Mesh>
 	{/if}
 	{#if shadow}
-		<T.Mesh position={shadowPosition}>
+		<T.Mesh position={shadowPosition} {renderOrder}>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<T.MeshBasicMaterial
 				map={shadow.texture}
@@ -287,7 +301,7 @@
 	{/if}
 	{#if turned}
 		{#if backTexture}
-			<T.Mesh>
+			<T.Mesh {renderOrder}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={backTexture}
@@ -302,7 +316,7 @@
 		{/if}
 	{:else}
 		{#if bgTexture}
-			<T.Mesh>
+			<T.Mesh {renderOrder}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={bgTexture}
@@ -316,7 +330,7 @@
 			</T.Mesh>
 		{/if}
 		{#if valueTexture}
-			<T.Mesh position.z={0.002}>
+			<T.Mesh position.z={0.002} {renderOrder}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={valueTexture}
@@ -330,7 +344,7 @@
 			</T.Mesh>
 		{/if}
 		{#if borderTexture}
-			<T.Mesh position.z={0.004}>
+			<T.Mesh position.z={0.004} {renderOrder}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					map={borderTexture}
