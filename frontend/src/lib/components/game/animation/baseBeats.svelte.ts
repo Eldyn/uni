@@ -69,24 +69,26 @@ export function buildPlayBeat(args: {
 	}
 
 	// Opponent's play: starts covered, flips to reveal mid-flight. Both steps
-	// share the same beat (start together) — the flip's own timing (
-	// FLIP_DURATION_S) is short enough relative to the move that it reads as
-	// "revealed partway through the flight," matching "shows value
-	// mid flight" requirement. It's also seeded at the opponent's own (smaller)
-	// seat card scale, so toScale grows it to the discard pile's real size
-	// over the same move — without this it either starts oversized (seeded at
-	// centerScale, as if their hand cards were full discard-pile size) or lands
-	// undersized (seeded at seat scale with no growth). No toSpinDeg here: the
-	// flip step below already tweens the SAME pose.spinDeg property for its own
-	// reveal trick, and two concurrent tweens fighting over one property is
-	// worse than the small residual rotation snap this leaves — which the
-	// flip's own edge-on midpoint already mostly hides. The seed pose already
-	// carries the seat's own throw orientation and the flip always sweeps a
-	// further +180deg from wherever it started, so the residual snap is just
-	// the jitter term discardEntryFor adds on top of that same base — see
-	// createBaseBeatsWatcher's landingBaseDeg.
+	// share the same beat (start together). The flip's own timing
+	// (FLIP_DURATION_S) is short enough relative to the move that it reads as
+	// "revealed partway through the flight". It is also seeded at the
+	// opponent's own (smaller) seat card scale, so toScale grows it to the
+	// discard pile's real size over the same move. Without this it either
+	// starts oversized (seeded at centerScale, as if their hand cards were
+	// full discard-pile size) or lands undersized (seeded at seat scale with
+	// no growth). toSpinDeg tweens the card into its exact final discard-pile
+	// rotation over the move (safe since flip.ts tweens pose.flipDeg instead
+	// of pose.spinDeg).
 	return [
-		{ op: "move", target: args.cardId, payload: { to: "discard-pile", toScale: args.placement.centerScale } },
+		{
+			op: "move",
+			target: args.cardId,
+			payload: {
+				to: "discard-pile",
+				toScale: args.placement.centerScale,
+				toSpinDeg: args.landingSpinDeg
+			}
+		},
 		{ op: "flip", target: args.cardId, payload: { turned: false } }
 	];
 }

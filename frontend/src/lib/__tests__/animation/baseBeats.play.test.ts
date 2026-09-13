@@ -44,6 +44,19 @@ describe("buildPlayBeat", () => {
 
 		expect(beat.map((s) => s.op)).toEqual(["move", "flip"]);
 	});
+
+	it("now also tweens toSpinDeg on an opponent's move step, since flip no longer touches spinDeg", () => {
+		const beat = buildPlayBeat({
+			cardId: "card-3",
+			playedByMe: false,
+			placement,
+			localHandSnapshot: { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 },
+			landingSpinDeg: 37
+		});
+
+		const moveStep = beat.find((s) => s.op === "move")!;
+		expect(moveStep.payload?.toSpinDeg).toBe(37);
+	});
 });
 
 describe("localCardAnchor", () => {
