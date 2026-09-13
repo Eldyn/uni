@@ -12,7 +12,7 @@
 
 <style>
 	.inline-action-container {
-		position: absolute;
+		position: fixed;
 		top: 60%;
 		left: 50%;
 		transform: translateX(-50%);
