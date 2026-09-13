@@ -246,4 +246,38 @@ describe("CardRegistry pose providers", () => {
 		flushSync();
 		expect(registry.isInTransit("7")).toBe(true);
 	});
+
+	it("setDecoration updates decoration in-place without replacing activeFlights array reference", () => {
+		const registry = new CardRegistry();
+		registry.ensureEntry(
+			"c1",
+			{ x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 },
+			{ type: "red", value: "5" }
+		);
+		const originalArray = registry.activeFlights;
+		registry.setDecoration("c1", { hovered: true });
+		expect(registry.activeFlights).toBe(originalArray);
+		expect(registry.activeFlights[0].decoration?.hovered).toBe(true);
+	});
+
+	it("ensureEntry and setDecoration called inside an effect do not cause a reactive cycle", () => {
+		const registry = new CardRegistry();
+		let runCount = 0;
+		const cleanup = $effect.root(() => {
+			$effect(() => {
+				runCount++;
+				registry.ensureEntry(
+					"c1",
+					{ x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 },
+					{ type: "red", value: "5" }
+				);
+				registry.applyIdlePoseIfNotInTransit("c1");
+				registry.setDecoration("c1", { hovered: true });
+			});
+		});
+		flushSync();
+		expect(runCount).toBe(1);
+		cleanup();
+	});
 });
+

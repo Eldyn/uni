@@ -1,4 +1,4 @@
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, untrack } from "svelte";
 import { gsap } from "gsap";
 import type { AnimationBeat, AnimationStep } from "./types";
 import type { FlightPose, RenderContext } from "./renderContext";
@@ -49,6 +49,7 @@ export class CardRegistry {
 	#poses = new Map<string, FlightPose>();
 	#poseProviders = new Map<string, () => [number, number, number]>();
 	#inTransitIds = new Set<string>();
+	#flightHandles = new Map<string, FlightHandle>();
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
@@ -62,6 +63,10 @@ export class CardRegistry {
 
 	registerCardMeta(cardId: string, card: { type: string; value: string }): void {
 		this.#cardMeta.set(cardId, card);
+		const handle = this.#flightHandles.get(cardId);
+		if (handle) {
+			handle.card = card;
+		}
 	}
 
 	/** Pre-seeds a card's flight pose before it is first requested via
@@ -77,13 +82,15 @@ export class CardRegistry {
 	 *  and never reflect the seeded — or subsequently GSAP-tweened — pose,
 	 *  regardless of which effect happened to run first. */
 	seedPose(cardId: string, pose: FlightPose): void {
-		const existing = this.#poses.get(cardId);
-		if (existing) {
-			Object.assign(existing, pose);
-			return;
-		}
-		const reactivePose = $state({ ...pose });
-		this.#poses.set(cardId, reactivePose);
+		untrack(() => {
+			const existing = this.#poses.get(cardId);
+			if (existing) {
+				Object.assign(existing, pose);
+				return;
+			}
+			const reactivePose = $state({ ...pose });
+			this.#poses.set(cardId, reactivePose);
+		});
 	}
 
 	/** Registers (or clears, passing null) the pure function an owner
@@ -102,7 +109,7 @@ export class CardRegistry {
 	 *  owner's own idle-pose sync (applyIdlePoseIfNotInTransit) must never
 	 *  stomp a pose GSAP currently owns. */
 	isInTransit(cardId: string): boolean {
-		return this.#poses.has(cardId) && this.activeFlights.some((f) => f.id === cardId) && this.#inTransitIds.has(cardId);
+		return this.#inTransitIds.has(cardId);
 	}
 
 	/** Applies this card's registered pose-provider's result directly (no
@@ -110,32 +117,42 @@ export class CardRegistry {
 	 *  it owns, every time that layout recomputes, but only takes effect while
 	 *  the card is idle; a GSAP-owned in-transit pose is left alone. */
 	applyIdlePoseIfNotInTransit(cardId: string): void {
-		if (this.#inTransitIds.has(cardId)) return;
-		const provider = this.#poseProviders.get(cardId);
-		const pose = this.#poses.get(cardId);
-		if (!provider || !pose) return;
-		const [x, y, z] = provider();
-		pose.x = x;
-		pose.y = y;
-		pose.z = z;
+		untrack(() => {
+			if (this.#inTransitIds.has(cardId)) return;
+			const provider = this.#poseProviders.get(cardId);
+			const pose = this.#poses.get(cardId);
+			if (!provider || !pose) return;
+			const [x, y, z] = provider();
+			pose.x = x;
+			pose.y = y;
+			pose.z = z;
+		});
 	}
 
 	/** A real card's entry never disappears once created — its identity/meta
 	 *  survives forever unless the card genuinely leaves the game (removeEntry).
 	 *  Idempotent: seeds a pose only if one doesn't already exist. */
 	ensureEntry(cardId: string, initialPose: FlightPose, card: { type: string; value: string } | null): FlightPose {
-		let pose = this.#poses.get(cardId);
-		if (!pose) {
-			const reactivePose = $state({ ...initialPose });
-			pose = reactivePose;
-			this.#poses.set(cardId, pose);
-		}
-		if (card) this.#cardMeta.set(cardId, card);
-		if (!this.activeFlights.some((f) => f.id === cardId)) {
-			const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
-			this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
-		}
-		return pose;
+		return untrack(() => {
+			let pose = this.#poses.get(cardId);
+			if (!pose) {
+				const reactivePose = $state({ ...initialPose });
+				pose = reactivePose;
+				this.#poses.set(cardId, pose);
+			}
+			if (card) this.#cardMeta.set(cardId, card);
+			let handle = this.#flightHandles.get(cardId);
+			if (!handle) {
+				const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
+				const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: undefined });
+				handle = newHandle;
+				this.#flightHandles.set(cardId, newHandle);
+				this.activeFlights.push(newHandle);
+			} else if (card) {
+				handle.card = card;
+			}
+			return pose;
+		});
 	}
 
 	/** LocalHand3D-owned visual extras (hover/drag/shadow/highlight) for a card
@@ -144,9 +161,12 @@ export class CardRegistry {
 	 *  owners only ever compute layout + these decorations, never mount it
 	 *  themselves. */
 	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
-		this.activeFlights = this.activeFlights.map((f) =>
-			f.id === cardId ? { ...f, decoration } : f
-		);
+		untrack(() => {
+			const handle = this.#flightHandles.get(cardId);
+			if (handle) {
+				handle.decoration = decoration;
+			}
+		});
 	}
 
 	/** A card genuinely leaving the game for good (never happens for Uno's own
@@ -219,9 +239,12 @@ export class CardRegistry {
 						pose = reactivePose;
 						this.#poses.set(cardId, pose);
 					}
-					if (!this.activeFlights.some((f) => f.id === cardId)) {
+					let handle = this.#flightHandles.get(cardId);
+					if (!handle) {
 						const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
-						this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
+						const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: undefined });
+						this.#flightHandles.set(cardId, newHandle);
+						this.activeFlights.push(newHandle);
 					}
 					return pose;
 				},
@@ -308,7 +331,11 @@ export class CardRegistry {
 	#retireFlight(cardId: string): void {
 		this.#poses.delete(cardId);
 		this.#cardMeta.delete(cardId);
-		this.activeFlights = this.activeFlights.filter((f) => f.id !== cardId);
+		this.#flightHandles.delete(cardId);
+		const idx = this.activeFlights.findIndex((f) => f.id === cardId);
+		if (idx !== -1) {
+			this.activeFlights.splice(idx, 1);
+		}
 	}
 }
 
