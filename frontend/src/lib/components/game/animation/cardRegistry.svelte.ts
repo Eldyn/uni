@@ -21,6 +21,7 @@ export interface CardDecoration {
 	dimmed?: boolean;
 	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
 	highlight?: { color?: string; pulse?: boolean };
+	renderOrder?: number;
 }
 
 export interface CardMeta {
@@ -56,6 +57,7 @@ export class CardRegistry {
 	#poseProviders = new Map<string, () => [number, number, number]>();
 	#inTransitIds = new Set<string>();
 	#flightHandles = new Map<string, FlightHandle>();
+	#decorations = new Map<string, CardDecoration | undefined>();
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
@@ -150,7 +152,8 @@ export class CardRegistry {
 			let handle = this.#flightHandles.get(cardId);
 			if (!handle) {
 				const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
-				const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: undefined });
+				const dec = this.#decorations.get(cardId);
+				const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: dec });
 				handle = newHandle;
 				this.#flightHandles.set(cardId, newHandle);
 				this.activeFlights.push(newHandle);
@@ -168,9 +171,13 @@ export class CardRegistry {
 	 *  themselves. */
 	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
 		untrack(() => {
+			const merged = decoration
+				? { ...this.#decorations.get(cardId), ...decoration }
+				: undefined;
+			this.#decorations.set(cardId, merged);
 			const handle = this.#flightHandles.get(cardId);
 			if (handle) {
-				handle.decoration = decoration;
+				handle.decoration = merged;
 			}
 		});
 	}
@@ -179,6 +186,7 @@ export class CardRegistry {
 	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
 	removeEntry(cardId: string): void {
 		this.#poseProviders.delete(cardId);
+		this.#decorations.delete(cardId);
 		this.#retireFlight(cardId);
 	}
 
@@ -248,7 +256,8 @@ export class CardRegistry {
 					let handle = this.#flightHandles.get(cardId);
 					if (!handle) {
 						const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
-						const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: undefined });
+						const dec = this.#decorations.get(cardId);
+						const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: dec });
 						this.#flightHandles.set(cardId, newHandle);
 						this.activeFlights.push(newHandle);
 					}
