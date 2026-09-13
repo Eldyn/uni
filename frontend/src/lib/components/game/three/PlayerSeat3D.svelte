@@ -23,6 +23,7 @@
 		RING_RADIUS_EM
 	} from "../layout/handRing";
 	import RingCard3D from "./RingCard3D.svelte";
+	import { useCardBus } from "../card-bus.svelte";
 
 	let {
 		player,
@@ -70,7 +71,11 @@
 	// rather than just the icon.
 	const LABEL_BEYOND_RING_MARGIN = 0.35;
 
-	let cardCount = $derived(Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0)));
+	const bus = useCardBus();
+	let inFlightDrawCount = $derived(bus?.getInFlightDrawCount(player.username) ?? 0);
+	let cardCount = $derived(
+		Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount)
+	);
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
 
