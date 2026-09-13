@@ -20,6 +20,8 @@
   "settings_animation_heading": "Animationen",
   "settings_animation_enabled": "Kartenanimationen aktivieren",
   "settings_animation_speed": "Animationsgeschwindigkeit",
+  "settings_animation_always_upright_values": "Werte immer aufrecht anzeigen",
+  "settings_animation_always_upright_values_description": "Hält die Zahl einer ausgespielten Karte lesbar, auch wenn die Karte gedreht landet. Farbe und Rand zeigen weiterhin die tatsächliche Ausrichtung an.",
   "home_quick_play": "Schnellspiel",
   "home_join_code_placeholder": "Hast du einen Code?",
   "home_join_button": "Beitreten",

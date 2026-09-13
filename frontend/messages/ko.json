@@ -20,6 +20,8 @@
   "settings_animation_heading": "애니메이션",
   "settings_animation_enabled": "카드 애니메이션 활성화",
   "settings_animation_speed": "애니메이션 속도",
+  "settings_animation_always_upright_values": "항상 카드 숫자를 바르게 표시",
+  "settings_animation_always_upright_values_description": "카드가 회전된 상태로 놓여도 숫자를 항상 읽기 쉽게 유지합니다. 카드의 색상과 테두리는 실제 방향을 유지합니다.",
   "home_quick_play": "빠른 시작",
   "home_join_code_placeholder": "코드가 있나요?",
   "home_join_button": "참가",

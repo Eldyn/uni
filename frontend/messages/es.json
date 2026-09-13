@@ -20,6 +20,8 @@
   "settings_animation_heading": "Animaciones",
   "settings_animation_enabled": "Activar animaciones de cartas",
   "settings_animation_speed": "Velocidad de animación",
+  "settings_animation_always_upright_values": "Mostrar siempre los valores en posición vertical",
+  "settings_animation_always_upright_values_description": "Mantiene legible el número de una carta jugada, incluso cuando la carta aterriza rotada. El color y el borde siguen mostrando su orientación real.",
   "home_quick_play": "Partida rápida",
   "home_join_code_placeholder": "¿Tienes un código?",
   "home_join_button": "Unirse",

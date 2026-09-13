@@ -20,6 +20,8 @@
   "settings_animation_heading": "アニメーション",
   "settings_animation_enabled": "カードアニメーションを有効にする",
   "settings_animation_speed": "アニメーション速度",
+  "settings_animation_always_upright_values": "常に数字を正位置で表示",
+  "settings_animation_always_upright_values_description": "出されたカードが回転して置かれても、数字を常に読みやすい向きに保ちます。カードの色や枠線は実際の向きを表示します。",
   "home_quick_play": "クイックプレイ",
   "home_join_code_placeholder": "コードをお持ちですか？",
   "home_join_button": "参加",

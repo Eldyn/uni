@@ -87,6 +87,13 @@
 				oncommit={(v) => storeAnimation.setEnabled(v)}
 			/>
 
+			<Toggle
+				label={m.settings_animation_always_upright_values({}, { locale: storeI18n.locale })}
+				description={m.settings_animation_always_upright_values_description({}, { locale: storeI18n.locale })}
+				checked={storeAnimation.alwaysUprightValues}
+				oncommit={(v) => storeAnimation.setAlwaysUprightValues(v)}
+			/>
+
 			<Slider
 				id="animation-speed"
 				label={m.settings_animation_speed({}, { locale: storeI18n.locale })}
