@@ -83,6 +83,35 @@ export class CardBus {
 	isHoldingOpponent(username: string): boolean {
 		return this.holdingOpponents.has(username);
 	}
+
+	/** Drops exactly the `reshuffledCount` oldest entries that were swept into
+	 *  the draw pile — never a blind slice(-1) — so a card played while the
+	 *  reshuffle flight is still in the air (appended to discardHistory after
+	 *  the flight's own snapshot was taken) survives instead of being dropped
+	 *  along with the reshuffled cards. */
+	retainTopDiscard(reshuffledCount: number): void {
+		if (reshuffledCount > 0) {
+			this.discardHistory = this.discardHistory.slice(reshuffledCount);
+		}
+	}
+
+	/** In-flight drawn cards per opponent, so seats don't render them in the arc before flight arrival. */
+	inFlightDrawCounts = $state<Record<string, number>>({});
+
+	getInFlightDrawCount(username: string): number {
+		return this.inFlightDrawCounts[username] ?? 0;
+	}
+
+	addInFlightDraw(username: string, count: number = 1): void {
+		const current = this.inFlightDrawCounts[username] ?? 0;
+		this.inFlightDrawCounts = { ...this.inFlightDrawCounts, [username]: current + count };
+	}
+
+	removeInFlightDraw(username: string, count: number = 1): void {
+		const current = this.inFlightDrawCounts[username] ?? 0;
+		const next = Math.max(0, current - count);
+		this.inFlightDrawCounts = { ...this.inFlightDrawCounts, [username]: next };
+	}
 }
 
 const CARD_BUS_KEY = Symbol("card-bus");

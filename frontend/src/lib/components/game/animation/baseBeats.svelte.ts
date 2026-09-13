@@ -93,7 +93,7 @@ export function buildPlayBeat(args: {
 				toSpinDeg: args.landingSpinDeg
 			}
 		},
-		{ op: "flip", target: args.cardId, payload: { turned: false } }
+		{ op: "flip", target: args.cardId, payload: { turned: false, axis: "y" } }
 	];
 }
 
@@ -592,7 +592,10 @@ export function createBaseBeatsWatcher(deps: {
 							const card = localHand.find((c) => c.id === cardId);
 							if (card) {
 								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
-								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								const [px, py, pz] = drawPileTopPose(
+									placement,
+									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0)
+								);
 								deps.cardRegistry.seedPose(String(cardId), {
 									x: px,
 									y: py + DRAW_HOVER_LIFT,
@@ -602,6 +605,9 @@ export function createBaseBeatsWatcher(deps: {
 									scale: placement.drawPileScale,
 									turned: true,
 									opacity: 1
+								});
+								deps.cardRegistry.setDecoration(String(cardId), {
+									renderOrder: 50
 								});
 								deps.bus.setPendingLocalPlayDrawnId(cardId);
 								deps.cardRegistry.enqueue(
@@ -654,7 +660,7 @@ export function createBaseBeatsWatcher(deps: {
 					} else {
 						const drawnCount = p.card_count - prevCount;
 						const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
-						const isOpponentPlayableDraw = drawnCount === 1 && state.current_turn === p.username;
+						const isOpponentPlayableDraw = drawnCount === 1 && state!.current_turn === p.username;
 
 						if (isOpponentPlayableDraw) {
 							const cardId = `draw:${p.username}:${drawIdCounter++}`;
@@ -694,6 +700,13 @@ export function createBaseBeatsWatcher(deps: {
 								resolveCardTarget
 							);
 						} else {
+							const isTurn = state!.current_turn === p.username;
+							const isValidTarget =
+								storeGame.actionRequired === Action.ChooseTarget &&
+								Array.isArray(storeGame.actionContext) &&
+								storeGame.actionContext.includes(p.username);
+							const isDimmed = !isTurn && !isValidTarget;
+
 							const cardIds: string[] = [];
 							const slotAnchorKeys: string[] = [];
 							const slotSpinDegs: number[] = [];
@@ -724,19 +737,30 @@ export function createBaseBeatsWatcher(deps: {
 									turned: true,
 									opacity: 1
 								});
+								deps.cardRegistry.setDecoration(cardId, {
+									dimmed: isDimmed
+								});
 							}
-							deps.cardRegistry.enqueue(
-								buildDrawBeats({
-									cardIds,
-									forLocalPlayer: false,
-									opponentUsername: p.username,
-									placement,
-									opponentCardScale,
-									slotAnchorKeys,
-									slotSpinDegs
-								}),
-								resolveCardTarget
-							);
+							deps.bus.addInFlightDraw(p.username, drawnCount);
+							deps.cardRegistry
+								.enqueue(
+									buildDrawBeats({
+										cardIds,
+										forLocalPlayer: false,
+										opponentUsername: p.username,
+										placement,
+										opponentCardScale,
+										slotAnchorKeys,
+										slotSpinDegs
+									}),
+									resolveCardTarget
+								)
+								.finally(() => {
+									deps.bus.removeInFlightDraw(p.username, drawnCount);
+									for (const cardId of cardIds) {
+										deps.cardRegistry.removeEntry(cardId);
+									}
+								});
 						}
 					}
 				}
@@ -746,23 +770,30 @@ export function createBaseBeatsWatcher(deps: {
 			function processReshuffle(): void {
 				const currentDrawPileSize = state!.draw_pile_size;
 				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
-					for (const entry of deps.bus.discardHistory) {
-						deps.cardRegistry.registerCardMeta(String(entry.card.id), entry.card);
-						// Without this, moveRenderer's own all-zero fallback startPose
-						// applies and reshuffled cards fly from the table origin at full
-						// scale instead of from the discard pile they're actually leaving.
-						deps.cardRegistry.seedPose(String(entry.card.id), {
-							x: placement.discardX,
-							y: 0,
-							z: placement.discardZ,
-							spinDeg: 0,
+					const toReshuffle = deps.bus.discardHistory.slice(0, -1);
+					for (const [i, entry] of toReshuffle.entries()) {
+						const idString = String(entry.card.id);
+						deps.cardRegistry.registerCardMeta(idString, entry.card);
+						deps.cardRegistry.seedPose(idString, {
+							x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
+							y: i * DISCARD_STACK_STEP,
+							z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
+							spinDeg: entry.rotationDeg,
 							flipDeg: 0,
 							scale: placement.centerScale,
 							turned: false,
 							opacity: 1
 						});
 					}
-					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), resolveCardTarget);
+					const beats = buildReshuffleBeat(deps.bus.discardHistory);
+					if (beats.length > 0) {
+						deps.cardRegistry.enqueue(beats, resolveCardTarget).then(() => {
+							deps.bus.retainTopDiscard(toReshuffle.length);
+							for (const entry of toReshuffle) {
+								deps.cardRegistry.removeEntry(String(entry.card.id));
+							}
+						});
+					}
 				}
 				prevDrawPileSize = currentDrawPileSize;
 			}
