@@ -70,6 +70,27 @@ export class CardBus {
 		this.pendingLocalPlayDrawnId = id;
 	}
 
+	/** Ids of local-hand cards currently mid-flight in a multi-card draw
+	 *  animation — mirrors pendingLocalPlayDrawnId's single-card hiding for
+	 *  the general draw case. Without this, LocalHand3D's own registration
+	 *  effect sees the new card in storeGame.localPlayer.hand the instant the
+	 *  server state updates and races to plant it, already revealed, at its
+	 *  final hand slot before baseBeats.svelte.ts's staggered flip/move
+	 *  flight ever gets to seed and animate it in. */
+	pendingLocalDrawIds = $state<Set<number>>(new Set());
+
+	addPendingLocalDraw(id: number): void {
+		const next = new Set(this.pendingLocalDrawIds);
+		next.add(id);
+		this.pendingLocalDrawIds = next;
+	}
+
+	removePendingLocalDraw(id: number): void {
+		const next = new Set(this.pendingLocalDrawIds);
+		next.delete(id);
+		this.pendingLocalDrawIds = next;
+	}
+
 	/** Usernames of opponents currently holding a drawn playable card in front of their seat. */
 	holdingOpponents = $state<Set<string>>(new Set());
 

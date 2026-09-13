@@ -650,11 +650,13 @@ export function createBaseBeatsWatcher(deps: {
 									opacity: 1
 								});
 							}
+							for (const id of newIds) deps.bus.addPendingLocalDraw(id);
 							const cardIds = newIds.map(String);
-							deps.cardRegistry.enqueue(
-								buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
-								resolveCardTarget
-							);
+							deps.cardRegistry
+								.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), resolveCardTarget)
+								.finally(() => {
+									for (const id of newIds) deps.bus.removePendingLocalDraw(id);
+								});
 							prevLocalHandIds = currentIds;
 						}
 					} else {

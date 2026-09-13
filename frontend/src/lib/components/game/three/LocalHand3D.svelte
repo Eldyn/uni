@@ -166,7 +166,9 @@
 	);
 
 	let cards = $derived(
-		(storeGame.localPlayer?.hand ?? []).filter((c) => c.id !== bus.pendingLocalPlayDrawnId)
+		(storeGame.localPlayer?.hand ?? []).filter(
+			(c) => c.id !== bus.pendingLocalPlayDrawnId && !bus.pendingLocalDrawIds.has(c.id)
+		)
 	);
 
 	// Reconciled, not replaced: new card ids append at the end, missing ones
