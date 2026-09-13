@@ -10,12 +10,14 @@
 		targetPosition,
 		targetSpinDeg,
 		scale,
-		dimmed
+		dimmed,
+		renderOrder = 0
 	}: {
 		targetPosition: [number, number, number];
 		targetSpinDeg: number;
 		scale: number;
 		dimmed: boolean;
+		renderOrder?: number;
 	} = $props();
 
 	let currentX = $state(untrack(() => targetPosition[0]));
@@ -43,4 +45,5 @@
 	spinDeg={currentSpinDeg}
 	{scale}
 	{dimmed}
+	{renderOrder}
 />

@@ -24,6 +24,7 @@
 	} from "../layout/handRing";
 	import RingCard3D from "./RingCard3D.svelte";
 	import { useCardBus } from "../card-bus.svelte";
+	import { fanRenderOrderFor } from "./units";
 
 	let {
 		player,
@@ -117,6 +118,7 @@
 			targetSpinDeg={slot.rotateDeg + 180}
 			scale={cardScale}
 			{dimmed}
+			renderOrder={fanRenderOrderFor(i)}
 		/>
 	{/each}
 
