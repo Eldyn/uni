@@ -23,6 +23,7 @@
 	import { HTML } from "@threlte/extras";
 	import { storeGame, type Card } from "$stores/game.svelte";
 	import { computeHandLine } from "../layout/handLine";
+	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
@@ -74,17 +75,10 @@
 	} = $props();
 
 	const bus = useCardBus();
-	// Each card is itself a stack of layered planes (CardMesh3D's background/
-	// value/border, offset up to 0.004 world units apart) — a per-card step
-	// smaller than that lets one card's layers interleave with its neighbor's,
-	// which is what caused the z-fighting. 0.02 clears that with margin while
-	// staying a "micro" adjustment (even a 20-card hand only drifts 0.4 units).
-	const STACK_STEP = 0.02;
 	// Negative Z = away from the viewer, up the screen. The row sits flush with
 	// the bottom edge, so a lifted card has to pop out over the playmat; pushing
 	// it the other way would take it off-screen.
 	const HOVER_PUSH_EM = -3;
-	const DRAG_LIFT = 0.5;
 	// Half a card, in the em units the slot solver works in — CARD_WIDTH is one
 	// world unit and EM_TO_WORLD is derived from it, so this is --cardSize / 2.
 	const CARD_HALF_WIDTH_EM = CARD_WIDTH / EM_TO_WORLD / 2;
@@ -139,7 +133,7 @@
 	// the pile's diagonal one.
 	const SHADOW_OFFSET = 0.09;
 	const SHADOW_OPACITY = 0.22;
-	const SHADOW_DROP_Y = STACK_STEP / 2;
+	const SHADOW_DROP_Y = HAND_STACK_STEP / 2;
 
 	// The placement's hand scale also scales the slot spacing and lift push so
 	// the row's overlap proportions stay the same at any card size.
@@ -480,7 +474,7 @@
 	{@const fade = edgeFade(slot.x)}
 	<CardMesh3D
 		{card}
-		position={[x, isDragging ? DRAG_LIFT : i * STACK_STEP, placement.localSeatZ]}
+		position={[x, isDragging ? DRAG_LIFT : i * HAND_STACK_STEP, placement.localSeatZ]}
 		scale={placement.handScale}
 		hovered={lifted}
 		instant={isSelected}
