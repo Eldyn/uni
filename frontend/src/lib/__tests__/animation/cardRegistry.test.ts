@@ -1,5 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { createCardRegistry } from "$components/game/animation/cardRegistry.svelte";
+import { flushSync } from "svelte";
+import { createCardRegistry, CardRegistry } from "$components/game/animation/cardRegistry.svelte";
+import type { AnimationBeat } from "$components/game/animation/types";
+
+/** Test helper: mirrors the transitional wrapper baseBeats.svelte.ts uses
+ *  around its own anchors objects (Task A7 Step 5) — turns a plain
+ *  Record into the resolver function enqueue now requires. */
+function resolverFor(anchors: Record<string, [number, number, number]>): (name: string) => [number, number, number] {
+	return (name) => {
+		const anchor = anchors[name];
+		if (!anchor) throw new Error(`no anchor registered for "${name}"`);
+		return anchor;
+	};
+}
 
 describe("CardRegistry", () => {
 	it("plays beats in order and fires each step's onLand via enqueue's return", async () => {
@@ -14,7 +27,7 @@ describe("CardRegistry", () => {
 				[{ op: "move", target: "card-1", payload: { to: "discard-pile" } }],
 				[{ op: "move", target: "card-2", payload: { to: "discard-pile" } }]
 			],
-			{ "discard-pile": [1, 0, 1] }
+			resolverFor({ "discard-pile": [1, 0, 1] })
 		);
 		queue.onBeatComplete = (index) => order.push(`beat-${index}`);
 
@@ -31,7 +44,7 @@ describe("CardRegistry", () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 
-		const done = queue.enqueue([[{ op: "not-a-real-op", target: "card-1", payload: {} }]], {});
+		const done = queue.enqueue([[{ op: "not-a-real-op", target: "card-1", payload: {} }]], resolverFor({}));
 		await done;
 
 		expect(warn).toHaveBeenCalledWith(expect.stringContaining("not-a-real-op"));
@@ -43,7 +56,7 @@ describe("CardRegistry", () => {
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 		const done = queue.enqueue(
 			[[{ op: "move", target: "card-1", payload: { to: "discard-pile" } }]],
-			{ "discard-pile": [1, 0, 1] }
+			resolverFor({ "discard-pile": [1, 0, 1] })
 		);
 		queue.skipCurrent();
 		await expect(done).resolves.toBeUndefined();
@@ -67,7 +80,7 @@ describe("CardRegistry", () => {
 
 		const done = queue.enqueue(
 			[[{ op: "move", target: "card-1", payload: { to: "discard-pile" } }]],
-			{ "discard-pile": [5, 0, 5] }
+			resolverFor({ "discard-pile": [5, 0, 5] })
 		);
 
 		expect(queue.activeFlights).toHaveLength(1);
@@ -93,7 +106,7 @@ describe("CardRegistry", () => {
 
 		const done = queue.enqueue(
 			[[{ op: "move", target: "card-1", payload: { to: "discard-pile" } }]],
-			{ "discard-pile": [9, 0, 9] }
+			resolverFor({ "discard-pile": [9, 0, 9] })
 		);
 
 		const flightPose = queue.activeFlights[0].pose;
@@ -118,7 +131,7 @@ describe("CardRegistry", () => {
 				[{ op: "move", target: "card-1", payload: {} }],
 				[{ op: "move", target: "card-2", payload: { to: "discard-pile" } }]
 			],
-			{ "discard-pile": [1, 0, 1] }
+			resolverFor({ "discard-pile": [1, 0, 1] })
 		);
 
 		queue.skipCurrent();
@@ -137,11 +150,63 @@ describe("CardRegistry", () => {
 
 		const done = queue.enqueue(
 			[[{ op: "move", target: "card-1", payload: { to: "unregistered-anchor" } }]],
-			{}
+			resolverFor({})
 		);
 
 		await expect(done).resolves.toBeUndefined();
 		expect(error).toHaveBeenCalled();
 		error.mockRestore();
+	});
+});
+
+describe("CardRegistry pose providers", () => {
+	it("keeps a real entry idle at its provider's pose instead of deleting it when a beat retires it", () => {
+		const registry = new CardRegistry();
+		registry.registerCardMeta("42", { type: "red", value: "5" });
+		registry.seedPose("42", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: false, opacity: 1 });
+		registry.setPoseProvider("42", () => [9, 0.02, 3]);
+
+		const beat: AnimationBeat = [{ op: "move", target: "42", payload: { to: "somewhere" } }];
+		const resolveAnchor = () => [9, 0, 3] as [number, number, number];
+
+		const done = registry.enqueue([beat], resolveAnchor);
+		flushSync();
+		// GSAP timelines run on rAF; force-complete via skipCurrent for a
+		// synchronous, deterministic test (same pattern skip-related tests
+		// elsewhere in this codebase already use).
+		registry.skipCurrent();
+		return done.then(() => {
+			expect(registry.activeFlights.some((f) => f.id === "42")).toBe(true);
+			const flight = registry.activeFlights.find((f) => f.id === "42")!;
+			expect(flight.pose.x).toBeCloseTo(9);
+			expect(flight.pose.y).toBeCloseTo(0.02);
+			expect(flight.pose.z).toBeCloseTo(3);
+		});
+	});
+
+	it("deletes an anonymous entry (no provider registered) on retire, as before", () => {
+		const registry = new CardRegistry();
+		registry.seedPose("draw:bob:0", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: true, opacity: 1 });
+
+		const beat: AnimationBeat = [{ op: "move", target: "draw:bob:0", payload: { to: "seat:bob" } }];
+		const resolveAnchor = () => [1, 0, -2] as [number, number, number];
+
+		const done = registry.enqueue([beat], resolveAnchor);
+		flushSync();
+		registry.skipCurrent();
+		return done.then(() => {
+			expect(registry.activeFlights.some((f) => f.id === "draw:bob:0")).toBe(false);
+		});
+	});
+
+	it("isInTransit reflects whether an entry currently has a live pose entry from an unfinished beat", () => {
+		const registry = new CardRegistry();
+		registry.seedPose("7", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: false, opacity: 1 });
+		expect(registry.isInTransit("7")).toBe(false);
+
+		const beat: AnimationBeat = [{ op: "move", target: "7", payload: { to: "x" } }];
+		registry.enqueue([beat], () => [1, 0, 1]);
+		flushSync();
+		expect(registry.isInTransit("7")).toBe(true);
 	});
 });

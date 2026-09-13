@@ -361,10 +361,16 @@ export function createBaseBeatsWatcher(deps: {
 				// brief double-render (once in hand, once flying).
 				if (playedByMe) deps.bus.hide(top.id);
 
-				deps.cardRegistry.enqueue([beat, shakeBeat], anchors).then(() => {
-					deps.bus.setDiscardTop(top, landingBaseDeg);
-					if (playedByMe) deps.bus.show(top.id);
-				});
+				deps.cardRegistry
+					.enqueue([beat, shakeBeat], (name) => {
+						const a = anchors[name];
+						if (!a) throw new Error(`no anchor "${name}"`);
+						return a;
+					})
+					.then(() => {
+						deps.bus.setDiscardTop(top, landingBaseDeg);
+						if (playedByMe) deps.bus.show(top.id);
+					});
 			}
 
 			function processDraws(): void {
@@ -432,7 +438,11 @@ export function createBaseBeatsWatcher(deps: {
 						}
 						const cardIds = newIds.map(String);
 						deps.cardRegistry
-							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), anchors)
+							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), (name) => {
+								const a = anchors[name];
+								if (!a) throw new Error(`no anchor "${name}"`);
+								return a;
+							})
 							.then(() => cardIds.forEach((id) => deps.bus.show(Number(id))));
 						prevLocalHandIds = currentIds;
 					} else {
@@ -455,7 +465,11 @@ export function createBaseBeatsWatcher(deps: {
 						}
 						deps.cardRegistry.enqueue(
 							buildDrawBeats({ cardIds, forLocalPlayer: false, opponentUsername: p.username, placement }),
-							opponentAnchors
+							(name) => {
+								const a = opponentAnchors[name];
+								if (!a) throw new Error(`no anchor "${name}"`);
+								return a;
+							}
 						);
 					}
 				}
@@ -465,8 +479,8 @@ export function createBaseBeatsWatcher(deps: {
 			function processReshuffle(): void {
 				const currentDrawPileSize = state!.draw_pile_size;
 				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
-					const anchors = {
-						"draw-pile": [placement.drawPileX, 0, placement.drawPileZ] as [number, number, number]
+					const anchors: Record<string, [number, number, number]> = {
+						"draw-pile": [placement.drawPileX, 0, placement.drawPileZ]
 					};
 					for (const entry of deps.bus.discardHistory) {
 						deps.cardRegistry.registerCardMeta(String(entry.card.id), entry.card);
@@ -483,7 +497,11 @@ export function createBaseBeatsWatcher(deps: {
 							opacity: 1
 						});
 					}
-					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
+					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), (name) => {
+						const a = anchors[name];
+						if (!a) throw new Error(`no anchor "${name}"`);
+						return a;
+					});
 				}
 				prevDrawPileSize = currentDrawPileSize;
 			}

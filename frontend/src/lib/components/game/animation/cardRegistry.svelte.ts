@@ -19,7 +19,7 @@ export interface FlightHandle {
 
 interface PendingBatch {
 	beats: AnimationBeat[];
-	anchors: Record<string, [number, number, number]>;
+	resolveAnchor: (name: string) => [number, number, number];
 	resolve: () => void;
 }
 
@@ -34,6 +34,8 @@ export class CardRegistry {
 
 	#cardMeta = new Map<string, { type: string; value: string }>();
 	#poses = new Map<string, FlightPose>();
+	#poseProviders = new Map<string, () => [number, number, number]>();
+	#inTransitIds = new Set<string>();
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
@@ -58,17 +60,76 @@ export class CardRegistry {
 		this.#poses.set(cardId, reactivePose);
 	}
 
-	/** Queues a batch of beats. `anchors` supplies every named world position
-	 *  this batch's steps may reference via resolveAnchor. Returns a promise
-	 *  resolving once every beat in the batch has completed (or been
-	 *  skipped) — callers that need "wait for this to finish" (e.g. a
-	 *  reshuffle before the next turn) await it directly. */
+	/** Registers (or clears, passing null) the pure function an owner
+	 *  (LocalHand3D, DiscardPile3D) uses to compute this card's CURRENT idle
+	 *  pose. Called by the owner every time its own layout recomputes — see
+	 *  applyIdlePoseIfNotInTransit. Retiring a transition for this card id
+	 *  reads this provider (if any) instead of deleting the pose outright,
+	 *  which is what makes a flight-to-idle handoff a no-op rather than a
+	 *  1-frame pop. */
+	setPoseProvider(cardId: string, provider: (() => [number, number, number]) | null): void {
+		if (provider) this.#poseProviders.set(cardId, provider);
+		else this.#poseProviders.delete(cardId);
+	}
+
+	/** True while a GSAP timeline is actively tweening this card's pose — an
+	 *  owner's own idle-pose sync (applyIdlePoseIfNotInTransit) must never
+	 *  stomp a pose GSAP currently owns. */
+	isInTransit(cardId: string): boolean {
+		return this.#poses.has(cardId) && this.activeFlights.some((f) => f.id === cardId) && this.#inTransitIds.has(cardId);
+	}
+
+	/** Applies this card's registered pose-provider's result directly (no
+	 *  tween) — called by an owner's own reactive layout effect for every card
+	 *  it owns, every time that layout recomputes, but only takes effect while
+	 *  the card is idle; a GSAP-owned in-transit pose is left alone. */
+	applyIdlePoseIfNotInTransit(cardId: string): void {
+		if (this.#inTransitIds.has(cardId)) return;
+		const provider = this.#poseProviders.get(cardId);
+		const pose = this.#poses.get(cardId);
+		if (!provider || !pose) return;
+		const [x, y, z] = provider();
+		pose.x = x;
+		pose.y = y;
+		pose.z = z;
+	}
+
+	/** A real card's entry never disappears once created — its identity/meta
+	 *  survives forever unless the card genuinely leaves the game (removeEntry).
+	 *  Idempotent: seeds a pose only if one doesn't already exist. */
+	ensureEntry(cardId: string, initialPose: FlightPose, card: { type: string; value: string } | null): FlightPose {
+		let pose = this.#poses.get(cardId);
+		if (!pose) {
+			const reactivePose = $state({ ...initialPose });
+			pose = reactivePose;
+			this.#poses.set(cardId, pose);
+		}
+		if (card) this.#cardMeta.set(cardId, card);
+		if (!this.activeFlights.some((f) => f.id === cardId)) {
+			const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
+			this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
+		}
+		return pose;
+	}
+
+	/** A card genuinely leaving the game for good (never happens for Uno's own
+	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
+	removeEntry(cardId: string): void {
+		this.#poseProviders.delete(cardId);
+		this.#retireFlight(cardId);
+	}
+
+	/** Queues a batch of beats. `resolveAnchor` resolves every named world
+	 *  position this batch's steps may reference. Returns a promise resolving
+	 *  once every beat in the batch has completed (or been skipped) —
+	 *  callers that need "wait for this to finish" (e.g. a reshuffle before
+	 *  the next turn) await it directly. */
 	enqueue(
 		beats: AnimationBeat[],
-		anchors: Record<string, [number, number, number]>
+		resolveAnchor: (name: string) => [number, number, number]
 	): Promise<void> {
 		return new Promise((resolve) => {
-			this.#pending.push({ beats, anchors, resolve });
+			this.#pending.push({ beats, resolveAnchor, resolve });
 			this.#pump();
 		});
 	}
@@ -111,6 +172,7 @@ export class CardRegistry {
 		}
 
 		const beat = batch.beats[beatIndex];
+		for (const step of beat) this.#inTransitIds.add(step.target);
 		try {
 			const ctx: RenderContext = {
 				getPose: (cardId, startPose) => {
@@ -126,11 +188,7 @@ export class CardRegistry {
 					}
 					return pose;
 				},
-				resolveAnchor: (name) => {
-					const anchor = batch.anchors[name];
-					if (!anchor) throw new Error(`CardRegistry: no anchor registered for "${name}"`);
-					return anchor;
-				}
+				resolveAnchor: batch.resolveAnchor
 			};
 
 			const timeline = gsap.timeline();
@@ -177,7 +235,17 @@ export class CardRegistry {
 					const usedLater = batch.beats
 						.slice(beatIndex + 1)
 						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
-					if (!usedLater) this.#retireFlight(step.target);
+					if (usedLater) continue;
+					this.#inTransitIds.delete(step.target);
+					const provider = this.#poseProviders.get(step.target);
+					if (provider) {
+						// Idle-at-current-owner's-layout, not deleted: this is what
+						// makes the flight-to-idle handoff a no-op instead of the
+						// 1-frame pop the old hide/show + delete model produced.
+						this.applyIdlePoseIfNotInTransit(step.target);
+					} else {
+						this.#retireFlight(step.target);
+					}
 				}
 				this.onBeatComplete?.(beatIndex);
 				this.#currentTimeline = null;
