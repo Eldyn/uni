@@ -14,7 +14,14 @@ import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { drawPileTopPose } from "../layout/drawPile";
-import { DISCARD_CAP, DISCARD_STACK_STEP, previewDiscardLanding, type DiscardEntry } from "../layout/discardPile";
+import {
+	DISCARD_CAP,
+	DISCARD_STACK_STEP,
+	DRAWN_CARD_HOVER_RENDER_ORDER,
+	PLAY_FLIGHT_RENDER_ORDER,
+	previewDiscardLanding,
+	type DiscardEntry
+} from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import type { AnimationBeat } from "./types";
@@ -273,6 +280,11 @@ export function createBaseBeatsWatcher(deps: {
 	let pendingLocalHandSlots = new Map<number, [number, number, number]>();
 	let pendingOpponentSlots = new Map<string, [number, number, number]>();
 	let pendingOpponentPlayDrawn = new Map<string, { cardId: string }>();
+	// Which opponent a currently-flying multi-draw card id belongs to — its
+	// `dimmed` decoration is baked once at seed time, but a turn can pass (or
+	// a ChooseTarget prompt can open/close) mid-flight for a staggered +4, so
+	// this is refreshed live every tick below instead of only at seed time.
+	let opponentDrawFlightOwners = new Map<string, string>();
 
 	return $effect.root(() => {
 		$effect(() => {
@@ -329,6 +341,20 @@ export function createBaseBeatsWatcher(deps: {
 			// (paintTopWild no-ops once the top card already carries this color),
 			// so running it unconditionally every tick is cheap and correct.
 			deps.bus.setActiveType(state.active_type as CardType);
+
+			// Live-refresh every currently-flying multi-draw card's dimmed state
+			// every tick, rather than only once at seed time — a turn or a
+			// ChooseTarget prompt can change mid-flight during a staggered +4.
+			for (const [flightCardId, flightUsername] of opponentDrawFlightOwners) {
+				const flightIsTurn = state.current_turn === flightUsername;
+				const flightIsValidTarget =
+					storeGame.actionRequired === Action.ChooseTarget &&
+					Array.isArray(storeGame.actionContext) &&
+					storeGame.actionContext.includes(flightUsername);
+				deps.cardRegistry.setDecoration(flightCardId, {
+					dimmed: !flightIsTurn && !flightIsValidTarget
+				});
+			}
 
 			// Runs BEFORE the draw/reshuffle blocks below: a +2/+4 lands both a
 			// top_card change (this play) AND a card_count increase (the forced
@@ -455,6 +481,13 @@ export function createBaseBeatsWatcher(deps: {
 				}
 
 				lastLandingBaseDeg = landingBaseDeg;
+				// A played card isn't part of discardHistory yet (setDiscardTop is
+				// held back until the flight lands, below), so DiscardPile3D's own
+				// per-index decoration effect never touches it — without an explicit
+				// boost here it falls back to AllCards3D's default renderOrder (1),
+				// well under the resting pile's own values, and the flight visibly
+				// draws underneath the pile it's supposed to be landing on top of.
+				deps.cardRegistry.setDecoration(String(top.id), { renderOrder: PLAY_FLIGHT_RENDER_ORDER });
 				const beat = buildPlayBeat({
 					cardId: String(top.id),
 					playedByMe,
@@ -607,7 +640,7 @@ export function createBaseBeatsWatcher(deps: {
 									opacity: 1
 								});
 								deps.cardRegistry.setDecoration(String(cardId), {
-									renderOrder: 50
+									renderOrder: DRAWN_CARD_HOVER_RENDER_ORDER
 								});
 								deps.bus.setPendingLocalPlayDrawnId(cardId);
 								deps.cardRegistry.enqueue(
@@ -715,6 +748,7 @@ export function createBaseBeatsWatcher(deps: {
 							for (let i = 0; i < drawnCount; i++) {
 								const cardId = `draw:${p.username}:${drawIdCounter++}`;
 								cardIds.push(cardId);
+								opponentDrawFlightOwners.set(cardId, p.username);
 								const targetSlotIndex = prevCount + i;
 								const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
 								const targetPose = deps.getOpponentCardPose?.(p.username, p.card_count, targetSlotIndex);
@@ -761,6 +795,7 @@ export function createBaseBeatsWatcher(deps: {
 									deps.bus.removeInFlightDraw(p.username, drawnCount);
 									for (const cardId of cardIds) {
 										deps.cardRegistry.removeEntry(cardId);
+										opponentDrawFlightOwners.delete(cardId);
 									}
 								});
 						}

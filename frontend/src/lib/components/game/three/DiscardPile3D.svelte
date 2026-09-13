@@ -8,7 +8,7 @@
      cards, none faked" rule the rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
-	import { DISCARD_STACK_STEP, type DiscardEntry } from "../layout/discardPile";
+	import { DISCARD_STACK_STEP, pileRenderOrderFor, type DiscardEntry } from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
@@ -80,13 +80,7 @@
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
-				// One distinct value per pile index (history is capped at
-				// DISCARD_CAP=30, so this tops out at 39) — clamping multiple
-				// deep-stack indices to the same value re-introduced z-fighting
-				// among themselves; staying strictly under the drawn card's
-				// fixed renderOrder (50, see DRAW_HOVER_LIFT in baseBeats.svelte.ts)
-				// only requires enough headroom for the cap, not a clamp.
-				renderOrder: 10 + i,
+				renderOrder: pileRenderOrderFor(i),
 				highlight: armed && i === topIndex ? { pulse: true } : undefined
 			});
 		}

@@ -7,6 +7,7 @@ import { storeGame, Action } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 import { drawPileTopPose } from "$components/game/layout/drawPile";
+import { DRAWN_CARD_HOVER_RENDER_ORDER } from "$components/game/layout/discardPile";
 
 // Regression test for the exact class of bug found during manual
 // browser verification: createBaseBeatsWatcher's $effect/$effect.root calls
@@ -372,7 +373,7 @@ describe("createBaseBeatsWatcher", () => {
 		expect(flight!.pose.x).toBeCloseTo(topPose[0]);
 		expect(flight!.pose.y).toBeCloseTo(topPose[1] + DRAW_HOVER_LIFT);
 		expect(flight!.pose.z).toBeCloseTo(topPose[2]);
-		expect(flight!.decoration?.renderOrder).toBe(50);
+		expect(flight!.decoration?.renderOrder).toBe(DRAWN_CARD_HOVER_RENDER_ORDER);
 
 		cardRegistry.flushImmediately();
 
