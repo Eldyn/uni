@@ -62,9 +62,9 @@
 			cardRegistry.ensureEntry(
 				idString,
 				{
-					x: entry.jitter[0] * EM_TO_WORLD,
+					x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
 					y: i * STACK_STEP,
-					z: entry.jitter[1] * EM_TO_WORLD,
+					z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
 					spinDeg: entry.rotationDeg,
 					flipDeg: 0,
 					scale,
@@ -74,12 +74,16 @@
 				{ type: entry.card.type, value: entry.card.value, wildColor: entry.wildColor }
 			);
 			cardRegistry.setPoseProvider(idString, () => [
-				entry.jitter[0] * EM_TO_WORLD,
+				placement.discardX + entry.jitter[0] * EM_TO_WORLD,
 				i * STACK_STEP,
-				entry.jitter[1] * EM_TO_WORLD
+				placement.discardZ + entry.jitter[1] * EM_TO_WORLD
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
+				// Clamped below the drawn-card's fixed renderOrder (50, see
+				// DRAW_HOVER_LIFT usage in baseBeats.svelte.ts) so a deep pile
+				// (DISCARD_CAP=30) can never collide with it.
+				renderOrder: 10 + Math.min(i, 19) * 2,
 				highlight: armed && i === topIndex ? { pulse: true } : undefined
 			});
 		}
@@ -98,7 +102,7 @@
 </script>
 
 {#each history as entry, i (entry.seq)}
-	{#if shadowTexture}
+	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card.id))}
 		<T.Mesh
 			position={[
 				entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
