@@ -16,6 +16,7 @@
 		turned={flight.pose.turned}
 		position={[flight.pose.x, flight.pose.y, flight.pose.z]}
 		spinDeg={flight.pose.spinDeg}
+		flipDeg={flight.pose.flipDeg}
 		scale={flight.pose.scale}
 		renderOrder={1}
 		opacity={flight.decoration?.opacity ?? flight.pose.opacity}
