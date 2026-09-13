@@ -67,8 +67,21 @@ export class CardRegistry {
 	/** Pre-seeds a card's flight pose before it is first requested via
 	 *  getPose, so a beat's move step starts from its real current position
 	 *  (e.g. its hand slot) instead of getPose's own startPose fallback,
-	 *  which only applies the first time a card id is ever seen. */
+	 *  which only applies the first time a card id is ever seen.
+	 *
+	 *  Mutates an existing pose object in place rather than replacing it —
+	 *  an owner's registration effect (LocalHand3D/DiscardPile3D's
+	 *  ensureEntry, Tasks A10/A11) can race this call and create the pose
+	 *  entry first; if seedPose swapped in a brand-new object here, any
+	 *  activeFlights entry already pointing at the old one would go stale
+	 *  and never reflect the seeded — or subsequently GSAP-tweened — pose,
+	 *  regardless of which effect happened to run first. */
 	seedPose(cardId: string, pose: FlightPose): void {
+		const existing = this.#poses.get(cardId);
+		if (existing) {
+			Object.assign(existing, pose);
+			return;
+		}
 		const reactivePose = $state({ ...pose });
 		this.#poses.set(cardId, reactivePose);
 	}

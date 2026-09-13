@@ -91,6 +91,40 @@ describe("CardRegistry", () => {
 		await done;
 	});
 
+	it("seedPose mutates an existing pose in place instead of orphaning an activeFlights entry that already points at it", async () => {
+		const queue = createCardRegistry();
+
+		// Mirrors the real race: an owner's registration effect (LocalHand3D's
+		// ensureEntry, Task A10) can run BEFORE baseBeats.svelte.ts's seedPose
+		// call for the same newly-drawn card id — ensureEntry creates the pose
+		// object and pushes it into activeFlights first.
+		const idlePose = queue.ensureEntry(
+			"card-1",
+			{ x: 0, y: 0.04, z: 5, spinDeg: 0, scale: 1, turned: false, opacity: 1 },
+			{ type: "red", value: "5" }
+		);
+
+		// seedPose then runs — it must update the SAME object activeFlights
+		// already references, not swap in a new one the flight never sees.
+		queue.seedPose("card-1", {
+			x: -3,
+			y: 0.64,
+			z: 4.94,
+			spinDeg: 0,
+			scale: 1,
+			turned: true,
+			opacity: 1
+		});
+
+		expect(queue.activeFlights).toHaveLength(1);
+		const flight = queue.activeFlights[0];
+		expect(flight.pose).toBe(idlePose); // same object identity, not replaced
+		expect(flight.pose.x).toBe(-3);
+		expect(flight.pose.y).toBeCloseTo(0.64);
+		expect(flight.pose.z).toBeCloseTo(4.94);
+		expect(flight.pose.turned).toBe(true);
+	});
+
 	it("the seeded pose object is the same reactive instance GSAP tweens, so the mounted flight updates live", async () => {
 		const queue = createCardRegistry();
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
