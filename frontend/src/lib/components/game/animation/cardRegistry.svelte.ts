@@ -11,10 +11,23 @@ import { materialEffectRenderer } from "./stepRenderers/materialEffect";
 
 export type StepRenderer = (step: AnimationStep, ctx: RenderContext) => gsap.core.Timeline;
 
+export interface CardDecoration {
+	hovered?: boolean;
+	instant?: boolean;
+	hoverPush?: [number, number];
+	pushX?: number;
+	hoverSpinDeg?: number;
+	opacity?: number;
+	dimmed?: boolean;
+	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
+	highlight?: { color?: string; pulse?: boolean };
+}
+
 export interface FlightHandle {
 	id: string;
 	pose: FlightPose;
 	card: { type: string; value: string };
+	decoration?: CardDecoration;
 }
 
 interface PendingBatch {
@@ -110,6 +123,17 @@ export class CardRegistry {
 			this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
 		}
 		return pose;
+	}
+
+	/** LocalHand3D-owned visual extras (hover/drag/shadow/highlight) for a card
+	 *  currently in its hand — read by AllCards3D's single render site. See
+	 *  the shared render site owns mounting CardMesh3D,
+	 *  owners only ever compute layout + these decorations, never mount it
+	 *  themselves. */
+	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
+		this.activeFlights = this.activeFlights.map((f) =>
+			f.id === cardId ? { ...f, decoration } : f
+		);
 	}
 
 	/** A card genuinely leaving the game for good (never happens for Uno's own
