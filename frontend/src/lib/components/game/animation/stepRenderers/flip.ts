@@ -28,6 +28,11 @@ export function flipRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 	});
 	const targetTurned =
 		typeof step.payload?.turned === "boolean" ? step.payload.turned : !pose.turned;
+	if (step.payload?.axis === "x" || step.payload?.axis === "y") {
+		pose.flipAxis = step.payload.axis;
+	} else if (!pose.flipAxis) {
+		pose.flipAxis = "x";
+	}
 
 	const timeline = gsap.timeline();
 	timeline.to(pose, {

@@ -23,10 +23,16 @@ export interface CardDecoration {
 	highlight?: { color?: string; pulse?: boolean };
 }
 
+export interface CardMeta {
+	type: string;
+	value: string;
+	wildColor?: import("$stores/game.svelte").CardType;
+}
+
 export interface FlightHandle {
 	id: string;
 	pose: FlightPose;
-	card: { type: string; value: string };
+	card: CardMeta;
 	decoration?: CardDecoration;
 }
 
@@ -45,7 +51,7 @@ export class CardRegistry {
 		materialEffect: materialEffectRenderer
 	};
 
-	#cardMeta = new Map<string, { type: string; value: string }>();
+	#cardMeta = new Map<string, CardMeta>();
 	#poses = new Map<string, FlightPose>();
 	#poseProviders = new Map<string, () => [number, number, number]>();
 	#inTransitIds = new Set<string>();
@@ -61,7 +67,7 @@ export class CardRegistry {
 	 *  within its enqueue() batch as it completes (naturally or via skip). */
 	onBeatComplete: ((index: number) => void) | null = null;
 
-	registerCardMeta(cardId: string, card: { type: string; value: string }): void {
+	registerCardMeta(cardId: string, card: CardMeta): void {
 		this.#cardMeta.set(cardId, card);
 		const handle = this.#flightHandles.get(cardId);
 		if (handle) {
@@ -132,7 +138,7 @@ export class CardRegistry {
 	/** A real card's entry never disappears once created — its identity/meta
 	 *  survives forever unless the card genuinely leaves the game (removeEntry).
 	 *  Idempotent: seeds a pose only if one doesn't already exist. */
-	ensureEntry(cardId: string, initialPose: FlightPose, card: { type: string; value: string } | null): FlightPose {
+	ensureEntry(cardId: string, initialPose: FlightPose, card: CardMeta | null): FlightPose {
 		return untrack(() => {
 			let pose = this.#poses.get(cardId);
 			if (!pose) {

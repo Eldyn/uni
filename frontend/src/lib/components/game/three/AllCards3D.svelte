@@ -13,10 +13,12 @@
 {#each cardRegistry.activeFlights as flight (flight.id)}
 	<CardMesh3D
 		card={{ id: -1, type: flight.card.type as never, value: flight.card.value as never }}
+		wildColor={flight.card.wildColor}
 		turned={flight.pose.turned}
 		position={[flight.pose.x, flight.pose.y, flight.pose.z]}
 		spinDeg={flight.pose.spinDeg}
 		flipDeg={flight.pose.flipDeg}
+		flipAxis={flight.pose.flipAxis}
 		scale={flight.pose.scale}
 		renderOrder={1}
 		opacity={flight.decoration?.opacity ?? flight.pose.opacity}

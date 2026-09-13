@@ -12,6 +12,8 @@ export interface FlightPose {
 	 *  spinDeg (the in-plane, world-Y rotation) since Task B2's composition
 	 *  order keeps the two axes from interfering. */
 	flipDeg: number;
+	/** Flip axis: "x" (vertical flip / end-over-end) or "y" (horizontal flip / page-turn). */
+	flipAxis?: "x" | "y";
 	scale: number;
 	turned: boolean;
 	opacity: number;

@@ -20,6 +20,7 @@
 		position = [0, 0, 0],
 		spinDeg = 0,
 		flipDeg = 0,
+		flipAxis = "x",
 		scale = 1,
 		onclick,
 		onpointerdown,
@@ -40,9 +41,11 @@
 		position?: [number, number, number];
 		/** Rotation around the vertical (world Y) axis, in degrees. */
 		spinDeg?: number;
-		/** Rotation about a horizontal (table-plane) axis — a genuine edge-on
-		 *  flip, independent of spinDeg. See the inner rotation.y group below. */
+		/** Rotation about a horizontal or vertical axis — a genuine edge-on
+		 *  flip, independent of spinDeg. */
 		flipDeg?: number;
+		/** Flip axis: "x" (vertical flip / end-over-end) or "y" (horizontal flip / page-turn). */
+		flipAxis?: "x" | "y";
 		scale?: number;
 		/** Bubbles up from any of this card's meshes via @threlte/extras interactivity. */
 		onclick?: (event: unknown) => void;
@@ -176,6 +179,8 @@
 
 	let spinRad = $derived(((spinDeg + hoverSpinDeg * liftT) * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
+	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
+	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * halfDimension);
 
 	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
 	// `liftT` above but tracking an arbitrary target value instead of a 0-1
@@ -191,7 +196,7 @@
 
 	let animatedPosition = $derived<[number, number, number]>([
 		position[0] + hoverPush[0] * liftT + animatedPushX,
-		position[1] + CARD_HOVER_LIFT * liftT,
+		position[1] + CARD_HOVER_LIFT * liftT + flipLift,
 		position[2] + hoverPush[1] * liftT
 	]);
 	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
@@ -259,7 +264,11 @@
 
 <T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
 	<T.Group rotation.x={-Math.PI / 2}>
-		<T.Group rotation.y={flipRad} rotation.z={spinRad}>
+		<T.Group
+			rotation.x={flipAxis === "x" ? flipRad : 0}
+			rotation.y={flipAxis === "y" ? flipRad : 0}
+			rotation.z={spinRad}
+		>
 			{#if highlight && highlightTexture}
 				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} {renderOrder}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
@@ -308,6 +317,9 @@
 							color={bgColor}
 							transparent
 							depthWrite
+							polygonOffset={renderOrder > 0}
+							polygonOffsetFactor={-1}
+							polygonOffsetUnits={-1}
 							{opacity}
 							toneMapped={false}
 							side={DoubleSide}
@@ -323,6 +335,9 @@
 							color={bgColor}
 							transparent
 							depthWrite
+							polygonOffset={renderOrder > 0}
+							polygonOffsetFactor={-1}
+							polygonOffsetUnits={-1}
 							{opacity}
 							toneMapped={false}
 							side={DoubleSide}
@@ -337,6 +352,9 @@
 							color={tintColor}
 							transparent
 							depthWrite
+							polygonOffset={renderOrder > 0}
+							polygonOffsetFactor={-1}
+							polygonOffsetUnits={-1}
 							{opacity}
 							toneMapped={false}
 							side={DoubleSide}
@@ -351,6 +369,9 @@
 							color={tintColor}
 							transparent
 							depthWrite
+							polygonOffset={renderOrder > 0}
+							polygonOffsetFactor={-1}
+							polygonOffsetUnits={-1}
 							{opacity}
 							toneMapped={false}
 							side={DoubleSide}

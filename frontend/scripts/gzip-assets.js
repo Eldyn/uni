@@ -87,8 +87,8 @@ export function gzipAssets(outDir) {
 				continue;
 			}
 
-			if (!COMPRESSIBLE.has(path.extname(entry.name))) continue;
-			if (fs.statSync(full).size < MIN_BYTES) continue;
+			const stat = fs.statSync(full, { throwIfNoEntry: false });
+			if (!stat || stat.size < MIN_BYTES) continue;
 
 			const sizes = gzipFile(full);
 			if (!sizes) continue;

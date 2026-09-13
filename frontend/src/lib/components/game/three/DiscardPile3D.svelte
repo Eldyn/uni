@@ -71,7 +71,7 @@
 					turned: false,
 					opacity: 1
 				},
-				{ type: entry.card.type, value: entry.wildColor ?? entry.card.value }
+				{ type: entry.card.type, value: entry.card.value, wildColor: entry.wildColor }
 			);
 			cardRegistry.setPoseProvider(idString, () => [
 				entry.jitter[0] * EM_TO_WORLD,

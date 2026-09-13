@@ -189,7 +189,7 @@ export function buildDrawBeats(args: {
 		const steps: AnimationBeat = [];
 		for (const [i, cardId] of args.cardIds.entries()) {
 			const flipAtS = i * stagger;
-			steps.push({ op: "flip", target: cardId, payload: { turned: false }, atS: flipAtS });
+			steps.push({ op: "flip", target: cardId, payload: { turned: false, axis: "x" }, atS: flipAtS });
 			steps.push({
 				op: "move",
 				target: cardId,
@@ -329,7 +329,13 @@ export function createBaseBeatsWatcher(deps: {
 				// handoff into a no-op instead of a visible pop to a different pose.
 				const { entry: landingEntry } = previewDiscardLanding(deps.bus.discardHistory, top, DISCARD_CAP, landingBaseDeg);
 
-				deps.cardRegistry.registerCardMeta(String(top.id), { type: top.type, value: top.value });
+				deps.cardRegistry.registerCardMeta(String(top.id), {
+					type: top.type,
+					value: top.value,
+					wildColor: (state.active_type && state.active_type !== "white" ? state.active_type : undefined) as
+						| CardType
+						| undefined
+				});
 
 				if (playedByMe) {
 					const [sx, sy, sz] = localCardAnchor(
