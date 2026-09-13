@@ -341,6 +341,7 @@ export function createBaseBeatsWatcher(deps: {
 						y: sy,
 						z: sz,
 						spinDeg: 0,
+						flipDeg: 0,
 						scale: placement.handScale,
 						turned: false,
 						opacity: 1
@@ -355,6 +356,7 @@ export function createBaseBeatsWatcher(deps: {
 						// an opponent leaves however their hand fan already had it turned,
 						// it doesn't reset to face the local viewer first.
 						spinDeg: deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0,
+						flipDeg: 0,
 						scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
 						turned: true,
 						opacity: 1
@@ -430,6 +432,7 @@ export function createBaseBeatsWatcher(deps: {
 								y: py,
 								z: pz,
 								spinDeg: 0,
+								flipDeg: 0,
 								scale: placement.drawPileScale,
 								turned: true,
 								opacity: 1
@@ -454,6 +457,7 @@ export function createBaseBeatsWatcher(deps: {
 								y: py,
 								z: pz,
 								spinDeg: 0,
+								flipDeg: 0,
 								scale: opponentCardScale,
 								turned: true,
 								opacity: 1
@@ -481,6 +485,7 @@ export function createBaseBeatsWatcher(deps: {
 							y: 0,
 							z: placement.discardZ,
 							spinDeg: 0,
+							flipDeg: 0,
 							scale: placement.centerScale,
 							turned: false,
 							opacity: 1

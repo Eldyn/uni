@@ -205,7 +205,7 @@
 				idString,
 				(() => {
 					const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
-					return { x, y, z, spinDeg: 0, scale: placement.handScale, turned: false, opacity: 1 };
+					return { x, y, z, spinDeg: 0, flipDeg: 0, scale: placement.handScale, turned: false, opacity: 1 };
 				})(),
 				{ type: card.type, value: card.value }
 			);

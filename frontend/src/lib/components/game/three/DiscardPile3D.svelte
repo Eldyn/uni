@@ -66,6 +66,7 @@
 					y: i * STACK_STEP,
 					z: entry.jitter[1] * EM_TO_WORLD,
 					spinDeg: entry.rotationDeg,
+					flipDeg: 0,
 					scale,
 					turned: false,
 					opacity: 1

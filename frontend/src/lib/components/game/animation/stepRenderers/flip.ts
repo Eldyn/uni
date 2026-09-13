@@ -19,6 +19,7 @@ export function flipRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 		y: 0,
 		z: 0,
 		spinDeg: 0,
+		flipDeg: 0,
 		scale: 1,
 		turned: false,
 		opacity: 1

@@ -73,6 +73,7 @@ describe("CardRegistry", () => {
 			y: 0,
 			z: 2,
 			spinDeg: 0,
+			flipDeg: 0,
 			scale: 1,
 			turned: false,
 			opacity: 1
@@ -100,7 +101,7 @@ describe("CardRegistry", () => {
 		// object and pushes it into activeFlights first.
 		const idlePose = queue.ensureEntry(
 			"card-1",
-			{ x: 0, y: 0.04, z: 5, spinDeg: 0, scale: 1, turned: false, opacity: 1 },
+			{ x: 0, y: 0.04, z: 5, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 },
 			{ type: "red", value: "5" }
 		);
 
@@ -111,6 +112,7 @@ describe("CardRegistry", () => {
 			y: 0.64,
 			z: 4.94,
 			spinDeg: 0,
+			flipDeg: 0,
 			scale: 1,
 			turned: true,
 			opacity: 1
@@ -133,6 +135,7 @@ describe("CardRegistry", () => {
 			y: 0,
 			z: 0,
 			spinDeg: 0,
+			flipDeg: 0,
 			scale: 1,
 			turned: false,
 			opacity: 1
@@ -197,7 +200,7 @@ describe("CardRegistry pose providers", () => {
 	it("keeps a real entry idle at its provider's pose instead of deleting it when a beat retires it", () => {
 		const registry = new CardRegistry();
 		registry.registerCardMeta("42", { type: "red", value: "5" });
-		registry.seedPose("42", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: false, opacity: 1 });
+		registry.seedPose("42", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
 		registry.setPoseProvider("42", () => [9, 0.02, 3]);
 
 		const beat: AnimationBeat = [{ op: "move", target: "42", payload: { to: "somewhere" } }];
@@ -220,7 +223,7 @@ describe("CardRegistry pose providers", () => {
 
 	it("deletes an anonymous entry (no provider registered) on retire, as before", () => {
 		const registry = new CardRegistry();
-		registry.seedPose("draw:bob:0", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: true, opacity: 1 });
+		registry.seedPose("draw:bob:0", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: true, opacity: 1 });
 
 		const beat: AnimationBeat = [{ op: "move", target: "draw:bob:0", payload: { to: "seat:bob" } }];
 		const resolveAnchor = () => [1, 0, -2] as [number, number, number];
@@ -235,7 +238,7 @@ describe("CardRegistry pose providers", () => {
 
 	it("isInTransit reflects whether an entry currently has a live pose entry from an unfinished beat", () => {
 		const registry = new CardRegistry();
-		registry.seedPose("7", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: false, opacity: 1 });
+		registry.seedPose("7", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
 		expect(registry.isInTransit("7")).toBe(false);
 
 		const beat: AnimationBeat = [{ op: "move", target: "7", payload: { to: "x" } }];

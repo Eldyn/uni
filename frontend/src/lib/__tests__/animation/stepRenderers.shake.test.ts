@@ -21,7 +21,7 @@ function fakeCtx(): { ctx: RenderContext; poses: Map<string, FlightPose> } {
 describe("shakeRenderer", () => {
 	it("returns the pose's x/z to their exact starting values once complete", () => {
 		const { ctx, poses } = fakeCtx();
-		poses.set("card-3", { x: 5, y: 0, z: -2, spinDeg: 0, scale: 1, turned: false, opacity: 1 });
+		poses.set("card-3", { x: 5, y: 0, z: -2, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
 
 		const timeline = shakeRenderer({ op: "shake", target: "card-3", payload: {} }, ctx);
 		timeline.progress(1, true);
