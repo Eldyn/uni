@@ -12,7 +12,13 @@
 	import type { Card, CardType } from "$stores/game.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadSilhouette, loadTexture } from "./textures";
-	import { CARD_WIDTH, CARD_HEIGHT, CARD_HOVER_LIFT, CARD_HOVER_SCALE } from "./units";
+	import {
+		CARD_WIDTH,
+		CARD_HEIGHT,
+		CARD_HOVER_LIFT,
+		CARD_HOVER_SCALE,
+		computeValueFlipRad
+	} from "./units";
 	import { storeAnimation } from "$stores/animation.svelte";
 
 	let {
@@ -178,16 +184,14 @@
 		if (Math.abs(target - liftT) < 0.001) liftT = target;
 	});
 
-	let spinRad = $derived(((spinDeg + hoverSpinDeg * liftT) * Math.PI) / 180);
+	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg * liftT);
+	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
 	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * halfDimension);
-	// Cancels the parent's world-Y spin exactly for the value layer only —
-	// background/border keep whatever angle the card was actually thrown at
-	// (: "don't fake the whole card's orientation, only compensate the
-	// number"). Independent of flipDeg — a card mid-flip isn't meant to be
-	// legible anyway, so this only ever cancels spinRad.
-	let valueCounterRad = $derived(storeAnimation.alwaysUprightValues ? -spinRad : 0);
+	// Flips the value layer by 180° when the card's rotation is upside down (|angle| > 90°),
+	// keeping values like 6 vs 9 legible without breaking the card's rectangular geometry.
+	let valueFlipRad = $derived(computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues));
 
 	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
 	// `liftT` above but tracking an arbitrary target value instead of a 0-1
@@ -352,7 +356,7 @@
 					</T.Mesh>
 				{/if}
 				{#if valueTexture}
-					<T.Mesh position.z={0.002} rotation.z={valueCounterRad} {renderOrder}>
+					<T.Mesh position.z={0.002} rotation.z={valueFlipRad} {renderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={valueTexture}

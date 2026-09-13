@@ -23,3 +23,15 @@ export const CARD_HOVER_SCALE = 1.08;
 // a function of the camera's frustum rather than a fixed world coordinate —
 // see layout/boardPlacement.ts. This file stays pure card geometry.
 
+/**
+ * Computes whether a card's value layer should flip by 180° (Math.PI)
+ * to remain upright and readable to the local viewer (e.g. keeping 6 vs 9 legible).
+ * When alwaysUprightValues is enabled and the card's spin angle exceeds 90° from upright
+ * (|normalizedSpinDeg| > 90°), returns Math.PI; otherwise returns 0.
+ */
+export function computeValueFlipRad(spinDeg: number, alwaysUprightValues: boolean): number {
+	if (!alwaysUprightValues) return 0;
+	const normalizedDeg = ((spinDeg % 360) + 540) % 360 - 180;
+	return Math.abs(normalizedDeg) > 90 ? Math.PI : 0;
+}
+
