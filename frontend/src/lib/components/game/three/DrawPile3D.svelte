@@ -9,34 +9,17 @@
 	import { loadSilhouette } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
+	import {
+		MAX_VISIBLE_STACK,
+		DRAW_PILE_STACK_STEP as STACK_STEP,
+		PILE_BASE_HEIGHT,
+		PILE_PEEK_Z,
+		visibleDrawPileStackSize
+	} from "../layout/drawPile";
 
 	let { placement }: { placement: BoardPlacement } = $props();
 
-	// Visual cap: rendering one plane per real card would draw 80+ overlapping
-	// meshes once the deck is full. The stack still reads as "a pile of cards"
-	// at any depth past a handful, so cap it and let depth communicate "still
-	// plenty left" rather than trying to render every card.
-	const MAX_VISIBLE_STACK = 6;
-	let visibleStackSize = $derived(
-		Math.max(0, Math.min(MAX_VISIBLE_STACK, storeGame.state?.draw_pile_size ?? 0))
-	);
-	// Same z-fighting fix as the other piles/hands: keep the step clear of
-	// CardMesh3D's own internal layer span (up to 0.004 world units).
-	const STACK_STEP = 0.02;
-	// Lifts the whole pile clear of the local hand's own height range — a
-	// resting hand card sits at i*STACK_STEP (LocalHand3D), which grows with
-	// hand size, and a hovered/dragged one jumps to CARD_HOVER_LIFT (0.5); this
-	// base has to clear both so the pile can never end up underneath a card
-	// whose XZ footprint happens to overlap it.
-	const PILE_BASE_HEIGHT = 0.6;
-	// Each deeper back peeks out a little above the one below it, so the pile
-	// reads as an actual stack of cards instead of a single lone back. Peeking
-	// toward the mat (−Z) rather than the viewer keeps the pile's own near
-	// edge flush with the bottom edge of the local hand row instead of
-	// drooping past it. Kept to a hairline on purpose — just enough of each
-	// card's own bottom edge to read as "another sheet", not enough to show
-	// its face.
-	const PILE_PEEK_Z = 0.02;
+	let visibleStackSize = $derived(visibleDrawPileStackSize(storeGame.state?.draw_pile_size ?? 0));
 	// A thin dark silhouette peeking a hair further than each card sells the
 	// "stacked sheets" cue — the same idea as the shadow under a hand card
 	// (LocalHand3D's own `shadow` prop), just offset along the stack's own
