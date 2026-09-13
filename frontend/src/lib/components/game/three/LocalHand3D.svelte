@@ -23,9 +23,9 @@
 	import { HTML } from "@threlte/extras";
 	import { storeGame, type Card } from "$stores/game.svelte";
 	import { computeHandLine } from "../layout/handLine";
-	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
+	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
-	import CardMesh3D from "./CardMesh3D.svelte";
+	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
 	import { loadTexture } from "./textures";
 	import type { CameraRig } from "../layout/cameraRig";
@@ -75,6 +75,7 @@
 	} = $props();
 
 	const bus = useCardBus();
+	const cardRegistry = useCardRegistry();
 	// Negative Z = away from the viewer, up the screen. The row sits flush with
 	// the bottom edge, so a lifted card has to pop out over the playmat; pushing
 	// it the other way would take it off-screen.
@@ -184,6 +185,54 @@
 
 	$effect(() => {
 		bus.setLocalHandSnapshot({ orderIds, scrollEm: line.scrollEm, maxHalfSpanEm });
+	});
+
+	// One registry entry per hand card, forever: a real entry never
+	// disappears while the card exists. This effect keeps every
+	// current hand card's pose-provider and decoration in sync with this
+	// component's own live layout, and applies that layout immediately unless
+	// CardRegistry says the card is currently mid-transition (a GSAP-owned
+	// draw/play flight), in which case the flight owns the pose until it hands
+	// back control on completion (CardRegistry.finishBeat).
+	$effect(() => {
+		const snapshot = { orderIds, scrollEm: line.scrollEm, maxHalfSpanEm };
+		for (const [i, card] of orderedCards.entries()) {
+			const idString = String(card.id);
+			const isDragging = draggingId === card.id;
+			const isSelected = selectedId === card.id;
+			const slot = slots[i];
+			const neighborPush = isDragging ? 0 : neighborPushEm(i);
+
+			cardRegistry.ensureEntry(
+				idString,
+				(() => {
+					const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
+					return { x, y, z, spinDeg: 0, scale: placement.handScale, turned: false, opacity: 1 };
+				})(),
+				{ type: card.type, value: card.value }
+			);
+			cardRegistry.setPoseProvider(idString, () =>
+				handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging })
+			);
+			cardRegistry.applyIdlePoseIfNotInTransit(idString);
+
+			const lifted =
+				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
+			const fade = edgeFade(slot.x);
+			cardRegistry.setDecoration(idString, {
+				hovered: lifted,
+				instant: isSelected,
+				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
+				pushX: neighborPush * handEmToWorld,
+				hoverSpinDeg: tiltTowardPileDeg(slot.x),
+				opacity: isSelected ? 1 : fade,
+				dimmed,
+				shadow: shadowTexture
+					? { texture: shadowTexture, offsetX: SHADOW_OFFSET, dropZ: SHADOW_DROP_Y, opacity: SHADOW_OPACITY }
+					: undefined,
+				highlight: isSelected ? {} : undefined
+			});
+		}
 	});
 
 	// A card that left the hand (played) can't stay selected, or the discard
@@ -461,34 +510,6 @@
 		};
 	});
 </script>
-
-{#each orderedCards as card, i (card.id)}
-	{@const slot = slots[i]}
-	{@const isDragging = draggingId === card.id}
-	{@const isSelected = selectedId === card.id}
-	{@const neighborPush = isDragging ? 0 : neighborPushEm(i)}
-	{@const x = slot.x * handEmToWorld + (isDragging ? dragOffsetX : 0)}
-	{@const lifted =
-		isSelected ||
-		((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging)}
-	{@const fade = edgeFade(slot.x)}
-	<CardMesh3D
-		{card}
-		position={[x, isDragging ? DRAG_LIFT : i * HAND_STACK_STEP, placement.localSeatZ]}
-		scale={placement.handScale}
-		hovered={lifted}
-		instant={isSelected}
-		hoverPush={[0, HOVER_PUSH_EM * handEmToWorld]}
-		pushX={neighborPush * handEmToWorld}
-		hoverSpinDeg={tiltTowardPileDeg(slot.x)}
-		opacity={isSelected ? 1 : fade}
-		{dimmed}
-		shadow={shadowTexture
-			? { texture: shadowTexture, offsetX: SHADOW_OFFSET, dropZ: SHADOW_DROP_Y, opacity: SHADOW_OPACITY }
-			: undefined}
-		highlight={isSelected ? {} : undefined}
-	/>
-{/each}
 
 {#each orderedCards as card, i (card.id)}
 	{@const zone = hitZones[i]}
