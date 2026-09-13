@@ -4,6 +4,9 @@
 	import GameHud from "./GameHud.svelte";
 	import GameActions from "./GameActions.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { createGameLayoutContext } from "./game-layout-context.svelte";
+
+	createGameLayoutContext();
 
 	let matchEnded = $state(false);
 

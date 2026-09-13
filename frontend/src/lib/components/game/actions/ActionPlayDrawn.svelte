@@ -1,10 +1,24 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
+	import { useGameLayoutContext } from "../game-layout-context.svelte";
+	import { worldToScreenPercent } from "../layout/screenProjection";
+
+	const layout = useGameLayoutContext();
+	let screenPercent = $derived.by(() => {
+		if (!layout?.geometry) return null;
+		const { rig, placement } = layout.geometry;
+		return worldToScreenPercent(rig, placement.drawPileX, placement.drawPileZ);
+	});
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
-	<div class="inline-action-container">
+	<div
+		class="inline-action-container"
+		style={screenPercent
+			? `left: ${screenPercent.leftPercent}%; top: ${screenPercent.topPercent}%; transform: translate(-50%, -100%);`
+			: undefined}
+	>
 		<div class="prompt-badge pixel-corners">You drew a playable card!</div>
 		<div class="action-buttons-group">
 			<button

@@ -5,7 +5,7 @@
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
 	import { createBaseBeatsWatcher } from "./animation/baseBeats.svelte";
-	import { createGameLayoutContext } from "./game-layout-context.svelte";
+	import { createGameLayoutContext, useGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
@@ -22,7 +22,7 @@
 
 	const bus = createCardBus();
 	const cardRegistry = createCardRegistry();
-	const layout = createGameLayoutContext();
+	const layout = useGameLayoutContext() ?? createGameLayoutContext();
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
 	// the discard pile to commit it; on keyboard, Enter does the same two steps.
@@ -89,6 +89,9 @@
 	// anchors below and the actual WebGL scene can never disagree about where
 	// the piles really sit (see layout/sceneGeometry.ts's file doc).
 	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
+	$effect(() => {
+		layout.geometry = geometry;
+	});
 
 	const disposeBaseBeatsWatcher = createBaseBeatsWatcher({
 		bus,
