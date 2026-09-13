@@ -218,8 +218,11 @@
 	// moved in here) instead of shrinking with a compact hand or growing with
 	// the hover pop.
 	let shadowPosition = $derived<[number, number, number]>(
-		shadow ? [-shadow.offsetX / animatedScale, 0, -shadow.dropZ / animatedScale] : [0, 0, 0]
+		shadow
+			? [-shadow.offsetX / animatedScale, 0, (-shadow.dropZ - flipLift) / animatedScale]
+			: [0, 0, 0]
 	);
+	let cardRenderOrder = $derived(renderOrder + 1);
 
 	let highlightElapsed = $state(0);
 	useTask((delta) => {
@@ -296,7 +299,7 @@
 			rotation.z={spinRad}
 		>
 			{#if highlight && highlightTexture}
-				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} {renderOrder}>
+				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={cardRenderOrder}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
@@ -309,7 +312,7 @@
 				</T.Mesh>
 			{/if}
 			{#if opacity < 1 && highlightTexture}
-				<T.Mesh position.z={BACKDROP_DROP_Z} {renderOrder}>
+				<T.Mesh position.z={BACKDROP_DROP_Z} renderOrder={cardRenderOrder}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
@@ -323,14 +326,14 @@
 			{/if}
 			{#if turned}
 				{#if backTexture}
-					<T.Mesh {renderOrder}>
+					<T.Mesh renderOrder={cardRenderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={backTexture}
 							color={bgColor}
 							transparent
 							depthWrite
-							polygonOffset={renderOrder > 0}
+							polygonOffset={cardRenderOrder > 0}
 							polygonOffsetFactor={-1}
 							polygonOffsetUnits={-1}
 							{opacity}
@@ -341,14 +344,14 @@
 				{/if}
 			{:else}
 				{#if bgTexture}
-					<T.Mesh {renderOrder}>
+					<T.Mesh renderOrder={cardRenderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={bgTexture}
 							color={bgColor}
 							transparent
 							depthWrite
-							polygonOffset={renderOrder > 0}
+							polygonOffset={cardRenderOrder > 0}
 							polygonOffsetFactor={-1}
 							polygonOffsetUnits={-1}
 							{opacity}
@@ -358,14 +361,14 @@
 					</T.Mesh>
 				{/if}
 				{#if valueTexture}
-					<T.Mesh position.z={0.002} rotation.z={valueFlipRad} {renderOrder}>
+					<T.Mesh position.z={0.002} rotation.z={valueFlipRad} renderOrder={cardRenderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={valueTexture}
 							color={tintColor}
 							transparent
 							depthWrite
-							polygonOffset={renderOrder > 0}
+							polygonOffset={cardRenderOrder > 0}
 							polygonOffsetFactor={-1}
 							polygonOffsetUnits={-1}
 							{opacity}
@@ -375,14 +378,14 @@
 					</T.Mesh>
 				{/if}
 				{#if borderTexture}
-					<T.Mesh position.z={0.004} {renderOrder}>
+					<T.Mesh position.z={0.004} renderOrder={cardRenderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={borderTexture}
 							color={tintColor}
 							transparent
 							depthWrite
-							polygonOffset={renderOrder > 0}
+							polygonOffset={cardRenderOrder > 0}
 							polygonOffsetFactor={-1}
 							polygonOffsetUnits={-1}
 							{opacity}
