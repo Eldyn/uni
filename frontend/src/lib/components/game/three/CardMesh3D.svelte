@@ -13,6 +13,7 @@
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadSilhouette, loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, CARD_HOVER_LIFT, CARD_HOVER_SCALE } from "./units";
+	import { storeAnimation } from "$stores/animation.svelte";
 
 	let {
 		card,
@@ -181,6 +182,12 @@
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
 	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * halfDimension);
+	// Cancels the parent's world-Y spin exactly for the value layer only —
+	// background/border keep whatever angle the card was actually thrown at
+	// (: "don't fake the whole card's orientation, only compensate the
+	// number"). Independent of flipDeg — a card mid-flip isn't meant to be
+	// legible anyway, so this only ever cancels spinRad.
+	let valueCounterRad = $derived(storeAnimation.alwaysUprightValues ? -spinRad : 0);
 
 	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
 	// `liftT` above but tracking an arbitrary target value instead of a 0-1
@@ -345,7 +352,7 @@
 					</T.Mesh>
 				{/if}
 				{#if valueTexture}
-					<T.Mesh position.z={0.002} {renderOrder}>
+					<T.Mesh position.z={0.002} rotation.z={valueCounterRad} {renderOrder}>
 						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 						<T.MeshBasicMaterial
 							map={valueTexture}
