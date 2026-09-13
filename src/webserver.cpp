@@ -209,11 +209,17 @@ void WebServer::RegisterRoutes() {
             auto token = http::GetCookieValue(cookies, "ws_token");
             if (!token || token->empty()) token = http::GetCookieValue(cookies, "auth_token");
 
-            auto payload = AuthService::VerifyToken(*token);
-
             // INFO: Capture the IP before upgrade() invalidates the request
             //       object.
             const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+
+            if (!token || token->empty()) {
+                Logger::Warn("[WS] Rejected upgrade, missing token ip=" + ip);
+                res->writeStatus("401 Unauthorized")->end();
+                return;
+            }
+
+            auto payload = AuthService::VerifyToken(*token);
 
             if (!payload) {
                 Logger::Warn("[WS] Rejected upgrade, invalid token ip=" + ip);
@@ -497,16 +503,20 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
     // INFO: Downstream helpers call json::value(), which throws on
     //       non-objects, so a well-formed but non-object payload (e.g. "5"
     //       or "[]") must be rejected too.
-    if (!message_json.is_object() || !message_json.contains("action")) {
-        Logger::Warn("[WS] Message missing 'action' field");
+    if (!message_json.is_object() || !message_json.contains("action") || !message_json["action"].is_string()) {
+        Logger::Warn("[WS] Message missing or invalid 'action' field");
         return;
     }
 
     WsContext context = { .socket = socket, .socket_data = socket->getUserData(),
                           .op_code = op_code};
 
-    if (!ws_router_.Dispatch(context, message_json)) {
-        Logger::Warn("No handler found for action: " + message_json.value("action", "UNKNOWN"));
+    try {
+        if (!ws_router_.Dispatch(context, message_json)) {
+            Logger::Warn("No handler found for action: " + message_json["action"].get<std::string>());
+        }
+    } catch (const std::exception& e) {
+        Logger::Error("[WS] Uncaught exception in OnSocketMessage: ", e.what());
     }
 }
 

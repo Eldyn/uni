@@ -37,6 +37,12 @@ AuthController::AuthController(HttpRouter& router)
         std::string_view cookies = req->getHeader("cookie");
         auto token = http::GetCookieValue(cookies, "auth_token");
 
+        if (!token || token->empty()) {
+            Logger::Warn("[HTTP] Rejected auth-me, missing token");
+            res->writeStatus("401 Unauthorized")->end();
+            return;
+        }
+
         auto payload = AuthService::VerifyToken(*token);
 
         if (!payload) {

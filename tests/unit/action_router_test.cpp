@@ -188,4 +188,45 @@ TEST_CASE("On/OnAny: return *this so calls can be chained") {
     CHECK(&r2 == &f.router);
 }
 
+TEST_CASE("Dispatch: non-string action does not throw and returns false") {
+    RouterFixture f;
+    f.router.On("ping", [](WsContext, const json&) { return true; });
+
+    // Non-string action: json object or int
+    json bad_msg1 = {{"action", json::object()}};
+    json bad_msg2 = {{"action", 123}};
+
+    CHECK_FALSE(f.router.Dispatch(f.ctx(), bad_msg1));
+    CHECK_FALSE(f.router.Dispatch(f.ctx(), bad_msg2));
+}
+
+TEST_CASE("Dispatch: exception in handler is caught without crashing") {
+    RouterFixture f;
+    f.router.On("boom", [](WsContext, const json&) {
+        throw std::runtime_error("simulated handler failure");
+        return true;
+    });
+
+    WsContext test_ctx = f.ctx();
+    test_ctx.socket = nullptr; // Avoid dereferencing fake test pointer for SendError
+
+    // Dispatch should catch the exception and return true (handler was found)
+    CHECK(f.router.Dispatch(test_ctx, {{"action", "boom"}}));
+}
+
+TEST_CASE("Dispatch: exception in wildcard is caught and aborts chain without crashing") {
+    RouterFixture f;
+    bool handler_called = false;
+    f.router.OnAny([](WsContext, const json&) -> bool {
+        throw std::runtime_error("simulated wildcard failure");
+    });
+    f.router.On("ping", [&](WsContext, const json&) {
+        handler_called = true;
+        return true;
+    });
+
+    CHECK_FALSE(f.router.Dispatch(f.ctx(), {{"action", "ping"}}));
+    CHECK_FALSE(handler_called);
+}
+
 } // TEST_SUITE
