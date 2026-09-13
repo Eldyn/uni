@@ -10,7 +10,7 @@
 
 import { storeGame, type CardType } from "$stores/game.svelte";
 import type { CardBus } from "../card-bus.svelte";
-import type { AnimationQueue } from "./animationQueue.svelte";
+import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { drawPileTopPose } from "../layout/drawPile";
@@ -44,7 +44,7 @@ export function buildReshuffleBeat(history: DiscardEntry[]): AnimationBeat[] {
 
 /** Builds the beat for a single play landing on the discard pile. Exported
  *  standalone (not just used internally) so it's unit-testable without a
- *  running AnimationQueue/storeGame — see baseBeats.play.test.ts. */
+ *  running CardRegistry/storeGame — see baseBeats.play.test.ts. */
 export function buildPlayBeat(args: {
 	cardId: string;
 	playedByMe: boolean;
@@ -163,7 +163,7 @@ export function drawStaggerFor(cardCount: number): number {
  *  same tick (a plain draw is `cardIds.length === 1`; a +2/+4 penalty draws
  *  several at once). All cards share ONE beat, each card's steps offset by
  *  `drawStaggerFor`'s stagger — a separate beat per card would only start
- *  card N+1 once card N's own beat had FULLY completed (AnimationQueue's
+ *  card N+1 once card N's own beat had FULLY completed (CardRegistry's
  *  beats are strictly sequential), which reads as a slow one-at-a-time crawl
  *  rather than a staggered multi-card draw. */
 export function buildDrawBeats(args: {
@@ -213,7 +213,7 @@ export function buildDrawBeats(args: {
 
 export function createBaseBeatsWatcher(deps: {
 	bus: CardBus;
-	animationQueue: AnimationQueue;
+	cardRegistry: CardRegistry;
 	getPlacement: () => BoardPlacement;
 	getOpponentSeatAnchor: (username: string) => [number, number, number];
 	/** Draw scale for opponents' seat cards — the size their own mini-hand
@@ -308,7 +308,7 @@ export function createBaseBeatsWatcher(deps: {
 					anchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
 				}
 
-				deps.animationQueue.registerCardMeta(String(top.id), { type: top.type, value: top.value });
+				deps.cardRegistry.registerCardMeta(String(top.id), { type: top.type, value: top.value });
 
 				if (playedByMe) {
 					const [sx, sy, sz] = localCardAnchor(
@@ -317,7 +317,7 @@ export function createBaseBeatsWatcher(deps: {
 						deps.bus.localHandSnapshot,
 						deps.bus.previousLocalHandSnapshot
 					);
-					deps.animationQueue.seedPose(String(top.id), {
+					deps.cardRegistry.seedPose(String(top.id), {
 						x: sx,
 						y: sy,
 						z: sz,
@@ -328,7 +328,7 @@ export function createBaseBeatsWatcher(deps: {
 					});
 				} else {
 					const [sx, sy, sz] = deps.getOpponentSeatAnchor(lastPlay.player);
-					deps.animationQueue.seedPose(String(top.id), {
+					deps.cardRegistry.seedPose(String(top.id), {
 						x: sx,
 						y: sy,
 						z: sz,
@@ -361,7 +361,7 @@ export function createBaseBeatsWatcher(deps: {
 				// brief double-render (once in hand, once flying).
 				if (playedByMe) deps.bus.hide(top.id);
 
-				deps.animationQueue.enqueue([beat, shakeBeat], anchors).then(() => {
+				deps.cardRegistry.enqueue([beat, shakeBeat], anchors).then(() => {
 					deps.bus.setDiscardTop(top, landingBaseDeg);
 					if (playedByMe) deps.bus.show(top.id);
 				});
@@ -418,9 +418,9 @@ export function createBaseBeatsWatcher(deps: {
 							// for the draw's duration is what stops it appearing in the
 							// hand before its own draw animation has even started.
 							deps.bus.hide(cardId);
-							deps.animationQueue.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+							deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
-							deps.animationQueue.seedPose(String(cardId), {
+							deps.cardRegistry.seedPose(String(cardId), {
 								x: px,
 								y: py,
 								z: pz,
@@ -431,7 +431,7 @@ export function createBaseBeatsWatcher(deps: {
 							});
 						}
 						const cardIds = newIds.map(String);
-						deps.animationQueue
+						deps.cardRegistry
 							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), anchors)
 							.then(() => cardIds.forEach((id) => deps.bus.show(Number(id))));
 						prevLocalHandIds = currentIds;
@@ -443,7 +443,7 @@ export function createBaseBeatsWatcher(deps: {
 							const cardId = `draw:${p.username}:${drawIdCounter++}`;
 							cardIds.push(cardId);
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
-							deps.animationQueue.seedPose(cardId, {
+							deps.cardRegistry.seedPose(cardId, {
 								x: px,
 								y: py,
 								z: pz,
@@ -453,7 +453,7 @@ export function createBaseBeatsWatcher(deps: {
 								opacity: 1
 							});
 						}
-						deps.animationQueue.enqueue(
+						deps.cardRegistry.enqueue(
 							buildDrawBeats({ cardIds, forLocalPlayer: false, opponentUsername: p.username, placement }),
 							opponentAnchors
 						);
@@ -469,11 +469,11 @@ export function createBaseBeatsWatcher(deps: {
 						"draw-pile": [placement.drawPileX, 0, placement.drawPileZ] as [number, number, number]
 					};
 					for (const entry of deps.bus.discardHistory) {
-						deps.animationQueue.registerCardMeta(String(entry.card.id), entry.card);
+						deps.cardRegistry.registerCardMeta(String(entry.card.id), entry.card);
 						// Without this, moveRenderer's own all-zero fallback startPose
 						// applies and reshuffled cards fly from the table origin at full
 						// scale instead of from the discard pile they're actually leaving.
-						deps.animationQueue.seedPose(String(entry.card.id), {
+						deps.cardRegistry.seedPose(String(entry.card.id), {
 							x: placement.discardX,
 							y: 0,
 							z: placement.discardZ,
@@ -483,7 +483,7 @@ export function createBaseBeatsWatcher(deps: {
 							opacity: 1
 						});
 					}
-					deps.animationQueue.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
+					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), anchors);
 				}
 				prevDrawPileSize = currentDrawPileSize;
 			}

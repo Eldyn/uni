@@ -3,7 +3,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
-	import { createAnimationQueue } from "./animation/animationQueue.svelte";
+	import { createCardRegistry } from "./animation/cardRegistry.svelte";
 	import { createBaseBeatsWatcher } from "./animation/baseBeats.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
@@ -13,7 +13,7 @@
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 
 	const bus = createCardBus();
-	const animationQueue = createAnimationQueue();
+	const cardRegistry = createCardRegistry();
 	const layout = createGameLayoutContext();
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
@@ -84,7 +84,7 @@
 
 	const disposeBaseBeatsWatcher = createBaseBeatsWatcher({
 		bus,
-		animationQueue,
+		cardRegistry,
 		getPlacement: () => geometry.placement,
 		getOpponentCardScale: () => geometry.opponentCardScale,
 		getOpponentSeatAnchor: (username) => {
@@ -109,7 +109,7 @@
 	// (AccessibleHandControls claims arrows/Enter/Space/digits, never Escape).
 	$effect(() => {
 		function onWindowKeydown(event: KeyboardEvent) {
-			if (event.key === "Escape") animationQueue.skipCurrent();
+			if (event.key === "Escape") cardRegistry.skipCurrent();
 		}
 		window.addEventListener("keydown", onWindowKeydown);
 		return () => window.removeEventListener("keydown", onWindowKeydown);
@@ -122,7 +122,7 @@
 	// the second flush, that backlog plays through the moment focus returns.
 	$effect(() => {
 		function onVisibilityChange() {
-			animationQueue.flushImmediately();
+			cardRegistry.flushImmediately();
 		}
 		document.addEventListener("visibilitychange", onVisibilityChange);
 		return () => document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -143,7 +143,7 @@
 		class="scene-layer"
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
-		onpointerdown={() => animationQueue.skipCurrent()}
+		onpointerdown={() => cardRegistry.skipCurrent()}
 	>
 		<Canvas>
 			<Scene3D

@@ -6,7 +6,7 @@ export const FLIP_DURATION_S = 0.225;
 // A full flip is 180deg of spin; the face swap happens at the midpoint, where
 // the card is edge-on and the swap is invisible. Using timeline.set() rather
 // than an onComplete callback for the face-swap write: GSAP's suppressEvents
-// (the flag AnimationQueue.skipCurrent's progress(1, true) passes) suppresses
+// (the flag CardRegistry.skipCurrent's progress(1, true) passes) suppresses
 // callback functions but still applies a .set()'s property write when the
 // playhead crosses it — same reason the position tweens in move.ts/shake.ts
 // already survive a skip. A callback-based write would silently never run on

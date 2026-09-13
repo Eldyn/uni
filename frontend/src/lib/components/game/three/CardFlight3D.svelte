@@ -1,5 +1,5 @@
 <!-- The mesh a running GSAP tween actually drives. `pose` is the same $state
-     object animationQueue.svelte.ts's stepRenderers write to every tick —
+     object cardRegistry.svelte.ts's stepRenderers write to every tick —
      because it's a Svelte $state object, GSAP's own per-frame property
      writes ARE the reactivity trigger; no polling loop needed here. -->
 <script lang="ts">

@@ -23,7 +23,7 @@ interface PendingBatch {
 	resolve: () => void;
 }
 
-export class AnimationQueue {
+export class CardRegistry {
 	#registry: Record<string, StepRenderer> = {
 		move: moveRenderer,
 		flip: flipRenderer,
@@ -128,7 +128,7 @@ export class AnimationQueue {
 				},
 				resolveAnchor: (name) => {
 					const anchor = batch.anchors[name];
-					if (!anchor) throw new Error(`AnimationQueue: no anchor registered for "${name}"`);
+					if (!anchor) throw new Error(`CardRegistry: no anchor registered for "${name}"`);
 					return anchor;
 				}
 			};
@@ -137,14 +137,14 @@ export class AnimationQueue {
 			for (const step of beat) {
 				const renderer = this.#registry[step.op];
 				if (!renderer) {
-					console.warn(`AnimationQueue: unknown op "${step.op}" for target "${step.target}" — skipping.`);
+					console.warn(`CardRegistry: unknown op "${step.op}" for target "${step.target}" — skipping.`);
 					continue;
 				}
 				try {
 					timeline.add(renderer(step, ctx), step.atS ?? 0);
 				} catch (err) {
 					console.error(
-						`AnimationQueue: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
+						`CardRegistry: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
 						err
 					);
 				}
@@ -193,7 +193,7 @@ export class AnimationQueue {
 				finishBeat();
 			}
 		} catch (err) {
-			console.error(`AnimationQueue: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
+			console.error(`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);
@@ -207,15 +207,15 @@ export class AnimationQueue {
 	}
 }
 
-const ANIMATION_QUEUE_KEY = Symbol("animation-queue");
+const CARD_REGISTRY_KEY = Symbol("card-registry");
 
-export function createAnimationQueue(): AnimationQueue {
-	const queue = new AnimationQueue();
+export function createCardRegistry(): CardRegistry {
+	const queue = new CardRegistry();
 	try {
 		// setContext requires component initialisation; unit tests exercise the
 		// queue directly (via the returned instance) without mounting a
 		// component, so registering the context is best-effort here.
-		setContext(ANIMATION_QUEUE_KEY, queue);
+		setContext(CARD_REGISTRY_KEY, queue);
 	} catch (err) {
 		// Svelte 5's setContext throws when called outside component initialization.
 		// The error message is a URL pointing to the lifecycle_outside_component
@@ -227,11 +227,11 @@ export function createAnimationQueue(): AnimationQueue {
 			throw err;
 		}
 		// Not inside component initialisation — fine for callers that only use
-		// the returned instance rather than useAnimationQueue().
+		// the returned instance rather than useCardRegistry().
 	}
 	return queue;
 }
 
-export function useAnimationQueue(): AnimationQueue {
-	return getContext<AnimationQueue>(ANIMATION_QUEUE_KEY);
+export function useCardRegistry(): CardRegistry {
+	return getContext<CardRegistry>(CARD_REGISTRY_KEY);
 }

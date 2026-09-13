@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { createAnimationQueue } from "$components/game/animation/animationQueue.svelte";
+import { createCardRegistry } from "$components/game/animation/cardRegistry.svelte";
 
-describe("AnimationQueue", () => {
+describe("CardRegistry", () => {
 	it("plays beats in order and fires each step's onLand via enqueue's return", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		const order: string[] = [];
 
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
@@ -27,7 +27,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("unknown op logs a warning and still advances the queue", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 
@@ -39,7 +39,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("skipping still resolves the beat instead of hanging", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 		const done = queue.enqueue(
 			[[{ op: "move", target: "card-1", payload: { to: "discard-pile" } }]],
@@ -50,7 +50,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("a card seeded via seedPose before enqueue still gets a rendered flight", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 
 		// baseBeats.svelte.ts calls seedPose (populating #poses) before enqueue
@@ -79,7 +79,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("the seeded pose object is the same reactive instance GSAP tweens, so the mounted flight updates live", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 		queue.seedPose("card-1", {
 			x: 0,
@@ -107,7 +107,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("a renderer throwing on a bad step doesn't wedge the queue — other steps and later beats still run", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 		queue.registerCardMeta("card-2", { type: "blue", value: "7" });
@@ -131,7 +131,7 @@ describe("AnimationQueue", () => {
 	});
 
 	it("an unresolvable anchor thrown from a renderer doesn't wedge the queue", async () => {
-		const queue = createAnimationQueue();
+		const queue = createCardRegistry();
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 

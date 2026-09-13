@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { flushSync } from "svelte";
 import { createBaseBeatsWatcher } from "$components/game/animation/baseBeats.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
-import { AnimationQueue } from "$components/game/animation/animationQueue.svelte";
+import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -49,13 +49,13 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 
 		const bus = new CardBus();
-		const animationQueue = new AnimationQueue();
+		const cardRegistry = new CardRegistry();
 
 		let dispose: () => void = () => {};
 		expect(() => {
 			dispose = createBaseBeatsWatcher({
 				bus,
-				animationQueue,
+				cardRegistry,
 				getPlacement: () => placement,
 				getOpponentSeatAnchor: () => [0, 0, 0]
 			});
@@ -86,10 +86,10 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 
 		const bus = new CardBus();
-		const animationQueue = new AnimationQueue();
+		const cardRegistry = new CardRegistry();
 		const dispose = createBaseBeatsWatcher({
 			bus,
-			animationQueue,
+			cardRegistry,
 			getPlacement: () => placement,
 			getOpponentSeatAnchor: () => [0, 0, 0]
 		});
@@ -116,7 +116,7 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 		flushSync();
 
-		expect(animationQueue.activeFlights.some((f) => f.id === "2")).toBe(true);
+		expect(cardRegistry.activeFlights.some((f) => f.id === "2")).toBe(true);
 
 		dispose();
 	});
@@ -137,10 +137,10 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 
 		const bus = new CardBus();
-		const animationQueue = new AnimationQueue();
+		const cardRegistry = new CardRegistry();
 		const dispose = createBaseBeatsWatcher({
 			bus,
-			animationQueue,
+			cardRegistry,
 			getPlacement: () => placement,
 			getOpponentSeatAnchor: () => [1, 0, -2],
 			getOpponentCardScale: () => 0.4
@@ -161,7 +161,7 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 		flushSync();
 
-		const flight = animationQueue.activeFlights.find((f) => f.id.startsWith("draw:bob:"));
+		const flight = cardRegistry.activeFlights.find((f) => f.id.startsWith("draw:bob:"));
 		expect(flight).toBeDefined();
 		expect(flight!.pose.turned).toBe(true);
 		expect(flight!.pose.scale).toBe(0.4);
@@ -185,10 +185,10 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 
 		const bus = new CardBus();
-		const animationQueue = new AnimationQueue();
+		const cardRegistry = new CardRegistry();
 		const dispose = createBaseBeatsWatcher({
 			bus,
-			animationQueue,
+			cardRegistry,
 			getPlacement: () => ({ ...placement, centerScale: 1 }),
 			getOpponentSeatAnchor: () => [1, 0, -2],
 			getOpponentCardScale: () => 0.4
@@ -210,7 +210,7 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 		flushSync();
 
-		const flight = animationQueue.activeFlights.find((f) => f.id === "2");
+		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
 		expect(flight).toBeDefined();
 		expect(flight!.pose.scale).toBe(0.4);
 
@@ -232,10 +232,10 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 
 		const bus = new CardBus();
-		const animationQueue = new AnimationQueue();
+		const cardRegistry = new CardRegistry();
 		const dispose = createBaseBeatsWatcher({
 			bus,
-			animationQueue,
+			cardRegistry,
 			getPlacement: () => placement,
 			getOpponentSeatAnchor: () => [0, 0, 0]
 		});
@@ -262,7 +262,7 @@ describe("createBaseBeatsWatcher", () => {
 		} as never;
 		flushSync();
 
-		const flight = animationQueue.activeFlights.find((f) => f.id === "2");
+		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
 		expect(flight).toBeDefined();
 		// draw_pile_size was 3 pre-draw -> visible stack size 3 -> top index 2.
 		expect(flight!.pose.y).toBeCloseTo(0.6 + 2 * 0.02);
