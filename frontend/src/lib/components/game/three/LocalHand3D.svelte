@@ -165,9 +165,7 @@
 			: -((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3)
 	);
 
-	let cards = $derived(
-		(storeGame.localPlayer?.hand ?? []).filter((card) => !bus.hiddenCardIds.has(card.id))
-	);
+	let cards = $derived(storeGame.localPlayer?.hand ?? []);
 
 	// Reconciled, not replaced: new card ids append at the end, missing ones
 	// drop out, everything else keeps its current position — so a drag that's

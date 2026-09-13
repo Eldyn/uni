@@ -38,8 +38,6 @@ export class CardBus {
 		this.discardHistory = paintTopWild(this.discardHistory, type);
 	}
 
-	hiddenCardIds = $state(new Set<number>());
-
 	/** LocalHand3D's own current ordering/scroll — shared so baseBeats.ts can
 	 *  recompute the exact same computeHandLine() call to find a card's true
 	 *  current slot (post-drag, post-scroll) without any DOM measurement. */
@@ -63,14 +61,6 @@ export class CardBus {
 		// effect reruns, read, write, forever (effect_update_depth_exceeded).
 		this.previousLocalHandSnapshot = untrack(() => this.localHandSnapshot);
 		this.localHandSnapshot = snapshot;
-	}
-
-	hide(id: number) {
-		this.hiddenCardIds = new Set([...this.hiddenCardIds, id]);
-	}
-
-	show(id: number) {
-		this.hiddenCardIds = new Set([...this.hiddenCardIds].filter((x) => x !== id));
 	}
 }
 

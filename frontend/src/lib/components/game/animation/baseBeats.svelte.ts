@@ -375,18 +375,9 @@ export function createBaseBeatsWatcher(deps: {
 				// halts dead. Queued as its own beat so it runs strictly after landing.
 				const shakeBeat: AnimationBeat = [{ op: "shake", target: String(top.id), payload: {} }];
 
-				// The server's hand list already drops the played card the instant it's
-				// applied, but LocalHand3D's own render still shows it until that state
-				// update reaches it — hiding it here for the flight's duration avoids a
-				// brief double-render (once in hand, once flying).
-				if (playedByMe) deps.bus.hide(top.id);
-
-				deps.cardRegistry
-					.enqueue([beat, shakeBeat], resolveCardTarget)
-					.then(() => {
-						deps.bus.setDiscardTop(top, landingBaseDeg);
-						if (playedByMe) deps.bus.show(top.id);
-					});
+				deps.cardRegistry.enqueue([beat, shakeBeat], resolveCardTarget).then(() => {
+					deps.bus.setDiscardTop(top, landingBaseDeg);
+				});
 			}
 
 			function processDraws(): void {
@@ -432,11 +423,6 @@ export function createBaseBeatsWatcher(deps: {
 						for (const cardId of newIds) {
 							const card = localHand.find((c) => c.id === cardId);
 							if (!card) continue;
-							// LocalHand3D's own render already shows the new card the
-							// instant the server's hand list includes it — hiding it here
-							// for the draw's duration is what stops it appearing in the
-							// hand before its own draw animation has even started.
-							deps.bus.hide(cardId);
 							deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 							deps.cardRegistry.seedPose(String(cardId), {
@@ -450,9 +436,10 @@ export function createBaseBeatsWatcher(deps: {
 							});
 						}
 						const cardIds = newIds.map(String);
-						deps.cardRegistry
-							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), resolveCardTarget)
-							.then(() => cardIds.forEach((id) => deps.bus.show(Number(id))));
+						deps.cardRegistry.enqueue(
+							buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
+							resolveCardTarget
+						);
 						prevLocalHandIds = currentIds;
 					} else {
 						const drawnCount = p.card_count - prevCount;
