@@ -9,7 +9,7 @@
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import { DISCARD_STACK_STEP, type DiscardEntry } from "../layout/discardPile";
-	import CardMesh3D from "./CardMesh3D.svelte";
+	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -50,6 +50,40 @@
 	const CONFIRM_TARGET_SCALE = 1.6;
 	let topIndex = $derived(history.length - 1);
 
+	const cardRegistry = useCardRegistry();
+
+	// One registry entry per discard-pile card, kept idle at this pile's own
+	// jitter/rotation/stack pose whenever it isn't mid-flight — mirrors
+	// LocalHand3D's own registration effect (Task A10) for the exact same
+	// "no separate flight identity" reason.
+	$effect(() => {
+		for (const [i, entry] of history.entries()) {
+			const idString = String(entry.card.id);
+			cardRegistry.ensureEntry(
+				idString,
+				{
+					x: entry.jitter[0] * EM_TO_WORLD,
+					y: i * STACK_STEP,
+					z: entry.jitter[1] * EM_TO_WORLD,
+					spinDeg: entry.rotationDeg,
+					scale,
+					turned: false,
+					opacity: 1
+				},
+				{ type: entry.card.type, value: entry.wildColor ?? entry.card.value }
+			);
+			cardRegistry.setPoseProvider(idString, () => [
+				entry.jitter[0] * EM_TO_WORLD,
+				i * STACK_STEP,
+				entry.jitter[1] * EM_TO_WORLD
+			]);
+			cardRegistry.applyIdlePoseIfNotInTransit(idString);
+			cardRegistry.setDecoration(idString, {
+				highlight: armed && i === topIndex ? { pulse: true } : undefined
+			});
+		}
+	});
+
 	let shadowTexture = $state<import("three").Texture | null>(null);
 	$effect(() => {
 		let cancelled = false;
@@ -85,14 +119,6 @@
 			/>
 		</T.Mesh>
 	{/if}
-	<CardMesh3D
-		card={entry.card}
-		wildColor={entry.wildColor}
-		position={[entry.jitter[0] * EM_TO_WORLD, i * STACK_STEP, entry.jitter[1] * EM_TO_WORLD]}
-		spinDeg={entry.rotationDeg}
-		{scale}
-		highlight={armed && i === topIndex ? { pulse: true } : undefined}
-	/>
 {/each}
 
 {#if armed}
