@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDrawBeats, drawStaggerFor, opponentSeatAnchor } from "$components/game/animation/baseBeats.svelte";
+import { buildDrawBeats, drawStaggerFor, opponentSeatAnchor, localHandSlotAnchor } from "$components/game/animation/baseBeats.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {
@@ -70,6 +70,14 @@ describe("buildDrawBeats", () => {
 
 	it("throws for an opponent draw missing a username", () => {
 		expect(() => buildDrawBeats({ cardIds: ["x"], forLocalPlayer: false, placement })).toThrow();
+	});
+});
+
+describe("localHandSlotAnchor", () => {
+	it("includes the row's own Y-stack offset, matching LocalHand3D's own stacking", () => {
+		const snapshot = { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 };
+		const [, y] = localHandSlotAnchor(3, 2, placement, snapshot);
+		expect(y).toBeCloseTo(2 * 0.02);
 	});
 });
 

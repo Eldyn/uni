@@ -11,7 +11,7 @@
 import { storeGame, type CardType } from "$stores/game.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { AnimationQueue } from "./animationQueue.svelte";
-import { computeHandLine } from "../layout/handLine";
+import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { drawPileTopPose } from "../layout/drawPile";
 import { DISCARD_CAP, DISCARD_STACK_STEP, previewDiscardLanding, type DiscardEntry } from "../layout/discardPile";
@@ -108,15 +108,11 @@ export function localCardAnchor(
 	snapshot: HandSnapshot,
 	previousSnapshot: HandSnapshot | null = null
 ): [number, number, number] {
-	const handEmToWorld = EM_TO_WORLD * placement.handScale;
-
 	for (const candidate of [snapshot, previousSnapshot]) {
 		if (!candidate) continue;
 		const index = candidate.orderIds.indexOf(cardId);
 		if (index === -1) continue;
-		const line = computeHandLine(candidate.orderIds.length, candidate.maxHalfSpanEm, candidate.scrollEm);
-		const slot = line.slots[index];
-		if (slot) return [slot.x * handEmToWorld, 0, placement.localSeatZ];
+		return handSlotPose(index, candidate.orderIds.length, candidate, placement);
 	}
 
 	console.warn(
@@ -136,10 +132,7 @@ export function localHandSlotAnchor(
 	placement: BoardPlacement,
 	snapshot: HandSnapshot
 ): [number, number, number] {
-	const handEmToWorld = EM_TO_WORLD * placement.handScale;
-	const line = computeHandLine(handCount, snapshot.maxHalfSpanEm, snapshot.scrollEm);
-	const slot = line.slots[slotIndex];
-	return slot ? [slot.x * handEmToWorld, 0, placement.localSeatZ] : [0, 0, placement.localSeatZ];
+	return handSlotPose(slotIndex, handCount, snapshot, placement);
 }
 
 /** Anchor key for an opponent's seat — resolved to real world coordinates by

@@ -64,4 +64,10 @@ describe("localCardAnchor", () => {
 		expect(warn).toHaveBeenCalled();
 		warn.mockRestore();
 	});
+
+	it("includes the found slot's own Y-stack offset", () => {
+		const snapshot = { orderIds: [5, 6, 7], scrollEm: 0, maxHalfSpanEm: 10 };
+		const [, y] = localCardAnchor(7, placement, snapshot, null);
+		expect(y).toBeCloseTo(2 * 0.02);
+	});
 });
