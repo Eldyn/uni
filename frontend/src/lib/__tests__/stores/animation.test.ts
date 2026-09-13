@@ -47,4 +47,24 @@ describe("storeAnimation", () => {
 		const { storeAnimation } = await import("$stores/animation.svelte");
 		expect(storeAnimation.speedMultiplier).toBeGreaterThanOrEqual(0.5);
 	});
+
+	it("defaults alwaysUprightValues to false (opt-in, not forced)", async () => {
+		const { storeAnimation } = await import("$stores/animation.svelte");
+		expect(storeAnimation.alwaysUprightValues).toBe(false);
+	});
+
+	it("persists alwaysUprightValues across the same pattern as setEnabled/setSpeedMultiplier", async () => {
+		const { storeAnimation } = await import("$stores/animation.svelte");
+		storeAnimation.setAlwaysUprightValues(true);
+		expect(storeAnimation.alwaysUprightValues).toBe(true);
+		const raw = localStorage.getItem("uni:animation:settings");
+		expect(raw).toBeTruthy();
+		expect(JSON.parse(raw!).alwaysUprightValues).toBe(true);
+	});
+
+	it("restores alwaysUprightValues from localStorage if present", async () => {
+		localStorage.setItem("uni:animation:settings", JSON.stringify({ alwaysUprightValues: true }));
+		const { storeAnimation } = await import("$stores/animation.svelte");
+		expect(storeAnimation.alwaysUprightValues).toBe(true);
+	});
 });

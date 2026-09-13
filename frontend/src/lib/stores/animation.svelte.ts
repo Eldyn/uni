@@ -16,6 +16,7 @@ const MAX_SPEED_MULTIPLIER = 3;
 interface AnimationSettings {
 	speedMultiplier: number;
 	enabled: boolean;
+	alwaysUprightValues: boolean;
 }
 
 /** A timeline's timeScale(0) or timeScale(NaN) never reaches progress===1, so
@@ -32,6 +33,12 @@ function clampSpeedMultiplier(value: number): number {
 class StoreAnimation {
 	speedMultiplier = $state<number>(DEFAULT_SPEED_MULTIPLIER);
 	enabled = $state<boolean>(!storeWebglCapability.reducedMotion);
+	/** Accessibility opt-in: compensates a
+	 *  discard card's VALUE layer only, so a thrown card's number always faces
+	 *  the local viewer regardless of how the card itself landed. Off by
+	 *  default — some players prefer the physically-accurate, sometimes
+	 *  upside-down number. */
+	alwaysUprightValues = $state<boolean>(false);
 	userOverrodeEnabled = false;
 
 	constructor() {
@@ -43,6 +50,9 @@ class StoreAnimation {
 			if (typeof parsed?.enabled === "boolean") {
 				this.enabled = parsed.enabled;
 				this.userOverrodeEnabled = true;
+			}
+			if (typeof parsed?.alwaysUprightValues === "boolean") {
+				this.alwaysUprightValues = parsed.alwaysUprightValues;
 			}
 		} catch {
 			// INFO: localStorage unavailable or malformed, fall back to defaults.
@@ -59,7 +69,11 @@ class StoreAnimation {
 		try {
 			localStorage.setItem(
 				SETTINGS_STORAGE_KEY,
-				JSON.stringify({ speedMultiplier: this.speedMultiplier, enabled: this.enabled })
+				JSON.stringify({
+					speedMultiplier: this.speedMultiplier,
+					enabled: this.enabled,
+					alwaysUprightValues: this.alwaysUprightValues
+				})
 			);
 		} catch {
 			// INFO: localStorage unavailable, setting stays in-memory only.
@@ -74,6 +88,11 @@ class StoreAnimation {
 	setEnabled(value: boolean): void {
 		this.enabled = value;
 		this.userOverrodeEnabled = true;
+		this.#persist();
+	}
+
+	setAlwaysUprightValues(value: boolean): void {
+		this.alwaysUprightValues = value;
 		this.#persist();
 	}
 }
