@@ -11,6 +11,7 @@ export function shakeRenderer(step: AnimationStep, ctx: RenderContext): gsap.cor
 		y: 0,
 		z: 0,
 		spinDeg: 0,
+		flipDeg: 0,
 		scale: 1,
 		turned: false,
 		opacity: 1

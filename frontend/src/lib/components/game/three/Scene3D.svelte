@@ -9,7 +9,6 @@
 	import type { OrthographicCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 	import { useCardBus } from "../card-bus.svelte";
-	import { useAnimationQueue } from "../animation/animationQueue.svelte";
 	import type { SceneGeometry } from "../layout/sceneGeometry";
 	import type { ViewportInfo } from "../layout/seatLayout";
 	import Playmat3D from "./Playmat3D.svelte";
@@ -18,7 +17,7 @@
 	import LocalHand3D from "./LocalHand3D.svelte";
 	import DrawPile3D from "./DrawPile3D.svelte";
 	import DiscardPile3D from "./DiscardPile3D.svelte";
-	import CardFlight3D from "./CardFlight3D.svelte";
+	import AllCards3D from "./AllCards3D.svelte";
 
 	interactivity();
 
@@ -62,7 +61,6 @@
 	} = $props();
 
 	const bus = useCardBus();
-	const animationQueue = useAnimationQueue();
 
 	let rig = $derived(geometry.rig);
 	let seats3D = $derived(geometry.seats3D);
@@ -160,6 +158,4 @@
 	/>
 </T.Group>
 
-{#each animationQueue.activeFlights as flight (flight.id)}
-	<CardFlight3D card={flight.card} pose={flight.pose} />
-{/each}
+<AllCards3D />

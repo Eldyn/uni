@@ -7,6 +7,11 @@ export interface FlightPose {
 	y: number;
 	z: number;
 	spinDeg: number;
+	/** Rotation about a horizontal (table-plane) axis, for the genuine
+	 *  page-turn flip — see CardMesh3D.svelte's flipRad. Independent of
+	 *  spinDeg (the in-plane, world-Y rotation) since Task B2's composition
+	 *  order keeps the two axes from interfering. */
+	flipDeg: number;
 	scale: number;
 	turned: boolean;
 	opacity: number;

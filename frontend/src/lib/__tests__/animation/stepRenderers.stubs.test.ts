@@ -4,7 +4,7 @@ import { materialEffectRenderer } from "$components/game/animation/stepRenderers
 import type { RenderContext } from "$components/game/animation/renderContext";
 
 const noopCtx: RenderContext = {
-	getPose: () => ({ x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: false, opacity: 1 }),
+	getPose: () => ({ x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 }),
 	resolveAnchor: () => [0, 0, 0]
 };
 

@@ -8,7 +8,7 @@
 
 export interface AnimationStep {
 	/** Renderer key looked up in the StepRenderer registry. Unknown values
-	 *  must be tolerated (no-op), never thrown on — see animationQueue.svelte.ts. */
+	 *  must be tolerated (no-op), never thrown on — see cardRegistry.svelte.ts. */
 	op: string;
 	/** Card id, player/seat username, or the literal "screen". */
 	target: string;

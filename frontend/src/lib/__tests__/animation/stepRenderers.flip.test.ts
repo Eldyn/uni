@@ -21,7 +21,7 @@ function fakeCtx(): { ctx: RenderContext; poses: Map<string, FlightPose> } {
 describe("flipRenderer", () => {
 	it("ends with turned flipped from the pose's starting value", () => {
 		const { ctx, poses } = fakeCtx();
-		poses.set("card-1", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: true, opacity: 1 });
+		poses.set("card-1", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: true, opacity: 1 });
 
 		const timeline = flipRenderer({ op: "flip", target: "card-1", payload: {} }, ctx);
 		timeline.progress(1, true);
@@ -31,7 +31,7 @@ describe("flipRenderer", () => {
 
 	it("respects an explicit payload.turned override instead of toggling", () => {
 		const { ctx, poses } = fakeCtx();
-		poses.set("card-2", { x: 0, y: 0, z: 0, spinDeg: 0, scale: 1, turned: true, opacity: 1 });
+		poses.set("card-2", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: true, opacity: 1 });
 
 		const timeline = flipRenderer(
 			{ op: "flip", target: "card-2", payload: { turned: true } },

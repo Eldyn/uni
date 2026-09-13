@@ -11,19 +11,32 @@ import { materialEffectRenderer } from "./stepRenderers/materialEffect";
 
 export type StepRenderer = (step: AnimationStep, ctx: RenderContext) => gsap.core.Timeline;
 
+export interface CardDecoration {
+	hovered?: boolean;
+	instant?: boolean;
+	hoverPush?: [number, number];
+	pushX?: number;
+	hoverSpinDeg?: number;
+	opacity?: number;
+	dimmed?: boolean;
+	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
+	highlight?: { color?: string; pulse?: boolean };
+}
+
 export interface FlightHandle {
 	id: string;
 	pose: FlightPose;
 	card: { type: string; value: string };
+	decoration?: CardDecoration;
 }
 
 interface PendingBatch {
 	beats: AnimationBeat[];
-	anchors: Record<string, [number, number, number]>;
+	resolveAnchor: (name: string) => [number, number, number];
 	resolve: () => void;
 }
 
-export class AnimationQueue {
+export class CardRegistry {
 	#registry: Record<string, StepRenderer> = {
 		move: moveRenderer,
 		flip: flipRenderer,
@@ -34,6 +47,8 @@ export class AnimationQueue {
 
 	#cardMeta = new Map<string, { type: string; value: string }>();
 	#poses = new Map<string, FlightPose>();
+	#poseProviders = new Map<string, () => [number, number, number]>();
+	#inTransitIds = new Set<string>();
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
@@ -52,23 +67,106 @@ export class AnimationQueue {
 	/** Pre-seeds a card's flight pose before it is first requested via
 	 *  getPose, so a beat's move step starts from its real current position
 	 *  (e.g. its hand slot) instead of getPose's own startPose fallback,
-	 *  which only applies the first time a card id is ever seen. */
+	 *  which only applies the first time a card id is ever seen.
+	 *
+	 *  Mutates an existing pose object in place rather than replacing it —
+	 *  an owner's registration effect (LocalHand3D/DiscardPile3D's
+	 *  ensureEntry, Tasks A10/A11) can race this call and create the pose
+	 *  entry first; if seedPose swapped in a brand-new object here, any
+	 *  activeFlights entry already pointing at the old one would go stale
+	 *  and never reflect the seeded — or subsequently GSAP-tweened — pose,
+	 *  regardless of which effect happened to run first. */
 	seedPose(cardId: string, pose: FlightPose): void {
+		const existing = this.#poses.get(cardId);
+		if (existing) {
+			Object.assign(existing, pose);
+			return;
+		}
 		const reactivePose = $state({ ...pose });
 		this.#poses.set(cardId, reactivePose);
 	}
 
-	/** Queues a batch of beats. `anchors` supplies every named world position
-	 *  this batch's steps may reference via resolveAnchor. Returns a promise
-	 *  resolving once every beat in the batch has completed (or been
-	 *  skipped) — callers that need "wait for this to finish" (e.g. a
-	 *  reshuffle before the next turn) await it directly. */
+	/** Registers (or clears, passing null) the pure function an owner
+	 *  (LocalHand3D, DiscardPile3D) uses to compute this card's CURRENT idle
+	 *  pose. Called by the owner every time its own layout recomputes — see
+	 *  applyIdlePoseIfNotInTransit. Retiring a transition for this card id
+	 *  reads this provider (if any) instead of deleting the pose outright,
+	 *  which is what makes a flight-to-idle handoff a no-op rather than a
+	 *  1-frame pop. */
+	setPoseProvider(cardId: string, provider: (() => [number, number, number]) | null): void {
+		if (provider) this.#poseProviders.set(cardId, provider);
+		else this.#poseProviders.delete(cardId);
+	}
+
+	/** True while a GSAP timeline is actively tweening this card's pose — an
+	 *  owner's own idle-pose sync (applyIdlePoseIfNotInTransit) must never
+	 *  stomp a pose GSAP currently owns. */
+	isInTransit(cardId: string): boolean {
+		return this.#poses.has(cardId) && this.activeFlights.some((f) => f.id === cardId) && this.#inTransitIds.has(cardId);
+	}
+
+	/** Applies this card's registered pose-provider's result directly (no
+	 *  tween) — called by an owner's own reactive layout effect for every card
+	 *  it owns, every time that layout recomputes, but only takes effect while
+	 *  the card is idle; a GSAP-owned in-transit pose is left alone. */
+	applyIdlePoseIfNotInTransit(cardId: string): void {
+		if (this.#inTransitIds.has(cardId)) return;
+		const provider = this.#poseProviders.get(cardId);
+		const pose = this.#poses.get(cardId);
+		if (!provider || !pose) return;
+		const [x, y, z] = provider();
+		pose.x = x;
+		pose.y = y;
+		pose.z = z;
+	}
+
+	/** A real card's entry never disappears once created — its identity/meta
+	 *  survives forever unless the card genuinely leaves the game (removeEntry).
+	 *  Idempotent: seeds a pose only if one doesn't already exist. */
+	ensureEntry(cardId: string, initialPose: FlightPose, card: { type: string; value: string } | null): FlightPose {
+		let pose = this.#poses.get(cardId);
+		if (!pose) {
+			const reactivePose = $state({ ...initialPose });
+			pose = reactivePose;
+			this.#poses.set(cardId, pose);
+		}
+		if (card) this.#cardMeta.set(cardId, card);
+		if (!this.activeFlights.some((f) => f.id === cardId)) {
+			const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
+			this.activeFlights = [...this.activeFlights, { id: cardId, pose, card: meta }];
+		}
+		return pose;
+	}
+
+	/** LocalHand3D-owned visual extras (hover/drag/shadow/highlight) for a card
+	 *  currently in its hand — read by AllCards3D's single render site. See
+	 *  the shared render site owns mounting CardMesh3D,
+	 *  owners only ever compute layout + these decorations, never mount it
+	 *  themselves. */
+	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
+		this.activeFlights = this.activeFlights.map((f) =>
+			f.id === cardId ? { ...f, decoration } : f
+		);
+	}
+
+	/** A card genuinely leaving the game for good (never happens for Uno's own
+	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
+	removeEntry(cardId: string): void {
+		this.#poseProviders.delete(cardId);
+		this.#retireFlight(cardId);
+	}
+
+	/** Queues a batch of beats. `resolveAnchor` resolves every named world
+	 *  position this batch's steps may reference. Returns a promise resolving
+	 *  once every beat in the batch has completed (or been skipped) —
+	 *  callers that need "wait for this to finish" (e.g. a reshuffle before
+	 *  the next turn) await it directly. */
 	enqueue(
 		beats: AnimationBeat[],
-		anchors: Record<string, [number, number, number]>
+		resolveAnchor: (name: string) => [number, number, number]
 	): Promise<void> {
 		return new Promise((resolve) => {
-			this.#pending.push({ beats, anchors, resolve });
+			this.#pending.push({ beats, resolveAnchor, resolve });
 			this.#pump();
 		});
 	}
@@ -111,6 +209,7 @@ export class AnimationQueue {
 		}
 
 		const beat = batch.beats[beatIndex];
+		for (const step of beat) this.#inTransitIds.add(step.target);
 		try {
 			const ctx: RenderContext = {
 				getPose: (cardId, startPose) => {
@@ -126,25 +225,21 @@ export class AnimationQueue {
 					}
 					return pose;
 				},
-				resolveAnchor: (name) => {
-					const anchor = batch.anchors[name];
-					if (!anchor) throw new Error(`AnimationQueue: no anchor registered for "${name}"`);
-					return anchor;
-				}
+				resolveAnchor: batch.resolveAnchor
 			};
 
 			const timeline = gsap.timeline();
 			for (const step of beat) {
 				const renderer = this.#registry[step.op];
 				if (!renderer) {
-					console.warn(`AnimationQueue: unknown op "${step.op}" for target "${step.target}" — skipping.`);
+					console.warn(`CardRegistry: unknown op "${step.op}" for target "${step.target}" — skipping.`);
 					continue;
 				}
 				try {
 					timeline.add(renderer(step, ctx), step.atS ?? 0);
 				} catch (err) {
 					console.error(
-						`AnimationQueue: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
+						`CardRegistry: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
 						err
 					);
 				}
@@ -177,7 +272,17 @@ export class AnimationQueue {
 					const usedLater = batch.beats
 						.slice(beatIndex + 1)
 						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
-					if (!usedLater) this.#retireFlight(step.target);
+					if (usedLater) continue;
+					this.#inTransitIds.delete(step.target);
+					const provider = this.#poseProviders.get(step.target);
+					if (provider) {
+						// Idle-at-current-owner's-layout, not deleted: this is what
+						// makes the flight-to-idle handoff a no-op instead of the
+						// 1-frame pop the old hide/show + delete model produced.
+						this.applyIdlePoseIfNotInTransit(step.target);
+					} else {
+						this.#retireFlight(step.target);
+					}
 				}
 				this.onBeatComplete?.(beatIndex);
 				this.#currentTimeline = null;
@@ -193,7 +298,7 @@ export class AnimationQueue {
 				finishBeat();
 			}
 		} catch (err) {
-			console.error(`AnimationQueue: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
+			console.error(`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);
@@ -207,15 +312,15 @@ export class AnimationQueue {
 	}
 }
 
-const ANIMATION_QUEUE_KEY = Symbol("animation-queue");
+const CARD_REGISTRY_KEY = Symbol("card-registry");
 
-export function createAnimationQueue(): AnimationQueue {
-	const queue = new AnimationQueue();
+export function createCardRegistry(): CardRegistry {
+	const queue = new CardRegistry();
 	try {
 		// setContext requires component initialisation; unit tests exercise the
 		// queue directly (via the returned instance) without mounting a
 		// component, so registering the context is best-effort here.
-		setContext(ANIMATION_QUEUE_KEY, queue);
+		setContext(CARD_REGISTRY_KEY, queue);
 	} catch (err) {
 		// Svelte 5's setContext throws when called outside component initialization.
 		// The error message is a URL pointing to the lifecycle_outside_component
@@ -227,11 +332,11 @@ export function createAnimationQueue(): AnimationQueue {
 			throw err;
 		}
 		// Not inside component initialisation — fine for callers that only use
-		// the returned instance rather than useAnimationQueue().
+		// the returned instance rather than useCardRegistry().
 	}
 	return queue;
 }
 
-export function useAnimationQueue(): AnimationQueue {
-	return getContext<AnimationQueue>(ANIMATION_QUEUE_KEY);
+export function useCardRegistry(): CardRegistry {
+	return getContext<CardRegistry>(CARD_REGISTRY_KEY);
 }

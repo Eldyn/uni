@@ -82,3 +82,29 @@ export function computeHandRingSlots(cardCount: number): CardRingSlot[] {
 		};
 	});
 }
+
+/**
+ * Converts one ring slot from PlayerSeat3D's own local, seat-rotated frame
+ * into a world-absolute [x, y, z]. Must match PlayerSeat3D.svelte's own
+ * `<T.Group position.x={seat.x} position.z={seat.z} rotation.y={seat.rotationY}>`
+ * wrapping exactly: local (slot.x*radialScale, slot.y*radialScale) rotates by
+ * rotationY (Three's standard Y-axis rotation: worldX = lx*cos+lz*sin,
+ * worldZ = -lx*sin+lz*cos, where local "depth" lz is slot.y), then translates
+ * by the seat's own world position. `index` reproduces the same
+ * `i * RING_STACK_STEP` Y-stacking PlayerSeat3D's own render uses.
+ */
+export function ringSlotWorldPose(
+	seat: { x: number; z: number; rotationY: number },
+	slot: CardRingSlot,
+	index: number,
+	radialScale: number,
+	ringStackStep = 0.02
+): [number, number, number] {
+	const lx = slot.x * radialScale;
+	const lz = slot.y * radialScale;
+	const cos = Math.cos(seat.rotationY);
+	const sin = Math.sin(seat.rotationY);
+	const worldX = seat.x + (lx * cos + lz * sin);
+	const worldZ = seat.z + (-lx * sin + lz * cos);
+	return [worldX, index * ringStackStep, worldZ];
+}

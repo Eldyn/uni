@@ -19,6 +19,7 @@
 		turned = false,
 		position = [0, 0, 0],
 		spinDeg = 0,
+		flipDeg = 0,
 		scale = 1,
 		onclick,
 		onpointerdown,
@@ -31,13 +32,17 @@
 		wildColor,
 		hoverSpinDeg = 0,
 		shadow,
-		highlight
+		highlight,
+		renderOrder = 0
 	}: {
 		card: Card;
 		turned?: boolean;
 		position?: [number, number, number];
 		/** Rotation around the vertical (world Y) axis, in degrees. */
 		spinDeg?: number;
+		/** Rotation about a horizontal (table-plane) axis — a genuine edge-on
+		 *  flip, independent of spinDeg. See the inner rotation.y group below. */
+		flipDeg?: number;
 		scale?: number;
 		/** Bubbles up from any of this card's meshes via @threlte/extras interactivity. */
 		onclick?: (event: unknown) => void;
@@ -100,6 +105,19 @@
 			color?: string;
 			pulse?: boolean;
 		};
+		/** Three.js paint-order override, independent of depth. Every transparent
+		 *  MeshBasicMaterial here disables depth testing's occlusion guarantee
+		 *  for objects at (near-)identical depth — a freshly-seeded flight card
+		 *  starts EXACTLY where its owner's own idle mesh currently sits (by
+		 *  design, see drawPileTopPose/ringSlotWorldPose), so for at least the
+		 *  first frame the two genuinely tie on depth. Without an explicit
+		 *  order, that tie resolves by scene-graph/render-list position, which
+		 *  can leave the just-spawned flight painted BEHIND the still-rendered
+		 *  idle card it's supposed to be replacing — reading as "the card pops
+		 *  out from under the pile." AllCards3D (Task A9) passes a higher value
+		 *  than the idle-count owners' (DrawPile3D/PlayerSeat3D) default 0, so
+		 *  an in-transit flight always wins the tie. */
+		renderOrder?: number;
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
@@ -157,6 +175,7 @@
 	});
 
 	let spinRad = $derived(((spinDeg + hoverSpinDeg * liftT) * Math.PI) / 180);
+	let flipRad = $derived((flipDeg * Math.PI) / 180);
 
 	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
 	// `liftT` above but tracking an arbitrary target value instead of a 0-1
@@ -238,110 +257,107 @@
 	});
 </script>
 
-<T.Group
-	position={animatedPosition}
-	rotation.x={-Math.PI / 2}
-	rotation.z={spinRad}
-	scale={animatedScale}
-	{onclick}
-	{onpointerdown}
->
-	{#if highlight && highlightTexture}
-		<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH}>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={highlightTexture}
-				color={highlight.color ?? "#ffe27a"}
-				transparent
-				opacity={highlightOpacity}
-				depthWrite={false}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
-	{#if opacity < 1 && highlightTexture}
-		<T.Mesh position.z={BACKDROP_DROP_Z}>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={highlightTexture}
-				color={BACKDROP_COLOR}
-				transparent
-				depthWrite
-				opacity={1}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
-	{#if shadow}
-		<T.Mesh position={shadowPosition}>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={shadow.texture}
-				color="#000000"
-				transparent
-				opacity={shadow.opacity * opacity}
-				depthWrite={false}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
-	{#if turned}
-		{#if backTexture}
-			<T.Mesh>
-				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-				<T.MeshBasicMaterial
-					map={backTexture}
-					color={bgColor}
-					transparent
-					depthWrite
-					{opacity}
-					toneMapped={false}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
-		{/if}
-	{:else}
-		{#if bgTexture}
-			<T.Mesh>
-				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-				<T.MeshBasicMaterial
-					map={bgTexture}
-					color={bgColor}
-					transparent
-					depthWrite
-					{opacity}
-					toneMapped={false}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
-		{/if}
-		{#if valueTexture}
-			<T.Mesh position.z={0.002}>
-				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-				<T.MeshBasicMaterial
-					map={valueTexture}
-					color={tintColor}
-					transparent
-					depthWrite
-					{opacity}
-					toneMapped={false}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
-		{/if}
-		{#if borderTexture}
-			<T.Mesh position.z={0.004}>
-				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-				<T.MeshBasicMaterial
-					map={borderTexture}
-					color={tintColor}
-					transparent
-					depthWrite
-					{opacity}
-					toneMapped={false}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
-		{/if}
-	{/if}
+<T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
+	<T.Group rotation.x={-Math.PI / 2}>
+		<T.Group rotation.y={flipRad} rotation.z={spinRad}>
+			{#if highlight && highlightTexture}
+				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} {renderOrder}>
+					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+					<T.MeshBasicMaterial
+						map={highlightTexture}
+						color={highlight.color ?? "#ffe27a"}
+						transparent
+						opacity={highlightOpacity}
+						depthWrite={false}
+						toneMapped={false}
+					/>
+				</T.Mesh>
+			{/if}
+			{#if opacity < 1 && highlightTexture}
+				<T.Mesh position.z={BACKDROP_DROP_Z} {renderOrder}>
+					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+					<T.MeshBasicMaterial
+						map={highlightTexture}
+						color={BACKDROP_COLOR}
+						transparent
+						depthWrite
+						opacity={1}
+						toneMapped={false}
+					/>
+				</T.Mesh>
+			{/if}
+			{#if shadow}
+				<T.Mesh position={shadowPosition} {renderOrder}>
+					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+					<T.MeshBasicMaterial
+						map={shadow.texture}
+						color="#000000"
+						transparent
+						opacity={shadow.opacity * opacity}
+						depthWrite={false}
+						toneMapped={false}
+					/>
+				</T.Mesh>
+			{/if}
+			{#if turned}
+				{#if backTexture}
+					<T.Mesh {renderOrder}>
+						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+						<T.MeshBasicMaterial
+							map={backTexture}
+							color={bgColor}
+							transparent
+							depthWrite
+							{opacity}
+							toneMapped={false}
+							side={DoubleSide}
+						/>
+					</T.Mesh>
+				{/if}
+			{:else}
+				{#if bgTexture}
+					<T.Mesh {renderOrder}>
+						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+						<T.MeshBasicMaterial
+							map={bgTexture}
+							color={bgColor}
+							transparent
+							depthWrite
+							{opacity}
+							toneMapped={false}
+							side={DoubleSide}
+						/>
+					</T.Mesh>
+				{/if}
+				{#if valueTexture}
+					<T.Mesh position.z={0.002} {renderOrder}>
+						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+						<T.MeshBasicMaterial
+							map={valueTexture}
+							color={tintColor}
+							transparent
+							depthWrite
+							{opacity}
+							toneMapped={false}
+							side={DoubleSide}
+						/>
+					</T.Mesh>
+				{/if}
+				{#if borderTexture}
+					<T.Mesh position.z={0.004} {renderOrder}>
+						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+						<T.MeshBasicMaterial
+							map={borderTexture}
+							color={tintColor}
+							transparent
+							depthWrite
+							{opacity}
+							toneMapped={false}
+							side={DoubleSide}
+						/>
+					</T.Mesh>
+				{/if}
+			{/if}
+		</T.Group>
+	</T.Group>
 </T.Group>

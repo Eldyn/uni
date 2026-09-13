@@ -19,7 +19,7 @@ interface AnimationSettings {
 }
 
 /** A timeline's timeScale(0) or timeScale(NaN) never reaches progress===1, so
- *  onComplete never fires and AnimationQueue wedges forever (same symptom as
+ *  onComplete never fires and CardRegistry wedges forever (same symptom as
  *  an uncaught renderer throw) — clamp on both load and write since
  *  localStorage is user-writable directly, bypassing the Settings slider's
  *  own 50-300 clamp. */
