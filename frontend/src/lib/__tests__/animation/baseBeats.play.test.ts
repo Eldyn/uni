@@ -43,6 +43,8 @@ describe("buildPlayBeat", () => {
 		});
 
 		expect(beat.map((s) => s.op)).toEqual(["move", "flip"]);
+		const flipStep = beat.find((s) => s.op === "flip")!;
+		expect(flipStep.payload?.axis).toBe("y");
 	});
 
 	it("now also tweens toSpinDeg on an opponent's move step, since flip no longer touches spinDeg", () => {

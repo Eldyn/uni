@@ -372,6 +372,7 @@ describe("createBaseBeatsWatcher", () => {
 		expect(flight!.pose.x).toBeCloseTo(topPose[0]);
 		expect(flight!.pose.y).toBeCloseTo(topPose[1] + DRAW_HOVER_LIFT);
 		expect(flight!.pose.z).toBeCloseTo(topPose[2]);
+		expect(flight!.decoration?.renderOrder).toBe(50);
 
 		cardRegistry.flushImmediately();
 
@@ -618,6 +619,61 @@ describe("createBaseBeatsWatcher", () => {
 		// Flowed back to Case 1 (into hand)
 		expect(bus.isHoldingOpponent("bob")).toBe(false);
 
+		dispose();
+	});
+
+	it("tracks in-flight draw count and passes dimmed to decoration during opponent multi-draw", async () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "draw2" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false }
+			],
+			pending_draws: 2,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [1, 0, -2],
+			getOpponentCardScale: () => 0.4
+		});
+		flushSync();
+
+		// Bob takes +2
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "draw2" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 5, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 8
+		} as never;
+		flushSync();
+
+		expect(bus.getInFlightDrawCount("bob")).toBe(2);
+		const bobFlights = cardRegistry.activeFlights.filter((f) => f.id.startsWith("draw:bob:"));
+		expect(bobFlights).toHaveLength(2);
+		// Bob is not current turn or target -> dimmed
+		expect(bobFlights[0].decoration?.dimmed).toBe(true);
+		expect(bobFlights[1].decoration?.dimmed).toBe(true);
+
+		cardRegistry.flushImmediately();
+		await Promise.resolve();
+
+		expect(bus.getInFlightDrawCount("bob")).toBe(0);
 		dispose();
 	});
 });
