@@ -153,6 +153,13 @@ export function localHandSlotAnchorKey(i: number): string {
 	return `local-hand-slot:${i}`;
 }
 
+export function opponentSlotAnchorKey(username: string, slotIndex: number, subIndex = 0): string {
+	return `opponent-slot:${username}:${slotIndex}:${subIndex}`;
+}
+
+/** Visual height offset to lift a drawn card cleanly above the draw pile stack during its flip */
+export const DRAW_HOVER_LIFT = 0.45;
+
 /** Stagger (seconds) between consecutive cards in a multi-card draw:
  *  tight for a +2, slower and more readable for a +4 or worse — a big
  *  penalty draw is the moment a viewer most wants to actually count the
@@ -173,6 +180,9 @@ export function buildDrawBeats(args: {
 	forLocalPlayer: boolean;
 	opponentUsername?: string;
 	placement: BoardPlacement;
+	opponentCardScale?: number;
+	slotAnchorKeys?: string[];
+	slotSpinDegs?: number[];
 }): AnimationBeat[] {
 	const stagger = drawStaggerFor(args.cardIds.length);
 
@@ -207,7 +217,11 @@ export function buildDrawBeats(args: {
 	const steps: AnimationBeat = args.cardIds.map((cardId, i) => ({
 		op: "move",
 		target: cardId,
-		payload: { to: opponentSeatAnchor(opponentUsername) },
+		payload: {
+			to: args.slotAnchorKeys?.[i] ?? opponentSeatAnchor(opponentUsername),
+			toScale: args.opponentCardScale ?? args.placement.centerScale,
+			toSpinDeg: args.slotSpinDegs?.[i] ?? 0
+		},
 		atS: i * stagger
 	}));
 	return [steps];
@@ -229,6 +243,11 @@ export function createBaseBeatsWatcher(deps: {
 	 *  facing instead of resetting to upright (spinDeg 0) first. Falls back to
 	 *  0 (the pre-existing behavior) if omitted. */
 	getOpponentSeatRotationDeg?: (username: string) => number;
+	getOpponentCardPose?: (
+		username: string,
+		cardCount: number,
+		slotIndex: number
+	) => { position: [number, number, number]; spinDeg: number };
 }): () => void {
 	let prevTopCardId: number | null = null;
 	let prevDrawPileSize: number | null = null;
@@ -241,6 +260,7 @@ export function createBaseBeatsWatcher(deps: {
 	let drawIdCounter = 0;
 	let lastLandingBaseDeg = 0;
 	let pendingLocalHandSlots = new Map<number, [number, number, number]>();
+	let pendingOpponentSlots = new Map<string, [number, number, number]>();
 
 	return $effect.root(() => {
 		$effect(() => {
@@ -274,6 +294,9 @@ export function createBaseBeatsWatcher(deps: {
 				}
 				if (name.startsWith("seat:")) {
 					return deps.getOpponentSeatAnchor(name.slice("seat:".length));
+				}
+				if (name.startsWith("opponent-slot:")) {
+					return pendingOpponentSlots.get(name) ?? [0, 0, 0];
 				}
 				if (name.startsWith("local-hand-slot:")) {
 					const slotIndex = Number(name.slice("local-hand-slot:".length));
@@ -332,7 +355,7 @@ export function createBaseBeatsWatcher(deps: {
 				deps.cardRegistry.registerCardMeta(String(top.id), {
 					type: top.type,
 					value: top.value,
-					wildColor: (state.active_type && state.active_type !== "white" ? state.active_type : undefined) as
+					wildColor: (state!.active_type && state!.active_type !== "white" ? state!.active_type : undefined) as
 						| CardType
 						| undefined
 				});
@@ -355,15 +378,20 @@ export function createBaseBeatsWatcher(deps: {
 						opacity: 1
 					});
 				} else {
-					const [sx, sy, sz] = deps.getOpponentSeatAnchor(lastPlay.player);
+					// NOTE: in the future, the card will be taken from the correct index given to the client by the server, but since currently there are no cards that show the oppoenent's hand, we do not require consistency with the real position of the played card, so we can chose a random card from the arc to animate onto the discard pile.
+					const preCount = Math.max(1, prevCardCounts?.get(lastPlay.player) ?? 1);
+					const chosenSlot = Math.floor(Math.random() * preCount);
+					const opponentPose = deps.getOpponentCardPose?.(lastPlay.player, preCount, chosenSlot);
+					const [sx, sy, sz] = opponentPose ? opponentPose.position : deps.getOpponentSeatAnchor(lastPlay.player);
+					const seedSpin = opponentPose
+						? opponentPose.spinDeg
+						: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0);
+
 					deps.cardRegistry.seedPose(String(top.id), {
 						x: sx,
 						y: sy,
 						z: sz,
-						// The seat's own throw orientation, not upright — a card flung by
-						// an opponent leaves however their hand fan already had it turned,
-						// it doesn't reset to face the local viewer first.
-						spinDeg: deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0,
+						spinDeg: seedSpin,
 						flipDeg: 0,
 						scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
 						turned: true,
@@ -437,7 +465,7 @@ export function createBaseBeatsWatcher(deps: {
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 							deps.cardRegistry.seedPose(String(cardId), {
 								x: px,
-								y: py,
+								y: py + DRAW_HOVER_LIFT,
 								z: pz,
 								spinDeg: 0,
 								flipDeg: 0,
@@ -456,23 +484,46 @@ export function createBaseBeatsWatcher(deps: {
 						const drawnCount = p.card_count - prevCount;
 						const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
 						const cardIds: string[] = [];
+						const slotAnchorKeys: string[] = [];
+						const slotSpinDegs: number[] = [];
 						for (let i = 0; i < drawnCount; i++) {
 							const cardId = `draw:${p.username}:${drawIdCounter++}`;
 							cardIds.push(cardId);
+							const targetSlotIndex = prevCount + i;
+							const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
+							const targetPose = deps.getOpponentCardPose?.(p.username, p.card_count, targetSlotIndex);
+
+							if (targetPose) {
+								pendingOpponentSlots.set(slotKey, targetPose.position);
+								slotAnchorKeys.push(slotKey);
+								slotSpinDegs.push(targetPose.spinDeg);
+							} else {
+								slotAnchorKeys.push(opponentSeatAnchor(p.username));
+								slotSpinDegs.push(deps.getOpponentSeatRotationDeg?.(p.username) ?? 0);
+							}
+
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 							deps.cardRegistry.seedPose(cardId, {
 								x: px,
-								y: py,
+								y: py + DRAW_HOVER_LIFT,
 								z: pz,
 								spinDeg: 0,
 								flipDeg: 0,
-								scale: opponentCardScale,
+								scale: placement.drawPileScale,
 								turned: true,
 								opacity: 1
 							});
 						}
 						deps.cardRegistry.enqueue(
-							buildDrawBeats({ cardIds, forLocalPlayer: false, opponentUsername: p.username, placement }),
+							buildDrawBeats({
+								cardIds,
+								forLocalPlayer: false,
+								opponentUsername: p.username,
+								placement,
+								opponentCardScale,
+								slotAnchorKeys,
+								slotSpinDegs
+							}),
 							resolveCardTarget
 						);
 					}

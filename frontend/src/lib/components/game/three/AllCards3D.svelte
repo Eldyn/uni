@@ -6,8 +6,24 @@
 <script lang="ts">
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
+	import { loadSilhouette } from "./textures";
 
 	const cardRegistry = useCardRegistry();
+
+	let shadowTexture = $state<import("three").Texture | null>(null);
+	$effect(() => {
+		let cancelled = false;
+		loadSilhouette("/assets/cards/background.png").then((t) => {
+			if (!cancelled) shadowTexture = t;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const FLIGHT_SHADOW_OFFSET = 0.08;
+	const FLIGHT_SHADOW_DROP_Z = 0.05;
+	const FLIGHT_SHADOW_OPACITY = 0.35;
 </script>
 
 {#each cardRegistry.activeFlights as flight (flight.id)}
@@ -28,7 +44,15 @@
 		pushX={flight.decoration?.pushX}
 		hoverSpinDeg={flight.decoration?.hoverSpinDeg}
 		dimmed={flight.decoration?.dimmed}
-		shadow={flight.decoration?.shadow}
+		shadow={flight.decoration?.shadow ??
+			(shadowTexture
+				? {
+						texture: shadowTexture,
+						offsetX: FLIGHT_SHADOW_OFFSET,
+						dropZ: FLIGHT_SHADOW_DROP_Z,
+						opacity: FLIGHT_SHADOW_OPACITY
+					}
+				: undefined)}
 		highlight={flight.decoration?.highlight}
 	/>
 {/each}

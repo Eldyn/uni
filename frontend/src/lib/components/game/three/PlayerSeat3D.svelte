@@ -22,7 +22,7 @@
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM
 	} from "../layout/handRing";
-	import CardMesh3D from "./CardMesh3D.svelte";
+	import RingCard3D from "./RingCard3D.svelte";
 
 	let {
 		player,
@@ -104,11 +104,9 @@
 	     the same size while the cards on it grew — which is how bigger cards
 	     ended up creeping inward over the seat's own avatar. -->
 	{#each ringSlots as slot, i (i)}
-		<CardMesh3D
-			card={{ id: -1, type: "wild", value: "0" }}
-			turned={true}
-			position={[slot.x * radialScale, i * RING_STACK_STEP, slot.y * radialScale]}
-			spinDeg={slot.rotateDeg + 180}
+		<RingCard3D
+			targetPosition={[slot.x * radialScale, i * RING_STACK_STEP, slot.y * radialScale]}
+			targetSpinDeg={slot.rotateDeg + 180}
 			scale={cardScale}
 			{dimmed}
 		/>

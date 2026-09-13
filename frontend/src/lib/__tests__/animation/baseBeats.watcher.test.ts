@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { flushSync } from "svelte";
-import { createBaseBeatsWatcher } from "$components/game/animation/baseBeats.svelte";
+import { createBaseBeatsWatcher, DRAW_HOVER_LIFT } from "$components/game/animation/baseBeats.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
 import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import { storeGame } from "$stores/game.svelte";
@@ -164,7 +164,7 @@ describe("createBaseBeatsWatcher", () => {
 		const flight = cardRegistry.activeFlights.find((f) => f.id.startsWith("draw:bob:"));
 		expect(flight).toBeDefined();
 		expect(flight!.pose.turned).toBe(true);
-		expect(flight!.pose.scale).toBe(0.4);
+		expect(flight!.pose.scale).toBe(placement.drawPileScale);
 
 		dispose();
 	});
@@ -191,7 +191,8 @@ describe("createBaseBeatsWatcher", () => {
 			cardRegistry,
 			getPlacement: () => ({ ...placement, centerScale: 1 }),
 			getOpponentSeatAnchor: () => [1, 0, -2],
-			getOpponentCardScale: () => 0.4
+			getOpponentCardScale: () => 0.4,
+			getOpponentCardPose: () => ({ position: [1.2, 0.05, -2.1], spinDeg: 45 })
 		});
 		flushSync();
 
@@ -213,6 +214,10 @@ describe("createBaseBeatsWatcher", () => {
 		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
 		expect(flight).toBeDefined();
 		expect(flight!.pose.scale).toBe(0.4);
+		expect(flight!.pose.x).toBeCloseTo(1.2);
+		expect(flight!.pose.y).toBeCloseTo(0.05);
+		expect(flight!.pose.z).toBeCloseTo(-2.1);
+		expect(flight!.pose.spinDeg).toBe(45);
 
 		dispose();
 	});
@@ -264,8 +269,8 @@ describe("createBaseBeatsWatcher", () => {
 
 		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
 		expect(flight).toBeDefined();
-		// draw_pile_size was 3 pre-draw -> visible stack size 3 -> top index 2.
-		expect(flight!.pose.y).toBeCloseTo(0.6 + 2 * 0.02);
+		// draw_pile_size was 3 pre-draw -> visible stack size 3 -> top index 2, plus DRAW_HOVER_LIFT.
+		expect(flight!.pose.y).toBeCloseTo(0.6 + 2 * 0.02 + DRAW_HOVER_LIFT);
 		expect(flight!.pose.z).toBeCloseTo(placement.drawPileZ - 2 * 0.02 * placement.drawPileScale);
 
 		dispose();

@@ -275,6 +275,21 @@
 
 <T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
 	<T.Group rotation.x={-Math.PI / 2}>
+		{#if shadow}
+			<T.Group rotation.z={spinRad}>
+				<T.Mesh position={shadowPosition} {renderOrder}>
+					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+					<T.MeshBasicMaterial
+						map={shadow.texture}
+						color="#000000"
+						transparent
+						opacity={shadow.opacity * opacity}
+						depthWrite={false}
+						toneMapped={false}
+					/>
+				</T.Mesh>
+			</T.Group>
+		{/if}
 		<T.Group
 			rotation.x={flipAxis === "x" ? flipRad : 0}
 			rotation.y={flipAxis === "y" ? flipRad : 0}
@@ -302,19 +317,6 @@
 						transparent
 						depthWrite
 						opacity={1}
-						toneMapped={false}
-					/>
-				</T.Mesh>
-			{/if}
-			{#if shadow}
-				<T.Mesh position={shadowPosition} {renderOrder}>
-					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-					<T.MeshBasicMaterial
-						map={shadow.texture}
-						color="#000000"
-						transparent
-						opacity={shadow.opacity * opacity}
-						depthWrite={false}
 						toneMapped={false}
 					/>
 				</T.Mesh>

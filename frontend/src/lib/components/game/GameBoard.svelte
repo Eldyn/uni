@@ -11,6 +11,13 @@
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
+	import {
+		opponentRingRadiusWorld,
+		RING_RADIUS_EM,
+		computeHandRingSlots,
+		ringSlotWorldPose
+	} from "./layout/handRing";
 
 	const bus = createCardBus();
 	const cardRegistry = createCardRegistry();
@@ -100,16 +107,49 @@
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			const seat = idx === -1 ? undefined : geometry.seats3D[idx];
 			return seat ? (seat.rotationY * 180) / Math.PI : 0;
+		},
+		getOpponentCardPose: (username, cardCount, slotIndex) => {
+			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+			if (idx === -1) {
+				return {
+					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [number, number, number],
+					spinDeg: 0
+				};
+			}
+			const seat = geometry.seats3D[idx];
+			if (!seat) {
+				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
+			}
+			const ringRadiusWorld = opponentRingRadiusWorld(
+				geometry.opponentAvatarWorld,
+				geometry.opponentCardScale
+			);
+			const radialScale = ringRadiusWorld / RING_RADIUS_EM;
+			const slots = computeHandRingSlots(cardCount);
+			const slot =
+				slots[Math.min(slots.length - 1, Math.max(0, slotIndex))] ?? {
+					x: 0,
+					y: RING_RADIUS_EM,
+					rotateDeg: 0
+				};
+			const position = ringSlotWorldPose(seat, slot, slotIndex, radialScale, 0.02);
+			const spinDeg = (seat.rotationY * 180) / Math.PI + slot.rotateDeg + 180;
+			return { position, spinDeg };
 		}
 	});
 
 	$effect(() => disposeBaseBeatsWatcher);
 
-	// The "skippable queue" had no reachable UI trigger — Escape is free
-	// (AccessibleHandControls claims arrows/Enter/Space/digits, never Escape).
+	// Escape toggles the mini settings modal from the gamescreen.
 	$effect(() => {
 		function onWindowKeydown(event: KeyboardEvent) {
-			if (event.key === "Escape") cardRegistry.skipCurrent();
+			if (event.key === "Escape") {
+				if (storeNavigation.isSettingsOpen) {
+					storeNavigation.closeSettings();
+				} else {
+					storeNavigation.openSettings();
+				}
+			}
 		}
 		window.addEventListener("keydown", onWindowKeydown);
 		return () => window.removeEventListener("keydown", onWindowKeydown);
