@@ -237,6 +237,8 @@ export function createBaseBeatsWatcher(deps: {
 	let prevCardCounts: Map<string, number> | null = null;
 	let prevLocalHandIds: Set<number> = new Set();
 	let drawIdCounter = 0;
+	let lastLandingBaseDeg = 0;
+	let pendingLocalHandSlots = new Map<number, [number, number, number]>();
 
 	return $effect.root(() => {
 		$effect(() => {
@@ -244,6 +246,39 @@ export function createBaseBeatsWatcher(deps: {
 			if (!state) return;
 			const placement = deps.getPlacement();
 			const localUsername = storeGame.localPlayer?.username;
+
+			// One live resolver per tick, shared by every enqueue() call this
+			// tick — replaces the three duplicated per-call anchor-object blocks
+			// (processPlay's `anchors`, processDraws's `opponentAnchors`/`anchors`,
+			// processReshuffle's `anchors`). "Live" because it's a function
+			// evaluated at the moment each step renderer actually asks for the
+			// anchor, not a value snapshotted once when enqueue() was called.
+			function resolveCardTarget(name: string): [number, number, number] {
+				if (name === "discard-pile") {
+					const { entry, index } = previewDiscardLanding(
+						deps.bus.discardHistory,
+						state!.top_card!,
+						DISCARD_CAP,
+						lastLandingBaseDeg
+					);
+					return [
+						placement.discardX + entry.jitter[0] * EM_TO_WORLD,
+						index * DISCARD_STACK_STEP,
+						placement.discardZ + entry.jitter[1] * EM_TO_WORLD
+					];
+				}
+				if (name === "draw-pile") {
+					return [placement.drawPileX, 0, placement.drawPileZ];
+				}
+				if (name.startsWith("seat:")) {
+					return deps.getOpponentSeatAnchor(name.slice("seat:".length));
+				}
+				if (name.startsWith("local-hand-slot:")) {
+					const slotIndex = Number(name.slice("local-hand-slot:".length));
+					return pendingLocalHandSlots.get(slotIndex) ?? [0, 0, placement.localSeatZ];
+				}
+				throw new Error(`baseBeats: no resolver for anchor "${name}"`);
+			}
 
 			// Lost when FlyingCardsOverlay.svelte was removed in favor of this
 			// watcher and never re-wired — a wild's chosen color (+4/jolly) never
@@ -290,23 +325,7 @@ export function createBaseBeatsWatcher(deps: {
 				// straight to this precise spot (position AND rotation, see
 				// buildPlayBeat's landingSpinDeg below) is what turns the flight-to-pile
 				// handoff into a no-op instead of a visible pop to a different pose.
-				const { entry: landingEntry, index: landingIndex } = previewDiscardLanding(
-					deps.bus.discardHistory,
-					top,
-					DISCARD_CAP,
-					landingBaseDeg
-				);
-				const anchors: Record<string, [number, number, number]> = {
-					"discard-pile": [
-						placement.discardX + landingEntry.jitter[0] * EM_TO_WORLD,
-						landingIndex * DISCARD_STACK_STEP,
-						placement.discardZ + landingEntry.jitter[1] * EM_TO_WORLD
-					]
-				};
-				for (const p of state!.players ?? []) {
-					if (p.username === localUsername) continue;
-					anchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
-				}
+				const { entry: landingEntry } = previewDiscardLanding(deps.bus.discardHistory, top, DISCARD_CAP, landingBaseDeg);
 
 				deps.cardRegistry.registerCardMeta(String(top.id), { type: top.type, value: top.value });
 
@@ -342,6 +361,7 @@ export function createBaseBeatsWatcher(deps: {
 					});
 				}
 
+				lastLandingBaseDeg = landingBaseDeg;
 				const beat = buildPlayBeat({
 					cardId: String(top.id),
 					playedByMe,
@@ -362,11 +382,7 @@ export function createBaseBeatsWatcher(deps: {
 				if (playedByMe) deps.bus.hide(top.id);
 
 				deps.cardRegistry
-					.enqueue([beat, shakeBeat], (name) => {
-						const a = anchors[name];
-						if (!a) throw new Error(`no anchor "${name}"`);
-						return a;
-					})
+					.enqueue([beat, shakeBeat], resolveCardTarget)
 					.then(() => {
 						deps.bus.setDiscardTop(top, landingBaseDeg);
 						if (playedByMe) deps.bus.show(top.id);
@@ -382,11 +398,6 @@ export function createBaseBeatsWatcher(deps: {
 					}
 					prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
 					return;
-				}
-
-				const opponentAnchors: Record<string, [number, number, number]> = {};
-				for (const p of state!.players ?? []) {
-					if (p.username !== localUsername) opponentAnchors[opponentSeatAnchor(p.username)] = deps.getOpponentSeatAnchor(p.username);
 				}
 
 				for (const p of state!.players ?? []) {
@@ -407,15 +418,17 @@ export function createBaseBeatsWatcher(deps: {
 						// Every card sharing the single old "rightmost" anchor was
 						// the bug: every card in a multi-card draw converged on the
 						// exact same hand slot instead of fanning out into their own.
-						const anchors: Record<string, [number, number, number]> = { ...opponentAnchors };
-						newIds.forEach((_id, i) => {
-							anchors[localHandSlotAnchorKey(i)] = localHandSlotAnchor(
-								p.card_count,
-								p.card_count - newIds.length + i,
-								placement,
-								deps.bus.localHandSnapshot
-							);
-						});
+						pendingLocalHandSlots = new Map(
+							newIds.map((_id, i) => [
+								i,
+								localHandSlotAnchor(
+									p.card_count,
+									p.card_count - newIds.length + i,
+									placement,
+									deps.bus.localHandSnapshot
+								)
+							])
+						);
 						for (const cardId of newIds) {
 							const card = localHand.find((c) => c.id === cardId);
 							if (!card) continue;
@@ -438,11 +451,7 @@ export function createBaseBeatsWatcher(deps: {
 						}
 						const cardIds = newIds.map(String);
 						deps.cardRegistry
-							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), (name) => {
-								const a = anchors[name];
-								if (!a) throw new Error(`no anchor "${name}"`);
-								return a;
-							})
+							.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), resolveCardTarget)
 							.then(() => cardIds.forEach((id) => deps.bus.show(Number(id))));
 						prevLocalHandIds = currentIds;
 					} else {
@@ -465,11 +474,7 @@ export function createBaseBeatsWatcher(deps: {
 						}
 						deps.cardRegistry.enqueue(
 							buildDrawBeats({ cardIds, forLocalPlayer: false, opponentUsername: p.username, placement }),
-							(name) => {
-								const a = opponentAnchors[name];
-								if (!a) throw new Error(`no anchor "${name}"`);
-								return a;
-							}
+							resolveCardTarget
 						);
 					}
 				}
@@ -479,9 +484,6 @@ export function createBaseBeatsWatcher(deps: {
 			function processReshuffle(): void {
 				const currentDrawPileSize = state!.draw_pile_size;
 				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
-					const anchors: Record<string, [number, number, number]> = {
-						"draw-pile": [placement.drawPileX, 0, placement.drawPileZ]
-					};
 					for (const entry of deps.bus.discardHistory) {
 						deps.cardRegistry.registerCardMeta(String(entry.card.id), entry.card);
 						// Without this, moveRenderer's own all-zero fallback startPose
@@ -497,11 +499,7 @@ export function createBaseBeatsWatcher(deps: {
 							opacity: 1
 						});
 					}
-					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), (name) => {
-						const a = anchors[name];
-						if (!a) throw new Error(`no anchor "${name}"`);
-						return a;
-					});
+					deps.cardRegistry.enqueue(buildReshuffleBeat(deps.bus.discardHistory), resolveCardTarget);
 				}
 				prevDrawPileSize = currentDrawPileSize;
 			}

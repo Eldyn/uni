@@ -270,4 +270,43 @@ describe("createBaseBeatsWatcher", () => {
 
 		dispose();
 	});
+
+	it("resolves the discard-pile anchor live, via the shared resolver, for both a play and its landing shake", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [{ username: "me", card_count: 5, is_bot: false, hand: [] }],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 2, type: "blue", value: "7" },
+			last_play: { player: "me", hand_index: 0 },
+			players: [{ username: "me", card_count: 5, is_bot: false, hand: [] }],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+		flushSync();
+
+		expect(cardRegistry.activeFlights.some((f) => f.id === "2")).toBe(true);
+
+		dispose();
+	});
 });
