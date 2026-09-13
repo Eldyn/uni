@@ -110,6 +110,7 @@
 		<PlayerSeat3D
 			{player}
 			{seat}
+			hasHoldingCard={bus.isHoldingOpponent(player.username)}
 			isTurn={storeGame.state?.current_turn === player.username}
 			isValidTarget={storeGame.actionRequired === Action.ChooseTarget &&
 				Array.isArray(storeGame.actionContext) &&

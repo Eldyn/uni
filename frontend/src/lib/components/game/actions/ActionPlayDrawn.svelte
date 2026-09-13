@@ -1,45 +1,35 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
-	import GameCard from "$components/game/GameCard.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
-	{@const drawnCard = storeGame.localPlayer?.hand?.find(
-		(c) => c.id === storeGame.actionContext.card_id
-	)}
 	<div class="inline-action-container">
 		<div class="prompt-badge pixel-corners">You drew a playable card!</div>
-		{#if drawnCard}
-			<div class="card-wrapper animate-flip">
-				<GameCard card={drawnCard} style="position: relative; left: 0;" />
-			</div>
-
-			<div class="action-buttons-group">
-				<button
-					class="btn pixel-corners sized-btn play-btn"
-					onclick={() => {
-						// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
-						// the player chooses to play the just-drawn card.
-						storeAudio.playSfx("sfx.play-drawn.confirm");
-						storeGame.submitInput("0");
-					}}
-				>
-					Play It
-				</button>
-				<button
-					class="btn pixel-corners sized-btn keep-btn"
-					onclick={() => {
-						// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
-						// the player chooses to keep the just-drawn card instead.
-						storeAudio.playSfx("sfx.play-drawn.confirm");
-						storeGame.submitInput("1");
-					}}
-				>
-					Keep It
-				</button>
-			</div>
-		{/if}
+		<div class="action-buttons-group">
+			<button
+				class="btn pixel-corners sized-btn play-btn"
+				onclick={() => {
+					// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
+					// the player chooses to play the just-drawn card.
+					storeAudio.playSfx("sfx.play-drawn.confirm");
+					storeGame.submitInput("0");
+				}}
+			>
+				Play It
+			</button>
+			<button
+				class="btn pixel-corners sized-btn keep-btn"
+				onclick={() => {
+					// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
+					// the player chooses to keep the just-drawn card instead.
+					storeAudio.playSfx("sfx.play-drawn.confirm");
+					storeGame.submitInput("1");
+				}}
+			>
+				Keep It
+			</button>
+		</div>
 	</div>
 {/if}
 
@@ -69,26 +59,6 @@
 		animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 	}
 
-	.card-wrapper {
-		margin-bottom: 20px;
-		transform: scale(1.3);
-		filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.4));
-	}
-
-	.animate-flip {
-		animation: flipIn 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-	}
-
-	@keyframes flipIn {
-		0% {
-			transform: scale(1.3) rotateY(90deg) translateY(-20px);
-			opacity: 0;
-		}
-		100% {
-			transform: scale(1.3) rotateY(0deg) translateY(0);
-			opacity: 1;
-		}
-	}
 
 	@keyframes popIn {
 		0% {

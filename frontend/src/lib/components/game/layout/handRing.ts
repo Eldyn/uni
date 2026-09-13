@@ -108,3 +108,25 @@ export function ringSlotWorldPose(
 	const worldZ = seat.z + (-lx * sin + lz * cos);
 	return [worldX, index * ringStackStep, worldZ];
 }
+
+/**
+ * Position "in front" of an opponent seat along the line toward the playmat center / discard pile,
+ * spaced cleanly beyond the outer edge of their hand card arc.
+ */
+export function opponentFrontWorldPose(
+	seat: { x: number; z: number; rotationY: number },
+	avatarWorldSize: number,
+	cardScale: number
+): { position: [number, number, number]; spinDeg: number } {
+	const ringRadiusWorld = opponentRingRadiusWorld(avatarWorldSize, cardScale);
+	const frontOffsetWorld = ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.45;
+	const sin = Math.sin(seat.rotationY);
+	const cos = Math.cos(seat.rotationY);
+	const worldX = seat.x + frontOffsetWorld * sin;
+	const worldZ = seat.z + frontOffsetWorld * cos;
+	const spinDeg = (seat.rotationY * 180) / Math.PI + 180;
+	return {
+		position: [worldX, 0.05, worldZ],
+		spinDeg
+	};
+}

@@ -8,7 +8,7 @@
  * movements only; draw/reshuffle land later.
  */
 
-import { storeGame, type CardType } from "$stores/game.svelte";
+import { storeGame, Action, type CardType } from "$stores/game.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
@@ -63,7 +63,11 @@ export function buildPlayBeat(args: {
 			{
 				op: "move",
 				target: args.cardId,
-				payload: { to: "discard-pile", toSpinDeg: args.landingSpinDeg }
+				payload: {
+					to: "discard-pile",
+					toScale: args.placement.centerScale,
+					toSpinDeg: args.landingSpinDeg
+				}
 			}
 		];
 	}
@@ -157,6 +161,10 @@ export function opponentSlotAnchorKey(username: string, slotIndex: number, subIn
 	return `opponent-slot:${username}:${slotIndex}:${subIndex}`;
 }
 
+export function opponentFrontAnchorKey(username: string): string {
+	return `opponent-front:${username}`;
+}
+
 /** Visual height offset to lift a drawn card cleanly above the draw pile stack during its flip */
 export const DRAW_HOVER_LIFT = 0.45;
 
@@ -248,6 +256,9 @@ export function createBaseBeatsWatcher(deps: {
 		cardCount: number,
 		slotIndex: number
 	) => { position: [number, number, number]; spinDeg: number };
+	getOpponentFrontPose?: (
+		username: string
+	) => { position: [number, number, number]; spinDeg: number };
 }): () => void {
 	let prevTopCardId: number | null = null;
 	let prevDrawPileSize: number | null = null;
@@ -261,6 +272,7 @@ export function createBaseBeatsWatcher(deps: {
 	let lastLandingBaseDeg = 0;
 	let pendingLocalHandSlots = new Map<number, [number, number, number]>();
 	let pendingOpponentSlots = new Map<string, [number, number, number]>();
+	let pendingOpponentPlayDrawn = new Map<string, { cardId: string }>();
 
 	return $effect.root(() => {
 		$effect(() => {
@@ -294,6 +306,12 @@ export function createBaseBeatsWatcher(deps: {
 				}
 				if (name.startsWith("seat:")) {
 					return deps.getOpponentSeatAnchor(name.slice("seat:".length));
+				}
+				if (name.startsWith("opponent-front:")) {
+					const username = name.slice("opponent-front:".length);
+					return deps.getOpponentFrontPose
+						? deps.getOpponentFrontPose(username).position
+						: deps.getOpponentSeatAnchor(username);
 				}
 				if (name.startsWith("opponent-slot:")) {
 					return pendingOpponentSlots.get(name) ?? [0, 0, 0];
@@ -361,42 +379,79 @@ export function createBaseBeatsWatcher(deps: {
 				});
 
 				if (playedByMe) {
-					const [sx, sy, sz] = localCardAnchor(
-						top.id,
-						placement,
-						deps.bus.localHandSnapshot,
-						deps.bus.previousLocalHandSnapshot
-					);
-					deps.cardRegistry.seedPose(String(top.id), {
-						x: sx,
-						y: sy,
-						z: sz,
-						spinDeg: 0,
-						flipDeg: 0,
-						scale: placement.handScale,
-						turned: false,
-						opacity: 1
-					});
+					const isPlayDrawn = deps.bus.pendingLocalPlayDrawnId === top.id;
+					if (isPlayDrawn) {
+						deps.bus.setPendingLocalPlayDrawnId(null);
+						const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+						deps.cardRegistry.seedPose(String(top.id), {
+							x: px,
+							y: py + DRAW_HOVER_LIFT,
+							z: pz,
+							spinDeg: 0,
+							flipDeg: 0,
+							scale: placement.drawPileScale,
+							turned: false,
+							opacity: 1
+						});
+					} else {
+						const [sx, sy, sz] = localCardAnchor(
+							top.id,
+							placement,
+							deps.bus.localHandSnapshot,
+							deps.bus.previousLocalHandSnapshot
+						);
+						deps.cardRegistry.seedPose(String(top.id), {
+							x: sx,
+							y: sy,
+							z: sz,
+							spinDeg: 0,
+							flipDeg: 0,
+							scale: placement.handScale,
+							turned: false,
+							opacity: 1
+						});
+					}
 				} else {
-					// NOTE: in the future, the card will be taken from the correct index given to the client by the server, but since currently there are no cards that show the oppoenent's hand, we do not require consistency with the real position of the played card, so we can chose a random card from the arc to animate onto the discard pile.
-					const preCount = Math.max(1, prevCardCounts?.get(lastPlay.player) ?? 1);
-					const chosenSlot = Math.floor(Math.random() * preCount);
-					const opponentPose = deps.getOpponentCardPose?.(lastPlay.player, preCount, chosenSlot);
-					const [sx, sy, sz] = opponentPose ? opponentPose.position : deps.getOpponentSeatAnchor(lastPlay.player);
-					const seedSpin = opponentPose
-						? opponentPose.spinDeg
-						: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0);
+					const holding = pendingOpponentPlayDrawn.get(lastPlay.player);
+					if (holding) {
+						pendingOpponentPlayDrawn.delete(lastPlay.player);
+						deps.bus.setHoldingOpponent(lastPlay.player, false);
+						deps.cardRegistry.removeEntry(holding.cardId);
 
-					deps.cardRegistry.seedPose(String(top.id), {
-						x: sx,
-						y: sy,
-						z: sz,
-						spinDeg: seedSpin,
-						flipDeg: 0,
-						scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
-						turned: true,
-						opacity: 1
-					});
+						const frontPose = deps.getOpponentFrontPose
+							? deps.getOpponentFrontPose(lastPlay.player)
+							: { position: deps.getOpponentSeatAnchor(lastPlay.player), spinDeg: 0 };
+						deps.cardRegistry.seedPose(String(top.id), {
+							x: frontPose.position[0],
+							y: frontPose.position[1],
+							z: frontPose.position[2],
+							spinDeg: frontPose.spinDeg,
+							flipDeg: 0,
+							scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+							turned: true,
+							opacity: 1
+						});
+					} else {
+						// NOTE: in the future, the card will be taken from the correct index given to the client by the server, but since currently there are no cards that show the oppoenent's hand, we do not require consistency with the real position of the played card, so we can chose a random card from the arc to animate onto the discard pile.
+						const preCount = Math.max(1, prevCardCounts?.get(lastPlay.player) ?? 1);
+						const chosenSlot = Math.floor(Math.random() * preCount);
+						const opponentPose = deps.getOpponentCardPose?.(lastPlay.player, preCount, chosenSlot);
+						const [sx, sy, sz] = opponentPose ? opponentPose.position : deps.getOpponentSeatAnchor(lastPlay.player);
+						const seedSpin = opponentPose
+							? opponentPose.spinDeg
+							: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0);
+
+						deps.cardRegistry.seedPose(String(top.id), {
+							x: sx,
+							y: sy,
+							z: sz,
+							spinDeg: seedSpin,
+							flipDeg: 0,
+							scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+							turned: true,
+							opacity: 1
+						});
+					}
 				}
 
 				lastLandingBaseDeg = landingBaseDeg;
@@ -418,6 +473,91 @@ export function createBaseBeatsWatcher(deps: {
 				});
 			}
 
+			function checkLocalKeptDrawn(): void {
+				if (deps.bus.pendingLocalPlayDrawnId === null) return;
+				if (storeGame.actionRequired === Action.PlayDrawn) return;
+
+				const keptCardId = deps.bus.pendingLocalPlayDrawnId;
+				const localHand = state!.players?.find((p) => p.username === localUsername)?.hand ?? [];
+				const inHand = localHand.some((c) => c.id === keptCardId);
+				if (!inHand) {
+					deps.cardRegistry.removeEntry(String(keptCardId));
+					deps.bus.setPendingLocalPlayDrawnId(null);
+					return;
+				}
+
+				const handSnapshot = deps.bus.localHandSnapshot;
+				const slotIndex = handSnapshot.orderIds.length;
+				const handCount = handSnapshot.orderIds.length + 1;
+				const targetAnchor = localHandSlotAnchor(handCount, slotIndex, placement, handSnapshot);
+				pendingLocalHandSlots.set(slotIndex, targetAnchor);
+
+				deps.cardRegistry.enqueue(
+					[
+						[
+							{
+								op: "move",
+								target: String(keptCardId),
+								payload: {
+									to: localHandSlotAnchorKey(slotIndex),
+									toScale: placement.handScale,
+									toSpinDeg: 0
+								}
+							}
+						]
+					],
+					resolveCardTarget
+				);
+				deps.bus.setPendingLocalPlayDrawnId(null);
+			}
+
+			function checkOpponentsKeptDrawn(): void {
+				if (pendingOpponentPlayDrawn.size === 0) return;
+				for (const [username, holding] of Array.from(pendingOpponentPlayDrawn.entries())) {
+					if (state!.current_turn === username && (!state!.last_play || state!.last_play.player !== username)) {
+						continue;
+					}
+					pendingOpponentPlayDrawn.delete(username);
+					const player = state!.players?.find((p) => p.username === username);
+					if (!player) {
+						deps.cardRegistry.removeEntry(holding.cardId);
+						deps.bus.setHoldingOpponent(username, false);
+						continue;
+					}
+					const cardCount = player.card_count;
+					const targetSlotIndex = Math.max(0, cardCount - 1);
+					const slotKey = opponentSlotAnchorKey(username, targetSlotIndex, drawIdCounter++);
+					const targetPose = deps.getOpponentCardPose?.(username, cardCount, targetSlotIndex);
+					const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
+
+					if (targetPose) {
+						pendingOpponentSlots.set(slotKey, targetPose.position);
+					}
+
+					deps.cardRegistry
+						.enqueue(
+							[
+								[
+									{
+										op: "move",
+										target: holding.cardId,
+										payload: {
+											to: targetPose ? slotKey : opponentSeatAnchor(username),
+											toScale: opponentCardScale,
+											toSpinDeg: targetPose?.spinDeg ?? (deps.getOpponentSeatRotationDeg?.(username) ?? 0)
+										}
+									}
+								]
+							],
+							resolveCardTarget
+						)
+						.then(() => {
+							deps.cardRegistry.removeEntry(holding.cardId);
+							deps.bus.setHoldingOpponent(username, false);
+						});
+				}
+			}
+
 			function processDraws(): void {
 				if (prevCardCounts === null) {
 					if (localUsername) {
@@ -437,72 +577,92 @@ export function createBaseBeatsWatcher(deps: {
 						const localHand = p.hand ?? [];
 						const currentIds = new Set(localHand.map((c) => c.id));
 						const newIds = localHand.map((c) => c.id).filter((id) => !prevLocalHandIds.has(id));
-	if (newIds.length === 0) {
+						if (newIds.length === 0) {
 							prevLocalHandIds = currentIds;
 							continue;
 						}
-						// One anchor PER new card, at its own eventual slot in the
-						// final (post-draw) hand — new ids always append at the end,
-						// so the Nth new card belongs at the Nth-from-last slot.
-						// Every card sharing the single old "rightmost" anchor was
-						// the bug: every card in a multi-card draw converged on the
-						// exact same hand slot instead of fanning out into their own.
-						pendingLocalHandSlots = new Map(
-							newIds.map((_id, i) => [
-								i,
-								localHandSlotAnchor(
-									p.card_count,
-									p.card_count - newIds.length + i,
-									placement,
-									deps.bus.localHandSnapshot
-								)
-							])
-						);
-						for (const cardId of newIds) {
+
+						const isPlayableDraw =
+							newIds.length === 1 &&
+							storeGame.actionRequired === Action.PlayDrawn &&
+							(storeGame.actionContext?.card_id === newIds[0] || !storeGame.actionContext?.card_id);
+
+						if (isPlayableDraw) {
+							const cardId = newIds[0];
 							const card = localHand.find((c) => c.id === cardId);
-							if (!card) continue;
-							deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
-							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
-							deps.cardRegistry.seedPose(String(cardId), {
-								x: px,
-								y: py + DRAW_HOVER_LIFT,
-								z: pz,
-								spinDeg: 0,
-								flipDeg: 0,
-								scale: placement.drawPileScale,
-								turned: true,
-								opacity: 1
-							});
+							if (card) {
+								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								deps.cardRegistry.seedPose(String(cardId), {
+									x: px,
+									y: py + DRAW_HOVER_LIFT,
+									z: pz,
+									spinDeg: 0,
+									flipDeg: 0,
+									scale: placement.drawPileScale,
+									turned: true,
+									opacity: 1
+								});
+								deps.bus.setPendingLocalPlayDrawnId(cardId);
+								deps.cardRegistry.enqueue(
+									[[{ op: "flip", target: String(cardId), payload: { turned: false, axis: "x" } }]],
+									resolveCardTarget
+								);
+							}
+							prevLocalHandIds = currentIds;
+						} else {
+							// One anchor PER new card, at its own eventual slot in the
+							// final (post-draw) hand — new ids always append at the end,
+							// so the Nth new card belongs at the Nth-from-last slot.
+							// Every card sharing the single old "rightmost" anchor was
+							// the bug: every card in a multi-card draw converged on the
+							// exact same hand slot instead of fanning out into their own.
+							pendingLocalHandSlots = new Map(
+								newIds.map((_id, i) => [
+									i,
+									localHandSlotAnchor(
+										p.card_count,
+										p.card_count - newIds.length + i,
+										placement,
+										deps.bus.localHandSnapshot
+									)
+								])
+							);
+							for (const cardId of newIds) {
+								const card = localHand.find((c) => c.id === cardId);
+								if (!card) continue;
+								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								deps.cardRegistry.seedPose(String(cardId), {
+									x: px,
+									y: py + DRAW_HOVER_LIFT,
+									z: pz,
+									spinDeg: 0,
+									flipDeg: 0,
+									scale: placement.drawPileScale,
+									turned: true,
+									opacity: 1
+								});
+							}
+							const cardIds = newIds.map(String);
+							deps.cardRegistry.enqueue(
+								buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
+								resolveCardTarget
+							);
+							prevLocalHandIds = currentIds;
 						}
-						const cardIds = newIds.map(String);
-						deps.cardRegistry.enqueue(
-							buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
-							resolveCardTarget
-						);
-						prevLocalHandIds = currentIds;
 					} else {
 						const drawnCount = p.card_count - prevCount;
 						const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
-						const cardIds: string[] = [];
-						const slotAnchorKeys: string[] = [];
-						const slotSpinDegs: number[] = [];
-						for (let i = 0; i < drawnCount; i++) {
+						const isOpponentPlayableDraw = drawnCount === 1 && state.current_turn === p.username;
+
+						if (isOpponentPlayableDraw) {
 							const cardId = `draw:${p.username}:${drawIdCounter++}`;
-							cardIds.push(cardId);
-							const targetSlotIndex = prevCount + i;
-							const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
-							const targetPose = deps.getOpponentCardPose?.(p.username, p.card_count, targetSlotIndex);
-
-							if (targetPose) {
-								pendingOpponentSlots.set(slotKey, targetPose.position);
-								slotAnchorKeys.push(slotKey);
-								slotSpinDegs.push(targetPose.spinDeg);
-							} else {
-								slotAnchorKeys.push(opponentSeatAnchor(p.username));
-								slotSpinDegs.push(deps.getOpponentSeatRotationDeg?.(p.username) ?? 0);
-							}
-
+							const frontPose = deps.getOpponentFrontPose
+								? deps.getOpponentFrontPose(p.username)
+								: { position: deps.getOpponentSeatAnchor(p.username), spinDeg: 0 };
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+
 							deps.cardRegistry.seedPose(cardId, {
 								x: px,
 								y: py + DRAW_HOVER_LIFT,
@@ -513,19 +673,71 @@ export function createBaseBeatsWatcher(deps: {
 								turned: true,
 								opacity: 1
 							});
+
+							deps.bus.setHoldingOpponent(p.username, true);
+							pendingOpponentPlayDrawn.set(p.username, { cardId });
+
+							deps.cardRegistry.enqueue(
+								[
+									[
+										{
+											op: "move",
+											target: cardId,
+											payload: {
+												to: opponentFrontAnchorKey(p.username),
+												toScale: opponentCardScale,
+												toSpinDeg: frontPose.spinDeg
+											}
+										}
+									]
+								],
+								resolveCardTarget
+							);
+						} else {
+							const cardIds: string[] = [];
+							const slotAnchorKeys: string[] = [];
+							const slotSpinDegs: number[] = [];
+							for (let i = 0; i < drawnCount; i++) {
+								const cardId = `draw:${p.username}:${drawIdCounter++}`;
+								cardIds.push(cardId);
+								const targetSlotIndex = prevCount + i;
+								const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
+								const targetPose = deps.getOpponentCardPose?.(p.username, p.card_count, targetSlotIndex);
+
+								if (targetPose) {
+									pendingOpponentSlots.set(slotKey, targetPose.position);
+									slotAnchorKeys.push(slotKey);
+									slotSpinDegs.push(targetPose.spinDeg);
+								} else {
+									slotAnchorKeys.push(opponentSeatAnchor(p.username));
+									slotSpinDegs.push(deps.getOpponentSeatRotationDeg?.(p.username) ?? 0);
+								}
+
+								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								deps.cardRegistry.seedPose(cardId, {
+									x: px,
+									y: py + DRAW_HOVER_LIFT,
+									z: pz,
+									spinDeg: 0,
+									flipDeg: 0,
+									scale: placement.drawPileScale,
+									turned: true,
+									opacity: 1
+								});
+							}
+							deps.cardRegistry.enqueue(
+								buildDrawBeats({
+									cardIds,
+									forLocalPlayer: false,
+									opponentUsername: p.username,
+									placement,
+									opponentCardScale,
+									slotAnchorKeys,
+									slotSpinDegs
+								}),
+								resolveCardTarget
+							);
 						}
-						deps.cardRegistry.enqueue(
-							buildDrawBeats({
-								cardIds,
-								forLocalPlayer: false,
-								opponentUsername: p.username,
-								placement,
-								opponentCardScale,
-								slotAnchorKeys,
-								slotSpinDegs
-							}),
-							resolveCardTarget
-						);
 					}
 				}
 				prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
@@ -556,6 +768,8 @@ export function createBaseBeatsWatcher(deps: {
 			}
 
 			processPlay();
+			checkLocalKeptDrawn();
+			checkOpponentsKeptDrawn();
 			processDraws();
 			processReshuffle();
 		});

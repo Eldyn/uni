@@ -16,7 +16,8 @@
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
 		computeHandRingSlots,
-		ringSlotWorldPose
+		ringSlotWorldPose,
+		opponentFrontWorldPose
 	} from "./layout/handRing";
 
 	const bus = createCardBus();
@@ -135,6 +136,20 @@
 			const position = ringSlotWorldPose(seat, slot, slotIndex, radialScale, 0.02);
 			const spinDeg = (seat.rotationY * 180) / Math.PI + slot.rotateDeg + 180;
 			return { position, spinDeg };
+		},
+		getOpponentFrontPose: (username) => {
+			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+			if (idx === -1) {
+				return {
+					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [number, number, number],
+					spinDeg: 0
+				};
+			}
+			const seat = geometry.seats3D[idx];
+			if (!seat) {
+				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
+			}
+			return opponentFrontWorldPose(seat, geometry.opponentAvatarWorld, geometry.opponentCardScale);
 		}
 	});
 

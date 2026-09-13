@@ -34,7 +34,8 @@
 		cardScale = 0.55,
 		avatarPx = 56,
 		avatarWorld = 0.78,
-		labelEm = 1.15
+		labelEm = 1.15,
+		hasHoldingCard = false
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -53,6 +54,8 @@
 		avatarWorld?: number;
 		/** Name label font size, em. */
 		labelEm?: number;
+		/** If true, the player has 1 drawn card in front awaiting play decision. */
+		hasHoldingCard?: boolean;
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
@@ -67,7 +70,7 @@
 	// rather than just the icon.
 	const LABEL_BEYOND_RING_MARGIN = 0.35;
 
-	let cardCount = $derived(player.card_count ?? 0);
+	let cardCount = $derived(Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0)));
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
 

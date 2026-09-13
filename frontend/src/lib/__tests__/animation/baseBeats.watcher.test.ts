@@ -3,9 +3,10 @@ import { flushSync } from "svelte";
 import { createBaseBeatsWatcher, DRAW_HOVER_LIFT } from "$components/game/animation/baseBeats.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
 import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
-import { storeGame } from "$stores/game.svelte";
+import { storeGame, Action } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
+import { drawPileTopPose } from "$components/game/layout/drawPile";
 
 // Regression test for the exact class of bug found during manual
 // browser verification: createBaseBeatsWatcher's $effect/$effect.root calls
@@ -34,6 +35,8 @@ const placement: BoardPlacement = {
 describe("createBaseBeatsWatcher", () => {
 	afterEach(() => {
 		storeGame.state = null;
+		storeGame.actionRequired = null;
+		storeGame.actionContext = null;
 		storeAuth.username = "";
 	});
 
@@ -311,6 +314,309 @@ describe("createBaseBeatsWatcher", () => {
 		flushSync();
 
 		expect(cardRegistry.activeFlights.some((f) => f.id === "2")).toBe(true);
+
+		dispose();
+	});
+
+	it("stops local playable draw at the flip on draw pile and records pendingLocalPlayDrawnId", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] }
+			],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		storeGame.actionRequired = Action.PlayDrawn;
+		storeGame.actionContext = { card_id: 2 };
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "red", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.pendingLocalPlayDrawnId).toBe(2);
+		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(flight).toBeDefined();
+		const topPose = drawPileTopPose(placement, 10);
+		expect(flight!.pose.x).toBeCloseTo(topPose[0]);
+		expect(flight!.pose.y).toBeCloseTo(topPose[1] + DRAW_HOVER_LIFT);
+		expect(flight!.pose.z).toBeCloseTo(topPose[2]);
+
+		cardRegistry.flushImmediately();
+
+		// Case 2A: Play it
+		storeGame.actionRequired = null;
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 2, type: "red", value: "7" },
+			last_play: { player: "me", hand_index: 0 },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] }
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.pendingLocalPlayDrawnId).toBeNull();
+		expect(cardRegistry.activeFlights.some((f) => f.id === "2")).toBe(true);
+
+		dispose();
+	});
+
+	it("flows held local card into hand when kept", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] }
+			],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		storeGame.actionRequired = Action.PlayDrawn;
+		storeGame.actionContext = { card_id: 2 };
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "red", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.pendingLocalPlayDrawnId).toBe(2);
+		cardRegistry.flushImmediately();
+
+		// Case 2B: Keep it (actionRequired clears, top_card doesn't change)
+		storeGame.actionRequired = null;
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "red", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.pendingLocalPlayDrawnId).toBeNull();
+
+		dispose();
+	});
+
+	it("handles opponent playable draw: moves to front holding spot, then plays to discard", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const frontPose = { position: [1.5, 0.05, -2.5] as [number, number, number], spinDeg: 120 };
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [1, 0, -2],
+			getOpponentCardScale: () => 0.4,
+			getOpponentFrontPose: () => frontPose
+		});
+		flushSync();
+
+		// Bob draws 1 card, and current_turn remains "bob" (playable draw!)
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 4, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.isHoldingOpponent("bob")).toBe(true);
+		const drawFlight = cardRegistry.activeFlights.find((f) => f.id.startsWith("draw:bob:"));
+		expect(drawFlight).toBeDefined();
+
+		cardRegistry.flushImmediately();
+
+		// Bob plays it
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 2, type: "red", value: "7" },
+			last_play: { player: "bob", hand_index: 0 },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.isHoldingOpponent("bob")).toBe(false);
+		const playFlight = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(playFlight).toBeDefined();
+		expect(playFlight!.pose.x).toBeCloseTo(frontPose.position[0]);
+		expect(playFlight!.pose.y).toBeCloseTo(frontPose.position[1]);
+		expect(playFlight!.pose.z).toBeCloseTo(frontPose.position[2]);
+		expect(playFlight!.pose.spinDeg).toBe(frontPose.spinDeg);
+
+		dispose();
+	});
+
+	it("handles opponent playable draw: moves to front holding spot, then keeps card (turn passes)", async () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 10
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const frontPose = { position: [1.5, 0.05, -2.5] as [number, number, number], spinDeg: 120 };
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [1, 0, -2],
+			getOpponentCardScale: () => 0.4,
+			getOpponentFrontPose: () => frontPose
+		});
+		flushSync();
+
+		// Bob draws 1 card, current_turn is bob
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 4, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		expect(bus.isHoldingOpponent("bob")).toBe(true);
+		cardRegistry.flushImmediately();
+
+		// Bob passes/keeps: current_turn becomes "me", no last_play
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 4, is_bot: false }
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+		flushSync();
+
+		cardRegistry.flushImmediately();
+		await Promise.resolve();
+
+		// Flowed back to Case 1 (into hand)
+		expect(bus.isHoldingOpponent("bob")).toBe(false);
 
 		dispose();
 	});

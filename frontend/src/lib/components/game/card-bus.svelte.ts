@@ -62,6 +62,27 @@ export class CardBus {
 		this.previousLocalHandSnapshot = untrack(() => this.localHandSnapshot);
 		this.localHandSnapshot = snapshot;
 	}
+
+	/** Card id currently stopped at the flip on the draw pile awaiting player's PlayDrawn input. */
+	pendingLocalPlayDrawnId = $state<number | null>(null);
+
+	setPendingLocalPlayDrawnId(id: number | null) {
+		this.pendingLocalPlayDrawnId = id;
+	}
+
+	/** Usernames of opponents currently holding a drawn playable card in front of their seat. */
+	holdingOpponents = $state<Set<string>>(new Set());
+
+	setHoldingOpponent(username: string, isHolding: boolean) {
+		const next = new Set(this.holdingOpponents);
+		if (isHolding) next.add(username);
+		else next.delete(username);
+		this.holdingOpponents = next;
+	}
+
+	isHoldingOpponent(username: string): boolean {
+		return this.holdingOpponents.has(username);
+	}
 }
 
 const CARD_BUS_KEY = Symbol("card-bus");
