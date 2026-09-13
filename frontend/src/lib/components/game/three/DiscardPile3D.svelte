@@ -80,10 +80,13 @@
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
-				// Clamped below the drawn-card's fixed renderOrder (50, see
-				// DRAW_HOVER_LIFT usage in baseBeats.svelte.ts) so a deep pile
-				// (DISCARD_CAP=30) can never collide with it.
-				renderOrder: 10 + Math.min(i, 19) * 2,
+				// One distinct value per pile index (history is capped at
+				// DISCARD_CAP=30, so this tops out at 39) — clamping multiple
+				// deep-stack indices to the same value re-introduced z-fighting
+				// among themselves; staying strictly under the drawn card's
+				// fixed renderOrder (50, see DRAW_HOVER_LIFT in baseBeats.svelte.ts)
+				// only requires enough headroom for the cap, not a clamp.
+				renderOrder: 10 + i,
 				highlight: armed && i === topIndex ? { pulse: true } : undefined
 			});
 		}
