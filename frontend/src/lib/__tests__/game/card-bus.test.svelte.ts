@@ -31,3 +31,87 @@ describe("CardBus.setLocalHandSnapshot", () => {
 		dispose();
 	});
 });
+
+describe("CardBus in-flight counters", () => {
+	it("increments and decrements in-flight draw count per user", () => {
+		const bus = new CardBus();
+		expect(bus.getInFlightDrawCount("player1")).toBe(0);
+
+		const cleanup1 = bus.addInFlightDraw("player1");
+		expect(bus.getInFlightDrawCount("player1")).toBe(1);
+		expect(bus.getInFlightDrawCount("player2")).toBe(0);
+
+		const cleanup2 = bus.addInFlightDraw("player1");
+		expect(bus.getInFlightDrawCount("player1")).toBe(2);
+
+		cleanup1();
+		expect(bus.getInFlightDrawCount("player1")).toBe(1);
+
+		// Idempotent cleanup: calling again does not decrement below expected
+		cleanup1();
+		expect(bus.getInFlightDrawCount("player1")).toBe(1);
+
+		cleanup2();
+		expect(bus.getInFlightDrawCount("player1")).toBe(0);
+	});
+
+	it("increments and decrements in-flight play count per user", () => {
+		const bus = new CardBus();
+		expect(bus.getInFlightPlayCount("player1")).toBe(0);
+
+		const cleanup1 = bus.addInFlightPlay("player1");
+		expect(bus.getInFlightPlayCount("player1")).toBe(1);
+		expect(bus.getInFlightPlayCount("player2")).toBe(0);
+
+		const cleanup2 = bus.addInFlightPlay("player2");
+		expect(bus.getInFlightPlayCount("player1")).toBe(1);
+		expect(bus.getInFlightPlayCount("player2")).toBe(1);
+
+		cleanup1();
+		expect(bus.getInFlightPlayCount("player1")).toBe(0);
+		expect(bus.getInFlightPlayCount("player2")).toBe(1);
+
+		// Idempotent cleanup
+		cleanup1();
+		expect(bus.getInFlightPlayCount("player1")).toBe(0);
+
+		cleanup2();
+		expect(bus.getInFlightPlayCount("player2")).toBe(0);
+	});
+
+	it("triggers reactive derivations when in-flight counters change", () => {
+		const bus = new CardBus();
+		let observedDrawCount = -1;
+		let observedPlayCount = -1;
+
+		const dispose = $effect.root(() => {
+			$effect(() => {
+				observedDrawCount = bus.getInFlightDrawCount("player1");
+				observedPlayCount = bus.getInFlightPlayCount("player1");
+			});
+		});
+
+		flushSync();
+		expect(observedDrawCount).toBe(0);
+		expect(observedPlayCount).toBe(0);
+
+		const cleanupDraw = bus.addInFlightDraw("player1");
+		flushSync();
+		expect(observedDrawCount).toBe(1);
+
+		const cleanupPlay = bus.addInFlightPlay("player1");
+		flushSync();
+		expect(observedPlayCount).toBe(1);
+
+		cleanupDraw();
+		flushSync();
+		expect(observedDrawCount).toBe(0);
+
+		cleanupPlay();
+		flushSync();
+		expect(observedPlayCount).toBe(0);
+
+		dispose();
+	});
+});
+

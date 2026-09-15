@@ -1,4 +1,5 @@
 import { getContext, setContext, untrack } from "svelte";
+import { SvelteMap } from "svelte/reactivity";
 import type { Card, CardType } from "$stores/game.svelte";
 import { appendDiscard, DISCARD_CAP, paintTopWild, type DiscardEntry } from "./layout/discardPile";
 
@@ -116,22 +117,77 @@ export class CardBus {
 		}
 	}
 
-	/** In-flight drawn cards per opponent, so seats don't render them in the arc before flight arrival. */
-	inFlightDrawCounts = $state<Record<string, number>>({});
+	#inFlightDraws = new SvelteMap<string, number>();
+	#inFlightPlays = new SvelteMap<string, number>();
 
-	getInFlightDrawCount(username: string): number {
-		return this.inFlightDrawCounts[username] ?? 0;
+	get inFlightDrawCounts(): Record<string, number> {
+		const record: Record<string, number> = {};
+		for (const [k, v] of this.#inFlightDraws) {
+			record[k] = v;
+		}
+		return record;
 	}
 
-	addInFlightDraw(username: string, count: number = 1): void {
-		const current = this.inFlightDrawCounts[username] ?? 0;
-		this.inFlightDrawCounts = { ...this.inFlightDrawCounts, [username]: current + count };
+	getInFlightDrawCount(username: string): number {
+		return this.#inFlightDraws.get(username) ?? 0;
+	}
+
+	addInFlightDraw(username: string, count: number = 1): () => void {
+		let active = true;
+		const current = this.#inFlightDraws.get(username) ?? 0;
+		this.#inFlightDraws.set(username, current + count);
+		return () => {
+			if (!active) return;
+			active = false;
+			const val = this.#inFlightDraws.get(username) ?? 0;
+			const next = Math.max(0, val - count);
+			if (next === 0) {
+				this.#inFlightDraws.delete(username);
+			} else {
+				this.#inFlightDraws.set(username, next);
+			}
+		};
 	}
 
 	removeInFlightDraw(username: string, count: number = 1): void {
-		const current = this.inFlightDrawCounts[username] ?? 0;
+		const current = this.#inFlightDraws.get(username) ?? 0;
 		const next = Math.max(0, current - count);
-		this.inFlightDrawCounts = { ...this.inFlightDrawCounts, [username]: next };
+		if (next === 0) {
+			this.#inFlightDraws.delete(username);
+		} else {
+			this.#inFlightDraws.set(username, next);
+		}
+	}
+
+	getInFlightPlayCount(username: string): number {
+		return this.#inFlightPlays.get(username) ?? 0;
+	}
+
+	addInFlightPlay(username: string, count: number = 1): () => void {
+		let active = true;
+		const current = this.#inFlightPlays.get(username) ?? 0;
+		this.#inFlightPlays.set(username, current + count);
+		return () => {
+			if (!active) return;
+			active = false;
+			const val = this.#inFlightPlays.get(username) ?? 0;
+			const next = Math.max(0, val - count);
+			if (next === 0) {
+				this.#inFlightPlays.delete(username);
+			} else {
+				this.#inFlightPlays.set(username, next);
+			}
+		};
+	}
+
+	removeInFlightPlay(username: string, count: number = 1): void {
+		const current = this.#inFlightPlays.get(username) ?? 0;
+		const next = Math.max(0, current - count);
+		if (next === 0) {
+			this.#inFlightPlays.delete(username);
+		} else {
+			this.#inFlightPlays.set(username, next);
+		}
 	}
 }
 
