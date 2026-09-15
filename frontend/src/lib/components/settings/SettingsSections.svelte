@@ -4,6 +4,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -104,6 +105,39 @@
 				live={false}
 				format={(v) => `${(v / 100).toFixed(2)}x`}
 				oncommit={(v) => storeAnimation.setSpeedMultiplier(v / 100)}
+			/>
+		</div>
+	</section>
+
+	<section class="panel settings-panel">
+		{@render sectionHeading("Graphics & Gameplay")}
+		<div class="mt-4 flex flex-col gap-4">
+			<Toggle
+				label="Full 3D draw pile stack"
+				description="Render complete 3D card stack for the draw pile instead of capped depth."
+				checked={storeRenderSettings.drawPileThickness === "full"}
+				oncommit={(v) => storeRenderSettings.setDrawPileThickness(v ? "full" : "capped")}
+			/>
+
+			<Toggle
+				label="Hand edge vignette"
+				description="Darken hand edges with vignette shader instead of fade overlay plane."
+				checked={storeRenderSettings.handEdgeEffect === "vignette"}
+				oncommit={(v) => storeRenderSettings.setHandEdgeEffect(v ? "vignette" : "fadeOverlay")}
+			/>
+
+			<Toggle
+				label="Sync cursor on click"
+				description="Keep keyboard navigation cursor synced with mouse-clicked cards."
+				checked={storeRenderSettings.syncCursorOnClick}
+				oncommit={(v) => storeRenderSettings.setSyncCursorOnClick(v)}
+			/>
+
+			<Toggle
+				label="Auto-scroll on edge creep"
+				description="Automatically scroll hand cards when pointer or cursor hovers near edges."
+				checked={storeRenderSettings.autoScrollOnEdgeCreep}
+				oncommit={(v) => storeRenderSettings.setAutoScrollOnEdgeCreep(v)}
 			/>
 		</div>
 	</section>
