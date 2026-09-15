@@ -189,6 +189,7 @@
 
 <DrawStackIndicator />
 <AccessibleHandControls
+	{bus}
 	selectedId={selectedCardId}
 	onSelectionChange={(id) => (selectedCardId = id)}
 	onPlay={play}

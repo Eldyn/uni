@@ -21,6 +21,7 @@
      on focus) — the 3D highlight is the sighted feedback now. -->
 <script lang="ts">
 	import { storeGame, type Card, type CardValue } from "$stores/game.svelte";
+	import type { CardBus } from "./card-bus.svelte";
 
 	const VALUE_LABELS: Partial<Record<CardValue, string>> = {
 		skip: "skip",
@@ -40,13 +41,15 @@
 		onSelectionChange,
 		onPlay,
 		focusedId = null,
-		onFocusChange
+		onFocusChange,
+		bus
 	}: {
 		selectedId?: number | null;
 		onSelectionChange: (cardId: number | null) => void;
 		onPlay: (cardId: number) => void;
 		focusedId?: number | null;
 		onFocusChange: (cardId: number | null) => void;
+		bus?: CardBus;
 	} = $props();
 
 	function describeCard(card: Card): string {
@@ -54,7 +57,18 @@
 		return card.type === "white" ? value : `${card.type} ${value}`;
 	}
 
-	let hand = $derived(storeGame.localPlayer?.hand ?? []);
+	let hand = $derived.by(() => {
+		const rawHand = storeGame.localPlayer?.hand ?? [];
+		const filtered = rawHand.filter(
+			(c) => c.id !== bus?.pendingLocalPlayDrawnId && !bus?.pendingLocalDrawIds?.has(c.id)
+		);
+		const order = bus?.localHandSnapshot?.orderIds;
+		if (!order || order.length === 0) return filtered;
+		const map = new Map(filtered.map((c) => [c.id, c]));
+		const sorted = order.map((id) => map.get(id)).filter((c): c is Card => c !== undefined);
+		const missing = filtered.filter((c) => !order.includes(c.id));
+		return [...sorted, ...missing];
+	});
 	let buttonEls: (HTMLButtonElement | null)[] = $state([]);
 
 	// Mirrors the touch gesture one step at a time: the first Enter/Space/click

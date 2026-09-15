@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 
 import AccessibleHandControls from "$components/game/AccessibleHandControls.svelte";
+import { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame, type Card } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 
@@ -10,7 +11,7 @@ function card(id: number, overrides: Partial<Card> = {}): Card {
 }
 
 function renderControls(
-	overrides: { selectedId?: number | null; focusedId?: number | null } = {}
+	overrides: { selectedId?: number | null; focusedId?: number | null; bus?: CardBus } = {}
 ) {
 	const onSelectionChange = vi.fn();
 	const onPlay = vi.fn();
@@ -19,6 +20,7 @@ function renderControls(
 		props: {
 			selectedId: overrides.selectedId ?? null,
 			focusedId: overrides.focusedId ?? null,
+			bus: overrides.bus,
 			onSelectionChange,
 			onPlay,
 			onFocusChange
@@ -161,5 +163,38 @@ describe("AccessibleHandControls", () => {
 		await fireEvent.click(screen.getByRole("button", { name: "Draw card" }));
 
 		expect(drawCard).toHaveBeenCalledTimes(1);
+	});
+
+	it("respects bus.localHandSnapshot.orderIds for keyboard navigation order", async () => {
+		const bus = new CardBus();
+		storeGame.state!.players[0].hand = [card(1, { value: "1" }), card(2, { value: "2" }), card(3, { value: "3" })];
+		storeGame.state!.players[0].card_count = 3;
+		bus.setLocalHandSnapshot({ orderIds: [3, 1, 2], scrollEm: 0, maxHalfSpanEm: 0 });
+
+		const { onFocusChange } = renderControls({ focusedId: 3, bus });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(1);
+	});
+
+	it("excludes pending drawn cards from navigation and rendering", async () => {
+		const bus = new CardBus();
+		storeGame.state!.players[0].hand = [
+			card(1, { value: "1" }),
+			card(2, { value: "2" }),
+			card(3, { value: "3" }),
+			card(4, { value: "4" })
+		];
+		storeGame.state!.players[0].card_count = 4;
+		bus.setPendingLocalPlayDrawnId(2);
+		bus.addPendingLocalDraw(4);
+		bus.setLocalHandSnapshot({ orderIds: [1, 2, 3, 4], scrollEm: 0, maxHalfSpanEm: 0 });
+
+		const { onFocusChange } = renderControls({ focusedId: 1, bus });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(3);
+		expect(screen.queryByRole("button", { name: "Play red 2" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Play red 4" })).not.toBeInTheDocument();
 	});
 });
