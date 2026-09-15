@@ -17,6 +17,29 @@ export interface FlightPose {
 	scale: number;
 	turned: boolean;
 	opacity: number;
+	/** Lift factor (0 = resting in hand/pile, 1 = fully lifted on hover). */
+	liftT?: number;
+	/** Lateral push displacement in world units for fan spacing / hover avoidance. */
+	pushX?: number;
+	/** Dynamic hover punch rotation angle in degrees. */
+	hoverSpinDeg?: number;
+}
+
+export function createDefaultFlightPose(overrides?: Partial<FlightPose>): FlightPose {
+	return {
+		x: 0,
+		y: 0,
+		z: 0,
+		spinDeg: 0,
+		flipDeg: 0,
+		scale: 1,
+		turned: false,
+		opacity: 1,
+		liftT: 0,
+		pushX: 0,
+		hoverSpinDeg: 0,
+		...overrides
+	};
 }
 
 export interface RenderContext {
