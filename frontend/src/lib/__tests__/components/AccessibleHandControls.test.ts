@@ -45,7 +45,8 @@ describe("AccessibleHandControls", () => {
 				},
 				{ username: "opponent", card_count: 3, is_bot: false }
 			],
-			pending_draws: 0
+			pending_draws: 0,
+			draw_pile_size: 10
 		};
 		storeGame.isActionPending = false;
 	});
