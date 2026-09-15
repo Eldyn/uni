@@ -517,8 +517,14 @@ export function createBaseBeatsWatcher(deps: {
 				// halts dead. Queued as its own beat so it runs strictly after landing.
 				const shakeBeat: AnimationBeat = [{ op: "shake", target: String(top.id), payload: {} }];
 
+				if (!playedByMe) {
+					deps.bus.addInFlightPlay(lastPlay.player);
+				}
 				deps.cardRegistry.enqueue([beat, shakeBeat], resolveCardTarget).then(() => {
 					deps.bus.setDiscardTop(top, landingBaseDeg);
+					if (!playedByMe) {
+						deps.bus.removeInFlightPlay(lastPlay.player);
+					}
 				});
 			}
 

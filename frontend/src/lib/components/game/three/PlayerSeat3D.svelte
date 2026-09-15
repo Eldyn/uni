@@ -77,8 +77,9 @@
 	const bus = useCardBus();
 	const cardRegistry = useCardRegistry();
 	let inFlightDrawCount = $derived(bus?.getInFlightDrawCount(player.username) ?? 0);
+	let inFlightPlayCount = $derived(bus?.getInFlightPlayCount(player.username) ?? 0);
 	let cardCount = $derived(
-		Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount)
+		Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount + inFlightPlayCount)
 	);
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
