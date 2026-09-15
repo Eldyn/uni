@@ -1,7 +1,7 @@
 import { getContext, setContext, untrack } from "svelte";
 import { gsap } from "gsap";
 import type { AnimationBeat, AnimationStep } from "./types";
-import type { FlightPose, RenderContext } from "./renderContext";
+import { createDefaultFlightPose, type FlightPose, type RenderContext } from "./renderContext";
 import { storeAnimation } from "$stores/animation.svelte";
 import { moveRenderer } from "./stepRenderers/move";
 import { flipRenderer } from "./stepRenderers/flip";
@@ -58,6 +58,9 @@ export class CardRegistry {
 	#inTransitIds = new Set<string>();
 	#flightHandles = new Map<string, FlightHandle>();
 	#decorations = new Map<string, CardDecoration | undefined>();
+	#prevHoveredMap = new Map<string, boolean>();
+	#liftTweens = new Map<string, gsap.core.Tween>();
+	#punchTimelines = new Map<string, gsap.core.Timeline>();
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
@@ -89,15 +92,19 @@ export class CardRegistry {
 	 *  activeFlights entry already pointing at the old one would go stale
 	 *  and never reflect the seeded — or subsequently GSAP-tweened — pose,
 	 *  regardless of which effect happened to run first. */
-	seedPose(cardId: string, pose: FlightPose): void {
-		untrack(() => {
+	seedPose(cardId: string, pose: Partial<FlightPose> & { x: number; y: number; z: number }): FlightPose;
+	seedPose(cardId: string, pose: FlightPose): void;
+	seedPose(cardId: string, pose: any): any {
+		return untrack(() => {
 			const existing = this.#poses.get(cardId);
 			if (existing) {
 				Object.assign(existing, pose);
-				return;
+				return existing;
 			}
-			const reactivePose = $state({ ...pose });
+			const fullPose = createDefaultFlightPose(pose);
+			const reactivePose = $state(fullPose);
 			this.#poses.set(cardId, reactivePose);
+			return reactivePose;
 		});
 	}
 
@@ -200,6 +207,110 @@ export class CardRegistry {
 		this.#poseProviders.delete(cardId);
 		this.#decorations.delete(cardId);
 		this.#retireFlight(cardId);
+	}
+
+	/** Drives per-frame pose composition (hover lift, pushX lerp, rotation punch)
+	 *  for all active entries in the registry. */
+	tick(deltaS: number): void {
+		untrack(() => {
+			for (const [cardId, pose] of this.#poses) {
+				const decoration = this.#decorations.get(cardId);
+				const isHovered = Boolean(decoration?.hovered);
+				const wasHovered = Boolean(this.#prevHoveredMap.get(cardId));
+
+				if (pose.liftT === undefined) pose.liftT = 0;
+				if (pose.pushX === undefined) pose.pushX = 0;
+				if (pose.hoverSpinDeg === undefined) pose.hoverSpinDeg = 0;
+
+				if (isHovered !== wasHovered) {
+					this.#prevHoveredMap.set(cardId, isHovered);
+					if (isHovered) {
+						if (decoration?.instant) {
+							this.#liftTweens.get(cardId)?.kill();
+							this.#liftTweens.delete(cardId);
+							pose.liftT = 1;
+						} else {
+							this.#liftTweens.get(cardId)?.kill();
+							const tween = gsap.to(pose, {
+								liftT: 1,
+								duration: 0.15,
+								ease: "back.out",
+								onComplete: () => {
+									if (this.#liftTweens.get(cardId) === tween) {
+										this.#liftTweens.delete(cardId);
+									}
+								}
+							});
+							this.#liftTweens.set(cardId, tween);
+							this.triggerPunch(cardId, 5);
+						}
+					} else {
+						if (decoration?.instant) {
+							this.#liftTweens.get(cardId)?.kill();
+							this.#liftTweens.delete(cardId);
+							pose.liftT = 0;
+							this.#punchTimelines.get(cardId)?.kill();
+							this.#punchTimelines.delete(cardId);
+							pose.hoverSpinDeg = 0;
+						} else {
+							this.#liftTweens.get(cardId)?.kill();
+							const tween = gsap.to(pose, {
+								liftT: 0,
+								duration: 0.15,
+								ease: "power2.out",
+								onComplete: () => {
+									if (this.#liftTweens.get(cardId) === tween) {
+										this.#liftTweens.delete(cardId);
+									}
+								}
+							});
+							this.#liftTweens.set(cardId, tween);
+						}
+					}
+				} else if (decoration?.instant) {
+					this.#liftTweens.get(cardId)?.kill();
+					this.#liftTweens.delete(cardId);
+					pose.liftT = isHovered ? 1 : 0;
+				}
+
+				const targetPushX = decoration?.pushX ?? 0;
+				const currentPushX = pose.pushX ?? 0;
+				if (decoration?.instant) {
+					pose.pushX = targetPushX;
+				} else if (currentPushX !== targetPushX) {
+					const t = Math.min(1, deltaS <= 0 ? 0 : deltaS / 0.1);
+					const nextPushX = currentPushX + (targetPushX - currentPushX) * t;
+					pose.pushX = Math.abs(targetPushX - nextPushX) < 1e-4 ? targetPushX : nextPushX;
+				}
+			}
+		});
+	}
+
+	/** Triggers a two-leg overshoot and settle rotation punch on pose.hoverSpinDeg. */
+	triggerPunch(cardId: string, angleDeg: number = 5): void {
+		untrack(() => {
+			const pose = this.#poses.get(cardId);
+			if (!pose) return;
+			if (pose.hoverSpinDeg === undefined) pose.hoverSpinDeg = 0;
+			this.#punchTimelines.get(cardId)?.kill();
+			const tl = gsap.timeline();
+			tl.to(pose, {
+				hoverSpinDeg: angleDeg,
+				duration: 0.075,
+				ease: "power2.out"
+			});
+			tl.to(pose, {
+				hoverSpinDeg: 0,
+				duration: 0.075,
+				ease: "elastic.out"
+			});
+			tl.eventCallback("onComplete", () => {
+				if (this.#punchTimelines.get(cardId) === tl) {
+					this.#punchTimelines.delete(cardId);
+				}
+			});
+			this.#punchTimelines.set(cardId, tl);
+		});
 	}
 
 	/** Queues a batch of beats. `resolveAnchor` resolves every named world
@@ -359,6 +470,11 @@ export class CardRegistry {
 		this.#poses.delete(cardId);
 		this.#cardMeta.delete(cardId);
 		this.#flightHandles.delete(cardId);
+		this.#prevHoveredMap.delete(cardId);
+		this.#liftTweens.get(cardId)?.kill();
+		this.#liftTweens.delete(cardId);
+		this.#punchTimelines.get(cardId)?.kill();
+		this.#punchTimelines.delete(cardId);
 		const idx = this.activeFlights.findIndex((f) => f.id === cardId);
 		if (idx !== -1) {
 			this.activeFlights.splice(idx, 1);
