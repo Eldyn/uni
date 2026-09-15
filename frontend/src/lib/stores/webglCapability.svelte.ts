@@ -44,6 +44,10 @@ class WebglCapability {
 	get shaderBackgroundEnabled(): boolean {
 		return this.hardwareAccelerated && !this.reducedMotion;
 	}
+
+	get deviceTier(): "low" | "high" {
+		return this.hardwareAccelerated && !this.reducedMotion ? "high" : "low";
+	}
 }
 
 export const storeWebglCapability = new WebglCapability();
