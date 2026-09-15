@@ -5,27 +5,34 @@
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadSilhouette } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import {
-		MAX_VISIBLE_STACK,
-		DRAW_PILE_STACK_STEP as STACK_STEP,
+		computeDrawPileCountAndStep,
 		PILE_BASE_HEIGHT,
-		PILE_PEEK_Z,
-		visibleDrawPileStackSize
+		PILE_PEEK_Z
 	} from "../layout/drawPile";
 
 	let { placement }: { placement: BoardPlacement } = $props();
 
-	let visibleStackSize = $derived(visibleDrawPileStackSize(storeGame.state?.draw_pile_size ?? 0));
+	let pile = $derived(
+		computeDrawPileCountAndStep(
+			storeGame.state?.draw_pile_size ?? 0,
+			storeRenderSettings.drawPileThickness
+		)
+	);
+	let renderedCount = $derived(pile.renderedCount);
+	let stepY = $derived(pile.stepY);
+
 	// A thin dark silhouette peeking a hair further than each card sells the
 	// "stacked sheets" cue — the same idea as the shadow under a hand card
 	// (LocalHand3D's own `shadow` prop), just offset along the stack's own
 	// peek axis (Z) instead of a hand row's horizontal one.
 	const SHADOW_PEEK_Z = 0.006;
-	const SHADOW_DROP_Y = STACK_STEP / 2;
+	let shadowDropY = $derived(stepY / 2);
 	const SHADOW_OPACITY = 0.3;
 
 	let silhouetteTexture = $state<import("three").Texture | null>(null);
@@ -46,12 +53,12 @@
 	}
 </script>
 
-{#each Array.from({ length: visibleStackSize }) as _, i (i)}
+{#each Array.from({ length: renderedCount }) as _, i (i)}
 	{#if i > 0 && silhouetteTexture}
 		<T.Mesh
 			position={[
 				placement.drawPileX,
-				PILE_BASE_HEIGHT + i * STACK_STEP - SHADOW_DROP_Y,
+				PILE_BASE_HEIGHT + i * stepY - shadowDropY,
 				placement.drawPileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
 			]}
 			rotation.x={-Math.PI / 2}
@@ -73,10 +80,10 @@
 		turned={true}
 		position={[
 			placement.drawPileX,
-			PILE_BASE_HEIGHT + i * STACK_STEP,
+			PILE_BASE_HEIGHT + i * stepY,
 			placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
 		]}
 		scale={placement.drawPileScale}
-		onclick={i === visibleStackSize - 1 ? handleDraw : undefined}
+		onclick={i === renderedCount - 1 ? handleDraw : undefined}
 	/>
 {/each}

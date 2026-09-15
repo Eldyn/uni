@@ -8,7 +8,9 @@ import {
 	DRAW_PILE_BURIED_DEPTH_CAP,
 	PILE_BASE_HEIGHT,
 	DRAW_PILE_STACK_STEP,
-	PILE_PEEK_Z
+	PILE_PEEK_Z,
+	MAX_PILE_HEIGHT,
+	computeDrawPileCountAndStep
 } from "$components/game/layout/drawPile";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
@@ -67,3 +69,66 @@ describe("drawPileStackZ", () => {
 		expect(drawPileStackZ(29, 30)).toBeCloseTo(20 * DRAW_PILE_STACK_STEP);
 	});
 });
+
+describe("computeDrawPileCountAndStep", () => {
+	describe("capped mode", () => {
+		it("clamps renderedCount to [0, MAX_VISIBLE_STACK] and keeps fixed DRAW_PILE_STACK_STEP", () => {
+			expect(computeDrawPileCountAndStep(-5, "capped")).toEqual({
+				renderedCount: 0,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+			expect(computeDrawPileCountAndStep(0, "capped")).toEqual({
+				renderedCount: 0,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+			expect(computeDrawPileCountAndStep(3, "capped")).toEqual({
+				renderedCount: 3,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+			expect(computeDrawPileCountAndStep(50, "capped")).toEqual({
+				renderedCount: MAX_VISIBLE_STACK,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+		});
+	});
+
+	describe("full mode", () => {
+		it("handles non-positive and 1-card rawSize gracefully", () => {
+			expect(computeDrawPileCountAndStep(0, "full")).toEqual({
+				renderedCount: 0,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+			expect(computeDrawPileCountAndStep(-1, "full")).toEqual({
+				renderedCount: 0,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+			expect(computeDrawPileCountAndStep(1, "full")).toEqual({
+				renderedCount: 1,
+				stepY: DRAW_PILE_STACK_STEP
+			});
+		});
+
+		it("uses standard DRAW_PILE_STACK_STEP when height allows (small pile)", () => {
+			const { renderedCount, stepY } = computeDrawPileCountAndStep(10, "full");
+			expect(renderedCount).toBe(10);
+			// 1.2 / 9 = ~0.133 > 0.02, so clamped to DRAW_PILE_STACK_STEP
+			expect(stepY).toBe(DRAW_PILE_STACK_STEP);
+		});
+
+		it("compresses step in full mode for large piles", () => {
+			const { renderedCount, stepY } = computeDrawPileCountAndStep(100, "full");
+			expect(renderedCount).toBe(100);
+			expect(stepY).toBeLessThan(DRAW_PILE_STACK_STEP);
+			expect(stepY).toBeGreaterThanOrEqual(MIN_STACK_STEP);
+			expect(stepY).toBeCloseTo(MAX_PILE_HEIGHT / 99);
+		});
+
+		it("clamps to max rendered count at MIN_STACK_STEP for huge piles", () => {
+			const maxExpected = Math.floor(MAX_PILE_HEIGHT / MIN_STACK_STEP);
+			const { renderedCount, stepY } = computeDrawPileCountAndStep(500, "full");
+			expect(renderedCount).toBe(maxExpected);
+			expect(stepY).toBe(MIN_STACK_STEP);
+		});
+	});
+});
+

@@ -24,6 +24,7 @@ export const PILE_BASE_HEIGHT = 0.6;
 // Each deeper back peeks out a little above the one below it, toward the mat
 // (-Z), so the pile reads as an actual stack instead of one lone back.
 export const PILE_PEEK_Z = 0.02;
+export const MAX_PILE_HEIGHT = 1.2;
 
 /**
  * Geometric stack depth (Y in world space / Z in depth buffer) for an item in
@@ -47,6 +48,40 @@ export function drawPileStackZ(index: number, totalCount?: number): number {
 
 export function visibleDrawPileStackSize(rawSize: number): number {
 	return Math.max(0, Math.min(MAX_VISIBLE_STACK, rawSize));
+}
+
+/**
+ * Computes the number of rendered cards and vertical step between layers for
+ * the draw pile based on the thickness mode setting.
+ */
+export function computeDrawPileCountAndStep(
+	rawSize: number,
+	mode: "full" | "capped"
+): { renderedCount: number; stepY: number } {
+	if (mode === "capped") {
+		return {
+			renderedCount: Math.max(0, Math.min(MAX_VISIBLE_STACK, rawSize)),
+			stepY: DRAW_PILE_STACK_STEP
+		};
+	}
+
+	if (rawSize <= 0) {
+		return { renderedCount: 0, stepY: DRAW_PILE_STACK_STEP };
+	}
+	if (rawSize === 1) {
+		return { renderedCount: 1, stepY: DRAW_PILE_STACK_STEP };
+	}
+
+	const stepY = Math.max(
+		MIN_STACK_STEP,
+		Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (rawSize - 1))
+	);
+	const renderedCount = Math.min(
+		rawSize,
+		Math.floor(MAX_PILE_HEIGHT / MIN_STACK_STEP)
+	);
+
+	return { renderedCount, stepY };
 }
 
 /**
