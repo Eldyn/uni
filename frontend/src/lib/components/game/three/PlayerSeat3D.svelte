@@ -13,6 +13,7 @@
      fixed constant, so it's always just big enough to clear the icon,
      whatever avatarPx Scene3D is currently asking for. -->
 <script lang="ts">
+	import { onDestroy } from "svelte";
 	import { T } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
 	import type { GamePlayer } from "$stores/game.svelte";
@@ -20,11 +21,12 @@
 	import {
 		computeHandRingSlots,
 		opponentRingRadiusWorld,
+		ringSlotWorldPose,
 		RING_RADIUS_EM
 	} from "../layout/handRing";
-	import RingCard3D from "./RingCard3D.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import { fanRenderOrderFor } from "./units";
+	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 
 	let {
 		player,
@@ -73,6 +75,7 @@
 	const LABEL_BEYOND_RING_MARGIN = 0.35;
 
 	const bus = useCardBus();
+	const cardRegistry = useCardRegistry();
 	let inFlightDrawCount = $derived(bus?.getInFlightDrawCount(player.username) ?? 0);
 	let cardCount = $derived(
 		Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount)
@@ -101,26 +104,75 @@
 	// since it's a filter on the seat's own pixels rather than a halo painted
 	// outside its box.
 	let dimmed = $derived(!isTurn && !isValidTarget);
+
+	let registeredKeys = new Set<string>();
+
+	$effect(() => {
+		if (!cardRegistry) return;
+
+		const currentKeys = new Set<string>();
+		const username = player.username;
+		const rotY = seat.rotationY;
+		const baseSpinDeg = (rotY * 180) / Math.PI + 180;
+
+		for (const [i, slot] of ringSlots.entries()) {
+			const key = `ring:${username}:${i}`;
+			currentKeys.add(key);
+
+			const [worldX, worldY, worldZ] = ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
+			const spinDeg = baseSpinDeg + slot.rotateDeg;
+
+			const pose = cardRegistry.ensureEntry(
+				key,
+				{
+					x: worldX,
+					y: worldY,
+					z: worldZ,
+					spinDeg,
+					flipDeg: 0,
+					scale: cardScale,
+					turned: true,
+					opacity: 1
+				},
+				null
+			);
+
+			cardRegistry.setPoseProvider(key, () =>
+				ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP)
+			);
+
+			if (!cardRegistry.isInTransit(key)) {
+				pose.spinDeg = spinDeg;
+				pose.scale = cardScale;
+				pose.turned = true;
+			}
+
+			cardRegistry.applyIdlePoseIfNotInTransit(key);
+
+			cardRegistry.setDecoration(key, {
+				dimmed,
+				renderOrder: fanRenderOrderFor(i)
+			});
+		}
+
+		for (const prevKey of registeredKeys) {
+			if (!currentKeys.has(prevKey)) {
+				cardRegistry.removeEntry(prevKey);
+			}
+		}
+		registeredKeys = currentKeys;
+	});
+
+	onDestroy(() => {
+		if (!cardRegistry) return;
+		for (const key of registeredKeys) {
+			cardRegistry.removeEntry(key);
+		}
+		registeredKeys.clear();
+	});
 </script>
 
 <T.Group position.x={seat.x} position.z={seat.z} rotation.y={seat.rotationY}>
-	<!-- spinDeg = slot angle + 180 keeps every card's long axis radial to the
-	     ring's own center (the avatar), bottom edge toward it — spinning by the
-	     negated angle instead makes every card parallel to the seat's center
-	     line, which reads as a cone aimed at the discard pile. -->
-	<!-- The ring's radius scales with the cards on it. handRing works in em at
-	     full card size, so leaving the slot coordinates unscaled kept the ring
-	     the same size while the cards on it grew — which is how bigger cards
-	     ended up creeping inward over the seat's own avatar. -->
-	{#each ringSlots as slot, i (i)}
-		<RingCard3D
-			targetPosition={[slot.x * radialScale, i * RING_STACK_STEP, slot.y * radialScale]}
-			targetSpinDeg={slot.rotateDeg + 180}
-			scale={cardScale}
-			{dimmed}
-			renderOrder={fanRenderOrderFor(i)}
-		/>
-	{/each}
 
 	<HTML position.y={AVATAR_HEIGHT} center pointerEvents="auto">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->

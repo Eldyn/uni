@@ -135,7 +135,7 @@ export class CardBus {
 	}
 }
 
-const CARD_BUS_KEY = Symbol("card-bus");
+export const CARD_BUS_KEY = Symbol("card-bus");
 
 export function createCardBus(): CardBus {
 	const bus = new CardBus();

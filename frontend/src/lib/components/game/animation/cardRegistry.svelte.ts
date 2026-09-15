@@ -482,7 +482,7 @@ export class CardRegistry {
 	}
 }
 
-const CARD_REGISTRY_KEY = Symbol("card-registry");
+export const CARD_REGISTRY_KEY = Symbol("card-registry");
 
 export function createCardRegistry(): CardRegistry {
 	const queue = new CardRegistry();
