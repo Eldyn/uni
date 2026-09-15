@@ -3,9 +3,11 @@
      count exists server-side (only pending_draws, a +2/+4 chain counter) so
      this is always the same handful of turned backs; it can't be state-driven. -->
 <script lang="ts">
+	import { onDestroy } from "svelte";
 	import { T } from "@threlte/core";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadSilhouette } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
@@ -26,6 +28,48 @@
 	);
 	let renderedCount = $derived(pile.renderedCount);
 	let stepY = $derived(pile.stepY);
+
+	let visualTopY = $derived(
+		PILE_BASE_HEIGHT + (renderedCount - 1) * stepY + 0.005
+	);
+	let visualTopZ = $derived(
+		placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale
+	);
+
+	const cardRegistry = useCardRegistry();
+	let registeredKeys = new Set<string>();
+
+	$effect(() => {
+		if (!cardRegistry) return;
+
+		const currentKeys = new Set<string>();
+		for (let i = 0; i < renderedCount; i++) {
+			const key = `pile:draw:${i}`;
+			currentKeys.add(key);
+			cardRegistry.setPoseProvider(key, () => [
+				placement.drawPileX,
+				PILE_BASE_HEIGHT + i * stepY,
+				placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
+			]);
+		}
+
+		for (const prevKey of registeredKeys) {
+			if (!currentKeys.has(prevKey)) {
+				cardRegistry.setPoseProvider(prevKey, null);
+				cardRegistry.removeEntry(prevKey);
+			}
+		}
+		registeredKeys = currentKeys;
+	});
+
+	onDestroy(() => {
+		if (!cardRegistry) return;
+		for (const key of registeredKeys) {
+			cardRegistry.setPoseProvider(key, null);
+			cardRegistry.removeEntry(key);
+		}
+		registeredKeys.clear();
+	});
 
 	// A thin dark silhouette peeking a hair further than each card sells the
 	// "stacked sheets" cue — the same idea as the shadow under a hand card
@@ -84,6 +128,18 @@
 			placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
 		]}
 		scale={placement.drawPileScale}
-		onclick={i === renderedCount - 1 ? handleDraw : undefined}
 	/>
 {/each}
+
+{#if renderedCount > 0}
+	<T.Mesh
+		position={[placement.drawPileX, visualTopY, visualTopZ]}
+		rotation.x={-Math.PI / 2}
+		scale={placement.drawPileScale}
+		onclick={handleDraw}
+	>
+		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+		<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
+	</T.Mesh>
+{/if}
+
