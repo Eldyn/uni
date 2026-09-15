@@ -17,7 +17,7 @@ export const EM_TO_WORLD = CARD_WIDTH / 5;
 export const CARD_HOVER_LIFT = 0.5;
 /** Multiplier applied to a lifted card, so anything drawn around one (see
  *  CardMesh3D's `highlight` prop) can match its grown size. */
-export const CARD_HOVER_SCALE = 1.08;
+export const CARD_HOVER_SCALE = 1.15;
 
 /** Per-card renderOrder step for a stacked/overlapping fan of cards (an
  *  opponent's ring). CardMesh3D renders its own shadow at the raw renderOrder

@@ -4,11 +4,16 @@
      ever one render site per card id. Replaces CardFlight3D.svelte, whose one
      job (draw a CardMesh3D from a live pose) this subsumes for every entry. -->
 <script lang="ts">
+	import { useTask } from "@threlte/core";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadSilhouette } from "./textures";
 
 	const cardRegistry = useCardRegistry();
+
+	useTask((delta) => {
+		cardRegistry.tick(delta);
+	});
 
 	let shadowTexture = $state<import("three").Texture | null>(null);
 	$effect(() => {
@@ -26,25 +31,26 @@
 	const FLIGHT_SHADOW_OPACITY = 0.35;
 </script>
 
-{#each cardRegistry.activeFlights as flight (flight.id)}
+{#each cardRegistry.activeFlights as handle (handle.id)}
 	<CardMesh3D
-		card={{ id: -1, type: flight.card.type as never, value: flight.card.value as never }}
-		wildColor={flight.card.wildColor}
-		turned={flight.pose.turned}
-		position={[flight.pose.x, flight.pose.y, flight.pose.z]}
-		spinDeg={flight.pose.spinDeg}
-		flipDeg={flight.pose.flipDeg}
-		flipAxis={flight.pose.flipAxis}
-		scale={flight.pose.scale}
-		renderOrder={flight.decoration?.renderOrder ?? 1}
-		opacity={flight.decoration?.opacity ?? flight.pose.opacity}
-		hovered={flight.decoration?.hovered}
-		instant={flight.decoration?.instant}
-		hoverPush={flight.decoration?.hoverPush}
-		pushX={flight.decoration?.pushX}
-		hoverSpinDeg={flight.decoration?.hoverSpinDeg}
-		dimmed={flight.decoration?.dimmed}
-		shadow={flight.decoration?.shadow ??
+		card={{ id: -1, type: handle.card.type as never, value: handle.card.value as never }}
+		wildColor={handle.card.wildColor}
+		turned={handle.pose.turned}
+		position={[handle.pose.x, handle.pose.y, handle.pose.z]}
+		spinDeg={handle.pose.spinDeg}
+		flipDeg={handle.pose.flipDeg}
+		flipAxis={handle.pose.flipAxis}
+		scale={handle.pose.scale}
+		renderOrder={handle.decoration?.renderOrder ?? 1}
+		opacity={handle.decoration?.opacity ?? handle.pose.opacity}
+		hovered={handle.decoration?.hovered}
+		instant={handle.decoration?.instant}
+		hoverPush={handle.decoration?.hoverPush}
+		liftT={handle.pose.liftT}
+		pushX={handle.pose.pushX}
+		hoverSpinDeg={(handle.decoration?.hoverSpinDeg ?? 0) + (handle.pose.hoverSpinDeg ?? 0)}
+		dimmed={handle.decoration?.dimmed}
+		shadow={handle.decoration?.shadow ??
 			(shadowTexture
 				? {
 						texture: shadowTexture,
@@ -53,6 +59,6 @@
 						opacity: FLIGHT_SHADOW_OPACITY
 					}
 				: undefined)}
-		highlight={flight.decoration?.highlight}
+		highlight={handle.decoration?.highlight}
 	/>
 {/each}

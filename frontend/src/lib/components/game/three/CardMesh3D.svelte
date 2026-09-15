@@ -34,6 +34,7 @@
 		hovered = false,
 		instant = false,
 		hoverPush = [0, 0],
+		liftT = 0,
 		pushX = 0,
 		opacity = 1,
 		dimmed = false,
@@ -72,10 +73,12 @@
 		 *  lift (which alone already wins the depth test against overlapping
 		 *  neighbors in this top-down ortho view). */
 		hoverPush?: [number, number];
+		/** Lift factor (0 = resting in hand/pile, 1 = fully lifted on hover),
+		 *  driven externally by CardRegistry.tick(). */
+		liftT?: number;
 		/** World-space X offset the neighbors of an active card ease toward to
-		 *  make room for it (LocalHand3D's neighborPushEm) — tweened here rather
-		 *  than baked into `position` directly, so the row parting around a
-		 *  newly-active card eases in instead of snapping. */
+		 *  make room for it (LocalHand3D's neighborPushEm) — driven externally
+		 *  by CardRegistry.tick(). */
 		pushX?: number;
 		/** Fades the whole card out — the local hand ramps this down at the row's
 		 *  ends so a scrollable hand dissolves at its edges instead of being cut
@@ -132,7 +135,6 @@
 
 	const WHITE = new Color("#ffffff");
 	const DIM_FACTOR = 0.45;
-	const HOVER_LERP_SPEED = 12;
 
 	// Highlight rim: how far it reaches past the card's own edge, and its
 	// breathing opacity when marking the "tap here" confirm target.
@@ -172,18 +174,6 @@
 		(valueTint ? cardColor : WHITE).clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
 	);
 
-	let liftT = $state(0);
-	useTask((delta) => {
-		const target = hovered ? 1 : 0;
-		if (liftT === target) return;
-		if (instant) {
-			liftT = target;
-			return;
-		}
-		liftT += (target - liftT) * Math.min(1, delta * HOVER_LERP_SPEED);
-		if (Math.abs(target - liftT) < 0.001) liftT = target;
-	});
-
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg * liftT);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
@@ -193,20 +183,8 @@
 	// keeping values like 6 vs 9 legible without breaking the card's rectangular geometry.
 	let valueFlipRad = $derived(computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues));
 
-	// A 0.1s ease toward whatever `pushX` currently asks for, same recipe as
-	// `liftT` above but tracking an arbitrary target value instead of a 0-1
-	// transition, since neighboring cards can be asked to move again before
-	// the previous move finished settling.
-	const PUSH_TWEEN_SECONDS = 0.1;
-	let animatedPushX = $state(0);
-	useTask((delta) => {
-		if (animatedPushX === pushX) return;
-		animatedPushX += (pushX - animatedPushX) * Math.min(1, delta / PUSH_TWEEN_SECONDS);
-		if (Math.abs(pushX - animatedPushX) < 0.0001) animatedPushX = pushX;
-	});
-
 	let animatedPosition = $derived<[number, number, number]>([
-		position[0] + hoverPush[0] * liftT + animatedPushX,
+		position[0] + hoverPush[0] * liftT + pushX,
 		position[1] + CARD_HOVER_LIFT * liftT + flipLift,
 		position[2] + hoverPush[1] * liftT
 	]);
