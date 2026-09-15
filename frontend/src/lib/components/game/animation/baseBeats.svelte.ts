@@ -409,6 +409,7 @@ export function createBaseBeatsWatcher(deps: {
 					if (isPlayDrawn) {
 						deps.bus.setPendingLocalPlayDrawnId(null);
 						const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+						deps.cardRegistry.clearDecoration(String(top.id));
 						deps.cardRegistry.seedPose(String(top.id), {
 							x: px,
 							y: py + DRAW_HOVER_LIFT,
@@ -426,6 +427,7 @@ export function createBaseBeatsWatcher(deps: {
 							deps.bus.localHandSnapshot,
 							deps.bus.previousLocalHandSnapshot
 						);
+						deps.cardRegistry.clearDecoration(String(top.id));
 						deps.cardRegistry.seedPose(String(top.id), {
 							x: sx,
 							y: sy,
@@ -447,6 +449,7 @@ export function createBaseBeatsWatcher(deps: {
 						const frontPose = deps.getOpponentFrontPose
 							? deps.getOpponentFrontPose(lastPlay.player)
 							: { position: deps.getOpponentSeatAnchor(lastPlay.player), spinDeg: 0 };
+						deps.cardRegistry.clearDecoration(String(top.id));
 						deps.cardRegistry.seedPose(String(top.id), {
 							x: frontPose.position[0],
 							y: frontPose.position[1],
@@ -467,6 +470,7 @@ export function createBaseBeatsWatcher(deps: {
 							? opponentPose.spinDeg
 							: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0);
 
+						deps.cardRegistry.clearDecoration(String(top.id));
 						deps.cardRegistry.seedPose(String(top.id), {
 							x: sx,
 							y: sy,
@@ -629,6 +633,7 @@ export function createBaseBeatsWatcher(deps: {
 									placement,
 									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0)
 								);
+								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
 									x: px,
 									y: py + DRAW_HOVER_LIFT,
@@ -672,6 +677,7 @@ export function createBaseBeatsWatcher(deps: {
 								if (!card) continue;
 								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
 								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
 									x: px,
 									y: py + DRAW_HOVER_LIFT,
@@ -704,6 +710,7 @@ export function createBaseBeatsWatcher(deps: {
 								: { position: deps.getOpponentSeatAnchor(p.username), spinDeg: 0 };
 							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 
+							deps.cardRegistry.clearDecoration(cardId);
 							deps.cardRegistry.seedPose(cardId, {
 								x: px,
 								y: py + DRAW_HOVER_LIFT,
@@ -763,6 +770,7 @@ export function createBaseBeatsWatcher(deps: {
 								}
 
 								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								deps.cardRegistry.clearDecoration(cardId);
 								deps.cardRegistry.seedPose(cardId, {
 									x: px,
 									y: py + DRAW_HOVER_LIFT,
@@ -811,6 +819,7 @@ export function createBaseBeatsWatcher(deps: {
 					for (const [i, entry] of toReshuffle.entries()) {
 						const idString = String(entry.card.id);
 						deps.cardRegistry.registerCardMeta(idString, entry.card);
+						deps.cardRegistry.clearDecoration(idString);
 						deps.cardRegistry.seedPose(idString, {
 							x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
 							y: i * DISCARD_STACK_STEP,
