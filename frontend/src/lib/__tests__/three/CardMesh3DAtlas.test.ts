@@ -43,9 +43,10 @@ describe("CardMesh3DAtlas onBeforeCompile shader", () => {
 		// Verify gl_FrontFacing selection
 		expect(dummyShader.fragmentShader).toContain("gl_FrontFacing ? uUvRectFront : uUvRectBack");
 
-		// Verify mirrored back UV and UV remapping formula
-		expect(dummyShader.fragmentShader).toContain("vec2(gl_FrontFacing ? vUv.x : (1.0 - vUv.x), vUv.y) * rect.zw");
-		expect(dummyShader.fragmentShader).toContain("texture2D( map, vMapUv )");
+		// Verify mirrored back UV and UV remapping formula using vMapUv and atlasUv
+		expect(dummyShader.fragmentShader).toContain("vec2(gl_FrontFacing ? vMapUv.x : (1.0 - vMapUv.x), vMapUv.y)");
+		expect(dummyShader.fragmentShader).toContain("vec2 atlasUv = rect.xy + baseUv * rect.zw;");
+		expect(dummyShader.fragmentShader).toContain("texture2D( map, atlasUv )");
 	});
 
 	it("computes correct normalized UV rect coordinates from atlas entries", () => {
@@ -103,12 +104,14 @@ describe("CardMesh3DAtlas onBeforeCompile shader", () => {
 		const unturnedActiveBack = false ? frontEntry : backEntry;
 		expect(unturnedActiveFront).toBe(frontEntry);
 		expect(unturnedActiveBack).toBe(backEntry);
+		expect(unturnedActiveFront.page).toBe(frontEntry.page);
 
 		// Turned card: activeFront is back, activeBack is face
 		const turnedActiveFront = true ? backEntry : frontEntry;
 		const turnedActiveBack = true ? frontEntry : backEntry;
 		expect(turnedActiveFront).toBe(backEntry);
 		expect(turnedActiveBack).toBe(frontEntry);
+		expect(turnedActiveFront.page).toBe(backEntry.page);
 	});
 
 	it("mathematically unmirrors the back face under gl_FrontFacing = false", () => {

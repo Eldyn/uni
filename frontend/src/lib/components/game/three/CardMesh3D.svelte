@@ -25,8 +25,9 @@ uniform vec4 uUvRectBack;
 			`
 #ifdef USE_MAP
 	vec4 rect = gl_FrontFacing ? uUvRectFront : uUvRectBack;
-	vec2 vMapUv = rect.xy + vec2(gl_FrontFacing ? vUv.x : (1.0 - vUv.x), vUv.y) * rect.zw;
-	vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+	vec2 baseUv = vec2(gl_FrontFacing ? vMapUv.x : (1.0 - vMapUv.x), vMapUv.y);
+	vec2 atlasUv = rect.xy + baseUv * rect.zw;
+	vec4 sampledDiffuseColor = texture2D( map, atlasUv );
 	#ifdef DECODE_VIDEO_TEXTURE
 		sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
 	#endif
@@ -188,7 +189,7 @@ uniform vec4 uUvRectBack;
 	let atlasPageVersion = $derived(ATLAS_PAGE_VERSION.value);
 	let atlasTexture = $derived.by(() => {
 		void atlasPageVersion;
-		return getAtlasPage(frontEntry.page);
+		return getAtlasPage(activeFront.page);
 	});
 	let meshColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
 
