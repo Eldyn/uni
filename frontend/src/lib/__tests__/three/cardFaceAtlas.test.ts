@@ -91,6 +91,14 @@ describe("cardFaceAtlas", () => {
 		await promise;
 	});
 
+	it("handles concurrent preloadCardArt calls safely via singleton promise cache", async () => {
+		const [p1, p2, p3] = [preloadCardArt(), preloadCardArt(), preloadCardArt()];
+		expect(p1).toBeInstanceOf(Promise);
+		expect(p2).toBeInstanceOf(Promise);
+		expect(p3).toBeInstanceOf(Promise);
+		await Promise.all([p1, p2, p3]);
+	});
+
 	it("bakes layers in correct order with correct tinting", async () => {
 		await preloadCardArt();
 

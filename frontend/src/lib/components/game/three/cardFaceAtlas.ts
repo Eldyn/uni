@@ -314,21 +314,30 @@ async function loadArtImage(url: string): Promise<CanvasImageSource> {
 	});
 }
 
+let artLoadingPromise: Promise<void> | null = null;
+
 /**
  * Pre-decodes all standard card art PNGs and bakes any pending atlas slots.
+ * Safe for concurrent and repeated calls via singleton promise caching.
  */
 export async function preloadCardArt(): Promise<void> {
-	const loadPromises = STANDARD_ART_NAMES.map(async (name) => {
-		if (loadedArt.has(name)) return;
-		try {
-			const img = await loadArtImage(`/assets/cards/${name}.png`);
-			loadedArt.set(name, img);
-		} catch {
-			// Ignore loading error for missing asset in fallback
-		}
-	});
+	if (!artLoadingPromise) {
+		artLoadingPromise = (async () => {
+			const loadPromises = STANDARD_ART_NAMES.map(async (name) => {
+				if (loadedArt.has(name)) return;
+				try {
+					const img = await loadArtImage(`/assets/cards/${name}.png`);
+					loadedArt.set(name, img);
+				} catch {
+					// Ignore loading error for missing asset in fallback
+				}
+			});
 
-	await Promise.all(loadPromises);
+			await Promise.all(loadPromises);
+		})();
+	}
+
+	await artLoadingPromise;
 
 	let newlyBaked = 0;
 	for (const slot of allocatedSlots) {

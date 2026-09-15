@@ -4,6 +4,7 @@
      turn-direction arrows too — lives here, viewed from a straight top-down
      orthographic camera (no perspective). -->
 <script lang="ts">
+	import { onMount } from "svelte";
 	import { T } from "@threlte/core";
 	import { interactivity } from "@threlte/extras";
 	import type { OrthographicCamera } from "three";
@@ -18,6 +19,7 @@
 	import DrawPile3D from "./DrawPile3D.svelte";
 	import DiscardPile3D from "./DiscardPile3D.svelte";
 	import AllCards3D from "./AllCards3D.svelte";
+	import { preloadCardArt } from "./cardFaceAtlas";
 
 	interactivity();
 
@@ -84,6 +86,18 @@
 
 	let isLocalTurn = $derived(storeGame.state?.current_turn === storeGame.localPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);
+
+	let artLoaded = $state(false);
+
+	onMount(() => {
+		let cancelled = false;
+		preloadCardArt().then(() => {
+			if (!cancelled) artLoaded = true;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
 </script>
 
 <T.OrthographicCamera
@@ -159,4 +173,6 @@
 	/>
 </T.Group>
 
-<AllCards3D />
+{#if artLoaded}
+	<AllCards3D />
+{/if}
