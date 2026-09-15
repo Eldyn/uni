@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { detectReshuffle, buildReshuffleBeat } from "$components/game/animation/baseBeats.svelte";
+import {
+	detectReshuffle,
+	buildReshuffleBeat,
+	reshuffleStaggerFor
+} from "$components/game/animation/baseBeats.svelte";
+import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import type { DiscardEntry } from "$components/game/layout/discardPile";
 
 describe("detectReshuffle", () => {
@@ -13,8 +18,26 @@ describe("detectReshuffle", () => {
 	});
 });
 
+describe("reshuffleStaggerFor", () => {
+	it("bounds total reshuffle stagger to 1.2s", () => {
+		const count = 30;
+		const stagger = reshuffleStaggerFor(count);
+		expect((count - 1) * stagger).toBeLessThanOrEqual(1.2001);
+	});
+
+	it("caps per-card stagger at 0.06s for small counts", () => {
+		expect(reshuffleStaggerFor(5)).toBe(0.06);
+		expect(reshuffleStaggerFor(2)).toBe(0.06);
+	});
+
+	it("handles counts <= 1 gracefully", () => {
+		expect(reshuffleStaggerFor(1)).toBe(0.06);
+		expect(reshuffleStaggerFor(0)).toBe(0.06);
+	});
+});
+
 describe("buildReshuffleBeat", () => {
-	it("moves every discard entry except the top one back onto the draw pile, in one beat", () => {
+	it("moves every discard entry except the top one back onto the draw pile, in one beat with staggered atS", () => {
 		const history: DiscardEntry[] = [
 			{ card: { id: 1, type: "red", value: "1" }, seq: 1, jitter: [0, 0], rotationDeg: 0 },
 			{ card: { id: 2, type: "blue", value: "2" }, seq: 2, jitter: [0, 0], rotationDeg: 0 },
@@ -27,6 +50,30 @@ describe("buildReshuffleBeat", () => {
 		expect(beat).toHaveLength(2);
 		expect(beat.every((s) => s.op === "move" && s.payload?.to === "draw-pile")).toBe(true);
 		expect(beat.map((s) => s.target)).toEqual(["1", "2"]);
+
+		const stagger = reshuffleStaggerFor(2);
+		expect(beat[0].atS).toBe(0);
+		expect(beat[1].atS).toBe(stagger);
+	});
+
+	it("assigns sequential atS offsets bounded by reshuffleStaggerFor on large piles", () => {
+		const count = 25;
+		const history: DiscardEntry[] = Array.from({ length: count }, (_, i) => ({
+			card: { id: i + 1, type: "red", value: String(i) },
+			seq: i + 1,
+			jitter: [0, 0] as [number, number],
+			rotationDeg: 0
+		}));
+
+		const beats = buildReshuffleBeat(history);
+		expect(beats).toHaveLength(1);
+		const [beat] = beats;
+		const toReshuffleCount = count - 1;
+		expect(beat).toHaveLength(toReshuffleCount);
+		const stagger = reshuffleStaggerFor(toReshuffleCount);
+		beat.forEach((step, i) => {
+			expect(step.atS).toBeCloseTo(i * stagger, 5);
+		});
 	});
 
 	it("leaves empty beats when history has 1 or fewer cards", () => {
@@ -69,5 +116,23 @@ describe("CardBus.retainTopDiscard", () => {
 		];
 		bus.retainTopDiscard(reshuffledCount);
 		expect(bus.discardHistory.map((e) => e.card.id)).toEqual([3, 4]);
+	});
+});
+
+describe("CardRegistry.isInTransit", () => {
+	it("tracks in-transit state during beat execution", async () => {
+		const registry = new CardRegistry();
+		expect(registry.isInTransit("c1")).toBe(false);
+
+		const done = registry.enqueue(
+			[[{ op: "move", target: "c1", payload: { to: "draw-pile" } }]],
+			() => [0, 0, 0]
+		);
+		expect(registry.isInTransit("c1")).toBe(true);
+
+		registry.skipCurrent();
+		await done;
+
+		expect(registry.isInTransit("c1")).toBe(false);
 	});
 });

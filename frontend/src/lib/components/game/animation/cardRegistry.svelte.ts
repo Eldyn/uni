@@ -1,4 +1,5 @@
 import { getContext, setContext, untrack } from "svelte";
+import { SvelteSet } from "svelte/reactivity";
 import { gsap } from "gsap";
 import type { AnimationBeat, AnimationStep } from "./types";
 import { createDefaultFlightPose, type FlightPose, type RenderContext } from "./renderContext";
@@ -54,7 +55,7 @@ export class CardRegistry {
 	#cardMeta = new Map<string, CardMeta>();
 	#poses = new Map<string, FlightPose>();
 	#poseProviders = new Map<string, () => [number, number, number]>();
-	#inTransitIds = new Set<string>();
+	#inTransitIds = new SvelteSet<string>();
 	#flightHandles = new Map<string, FlightHandle>();
 	#decorations = new Map<string, CardDecoration | undefined>();
 	#prevHoveredMap = new Map<string, boolean>();
@@ -91,7 +92,10 @@ export class CardRegistry {
 	 *  activeFlights entry already pointing at the old one would go stale
 	 *  and never reflect the seeded — or subsequently GSAP-tweened — pose,
 	 *  regardless of which effect happened to run first. */
-	seedPose(cardId: string, pose: Partial<FlightPose> & { x: number; y: number; z: number }): FlightPose;
+	seedPose(
+		cardId: string,
+		pose: Partial<FlightPose> & { x: number; y: number; z: number }
+	): FlightPose;
 	seedPose(cardId: string, pose: FlightPose): void;
 	seedPose(cardId: string, pose: any): any {
 		return untrack(() => {
@@ -177,9 +181,7 @@ export class CardRegistry {
 	 *  themselves. */
 	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
 		untrack(() => {
-			const merged = decoration
-				? { ...this.#decorations.get(cardId), ...decoration }
-				: undefined;
+			const merged = decoration ? { ...this.#decorations.get(cardId), ...decoration } : undefined;
 			this.#decorations.set(cardId, merged);
 			const handle = this.#flightHandles.get(cardId);
 			if (handle) {
@@ -203,6 +205,7 @@ export class CardRegistry {
 	/** A card genuinely leaving the game for good (never happens for Uno's own
 	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
 	removeEntry(cardId: string): void {
+		this.#inTransitIds.delete(cardId);
 		this.#poseProviders.delete(cardId);
 		this.#decorations.delete(cardId);
 		this.#retireFlight(cardId);
@@ -379,7 +382,12 @@ export class CardRegistry {
 					if (!handle) {
 						const meta = this.#cardMeta.get(cardId) ?? { type: "wild", value: "0" };
 						const dec = this.#decorations.get(cardId);
-						const newHandle: FlightHandle = $state({ id: cardId, pose, card: meta, decoration: dec });
+						const newHandle: FlightHandle = $state({
+							id: cardId,
+							pose,
+							card: meta,
+							decoration: dec
+						});
 						this.#flightHandles.set(cardId, newHandle);
 						this.activeFlights.push(newHandle);
 					}
@@ -392,7 +400,9 @@ export class CardRegistry {
 			for (const step of beat) {
 				const renderer = this.#registry[step.op];
 				if (!renderer) {
-					console.warn(`CardRegistry: unknown op "${step.op}" for target "${step.target}" — skipping.`);
+					console.warn(
+						`CardRegistry: unknown op "${step.op}" for target "${step.target}" — skipping.`
+					);
 					continue;
 				}
 				try {
@@ -458,7 +468,10 @@ export class CardRegistry {
 				finishBeat();
 			}
 		} catch (err) {
-			console.error(`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`, err);
+			console.error(
+				`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`,
+				err
+			);
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);
@@ -494,10 +507,7 @@ export function createCardRegistry(): CardRegistry {
 		// Svelte 5's setContext throws when called outside component initialization.
 		// The error message is a URL pointing to the lifecycle_outside_component
 		// documentation. Only swallow that specific error; rethrow anything else.
-		if (
-			!(err instanceof Error) ||
-			!err.message.includes("lifecycle_outside_component")
-		) {
+		if (!(err instanceof Error) || !err.message.includes("lifecycle_outside_component")) {
 			throw err;
 		}
 		// Not inside component initialisation — fine for callers that only use

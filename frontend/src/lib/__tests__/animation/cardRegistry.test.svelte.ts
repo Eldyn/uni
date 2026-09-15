@@ -6,7 +6,9 @@ import type { AnimationBeat } from "$components/game/animation/types";
 /** Test helper: mirrors the transitional wrapper baseBeats.svelte.ts uses
  *  around its own anchors objects (Task A7 Step 5) — turns a plain
  *  Record into the resolver function enqueue now requires. */
-function resolverFor(anchors: Record<string, [number, number, number]>): (name: string) => [number, number, number] {
+function resolverFor(
+	anchors: Record<string, [number, number, number]>
+): (name: string) => [number, number, number] {
 	return (name) => {
 		const anchor = anchors[name];
 		if (!anchor) throw new Error(`no anchor registered for "${name}"`);
@@ -44,7 +46,10 @@ describe("CardRegistry", () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		queue.registerCardMeta("card-1", { type: "red", value: "5" });
 
-		const done = queue.enqueue([[{ op: "not-a-real-op", target: "card-1", payload: {} }]], resolverFor({}));
+		const done = queue.enqueue(
+			[[{ op: "not-a-real-op", target: "card-1", payload: {} }]],
+			resolverFor({})
+		);
 		await done;
 
 		expect(warn).toHaveBeenCalledWith(expect.stringContaining("not-a-real-op"));
@@ -200,7 +205,16 @@ describe("CardRegistry pose providers", () => {
 	it("keeps a real entry idle at its provider's pose instead of deleting it when a beat retires it", () => {
 		const registry = new CardRegistry();
 		registry.registerCardMeta("42", { type: "red", value: "5" });
-		registry.seedPose("42", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
+		registry.seedPose("42", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		});
 		registry.setPoseProvider("42", () => [9, 0.02, 3]);
 
 		const beat: AnimationBeat = [{ op: "move", target: "42", payload: { to: "somewhere" } }];
@@ -223,7 +237,16 @@ describe("CardRegistry pose providers", () => {
 
 	it("deletes an anonymous entry (no provider registered) on retire, as before", () => {
 		const registry = new CardRegistry();
-		registry.seedPose("draw:bob:0", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: true, opacity: 1 });
+		registry.seedPose("draw:bob:0", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: true,
+			opacity: 1
+		});
 
 		const beat: AnimationBeat = [{ op: "move", target: "draw:bob:0", payload: { to: "seat:bob" } }];
 		const resolveAnchor = () => [1, 0, -2] as [number, number, number];
@@ -238,13 +261,63 @@ describe("CardRegistry pose providers", () => {
 
 	it("isInTransit reflects whether an entry currently has a live pose entry from an unfinished beat", () => {
 		const registry = new CardRegistry();
-		registry.seedPose("7", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
+		registry.seedPose("7", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		});
 		expect(registry.isInTransit("7")).toBe(false);
 
 		const beat: AnimationBeat = [{ op: "move", target: "7", payload: { to: "x" } }];
 		registry.enqueue([beat], () => [1, 0, 1]);
 		flushSync();
 		expect(registry.isInTransit("7")).toBe(true);
+	});
+
+	it("isInTransit is reactive and triggers effects when transit state changes", async () => {
+		const registry = new CardRegistry();
+		registry.seedPose("7", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		});
+
+		let observed = false;
+		let runs = 0;
+		const cleanup = $effect.root(() => {
+			$effect(() => {
+				runs++;
+				observed = registry.isInTransit("7");
+			});
+		});
+		flushSync();
+		expect(runs).toBe(1);
+		expect(observed).toBe(false);
+
+		const done = registry.enqueue([[{ op: "move", target: "7", payload: { to: "x" } }]], () => [
+			1, 0, 1
+		]);
+		flushSync();
+		expect(runs).toBe(2);
+		expect(observed).toBe(true);
+
+		registry.skipCurrent();
+		await done;
+		flushSync();
+		expect(runs).toBe(3);
+		expect(observed).toBe(false);
+
+		cleanup();
 	});
 
 	it("setDecoration updates decoration in-place without replacing activeFlights array reference", () => {
@@ -302,4 +375,3 @@ describe("CardRegistry pose providers", () => {
 		expect(handleAfter?.decoration?.hoverSpinDeg).toBeUndefined();
 	});
 });
-

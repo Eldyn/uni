@@ -8,11 +8,7 @@
      cards, none faked" rule the rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
-	import {
-		DISCARD_STACK_STEP,
-		discardStackZ,
-		type DiscardEntry
-	} from "../layout/discardPile";
+	import { DISCARD_STACK_STEP, discardStackZ, type DiscardEntry } from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
@@ -102,7 +98,7 @@
 </script>
 
 {#each history as entry, i (entry.seq)}
-	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card.id))}
+	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card?.id ?? (entry as any).id))}
 		<T.Mesh
 			position={[
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,

@@ -32,18 +32,25 @@ export function detectReshuffle(prevDrawPileSize: number, currentDrawPileSize: n
 	return currentDrawPileSize > prevDrawPileSize;
 }
 
-/** All but the top discard card fly back onto the draw pile, as one
- *  simultaneous beat (a real shuffle reads as "all these move together," not
- *  a staggered trickle — staggering, if wanted later, is a tuning change to
- *  this one function, not an architecture change). */
+/** Stagger (seconds) between consecutive cards during reshuffle:
+ *  bounded so total reshuffle animation time across all cards stays <= 1.2s,
+ *  with each individual card stagger capped at 0.06s for smaller piles. */
+export function reshuffleStaggerFor(cardCount: number): number {
+	return Math.min(0.06, 1.2 / Math.max(1, cardCount - 1));
+}
+
+/** All but the top discard card fly back onto the draw pile, staggered
+ *  sequentially so cards leave in a cascade rather than teleporting simultaneously. */
 export function buildReshuffleBeat(history: DiscardEntry[]): AnimationBeat[] {
 	const toReshuffle = history.slice(0, -1);
 	if (toReshuffle.length === 0) return [];
+	const stagger = reshuffleStaggerFor(toReshuffle.length);
 	return [
-		toReshuffle.map((entry) => ({
+		toReshuffle.map((entry, i) => ({
 			op: "move" as const,
 			target: String(entry.card.id),
-			payload: { to: "draw-pile" }
+			payload: { to: "draw-pile" },
+			atS: i * stagger
 		}))
 	];
 }
@@ -213,7 +220,12 @@ export function buildDrawBeats(args: {
 		const steps: AnimationBeat = [];
 		for (const [i, cardId] of args.cardIds.entries()) {
 			const flipAtS = i * stagger;
-			steps.push({ op: "flip", target: cardId, payload: { turned: false, axis: "x" }, atS: flipAtS });
+			steps.push({
+				op: "flip",
+				target: cardId,
+				payload: { turned: false, axis: "x" },
+				atS: flipAtS
+			});
 			steps.push({
 				op: "move",
 				target: cardId,
@@ -262,9 +274,10 @@ export function createBaseBeatsWatcher(deps: {
 		cardCount: number,
 		slotIndex: number
 	) => { position: [number, number, number]; spinDeg: number };
-	getOpponentFrontPose?: (
-		username: string
-	) => { position: [number, number, number]; spinDeg: number };
+	getOpponentFrontPose?: (username: string) => {
+		position: [number, number, number];
+		spinDeg: number;
+	};
 }): () => void {
 	let prevTopCardId: number | null = null;
 	let prevDrawPileSize: number | null = null;
@@ -393,14 +406,19 @@ export function createBaseBeatsWatcher(deps: {
 				// straight to this precise spot (position AND rotation, see
 				// buildPlayBeat's landingSpinDeg below) is what turns the flight-to-pile
 				// handoff into a no-op instead of a visible pop to a different pose.
-				const { entry: landingEntry } = previewDiscardLanding(deps.bus.discardHistory, top, DISCARD_CAP, landingBaseDeg);
+				const { entry: landingEntry } = previewDiscardLanding(
+					deps.bus.discardHistory,
+					top,
+					DISCARD_CAP,
+					landingBaseDeg
+				);
 
 				deps.cardRegistry.registerCardMeta(String(top.id), {
 					type: top.type,
 					value: top.value,
-					wildColor: (state!.active_type && state!.active_type !== "white" ? state!.active_type : undefined) as
-						| CardType
-						| undefined
+					wildColor: (state!.active_type && state!.active_type !== "white"
+						? state!.active_type
+						: undefined) as CardType | undefined
 				});
 
 				if (playedByMe) {
@@ -464,7 +482,9 @@ export function createBaseBeatsWatcher(deps: {
 						const preCount = Math.max(1, prevCardCounts?.get(lastPlay.player) ?? 1);
 						const chosenSlot = Math.floor(Math.random() * preCount);
 						const opponentPose = deps.getOpponentCardPose?.(lastPlay.player, preCount, chosenSlot);
-						const [sx, sy, sz] = opponentPose ? opponentPose.position : deps.getOpponentSeatAnchor(lastPlay.player);
+						const [sx, sy, sz] = opponentPose
+							? opponentPose.position
+							: deps.getOpponentSeatAnchor(lastPlay.player);
 						const seedSpin = opponentPose
 							? opponentPose.spinDeg
 							: (deps.getOpponentSeatRotationDeg?.(lastPlay.player) ?? 0);
@@ -543,7 +563,10 @@ export function createBaseBeatsWatcher(deps: {
 			function checkOpponentsKeptDrawn(): void {
 				if (pendingOpponentPlayDrawn.size === 0) return;
 				for (const [username, holding] of Array.from(pendingOpponentPlayDrawn.entries())) {
-					if (state!.current_turn === username && (!state!.last_play || state!.last_play.player !== username)) {
+					if (
+						state!.current_turn === username &&
+						(!state!.last_play || state!.last_play.player !== username)
+					) {
 						continue;
 					}
 					pendingOpponentPlayDrawn.delete(username);
@@ -573,7 +596,8 @@ export function createBaseBeatsWatcher(deps: {
 										payload: {
 											to: targetPose ? slotKey : opponentSeatAnchor(username),
 											toScale: opponentCardScale,
-											toSpinDeg: targetPose?.spinDeg ?? (deps.getOpponentSeatRotationDeg?.(username) ?? 0)
+											toSpinDeg:
+												targetPose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(username) ?? 0
 										}
 									}
 								]
@@ -591,7 +615,9 @@ export function createBaseBeatsWatcher(deps: {
 				if (prevCardCounts === null) {
 					if (localUsername) {
 						prevLocalHandIds = new Set(
-							(state!.players.find((p) => p.username === localUsername)?.hand ?? []).map((c) => c.id)
+							(state!.players.find((p) => p.username === localUsername)?.hand ?? []).map(
+								(c) => c.id
+							)
 						);
 					}
 					prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
@@ -620,7 +646,10 @@ export function createBaseBeatsWatcher(deps: {
 							const cardId = newIds[0];
 							const card = localHand.find((c) => c.id === cardId);
 							if (card) {
-								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+								deps.cardRegistry.registerCardMeta(String(cardId), {
+									type: card.type,
+									value: card.value
+								});
 								const [px, py, pz] = drawPileTopPose(
 									placement,
 									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0)
@@ -664,7 +693,10 @@ export function createBaseBeatsWatcher(deps: {
 							for (const cardId of newIds) {
 								const card = localHand.find((c) => c.id === cardId);
 								if (!card) continue;
-								deps.cardRegistry.registerCardMeta(String(cardId), { type: card.type, value: card.value });
+								deps.cardRegistry.registerCardMeta(String(cardId), {
+									type: card.type,
+									value: card.value
+								});
 								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
 								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
@@ -681,7 +713,10 @@ export function createBaseBeatsWatcher(deps: {
 							for (const id of newIds) deps.bus.addPendingLocalDraw(id);
 							const cardIds = newIds.map(String);
 							deps.cardRegistry
-								.enqueue(buildDrawBeats({ cardIds, forLocalPlayer: true, placement }), resolveCardTarget)
+								.enqueue(
+									buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
+									resolveCardTarget
+								)
 								.finally(() => {
 									for (const id of newIds) deps.bus.removePendingLocalDraw(id);
 								});
@@ -747,7 +782,11 @@ export function createBaseBeatsWatcher(deps: {
 								opponentDrawFlightOwners.set(cardId, p.username);
 								const targetSlotIndex = prevCount + i;
 								const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
-								const targetPose = deps.getOpponentCardPose?.(p.username, p.card_count, targetSlotIndex);
+								const targetPose = deps.getOpponentCardPose?.(
+									p.username,
+									p.card_count,
+									targetSlotIndex
+								);
 
 								if (targetPose) {
 									pendingOpponentSlots.set(slotKey, targetPose.position);
