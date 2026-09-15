@@ -182,6 +182,18 @@ export class CardRegistry {
 		});
 	}
 
+	/** Outright deletes decoration for a card, preventing stale hover/drag
+	 *  decorations from merging into flights. */
+	clearDecoration(cardId: string): void {
+		untrack(() => {
+			this.#decorations.delete(cardId);
+			const handle = this.#flightHandles.get(cardId);
+			if (handle) {
+				handle.decoration = undefined;
+			}
+		});
+	}
+
 	/** A card genuinely leaving the game for good (never happens for Uno's own
 	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
 	removeEntry(cardId: string): void {

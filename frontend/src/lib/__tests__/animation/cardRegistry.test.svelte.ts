@@ -279,5 +279,27 @@ describe("CardRegistry pose providers", () => {
 		expect(runCount).toBe(1);
 		cleanup();
 	});
+
+	it("clearDecoration deletes decoration outright instead of merging", () => {
+		const registry = new CardRegistry();
+		registry.ensureEntry(
+			"42",
+			{ x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 },
+			{ type: "red", value: "5" }
+		);
+		registry.setDecoration("42", { hovered: true, hoverSpinDeg: 9, pushX: 1.5 });
+
+		const handleBefore = registry.activeFlights.find((f) => f.id === "42");
+		expect(handleBefore?.decoration?.hoverSpinDeg).toBe(9);
+
+		registry.clearDecoration("42");
+		const handleAfter = registry.activeFlights.find((f) => f.id === "42");
+		expect(handleAfter?.decoration).toBeUndefined();
+
+		// Subsequent setDecoration starts from empty, not merging previous hoverSpinDeg
+		registry.setDecoration("42", { pushX: 2 });
+		expect(handleAfter?.decoration?.pushX).toBe(2);
+		expect(handleAfter?.decoration?.hoverSpinDeg).toBeUndefined();
+	});
 });
 
