@@ -26,7 +26,7 @@
 	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
-	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD, fanRenderOrderFor } from "./units";
+	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
 	import { loadTexture } from "./textures";
 	import type { CameraRig } from "../layout/cameraRig";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -222,12 +222,6 @@
 				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
 			cardRegistry.setDecoration(idString, {
-				// A lifted card gets a hefty boost on top of its own slot's base
-				// value so it always outranks every neighbor regardless of index
-				// distance — the physical Y-lift alone should already win the
-				// depth test, but tying renderOrder can override that on some
-				// hardware/driver combinations, so both mechanisms agree here.
-				renderOrder: fanRenderOrderFor(i) + (lifted ? 1000 : 0),
 				hovered: lifted,
 				instant: isSelected,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],

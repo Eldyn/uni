@@ -18,8 +18,6 @@ import {
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
 	discardStackZ,
-	DRAWN_CARD_HOVER_RENDER_ORDER,
-	PLAY_FLIGHT_RENDER_ORDER,
 	previewDiscardLanding,
 	type DiscardEntry
 } from "../layout/discardPile";
@@ -486,13 +484,6 @@ export function createBaseBeatsWatcher(deps: {
 				}
 
 				lastLandingBaseDeg = landingBaseDeg;
-				// A played card isn't part of discardHistory yet (setDiscardTop is
-				// held back until the flight lands, below), so DiscardPile3D's own
-				// per-index decoration effect never touches it — without an explicit
-				// boost here it falls back to AllCards3D's default renderOrder (1),
-				// well under the resting pile's own values, and the flight visibly
-				// draws underneath the pile it's supposed to be landing on top of.
-				deps.cardRegistry.setDecoration(String(top.id), { renderOrder: PLAY_FLIGHT_RENDER_ORDER });
 				const beat = buildPlayBeat({
 					cardId: String(top.id),
 					playedByMe,
@@ -644,9 +635,6 @@ export function createBaseBeatsWatcher(deps: {
 									scale: placement.drawPileScale,
 									turned: true,
 									opacity: 1
-								});
-								deps.cardRegistry.setDecoration(String(cardId), {
-									renderOrder: DRAWN_CARD_HOVER_RENDER_ORDER
 								});
 								deps.bus.setPendingLocalPlayDrawnId(cardId);
 								deps.cardRegistry.enqueue(

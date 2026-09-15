@@ -35,25 +35,6 @@ export interface DiscardEntry {
 
 export const DISCARD_CAP = 30;
 
-/** Per-card renderOrder budget for the resting discard pile, and the two
- *  tiers that must clear it. Each card's own shadow mesh renders at its base
- *  value and its face/rim meshes one above that (see CardMesh3D.svelte's
- *  cardRenderOrder = renderOrder + 1) — a step of 1 between pile INDICES
- *  would let one card's face collide with the next card's shadow, so the
- *  step has to be at least 2. A card actively flying to be played onto the
- *  pile isn't part of `history` yet (so gets none of the per-index values
- *  below) and must outrank every resting pile card; a card paused at the
- *  draw pile awaiting a PlayDrawn decision must outrank that flight tier
- *  too, since both can be on screen at once for different cards. */
-export const PILE_RENDER_ORDER_BASE = 10;
-export const PILE_RENDER_ORDER_STEP = 2;
-const PILE_RENDER_ORDER_CEILING = PILE_RENDER_ORDER_BASE + DISCARD_CAP * PILE_RENDER_ORDER_STEP;
-export const PLAY_FLIGHT_RENDER_ORDER = PILE_RENDER_ORDER_CEILING + 10;
-export const DRAWN_CARD_HOVER_RENDER_ORDER = PLAY_FLIGHT_RENDER_ORDER + 10;
-
-export function pileRenderOrderFor(index: number): number {
-	return PILE_RENDER_ORDER_BASE + index * PILE_RENDER_ORDER_STEP;
-}
 // The scatter jitter ONLY — a seat-relative base rotation (see discardEntryFor's
 // baseRotationDeg) is layered on top of this, not folded into it, so cutting
 // this from its old 30 keeps the pile from reading as messier than the base

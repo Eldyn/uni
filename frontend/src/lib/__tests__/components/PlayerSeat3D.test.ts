@@ -21,7 +21,6 @@ import {
 	ringSlotWorldPose,
 	RING_RADIUS_EM
 } from "$components/game/layout/handRing";
-import { fanRenderOrderFor } from "$components/game/three/units";
 
 describe("PlayerSeat3D CardRegistry integration", () => {
 	afterEach(() => {
@@ -64,7 +63,6 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			expect(flight!.pose.spinDeg).toBeCloseTo(baseSpinDeg + slots[i].rotateDeg);
 			expect(flight!.pose.scale).toBe(cardScale);
 			expect(flight!.pose.turned).toBe(true);
-			expect(flight!.decoration?.renderOrder).toBe(fanRenderOrderFor(i));
 			expect(flight!.decoration?.dimmed).toBe(true);
 		}
 	});

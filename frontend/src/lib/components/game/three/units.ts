@@ -23,17 +23,6 @@ export const CARD_HOVER_SCALE = 1.15;
 export const MIN_STACK_STEP = 0.004;
 export const RING_STACK_STEP = 0.02;
 
-/** Per-card renderOrder step for a stacked/overlapping fan of cards (an
- *  opponent's ring). CardMesh3D renders its own shadow at the raw renderOrder
- *  it's given and its face/rim one above that (renderOrder + 1) — a step of 1
- *  between fan slots would let one card's face tie with its neighbor's
- *  shadow, leaving their relative order to an unpredictable tiebreak instead
- *  of the fan's own front-to-back stacking. */
-export const FAN_RENDER_ORDER_STEP = 2;
-
-export function fanRenderOrderFor(index: number): number {
-	return index * FAN_RENDER_ORDER_STEP;
-}
 
 // Where the local hand row, the draw pile and their card size actually land is
 // a function of the camera's frustum rather than a fixed world coordinate —

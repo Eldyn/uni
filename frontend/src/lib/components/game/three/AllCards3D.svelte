@@ -41,7 +41,6 @@
 		flipDeg={handle.pose.flipDeg}
 		flipAxis={handle.pose.flipAxis}
 		scale={handle.pose.scale}
-		renderOrder={handle.decoration?.renderOrder ?? 1}
 		opacity={handle.decoration?.opacity ?? handle.pose.opacity}
 		hovered={handle.decoration?.hovered}
 		instant={handle.decoration?.instant}

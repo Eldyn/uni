@@ -27,7 +27,6 @@
 		RING_STACK_STEP
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
-	import { fanRenderOrderFor } from "./units";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 
 	let {
@@ -151,8 +150,7 @@
 			cardRegistry.applyIdlePoseIfNotInTransit(key);
 
 			cardRegistry.setDecoration(key, {
-				dimmed,
-				renderOrder: fanRenderOrderFor(i)
+				dimmed
 			});
 		}
 

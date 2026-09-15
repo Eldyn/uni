@@ -21,7 +21,6 @@ export interface CardDecoration {
 	dimmed?: boolean;
 	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
 	highlight?: { color?: string; pulse?: boolean };
-	renderOrder?: number;
 }
 
 export interface CardMeta {

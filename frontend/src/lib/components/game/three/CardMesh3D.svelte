@@ -74,8 +74,7 @@ uniform vec4 uUvRectBack;
 		wildColor,
 		hoverSpinDeg = 0,
 		shadow,
-		highlight,
-		renderOrder = 0
+		highlight
 	}: {
 		card: Card;
 		turned?: boolean;
@@ -151,8 +150,6 @@ uniform vec4 uUvRectBack;
 			color?: string;
 			pulse?: boolean;
 		};
-		/** Three.js paint-order override, independent of depth. */
-		renderOrder?: number;
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
@@ -296,7 +293,7 @@ uniform vec4 uUvRectBack;
 	<T.Group rotation.x={-Math.PI / 2}>
 		{#if shadow}
 			<T.Group rotation.z={spinRad}>
-				<T.Mesh position={shadowPosition} {renderOrder}>
+				<T.Mesh position={shadowPosition} renderOrder={-1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={shadow.texture}
@@ -315,7 +312,7 @@ uniform vec4 uUvRectBack;
 			rotation.z={spinRad}
 		>
 			{#if highlight && highlightTexture}
-				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={renderOrder + 1}>
+				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
@@ -327,7 +324,7 @@ uniform vec4 uUvRectBack;
 					/>
 				</T.Mesh>
 			{/if}
-			<T.Mesh {renderOrder} rotation.z={valueFlipRad}>
+			<T.Mesh rotation.z={valueFlipRad}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					bind:ref={cardMaterial}

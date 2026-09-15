@@ -11,7 +11,6 @@
 	import {
 		DISCARD_STACK_STEP,
 		discardStackZ,
-		pileRenderOrderFor,
 		type DiscardEntry
 	} from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
@@ -85,7 +84,6 @@
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
-				renderOrder: pileRenderOrderFor(i),
 				highlight: armed && i === topIndex ? { pulse: true } : undefined
 			});
 		}
