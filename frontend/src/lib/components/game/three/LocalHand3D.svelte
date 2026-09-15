@@ -26,6 +26,7 @@
 	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { neighborPushEm as falloffPushEm } from "../layout/handHoverFalloff";
 	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
 	import { loadTexture } from "./textures";
 	import type { CameraRig } from "../layout/cameraRig";
@@ -113,13 +114,11 @@
 	const RGBY_TYPE_ORDER = ["red", "green", "blue", "yellow", "white"];
 	// Gap between the draw pile's own left edge and the sort button beside it.
 	const SORT_BUTTON_GAP_EM = 3.2;
-	// How far the active (hovered/selected) card's immediate neighbors part to
-	// make room for it, in em, tapering off over NEIGHBOR_PUSH_FALLOFF_CARDS so
-	// only the handful of cards nearest the active one actually move — the ends
-	// of a long hand shouldn't shuffle just because something near the middle
+	// make room for it, in em, tapering off exponentially so only the
+	// handful of cards nearest the active one actually move — the ends of
+	// a long hand shouldn't shuffle just because something near the middle
 	// got picked up.
-	const NEIGHBOR_PUSH_EM = 1.5;
-	const NEIGHBOR_PUSH_FALLOFF_CARDS = 3;
+	const HOVER_PUSH_PARAMS = { amplitudeEm: 1.5, decay: 2.5 };
 	// The active card tilts a few degrees toward the discard pile at the mat's
 	// center (x=0) — a small "already being aimed at where it's about to land"
 	// cue — ramped in with the same liftT tween as its lift/push.
@@ -485,14 +484,10 @@
 	);
 
 	// Neighbors on the active card's side shift a sliver further away, tapering
-	// off over a few cards so only the ones actually crowding it move.
+	// off exponentially so only the ones actually crowding it move.
 	function neighborPushEm(index: number): number {
 		if (activeIndex === -1) return 0;
-		const distance = index - activeIndex;
-		if (distance === 0) return 0;
-		const magnitude =
-			NEIGHBOR_PUSH_EM * Math.max(0, 1 - (Math.abs(distance) - 1) / NEIGHBOR_PUSH_FALLOFF_CARDS);
-		return Math.sign(distance) * magnitude;
+		return falloffPushEm(index, activeIndex, HOVER_PUSH_PARAMS);
 	}
 
 	// Tilts the active card's top edge toward the discard pile at x=0 — a card
