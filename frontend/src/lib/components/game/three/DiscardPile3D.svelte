@@ -8,7 +8,12 @@
      cards, none faked" rule the rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
-	import { DISCARD_STACK_STEP, pileRenderOrderFor, type DiscardEntry } from "../layout/discardPile";
+	import {
+		DISCARD_STACK_STEP,
+		discardStackZ,
+		pileRenderOrderFor,
+		type DiscardEntry
+	} from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
@@ -63,7 +68,7 @@
 				idString,
 				{
 					x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-					y: i * STACK_STEP,
+					y: discardStackZ(i, history.length),
 					z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
 					spinDeg: entry.rotationDeg,
 					flipDeg: 0,
@@ -75,7 +80,7 @@
 			);
 			cardRegistry.setPoseProvider(idString, () => [
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-				i * STACK_STEP,
+				discardStackZ(i, history.length),
 				placement.discardZ + entry.jitter[1] * EM_TO_WORLD
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
@@ -103,7 +108,7 @@
 		<T.Mesh
 			position={[
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
-				i * STACK_STEP - SHADOW_DROP_Y,
+				discardStackZ(i, history.length) - SHADOW_DROP_Y,
 				placement.discardZ + entry.jitter[1] * EM_TO_WORLD + SHADOW_OFFSET
 			]}
 			rotation.x={-Math.PI / 2}

@@ -32,6 +32,8 @@ export interface CardRingSlot {
 export const RING_RADIUS_EM = 5; // distance of each card from the avatar at the center
 const RING_STEP_DEG = 18; // angle between adjacent cards while the hand still reads as an arc
 
+export const RING_STACK_STEP = 0.02;
+
 // Gap left between the avatar's own edge and the nearest ring card's inner
 // edge — enough to read as a ring around the icon rather than cards grazing it.
 export const RING_CLEARANCE_WORLD = 0.22;
@@ -98,7 +100,7 @@ export function ringSlotWorldPose(
 	slot: CardRingSlot,
 	index: number,
 	radialScale: number,
-	ringStackStep = 0.02
+	ringStackStep = RING_STACK_STEP
 ): [number, number, number] {
 	const lx = slot.x * radialScale;
 	const lz = slot.y * radialScale;

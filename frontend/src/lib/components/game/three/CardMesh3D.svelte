@@ -7,6 +7,7 @@
 	import { Vector4, type WebGLProgramParametersWithUniforms } from "three";
 
 	export const CARD_SHADER_PROGRAM_KEY = "CardMesh3D_AtlasShader";
+	export const CARD_ALPHA_TEST = 0.5;
 
 	export function patchCardShader(
 		shader: WebGLProgramParametersWithUniforms,
@@ -332,8 +333,8 @@ uniform vec4 uUvRectBack;
 					bind:ref={cardMaterial}
 					map={atlasTexture}
 					color={meshColor}
-					transparent
-					{opacity}
+					alphaTest={0.5}
+					transparent={false}
 					depthWrite
 					toneMapped={false}
 					side={DoubleSide}

@@ -19,6 +19,10 @@ export const CARD_HOVER_LIFT = 0.5;
  *  CardMesh3D's `highlight` prop) can match its grown size. */
 export const CARD_HOVER_SCALE = 1.15;
 
+/** Minimum geometric stack step: precision floor for z-fighting prevention. */
+export const MIN_STACK_STEP = 0.004;
+export const RING_STACK_STEP = 0.02;
+
 /** Per-card renderOrder step for a stacked/overlapping fan of cards (an
  *  opponent's ring). CardMesh3D renders its own shadow at the raw renderOrder
  *  it's given and its face/rim one above that (renderOrder + 1) — a step of 1

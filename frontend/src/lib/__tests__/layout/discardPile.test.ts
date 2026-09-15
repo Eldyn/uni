@@ -3,7 +3,10 @@ import { describe, it, expect } from "vitest";
 import {
 	appendDiscard,
 	discardEntryFor,
+	discardStackZ,
+	BURIED_DEPTH_CAP,
 	DISCARD_CAP,
+	DISCARD_STACK_STEP,
 	MAX_ROTATION_DEG,
 	paintTopWild,
 	type DiscardEntry
@@ -121,3 +124,37 @@ describe("paintTopWild", () => {
 		expect(paintTopWild([], "green")).toEqual([]);
 	});
 });
+
+describe("discardStackZ", () => {
+	it("caps Z stack depth for buried cards beyond 20 items", () => {
+		expect(BURIED_DEPTH_CAP).toBe(20);
+
+		// Single parameter index clamp
+		expect(discardStackZ(20)).toBeCloseTo(20 * DISCARD_STACK_STEP);
+		expect(discardStackZ(25)).toBe(discardStackZ(20));
+		expect(discardStackZ(100)).toBe(discardStackZ(20));
+
+		// Full pile with 30 cards: buried cards (depth >= 20 from top) share tier 0
+		const total = 30;
+		expect(discardStackZ(0, total)).toBe(0);
+		expect(discardStackZ(9, total)).toBe(0);
+		// Card right above buried tier gets tier 1
+		expect(discardStackZ(10, total)).toBeCloseTo(1 * DISCARD_STACK_STEP);
+		// Top card gets capped at 20 tiers
+		expect(discardStackZ(29, total)).toBeCloseTo(20 * DISCARD_STACK_STEP);
+
+		// Unbounded pile of 100 cards
+		expect(discardStackZ(0, 100)).toBe(0);
+		expect(discardStackZ(79, 100)).toBe(0);
+		expect(discardStackZ(80, 100)).toBeCloseTo(1 * DISCARD_STACK_STEP);
+		expect(discardStackZ(99, 100)).toBeCloseTo(20 * DISCARD_STACK_STEP);
+	});
+
+	it("stacks all cards linearly when total count is within depth 20", () => {
+		const total = 10;
+		for (let i = 0; i < total; i++) {
+			expect(discardStackZ(i, total)).toBeCloseTo(i * DISCARD_STACK_STEP);
+		}
+	});
+});
+

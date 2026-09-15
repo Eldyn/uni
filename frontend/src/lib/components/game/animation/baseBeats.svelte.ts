@@ -17,6 +17,7 @@ import { drawPileTopPose } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
+	discardStackZ,
 	DRAWN_CARD_HOVER_RENDER_ORDER,
 	PLAY_FLIGHT_RENDER_ORDER,
 	previewDiscardLanding,
@@ -301,7 +302,7 @@ export function createBaseBeatsWatcher(deps: {
 			// anchor, not a value snapshotted once when enqueue() was called.
 			function resolveCardTarget(name: string): [number, number, number] {
 				if (name === "discard-pile") {
-					const { entry, index } = previewDiscardLanding(
+					const { entry, z } = previewDiscardLanding(
 						deps.bus.discardHistory,
 						state!.top_card!,
 						DISCARD_CAP,
@@ -309,7 +310,7 @@ export function createBaseBeatsWatcher(deps: {
 					);
 					return [
 						placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-						index * DISCARD_STACK_STEP,
+						z,
 						placement.discardZ + entry.jitter[1] * EM_TO_WORLD
 					];
 				}
@@ -822,7 +823,7 @@ export function createBaseBeatsWatcher(deps: {
 						deps.cardRegistry.clearDecoration(idString);
 						deps.cardRegistry.seedPose(idString, {
 							x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-							y: i * DISCARD_STACK_STEP,
+							y: discardStackZ(i, toReshuffle.length),
 							z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
 							spinDeg: entry.rotationDeg,
 							flipDeg: 0,

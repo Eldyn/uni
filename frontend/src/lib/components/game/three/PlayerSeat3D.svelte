@@ -20,9 +20,11 @@
 	import type { SeatPosition3D } from "../layout/seatLayout3D";
 	import {
 		computeHandRingSlots,
-		opponentRingRadiusWorld,
 		ringSlotWorldPose,
-		RING_RADIUS_EM
+		opponentRingRadiusWorld,
+		RING_RADIUS_EM,
+		RING_CLEARANCE_WORLD,
+		RING_STACK_STEP
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
 	import { fanRenderOrderFor } from "./units";
@@ -64,7 +66,6 @@
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
 	// its neighbor's (z-fighting) — 0.02 clears that with margin.
-	const RING_STACK_STEP = 0.02;
 	const AVATAR_HEIGHT = 0.9;
 	// The name sits beyond the ring's own outer edge (toward the mat, same
 	// local +Z the ring itself grows along — see handRing.ts's "angle 0 points

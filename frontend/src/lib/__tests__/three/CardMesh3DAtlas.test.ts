@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { Vector4, ShaderLib, type WebGLProgramParametersWithUniforms } from "three";
 import {
 	patchCardShader,
-	CARD_SHADER_PROGRAM_KEY
+	CARD_SHADER_PROGRAM_KEY,
+	CARD_ALPHA_TEST
 } from "$components/game/three/CardMesh3D.svelte";
 import {
 	getFaceTexture,
@@ -13,6 +14,10 @@ import {
 describe("CardMesh3DAtlas onBeforeCompile shader", () => {
 	it("exports a stable shader program cache key", () => {
 		expect(CARD_SHADER_PROGRAM_KEY).toBe("CardMesh3D_AtlasShader");
+	});
+
+	it("exports CARD_ALPHA_TEST set to 0.5 for cutout transparency", () => {
+		expect(CARD_ALPHA_TEST).toBe(0.5);
 	});
 
 	it("injects uniforms and replaces map_fragment chunk in fragmentShader", () => {

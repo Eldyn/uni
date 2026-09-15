@@ -67,6 +67,30 @@ export const MAX_JITTER_EM = 1.1;
  *  has to know a landing card's exact future height to avoid a visible pop
  *  when it hands off from its flight to this static pile). */
 export const DISCARD_STACK_STEP = 0.025;
+export const BURIED_DEPTH_CAP = 20;
+export const DISCARD_BURIED_TIER_DEPTH = 20;
+
+/**
+ * Geometric stack depth (Y in world space / Z in depth buffer) for an item in
+ * the discard pile. Cards buried deep beyond the BURIED_DEPTH_CAP (20) share
+ * a single bottom tier (height 0) so the pile's depth does not grow
+ * unboundedly past 20 items.
+ */
+export function discardStackZ(index: number, totalCount?: number): number {
+	if (totalCount === undefined) {
+		return Math.min(index, BURIED_DEPTH_CAP) * DISCARD_STACK_STEP;
+	}
+	if (totalCount <= BURIED_DEPTH_CAP) {
+		return index * DISCARD_STACK_STEP;
+	}
+	const buriedCount = totalCount - BURIED_DEPTH_CAP;
+	if (index < buriedCount) {
+		return 0;
+	}
+	return (index - buriedCount + 1) * DISCARD_STACK_STEP;
+}
+
+export const discardStackHeight = discardStackZ;
 
 /**
  * Deterministic pseudo-random in [0, 1) from an integer seed. Same seed always
@@ -133,14 +157,16 @@ export function previewDiscardLanding(
 	card: Card,
 	cap: number = DISCARD_CAP,
 	baseRotationDeg: number = 0
-): { entry: DiscardEntry; index: number } {
+): { entry: DiscardEntry; index: number; z: number } {
 	const last = history[history.length - 1];
 	if (last && last.card.id === card.id) {
-		return { entry: last, index: history.length - 1 };
+		const index = history.length - 1;
+		return { entry: last, index, z: discardStackZ(index, history.length) };
 	}
 	const entry = discardEntryFor(card, (last?.seq ?? 0) + 1, baseRotationDeg);
 	const nextLength = Math.min(history.length + 1, cap);
-	return { entry, index: nextLength - 1 };
+	const index = nextLength - 1;
+	return { entry, index, z: discardStackZ(index, nextLength) };
 }
 
 const WILD_VALUES = new Set(["jolly", "jolly_draw4"]);

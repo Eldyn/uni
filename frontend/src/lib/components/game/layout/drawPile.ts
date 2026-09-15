@@ -13,14 +13,37 @@ import type { BoardPlacement } from "./boardPlacement";
 // any depth past a handful, so cap it and let depth communicate "still plenty
 // left" rather than trying to render every card.
 export const MAX_VISIBLE_STACK = 6;
+// Minimum geometric stack step: precision floor for z-fighting prevention.
+export const MIN_STACK_STEP = 0.004;
 // Same z-fighting fix as the other piles/hands: keep the step clear of
 // CardMesh3D's own internal layer span (up to 0.004 world units).
 export const DRAW_PILE_STACK_STEP = 0.02;
+export const DRAW_PILE_BURIED_DEPTH_CAP = 20;
 // Lifts the whole pile clear of the local hand's own height range.
 export const PILE_BASE_HEIGHT = 0.6;
 // Each deeper back peeks out a little above the one below it, toward the mat
 // (-Z), so the pile reads as an actual stack instead of one lone back.
 export const PILE_PEEK_Z = 0.02;
+
+/**
+ * Geometric stack depth (Y in world space / Z in depth buffer) for an item in
+ * the draw pile. Cards buried deep beyond the DRAW_PILE_BURIED_DEPTH_CAP (20)
+ * share a single bottom tier (height 0) so the pile's depth does not grow
+ * unboundedly past 20 items.
+ */
+export function drawPileStackZ(index: number, totalCount?: number): number {
+	if (totalCount === undefined) {
+		return Math.min(index, DRAW_PILE_BURIED_DEPTH_CAP) * DRAW_PILE_STACK_STEP;
+	}
+	if (totalCount <= DRAW_PILE_BURIED_DEPTH_CAP) {
+		return index * DRAW_PILE_STACK_STEP;
+	}
+	const buriedCount = totalCount - DRAW_PILE_BURIED_DEPTH_CAP;
+	if (index < buriedCount) {
+		return 0;
+	}
+	return (index - buriedCount + 1) * DRAW_PILE_STACK_STEP;
+}
 
 export function visibleDrawPileStackSize(rawSize: number): number {
 	return Math.max(0, Math.min(MAX_VISIBLE_STACK, rawSize));
@@ -37,10 +60,11 @@ export function drawPileTopPose(
 	placement: BoardPlacement,
 	preDrawVisibleStackSize: number
 ): [number, number, number] {
-	const topIndex = Math.max(0, visibleDrawPileStackSize(preDrawVisibleStackSize) - 1);
+	const visibleSize = visibleDrawPileStackSize(preDrawVisibleStackSize);
+	const topIndex = Math.max(0, visibleSize - 1);
 	return [
 		placement.drawPileX,
-		PILE_BASE_HEIGHT + topIndex * DRAW_PILE_STACK_STEP,
+		PILE_BASE_HEIGHT + drawPileStackZ(topIndex, visibleSize),
 		placement.drawPileZ - topIndex * PILE_PEEK_Z * placement.drawPileScale
 	];
 }
