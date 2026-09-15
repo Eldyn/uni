@@ -1,17 +1,47 @@
 <!-- A single card, lying flat on the playmat plane (normal facing world +Y),
-     built from the same layered texture recipe as GameCard.svelte: an
-     untinted background, then a value image tinted to the card's color
-     (skipped for the four-color jolly swatch until a color has actually been
-     chosen for it — see paintedJolly), then a tinted border. Turned cards
-     render a single back texture
-     instead. No Svelte transitions here — landing/flight animation is a
-     later phase; this component only draws a static card at a given pose. -->
+     sampled from the card face texture atlas as a single mesh with front/back
+     UV remapping via onBeforeCompile. Turned cards and 3D flips display the
+     card back or front based on gl_FrontFacing. Highlight rim overlay mesh
+     remains as a separate layer above the card. -->
+<script module lang="ts">
+	import { Vector4, type WebGLProgramParametersWithUniforms } from "three";
+
+	export const CARD_SHADER_PROGRAM_KEY = "CardMesh3D_AtlasShader";
+
+	export function patchCardShader(
+		shader: WebGLProgramParametersWithUniforms,
+		uniforms: { uUvRectFront: Vector4; uUvRectBack: Vector4 }
+	) {
+		shader.uniforms.uUvRectFront = { value: uniforms.uUvRectFront };
+		shader.uniforms.uUvRectBack = { value: uniforms.uUvRectBack };
+
+		shader.fragmentShader = `
+uniform vec4 uUvRectFront;
+uniform vec4 uUvRectBack;
+` + shader.fragmentShader;
+
+		shader.fragmentShader = shader.fragmentShader.replace(
+			"#include <map_fragment>",
+			`
+#ifdef USE_MAP
+	vec4 rect = gl_FrontFacing ? uUvRectFront : uUvRectBack;
+	vec2 vMapUv = rect.xy + vec2(gl_FrontFacing ? vUv.x : (1.0 - vUv.x), vUv.y) * rect.zw;
+	vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+	#ifdef DECODE_VIDEO_TEXTURE
+		sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
+	#endif
+	diffuseColor *= sampledDiffuseColor;
+#endif
+`
+		);
+	}
+</script>
+
 <script lang="ts">
 	import { T, useTask } from "@threlte/core";
-	import { Color, DoubleSide } from "three";
+	import { Color, DoubleSide, type MeshBasicMaterial } from "three";
 	import type { Card, CardType } from "$stores/game.svelte";
-	import { CARD_COLOR_MAP } from "$lib/palette";
-	import { loadSilhouette, loadTexture } from "./textures";
+	import { loadSilhouette } from "./textures";
 	import {
 		CARD_WIDTH,
 		CARD_HEIGHT,
@@ -20,6 +50,7 @@
 		computeValueFlipRad
 	} from "./units";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { getFaceTexture, getAtlasPage, ATLAS_PAGE_VERSION } from "./cardFaceAtlas";
 
 	let {
 		card,
@@ -103,7 +134,7 @@
 		 *  (which only ever manages to copy the translation, not the rotation).
 		 *  Offsets are in the group's local, pre-flatten space: `offsetX` shifts
 		 *  along the card's own width axis, `dropZ` sinks it behind the card's
-		 *  own layer stack (see the 0.002/0.004 z-offsets below). */
+		 *  own layer stack. */
 		shadow?: {
 			texture: import("three").Texture;
 			offsetX: number;
@@ -118,18 +149,7 @@
 			color?: string;
 			pulse?: boolean;
 		};
-		/** Three.js paint-order override, independent of depth. Every transparent
-		 *  MeshBasicMaterial here disables depth testing's occlusion guarantee
-		 *  for objects at (near-)identical depth — a freshly-seeded flight card
-		 *  starts EXACTLY where its owner's own idle mesh currently sits (by
-		 *  design, see drawPileTopPose/ringSlotWorldPose), so for at least the
-		 *  first frame the two genuinely tie on depth. Without an explicit
-		 *  order, that tie resolves by scene-graph/render-list position, which
-		 *  can leave the just-spawned flight painted BEHIND the still-rendered
-		 *  idle card it's supposed to be replacing — reading as "the card pops
-		 *  out from under the pile." AllCards3D (Task A9) passes a higher value
-		 *  than the idle-count owners' (DrawPile3D/PlayerSeat3D) default 0, so
-		 *  an in-transit flight always wins the tie. */
+		/** Three.js paint-order override, independent of depth. */
 		renderOrder?: number;
 	} = $props();
 
@@ -143,44 +163,42 @@
 	const HIGHLIGHT_PULSE_DEPTH = 0.35;
 	const HIGHLIGHT_PULSE_SPEED = 3.4;
 	// Sits just behind the card's own bg layer (z=0) so only the rim past its
-	// edges shows — a flat epsilon, not scaled, matching the bg/value/border
-	// layers' own fixed z-steps rather than the shadow's scaled world offset.
+	// edges shows.
 	const HIGHLIGHT_DROP_Z = -0.006;
 
-	// A faded card's own bg/value/border layers still alpha-blend against
-	// whatever is *already drawn* at that pixel — that's how blending works
-	// regardless of depth testing, so a translucent card sitting over another
-	// card (the local hand's overlapping row) shows the one underneath mixed
-	// into its own fade. This backdrop is a solid, opaque copy of the card's
-	// own silhouette dropped just behind bg — so a faded card blends against
-	// its own backdrop colour instead of the card behind it, and the one
-	// behind is never visible through it at all. Only drawn while actually
-	// fading; a fully opaque card has nothing to hide.
-	const BACKDROP_DROP_Z = -0.001;
-	const BACKDROP_COLOR = "#1c1c1e";
-
-	// A painted wild wears its chosen color exactly like a numbered card wears
-	// its own, so nothing downstream has to know it was ever a wild.
-	let paintedType = $derived(wildColor ?? card.type);
-	let cardColor = $derived(new Color(CARD_COLOR_MAP[paintedType] ?? "#ffffff"));
-	// jolly.png is the one piece of value art carrying colors of its own (the
-	// four-way swatch); multiplying a tint through it only muddies it, so it
-	// renders raw. Once a color has been chosen, the swatch has nothing left to
-	// say and is swapped for its own silhouette flooded with that color.
-	let paintedJolly = $derived(card.value === "jolly" && wildColor !== undefined);
-	let valueTint = $derived(card.value !== "jolly" || paintedJolly);
-	let bgColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
-	let tintColor = $derived(
-		(valueTint ? cardColor : WHITE).clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
+	let frontEntry = $derived(
+		getFaceTexture({
+			type: card.type,
+			value: card.value,
+			wildColor,
+			turned: false
+		})
 	);
+	let backEntry = $derived(
+		getFaceTexture({
+			type: "wild",
+			value: "0",
+			turned: true
+		})
+	);
+
+	let activeFront = $derived(turned ? backEntry : frontEntry);
+	let activeBack = $derived(turned ? frontEntry : backEntry);
+
+	let atlasPageVersion = $derived(ATLAS_PAGE_VERSION.value);
+	let atlasTexture = $derived.by(() => {
+		void atlasPageVersion;
+		return getAtlasPage(frontEntry.page);
+	});
+	let meshColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
 
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg * liftT);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
 	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * halfDimension);
-	// Flips the value layer by 180° when the card's rotation is upside down (|angle| > 90°),
-	// keeping values like 6 vs 9 legible without breaking the card's rectangular geometry.
+	// Flips the card by 180° when rotation is upside down (|angle| > 90°),
+	// keeping values like 6 vs 9 legible without breaking rectangular geometry.
 	let valueFlipRad = $derived(computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues));
 
 	let animatedPosition = $derived<[number, number, number]>([
@@ -189,18 +207,11 @@
 		position[2] + hoverPush[1] * liftT
 	]);
 	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
-	// A child's local offset gets multiplied by the group's own scale on the
-	// way to world space; dividing out animatedScale here cancels that, so
-	// the shadow's offset stays a fixed magnitude in world units (matching
-	// the flat, unscaled offset the standalone shadow mesh used before it
-	// moved in here) instead of shrinking with a compact hand or growing with
-	// the hover pop.
 	let shadowPosition = $derived<[number, number, number]>(
 		shadow
 			? [-shadow.offsetX / animatedScale, 0, (-shadow.dropZ - flipLift) / animatedScale]
 			: [0, 0, 0]
 	);
-	let cardRenderOrder = $derived(renderOrder + 1);
 
 	let highlightElapsed = $state(0);
 	useTask((delta) => {
@@ -214,10 +225,6 @@
 			: HIGHLIGHT_BASE_OPACITY
 	);
 
-	let backTexture = $state<import("three").Texture | null>(null);
-	let bgTexture = $state<import("three").Texture | null>(null);
-	let valueTexture = $state<import("three").Texture | null>(null);
-	let borderTexture = $state<import("three").Texture | null>(null);
 	let highlightTexture = $state<import("three").Texture | null>(null);
 
 	$effect(() => {
@@ -230,28 +237,57 @@
 		};
 	});
 
+	const uUvRectFront = new Vector4();
+	const uUvRectBack = new Vector4();
+
 	$effect(() => {
-		let cancelled = false;
-		if (turned) {
-			loadTexture("/assets/cards/back.png").then((t) => {
-				if (!cancelled) backTexture = t;
-			});
-		} else {
-			loadTexture("/assets/cards/background.png").then((t) => {
-				if (!cancelled) bgTexture = t;
-			});
-			const valueUrl = `/assets/cards/${card.value}.png`;
-			(paintedJolly ? loadSilhouette(valueUrl) : loadTexture(valueUrl)).then((t) => {
-				if (!cancelled) valueTexture = t;
-			});
-			loadTexture("/assets/cards/border.png").then((t) => {
-				if (!cancelled) borderTexture = t;
-			});
-		}
-		return () => {
-			cancelled = true;
-		};
+		uUvRectFront.set(
+			activeFront.u0,
+			activeFront.v0,
+			activeFront.u1 - activeFront.u0,
+			activeFront.v1 - activeFront.v0
+		);
+		uUvRectBack.set(
+			activeBack.u0,
+			activeBack.v0,
+			activeBack.u1 - activeBack.u0,
+			activeBack.v1 - activeBack.v0
+		);
 	});
+
+	let cardMaterial = $state<MeshBasicMaterial>();
+
+	$effect(() => {
+		if (cardMaterial) {
+			cardMaterial.userData.uUvRectFront = uUvRectFront;
+			cardMaterial.userData.uUvRectBack = uUvRectBack;
+		}
+	});
+
+	function handleBeforeCompile(shader: WebGLProgramParametersWithUniforms) {
+		uUvRectFront.set(
+			activeFront.u0,
+			activeFront.v0,
+			activeFront.u1 - activeFront.u0,
+			activeFront.v1 - activeFront.v0
+		);
+		uUvRectBack.set(
+			activeBack.u0,
+			activeBack.v0,
+			activeBack.u1 - activeBack.u0,
+			activeBack.v1 - activeBack.v0
+		);
+		patchCardShader(shader, { uUvRectFront, uUvRectBack });
+		if (cardMaterial) {
+			cardMaterial.userData.uUvRectFront = uUvRectFront;
+			cardMaterial.userData.uUvRectBack = uUvRectBack;
+			cardMaterial.userData.shader = shader;
+		}
+	}
+
+	function handleCustomProgramCacheKey() {
+		return CARD_SHADER_PROGRAM_KEY;
+	}
 </script>
 
 <T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
@@ -277,7 +313,7 @@
 			rotation.z={spinRad}
 		>
 			{#if highlight && highlightTexture}
-				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={cardRenderOrder}>
+				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={renderOrder + 1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
@@ -289,90 +325,21 @@
 					/>
 				</T.Mesh>
 			{/if}
-			{#if opacity < 1 && highlightTexture}
-				<T.Mesh position.z={BACKDROP_DROP_Z} renderOrder={cardRenderOrder}>
-					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-					<T.MeshBasicMaterial
-						map={highlightTexture}
-						color={BACKDROP_COLOR}
-						transparent
-						depthWrite
-						opacity={1}
-						toneMapped={false}
-					/>
-				</T.Mesh>
-			{/if}
-			{#if turned}
-				{#if backTexture}
-					<T.Mesh renderOrder={cardRenderOrder}>
-						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-						<T.MeshBasicMaterial
-							map={backTexture}
-							color={bgColor}
-							transparent
-							depthWrite
-							polygonOffset={cardRenderOrder > 0}
-							polygonOffsetFactor={-1}
-							polygonOffsetUnits={-1}
-							{opacity}
-							toneMapped={false}
-							side={DoubleSide}
-						/>
-					</T.Mesh>
-				{/if}
-			{:else}
-				{#if bgTexture}
-					<T.Mesh renderOrder={cardRenderOrder}>
-						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-						<T.MeshBasicMaterial
-							map={bgTexture}
-							color={bgColor}
-							transparent
-							depthWrite
-							polygonOffset={cardRenderOrder > 0}
-							polygonOffsetFactor={-1}
-							polygonOffsetUnits={-1}
-							{opacity}
-							toneMapped={false}
-							side={DoubleSide}
-						/>
-					</T.Mesh>
-				{/if}
-				{#if valueTexture}
-					<T.Mesh position.z={0.002} rotation.z={valueFlipRad} renderOrder={cardRenderOrder}>
-						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-						<T.MeshBasicMaterial
-							map={valueTexture}
-							color={tintColor}
-							transparent
-							depthWrite
-							polygonOffset={cardRenderOrder > 0}
-							polygonOffsetFactor={-1}
-							polygonOffsetUnits={-1}
-							{opacity}
-							toneMapped={false}
-							side={DoubleSide}
-						/>
-					</T.Mesh>
-				{/if}
-				{#if borderTexture}
-					<T.Mesh position.z={0.004} renderOrder={cardRenderOrder}>
-						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-						<T.MeshBasicMaterial
-							map={borderTexture}
-							color={tintColor}
-							transparent
-							depthWrite
-							polygonOffset={cardRenderOrder > 0}
-							polygonOffsetFactor={-1}
-							polygonOffsetUnits={-1}
-							{opacity}
-							toneMapped={false}
-							side={DoubleSide}
-						/>
-					</T.Mesh>
-				{/if}
-			{/if}
+			<T.Mesh {renderOrder} rotation.z={valueFlipRad}>
+				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+				<T.MeshBasicMaterial
+					bind:ref={cardMaterial}
+					map={atlasTexture}
+					color={meshColor}
+					transparent
+					{opacity}
+					depthWrite
+					toneMapped={false}
+					side={DoubleSide}
+					onBeforeCompile={handleBeforeCompile}
+					customProgramCacheKey={handleCustomProgramCacheKey}
+				/>
+			</T.Mesh>
 		</T.Group>
 	</T.Group>
 </T.Group>
