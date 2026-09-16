@@ -7,6 +7,7 @@
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
+	import EnumSelector from "$components/lobby/settings/EnumSelector.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let { showCredits = false, showDangerZone = false }: { showCredits?: boolean; showDangerZone?: boolean } =
@@ -138,6 +139,18 @@
 				description="Automatically scroll hand cards when pointer or cursor hovers near edges."
 				checked={storeRenderSettings.autoScrollOnEdgeCreep}
 				oncommit={(v) => storeRenderSettings.setAutoScrollOnEdgeCreep(v)}
+			/>
+
+			<EnumSelector
+				label="Seat name arc"
+				description="Curve opponent player names along an arc instead of flat text."
+				value={storeRenderSettings.seatNameArcMode}
+				options={[
+					{ value: "overhead", label: "Overhead", description: "Curved over avatar head" },
+					{ value: "cards-outer", label: "Outer cards", description: "Curved along outer card tips" },
+					{ value: "cards-inner", label: "Inner cards", description: "Curved between avatar and cards" }
+				]}
+				oncommit={(v) => storeRenderSettings.setSeatNameArcMode(v)}
 			/>
 		</div>
 	</section>

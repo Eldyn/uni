@@ -217,4 +217,79 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		expect(flight.pose.x).not.toBe(999);
 		expect(flight.pose.x).toBeCloseTo(2);
 	});
+
+	it("renders player name on an SVG curved arc and updates active state on turn", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+
+		const { container, rerender } = render(PlayerSeat3D, {
+			props: {
+				player: { username: "star_player", card_count: 2, is_bot: false },
+				seat,
+				color: "#00ffcc",
+				isTurn: false,
+				arcMode: "overhead"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		const labelContainer = container.querySelector(".seat-arc-container");
+		expect(labelContainer).toBeInTheDocument();
+		expect(labelContainer).not.toHaveClass("is-shown");
+		expect(labelContainer).not.toHaveClass("is-active");
+
+		const textPath = container.querySelector("textPath");
+		expect(textPath).toBeInTheDocument();
+		expect(textPath?.textContent?.trim()).toBe("star_player");
+
+		const rail = container.querySelector(".seat-arc-rail");
+		expect(rail).toBeInTheDocument();
+
+		rerender({
+			player: { username: "star_player", card_count: 2, is_bot: false },
+			seat,
+			color: "#00ffcc",
+			isTurn: true,
+			arcMode: "overhead"
+		});
+
+		expect(labelContainer).toHaveClass("is-shown");
+		expect(labelContainer).toHaveClass("is-active");
+	});
+
+	it("updates arc path and viewBox when switching arcMode", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+
+		const { container, rerender } = render(PlayerSeat3D, {
+			props: {
+				player: { username: "arc_tester", card_count: 1, is_bot: false },
+				seat,
+				color: "#ff0088",
+				arcMode: "overhead"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		const svg = container.querySelector(".seat-arc-svg");
+		expect(svg?.getAttribute("viewBox")).toBe("-90 -65 180 130");
+
+		rerender({
+			player: { username: "arc_tester", card_count: 1, is_bot: false },
+			seat,
+			color: "#ff0088",
+			arcMode: "cards-outer"
+		});
+
+		expect(svg?.getAttribute("viewBox")).toBe("-100 -40 200 80");
+
+		rerender({
+			player: { username: "arc_tester", card_count: 1, is_bot: false },
+			seat,
+			color: "#ff0088",
+			arcMode: "cards-inner"
+		});
+
+		expect(svg?.getAttribute("viewBox")).toBe("-80 -30 160 60");
+	});
 });

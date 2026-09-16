@@ -18,6 +18,7 @@ describe("RenderSettings store", () => {
 		expect(store.clickToPlay).toBe(true);
 		expect(store.syncCursorOnClick).toBe(true);
 		expect(store.autoScrollOnEdgeCreep).toBe(true);
+		expect(store.seatNameArcMode).toBe("overhead");
 	});
 
 	it("persists updates to localStorage via property assignments", () => {
@@ -32,6 +33,8 @@ describe("RenderSettings store", () => {
 		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"clickToPlay":false');
 		store.autoScrollOnEdgeCreep = false;
 		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"autoScrollOnEdgeCreep":false');
+		store.seatNameArcMode = "cards-outer";
+		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"seatNameArcMode":"cards-outer"');
 	});
 
 	it("persists updates to localStorage via setter methods", () => {
@@ -41,6 +44,7 @@ describe("RenderSettings store", () => {
 		store.setClickToPlay(false);
 		store.setSyncCursorOnClick(false);
 		store.setAutoScrollOnEdgeCreep(false);
+		store.setSeatNameArcMode("cards-inner");
 
 		const persisted = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!);
 		expect(persisted).toEqual({
@@ -48,7 +52,8 @@ describe("RenderSettings store", () => {
 			drawPileThickness: "capped",
 			clickToPlay: false,
 			syncCursorOnClick: false,
-			autoScrollOnEdgeCreep: false
+			autoScrollOnEdgeCreep: false,
+			seatNameArcMode: "cards-inner"
 		});
 	});
 
@@ -60,7 +65,8 @@ describe("RenderSettings store", () => {
 				drawPileThickness: "capped",
 				clickToPlay: false,
 				syncCursorOnClick: false,
-				autoScrollOnEdgeCreep: false
+				autoScrollOnEdgeCreep: false,
+				seatNameArcMode: "cards-outer"
 			})
 		);
 		const store = new RenderSettings();
@@ -69,6 +75,7 @@ describe("RenderSettings store", () => {
 		expect(store.clickToPlay).toBe(false);
 		expect(store.syncCursorOnClick).toBe(false);
 		expect(store.autoScrollOnEdgeCreep).toBe(false);
+		expect(store.seatNameArcMode).toBe("cards-outer");
 	});
 
 	it("handles malformed JSON in localStorage gracefully", () => {

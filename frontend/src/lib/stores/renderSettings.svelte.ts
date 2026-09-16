@@ -12,6 +12,7 @@ export interface RenderSettingsState {
 	clickToPlay: boolean;
 	syncCursorOnClick: boolean;
 	autoScrollOnEdgeCreep: boolean;
+	seatNameArcMode: "overhead" | "cards-outer" | "cards-inner";
 }
 
 export class RenderSettings {
@@ -22,6 +23,7 @@ export class RenderSettings {
 	#clickToPlay = $state<boolean>(true);
 	#syncCursorOnClick = $state<boolean>(true);
 	#autoScrollOnEdgeCreep = $state<boolean>(true);
+	#seatNameArcMode = $state<"overhead" | "cards-outer" | "cards-inner">("overhead");
 
 	constructor() {
 		try {
@@ -47,6 +49,13 @@ export class RenderSettings {
 				}
 				if (typeof parsed.autoScrollOnEdgeCreep === "boolean") {
 					this.#autoScrollOnEdgeCreep = parsed.autoScrollOnEdgeCreep;
+				}
+				if (
+					parsed.seatNameArcMode === "overhead" ||
+					parsed.seatNameArcMode === "cards-outer" ||
+					parsed.seatNameArcMode === "cards-inner"
+				) {
+					this.#seatNameArcMode = parsed.seatNameArcMode;
 				}
 			}
 		} catch {
@@ -99,6 +108,15 @@ export class RenderSettings {
 		this.#persist();
 	}
 
+	get seatNameArcMode(): "overhead" | "cards-outer" | "cards-inner" {
+		return this.#seatNameArcMode;
+	}
+
+	set seatNameArcMode(mode: "overhead" | "cards-outer" | "cards-inner") {
+		this.#seatNameArcMode = mode;
+		this.#persist();
+	}
+
 	#persist(): void {
 		try {
 			if (typeof localStorage === "undefined") return;
@@ -107,7 +125,8 @@ export class RenderSettings {
 				drawPileThickness: this.#drawPileThickness,
 				clickToPlay: this.#clickToPlay,
 				syncCursorOnClick: this.#syncCursorOnClick,
-				autoScrollOnEdgeCreep: this.#autoScrollOnEdgeCreep
+				autoScrollOnEdgeCreep: this.#autoScrollOnEdgeCreep,
+				seatNameArcMode: this.#seatNameArcMode
 			};
 			localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data));
 		} catch {
@@ -133,6 +152,10 @@ export class RenderSettings {
 
 	setAutoScrollOnEdgeCreep(autoScroll: boolean): void {
 		this.autoScrollOnEdgeCreep = autoScroll;
+	}
+
+	setSeatNameArcMode(mode: "overhead" | "cards-outer" | "cards-inner"): void {
+		this.seatNameArcMode = mode;
 	}
 }
 

@@ -28,6 +28,8 @@
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { CARD_HEIGHT } from "./units";
 
 	let {
 		player,
@@ -40,7 +42,8 @@
 		avatarPx = 56,
 		avatarWorld = 0.78,
 		labelEm = 1.15,
-		hasHoldingCard = false
+		hasHoldingCard = false,
+		arcMode
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -61,18 +64,31 @@
 		labelEm?: number;
 		/** If true, the player has 1 drawn card in front awaiting play decision. */
 		hasHoldingCard?: boolean;
+		/** Positioning curve mode for the seat name label. */
+		arcMode?: "overhead" | "cards-outer" | "cards-inner";
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
 	// its neighbor's (z-fighting) — 0.02 clears that with margin.
 	const AVATAR_HEIGHT = 0.9;
-	// The name sits beyond the ring's own outer edge (toward the mat, same
-	// local +Z the ring itself grows along — see handRing.ts's "angle 0 points
-	// toward the playmat center") rather than hanging off the avatar's own
-	// bottom edge: the avatar's own box is a much smaller, more crowded target,
-	// and the name reads as belonging to the whole seat — cards included —
-	// rather than just the icon.
-	const LABEL_BEYOND_RING_MARGIN = 0.35;
+
+	function describeArc(
+		cx: number,
+		cy: number,
+		radius: number,
+		startAngleDeg: number,
+		endAngleDeg: number,
+		sweepFlag: 0 | 1
+	): string {
+		const startRad = (startAngleDeg * Math.PI) / 180;
+		const endRad = (endAngleDeg * Math.PI) / 180;
+		const x1 = (cx + radius * Math.cos(startRad)).toFixed(2);
+		const y1 = (cy + radius * Math.sin(startRad)).toFixed(2);
+		const x2 = (cx + radius * Math.cos(endRad)).toFixed(2);
+		const y2 = (cy + radius * Math.sin(endRad)).toFixed(2);
+		const largeArcFlag = Math.abs(endAngleDeg - startAngleDeg) > 180 ? 1 : 0;
+		return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${x2} ${y2}`;
+	}
 
 	const bus = useCardBus();
 	const cardRegistry = useCardRegistry();
@@ -105,6 +121,48 @@
 	// since it's a filter on the seat's own pixels rather than a halo painted
 	// outside its box.
 	let dimmed = $derived(!isTurn && !isValidTarget);
+	let effectiveArcMode = $derived(arcMode ?? storeRenderSettings.seatNameArcMode);
+	let isActive = $derived(isTurn || isValidTarget);
+	let displayName = $derived(
+		player.username && player.username.length > 15
+			? player.username.slice(0, 14) + "…"
+			: (player.username ?? "")
+	);
+	let seatId = $derived(
+		`seat-${(player.username ?? "player").replace(/[^a-zA-Z0-9_-]/g, "_")}-${Math.round(seat.rotationY * 100)}`
+	);
+	let pathId = $derived(`arc-path-${seatId}`);
+
+	let arcAnchorPos = $derived<[number, number, number]>(
+		effectiveArcMode === "overhead"
+			? [0, AVATAR_HEIGHT, 0]
+			: effectiveArcMode === "cards-outer"
+				? [0, AVATAR_HEIGHT, ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.16]
+				: [0, AVATAR_HEIGHT, Math.max(0.28, ringRadiusWorld - (CARD_HEIGHT * cardScale) / 2 - 0.12)]
+	);
+
+	let overheadRadius = $derived(Math.max(38, Math.round(avatarPx * 0.88)));
+	let arcD = $derived(
+		effectiveArcMode === "overhead"
+			? describeArc(0, 0, overheadRadius, -165, -15, 1)
+			: effectiveArcMode === "cards-outer"
+				? describeArc(0, -50, 100, 140, 40, 0)
+				: describeArc(0, -35, 75, 145, 35, 0)
+	);
+	let arcViewBox = $derived(
+		effectiveArcMode === "overhead"
+			? "-90 -65 180 130"
+			: effectiveArcMode === "cards-outer"
+				? "-100 -40 200 80"
+				: "-80 -30 160 60"
+	);
+	let arcWidth = $derived(
+		effectiveArcMode === "overhead" ? 180 : effectiveArcMode === "cards-outer" ? 200 : 160
+	);
+	let arcHeight = $derived(
+		effectiveArcMode === "overhead" ? 130 : effectiveArcMode === "cards-outer" ? 80 : 60
+	);
+	let labelFontSize = $derived(Math.round(labelEm * 9.5));
 
 	let registeredKeys = new Set<string>();
 
@@ -199,17 +257,30 @@
 		</div>
 	</HTML>
 
-	<!-- A second, independent anchor: the label projects from a different 3D
-	     point than the avatar (see LABEL_BEYOND_RING_MARGIN above), so it needs
-	     its own <HTML> rather than living in the avatar's flex column. -->
-	<HTML
-		position={[0, AVATAR_HEIGHT, ringRadiusWorld + LABEL_BEYOND_RING_MARGIN]}
-		center
-		pointerEvents="none"
-	>
-		<span class="seat-label" class:is-shown={showLabel} style="font-size: {labelEm}em;"
-			>{player.username}</span
+	<HTML position={arcAnchorPos} center pointerEvents="none">
+		<div
+			class="seat-label seat-arc-container"
+			class:is-shown={showLabel}
+			class:is-active={isActive}
+			style="--player-accent: {color};"
 		>
+			<svg
+				class="seat-arc-svg"
+				viewBox={arcViewBox}
+				width={arcWidth}
+				height={arcHeight}
+			>
+				<defs>
+					<path id={pathId} d={arcD} />
+				</defs>
+				<path class="seat-arc-rail" d={arcD} />
+				<text class="seat-arc-text" font-size={labelFontSize} dy="-3" text-anchor="middle">
+					<textPath href="#{pathId}" startOffset="50%" text-anchor="middle">
+						{displayName}
+					</textPath>
+				</text>
+			</svg>
+		</div>
 	</HTML>
 </T.Group>
 
@@ -288,27 +359,60 @@
 		align-items: center;
 	}
 
-	/* Its own anchor now (see LABEL_BEYOND_RING_MARGIN), not hanging off the
-	   avatar's flex column, so no margin-top is needed to tuck it in. Long
-	   names truncate instead of running across a neighbour. Hidden until the
-	   seat is relevant (see showLabel) — it still occupies its box, so
-	   revealing it never shifts anything else. Wider than the avatar's own
-	   label used to be: sitting past the ring instead of jammed under the
-	   avatar, a name has more room before it needs to compete with a neighbour. */
-	.seat-label {
-		max-width: 13em;
-		font-family: var(--tiny);
-		line-height: 1;
-		color: var(--table-text);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		padding: 0.2em 0.5em;
+	.seat-arc-container {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		pointer-events: none;
 		opacity: 0;
-		transition: opacity 0.15s ease;
+		transition:
+			opacity 0.2s ease,
+			filter 0.3s ease;
 	}
 
-	.seat-label.is-shown {
+	.seat-arc-container.is-shown {
 		opacity: 1;
+	}
+
+	.seat-arc-svg {
+		overflow: visible;
+	}
+
+	.seat-arc-rail {
+		fill: none;
+		stroke: rgba(255, 255, 255, 0.28);
+		stroke-width: 1.5px;
+		stroke-dasharray: 4 3;
+		stroke-linecap: round;
+		transition:
+			stroke 0.3s ease,
+			stroke-width 0.3s ease,
+			filter 0.3s ease;
+	}
+
+	.seat-arc-container.is-active .seat-arc-rail {
+		stroke: var(--player-accent, #00ffcc);
+		stroke-dasharray: none;
+		stroke-width: 2px;
+		filter: drop-shadow(0 0 4px var(--player-accent, #00ffcc))
+			drop-shadow(0 0 8px var(--player-accent, #00ffcc));
+	}
+
+	.seat-arc-text {
+		font-family: var(--tiny);
+		letter-spacing: 0.04em;
+		fill: var(--table-text, #ffffff);
+		user-select: none;
+		text-anchor: middle;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+		transition:
+			fill 0.3s ease,
+			filter 0.3s ease;
+	}
+
+	.seat-arc-container.is-active .seat-arc-text {
+		font-weight: bold;
+		filter: drop-shadow(0 0 3px var(--player-accent, #00ffcc))
+			drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
 	}
 </style>

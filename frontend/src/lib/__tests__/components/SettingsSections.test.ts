@@ -15,10 +15,12 @@ vi.mock("$stores/renderSettings.svelte", () => ({
 		clickToPlay: true,
 		syncCursorOnClick: true,
 		autoScrollOnEdgeCreep: true,
+		seatNameArcMode: "overhead",
 		setDrawPileThickness: vi.fn(),
 		setClickToPlay: vi.fn(),
 		setSyncCursorOnClick: vi.fn(),
-		setAutoScrollOnEdgeCreep: vi.fn()
+		setAutoScrollOnEdgeCreep: vi.fn(),
+		setSeatNameArcMode: vi.fn()
 	}
 }));
 
@@ -61,6 +63,12 @@ describe("SettingsSections", () => {
 		expect(autoScrollToggle).toBeChecked();
 		await fireEvent.click(autoScrollToggle);
 		expect(storeRenderSettings.setAutoScrollOnEdgeCreep).toHaveBeenCalledWith(false);
+
+		const arcSelector = getByLabelText("Seat name arc");
+		expect(arcSelector).toBeInTheDocument();
+		expect(arcSelector).toHaveValue("overhead");
+		await fireEvent.change(arcSelector, { target: { value: "cards-outer" } });
+		expect(storeRenderSettings.setSeatNameArcMode).toHaveBeenCalledWith("cards-outer");
 	});
 
 	it("handles toggles when render settings are initially off or non-default", async () => {
