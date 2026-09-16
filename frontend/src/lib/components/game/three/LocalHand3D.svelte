@@ -21,6 +21,7 @@
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
+	import { gsap } from "gsap";
 	import { storeGame, type Card } from "$stores/game.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
 	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
@@ -358,11 +359,15 @@
 		return e.nativeEvent?.clientY ?? e.clientY ?? 0;
 	}
 
+	let settleTween: gsap.core.Tween | null = null;
+
 	// With a mouse, dragging always reorders — the wheel already pans, and the
 	// cursor makes the grabbed card unambiguous. With a finger there is only the
 	// one gesture to spend, so it pans, and reordering is what dragging the card
 	// you already picked does.
 	function startGesture(cardId: number, index: number, event: unknown) {
+		settleTween?.kill();
+		settleTween = null;
 		gestureCardId = cardId;
 		gestureIsReorder = pointerMode.canHover || selectedId === cardId;
 		gestureMoved = false;
@@ -431,16 +436,49 @@
 	// here rather than waiting for a pointerleave that may never arrive. That
 	// missing leave event is what used to strand a dragged card in its lifted pose.
 	function endGesture() {
-		if (gestureCardId !== null && !gestureMoved) {
-			onSelectionChange(selectedId === gestureCardId ? null : gestureCardId);
-		}
+		window.removeEventListener("pointermove", handleGestureMove);
+		const releasedId = gestureCardId;
+		const hadMoved = gestureMoved;
+
 		gestureCardId = null;
 		gestureIsReorder = false;
-		draggingId = null;
-		dragOffsetX = 0;
-		dragOffsetZ = 0;
+		gestureMoved = false;
 		hoveredId = null;
-		window.removeEventListener("pointermove", handleGestureMove);
+
+		if (releasedId !== null && !hadMoved) {
+			draggingId = null;
+			dragOffsetX = 0;
+			dragOffsetZ = 0;
+			onSelectionChange(selectedId === releasedId ? null : releasedId);
+			return;
+		}
+
+		if (releasedId !== null && hadMoved) {
+			settleTween?.kill();
+			const offsets = { x: dragOffsetX, z: dragOffsetZ };
+			settleTween = gsap.to(offsets, {
+				x: 0,
+				z: 0,
+				duration: 0.15,
+				ease: "back.out",
+				onUpdate: () => {
+					dragOffsetX = offsets.x;
+					dragOffsetZ = offsets.z;
+					cardRegistry.applyIdlePoseIfNotInTransit(String(releasedId));
+				},
+				onComplete: () => {
+					draggingId = null;
+					dragOffsetX = 0;
+					dragOffsetZ = 0;
+					settleTween = null;
+					cardRegistry.applyIdlePoseIfNotInTransit(String(releasedId));
+				}
+			});
+		} else {
+			draggingId = null;
+			dragOffsetX = 0;
+			dragOffsetZ = 0;
+		}
 	}
 
 	// On `window`, not the row itself, so scrolling works no matter where the
