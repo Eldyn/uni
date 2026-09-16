@@ -2,17 +2,35 @@ import { describe, it, expect } from "vitest";
 import { CARD_HOVER_SCALE, CARD_HOVER_LIFT } from "$components/game/three/units";
 
 describe("CardMesh3D constants & pose derivation", () => {
-	it("has CARD_HOVER_SCALE set to 1.2 matching Balatro feel", () => {
-		expect(CARD_HOVER_SCALE).toBe(1.2);
+	it("has CARD_HOVER_SCALE set to 1.15 matching Balatro feel", () => {
+		expect(CARD_HOVER_SCALE).toBe(1.15);
 	});
 
-	it("computes animated scale correctly from liftT and CARD_HOVER_SCALE", () => {
+	it("computes animated scale correctly for hover (1.15x) and DnD drag (1.2x)", () => {
 		const scale = 1;
-		const computeScale = (liftT: number) => scale * (1 + (CARD_HOVER_SCALE - 1) * liftT);
+		const DRAG_SCALE = 1.2;
+		const computeScale = (liftT: number, dragT: number) =>
+			scale * (1 + (CARD_HOVER_SCALE - 1) * liftT * (1 - dragT) + (DRAG_SCALE - 1) * dragT);
 
-		expect(computeScale(0)).toBe(1);
-		expect(computeScale(1)).toBe(1.2);
-		expect(computeScale(0.5)).toBeCloseTo(1.1);
+		// At rest
+		expect(computeScale(0, 0)).toBe(1);
+		// Hovered (not dragged)
+		expect(computeScale(1, 0)).toBeCloseTo(1.15);
+		// Dragged in DnD
+		expect(computeScale(0, 1)).toBeCloseTo(1.2);
+		expect(computeScale(1, 1)).toBeCloseTo(1.2);
+	});
+
+	it("computes shadow scale and offset strictly for DnD drag", () => {
+		const computeShadow = (dragT: number) => ({
+			scale: 1 + 0.15 * dragT,
+			extraOffset: 0.12 * dragT
+		});
+
+		// Resting or hovered: normal shadow
+		expect(computeShadow(0)).toEqual({ scale: 1, extraOffset: 0 });
+		// Dragged: expanded shadow
+		expect(computeShadow(1)).toEqual({ scale: 1.15, extraOffset: 0.12 });
 	});
 
 	it("computes animated position correctly from liftT, pushX, and hoverPush", () => {

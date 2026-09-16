@@ -17,7 +17,7 @@ export const EM_TO_WORLD = CARD_WIDTH / 5;
 export const CARD_HOVER_LIFT = 0.5;
 /** Multiplier applied to a lifted card, so anything drawn around one (see
  *  CardMesh3D's `highlight` prop) can match its grown size. */
-export const CARD_HOVER_SCALE = 1.2;
+export const CARD_HOVER_SCALE = 1.15;
 
 /** Minimum geometric stack step: precision floor for z-fighting prevention. */
 export const MIN_STACK_STEP = 0.004;

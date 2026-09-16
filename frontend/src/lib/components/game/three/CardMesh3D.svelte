@@ -68,6 +68,7 @@ uniform vec4 uUvRectBack;
 		instant = false,
 		hoverPush = [0, 0],
 		liftT = 0,
+		dragT = 0,
 		pushX = 0,
 		opacity = 1,
 		dimmed = false,
@@ -108,6 +109,8 @@ uniform vec4 uUvRectBack;
 		/** Lift factor (0 = resting in hand/pile, 1 = fully lifted on hover),
 		 *  driven externally by CardRegistry.tick(). */
 		liftT?: number;
+		/** Drag factor (0 = resting/hover, 1 = fully lifted during DnD). */
+		dragT?: number;
 		/** World-space X offset the neighbors of an active card ease toward to
 		 *  make room for it (LocalHand3D's neighborPushEm) — driven externally
 		 *  by CardRegistry.tick(). */
@@ -195,11 +198,11 @@ uniform vec4 uUvRectBack;
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
 
-	const ELEVATION_REF = 0.5; // DRAG_LIFT reference height
-	let elevationT = $derived(Math.min(1, Math.max(0, position[1] / ELEVATION_REF)));
-	let effectiveLift = $derived(Math.min(1, Math.max(liftT, elevationT)));
-
-	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * effectiveLift));
+	// DnD card scale: scales up to 1.2x ONLY when dragged in DnD
+	const DRAG_SCALE = 1.2;
+	let animatedScale = $derived(
+		scale * (1 + (CARD_HOVER_SCALE - 1) * liftT * (1 - dragT) + (DRAG_SCALE - 1) * dragT)
+	);
 	let cardDimension = $derived(Math.max(CARD_WIDTH, CARD_HEIGHT) / 2);
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * cardDimension * animatedScale);
 	// Flips the card by 180° when rotation is upside down (|angle| > 90°),
@@ -208,13 +211,13 @@ uniform vec4 uUvRectBack;
 
 	let animatedPosition = $derived<[number, number, number]>([
 		position[0] + hoverPush[0] * liftT + pushX,
-		position[1] + (hovered && position[1] < 0.2 ? CARD_HOVER_LIFT * liftT : 0) + flipLift,
+		position[1] + (hovered ? CARD_HOVER_LIFT * liftT : 0) + flipLift,
 		position[2] + hoverPush[1] * liftT
 	]);
 
-	// When higher up, shadow projects further away and expands in size (perspective projection)
-	let shadowExtraOffset = $derived(0.12 * effectiveLift);
-	let shadowScale = $derived(1 + 0.15 * effectiveLift);
+	// Perspective projection (larger and more distant shadow) ONLY applies to DnD (dragT)
+	let shadowExtraOffset = $derived(0.12 * dragT);
+	let shadowScale = $derived(1 + 0.15 * dragT);
 	let shadowPosition = $derived<[number, number, number]>(
 		shadow
 			? [
@@ -331,7 +334,7 @@ uniform vec4 uUvRectBack;
 						map={shadow.texture}
 						color="#000000"
 						transparent
-						opacity={shadow.opacity * (1 + 0.2 * effectiveLift) * opacity}
+						opacity={shadow.opacity * (1 + 0.2 * dragT) * opacity}
 						depthWrite={false}
 						toneMapped={false}
 					/>

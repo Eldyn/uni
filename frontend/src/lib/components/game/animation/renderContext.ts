@@ -23,6 +23,8 @@ export interface FlightPose {
 	pushX?: number;
 	/** Dynamic hover punch rotation angle in degrees. */
 	hoverSpinDeg?: number;
+	/** Drag factor (0 = resting/hover, 1 = fully lifted during DnD). */
+	dragT?: number;
 }
 
 export function createDefaultFlightPose(overrides?: Partial<FlightPose>): FlightPose {
@@ -38,6 +40,7 @@ export function createDefaultFlightPose(overrides?: Partial<FlightPose>): Flight
 		liftT: 0,
 		pushX: 0,
 		hoverSpinDeg: 0,
+		dragT: 0,
 		...overrides
 	};
 }

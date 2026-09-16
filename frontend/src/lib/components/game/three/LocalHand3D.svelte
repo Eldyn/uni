@@ -204,6 +204,7 @@
 	let settlingCardId: string | null = null;
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let prevOrderIds: number[] = [];
+	let dragLiftTween: gsap.core.Tween | null = null;
 
 	$effect(() => {
 		return () => {
@@ -212,6 +213,7 @@
 			}
 			displacementTweens.clear();
 			settleTween?.kill();
+			dragLiftTween?.kill();
 		};
 	});
 
@@ -255,7 +257,8 @@
 					flipDeg: 0,
 					scale: placement.handScale,
 					turned: false,
-					opacity: 1
+					opacity: 1,
+					dragT: isDragging ? 1 : 0
 				},
 				{ type: card.type, value: card.value }
 			);
@@ -318,11 +321,11 @@
 			}
 
 			const lifted =
-				isSelected || isDragging || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
+				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
 			cardRegistry.setDecoration(idString, {
 				hovered: lifted,
-				instant: isSelected || isDragging,
+				instant: isSelected,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
 				pushX: neighborPush * handEmToWorld,
 				hoverSpinDeg: isDragging ? dragTiltDeg : (lifted ? tiltTowardPileDeg(slot.x) : 0),
@@ -331,9 +334,9 @@
 				shadow: shadowTexture
 					? {
 							texture: shadowTexture,
-							offsetX: isDragging ? DRAG_SHADOW_OFFSET : SHADOW_OFFSET,
-							dropZ: isDragging ? DRAG_SHADOW_DROP_Y : SHADOW_DROP_Y,
-							opacity: isDragging ? DRAG_SHADOW_OPACITY : SHADOW_OPACITY
+							offsetX: SHADOW_OFFSET,
+							dropZ: SHADOW_DROP_Y,
+							opacity: SHADOW_OPACITY
 						}
 					: undefined,
 				highlight: isSelected ? {} : undefined
@@ -491,6 +494,8 @@
 	function startGesture(cardId: number, index: number, event: unknown) {
 		settleTween?.kill();
 		settleTween = null;
+		dragLiftTween?.kill();
+		dragLiftTween = null;
 		if (settlingCardId) {
 			cardRegistry.markInTransit(settlingCardId, false);
 			cardRegistry.applyIdlePoseIfNotInTransit(settlingCardId);
@@ -551,6 +556,23 @@
 			pose.x = dragWorldX;
 			pose.y = DRAG_LIFT;
 			pose.z = dragWorldZ;
+			if (!dragLiftTween && (pose.dragT === undefined || pose.dragT < 1)) {
+				const dragDuration = storeAnimation.enabled
+					? 0.15 / Math.max(0.1, storeAnimation.speedMultiplier)
+					: 0;
+				if (dragDuration === 0) {
+					pose.dragT = 1;
+				} else {
+					dragLiftTween = gsap.to(pose, {
+						dragT: 1,
+						duration: dragDuration,
+						ease: "power2.out",
+						onComplete: () => {
+							dragLiftTween = null;
+						}
+					});
+				}
+			}
 		}
 
 		const draggedX = dragWorldX / handEmToWorld;
@@ -572,6 +594,8 @@
 	// here rather than waiting for a pointerleave that may never arrive. That
 	// missing leave event is what used to strand a dragged card in its lifted pose.
 	function endGesture() {
+		dragLiftTween?.kill();
+		dragLiftTween = null;
 		window.removeEventListener("pointermove", handleGestureMove);
 		const releasedId = gestureCardId;
 		const hadMoved = gestureMoved;
@@ -582,6 +606,9 @@
 		hoveredId = null;
 
 		if (releasedId !== null && !hadMoved) {
+			const releasedCardIdStr = String(releasedId);
+			const pose = cardRegistry.getPose(releasedCardIdStr);
+			if (pose) pose.dragT = 0;
 			draggingId = null;
 			movementDelta = 0;
 			dragTiltDeg = 0;
@@ -610,6 +637,7 @@
 					pose.x = targetSlotX;
 					pose.y = targetSlotY;
 					pose.z = targetSlotZ;
+					pose.dragT = 0;
 				}
 				draggingId = null;
 				movementDelta = 0;
@@ -626,6 +654,7 @@
 					x: targetSlotX,
 					y: targetSlotY,
 					z: targetSlotZ,
+					dragT: 0,
 					duration: settleDuration,
 					ease: "back.out(1.2)",
 					onComplete: () => {

@@ -22,7 +22,8 @@ describe("FlightPose", () => {
 			opacity: 1,
 			liftT: 0,
 			pushX: 0,
-			hoverSpinDeg: 0
+			hoverSpinDeg: 0,
+			dragT: 0
 		});
 	});
 

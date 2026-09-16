@@ -46,6 +46,7 @@
 		instant={handle.decoration?.instant}
 		hoverPush={handle.decoration?.hoverPush}
 		liftT={handle.pose.liftT}
+		dragT={handle.pose.dragT ?? 0}
 		pushX={handle.pose.pushX}
 		hoverSpinDeg={(handle.decoration?.hoverSpinDeg ?? 0) + (handle.pose.hoverSpinDeg ?? 0)}
 		dimmed={handle.decoration?.dimmed}

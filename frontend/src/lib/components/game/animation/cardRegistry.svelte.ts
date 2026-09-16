@@ -158,6 +158,7 @@ export class CardRegistry {
 			pose.x = x;
 			pose.y = y;
 			pose.z = z;
+			pose.dragT = 0;
 		});
 	}
 
