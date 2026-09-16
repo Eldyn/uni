@@ -2,6 +2,14 @@
 	import { storeGame, Action } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 
+	function autofocus(node: HTMLElement, enabled = true) {
+		if (enabled) {
+			requestAnimationFrame(() => {
+				node.focus();
+			});
+		}
+	}
+
 	const TYPE_BUTTONS = [
 		{ name: "red", typeIndex: 0 },
 		{ name: "yellow", typeIndex: 3 },
@@ -16,9 +24,10 @@
 			<h2 class="choose-color-text">Choose Color!</h2>
 			<br />
 			<div class="color-buttons">
-				{#each TYPE_BUTTONS as { name, typeIndex }}
+				{#each TYPE_BUTTONS as { name, typeIndex }, index}
 					<button
 						type="button"
+						use:autofocus={index === 0}
 						class="btn pixel-corners color-button color-{name}"
 						disabled={storeGame.isActionPending}
 						onclick={() => {

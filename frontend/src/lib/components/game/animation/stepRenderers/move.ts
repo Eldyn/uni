@@ -75,5 +75,9 @@ export function moveRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 		ease: "power1.in"
 	}, MOVE_DURATION_S / 2);
 
+	if (typeof step.payload?.onComplete === "function") {
+		timeline.call(step.payload.onComplete, [], MOVE_DURATION_S);
+	}
+
 	return timeline;
 }

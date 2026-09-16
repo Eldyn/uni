@@ -205,6 +205,7 @@ export function buildDrawBeats(args: {
 	opponentCardScale?: number;
 	slotAnchorKeys?: string[];
 	slotSpinDegs?: number[];
+	onCardComplete?: (index: number) => void;
 }): AnimationBeat[] {
 	const stagger = drawStaggerFor(args.cardIds.length);
 
@@ -230,7 +231,12 @@ export function buildDrawBeats(args: {
 			steps.push({
 				op: "move",
 				target: cardId,
-				payload: { to: localHandSlotAnchorKey(i), toScale: args.placement.handScale, toSpinDeg: 0 },
+				payload: {
+					to: localHandSlotAnchorKey(i),
+					toScale: args.placement.handScale,
+					toSpinDeg: 0,
+					onComplete: args.onCardComplete ? () => args.onCardComplete!(i) : undefined
+				},
 				atS: flipAtS + FLIP_DURATION_S
 			});
 		}
@@ -247,7 +253,8 @@ export function buildDrawBeats(args: {
 		payload: {
 			to: args.slotAnchorKeys?.[i] ?? opponentSeatAnchor(opponentUsername),
 			toScale: args.opponentCardScale ?? args.placement.centerScale,
-			toSpinDeg: args.slotSpinDegs?.[i] ?? 0
+			toSpinDeg: args.slotSpinDegs?.[i] ?? 0,
+			onComplete: args.onCardComplete ? () => args.onCardComplete!(i) : undefined
 		},
 		atS: i * stagger
 	}));
@@ -298,6 +305,7 @@ export function createBaseBeatsWatcher(deps: {
 	// a ChooseTarget prompt can open/close) mid-flight for a staggered +4, so
 	// this is refreshed live every tick below instead of only at seed time.
 	let opponentDrawFlightOwners = new Map<string, string>();
+	let localDrawFlightIds = new Set<string>();
 
 	return $effect.root(() => {
 		$effect(() => {
@@ -343,6 +351,15 @@ export function createBaseBeatsWatcher(deps: {
 				}
 				if (name.startsWith("local-hand-slot:")) {
 					const slotIndex = Number(name.slice("local-hand-slot:".length));
+					const handCount = storeGame.localPlayer?.card_count ?? (storeGame.localPlayer?.hand?.length ?? 0);
+					if (handCount > 0) {
+						return localHandSlotAnchor(
+							handCount,
+							slotIndex,
+							placement,
+							deps.bus.localHandSnapshot
+						);
+					}
 					return pendingLocalHandSlots.get(slotIndex) ?? [0, 0, placement.localSeatZ];
 				}
 				throw new Error(`baseBeats: no resolver for anchor "${name}"`);
@@ -366,6 +383,13 @@ export function createBaseBeatsWatcher(deps: {
 					storeGame.actionContext.includes(flightUsername);
 				deps.cardRegistry.setDecoration(flightCardId, {
 					dimmed: !flightIsTurn && !flightIsValidTarget
+				});
+			}
+
+			const isLocalTurn = state.current_turn === localUsername;
+			for (const flightCardId of localDrawFlightIds) {
+				deps.cardRegistry.setDecoration(flightCardId, {
+					dimmed: !isLocalTurn
 				});
 			}
 
@@ -702,10 +726,13 @@ export function createBaseBeatsWatcher(deps: {
 									)
 								])
 							);
+							const isLocalTurn = state.current_turn === p.username;
 							for (const cardId of newIds) {
 								const card = localHand.find((c) => c.id === cardId);
 								if (!card) continue;
-								deps.cardRegistry.registerCardMeta(String(cardId), {
+								const idString = String(cardId);
+								localDrawFlightIds.add(idString);
+								deps.cardRegistry.registerCardMeta(idString, {
 									type: card.type,
 									value: card.value
 								});
@@ -714,8 +741,8 @@ export function createBaseBeatsWatcher(deps: {
 									prevDrawPileSize ?? 0,
 									storeRenderSettings.drawPileThickness
 								);
-								deps.cardRegistry.clearDecoration(String(cardId));
-								deps.cardRegistry.seedPose(String(cardId), {
+								deps.cardRegistry.clearDecoration(idString);
+								deps.cardRegistry.seedPose(idString, {
 									x: px,
 									y: py + DRAW_HOVER_LIFT,
 									z: pz,
@@ -725,16 +752,36 @@ export function createBaseBeatsWatcher(deps: {
 									turned: true,
 									opacity: 1
 								});
+								deps.cardRegistry.setDecoration(idString, {
+									dimmed: !isLocalTurn
+								});
 							}
 							for (const id of newIds) deps.bus.addPendingLocalDraw(id);
 							const cardIds = newIds.map(String);
+							const remainingLocalDraws = new Set(newIds);
 							deps.cardRegistry
 								.enqueue(
-									buildDrawBeats({ cardIds, forLocalPlayer: true, placement }),
+									buildDrawBeats({
+										cardIds,
+										forLocalPlayer: true,
+										placement,
+										onCardComplete: (index) => {
+											const id = newIds[index];
+											if (id !== undefined && remainingLocalDraws.has(id)) {
+												remainingLocalDraws.delete(id);
+												deps.bus.removePendingLocalDraw(id);
+												localDrawFlightIds.delete(String(id));
+											}
+										}
+									}),
 									resolveCardTarget
 								)
 								.finally(() => {
-									for (const id of newIds) deps.bus.removePendingLocalDraw(id);
+									for (const id of remainingLocalDraws) {
+										deps.bus.removePendingLocalDraw(id);
+										localDrawFlightIds.delete(String(id));
+									}
+									remainingLocalDraws.clear();
 								});
 							prevLocalHandIds = currentIds;
 						}
@@ -801,10 +848,11 @@ export function createBaseBeatsWatcher(deps: {
 								cardIds.push(cardId);
 								opponentDrawFlightOwners.set(cardId, p.username);
 								const targetSlotIndex = prevCount + i;
+								const currentStepCardCount = prevCount + i + 1;
 								const slotKey = opponentSlotAnchorKey(p.username, targetSlotIndex, drawIdCounter);
 								const targetPose = deps.getOpponentCardPose?.(
 									p.username,
-									p.card_count,
+									currentStepCardCount,
 									targetSlotIndex
 								);
 
@@ -838,6 +886,7 @@ export function createBaseBeatsWatcher(deps: {
 								});
 							}
 							deps.bus.addInFlightDraw(p.username, drawnCount);
+							let remainingOpponentDraws = drawnCount;
 							deps.cardRegistry
 								.enqueue(
 									buildDrawBeats({
@@ -847,12 +896,26 @@ export function createBaseBeatsWatcher(deps: {
 										placement,
 										opponentCardScale,
 										slotAnchorKeys,
-										slotSpinDegs
+										slotSpinDegs,
+										onCardComplete: (index) => {
+											if (remainingOpponentDraws > 0) {
+												remainingOpponentDraws--;
+												deps.bus.removeInFlightDraw(p.username, 1);
+											}
+											const cardId = cardIds[index];
+											if (cardId) {
+												deps.cardRegistry.removeEntry(cardId);
+												opponentDrawFlightOwners.delete(cardId);
+											}
+										}
 									}),
 									resolveCardTarget
 								)
 								.finally(() => {
-									deps.bus.removeInFlightDraw(p.username, drawnCount);
+									if (remainingOpponentDraws > 0) {
+										deps.bus.removeInFlightDraw(p.username, remainingOpponentDraws);
+										remainingOpponentDraws = 0;
+									}
 									for (const cardId of cardIds) {
 										deps.cardRegistry.removeEntry(cardId);
 										opponentDrawFlightOwners.delete(cardId);

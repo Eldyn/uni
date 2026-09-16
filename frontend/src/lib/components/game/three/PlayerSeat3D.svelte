@@ -29,6 +29,8 @@
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { gsap } from "gsap";
 	import { CARD_HEIGHT } from "./units";
 
 	let {
@@ -137,8 +139,8 @@
 		effectiveArcMode === "overhead"
 			? [0, AVATAR_HEIGHT, 0]
 			: effectiveArcMode === "cards-outer"
-				? [0, AVATAR_HEIGHT, ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.16]
-				: [0, AVATAR_HEIGHT, Math.max(0.28, ringRadiusWorld - (CARD_HEIGHT * cardScale) / 2 - 0.12)]
+				? [0, AVATAR_HEIGHT, ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.1]
+				: [0, AVATAR_HEIGHT, Math.max(0.2, ringRadiusWorld - (CARD_HEIGHT * cardScale) / 2 - 0.06)]
 	);
 
 	let overheadRadius = $derived(Math.max(38, Math.round(avatarPx * 0.88)));
@@ -146,24 +148,25 @@
 		effectiveArcMode === "overhead"
 			? describeArc(0, 0, overheadRadius, -165, -15, 1)
 			: effectiveArcMode === "cards-outer"
-				? describeArc(0, -50, 100, 140, 40, 0)
-				: describeArc(0, -35, 75, 145, 35, 0)
+				? describeArc(0, -70, 70, 145, 35, 0)
+				: describeArc(0, -45, 45, 145, 35, 0)
 	);
 	let arcViewBox = $derived(
 		effectiveArcMode === "overhead"
 			? "-90 -65 180 130"
 			: effectiveArcMode === "cards-outer"
-				? "-100 -40 200 80"
-				: "-80 -30 160 60"
+				? "-80 -40 160 50"
+				: "-60 -30 120 40"
 	);
 	let arcWidth = $derived(
-		effectiveArcMode === "overhead" ? 180 : effectiveArcMode === "cards-outer" ? 200 : 160
+		effectiveArcMode === "overhead" ? 180 : effectiveArcMode === "cards-outer" ? 160 : 120
 	);
 	let arcHeight = $derived(
-		effectiveArcMode === "overhead" ? 130 : effectiveArcMode === "cards-outer" ? 80 : 60
+		effectiveArcMode === "overhead" ? 130 : effectiveArcMode === "cards-outer" ? 50 : 40
 	);
-	let labelFontSize = $derived(Math.round(labelEm * 9.5));
+	let labelFontSize = $derived(Math.round(labelEm * 14));
 
+	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let registeredKeys = new Set<string>();
 
 	$effect(() => {
@@ -201,12 +204,48 @@
 			);
 
 			if (!cardRegistry.isInTransit(key)) {
-				pose.spinDeg = spinDeg;
 				pose.scale = cardScale;
 				pose.turned = true;
 			}
 
-			cardRegistry.applyIdlePoseIfNotInTransit(key);
+			const dx = Math.hypot(pose.x - worldX, pose.z - worldZ);
+			const dSpin = Math.abs(pose.spinDeg - spinDeg);
+			const isFlightTransit = cardRegistry.isInTransit(key) && !displacementTweens.has(key);
+
+			if (!isFlightTransit) {
+				if (dx > 0.01 || dSpin > 0.5) {
+					displacementTweens.get(key)?.kill();
+					const duration = storeAnimation.enabled
+						? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)
+						: 0;
+					if (duration === 0) {
+						pose.x = worldX;
+						pose.y = worldY;
+						pose.z = worldZ;
+						pose.spinDeg = spinDeg;
+						cardRegistry.markInTransit(key, false);
+						displacementTweens.delete(key);
+					} else {
+						cardRegistry.markInTransit(key, true);
+						const tween = gsap.to(pose, {
+							x: worldX,
+							y: worldY,
+							z: worldZ,
+							spinDeg,
+							duration,
+							ease: "power2.out",
+							onComplete: () => {
+								displacementTweens.delete(key);
+								cardRegistry.markInTransit(key, false);
+								cardRegistry.applyIdlePoseIfNotInTransit(key);
+							}
+						});
+						displacementTweens.set(key, tween);
+					}
+				} else if (!cardRegistry.isInTransit(key)) {
+					cardRegistry.applyIdlePoseIfNotInTransit(key);
+				}
+			}
 
 			cardRegistry.setDecoration(key, {
 				dimmed
@@ -215,6 +254,8 @@
 
 		for (const prevKey of registeredKeys) {
 			if (!currentKeys.has(prevKey)) {
+				displacementTweens.get(prevKey)?.kill();
+				displacementTweens.delete(prevKey);
 				cardRegistry.removeEntry(prevKey);
 			}
 		}
@@ -222,6 +263,10 @@
 	});
 
 	onDestroy(() => {
+		for (const tween of displacementTweens.values()) {
+			tween.kill();
+		}
+		displacementTweens.clear();
 		if (!cardRegistry) return;
 		for (const key of registeredKeys) {
 			cardRegistry.removeEntry(key);
@@ -262,7 +307,7 @@
 			class="seat-label seat-arc-container"
 			class:is-shown={showLabel}
 			class:is-active={isActive}
-			style="--player-accent: {color};"
+			style="--player-accent: {color}; {effectiveArcMode !== 'overhead' ? `transform: rotate(${(seat.rotationY * 180) / Math.PI}deg);` : ''}"
 		>
 			<svg
 				class="seat-arc-svg"
@@ -274,7 +319,7 @@
 					<path id={pathId} d={arcD} />
 				</defs>
 				<path class="seat-arc-rail" d={arcD} />
-				<text class="seat-arc-text" font-size={labelFontSize} dy="-3" text-anchor="middle">
+				<text class="seat-arc-text" font-size={labelFontSize} dy="-4" text-anchor="middle">
 					<textPath href="#{pathId}" startOffset="50%" text-anchor="middle">
 						{displayName}
 					</textPath>
@@ -394,8 +439,6 @@
 		stroke: var(--player-accent, #00ffcc);
 		stroke-dasharray: none;
 		stroke-width: 2px;
-		filter: drop-shadow(0 0 4px var(--player-accent, #00ffcc))
-			drop-shadow(0 0 8px var(--player-accent, #00ffcc));
 	}
 
 	.seat-arc-text {
@@ -405,14 +448,12 @@
 		user-select: none;
 		text-anchor: middle;
 		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
-		transition:
-			fill 0.3s ease,
-			filter 0.3s ease;
+		transition: fill 0.3s ease;
 	}
 
 	.seat-arc-container.is-active .seat-arc-text {
 		font-weight: bold;
-		filter: drop-shadow(0 0 3px var(--player-accent, #00ffcc))
-			drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+		fill: var(--player-accent, #ffffff);
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
 	}
 </style>

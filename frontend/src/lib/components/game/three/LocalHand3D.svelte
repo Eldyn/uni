@@ -286,7 +286,7 @@
 					const isFlightTransit = cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
 
 					if (!isFlightTransit) {
-						if (dx > 0.01 && (draggingId !== null || prevOrderIdsChanged)) {
+						if (dx > 0.01) {
 							displacementTweens.get(idString)?.kill();
 							const duration = storeAnimation.enabled
 								? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)

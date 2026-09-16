@@ -281,7 +281,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			arcMode: "cards-outer"
 		});
 
-		expect(svg?.getAttribute("viewBox")).toBe("-100 -40 200 80");
+		expect(svg?.getAttribute("viewBox")).toBe("-80 -40 160 50");
 
 		rerender({
 			player: { username: "arc_tester", card_count: 1, is_bot: false },
@@ -290,6 +290,6 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			arcMode: "cards-inner"
 		});
 
-		expect(svg?.getAttribute("viewBox")).toBe("-80 -30 160 60");
+		expect(svg?.getAttribute("viewBox")).toBe("-60 -30 120 40");
 	});
 });

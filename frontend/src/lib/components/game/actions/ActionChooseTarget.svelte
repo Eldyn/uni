@@ -1,11 +1,45 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
+
+	function autofocus(node: HTMLElement, enabled = true) {
+		if (enabled) {
+			requestAnimationFrame(() => {
+				node.focus();
+			});
+		}
+	}
+
+	let targetList = $derived.by(() => {
+		if (Array.isArray(storeGame.actionContext)) {
+			return storeGame.actionContext as string[];
+		}
+		return storeGame.players
+			.filter((p) => p.username !== storeGame.localPlayer?.username)
+			.map((p) => p.username);
+	});
 </script>
 
 {#if storeGame.actionRequired === Action.ChooseTarget}
 	<div class="inline-action-container">
 		<div class="cute-bubble pixel-corners">
 			<h2 class="choose-target-text">Select a Target!</h2>
+			{#if targetList.length > 0}
+				<div class="target-buttons">
+					{#each targetList as username, i (username)}
+						<button
+							type="button"
+							use:autofocus={i === 0}
+							class="btn pixel-corners target-button"
+							disabled={storeGame.isActionPending}
+							onclick={() => {
+								storeGame.submitInput(username);
+							}}
+						>
+							{username}
+						</button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -17,7 +51,7 @@
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 200;
-		pointer-events: none;
+		pointer-events: auto;
 	}
 
 	.cute-bubble {
@@ -27,6 +61,10 @@
 		text-align: center;
 		box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.4);
 		animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
 	}
 
 	@keyframes bounceIn {
@@ -47,5 +85,19 @@
 		font-size: 1.2rem;
 		text-transform: uppercase;
 		text-shadow: 2px 2px 0px var(--pixel-shadow);
+	}
+
+	.target-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		justify-content: center;
+	}
+
+	.target-button {
+		padding: 8px 16px;
+		font-size: 14px;
+		font-weight: bold;
+		border: 3px solid var(--pixel-shadow);
 	}
 </style>

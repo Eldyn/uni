@@ -10,6 +10,12 @@
 		const { rig, placement } = layout.geometry;
 		return worldToScreenPercent(rig, placement.drawPileX, placement.drawPileZ);
 	});
+
+	function autofocus(node: HTMLElement) {
+		requestAnimationFrame(() => {
+			node.focus();
+		});
+	}
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
@@ -22,6 +28,8 @@
 		<div class="prompt-badge pixel-corners">You drew a playable card!</div>
 		<div class="action-buttons-group">
 			<button
+				type="button"
+				use:autofocus
 				class="btn pixel-corners sized-btn play-btn"
 				onclick={() => {
 					// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
