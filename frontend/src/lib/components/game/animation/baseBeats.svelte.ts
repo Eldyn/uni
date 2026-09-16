@@ -9,6 +9,7 @@
  */
 
 import { storeGame, Action, type CardType } from "$stores/game.svelte";
+import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
@@ -425,7 +426,11 @@ export function createBaseBeatsWatcher(deps: {
 					const isPlayDrawn = deps.bus.pendingLocalPlayDrawnId === top.id;
 					if (isPlayDrawn) {
 						deps.bus.setPendingLocalPlayDrawnId(null);
-						const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+						const [px, py, pz] = drawPileTopPose(
+							placement,
+							prevDrawPileSize ?? 0,
+							storeRenderSettings.drawPileThickness
+						);
 						deps.cardRegistry.clearDecoration(String(top.id));
 						deps.cardRegistry.seedPose(String(top.id), {
 							x: px,
@@ -658,7 +663,8 @@ export function createBaseBeatsWatcher(deps: {
 								});
 								const [px, py, pz] = drawPileTopPose(
 									placement,
-									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0)
+									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0),
+									storeRenderSettings.drawPileThickness
 								);
 								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
@@ -703,7 +709,11 @@ export function createBaseBeatsWatcher(deps: {
 									type: card.type,
 									value: card.value
 								});
-								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								const [px, py, pz] = drawPileTopPose(
+									placement,
+									prevDrawPileSize ?? 0,
+									storeRenderSettings.drawPileThickness
+								);
 								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
 									x: px,
@@ -738,7 +748,11 @@ export function createBaseBeatsWatcher(deps: {
 							const frontPose = deps.getOpponentFrontPose
 								? deps.getOpponentFrontPose(p.username)
 								: { position: deps.getOpponentSeatAnchor(p.username), spinDeg: 0 };
-							const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+							const [px, py, pz] = drawPileTopPose(
+								placement,
+								prevDrawPileSize ?? 0,
+								storeRenderSettings.drawPileThickness
+							);
 
 							deps.cardRegistry.clearDecoration(cardId);
 							deps.cardRegistry.seedPose(cardId, {
@@ -803,7 +817,11 @@ export function createBaseBeatsWatcher(deps: {
 									slotSpinDegs.push(deps.getOpponentSeatRotationDeg?.(p.username) ?? 0);
 								}
 
-								const [px, py, pz] = drawPileTopPose(placement, prevDrawPileSize ?? 0);
+								const [px, py, pz] = drawPileTopPose(
+									placement,
+									prevDrawPileSize ?? 0,
+									storeRenderSettings.drawPileThickness
+								);
 								deps.cardRegistry.clearDecoration(cardId);
 								deps.cardRegistry.seedPose(cardId, {
 									x: px,

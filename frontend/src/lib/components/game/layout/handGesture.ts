@@ -48,6 +48,52 @@ export function findNearestSlotIndex(slots: SlotX[], draggedX: number): number {
 	return targetIndex;
 }
 
+/**
+ * Finds the slot index to exchange with during a drag.
+ * Requires the dragged card to cover at least `threshold` (default 0.75, i.e. 75%)
+ * of the distance to the neighbor slot before triggering an exchange.
+ * This prevents exchanging too early and provides natural hysteresis so cards
+ * do not flicker between slots.
+ */
+export function findReorderTargetIndex(
+	slots: SlotX[],
+	currentIndex: number,
+	draggedX: number,
+	threshold = 0.8
+): number {
+	if (slots.length <= 1 || currentIndex < 0 || currentIndex >= slots.length) {
+		return Math.max(0, Math.min(slots.length - 1, currentIndex));
+	}
+
+	let targetIndex = currentIndex;
+
+	// Check dragging right
+	while (targetIndex < slots.length - 1) {
+		const currX = slots[targetIndex].x;
+		const nextX = slots[targetIndex + 1].x;
+		const triggerX = currX + threshold * (nextX - currX);
+		if (draggedX >= triggerX - 1e-5) {
+			targetIndex++;
+		} else {
+			break;
+		}
+	}
+
+	// Check dragging left
+	while (targetIndex > 0) {
+		const currX = slots[targetIndex].x;
+		const prevX = slots[targetIndex - 1].x;
+		const triggerX = currX - threshold * (currX - prevX);
+		if (draggedX <= triggerX + 1e-5) {
+			targetIndex--;
+		} else {
+			break;
+		}
+	}
+
+	return targetIndex;
+}
+
 /** `orderIds` with the id at `fromIndex` moved to `toIndex`, everything else
  *  keeping its relative order. Returns the SAME array reference (no new copy)
  *  when the indices already match, so a caller can skip a reactive update. */

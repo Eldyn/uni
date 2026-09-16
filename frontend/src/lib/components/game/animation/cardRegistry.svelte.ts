@@ -130,6 +130,20 @@ export class CardRegistry {
 		return this.#inTransitIds.has(cardId);
 	}
 
+	/** Explicitly mark a card as in-transit or idle (e.g. during hand drag/displacement tweens). */
+	markInTransit(cardId: string, inTransit: boolean): void {
+		if (inTransit) {
+			this.#inTransitIds.add(cardId);
+		} else {
+			this.#inTransitIds.delete(cardId);
+		}
+	}
+
+	/** Returns the live FlightPose for a card id if registered. */
+	getPose(cardId: string): FlightPose | undefined {
+		return this.#poses.get(cardId);
+	}
+
 	/** Applies this card's registered pose-provider's result directly (no
 	 *  tween) — called by an owner's own reactive layout effect for every card
 	 *  it owns, every time that layout recomputes, but only takes effect while

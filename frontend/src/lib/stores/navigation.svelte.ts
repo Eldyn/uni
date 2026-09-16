@@ -163,7 +163,7 @@ class StoreNavigation {
 		// after any in-app navigation lands on that `null` entry, we'd have
 		// nothing to restore from and the *next* back would skip straight past
 		// the app (closing the tab/going to the real previous page).
-		window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
+		window.history.replaceState(this.#historyState, "", pathForScreen(this.current) + window.location.search);
 		window.addEventListener("popstate", this.#onPopState);
 
 		ws.onOpen(() => {

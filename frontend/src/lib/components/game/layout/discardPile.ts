@@ -145,9 +145,13 @@ export function previewDiscardLanding(
 		return { entry: last, index, z: discardStackZ(index, history.length) };
 	}
 	const entry = discardEntryFor(card, (last?.seq ?? 0) + 1, baseRotationDeg);
+	const currentTopZ =
+		history.length > 0 ? discardStackZ(history.length - 1, history.length) : 0;
 	const nextLength = Math.min(history.length + 1, cap);
 	const index = nextLength - 1;
-	return { entry, index, z: discardStackZ(index, nextLength) };
+	const nominalZ = discardStackZ(index, nextLength);
+	const z = Math.max(nominalZ, currentTopZ + DISCARD_STACK_STEP);
+	return { entry, index, z };
 }
 
 const WILD_VALUES = new Set(["jolly", "jolly_draw4"]);

@@ -93,13 +93,14 @@ export function computeDrawPileCountAndStep(
  */
 export function drawPileTopPose(
 	placement: BoardPlacement,
-	preDrawVisibleStackSize: number
+	preDrawVisibleStackSize: number,
+	mode: "full" | "capped" = "capped"
 ): [number, number, number] {
-	const visibleSize = visibleDrawPileStackSize(preDrawVisibleStackSize);
-	const topIndex = Math.max(0, visibleSize - 1);
+	const { renderedCount, stepY } = computeDrawPileCountAndStep(preDrawVisibleStackSize, mode);
+	const topIndex = Math.max(0, renderedCount - 1);
 	return [
 		placement.drawPileX,
-		PILE_BASE_HEIGHT + drawPileStackZ(topIndex, visibleSize),
+		PILE_BASE_HEIGHT + topIndex * stepY,
 		placement.drawPileZ - topIndex * PILE_PEEK_Z * placement.drawPileScale
 	];
 }

@@ -4,6 +4,7 @@ import {
 	pastDragThreshold,
 	computeScrollEm,
 	findNearestSlotIndex,
+	findReorderTargetIndex,
 	computeReorderedIds
 } from "$components/game/layout/handGesture";
 
@@ -76,5 +77,42 @@ describe("computeReorderedIds", () => {
 
 	it("leaves a single-element list unchanged", () => {
 		expect(computeReorderedIds([7], 0, 0)).toEqual([7]);
+	});
+});
+
+describe("findReorderTargetIndex", () => {
+	const slots = [{ x: 0 }, { x: 4 }, { x: 8 }, { x: 12 }];
+
+	it("returns current index when movement is within threshold", () => {
+		// Moving right from 0 towards 4: trigger is 0 + 0.8 * 4 = 3.2
+		expect(findReorderTargetIndex(slots, 0, 0)).toBe(0);
+		expect(findReorderTargetIndex(slots, 0, 2.0)).toBe(0);
+		expect(findReorderTargetIndex(slots, 0, 3.19)).toBe(0);
+	});
+
+	it("triggers reorder once threshold (80%) is crossed", () => {
+		expect(findReorderTargetIndex(slots, 0, 3.2)).toBe(1);
+		expect(findReorderTargetIndex(slots, 0, 3.5)).toBe(1);
+	});
+
+	it("provides hysteresis preventing early reverse swap", () => {
+		// At slot 1 (x = 4), moving left towards slot 0 (x = 0):
+		// trigger is 4 - 0.8 * (4 - 0) = 0.8
+		// Moving right towards slot 2 (x = 8): trigger is 4 + 0.8 * 4 =
+		expect(findReorderTargetIndex(slots, 1, 3.0)).toBe(1);
+		expect(findReorderTargetIndex(slots, 1, 1.0)).toBe(1);
+		expect(findReorderTargetIndex(slots, 1, 0.8)).toBe(0);
+		expect(findReorderTargetIndex(slots, 1, 0.5)).toBe(0);
+	});
+
+	it("steps across multiple slots when dragged far", () => {
+		expect(findReorderTargetIndex(slots, 0, 10.0)).toBe(2);
+		expect(findReorderTargetIndex(slots, 0, 15.0)).toBe(3);
+	});
+
+	it("handles boundaries and single slot", () => {
+		expect(findReorderTargetIndex([{ x: 0 }], 0, 10)).toBe(0);
+		expect(findReorderTargetIndex(slots, -1, 4)).toBe(0);
+		expect(findReorderTargetIndex(slots, 10, 4)).toBe(3);
 	});
 });

@@ -50,6 +50,14 @@ describe("drawPileTopPose", () => {
 		expect(y).toBe(PILE_BASE_HEIGHT);
 		expect(z).toBe(placement.drawPileZ);
 	});
+
+	it("sits at the full stack top when mode is full", () => {
+		const { renderedCount, stepY } = computeDrawPileCountAndStep(40, "full");
+		const [x, y, z] = drawPileTopPose(placement, 40, "full");
+		expect(x).toBe(placement.drawPileX);
+		expect(y).toBe(PILE_BASE_HEIGHT + (renderedCount - 1) * stepY);
+		expect(z).toBe(placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
+	});
 });
 
 describe("drawPileStackZ", () => {

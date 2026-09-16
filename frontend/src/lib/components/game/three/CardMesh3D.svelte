@@ -194,8 +194,9 @@ uniform vec4 uUvRectBack;
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
-	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
-	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * halfDimension);
+	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
+	let cardDimension = $derived(Math.max(CARD_WIDTH, CARD_HEIGHT) / 2);
+	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * cardDimension * animatedScale);
 	// Flips the card by 180° when rotation is upside down (|angle| > 90°),
 	// keeping values like 6 vs 9 legible without breaking rectangular geometry.
 	let valueFlipRad = $derived(computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues));
@@ -205,7 +206,6 @@ uniform vec4 uUvRectBack;
 		position[1] + CARD_HOVER_LIFT * liftT + flipLift,
 		position[2] + hoverPush[1] * liftT
 	]);
-	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
 	let shadowPosition = $derived<[number, number, number]>(
 		shadow
 			? [-shadow.offsetX / animatedScale, 0, (-shadow.dropZ - flipLift) / animatedScale]

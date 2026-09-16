@@ -23,8 +23,9 @@
 	import { HTML } from "@threlte/extras";
 	import { gsap } from "gsap";
 	import { storeGame, type Card } from "$stores/game.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
-	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
+	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { neighborPushEm as falloffPushEm } from "../layout/handHoverFalloff";
@@ -38,6 +39,7 @@
 		pastDragThreshold,
 		computeScrollEm,
 		findNearestSlotIndex,
+		findReorderTargetIndex,
 		computeReorderedIds
 	} from "../layout/handGesture";
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
@@ -192,6 +194,26 @@
 		bus.setLocalHandSnapshot({ orderIds, scrollEm: line.scrollEm, maxHalfSpanEm });
 	});
 
+	let draggingId = $state<number | null>(null);
+	let dragStartCardWorldX = 0;
+	let dragStartCardWorldZ = 0;
+	let dragWorldX = $state(0);
+	let dragWorldZ = $state(0);
+	let dragIndex = 0;
+	let settlingCardId: string | null = null;
+	const displacementTweens = new Map<string, gsap.core.Tween>();
+	let prevOrderIds: number[] = [];
+
+	$effect(() => {
+		return () => {
+			for (const tween of displacementTweens.values()) {
+				tween.kill();
+			}
+			displacementTweens.clear();
+			settleTween?.kill();
+		};
+	});
+
 	// One registry entry per hand card, forever: a real entry never
 	// disappears while the card exists. This effect keeps every
 	// current hand card's pose-provider and decoration in sync with this
@@ -201,6 +223,18 @@
 	// back control on completion (CardRegistry.finishBeat).
 	$effect(() => {
 		const snapshot = { orderIds, scrollEm: line.scrollEm, maxHalfSpanEm };
+		const prevOrderIdsChanged =
+			prevOrderIds.length === orderIds.length &&
+			prevOrderIds.some((id, idx) => id !== orderIds[idx]);
+
+		const currentCardIdSet = new Set(orderedCards.map((c) => String(c.id)));
+		for (const [id, tween] of displacementTweens.entries()) {
+			if (!currentCardIdSet.has(id)) {
+				tween.kill();
+				displacementTweens.delete(id);
+			}
+		}
+
 		for (const [i, card] of orderedCards.entries()) {
 			const idString = String(card.id);
 			const isDragging = draggingId === card.id;
@@ -208,32 +242,79 @@
 			const slot = slots[i];
 			const neighborPush = isDragging ? 0 : neighborPushEm(i);
 
+			const [slotX, slotY, slotZ] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
+
 			cardRegistry.ensureEntry(
 				idString,
-				(() => {
-					const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
-					return {
-						x: isDragging ? x + dragOffsetX : x,
-						y,
-						z: isDragging ? z + dragOffsetZ : z,
-						spinDeg: 0,
-						flipDeg: 0,
-						scale: placement.handScale,
-						turned: false,
-						opacity: 1
-					};
-				})(),
+				{
+					x: isDragging ? dragWorldX : slotX,
+					y: isDragging ? DRAG_LIFT : slotY,
+					z: isDragging ? dragWorldZ : slotZ,
+					spinDeg: 0,
+					flipDeg: 0,
+					scale: placement.handScale,
+					turned: false,
+					opacity: 1
+				},
 				{ type: card.type, value: card.value }
 			);
+
 			cardRegistry.setPoseProvider(idString, () => {
 				const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
 				return [
-					isDragging ? x + dragOffsetX : x,
-					y,
-					isDragging ? z + dragOffsetZ : z
+					isDragging ? dragWorldX : x,
+					isDragging ? DRAG_LIFT : y,
+					isDragging ? dragWorldZ : z
 				];
 			});
-			cardRegistry.applyIdlePoseIfNotInTransit(idString);
+
+			if (isDragging) {
+				const pose = cardRegistry.getPose(idString);
+				if (pose) {
+					pose.x = dragWorldX;
+					pose.y = DRAG_LIFT;
+					pose.z = dragWorldZ;
+				}
+			} else {
+				const pose = cardRegistry.getPose(idString);
+				if (pose) {
+					const dx = Math.abs(pose.x - slotX);
+					const isFlightTransit = cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
+
+					if (!isFlightTransit) {
+						if (dx > 0.01 && (draggingId !== null || prevOrderIdsChanged)) {
+							displacementTweens.get(idString)?.kill();
+							const duration = storeAnimation.enabled
+								? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)
+								: 0;
+							if (duration === 0) {
+								pose.x = slotX;
+								pose.y = slotY;
+								pose.z = slotZ;
+								cardRegistry.markInTransit(idString, false);
+								displacementTweens.delete(idString);
+							} else {
+								cardRegistry.markInTransit(idString, true);
+								const tween = gsap.to(pose, {
+									x: slotX,
+									y: slotY,
+									z: slotZ,
+									duration,
+									ease: "power2.out",
+									onComplete: () => {
+										displacementTweens.delete(idString);
+										cardRegistry.markInTransit(idString, false);
+										cardRegistry.applyIdlePoseIfNotInTransit(idString);
+									}
+								});
+								displacementTweens.set(idString, tween);
+							}
+						} else if (!cardRegistry.isInTransit(idString)) {
+							cardRegistry.applyIdlePoseIfNotInTransit(idString);
+						}
+					}
+				}
+			}
 
 			const lifted =
 				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
@@ -257,6 +338,8 @@
 				highlight: isSelected ? {} : undefined
 			});
 		}
+
+		prevOrderIds = [...orderIds];
 	});
 
 	// A card that left the hand (played) can't stay selected, or the discard
@@ -346,10 +429,6 @@
 	// this, a scroll-picked hoveredId would be mistaken for a real hover on
 	// the next wheel tick and get carried forward instead of recentered.
 	let pointerOverHand = $state(false);
-	let draggingId = $state<number | null>(null);
-	let dragOffsetX = $state(0);
-	let dragOffsetZ = $state(0);
-	let dragIndex = 0;
 	let gestureCardId: number | null = null;
 	let gestureIsReorder = false;
 	let gestureMoved = false;
@@ -411,12 +490,19 @@
 	function startGesture(cardId: number, index: number, event: unknown) {
 		settleTween?.kill();
 		settleTween = null;
+		if (settlingCardId) {
+			cardRegistry.markInTransit(settlingCardId, false);
+			cardRegistry.applyIdlePoseIfNotInTransit(settlingCardId);
+			settlingCardId = null;
+		}
 		gestureCardId = cardId;
 		gestureIsReorder = pointerMode.canHover || selectedId === cardId;
 		gestureMoved = false;
 		dragIndex = index;
-		dragOffsetX = 0;
-		dragOffsetZ = 0;
+		dragStartCardWorldX = slots[index] ? slots[index].x * handEmToWorld : 0;
+		dragStartCardWorldZ = placement.localSeatZ;
+		dragWorldX = dragStartCardWorldX;
+		dragWorldZ = dragStartCardWorldZ;
 		pointerStartX = clientXOf(event);
 		pointerStartY = clientYOf(event);
 		lastPointerX = pointerStartX;
@@ -448,22 +534,26 @@
 		hoveredId = null;
 		draggingId = gestureCardId;
 
-		const rawWorldX = slots[dragIndex].x * handEmToWorld + deltaPx * worldPerPixelX;
-		const rawWorldZ = placement.localSeatZ + deltaPy * worldPerPixelZ;
+		const rawWorldX = dragStartCardWorldX + deltaPx * worldPerPixelX;
+		const rawWorldZ = dragStartCardWorldZ + deltaPy * worldPerPixelZ;
 
 		const minWorldX = -rig.halfWidth + (CARD_WIDTH * placement.handScale) / 2;
 		const maxWorldX = rig.halfWidth - (CARD_WIDTH * placement.handScale) / 2;
 		const minWorldZ = rig.centerZ - rig.halfHeight + (CARD_HEIGHT * placement.handScale) / 2;
 		const maxWorldZ = rig.centerZ + rig.halfHeight - (CARD_HEIGHT * placement.handScale) / 2;
 
-		const clampedWorldX = Math.max(minWorldX, Math.min(maxWorldX, rawWorldX));
-		const clampedWorldZ = Math.max(minWorldZ, Math.min(maxWorldZ, rawWorldZ));
+		dragWorldX = Math.max(minWorldX, Math.min(maxWorldX, rawWorldX));
+		dragWorldZ = Math.max(minWorldZ, Math.min(maxWorldZ, rawWorldZ));
 
-		dragOffsetX = clampedWorldX - slots[dragIndex].x * handEmToWorld;
-		dragOffsetZ = clampedWorldZ - placement.localSeatZ;
+		const pose = cardRegistry.getPose(String(gestureCardId));
+		if (pose) {
+			pose.x = dragWorldX;
+			pose.y = DRAG_LIFT;
+			pose.z = dragWorldZ;
+		}
 
-		const draggedX = slots[dragIndex].x + dragOffsetX / handEmToWorld;
-		const targetIndex = findNearestSlotIndex(slots, draggedX);
+		const draggedX = dragWorldX / handEmToWorld;
+		const targetIndex = findReorderTargetIndex(slots, dragIndex, draggedX, 0.8);
 
 		if (targetIndex !== dragIndex) {
 			const displacedCardId = orderIds[targetIndex];
@@ -473,12 +563,7 @@
 			}
 			orderIds = computeReorderedIds(orderIds, dragIndex, targetIndex);
 			dragIndex = targetIndex;
-			// re-anchor so the reshuffled order doesn't jump under the pointer
-			pointerStartX = event.clientX;
-			dragOffsetX = 0;
 		}
-
-		cardRegistry.applyIdlePoseIfNotInTransit(String(gestureCardId));
 	}
 
 	// The pointer ends a gesture wherever it happens to be, which is rarely over
@@ -497,8 +582,6 @@
 
 		if (releasedId !== null && !hadMoved) {
 			draggingId = null;
-			dragOffsetX = 0;
-			dragOffsetZ = 0;
 			movementDelta = 0;
 			dragTiltDeg = 0;
 			onSelectionChange(selectedId === releasedId ? null : releasedId);
@@ -507,31 +590,49 @@
 
 		if (releasedId !== null && hadMoved) {
 			settleTween?.kill();
-			const offsets = { x: dragOffsetX, z: dragOffsetZ };
-			settleTween = gsap.to(offsets, {
-				x: 0,
-				z: 0,
-				duration: 0.15,
-				ease: "back.out",
-				onUpdate: () => {
-					dragOffsetX = offsets.x;
-					dragOffsetZ = offsets.z;
-					cardRegistry.applyIdlePoseIfNotInTransit(String(releasedId));
-				},
-				onComplete: () => {
-					draggingId = null;
-					dragOffsetX = 0;
-					dragOffsetZ = 0;
-					movementDelta = 0;
-					dragTiltDeg = 0;
-					settleTween = null;
-					cardRegistry.applyIdlePoseIfNotInTransit(String(releasedId));
+			const releasedCardIdStr = String(releasedId);
+			const pose = cardRegistry.getPose(releasedCardIdStr);
+			const targetSlotX = slots[dragIndex] ? slots[dragIndex].x * handEmToWorld : 0;
+			const targetSlotY = dragIndex * HAND_STACK_STEP;
+			const targetSlotZ = placement.localSeatZ;
+
+			const settleDuration = storeAnimation.enabled
+				? 0.18 / Math.max(0.1, storeAnimation.speedMultiplier)
+				: 0;
+
+			if (!pose || settleDuration === 0) {
+				if (pose) {
+					pose.x = targetSlotX;
+					pose.y = targetSlotY;
+					pose.z = targetSlotZ;
 				}
-			});
+				draggingId = null;
+				movementDelta = 0;
+				dragTiltDeg = 0;
+				cardRegistry.markInTransit(releasedCardIdStr, false);
+				cardRegistry.applyIdlePoseIfNotInTransit(releasedCardIdStr);
+			} else {
+				settlingCardId = releasedCardIdStr;
+				cardRegistry.markInTransit(releasedCardIdStr, true);
+				draggingId = null;
+				movementDelta = 0;
+				dragTiltDeg = 0;
+				settleTween = gsap.to(pose, {
+					x: targetSlotX,
+					y: targetSlotY,
+					z: targetSlotZ,
+					duration: settleDuration,
+					ease: "back.out(1.2)",
+					onComplete: () => {
+						settleTween = null;
+						cardRegistry.markInTransit(releasedCardIdStr, false);
+						cardRegistry.applyIdlePoseIfNotInTransit(releasedCardIdStr);
+						settlingCardId = null;
+					}
+				});
+			}
 		} else {
 			draggingId = null;
-			dragOffsetX = 0;
-			dragOffsetZ = 0;
 			movementDelta = 0;
 			dragTiltDeg = 0;
 		}

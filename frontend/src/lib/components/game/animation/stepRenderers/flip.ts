@@ -12,7 +12,7 @@ import type { RenderContext } from "../renderContext";
 // position tweens in move.ts/shake.ts already survive a skip. A
 // callback-based write would silently never run on skip, breaking the
 // skip-still-completes guarantee.
-export const FLIP_DURATION_S = 0.225;
+export const FLIP_DURATION_S = 0.18;
 const FLIP_EDGE_DEG = 90;
 
 export function flipRenderer(step: AnimationStep, ctx: RenderContext): gsap.core.Timeline {
