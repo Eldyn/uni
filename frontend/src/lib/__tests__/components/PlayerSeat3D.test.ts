@@ -272,7 +272,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		});
 
 		const svg = container.querySelector(".seat-arc-svg");
-		expect(svg?.getAttribute("viewBox")).toBe("-90 -65 180 130");
+		expect(svg?.getAttribute("viewBox")).toBe("-100 -70 200 140");
 
 		rerender({
 			player: { username: "arc_tester", card_count: 1, is_bot: false },
@@ -281,7 +281,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			arcMode: "cards-outer"
 		});
 
-		expect(svg?.getAttribute("viewBox")).toBe("-80 -40 160 50");
+		expect(svg?.getAttribute("viewBox")).toBe("-90 -50 180 60");
 
 		rerender({
 			player: { username: "arc_tester", card_count: 1, is_bot: false },
@@ -290,6 +290,6 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			arcMode: "cards-inner"
 		});
 
-		expect(svg?.getAttribute("viewBox")).toBe("-60 -30 120 40");
+		expect(svg?.getAttribute("viewBox")).toBe("-70 -40 140 50");
 	});
 });

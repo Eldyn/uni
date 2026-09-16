@@ -228,13 +228,15 @@ export function buildDrawBeats(args: {
 				payload: { turned: false, axis: "x" },
 				atS: flipAtS
 			});
+			const toAnchor = args.slotAnchorKeys?.[i] ?? localHandSlotAnchorKey(i);
 			steps.push({
 				op: "move",
 				target: cardId,
 				payload: {
-					to: localHandSlotAnchorKey(i),
+					to: toAnchor,
 					toScale: args.placement.handScale,
 					toSpinDeg: 0,
+					ease: "power2.out",
 					onComplete: args.onCardComplete ? () => args.onCardComplete!(i) : undefined
 				},
 				atS: flipAtS + FLIP_DURATION_S
@@ -297,7 +299,7 @@ export function createBaseBeatsWatcher(deps: {
 	let prevLocalHandIds: Set<number> = new Set();
 	let drawIdCounter = 0;
 	let lastLandingBaseDeg = 0;
-	let pendingLocalHandSlots = new Map<number, [number, number, number]>();
+	let pendingLocalHandSlots = new Map<string, [number, number, number]>();
 	let pendingOpponentSlots = new Map<string, [number, number, number]>();
 	let pendingOpponentPlayDrawn = new Map<string, { cardId: string }>();
 	// Which opponent a currently-flying multi-draw card id belongs to — its
@@ -349,18 +351,17 @@ export function createBaseBeatsWatcher(deps: {
 				if (name.startsWith("opponent-slot:")) {
 					return pendingOpponentSlots.get(name) ?? [0, 0, 0];
 				}
-				if (name.startsWith("local-hand-slot:")) {
-					const slotIndex = Number(name.slice("local-hand-slot:".length));
-					const handCount = storeGame.localPlayer?.card_count ?? (storeGame.localPlayer?.hand?.length ?? 0);
-					if (handCount > 0) {
-						return localHandSlotAnchor(
-							handCount,
-							slotIndex,
-							placement,
-							deps.bus.localHandSnapshot
-						);
-					}
-					return pendingLocalHandSlots.get(slotIndex) ?? [0, 0, placement.localSeatZ];
+				if (
+					name.startsWith("local-slot:") ||
+					name.startsWith("local-hand-slot:") ||
+					name.startsWith("local-draw-slot:")
+				) {
+					const cached = pendingLocalHandSlots.get(name);
+					if (cached) return cached;
+					const slotIndex = Number(name.slice(name.lastIndexOf(":") + 1));
+					const cachedByIndex = pendingLocalHandSlots.get(String(slotIndex));
+					if (cachedByIndex) return cachedByIndex;
+					return [0, 0, placement.localSeatZ];
 				}
 				throw new Error(`baseBeats: no resolver for anchor "${name}"`);
 			}
@@ -574,25 +575,33 @@ export function createBaseBeatsWatcher(deps: {
 				const slotIndex = handSnapshot.orderIds.length;
 				const handCount = handSnapshot.orderIds.length + 1;
 				const targetAnchor = localHandSlotAnchor(handCount, slotIndex, placement, handSnapshot);
-				pendingLocalHandSlots.set(slotIndex, targetAnchor);
+				const slotKey = `local-draw-slot:${keptCardId}`;
+				pendingLocalHandSlots.set(slotKey, targetAnchor);
 
-				deps.cardRegistry.enqueue(
-					[
+				deps.cardRegistry
+					.enqueue(
 						[
-							{
-								op: "move",
-								target: String(keptCardId),
-								payload: {
-									to: localHandSlotAnchorKey(slotIndex),
-									toScale: placement.handScale,
-									toSpinDeg: 0
+							[
+								{
+									op: "move",
+									target: String(keptCardId),
+									payload: {
+										to: slotKey,
+										toScale: placement.handScale,
+										toSpinDeg: 0,
+										ease: "power2.out",
+										onComplete: () => {
+											deps.bus.setPendingLocalPlayDrawnId(null);
+										}
+									}
 								}
-							}
-						]
-					],
-					resolveCardTarget
-				);
-				deps.bus.setPendingLocalPlayDrawnId(null);
+							]
+						],
+						resolveCardTarget
+					)
+					.finally(() => {
+						deps.bus.setPendingLocalPlayDrawnId(null);
+					});
 			}
 
 			function checkOpponentsKeptDrawn(): void {
@@ -715,17 +724,24 @@ export function createBaseBeatsWatcher(deps: {
 							// Every card sharing the single old "rightmost" anchor was
 							// the bug: every card in a multi-card draw converged on the
 							// exact same hand slot instead of fanning out into their own.
-							pendingLocalHandSlots = new Map(
-								newIds.map((_id, i) => [
-									i,
-									localHandSlotAnchor(
-										p.card_count,
-										p.card_count - newIds.length + i,
-										placement,
-										deps.bus.localHandSnapshot
-									)
-								])
-							);
+							pendingLocalHandSlots.clear();
+							const prevHandCount = localHand.length - newIds.length;
+							const slotAnchorKeys: string[] = [];
+							for (let i = 0; i < newIds.length; i++) {
+								const cardId = newIds[i];
+								const targetSlotIndex = prevHandCount + i;
+								const currentStepHandCount = prevHandCount + i + 1;
+								const slotKey = `local-draw-slot:${cardId}`;
+								slotAnchorKeys.push(slotKey);
+								const targetAnchor = localHandSlotAnchor(
+									currentStepHandCount,
+									targetSlotIndex,
+									placement,
+									deps.bus.localHandSnapshot
+								);
+								pendingLocalHandSlots.set(slotKey, targetAnchor);
+								pendingLocalHandSlots.set(String(i), targetAnchor);
+							}
 							const isLocalTurn = state.current_turn === p.username;
 							for (const cardId of newIds) {
 								const card = localHand.find((c) => c.id === cardId);
@@ -765,6 +781,7 @@ export function createBaseBeatsWatcher(deps: {
 										cardIds,
 										forLocalPlayer: true,
 										placement,
+										slotAnchorKeys,
 										onCardComplete: (index) => {
 											const id = newIds[index];
 											if (id !== undefined && remainingLocalDraws.has(id)) {

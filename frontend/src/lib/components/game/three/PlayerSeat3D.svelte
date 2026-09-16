@@ -143,28 +143,28 @@
 				: [0, AVATAR_HEIGHT, Math.max(0.2, ringRadiusWorld - (CARD_HEIGHT * cardScale) / 2 - 0.06)]
 	);
 
-	let overheadRadius = $derived(Math.max(38, Math.round(avatarPx * 0.88)));
+	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
 	let arcD = $derived(
 		effectiveArcMode === "overhead"
 			? describeArc(0, 0, overheadRadius, -165, -15, 1)
 			: effectiveArcMode === "cards-outer"
-				? describeArc(0, -70, 70, 145, 35, 0)
-				: describeArc(0, -45, 45, 145, 35, 0)
+				? describeArc(0, -75, 75, 145, 35, 0)
+				: describeArc(0, -50, 50, 145, 35, 0)
 	);
 	let arcViewBox = $derived(
 		effectiveArcMode === "overhead"
-			? "-90 -65 180 130"
+			? "-100 -70 200 140"
 			: effectiveArcMode === "cards-outer"
-				? "-80 -40 160 50"
-				: "-60 -30 120 40"
+				? "-90 -50 180 60"
+				: "-70 -40 140 50"
 	);
 	let arcWidth = $derived(
-		effectiveArcMode === "overhead" ? 180 : effectiveArcMode === "cards-outer" ? 160 : 120
+		effectiveArcMode === "overhead" ? 200 : effectiveArcMode === "cards-outer" ? 180 : 140
 	);
 	let arcHeight = $derived(
-		effectiveArcMode === "overhead" ? 130 : effectiveArcMode === "cards-outer" ? 50 : 40
+		effectiveArcMode === "overhead" ? 140 : effectiveArcMode === "cards-outer" ? 60 : 50
 	);
-	let labelFontSize = $derived(Math.round(labelEm * 14));
+	let labelFontSize = $derived(Math.round(labelEm * 18));
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let registeredKeys = new Set<string>();
@@ -302,11 +302,14 @@
 		</div>
 	</HTML>
 
-	<HTML position={arcAnchorPos} center pointerEvents="none">
+	<HTML position={arcAnchorPos} center pointerEvents="auto">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="seat-label seat-arc-container"
 			class:is-shown={showLabel}
 			class:is-active={isActive}
+			onpointerenter={() => (hovered = true)}
+			onpointerleave={() => (hovered = false)}
 			style="--player-accent: {color}; {effectiveArcMode !== 'overhead' ? `transform: rotate(${(seat.rotationY * 180) / Math.PI}deg);` : ''}"
 		>
 			<svg
@@ -319,7 +322,7 @@
 					<path id={pathId} d={arcD} />
 				</defs>
 				<path class="seat-arc-rail" d={arcD} />
-				<text class="seat-arc-text" font-size={labelFontSize} dy="-4" text-anchor="middle">
+				<text class="seat-arc-text" font-size={labelFontSize} dy="-9" text-anchor="middle">
 					<textPath href="#{pathId}" startOffset="50%" text-anchor="middle">
 						{displayName}
 					</textPath>
@@ -402,13 +405,17 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		padding: 10px;
+		margin: -10px;
 	}
 
 	.seat-arc-container {
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		pointer-events: none;
+		padding: 10px;
+		margin: -10px;
+		pointer-events: auto;
 		opacity: 0;
 		transition:
 			opacity 0.2s ease,
@@ -444,7 +451,7 @@
 	.seat-arc-text {
 		font-family: var(--tiny);
 		letter-spacing: 0.04em;
-		fill: var(--table-text, #ffffff);
+		fill: #ffffff;
 		user-select: none;
 		text-anchor: middle;
 		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
@@ -453,7 +460,7 @@
 
 	.seat-arc-container.is-active .seat-arc-text {
 		font-weight: bold;
-		fill: var(--player-accent, #ffffff);
+		fill: #ffffff;
 		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
 	}
 </style>
