@@ -256,13 +256,6 @@ uniform vec4 uUvRectBack;
 
 	let cardMaterial = $state<MeshBasicMaterial>();
 
-	$effect(() => {
-		if (cardMaterial) {
-			cardMaterial.userData.uUvRectFront = uUvRectFront;
-			cardMaterial.userData.uUvRectBack = uUvRectBack;
-		}
-	});
-
 	function handleBeforeCompile(shader: WebGLProgramParametersWithUniforms) {
 		uUvRectFront.set(
 			activeFront.u0,
@@ -287,6 +280,32 @@ uniform vec4 uUvRectBack;
 	function handleCustomProgramCacheKey() {
 		return CARD_SHADER_PROGRAM_KEY;
 	}
+
+	$effect(() => {
+		if (cardMaterial) {
+			if (cardMaterial.onBeforeCompile !== handleBeforeCompile) {
+				cardMaterial.onBeforeCompile = handleBeforeCompile;
+				cardMaterial.customProgramCacheKey = handleCustomProgramCacheKey;
+				cardMaterial.needsUpdate = true;
+			}
+			cardMaterial.userData.uUvRectFront = uUvRectFront;
+			cardMaterial.userData.uUvRectBack = uUvRectBack;
+			cardMaterial.onBeforeRender = () => {
+				uUvRectFront.set(
+					activeFront.u0,
+					activeFront.v0,
+					activeFront.u1 - activeFront.u0,
+					activeFront.v1 - activeFront.v0
+				);
+				uUvRectBack.set(
+					activeBack.u0,
+					activeBack.v0,
+					activeBack.u1 - activeBack.u0,
+					activeBack.v1 - activeBack.v0
+				);
+			};
+		}
+	});
 </script>
 
 <T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
@@ -328,6 +347,11 @@ uniform vec4 uUvRectBack;
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					bind:ref={cardMaterial}
+					oncreate={(mat) => {
+						mat.onBeforeCompile = handleBeforeCompile;
+						mat.customProgramCacheKey = handleCustomProgramCacheKey;
+						mat.needsUpdate = true;
+					}}
 					map={atlasTexture}
 					color={meshColor}
 					alphaTest={0.5}
@@ -335,8 +359,6 @@ uniform vec4 uUvRectBack;
 					depthWrite
 					toneMapped={false}
 					side={DoubleSide}
-					onBeforeCompile={handleBeforeCompile}
-					customProgramCacheKey={handleCustomProgramCacheKey}
 				/>
 			</T.Mesh>
 		</T.Group>
