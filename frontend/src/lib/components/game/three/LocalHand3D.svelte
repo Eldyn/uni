@@ -379,11 +379,7 @@
 	// missing leave event is what used to strand a dragged card in its lifted pose.
 	function endGesture() {
 		if (gestureCardId !== null && !gestureMoved) {
-			if (pointerMode.canHover) {
-				onPlay(gestureCardId);
-			} else {
-				onSelectionChange(selectedId === gestureCardId ? null : gestureCardId);
-			}
+			onSelectionChange(selectedId === gestureCardId ? null : gestureCardId);
 		}
 		gestureCardId = null;
 		gestureIsReorder = false;

@@ -198,4 +198,40 @@ describe("AccessibleHandControls", () => {
 		expect(screen.queryByRole("button", { name: "Play red 2" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Play red 4" })).not.toBeInTheDocument();
 	});
+
+	it("defaults focus to the center slot of the viewport when focusedId is null", async () => {
+		const bus = new CardBus();
+		storeGame.state!.players[0].hand = [
+			card(1), card(2), card(3), card(4), card(5)
+		];
+		storeGame.state!.players[0].card_count = 5;
+		bus.setLocalHandSnapshot({ orderIds: [1, 2, 3, 4, 5], scrollEm: 0, maxHalfSpanEm: 20 });
+
+		const { onFocusChange } = renderControls({ focusedId: null, bus });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(3);
+	});
+
+	it("starts arrow navigation from selectedId when focusedId is null", async () => {
+		storeGame.state!.players[0].hand = [
+			card(1), card(2), card(3), card(4), card(5)
+		];
+		storeGame.state!.players[0].card_count = 5;
+
+		const { onFocusChange } = renderControls({ focusedId: null, selectedId: 2 });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(3);
+	});
+
+	it("confirms play via window Enter when card is selected and focusedId is null", async () => {
+		storeGame.state!.players[0].hand = [card(1), card(2)];
+		storeGame.state!.players[0].card_count = 2;
+
+		const { onPlay } = renderControls({ focusedId: null, selectedId: 1 });
+		await fireEvent.keyDown(window, { key: "Enter" });
+
+		expect(onPlay).toHaveBeenCalledWith(1);
+	});
 });

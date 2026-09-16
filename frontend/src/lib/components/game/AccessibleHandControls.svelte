@@ -22,6 +22,7 @@
 <script lang="ts">
 	import { storeGame, type Card, type CardValue } from "$stores/game.svelte";
 	import type { CardBus } from "./card-bus.svelte";
+	import { computeHandLine, centerSlotIndex } from "./layout/handLine";
 
 	const VALUE_LABELS: Partial<Record<CardValue, string>> = {
 		skip: "skip",
@@ -105,8 +106,22 @@
 		confirmOrSelect(card);
 	}
 
-	function isOwnButtonFocused(): boolean {
-		return typeof document !== "undefined" && buttonEls.includes(document.activeElement as never);
+	function isOwnButtonEvent(event: KeyboardEvent): boolean {
+		return (
+			(typeof document !== "undefined" && buttonEls.includes(document.activeElement as never)) ||
+			buttonEls.includes(event.target as never)
+		);
+	}
+
+	function getDefaultFocusIndex(): number {
+		if (hand.length === 0) return -1;
+		const snapshot = bus?.localHandSnapshot;
+		if (snapshot && snapshot.maxHalfSpanEm > 0) {
+			const layout = computeHandLine(hand.length, snapshot.maxHalfSpanEm, snapshot.scrollEm);
+			const centerIdx = centerSlotIndex(layout);
+			if (centerIdx >= 0 && centerIdx < hand.length) return centerIdx;
+		}
+		return Math.floor((hand.length - 1) / 2);
 	}
 
 	// Global rather than per-button: see the file doc for why keying this off
@@ -119,7 +134,9 @@
 				return;
 			}
 
-			const currentIndex = focusedId === null ? -1 : hand.findIndex((c) => c.id === focusedId);
+			const currentOriginId = focusedId ?? selectedId ?? null;
+			const currentIndex = currentOriginId === null ? -1 : hand.findIndex((c) => c.id === currentOriginId);
+			const defaultIndex = getDefaultFocusIndex();
 
 			switch (event.key) {
 				case "ArrowRight":
@@ -128,7 +145,7 @@
 				case "l":
 				case "L":
 					event.preventDefault();
-					focusIndex(currentIndex === -1 ? 0 : currentIndex + 1);
+					focusIndex(currentIndex === -1 ? defaultIndex : currentIndex + 1);
 					return;
 				case "ArrowLeft":
 				case "a":
@@ -136,7 +153,7 @@
 				case "h":
 				case "H":
 					event.preventDefault();
-					focusIndex(currentIndex === -1 ? 0 : currentIndex - 1);
+					focusIndex(currentIndex === -1 ? defaultIndex : currentIndex - 1);
 					return;
 				case "Home":
 					event.preventDefault();
@@ -148,17 +165,17 @@
 					return;
 				case "PageDown":
 					event.preventDefault();
-					focusIndex((currentIndex === -1 ? 0 : currentIndex) + PAGE_JUMP_CARDS);
+					focusIndex((currentIndex === -1 ? defaultIndex : currentIndex) + PAGE_JUMP_CARDS);
 					return;
 				case "PageUp":
 					event.preventDefault();
-					focusIndex((currentIndex === -1 ? 0 : currentIndex) - PAGE_JUMP_CARDS);
+					focusIndex((currentIndex === -1 ? defaultIndex : currentIndex) - PAGE_JUMP_CARDS);
 					return;
 				case "Enter":
 				case " ": {
 					// A focused button already turns this same key into a native
 					// click — handling it here too would fire confirmOrSelect twice.
-					if (isOwnButtonFocused()) return;
+					if (isOwnButtonEvent(event)) return;
 					event.preventDefault();
 					const card = currentIndex === -1 ? undefined : hand[currentIndex];
 					if (card) confirmOrSelect(card);

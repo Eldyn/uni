@@ -12,6 +12,7 @@
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import {
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
@@ -35,6 +36,13 @@
 	// into the 3D hand so Tab/Arrow navigation lifts/highlights a card the same
 	// way a mouse hover does.
 	let keyboardFocusId = $state<number | null>(null);
+
+	function handleSelectionChange(id: number | null) {
+		selectedCardId = id;
+		if (id !== null && storeRenderSettings.syncCursorOnClick) {
+			keyboardFocusId = id;
+		}
+	}
 
 	// Nothing stays picked across a turn boundary; coming back to your turn with a
 	// stale card already armed is how you play a card you never meant to.
@@ -191,7 +199,7 @@
 <AccessibleHandControls
 	{bus}
 	selectedId={selectedCardId}
-	onSelectionChange={(id) => (selectedCardId = id)}
+	onSelectionChange={handleSelectionChange}
 	onPlay={play}
 	focusedId={keyboardFocusId}
 	onFocusChange={(id) => (keyboardFocusId = id)}
@@ -211,7 +219,7 @@
 				{geometry}
 				{colorFor}
 				selectedId={selectedCardId}
-				onSelectionChange={(id) => (selectedCardId = id)}
+				onSelectionChange={handleSelectionChange}
 				onPlay={play}
 				focusedId={keyboardFocusId}
 				onPointerHover={() => (keyboardFocusId = null)}
