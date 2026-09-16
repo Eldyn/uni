@@ -64,6 +64,13 @@ export class CardBus {
 		this.localHandSnapshot = snapshot;
 	}
 
+	/** Requested scroll offset in em from keyboard focus edge-creep. Consumed by LocalHand3D. */
+	handScrollRequest = $state<number | null>(null);
+
+	setHandScrollRequest(scrollEm: number): void {
+		this.handScrollRequest = scrollEm;
+	}
+
 	/** Card id currently stopped at the flip on the draw pile awaiting player's PlayDrawn input. */
 	pendingLocalPlayDrawnId = $state<number | null>(null);
 

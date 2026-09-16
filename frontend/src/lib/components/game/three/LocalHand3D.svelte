@@ -271,6 +271,14 @@
 	let slots = $derived(line.slots);
 	let worldPerPixelX = $derived((2 * rig.halfWidth) / viewport.width);
 
+	$effect(() => {
+		if (bus.handScrollRequest !== null) {
+			const target = bus.handScrollRequest;
+			bus.handScrollRequest = null;
+			scrollEm = Math.max(-line.maxScrollEm, Math.min(line.maxScrollEm, target));
+		}
+	});
+
 	// Cards dissolve as they pan toward the screen's true edges instead of
 	// being sliced off there — which also makes it visible that the row
 	// scrolls. Measured in the same em units the row's own slots use, against

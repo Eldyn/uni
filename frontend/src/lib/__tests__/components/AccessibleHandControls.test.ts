@@ -5,6 +5,7 @@ import AccessibleHandControls from "$components/game/AccessibleHandControls.svel
 import { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame, type Card } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
+import { storeRenderSettings } from "$stores/renderSettings.svelte";
 
 function card(id: number, overrides: Partial<Card> = {}): Card {
 	return { id, type: "red", value: "6", can_play: true, ...overrides };
@@ -233,5 +234,43 @@ describe("AccessibleHandControls", () => {
 		await fireEvent.keyDown(window, { key: "Enter" });
 
 		expect(onPlay).toHaveBeenCalledWith(1);
+	});
+
+	it("requests a half-screen scroll jump when focus moves past visible viewport edge", async () => {
+		const bus = new CardBus();
+		const setScrollSpy = vi.spyOn(bus, "setHandScrollRequest");
+		storeRenderSettings.autoScrollOnEdgeCreep = true;
+		storeGame.state!.players[0].hand = Array.from({ length: 10 }, (_, i) => card(i + 1));
+		storeGame.state!.players[0].card_count = 10;
+		bus.setLocalHandSnapshot({
+			orderIds: Array.from({ length: 10 }, (_, i) => i + 1),
+			scrollEm: 0,
+			maxHalfSpanEm: 8
+		});
+
+		const { onFocusChange } = renderControls({ focusedId: 8, bus });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(9);
+		expect(setScrollSpy).toHaveBeenCalledWith(6);
+	});
+
+	it("does not request scroll jump when autoScrollOnEdgeCreep is disabled", async () => {
+		const bus = new CardBus();
+		const setScrollSpy = vi.spyOn(bus, "setHandScrollRequest");
+		storeRenderSettings.autoScrollOnEdgeCreep = false;
+		storeGame.state!.players[0].hand = Array.from({ length: 10 }, (_, i) => card(i + 1));
+		storeGame.state!.players[0].card_count = 10;
+		bus.setLocalHandSnapshot({
+			orderIds: Array.from({ length: 10 }, (_, i) => i + 1),
+			scrollEm: 0,
+			maxHalfSpanEm: 8
+		});
+
+		const { onFocusChange } = renderControls({ focusedId: 8, bus });
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).toHaveBeenCalledWith(9);
+		expect(setScrollSpy).not.toHaveBeenCalled();
 	});
 });

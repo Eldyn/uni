@@ -23,6 +23,7 @@
 	import { storeGame, type Card, type CardValue } from "$stores/game.svelte";
 	import type { CardBus } from "./card-bus.svelte";
 	import { computeHandLine, centerSlotIndex } from "./layout/handLine";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 
 	const VALUE_LABELS: Partial<Record<CardValue, string>> = {
 		skip: "skip",
@@ -94,6 +95,24 @@
 		const card = hand[clamped];
 		onFocusChange(card.id);
 		buttonEls[clamped]?.focus({ preventScroll: true });
+
+		if (storeRenderSettings.autoScrollOnEdgeCreep && bus && bus.localHandSnapshot) {
+			const snapshot = bus.localHandSnapshot;
+			if (snapshot.maxHalfSpanEm > 0) {
+				const layout = computeHandLine(hand.length, snapshot.maxHalfSpanEm, snapshot.scrollEm);
+				const slot = layout.slots[clamped];
+				if (slot) {
+					const spacingEm = layout.spacingEm;
+					const visibleCardCount = Math.floor((2 * snapshot.maxHalfSpanEm) / spacingEm);
+					const jumpEm = Math.floor(visibleCardCount / 2) * spacingEm;
+					if (slot.x > snapshot.maxHalfSpanEm) {
+						bus.setHandScrollRequest(snapshot.scrollEm + jumpEm);
+					} else if (slot.x < -snapshot.maxHalfSpanEm) {
+						bus.setHandScrollRequest(snapshot.scrollEm - jumpEm);
+					}
+				}
+			}
+		}
 	}
 
 	// Kept alongside the global listener below (not instead of it) — a real
