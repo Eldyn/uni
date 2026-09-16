@@ -19,7 +19,7 @@
      each input already has. Order isn't rules-significant, so the drag target
      is a local-only $state array reconciled against the server's hand. -->
 <script lang="ts">
-	import { T } from "@threlte/core";
+	import { T, useTask } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
 	import { gsap } from "gsap";
 	import { storeGame, type Card } from "$stores/game.svelte";
@@ -135,6 +135,9 @@
 	const SHADOW_OFFSET = 0.09;
 	const SHADOW_OPACITY = 0.22;
 	const SHADOW_DROP_Y = HAND_STACK_STEP / 2;
+	const DRAG_SHADOW_OFFSET = 0.14;
+	const DRAG_SHADOW_DROP_Y = 0.2;
+	const DRAG_SHADOW_OPACITY = 0.28;
 
 	// The placement's hand scale also scales the slot spacing and lift push so
 	// the row's overlap proportions stay the same at any card size.
@@ -240,11 +243,16 @@
 				instant: isSelected,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
 				pushX: neighborPush * handEmToWorld,
-				hoverSpinDeg: tiltTowardPileDeg(slot.x),
+				hoverSpinDeg: isDragging ? dragTiltDeg : (lifted ? tiltTowardPileDeg(slot.x) : 0),
 				opacity: isSelected ? 1 : fade,
 				dimmed,
 				shadow: shadowTexture
-					? { texture: shadowTexture, offsetX: SHADOW_OFFSET, dropZ: SHADOW_DROP_Y, opacity: SHADOW_OPACITY }
+					? {
+							texture: shadowTexture,
+							offsetX: isDragging ? DRAG_SHADOW_OFFSET : SHADOW_OFFSET,
+							dropZ: isDragging ? DRAG_SHADOW_DROP_Y : SHADOW_DROP_Y,
+							opacity: isDragging ? DRAG_SHADOW_OPACITY : SHADOW_OPACITY
+						}
 					: undefined,
 				highlight: isSelected ? {} : undefined
 			});
@@ -348,6 +356,41 @@
 	let pointerStartX = 0;
 	let pointerStartY = 0;
 	let scrollStartEm = 0;
+	let movementDelta = 0;
+	let dragTiltDeg = $state(0);
+	let lastPointerX = 0;
+	let currentPointerX = 0;
+	let hasPointerMove = false;
+
+	useTask((delta) => {
+		if (draggingId !== null) {
+			const frameDelta = hasPointerMove
+				? (currentPointerX - lastPointerX) * worldPerPixelX
+				: 0;
+			lastPointerX = currentPointerX;
+			hasPointerMove = false;
+
+			// Balatro: lerp at speed ~25/frame toward current frame's actual pointer delta
+			const factor = Math.min(1, delta * 25);
+			movementDelta += (frameDelta - movementDelta) * factor;
+
+			// rotationZ = movementDelta * 20 (clamped to [-30, 30] deg)
+			dragTiltDeg = Math.max(-30, Math.min(30, movementDelta * 20));
+
+			const handle = cardRegistry.activeFlights.find((h) => h.id === String(draggingId));
+			if (handle?.decoration) {
+				handle.decoration.hoverSpinDeg = dragTiltDeg;
+			}
+		} else if (movementDelta !== 0 || dragTiltDeg !== 0) {
+			const factor = Math.min(1, delta * 25);
+			movementDelta += (0 - movementDelta) * factor;
+			dragTiltDeg = Math.max(-30, Math.min(30, movementDelta * 20));
+			if (Math.abs(dragTiltDeg) < 0.01) {
+				movementDelta = 0;
+				dragTiltDeg = 0;
+			}
+		}
+	});
 
 	function clientXOf(event: unknown): number {
 		const e = event as { clientX?: number; nativeEvent?: { clientX?: number } };
@@ -376,6 +419,11 @@
 		dragOffsetZ = 0;
 		pointerStartX = clientXOf(event);
 		pointerStartY = clientYOf(event);
+		lastPointerX = pointerStartX;
+		currentPointerX = pointerStartX;
+		hasPointerMove = false;
+		movementDelta = 0;
+		dragTiltDeg = 0;
 		scrollStartEm = line.scrollEm;
 		window.addEventListener("pointermove", handleGestureMove);
 		window.addEventListener("pointerup", endGesture, { once: true });
@@ -383,6 +431,8 @@
 
 	function handleGestureMove(event: PointerEvent) {
 		if (gestureCardId === null) return;
+		currentPointerX = event.clientX;
+		hasPointerMove = true;
 		const deltaPx = event.clientX - pointerStartX;
 		const deltaPy = event.clientY - pointerStartY;
 		if (!gestureMoved && Math.hypot(deltaPx, deltaPy) < DRAG_THRESHOLD_PX) return;
@@ -449,6 +499,8 @@
 			draggingId = null;
 			dragOffsetX = 0;
 			dragOffsetZ = 0;
+			movementDelta = 0;
+			dragTiltDeg = 0;
 			onSelectionChange(selectedId === releasedId ? null : releasedId);
 			return;
 		}
@@ -470,6 +522,8 @@
 					draggingId = null;
 					dragOffsetX = 0;
 					dragOffsetZ = 0;
+					movementDelta = 0;
+					dragTiltDeg = 0;
 					settleTween = null;
 					cardRegistry.applyIdlePoseIfNotInTransit(String(releasedId));
 				}
@@ -478,6 +532,8 @@
 			draggingId = null;
 			dragOffsetX = 0;
 			dragOffsetZ = 0;
+			movementDelta = 0;
+			dragTiltDeg = 0;
 		}
 	}
 

@@ -39,12 +39,12 @@ describe("CardMesh3D constants & pose derivation", () => {
 		expect(lifted[2]).toBeCloseTo(2.8);
 	});
 
-	it("computes totalSpinDeg factoring in hoverSpinDeg and liftT", () => {
+	it("computes totalSpinDeg factoring in hoverSpinDeg", () => {
 		const spinDeg = 10;
 		const hoverSpinDeg = 5;
-		const computeSpin = (liftT: number) => spinDeg + hoverSpinDeg * liftT;
+		const computeSpin = (spin: number, hoverSpin: number) => spin + hoverSpin;
 
-		expect(computeSpin(0)).toBe(10);
-		expect(computeSpin(1)).toBe(15);
+		expect(computeSpin(spinDeg, 0)).toBe(10);
+		expect(computeSpin(spinDeg, hoverSpinDeg)).toBe(15);
 	});
 });

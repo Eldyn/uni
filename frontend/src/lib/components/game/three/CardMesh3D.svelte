@@ -191,7 +191,7 @@ uniform vec4 uUvRectBack;
 	});
 	let meshColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
 
-	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg * liftT);
+	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
 	let halfDimension = $derived(flipAxis === "y" ? CARD_WIDTH / 2 : CARD_HEIGHT / 2);
