@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
 	computeHandLine,
+	centerSlotIndex,
 	CARD_LINE_SPACING_EM,
 	CARD_LINE_MIN_SPACING_EM
 } from "$components/game/layout/handLine";
@@ -75,5 +76,22 @@ describe("computeHandLine", () => {
 		for (const slot of computeHandLine(8).slots) {
 			expect(slot.rotateDeg).toBe(0);
 		}
+	});
+});
+
+describe("centerSlotIndex", () => {
+	it("returns center slot of viewport", () => {
+		const layout = computeHandLine(7, 10, 0);
+		expect(centerSlotIndex(layout)).toBe(3);
+	});
+
+	it("returns -1 for empty layout", () => {
+		const layout = computeHandLine(0, 10, 0);
+		expect(centerSlotIndex(layout)).toBe(-1);
+	});
+
+	it("returns slot closest to x=0 when scrolled", () => {
+		const layout = computeHandLine(7, 6, 6);
+		expect(centerSlotIndex(layout)).toBe(5);
 	});
 });

@@ -91,3 +91,21 @@ export function computeHandLine(
 		scrollEm: clampedScroll
 	};
 }
+
+/**
+ * Finds the slot index whose visual position is closest to center (x = 0).
+ * Returns -1 if the layout has no slots.
+ */
+export function centerSlotIndex(layout: HandLineLayout): number {
+	if (layout.slots.length === 0) return -1;
+	let closestIndex = -1;
+	let minDistance = Infinity;
+	for (let i = 0; i < layout.slots.length; i++) {
+		const distance = Math.abs(layout.slots[i].x);
+		if (distance < minDistance) {
+			minDistance = distance;
+			closestIndex = i;
+		}
+	}
+	return closestIndex;
+}

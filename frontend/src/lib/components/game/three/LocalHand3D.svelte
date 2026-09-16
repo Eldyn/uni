@@ -22,7 +22,7 @@
 	import { T } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
 	import { storeGame, type Card } from "$stores/game.svelte";
-	import { computeHandLine } from "../layout/handLine";
+	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
 	import { handSlotPose, HAND_STACK_STEP } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
@@ -456,15 +456,7 @@
 			// snapping once the gesture ends.
 			if (!followingPointer) {
 				const centeredLine = computeHandLine(orderedCards.length, maxHalfSpanEm, tentativeScrollEm);
-				let centerIndex = -1;
-				let centerDistance = Infinity;
-				centeredLine.slots.forEach((slot, i) => {
-					const distance = Math.abs(slot.x);
-					if (distance < centerDistance) {
-						centerDistance = distance;
-						centerIndex = i;
-					}
-				});
+				const centerIndex = centerSlotIndex(centeredLine);
 				hoveredId = centerIndex === -1 ? null : (orderedCards[centerIndex]?.id ?? null);
 			}
 		};
