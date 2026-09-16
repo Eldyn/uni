@@ -411,6 +411,11 @@
 		const targetIndex = findNearestSlotIndex(slots, draggedX);
 
 		if (targetIndex !== dragIndex) {
+			const displacedCardId = orderIds[targetIndex];
+			if (displacedCardId !== undefined) {
+				const direction = targetIndex > dragIndex ? -1 : 1;
+				cardRegistry.triggerPunch(String(displacedCardId), direction * 30);
+			}
 			orderIds = computeReorderedIds(orderIds, dragIndex, targetIndex);
 			dragIndex = targetIndex;
 			// re-anchor so the reshuffled order doesn't jump under the pointer

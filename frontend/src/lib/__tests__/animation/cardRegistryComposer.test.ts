@@ -151,6 +151,29 @@ describe("CardRegistry.tick composer", () => {
 		expect(pose.hoverSpinDeg).toBe(0);
 	});
 
+	it("triggerPunch supports negative swap punch angle of -30 deg", () => {
+		const registry = new CardRegistry();
+		const pose = registry.seedPose("c1", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1,
+			liftT: 0,
+			pushX: 0,
+			hoverSpinDeg: 0
+		});
+
+		registry.triggerPunch("c1", -30);
+		const tweens = gsap.getTweensOf(pose);
+		expect(tweens.length).toBeGreaterThan(0);
+
+		tweens.forEach((t) => t.progress(1));
+		expect(pose.hoverSpinDeg).toBe(0);
+	});
+
 	it("lerp snaps to targetPushX when deltaS >= 0.1", () => {
 		const registry = new CardRegistry();
 		const pose = registry.seedPose("c1", {
