@@ -9,7 +9,7 @@ export const SETTINGS_STORAGE_KEY = "uni:render:settings";
 export interface RenderSettingsState {
 	cardRenderMode: "legacy" | "atlas" | "instanced";
 	drawPileThickness: "full" | "capped";
-	handEdgeEffect: "vignette" | "fadeOverlay" | "none";
+	clickToPlay: boolean;
 	syncCursorOnClick: boolean;
 	autoScrollOnEdgeCreep: boolean;
 }
@@ -19,7 +19,7 @@ export class RenderSettings {
 	#drawPileThickness = $state<"full" | "capped">(
 		typeof window !== "undefined" && storeWebglCapability.deviceTier === "low" ? "capped" : "full"
 	);
-	#handEdgeEffect = $state<"vignette" | "fadeOverlay" | "none">("vignette");
+	#clickToPlay = $state<boolean>(true);
 	#syncCursorOnClick = $state<boolean>(true);
 	#autoScrollOnEdgeCreep = $state<boolean>(true);
 
@@ -39,12 +39,8 @@ export class RenderSettings {
 				if (parsed.drawPileThickness === "full" || parsed.drawPileThickness === "capped") {
 					this.#drawPileThickness = parsed.drawPileThickness;
 				}
-				if (
-					parsed.handEdgeEffect === "vignette" ||
-					parsed.handEdgeEffect === "fadeOverlay" ||
-					parsed.handEdgeEffect === "none"
-				) {
-					this.#handEdgeEffect = parsed.handEdgeEffect;
+				if (typeof parsed.clickToPlay === "boolean") {
+					this.#clickToPlay = parsed.clickToPlay;
 				}
 				if (typeof parsed.syncCursorOnClick === "boolean") {
 					this.#syncCursorOnClick = parsed.syncCursorOnClick;
@@ -76,12 +72,12 @@ export class RenderSettings {
 		this.#persist();
 	}
 
-	get handEdgeEffect(): "vignette" | "fadeOverlay" | "none" {
-		return this.#handEdgeEffect;
+	get clickToPlay(): boolean {
+		return this.#clickToPlay;
 	}
 
-	set handEdgeEffect(effect: "vignette" | "fadeOverlay" | "none") {
-		this.#handEdgeEffect = effect;
+	set clickToPlay(v: boolean) {
+		this.#clickToPlay = v;
 		this.#persist();
 	}
 
@@ -109,7 +105,7 @@ export class RenderSettings {
 			const data: RenderSettingsState = {
 				cardRenderMode: this.#cardRenderMode,
 				drawPileThickness: this.#drawPileThickness,
-				handEdgeEffect: this.#handEdgeEffect,
+				clickToPlay: this.#clickToPlay,
 				syncCursorOnClick: this.#syncCursorOnClick,
 				autoScrollOnEdgeCreep: this.#autoScrollOnEdgeCreep
 			};
@@ -127,8 +123,8 @@ export class RenderSettings {
 		this.drawPileThickness = thickness;
 	}
 
-	setHandEdgeEffect(effect: "vignette" | "fadeOverlay" | "none"): void {
-		this.handEdgeEffect = effect;
+	setClickToPlay(v: boolean): void {
+		this.clickToPlay = v;
 	}
 
 	setSyncCursorOnClick(sync: boolean): void {

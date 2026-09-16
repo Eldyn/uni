@@ -225,6 +225,7 @@
 				onPointerHover={() => (keyboardFocusId = null)}
 			/>
 		</Canvas>
+		<div class="screen-vignette" aria-hidden="true"></div>
 	</div>
 </div>
 
@@ -261,5 +262,18 @@
 		width: 100%;
 		height: 100%;
 		display: block;
+	}
+
+	.screen-vignette {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: radial-gradient(
+			ellipse at center,
+			rgba(0, 0, 0, 0) 50%,
+			rgba(0, 0, 0, 0.25) 80%,
+			rgba(0, 0, 0, 0.55) 100%
+		);
+		z-index: 2;
 	}
 </style>

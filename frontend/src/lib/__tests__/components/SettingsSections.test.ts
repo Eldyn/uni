@@ -12,11 +12,11 @@ vi.mock("$stores/game.svelte", () => ({ storeGame: { state: null, returnToLobby:
 vi.mock("$stores/renderSettings.svelte", () => ({
 	storeRenderSettings: {
 		drawPileThickness: "full",
-		handEdgeEffect: "vignette",
+		clickToPlay: true,
 		syncCursorOnClick: true,
 		autoScrollOnEdgeCreep: true,
 		setDrawPileThickness: vi.fn(),
-		setHandEdgeEffect: vi.fn(),
+		setClickToPlay: vi.fn(),
 		setSyncCursorOnClick: vi.fn(),
 		setAutoScrollOnEdgeCreep: vi.fn()
 	}
@@ -44,11 +44,11 @@ describe("SettingsSections", () => {
 		await fireEvent.click(drawPileToggle);
 		expect(storeRenderSettings.setDrawPileThickness).toHaveBeenCalledWith("capped");
 
-		const handEdgeToggle = getByLabelText("Hand edge vignette");
-		expect(handEdgeToggle).toBeInTheDocument();
-		expect(handEdgeToggle).toBeChecked();
-		await fireEvent.click(handEdgeToggle);
-		expect(storeRenderSettings.setHandEdgeEffect).toHaveBeenCalledWith("fadeOverlay");
+		const clickToPlayToggle = getByLabelText("Click to play card");
+		expect(clickToPlayToggle).toBeInTheDocument();
+		expect(clickToPlayToggle).toBeChecked();
+		await fireEvent.click(clickToPlayToggle);
+		expect(storeRenderSettings.setClickToPlay).toHaveBeenCalledWith(false);
 
 		const syncCursorToggle = getByLabelText("Sync cursor on click");
 		expect(syncCursorToggle).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("SettingsSections", () => {
 	it("handles toggles when render settings are initially off or non-default", async () => {
 		const { storeRenderSettings } = await import("$stores/renderSettings.svelte");
 		storeRenderSettings.drawPileThickness = "capped";
-		storeRenderSettings.handEdgeEffect = "fadeOverlay";
+		storeRenderSettings.clickToPlay = false;
 		storeRenderSettings.syncCursorOnClick = false;
 		storeRenderSettings.autoScrollOnEdgeCreep = false;
 
@@ -77,10 +77,10 @@ describe("SettingsSections", () => {
 		await fireEvent.click(drawPileToggle);
 		expect(storeRenderSettings.setDrawPileThickness).toHaveBeenCalledWith("full");
 
-		const handEdgeToggle = getByLabelText("Hand edge vignette");
-		expect(handEdgeToggle).not.toBeChecked();
-		await fireEvent.click(handEdgeToggle);
-		expect(storeRenderSettings.setHandEdgeEffect).toHaveBeenCalledWith("vignette");
+		const clickToPlayToggle = getByLabelText("Click to play card");
+		expect(clickToPlayToggle).not.toBeChecked();
+		await fireEvent.click(clickToPlayToggle);
+		expect(storeRenderSettings.setClickToPlay).toHaveBeenCalledWith(true);
 
 		const syncCursorToggle = getByLabelText("Sync cursor on click");
 		expect(syncCursorToggle).not.toBeChecked();
@@ -94,7 +94,7 @@ describe("SettingsSections", () => {
 
 		// Reset store mock
 		storeRenderSettings.drawPileThickness = "full";
-		storeRenderSettings.handEdgeEffect = "vignette";
+		storeRenderSettings.clickToPlay = true;
 		storeRenderSettings.syncCursorOnClick = true;
 		storeRenderSettings.autoScrollOnEdgeCreep = true;
 	});

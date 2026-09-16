@@ -120,10 +120,10 @@
 			/>
 
 			<Toggle
-				label="Hand edge vignette"
-				description="Darken hand edges with vignette shader instead of fade overlay plane."
-				checked={storeRenderSettings.handEdgeEffect === "vignette"}
-				oncommit={(v) => storeRenderSettings.setHandEdgeEffect(v ? "vignette" : "fadeOverlay")}
+				label="Click to play card"
+				description="Play card immediately with a single click or Enter press instead of two-step confirm."
+				checked={storeRenderSettings.clickToPlay}
+				oncommit={(v) => storeRenderSettings.setClickToPlay(v)}
 			/>
 
 			<Toggle

@@ -24,6 +24,7 @@
 	import { gsap } from "gsap";
 	import { storeGame, type Card } from "$stores/game.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
 	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
@@ -317,11 +318,11 @@
 			}
 
 			const lifted =
-				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
+				isSelected || isDragging || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
 			cardRegistry.setDecoration(idString, {
 				hovered: lifted,
-				instant: isSelected,
+				instant: isSelected || isDragging,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
 				pushX: neighborPush * handEmToWorld,
 				hoverSpinDeg: isDragging ? dragTiltDeg : (lifted ? tiltTowardPileDeg(slot.x) : 0),
@@ -584,7 +585,11 @@
 			draggingId = null;
 			movementDelta = 0;
 			dragTiltDeg = 0;
-			onSelectionChange(selectedId === releasedId ? null : releasedId);
+			if (storeRenderSettings.clickToPlay) {
+				onPlay(releasedId);
+			} else {
+				onSelectionChange(selectedId === releasedId ? null : releasedId);
+			}
 			return;
 		}
 

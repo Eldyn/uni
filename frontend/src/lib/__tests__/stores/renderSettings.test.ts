@@ -15,7 +15,7 @@ describe("RenderSettings store", () => {
 		const store = new RenderSettings();
 		expect(store.cardRenderMode).toBe("atlas");
 		expect(["full", "capped"]).toContain(store.drawPileThickness);
-		expect(store.handEdgeEffect).toBe("vignette");
+		expect(store.clickToPlay).toBe(true);
 		expect(store.syncCursorOnClick).toBe(true);
 		expect(store.autoScrollOnEdgeCreep).toBe(true);
 	});
@@ -28,8 +28,8 @@ describe("RenderSettings store", () => {
 		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"syncCursorOnClick":false');
 		store.cardRenderMode = "instanced";
 		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"cardRenderMode":"instanced"');
-		store.handEdgeEffect = "fadeOverlay";
-		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"handEdgeEffect":"fadeOverlay"');
+		store.clickToPlay = false;
+		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"clickToPlay":false');
 		store.autoScrollOnEdgeCreep = false;
 		expect(localStorage.getItem(SETTINGS_STORAGE_KEY)).toContain('"autoScrollOnEdgeCreep":false');
 	});
@@ -38,7 +38,7 @@ describe("RenderSettings store", () => {
 		const store = new RenderSettings();
 		store.setCardRenderMode("legacy");
 		store.setDrawPileThickness("capped");
-		store.setHandEdgeEffect("fadeOverlay");
+		store.setClickToPlay(false);
 		store.setSyncCursorOnClick(false);
 		store.setAutoScrollOnEdgeCreep(false);
 
@@ -46,7 +46,7 @@ describe("RenderSettings store", () => {
 		expect(persisted).toEqual({
 			cardRenderMode: "legacy",
 			drawPileThickness: "capped",
-			handEdgeEffect: "fadeOverlay",
+			clickToPlay: false,
 			syncCursorOnClick: false,
 			autoScrollOnEdgeCreep: false
 		});
@@ -58,7 +58,7 @@ describe("RenderSettings store", () => {
 			JSON.stringify({
 				cardRenderMode: "legacy",
 				drawPileThickness: "capped",
-				handEdgeEffect: "fadeOverlay",
+				clickToPlay: false,
 				syncCursorOnClick: false,
 				autoScrollOnEdgeCreep: false
 			})
@@ -66,7 +66,7 @@ describe("RenderSettings store", () => {
 		const store = new RenderSettings();
 		expect(store.cardRenderMode).toBe("legacy");
 		expect(store.drawPileThickness).toBe("capped");
-		expect(store.handEdgeEffect).toBe("fadeOverlay");
+		expect(store.clickToPlay).toBe(false);
 		expect(store.syncCursorOnClick).toBe(false);
 		expect(store.autoScrollOnEdgeCreep).toBe(false);
 	});
@@ -76,7 +76,7 @@ describe("RenderSettings store", () => {
 		const store = new RenderSettings();
 		expect(store.cardRenderMode).toBe("atlas");
 		expect(["full", "capped"]).toContain(store.drawPileThickness);
-		expect(store.handEdgeEffect).toBe("vignette");
+		expect(store.clickToPlay).toBe(true);
 		expect(store.syncCursorOnClick).toBe(true);
 		expect(store.autoScrollOnEdgeCreep).toBe(true);
 	});

@@ -194,7 +194,12 @@ uniform vec4 uUvRectBack;
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
 	let flipRad = $derived((flipDeg * Math.PI) / 180);
-	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * liftT));
+
+	const ELEVATION_REF = 0.5; // DRAG_LIFT reference height
+	let elevationT = $derived(Math.min(1, Math.max(0, position[1] / ELEVATION_REF)));
+	let effectiveLift = $derived(Math.min(1, Math.max(liftT, elevationT)));
+
+	let animatedScale = $derived(scale * (1 + (CARD_HOVER_SCALE - 1) * effectiveLift));
 	let cardDimension = $derived(Math.max(CARD_WIDTH, CARD_HEIGHT) / 2);
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * cardDimension * animatedScale);
 	// Flips the card by 180° when rotation is upside down (|angle| > 90°),
@@ -203,12 +208,20 @@ uniform vec4 uUvRectBack;
 
 	let animatedPosition = $derived<[number, number, number]>([
 		position[0] + hoverPush[0] * liftT + pushX,
-		position[1] + CARD_HOVER_LIFT * liftT + flipLift,
+		position[1] + (hovered && position[1] < 0.2 ? CARD_HOVER_LIFT * liftT : 0) + flipLift,
 		position[2] + hoverPush[1] * liftT
 	]);
+
+	// When higher up, shadow projects further away and expands in size (perspective projection)
+	let shadowExtraOffset = $derived(0.12 * effectiveLift);
+	let shadowScale = $derived(1 + 0.15 * effectiveLift);
 	let shadowPosition = $derived<[number, number, number]>(
 		shadow
-			? [-shadow.offsetX / animatedScale, 0, (-shadow.dropZ - flipLift) / animatedScale]
+			? [
+					(-shadow.offsetX - shadowExtraOffset) / animatedScale,
+					0,
+					(-shadow.dropZ - shadowExtraOffset - flipLift) / animatedScale
+				]
 			: [0, 0, 0]
 	);
 
@@ -312,13 +325,13 @@ uniform vec4 uUvRectBack;
 	<T.Group rotation.x={-Math.PI / 2}>
 		{#if shadow}
 			<T.Group rotation.z={spinRad}>
-				<T.Mesh position={shadowPosition} renderOrder={-1}>
+				<T.Mesh position={shadowPosition} scale={shadowScale} renderOrder={-1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={shadow.texture}
 						color="#000000"
 						transparent
-						opacity={shadow.opacity * opacity}
+						opacity={shadow.opacity * (1 + 0.2 * effectiveLift) * opacity}
 						depthWrite={false}
 						toneMapped={false}
 					/>

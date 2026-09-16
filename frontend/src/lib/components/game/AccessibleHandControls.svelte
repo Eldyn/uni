@@ -79,7 +79,7 @@
 	function confirmOrSelect(card: Card) {
 		if (card.can_play === false) return;
 		if (storeGame.isActionPending) return;
-		if (selectedId === card.id) {
+		if (storeRenderSettings.clickToPlay || selectedId === card.id) {
 			onPlay(card.id);
 		} else {
 			onSelectionChange(card.id);

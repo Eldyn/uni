@@ -50,6 +50,7 @@ describe("AccessibleHandControls", () => {
 			draw_pile_size: 10
 		};
 		storeGame.isActionPending = false;
+		storeRenderSettings.clickToPlay = true;
 	});
 
 	afterEach(() => {
@@ -57,6 +58,7 @@ describe("AccessibleHandControls", () => {
 		vi.restoreAllMocks();
 		storeGame.state = null;
 		storeGame.isActionPending = false;
+		storeRenderSettings.clickToPlay = true;
 	});
 
 	it("exposes a focusable, labelled control for every playable card", () => {
@@ -72,7 +74,8 @@ describe("AccessibleHandControls", () => {
 		expect(button).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("Enter on an unselected playable card picks it rather than playing it", async () => {
+	it("Enter on an unselected playable card picks it rather than playing it when clickToPlay is disabled", async () => {
+		storeRenderSettings.clickToPlay = false;
 		const { onSelectionChange, onPlay } = renderControls();
 
 		const button = screen.getByRole("button", { name: "Play red 6" });
@@ -92,7 +95,19 @@ describe("AccessibleHandControls", () => {
 		expect(onPlay).toHaveBeenCalledWith(1);
 	});
 
-	it("a click mirrors Enter's pick-then-confirm behavior", async () => {
+	it("Enter on a playable card plays immediately when clickToPlay is enabled", async () => {
+		storeRenderSettings.clickToPlay = true;
+		const { onPlay } = renderControls();
+
+		const button = screen.getByRole("button", { name: "Play red 6" });
+		await fireEvent.keyDown(button, { key: "Enter" });
+
+		expect(onPlay).toHaveBeenCalledTimes(1);
+		expect(onPlay).toHaveBeenCalledWith(1);
+	});
+
+	it("a click mirrors Enter's pick-then-confirm behavior when clickToPlay is disabled", async () => {
+		storeRenderSettings.clickToPlay = false;
 		const { onSelectionChange } = renderControls();
 		await fireEvent.click(screen.getByRole("button", { name: "Play red 6" }));
 		expect(onSelectionChange).toHaveBeenCalledWith(1);
@@ -100,6 +115,14 @@ describe("AccessibleHandControls", () => {
 		cleanup();
 		const { onPlay } = renderControls({ selectedId: 1 });
 		await fireEvent.click(screen.getByRole("button", { name: "Confirm red 6" }));
+		expect(onPlay).toHaveBeenCalledWith(1);
+	});
+
+	it("a click plays immediately when clickToPlay is enabled", async () => {
+		storeRenderSettings.clickToPlay = true;
+		const { onPlay } = renderControls();
+		await fireEvent.click(screen.getByRole("button", { name: "Play red 6" }));
+		expect(onPlay).toHaveBeenCalledTimes(1);
 		expect(onPlay).toHaveBeenCalledWith(1);
 	});
 
