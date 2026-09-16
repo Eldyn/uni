@@ -9,6 +9,7 @@
 	import { interactivity } from "@threlte/extras";
 	import type { OrthographicCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import type { SceneGeometry } from "../layout/sceneGeometry";
 	import type { ViewportInfo } from "../layout/seatLayout";
@@ -16,6 +17,7 @@
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
 	import LocalHand3D from "./LocalHand3D.svelte";
+	import HandEdgeOverlay3D from "./HandEdgeOverlay3D.svelte";
 	import DrawPile3D from "./DrawPile3D.svelte";
 	import DiscardPile3D from "./DiscardPile3D.svelte";
 	import AllCards3D from "./AllCards3D.svelte";
@@ -158,6 +160,9 @@
 		{focusedId}
 		{onPointerHover}
 	/>
+	{#if storeRenderSettings.handEdgeEffect !== "none"}
+		<HandEdgeOverlay3D {rig} {placement} mode={storeRenderSettings.handEdgeEffect} />
+	{/if}
 {/if}
 
 <DrawPile3D {placement} />

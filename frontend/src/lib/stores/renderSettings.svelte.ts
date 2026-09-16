@@ -9,7 +9,7 @@ export const SETTINGS_STORAGE_KEY = "uni:render:settings";
 export interface RenderSettingsState {
 	cardRenderMode: "legacy" | "atlas" | "instanced";
 	drawPileThickness: "full" | "capped";
-	handEdgeEffect: "vignette" | "fadeOverlay";
+	handEdgeEffect: "vignette" | "fadeOverlay" | "none";
 	syncCursorOnClick: boolean;
 	autoScrollOnEdgeCreep: boolean;
 }
@@ -19,7 +19,7 @@ export class RenderSettings {
 	#drawPileThickness = $state<"full" | "capped">(
 		typeof window !== "undefined" && storeWebglCapability.deviceTier === "low" ? "capped" : "full"
 	);
-	#handEdgeEffect = $state<"vignette" | "fadeOverlay">("vignette");
+	#handEdgeEffect = $state<"vignette" | "fadeOverlay" | "none">("vignette");
 	#syncCursorOnClick = $state<boolean>(true);
 	#autoScrollOnEdgeCreep = $state<boolean>(true);
 
@@ -39,7 +39,11 @@ export class RenderSettings {
 				if (parsed.drawPileThickness === "full" || parsed.drawPileThickness === "capped") {
 					this.#drawPileThickness = parsed.drawPileThickness;
 				}
-				if (parsed.handEdgeEffect === "vignette" || parsed.handEdgeEffect === "fadeOverlay") {
+				if (
+					parsed.handEdgeEffect === "vignette" ||
+					parsed.handEdgeEffect === "fadeOverlay" ||
+					parsed.handEdgeEffect === "none"
+				) {
 					this.#handEdgeEffect = parsed.handEdgeEffect;
 				}
 				if (typeof parsed.syncCursorOnClick === "boolean") {
@@ -72,11 +76,11 @@ export class RenderSettings {
 		this.#persist();
 	}
 
-	get handEdgeEffect(): "vignette" | "fadeOverlay" {
+	get handEdgeEffect(): "vignette" | "fadeOverlay" | "none" {
 		return this.#handEdgeEffect;
 	}
 
-	set handEdgeEffect(effect: "vignette" | "fadeOverlay") {
+	set handEdgeEffect(effect: "vignette" | "fadeOverlay" | "none") {
 		this.#handEdgeEffect = effect;
 		this.#persist();
 	}
@@ -123,7 +127,7 @@ export class RenderSettings {
 		this.drawPileThickness = thickness;
 	}
 
-	setHandEdgeEffect(effect: "vignette" | "fadeOverlay"): void {
+	setHandEdgeEffect(effect: "vignette" | "fadeOverlay" | "none"): void {
 		this.handEdgeEffect = effect;
 	}
 
