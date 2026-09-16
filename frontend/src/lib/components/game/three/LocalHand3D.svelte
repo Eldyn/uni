@@ -208,13 +208,27 @@
 				idString,
 				(() => {
 					const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
-					return { x, y, z, spinDeg: 0, flipDeg: 0, scale: placement.handScale, turned: false, opacity: 1 };
+					return {
+						x: isDragging ? x + dragOffsetX : x,
+						y,
+						z: isDragging ? z + dragOffsetZ : z,
+						spinDeg: 0,
+						flipDeg: 0,
+						scale: placement.handScale,
+						turned: false,
+						opacity: 1
+					};
 				})(),
 				{ type: card.type, value: card.value }
 			);
-			cardRegistry.setPoseProvider(idString, () =>
-				handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging })
-			);
+			cardRegistry.setPoseProvider(idString, () => {
+				const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
+				return [
+					isDragging ? x + dragOffsetX : x,
+					y,
+					isDragging ? z + dragOffsetZ : z
+				];
+			});
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 
 			const lifted =
@@ -270,6 +284,7 @@
 	let line = $derived(computeHandLine(orderedCards.length, maxHalfSpanEm, scrollEm));
 	let slots = $derived(line.slots);
 	let worldPerPixelX = $derived((2 * rig.halfWidth) / viewport.width);
+	let worldPerPixelZ = $derived((2 * rig.halfHeight) / viewport.height);
 
 	$effect(() => {
 		if (bus.handScrollRequest !== null) {
@@ -324,16 +339,23 @@
 	let pointerOverHand = $state(false);
 	let draggingId = $state<number | null>(null);
 	let dragOffsetX = $state(0);
+	let dragOffsetZ = $state(0);
 	let dragIndex = 0;
 	let gestureCardId: number | null = null;
 	let gestureIsReorder = false;
 	let gestureMoved = false;
 	let pointerStartX = 0;
+	let pointerStartY = 0;
 	let scrollStartEm = 0;
 
 	function clientXOf(event: unknown): number {
 		const e = event as { clientX?: number; nativeEvent?: { clientX?: number } };
 		return e.nativeEvent?.clientX ?? e.clientX ?? 0;
+	}
+
+	function clientYOf(event: unknown): number {
+		const e = event as { clientY?: number; nativeEvent?: { clientY?: number } };
+		return e.nativeEvent?.clientY ?? e.clientY ?? 0;
 	}
 
 	// With a mouse, dragging always reorders — the wheel already pans, and the
@@ -346,7 +368,9 @@
 		gestureMoved = false;
 		dragIndex = index;
 		dragOffsetX = 0;
+		dragOffsetZ = 0;
 		pointerStartX = clientXOf(event);
+		pointerStartY = clientYOf(event);
 		scrollStartEm = line.scrollEm;
 		window.addEventListener("pointermove", handleGestureMove);
 		window.addEventListener("pointerup", endGesture, { once: true });
@@ -355,7 +379,8 @@
 	function handleGestureMove(event: PointerEvent) {
 		if (gestureCardId === null) return;
 		const deltaPx = event.clientX - pointerStartX;
-		if (!gestureMoved && !pastDragThreshold(deltaPx, DRAG_THRESHOLD_PX)) return;
+		const deltaPy = event.clientY - pointerStartY;
+		if (!gestureMoved && Math.hypot(deltaPx, deltaPy) < DRAG_THRESHOLD_PX) return;
 		gestureMoved = true;
 
 		if (!gestureIsReorder) {
@@ -367,7 +392,20 @@
 
 		hoveredId = null;
 		draggingId = gestureCardId;
-		dragOffsetX = deltaPx * worldPerPixelX;
+
+		const rawWorldX = slots[dragIndex].x * handEmToWorld + deltaPx * worldPerPixelX;
+		const rawWorldZ = placement.localSeatZ + deltaPy * worldPerPixelZ;
+
+		const minWorldX = -rig.halfWidth + (CARD_WIDTH * placement.handScale) / 2;
+		const maxWorldX = rig.halfWidth - (CARD_WIDTH * placement.handScale) / 2;
+		const minWorldZ = rig.centerZ - rig.halfHeight + (CARD_HEIGHT * placement.handScale) / 2;
+		const maxWorldZ = rig.centerZ + rig.halfHeight - (CARD_HEIGHT * placement.handScale) / 2;
+
+		const clampedWorldX = Math.max(minWorldX, Math.min(maxWorldX, rawWorldX));
+		const clampedWorldZ = Math.max(minWorldZ, Math.min(maxWorldZ, rawWorldZ));
+
+		dragOffsetX = clampedWorldX - slots[dragIndex].x * handEmToWorld;
+		dragOffsetZ = clampedWorldZ - placement.localSeatZ;
 
 		const draggedX = slots[dragIndex].x + dragOffsetX / handEmToWorld;
 		const targetIndex = findNearestSlotIndex(slots, draggedX);
@@ -379,6 +417,8 @@
 			pointerStartX = event.clientX;
 			dragOffsetX = 0;
 		}
+
+		cardRegistry.applyIdlePoseIfNotInTransit(String(gestureCardId));
 	}
 
 	// The pointer ends a gesture wherever it happens to be, which is rarely over
@@ -393,6 +433,7 @@
 		gestureIsReorder = false;
 		draggingId = null;
 		dragOffsetX = 0;
+		dragOffsetZ = 0;
 		hoveredId = null;
 		window.removeEventListener("pointermove", handleGestureMove);
 	}
