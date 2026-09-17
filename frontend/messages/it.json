@@ -116,6 +116,8 @@
 	"lobby_settings_section_bots": "Bot",
 	"lobby_settings_section_custom": "Regole personalizzate",
 	"lobby_settings_public_lobby": "Lobby pubblica",
+	"lobby_settings_ranked": "Partita classificata",
+	"lobby_settings_ranked_desc": "Registra i risultati della partita nella classifica quando i requisiti dei giocatori sono soddisfatti.",
 	"lobby_settings_quit_stops_match": "Abbandonare interrompe la partita",
 	"lobby_settings_quit_stops_match_desc": "Quando un giocatore abbandona, tutti i giocatori tornano alla lobby.",
 	"lobby_settings_players_replace_bots": "Consenti ai giocatori di sostituire i bot",

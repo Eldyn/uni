@@ -577,3 +577,15 @@ TEST_CASE("lobby: CollectExpiredDisconnects excludes members within grace") {
 
     CHECK(expired.empty());
 }
+
+TEST_CASE("lobby: LobbySettings ranked defaults to true and roundtrips through json") {
+    LobbySettings settings;
+    CHECK(settings.ranked == true);
+
+    nlohmann::json j = settings;
+    CHECK(j["ranked"] == true);
+
+    j["ranked"] = false;
+    LobbySettings unranked = j.get<LobbySettings>();
+    CHECK(unranked.ranked == false);
+}

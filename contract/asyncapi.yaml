@@ -688,6 +688,9 @@ components:
       properties:
         is_public:
           type: boolean
+        ranked:
+          type: boolean
+          description: When false, match is excluded from leaderboard stats.
         name:
           $ref: "#/components/schemas/LobbyName"
         bot_count:

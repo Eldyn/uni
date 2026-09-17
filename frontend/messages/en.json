@@ -116,6 +116,8 @@
 	"lobby_settings_section_bots": "Bots",
 	"lobby_settings_section_custom": "Custom Rules",
 	"lobby_settings_public_lobby": "Public Lobby",
+	"lobby_settings_ranked": "Ranked Match",
+	"lobby_settings_ranked_desc": "Record match results on the leaderboard when player requirements are met.",
 	"lobby_settings_quit_stops_match": "Quitting stops the Match",
 	"lobby_settings_quit_stops_match_desc": "When a player quits, all players return to lobby.",
 	"lobby_settings_players_replace_bots": "Allow Players to Replace Bots",

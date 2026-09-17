@@ -52,4 +52,16 @@ describe("LobbySettings replacement bindings", () => {
 		await fireEvent.click(replacementToggle);
 		expect(updateSettings).toHaveBeenCalledWith({ allow_bot_replacement: true });
 	});
+
+	it("renders 'Ranked Match' toggle defaulting to true and calls updateSettings on toggle", async () => {
+		render(LobbySettings);
+		const rankedToggle = screen.getByRole("checkbox", {
+			name: "Ranked Match"
+		});
+		expect(rankedToggle).toBeInTheDocument();
+		expect(rankedToggle).toBeChecked();
+
+		await fireEvent.click(rankedToggle);
+		expect(updateSettings).toHaveBeenCalledWith({ ranked: false });
+	});
 });

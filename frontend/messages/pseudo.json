@@ -116,6 +116,8 @@
 	"lobby_settings_section_bots": "[Böts åñd Böt Cöñfîg]",
 	"lobby_settings_section_custom": "[Cüstöm Rülés åñd Möds]",
 	"lobby_settings_public_lobby": "[Püblîc Löbby för åll]",
+	"lobby_settings_ranked": "[Råñkéd Måtch, fülly ñöw]",
+	"lobby_settings_ranked_desc": "[Récörd måtch résülts öñ thé léådérböård whéñ pläýér réqüîréméñts åré mét, cömplétély åñd trülý fülly]",
 	"lobby_settings_quit_stops_match": "[Qüîttîñg cömplétély stöps thé Måtch ñöw]",
 	"lobby_settings_quit_stops_match_desc": "[Whéñ å pläýér qüîts, åll thé pläýérs rétürñ tö thé löbby, éveñtüålly.]",
 	"lobby_settings_players_replace_bots": "[Ållöw Pläýérs tö Réplåcé Böst, åñýtîmé fórevér]",

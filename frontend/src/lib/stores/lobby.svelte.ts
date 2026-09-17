@@ -31,6 +31,8 @@ export enum BotTakeoverMode {
 export interface LobbySettings {
 	/** If true, the lobby will appear in the public list of matches. */
 	is_public: boolean;
+	/** When false, match is excluded from leaderboard stats. */
+	ranked: boolean;
 	/** Array of special rules (Mods) enabled for this match. */
 	active_mods: string[];
 	/** Time limit in milliseconds allowed to complete a turn (e.g. 15000). */

@@ -34,6 +34,7 @@
 	// INFO: Each entry maps directly to a storeLobby.updateSettings key.
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
+		ranked: storeLobby.current?.settings.ranked ?? true,
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
 
 		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
@@ -99,6 +100,13 @@
 				checked={settings.is_public}
 				disabled={!isHost}
 				oncommit={(v) => commit("is_public", v)}
+			/>
+			<Toggle
+				label={m.lobby_settings_ranked({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_ranked_desc({}, { locale: storeI18n.locale })}
+				checked={settings.ranked}
+				disabled={!isHost}
+				oncommit={(v) => commit("ranked", v)}
 			/>
 			<Toggle
 				label={m.lobby_settings_quit_stops_match({}, { locale: storeI18n.locale })}
