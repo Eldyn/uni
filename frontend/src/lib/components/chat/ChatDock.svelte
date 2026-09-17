@@ -6,6 +6,8 @@
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let showFriendsList = $state(false);
 	let panelHeight = $state(0);
@@ -63,8 +65,8 @@
 	{:else}
 		<button
 			class="chat-launcher pixel-corners fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
-			title="Open chat"
-			aria-label="Open chat"
+			title={m.chat_dock_open({}, { locale: storeI18n.locale })}
+			aria-label={m.chat_dock_open({}, { locale: storeI18n.locale })}
 			aria-keyshortcuts={acceleratorKey("chat")}
 			onclick={open}
 		>

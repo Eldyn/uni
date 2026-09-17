@@ -432,7 +432,7 @@
 						class="flex gap-1 text-4xl tracking-[6px] text-white [-webkit-text-stroke:1.5px_var(--pixel-shadow)] [font-family:'FatPixel'] [text-shadow:2px_2px_0_var(--pixel-shadow)] sm:text-5xl"
 					>
 						<TextEffects
-							text="START!"
+							text={m.lobby_start_button({}, { locale: storeI18n.locale })}
 							effect="undulate"
 							class="start-letters"
 							font="FatPixel"

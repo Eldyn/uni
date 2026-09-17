@@ -244,7 +244,7 @@ class StoreLobby implements SessionStore {
 		// PLACEHOLDER-SFX: sfx.lobby.promote, confirmation chime when a member
 		// is promoted to host.
 		storeAudio.playSfx("sfx.lobby.promote");
-		storeToast.success(`Promoted ${username}!`);
+		storeToast.success(m.lobby_toast_promoted({ username }, { locale: storeI18n.locale }));
 	}
 
 	/**
@@ -263,7 +263,7 @@ class StoreLobby implements SessionStore {
 		// PLACEHOLDER-SFX: sfx.lobby.kick, punchy "removed" sting when a member
 		// is kicked from the lobby.
 		storeAudio.playSfx("sfx.lobby.kick");
-		storeToast.success(`Kicked ${username}!`);
+		storeToast.success(m.lobby_toast_kicked({ username }, { locale: storeI18n.locale }));
 	}
 
 	/**
@@ -308,14 +308,22 @@ class StoreLobby implements SessionStore {
 		if (!this.current) return { canStart: false, reason: null };
 
 		if (this.current.members.length < 2) {
-			return { canStart: false, reason: "Waiting for at least 2 players" };
+			return {
+				canStart: false,
+				reason: m.lobby_start_waiting_min_players({}, { locale: storeI18n.locale })
+			};
 		}
 
 		const notReady = this.current.members.filter((m) => !m.is_bot && !m.is_ready);
 		if (notReady.length > 0) {
+			const count = notReady.length;
+			const reason =
+				count === 1
+					? m.lobby_start_waiting_on_players_one({ count }, { locale: storeI18n.locale })
+					: m.lobby_start_waiting_on_players_other({ count }, { locale: storeI18n.locale });
 			return {
 				canStart: false,
-				reason: `Waiting on ${notReady.length} player${notReady.length === 1 ? "" : "s"} to ready up`
+				reason
 			};
 		}
 
@@ -396,7 +404,7 @@ class StoreLobby implements SessionStore {
 	 */
 	async join(code: string): Promise<boolean> {
 		if (!code) {
-			storeToast.error("Enter an invite code.");
+			storeToast.error(m.lobby_toast_enter_code({}, { locale: storeI18n.locale }));
 			return false;
 		}
 
@@ -508,7 +516,7 @@ class StoreLobby implements SessionStore {
 			await ws.connect();
 			ws.emit(ClientAction.LobbyLeave);
 		} catch {
-			storeToast.error("Connection lost, left the lobby locally.");
+			storeToast.error(m.lobby_toast_connection_lost({}, { locale: storeI18n.locale }));
 		}
 	}
 
@@ -626,7 +634,12 @@ class StoreLobby implements SessionStore {
 				this.#disarmMatchRedirect();
 				this.#reset();
 				if (response.action !== ServerAction.LobbyEvicted) {
-					storeToast.error(`Could not rejoin lobby: ${response.message}`);
+					storeToast.error(
+						m.lobby_toast_rejoin_failed(
+							{ message: response.message },
+							{ locale: storeI18n.locale }
+						)
+					);
 				}
 				return;
 			}

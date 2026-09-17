@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { storeAuth } from "$stores/auth.svelte";
 	import FormInput from "$components/common/FormInput.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let { onLoginSuccess }: { onLoginSuccess: () => void } = $props();
 
@@ -29,10 +31,10 @@
 <form onsubmit={handleSubmit} class="auth-form">
 	<FormInput
 		id="login-email"
-		label="Email:"
+		label={m.auth_email_label({}, { locale: storeI18n.locale })}
 		bind:value={email}
 		error={emailError}
-		placeholder="Enter your email"
+		placeholder={m.auth_email_placeholder({}, { locale: storeI18n.locale })}
 		disabled={storeAuth.isLoading}
 		name="email"
 		autocomplete="email"
@@ -41,17 +43,19 @@
 	<FormInput
 		id="login-password"
 		type="password"
-		label="Password:"
+		label={m.auth_password_label({}, { locale: storeI18n.locale })}
 		bind:value={password}
 		error={passwordError}
-		placeholder="Enter your password"
+		placeholder={m.auth_password_placeholder({}, { locale: storeI18n.locale })}
 		disabled={storeAuth.isLoading}
 		name="password"
 		autocomplete="current-password"
 	/>
 
 	<button type="submit" disabled={storeAuth.isLoading} class="btn pixel-corners">
-		{storeAuth.isLoading ? "Logging in..." : "Login"}
+		{storeAuth.isLoading
+			? m.auth_logging_in({}, { locale: storeI18n.locale })
+			: m.auth_submit_login({}, { locale: storeI18n.locale })}
 	</button>
 </form>
 

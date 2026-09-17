@@ -2,6 +2,8 @@
 	import Modal from "$components/common/Modal.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	// PLACEHOLDER-SFX: sfx.match.interrupted, alarm/error stinger fired once
 	// when the interrupted popup appears (component only mounts on this event).
@@ -14,11 +16,11 @@
 	titleId="interrupted-title"
 	contentClass="interrupted-content"
 >
-	<h1 id="interrupted-title">Interrupted</h1>
-	<h2>Something went wrong.</h2>
-	<p>A player disconnected or the match was forcefully cancelled.</p>
+	<h1 id="interrupted-title">{m.game_interrupted_title({}, { locale: storeI18n.locale })}</h1>
+	<h2>{m.game_interrupted_heading({}, { locale: storeI18n.locale })}</h2>
+	<p>{m.game_interrupted_desc({}, { locale: storeI18n.locale })}</p>
 	<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
-		Back to Lobby
+		{m.game_back_to_lobby({}, { locale: storeI18n.locale })}
 	</button>
 </Modal>
 

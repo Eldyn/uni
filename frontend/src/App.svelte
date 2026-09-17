@@ -36,6 +36,7 @@
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
 	import { installSessionResets } from "$stores/session";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let _unsubError: (() => void) | null = null;
 
@@ -111,7 +112,9 @@
 
 	async function handleAuthSuccess() {
 		await ws.connect().catch((error) => {
-			storeToast.error(`Failed to connect to server. Please try again. (${error})`);
+			storeToast.error(
+				m.app_toast_connect_failed({ error: String(error) }, { locale: storeI18n.locale })
+			);
 		});
 
 		// INFO: The modal overlays whatever screen was already current, don't

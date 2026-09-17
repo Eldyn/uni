@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { chatStore, channelKey } from "$stores/chat.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let text = $state("");
 	let inputEl: HTMLInputElement | undefined = $state();
@@ -62,14 +64,14 @@
 <div class="flex items-center gap-2 border-t-2 border-border px-2 py-2">
 	<button
 		class="px-2 py-1.5 font-pypx text-sm font-bold text-text hover:text-text-h"
-		title="Bold, or type **text**"
+		title={m.chat_composer_bold({}, { locale: storeI18n.locale })}
 		onclick={() => wrapSelection("**")}
 	>
 		B
 	</button>
 	<button
 		class="px-2 py-1.5 font-monogram text-sm italic text-text hover:text-text-h"
-		title="Italic, or type *text*"
+		title={m.chat_composer_italic({}, { locale: storeI18n.locale })}
 		onclick={() => wrapSelection("*")}
 	>
 		I
@@ -80,13 +82,13 @@
 		{onkeydown}
 		oninput={persistDraft}
 		class="min-w-0 flex-1 bg-transparent px-1 font-micro text-sm text-text-h placeholder:text-text/60"
-		placeholder="Message…"
-		aria-label="Chat message"
+		placeholder={m.chat_composer_placeholder({}, { locale: storeI18n.locale })}
+		aria-label={m.chat_composer_aria({}, { locale: storeI18n.locale })}
 	/>
 	<button
 		class="pixel-bordered px-3 py-1.5 font-pixel text-xs uppercase text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 		onclick={send}
 	>
-		Send
+		{m.chat_composer_send({}, { locale: storeI18n.locale })}
 	</button>
 </div>

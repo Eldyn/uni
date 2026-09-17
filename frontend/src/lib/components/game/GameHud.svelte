@@ -2,6 +2,8 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import TurnOrderStrip from "./TurnOrderStrip.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let collapsed = $state(false);
 
@@ -16,7 +18,9 @@
 			class="collapse-toggle"
 			onclick={() => (collapsed = !collapsed)}
 			aria-expanded={!collapsed}
-			aria-label={collapsed ? "Expand HUD" : "Collapse HUD"}
+			aria-label={collapsed
+				? m.game_hud_expand({}, { locale: storeI18n.locale })
+				: m.game_hud_collapse({}, { locale: storeI18n.locale })}
 		>
 			<i class="hn pix {collapsed ? 'hn-angle-small-down' : 'hn-angle-small-up'}"></i>
 		</button>
@@ -33,7 +37,9 @@
 
 			<TurnOrderStrip />
 
-			<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}> Exit </button>
+			<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}>
+				{m.game_hud_exit({}, { locale: storeI18n.locale })}
+			</button>
 		{/if}
 	</div>
 {/if}

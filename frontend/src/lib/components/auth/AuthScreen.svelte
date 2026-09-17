@@ -3,6 +3,8 @@
 	import LoginForm from "./LoginForm.svelte";
 	import RegisterForm from "./RegisterForm.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let {
 		onAuthSuccess,
@@ -14,15 +16,15 @@
 
 <Modal
 	bind:open={storeNavigation.isAuthModalOpen}
-	ariaLabel="Login or register"
+	ariaLabel={m.auth_modal_aria({}, { locale: storeI18n.locale })}
 	contentClass="auth-container pixel-corners w-full"
 >
 	<button
 		type="button"
 		class="close-button"
 		onclick={() => storeNavigation.closeAuthModal()}
-		aria-label="Close"
-		title="Close"
+		aria-label={m.settings_close({}, { locale: storeI18n.locale })}
+		title={m.settings_close({}, { locale: storeI18n.locale })}
 	>
 		<i class="pia pixelart-icons-font-close"></i>
 	</button>
@@ -34,7 +36,7 @@
 			class:active={activeTab === "login"}
 			onclick={() => (activeTab = "login")}
 		>
-			Login
+			{m.auth_login_tab({}, { locale: storeI18n.locale })}
 		</button>
 		<button
 			type="button"
@@ -42,7 +44,7 @@
 			class:active={activeTab === "register"}
 			onclick={() => (activeTab = "register")}
 		>
-			Register
+			{m.auth_register_tab({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
 

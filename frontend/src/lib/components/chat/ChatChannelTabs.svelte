@@ -1,13 +1,19 @@
 <script lang="ts">
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let {
 		showFriendsList = $bindable(),
 		onclose
 	}: { showFriendsList: boolean; onclose: () => void } = $props();
 
-	const partyLabel = $derived(storeNavigation.current === "game" ? "GAME" : "PARTY");
+	const partyLabel = $derived(
+		storeNavigation.current === "game"
+			? m.chat_tab_game({}, { locale: storeI18n.locale })
+			: m.chat_tab_party({}, { locale: storeI18n.locale })
+	);
 
 	function selectGlobal() {
 		showFriendsList = false;
@@ -30,7 +36,9 @@
 	<button
 		{onclick}
 		{disabled}
-		title={disabled ? "Join a lobby to use party chat" : undefined}
+		title={disabled
+			? m.chat_tab_party_disabled_tooltip({}, { locale: storeI18n.locale })
+			: undefined}
 		class="flex flex-1 items-center justify-center px-2 py-2 font-pypx text-xs font-extrabold uppercase transition {active
 			? 'bg-accent text-white'
 			: disabled
@@ -42,14 +50,14 @@
 {/snippet}
 
 <div class="flex items-stretch border-b-2 border-border">
-	{@render tab("GLOBAL", isGlobalActive, selectGlobal)}
+	{@render tab(m.chat_tab_global({}, { locale: storeI18n.locale }), isGlobalActive, selectGlobal)}
 	{@render tab(partyLabel, isPartyActive, selectParty, !chatStore.isPartyAvailable)}
-	{@render tab("FRIENDS", showFriendsList, selectFriends)}
+	{@render tab(m.chat_tab_friends({}, { locale: storeI18n.locale }), showFriendsList, selectFriends)}
 	<button
 		class="flex items-center justify-center px-3 text-text hover:text-text-h"
-		title="Close chat"
+		title={m.chat_dock_close({}, { locale: storeI18n.locale })}
 		onclick={onclose}
-		aria-label="Close chat"
+		aria-label={m.chat_dock_close({}, { locale: storeI18n.locale })}
 	>
 		<i class="pia pixelart-icons-font-close"></i>
 	</button>

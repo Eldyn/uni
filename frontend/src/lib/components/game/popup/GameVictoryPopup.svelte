@@ -4,6 +4,8 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 	import { BOT_COLOR, playerColorFor } from "$lib/palette";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
@@ -44,7 +46,9 @@
 	contentClass="victory-content pixel-corners"
 >
 	<h1 id="victory-title" class="result {isMe ? 'result--win' : 'result--lose'}">
-		{isMe ? "VICTORY!" : "YOU LOST!"}
+		{isMe
+			? m.game_victory_title({}, { locale: storeI18n.locale })
+			: m.game_defeat_title({}, { locale: storeI18n.locale })}
 	</h1>
 
 	<div class="avatar-stage">
@@ -56,11 +60,11 @@
 	</div>
 
 	<p class="winner-line">
-		Winner: <span class="winner-name">{winnerName}</span>
+		{m.game_winner_label({ name: winnerName }, { locale: storeI18n.locale })}
 	</p>
 
 	<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
-		Back to Lobby
+		{m.game_back_to_lobby({}, { locale: storeI18n.locale })}
 	</button>
 </Modal>
 

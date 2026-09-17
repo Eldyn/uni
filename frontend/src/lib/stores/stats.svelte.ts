@@ -6,6 +6,8 @@
 
 import type { SessionStore } from "$stores/sessionStore";
 import { storeToast } from "./toast.svelte";
+import { storeI18n } from "./i18n.svelte";
+import * as m from "$lib/paraglide/messages.js";
 
 /**
  * @interface PlayerStats
@@ -92,10 +94,10 @@ class StoreStats implements SessionStore {
 			if (res.ok) {
 				this.myStats = await res.json();
 			} else {
-				storeToast.error("Failed to load personal statistics.");
+				storeToast.error(m.stats_toast_load_failed({}, { locale: storeI18n.locale }));
 			}
 		} catch {
-			storeToast.error("Failed to load personal statistics.");
+			storeToast.error(m.stats_toast_load_failed({}, { locale: storeI18n.locale }));
 		}
 	}
 
@@ -117,10 +119,12 @@ class StoreStats implements SessionStore {
 				const data = await res.json();
 				this.leaderboard = data.leaderboard || [];
 			} else {
-				storeToast.error("Failed to load leaderboard.");
+				storeToast.error(m.stats_toast_leaderboard_failed({}, { locale: storeI18n.locale }));
 			}
 		} catch {
-			storeToast.error("Network error while loading leaderboard.");
+			storeToast.error(
+				m.stats_toast_leaderboard_network_error({}, { locale: storeI18n.locale })
+			);
 		} finally {
 			this.isLoading = false;
 		}
