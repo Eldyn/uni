@@ -352,8 +352,6 @@ class StoreLobby implements SessionStore {
 				storeToast.error(response.message);
 				return;
 			}
-
-			storeToast.success("Settings updated!");
 		} catch (error) {
 			storeToast.error(failureText(error));
 		}

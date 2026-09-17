@@ -34,6 +34,7 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 }));
 
 import { storeLobby } from "$lib/stores/lobby.svelte";
+import { storeToast } from "$lib/stores/toast.svelte";
 
 const okResponse = {
 	ok: true,
@@ -161,5 +162,21 @@ describe("lobby store: handle methods", () => {
 		const settings = { is_public: true, name: "My Lobby" };
 		await storeLobby.updateSettings(settings);
 		expect(mockEmitAndWait).toHaveBeenCalledWith("lobby_update_settings", settings);
+	});
+
+	it("updateSettings does not emit a success toast on success, but emits an error toast on failure", async () => {
+		const toastSuccessSpy = vi.spyOn(storeToast, "success");
+		const toastErrorSpy = vi.spyOn(storeToast, "error");
+
+		mockEmitAndWait.mockResolvedValueOnce({ ok: true, message: "" });
+		await storeLobby.updateSettings({ name: "New Name" });
+		expect(toastSuccessSpy).not.toHaveBeenCalled();
+
+		mockEmitAndWait.mockResolvedValueOnce({ ok: false, message: "Invalid setting" });
+		await storeLobby.updateSettings({ name: "Bad Name" });
+		expect(toastErrorSpy).toHaveBeenCalledWith("Invalid setting");
+
+		toastSuccessSpy.mockRestore();
+		toastErrorSpy.mockRestore();
 	});
 });
