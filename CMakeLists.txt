@@ -207,6 +207,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/chat_controller.cpp
         src/services/auth_service.cpp
         src/services/verification_service.cpp
+        src/common/email_sender.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
         src/services/chat_service.cpp
