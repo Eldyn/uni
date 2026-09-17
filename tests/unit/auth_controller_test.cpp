@@ -131,6 +131,42 @@ TestHttpResponse SimulateMe(int port, const std::string& auth_token) {
     return res;
 }
 
+static std::map<std::string, std::string> g_last_issued_codes;
+
+class CapturingEmailSender : public IEmailSender {
+public:
+    VoidResult Send(const OutboundEmail& mail) override {
+        // extract 6 digit code from text_body
+        for (size_t i = 0; i + 5 < mail.text_body.size(); ++i) {
+            bool all_digits = true;
+            for (size_t j = 0; j < 6; ++j) {
+                if (!std::isdigit(mail.text_body[i+j])) {
+                    all_digits = false;
+                    break;
+                }
+            }
+            if (all_digits && (i == 0 || !std::isdigit(mail.text_body[i-1])) && (i + 6 == mail.text_body.size() || !std::isdigit(mail.text_body[i+6]))) {
+                g_last_issued_codes[mail.to_address] = mail.text_body.substr(i, 6);
+                break;
+            }
+        }
+        return {};
+    }
+};
+
+std::string GetLastIssuedCodeForTest(const std::string& username) {
+    auto rows = Database::Get().Query("SELECT email FROM users WHERE username = ?;", {username});
+    if (rows && !rows->empty()) {
+        std::string email = rows->at(0).Get<std::string>("email");
+        return g_last_issued_codes[email];
+    }
+    return "";
+}
+
+void ForceExpireCodeForTest(const std::string& username) {
+    (void)Database::Get().Exec("UPDATE email_verification_codes SET expires_at = 0 WHERE user_id = (SELECT id FROM users WHERE username = ?);", {username});
+}
+
 struct ScopedTestServer {
     std::thread server_thread;
     uWS::Loop* loop{nullptr};
@@ -154,7 +190,7 @@ struct ScopedTestServer {
             options.cert_file_name = "cert.pem";
 
             HttpRouter router;
-            EmailQueue email_queue(std::make_unique<DevFileEmailSender>(std::filesystem::temp_directory_path().string()));
+            EmailQueue email_queue(std::make_unique<CapturingEmailSender>());
             AuthController auth_ctrl(router, email_queue);
             AppHttp app(options);
             router.Attach(app);
@@ -333,3 +369,46 @@ TEST_CASE("request-code handles empty and malformed body safely") {
     CHECK(bad_res.status == 400);
 }
 
+
+TEST_CASE("confirm-code with correct code verifies the account") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("confuser", "conf@example.com", "password123");
+    SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    auto code = GetLastIssuedCodeForTest("confuser");
+    auto response = SimulatePost("/auth/verify/confirm-code", R"({"code":")" + code + "\"}", session.cookies);
+    CHECK(response.status == 200);
+    std::string token = session.cookies.substr(session.cookies.find("auth_token=") + 11);
+    token = token.substr(0, token.find(';'));
+    auto me = SimulateMe(server.port, token);
+    CHECK(me.body["email_verified"] == true);
+}
+
+TEST_CASE("confirm-code with expired code returns generic 401") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("expuser", "exp@example.com", "password123");
+    SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    ForceExpireCodeForTest("expuser");
+    auto response = SimulatePost("/auth/verify/confirm-code", R"({"code":"000000"})", session.cookies);
+    CHECK(response.status == 401);
+}
+
+TEST_CASE("5 wrong then correct returns 429, correct code no longer works") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("brutuser", "brut@example.com", "password123");
+    SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    auto code = GetLastIssuedCodeForTest("brutuser");
+    for (int i = 0; i < 5; ++i)
+        SimulatePost("/auth/verify/confirm-code", R"({"code":"999999"})", session.cookies);
+    auto response = SimulatePost("/auth/verify/confirm-code", R"({"code":")" + code + "\"}", session.cookies);
+    CHECK(response.status == 429);
+}
+
+TEST_CASE("magic-link confirm from a clean cookie jar succeeds") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("linkuser", "link@example.com", "password123");
+    SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    auto code = GetLastIssuedCodeForTest("linkuser");
+    auto response = SimulatePost("/auth/verify/confirm-code",
+        R"({"email":"link@example.com","code":")" + code + "\"}", /*no cookies*/ "");
+    CHECK(response.status == 200);
+}

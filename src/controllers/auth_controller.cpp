@@ -27,6 +27,10 @@ AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
         HandleRequestCode(res, req);
     });
 
+    router.Post("/auth/verify/confirm-code", [this](AppResponse* res, AppRequest* req) {
+        HandleConfirmCode(res, req);
+    });
+
     router.Post("/auth/guest", [this](AppResponse* res, AppRequest* req) {
         HandleGuest(res, req);
     });
@@ -311,5 +315,96 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
         res->writeStatus("202 Accepted")
            ->writeHeader("Content-Type", "application/json")
            ->end(json({{"status", "queued"}}).dump());
+    });
+}
+
+void AuthController::HandleConfirmCode(AppResponse* res, AppRequest* req) {
+    const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+
+    std::string_view cookies = req->getHeader("cookie");
+    auto ws_token = http::GetCookieValue(cookies, "ws_token");
+    auto auth_token = http::GetCookieValue(cookies, "auth_token");
+    auto token = ws_token;
+    if (auth_token) token = auth_token;
+
+    std::optional<std::string> session_username;
+    if (token && !token->empty()) {
+        auto payload = AuthService::VerifyToken(*token);
+        if (payload) {
+            session_username = payload->username;
+        }
+    }
+
+    http::ReadBody(res, kMaxBodyBytes, [this, res, ip, session_username](const std::string& body) {
+        json data;
+        try {
+            data = json::parse(body);
+        } catch (...) {
+            WriteError(res, Error::BadRequest("Invalid JSON"));
+            return;
+        }
+
+        if (!data.is_object()) {
+            WriteError(res, Error::BadRequest("Invalid JSON"));
+            return;
+        }
+
+        std::string code = data.value("code", "");
+        std::string email = data.value("email", "");
+
+        bool valid_code = code.length() == 6;
+        if (valid_code) {
+            for (char c : code) {
+                if (!std::isdigit(c)) {
+                    valid_code = false;
+                    break;
+                }
+            }
+        }
+
+        int user_id = -1;
+        if (session_username) {
+            auto rows = Database::Get().Query("SELECT id FROM users WHERE username = ?;", {*session_username});
+            if (rows && !rows->empty()) {
+                user_id = rows->at(0).Get<int>("id");
+            }
+        } else if (!email.empty()) {
+            auto rows = Database::Get().Query("SELECT id FROM users WHERE email = ?;", {email});
+            if (rows && !rows->empty()) {
+                user_id = rows->at(0).Get<int>("id");
+            }
+        }
+
+        if (user_id == -1 || !valid_code) {
+            if (user_id == -1) {
+                verify_attempt_throttle_.RecordFailure("unknown|" + ip);
+            } else {
+                verify_attempt_throttle_.RecordFailure(std::to_string(user_id) + "|" + ip);
+            }
+            WriteError(res, Error::Unauthorised("Invalid or expired code"));
+            return;
+        }
+
+        const std::string throttle_key = std::to_string(user_id) + "|" + ip;
+        if (verify_attempt_throttle_.IsLocked(throttle_key)) {
+            WriteError(res, Error::TooManyRequests("Too many failed attempts. Try again later."));
+            return;
+        }
+
+        auto confirm_res = verification_service_.ConfirmCode(user_id, code);
+        if (!confirm_res) {
+            verify_attempt_throttle_.RecordFailure(throttle_key);
+            if (confirm_res.error().code == Error::Code::kTooManyRequests) {
+                WriteError(res, confirm_res.error());
+            } else {
+                WriteError(res, Error::Unauthorised("Invalid or expired code"));
+            }
+            return;
+        }
+
+        verify_attempt_throttle_.Reset(throttle_key);
+        res->writeStatus("200 OK")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json({{"status", "ok"}, {"email_verified", true}}).dump());
     });
 }
