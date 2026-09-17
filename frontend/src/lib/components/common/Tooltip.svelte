@@ -1,70 +1,153 @@
 <script lang="ts">
-	import { type Snippet } from "svelte";
+	import { type Snippet, tick } from "svelte";
+	import {
+		computeAnchorPlacement,
+		type Side,
+		type Align,
+		type Rect
+	} from "$lib/utils/anchorPlacement";
 
 	interface Props {
-		children: Snippet; // The trigger element (e.g., the item icon)
-		tooltipContent: Snippet; // The floating item lore / text
+		children: Snippet;
+		tooltipContent: Snippet;
+		side?: Side;
+		align?: Align;
+		offset?: number;
+		openDelay?: number;
+		id?: string;
+		class?: string;
+		avoidRects?: Rect[];
 	}
 
-	let { children, tooltipContent }: Props = $props();
+	let {
+		children,
+		tooltipContent,
+		side = "top",
+		align = "center",
+		offset = 8,
+		openDelay = 150,
+		id,
+		class: extraClass = "",
+		avoidRects
+	}: Props = $props();
 
 	let isVisible = $state(false);
+	let containerEl: HTMLElement | undefined = $state();
 	let tooltipEl: HTMLElement | undefined = $state();
 
-	const EDGE_MARGIN = 8;
-	const CURSOR_OFFSET = 15;
+	const fallbackId = `tooltip-${Math.random().toString(36).slice(2, 9)}`;
+	const tooltipId = $derived(id ?? fallbackId);
 
-	let left = $state(0);
-	let top = $state(0);
+	let posX = $state(0);
+	let posY = $state(0);
+	let placedSide = $state<Side>("top");
 
-	// INFO: clip-path on ancestor containers (e.g. .pixel-corners) clips position:fixed
-	// descendants. Moving the floating div to the document body escapes any clipped subtree
-	// while Svelte's scoped class keeps the style rules intact.
+	let openTimer: ReturnType<typeof setTimeout> | undefined;
+
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
-		return { destroy: () => node.remove() };
+		return {
+			destroy: () => {
+				if (node.parentNode) node.remove();
+			}
+		};
 	}
 
-	// Re-measures the tooltip's real, current rendered size on every move
-	// instead of once at mount — a one-shot measurement (the previous
-	// approach) locks in whatever size happened to exist at that instant,
-	// which is wrong for the very first frame content actually renders in.
-	// The final position is then clamped into the viewport directly rather
-	// than a binary left/right-of-cursor flip, which still overflowed the
-	// far edge whenever the tooltip was wider than the remaining space on
-	// BOTH sides of the cursor (e.g. long descriptions on a narrow viewport).
-	function handleMouseMove(e: MouseEvent) {
-		const width = tooltipEl?.offsetWidth ?? 0;
-		const height = tooltipEl?.offsetHeight ?? 0;
+	function updatePosition() {
+		if (!containerEl || !tooltipEl) return;
 
-		const maxLeft = window.innerWidth - width - EDGE_MARGIN;
-		const maxTop = window.innerHeight - height - EDGE_MARGIN;
+		const triggerRect = containerEl.getBoundingClientRect();
+		const contentSize = {
+			width: tooltipEl.offsetWidth,
+			height: tooltipEl.offsetHeight
+		};
 
-		left = Math.min(Math.max(EDGE_MARGIN, e.clientX + CURSOR_OFFSET), Math.max(EDGE_MARGIN, maxLeft));
-		top = Math.min(Math.max(EDGE_MARGIN, e.clientY + CURSOR_OFFSET), Math.max(EDGE_MARGIN, maxTop));
+		const placement = computeAnchorPlacement(triggerRect, contentSize, {
+			side,
+			align,
+			offset,
+			avoidRects
+		});
+
+		posX = placement.x;
+		posY = placement.y;
+		placedSide = placement.side;
 	}
+
+	function handleMouseEnter() {
+		clearTimeout(openTimer);
+		openTimer = setTimeout(async () => {
+			isVisible = true;
+			await tick();
+			updatePosition();
+		}, openDelay);
+	}
+
+	function handleMouseLeave() {
+		clearTimeout(openTimer);
+		isVisible = false;
+	}
+
+	async function handleFocusIn() {
+		clearTimeout(openTimer);
+		isVisible = true;
+		await tick();
+		updatePosition();
+	}
+
+	function handleFocusOut() {
+		clearTimeout(openTimer);
+		isVisible = false;
+	}
+
+	$effect(() => {
+		if (!isVisible) return;
+
+		const update = () => updatePosition();
+		window.addEventListener("scroll", update, { passive: true, capture: true });
+		window.addEventListener("resize", update, { passive: true });
+
+		return () => {
+			window.removeEventListener("scroll", update, true);
+			window.removeEventListener("resize", update);
+		};
+	});
+
+	$effect(() => {
+		if (!containerEl) return;
+		const target =
+			containerEl.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]") ??
+			containerEl;
+
+		if (isVisible) {
+			target.setAttribute("aria-describedby", tooltipId);
+		} else {
+			target.removeAttribute("aria-describedby");
+		}
+	});
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="tooltip-container"
-	role="tooltip"
-	onmouseenter={(e) => {
-		isVisible = true;
-		left = e.clientX + CURSOR_OFFSET;
-		top = e.clientY + CURSOR_OFFSET;
-	}}
-	onmouseleave={() => (isVisible = false)}
-	onmousemove={handleMouseMove}
+	bind:this={containerEl}
+	class="tooltip-container {extraClass}"
+	onmouseenter={handleMouseEnter}
+	onmouseleave={handleMouseLeave}
+	onfocusin={handleFocusIn}
+	onfocusout={handleFocusOut}
 >
 	{@render children()}
 
 	{#if isVisible}
 		<div
 			bind:this={tooltipEl}
-			class="minecraft-floating-tooltip"
+			id={tooltipId}
+			role="tooltip"
+			class="pixel-bordered pixel-popover-tooltip"
 			use:portal
-			style:left="{left}px"
-			style:top="{top}px"
+			data-side={placedSide}
+			style:left="{posX}px"
+			style:top="{posY}px"
 		>
 			{@render tooltipContent()}
 		</div>
@@ -74,25 +157,26 @@
 <style>
 	.tooltip-container {
 		display: inline-block;
-		cursor: pointer;
+		width: 100%;
 	}
 
-	.minecraft-floating-tooltip {
+	.pixel-popover-tooltip {
 		position: fixed;
 		pointer-events: none;
 		z-index: 10001;
 
-		background: rgba(16, 1, 16, 0.94);
-		border: 2px solid #2e0664;
-		outline: 2px solid #100110;
-		padding: 10px 12px;
-		border-radius: 4px;
-		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-		font-family: var(--mono);
-		/* Wraps instead of stretching indefinitely — a long (nowrap) rule
-		   description could make the tooltip wider than the viewport itself,
-		   which no amount of position-clamping alone can keep on-screen. */
+		padding: 8px 12px;
+		font-family: var(--tiny);
+		font-size: 0.75rem;
+		line-height: 1.3;
+		color: var(--text-h);
+		text-shadow: 1px 1px 0 var(--pixel-shadow, #000);
+
+		--pc-fill: #100110;
+		--pc-border: #2e0664;
+		box-shadow: var(--elevation-2);
+
 		white-space: normal;
-		max-width: min(320px, calc(100vw - 2 * 8px));
+		max-width: 320px;
 	}
 </style>
