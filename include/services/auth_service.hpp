@@ -48,7 +48,7 @@ public:
      * @brief Validates and registers a new account.
      * @param username Desired username (length-checked, rejected if reserved
      * for AI bots).
-     * @param email Optional email (stored as NULL if empty).
+     * @param email Account email. Required: the column is NOT NULL UNIQUE and it is the address verification codes are sent to.
      * @param password Plaintext password (length-checked, then hashed).
      * @return VoidResult Empty on success, or the reason registration was
      * rejected/failed.

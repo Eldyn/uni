@@ -28,6 +28,10 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
         return std::unexpected(Error::InvalidInput("Password must be at least 8 characters"));
     }
 
+    if (email.empty()) {
+        return std::unexpected(Error::InvalidInput("Email is required"));
+    }
+
     auto duplicate = db_.QueryOne(
         "SELECT id FROM users WHERE username = ? OR email = ?;",
         {username, email});
@@ -75,7 +79,7 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
 
     auto result = db_.Exec(
         "INSERT INTO users (username, pass_hash, salt, email) VALUES (?, ?, ?, ?);",
-        {username, hash_b64, salt_b64, email.empty() ? DbValue(nullptr) : DbValue(email)});
+        {username, hash_b64, salt_b64, email});
 
     if (!result) {
         Logger::Error("[Auth] DB insert failed: " + result.error().message);

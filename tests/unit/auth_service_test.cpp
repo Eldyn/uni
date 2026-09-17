@@ -88,6 +88,14 @@ TEST_CASE("Register: valid username/password succeeds") {
     CHECK(result.has_value());
 }
 
+TEST_CASE("Register: rejects empty email") {
+    AuthFixture f;
+    AuthService svc;
+    auto result = svc.Register("auth_test_empty_email", "", "password123");
+    CHECK(!result.has_value());
+    CHECK(result.error().code == Error::Code::kInvalidInput);
+}
+
 TEST_CASE("Register: password too short is rejected") {
     AuthFixture f;
     AuthService svc;
