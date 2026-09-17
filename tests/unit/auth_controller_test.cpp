@@ -154,7 +154,7 @@ struct ScopedTestServer {
             options.cert_file_name = "cert.pem";
 
             HttpRouter router;
-            EmailQueue email_queue(std::make_unique<DevFileEmailSender>("."));
+            EmailQueue email_queue(std::make_unique<DevFileEmailSender>(std::filesystem::temp_directory_path().string()));
             AuthController auth_ctrl(router, email_queue);
             AppHttp app(options);
             router.Attach(app);
@@ -316,3 +316,20 @@ TEST_CASE("6th request in 24h returns 429 and does not queue an email") {
     CHECK(count_res->has_value());
     CHECK(count_res->value().Get<int>("c") == 5);
 }
+
+TEST_CASE("request-code handles empty and malformed body safely") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("emptybodyuser", "empty@example.com", "password123");
+    
+    // Empty body should succeed with default locale
+    auto empty_res = SimulatePost("/auth/verify/request-code", "", session.cookies);
+    CHECK(empty_res.status == 202);
+
+    // Clear rate limit bucket
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+
+    // Malformed JSON should return 400 Bad Request
+    auto bad_res = SimulatePost("/auth/verify/request-code", "{not-valid-json", session.cookies);
+    CHECK(bad_res.status == 400);
+}
+

@@ -272,15 +272,17 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
 
     http::ReadBody(res, kMaxBodyBytes, [this, res, id = status->id, username = payload->username, email = status->email, db_locale = status->locale](const std::string& body) {
         std::string effective_locale = db_locale;
-        json data;
-        try {
-            if (!body.empty()) {
+        json data = json::object();
+        if (!body.empty()) {
+            try {
                 data = json::parse(body);
+            } catch (...) {
+                WriteError(res, Error::BadRequest("Invalid JSON"));
+                return;
             }
-        } catch (...) {
         }
 
-        if (data.contains("locale") && data["locale"].is_string()) {
+        if (data.is_object() && data.contains("locale") && data["locale"].is_string()) {
             std::string req_locale = data["locale"].get<std::string>();
             if (req_locale == "en" || req_locale == "de" || req_locale == "es" || 
                 req_locale == "it" || req_locale == "ja" || req_locale == "ko" || req_locale == "zh") {
