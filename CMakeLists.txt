@@ -228,6 +228,7 @@ if(UNI_BUILD_TESTS)
         src/services/auth_service.cpp
         src/services/verification_service.cpp
         src/common/email_sender.cpp
+        src/common/email_queue.cpp
         src/common/email_templates.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
