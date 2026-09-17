@@ -17,6 +17,12 @@ export type RichEffect = "shake" | "undulate" | "shine";
 
 const RICH_EFFECTS: readonly RichEffect[] = ["shake", "undulate", "shine"];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+const KEYWORD_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+export interface ParseRichTextOptions {
+	/** Whether keyword markup [k=id]...[/k] should be parsed into interactive keyword segments. */
+	allowKeywords?: boolean;
+}
 
 export interface RichSegment {
 	text: string;
@@ -24,6 +30,7 @@ export interface RichSegment {
 	italic?: true;
 	color?: string;
 	effect?: RichEffect;
+	keyword?: string;
 }
 
 type Token =
@@ -33,11 +40,14 @@ type Token =
 	| { kind: "openColor"; value: string }
 	| { kind: "closeColor" }
 	| { kind: "openFx"; value: string }
-	| { kind: "closeFx" };
+	| { kind: "closeFx" }
+	| { kind: "openKeyword"; value: string }
+	| { kind: "closeKeyword" };
 
-const TOKEN_RE = /(\*\*)|(\*)|\[c=([^\]]+)\]|\[\/c\]|\[fx=([^\]]+)\]|\[\/fx\]/g;
+const TOKEN_RE =
+	/(\*\*)|(\*)|\[c=([^\]]+)\]|\[\/c\]|\[fx=([^\]]+)\]|\[\/fx\]|\[k=([^\]]+)\]|\[\/k\]/g;
 
-function tokenize(input: string): Token[] {
+function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 	const tokens: Token[] = [];
 	let lastIndex = 0;
 	let match: RegExpExecArray | null;
@@ -48,7 +58,7 @@ function tokenize(input: string): Token[] {
 			tokens.push({ kind: "text", value: input.slice(lastIndex, match.index) });
 		}
 
-		const [full, bold, italic, colorValue, fxValue] = match;
+		const [full, bold, italic, colorValue, fxValue, keywordValue] = match;
 		if (bold) tokens.push({ kind: "bold" });
 		else if (italic) tokens.push({ kind: "italic" });
 		else if (colorValue !== undefined) {
@@ -70,6 +80,19 @@ function tokenize(input: string): Token[] {
 					: { kind: "text", value: full }
 			);
 		} else if (full === "[/fx]") tokens.push({ kind: "closeFx" });
+		else if (keywordValue !== undefined) {
+			if (options.allowKeywords && KEYWORD_ID_RE.test(keywordValue)) {
+				tokens.push({ kind: "openKeyword", value: keywordValue });
+			} else {
+				tokens.push({ kind: "text", value: full });
+			}
+		} else if (full === "[/k]") {
+			if (options.allowKeywords) {
+				tokens.push({ kind: "closeKeyword" });
+			} else {
+				tokens.push({ kind: "text", value: full });
+			}
+		}
 
 		lastIndex = TOKEN_RE.lastIndex;
 	}
@@ -94,6 +117,10 @@ function literalOf(token: Token): string {
 			return `[fx=${token.value}]`;
 		case "closeFx":
 			return "[/fx]";
+		case "openKeyword":
+			return `[k=${token.value}]`;
+		case "closeKeyword":
+			return "[/k]";
 		default:
 			return token.value;
 	}
@@ -111,11 +138,11 @@ function demoteUnmatchedToggles(tokens: Token[], kind: "bold" | "italic"): void 
 	}
 }
 
-/** Marks unmatched open/close pairs (color/fx) as plain text in-place. */
+/** Marks unmatched open/close pairs (color/fx/keyword) as plain text in-place. */
 function demoteUnmatchedTagPairs(
 	tokens: Token[],
-	openKind: "openColor" | "openFx",
-	closeKind: "closeColor" | "closeFx"
+	openKind: "openColor" | "openFx" | "openKeyword",
+	closeKind: "closeColor" | "closeFx" | "closeKeyword"
 ): void {
 	const openStack: number[] = [];
 	for (let i = 0; i < tokens.length; i++) {
@@ -135,14 +162,17 @@ function demoteUnmatchedTagPairs(
 	}
 }
 
-export function parseRichText(input: string): RichSegment[] {
+export function parseRichText(input: string, options: ParseRichTextOptions = {}): RichSegment[] {
 	if (!input) return [];
 
-	const tokens = tokenize(input);
+	const tokens = tokenize(input, options);
 	demoteUnmatchedToggles(tokens, "bold");
 	demoteUnmatchedToggles(tokens, "italic");
 	demoteUnmatchedTagPairs(tokens, "openColor", "closeColor");
 	demoteUnmatchedTagPairs(tokens, "openFx", "closeFx");
+	if (options.allowKeywords) {
+		demoteUnmatchedTagPairs(tokens, "openKeyword", "closeKeyword");
+	}
 
 	const segments: RichSegment[] = [];
 	let buffer = "";
@@ -150,6 +180,7 @@ export function parseRichText(input: string): RichSegment[] {
 	let italic = false;
 	const colorStack: string[] = [];
 	const fxStack: RichEffect[] = [];
+	const keywordStack: string[] = [];
 
 	const flush = () => {
 		if (!buffer) return;
@@ -158,6 +189,7 @@ export function parseRichText(input: string): RichSegment[] {
 		if (italic) segment.italic = true;
 		if (colorStack.length) segment.color = colorStack[colorStack.length - 1];
 		if (fxStack.length) segment.effect = fxStack[fxStack.length - 1];
+		if (keywordStack.length) segment.keyword = keywordStack[keywordStack.length - 1];
 		segments.push(segment);
 		buffer = "";
 	};
@@ -190,6 +222,14 @@ export function parseRichText(input: string): RichSegment[] {
 			case "closeFx":
 				flush();
 				fxStack.pop();
+				break;
+			case "openKeyword":
+				flush();
+				keywordStack.push(token.value);
+				break;
+			case "closeKeyword":
+				flush();
+				keywordStack.pop();
 				break;
 		}
 	}

@@ -8,6 +8,7 @@
 
 <script lang="ts" generics="T">
 	import Tooltip from "$components/common/Tooltip.svelte";
+	import RichText from "$components/common/RichText.svelte";
 
 	let {
 		label,
@@ -47,9 +48,9 @@
 {/snippet}
 
 {#if (description?.length ?? 0) > 0}
-	<Tooltip>
+	<Tooltip interactive={true}>
 		{#snippet tooltipContent()}
-			<span>{description}</span>
+			<RichText text={description ?? ""} allowKeywords={true} />
 		{/snippet}
 		{@render selectorControl()}
 	</Tooltip>

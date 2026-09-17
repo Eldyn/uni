@@ -4,6 +4,9 @@
 	import TurnOrderStrip from "./TurnOrderStrip.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import Tooltip from "$components/common/Tooltip.svelte";
+	import RichText from "$components/common/RichText.svelte";
+	import { getCardInfo } from "$lib/glossary/cardDescriptions";
 
 	let collapsed = $state(false);
 
@@ -51,6 +54,23 @@
 			</span>
 
 			<TurnOrderStrip />
+
+			{#if storeGame.state?.top_card}
+				{@const topCard = storeGame.state.top_card}
+				{@const cardInfo = getCardInfo(topCard, storeI18n.locale)}
+				<Tooltip interactive={true} side="bottom">
+					{#snippet tooltipContent()}
+						<div class="top-card-tooltip">
+							<div class="top-card-tooltip-title">{cardInfo.title}</div>
+							<RichText text={cardInfo.description} allowKeywords={true} />
+						</div>
+					{/snippet}
+					<div class="top-card-chip pixel-corners">
+						<span class="top-card-dot {topCard.type}"></span>
+						<span class="top-card-label">{cardInfo.title}</span>
+					</div>
+				</Tooltip>
+			{/if}
 
 			{#if storeGame.state?.mode === 'elimination' && storeGame.placements.length > 0}
 				<div
@@ -160,5 +180,45 @@
 
 	.placement-chip {
 		color: var(--warning, #f59e0b);
+	}
+
+	.top-card-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--surface-2);
+		padding: 3px 8px;
+		font-size: 0.8rem;
+		cursor: help;
+		user-select: none;
+	}
+
+	.top-card-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		display: inline-block;
+		background: var(--text-h);
+	}
+
+	.top-card-dot.red { background: var(--redCard, #ef4444); }
+	.top-card-dot.blue { background: var(--blueCard, #3b82f6); }
+	.top-card-dot.green { background: var(--greenCard, #22c55e); }
+	.top-card-dot.yellow { background: var(--yellowCard, #eab308); }
+	.top-card-dot.white,
+	.top-card-dot.black { background: #9333ea; }
+
+	.top-card-tooltip {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.top-card-tooltip-title {
+		font-weight: bold;
+		font-size: 0.85rem;
+		color: var(--warning, #f59e0b);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 </style>

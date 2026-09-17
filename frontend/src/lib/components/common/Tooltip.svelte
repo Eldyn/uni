@@ -14,6 +14,8 @@
 		align?: Align;
 		offset?: number;
 		openDelay?: number;
+		closeDelay?: number;
+		interactive?: boolean;
 		id?: string;
 		class?: string;
 		avoidRects?: Rect[];
@@ -26,6 +28,8 @@
 		align = "center",
 		offset = 8,
 		openDelay = 150,
+		closeDelay = 150,
+		interactive = false,
 		id,
 		class: extraClass = "",
 		avoidRects
@@ -43,6 +47,7 @@
 	let placedSide = $state<Side>("top");
 
 	let openTimer: ReturnType<typeof setTimeout> | undefined;
+	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
@@ -76,6 +81,7 @@
 
 	function handleMouseEnter() {
 		clearTimeout(openTimer);
+		clearTimeout(closeTimer);
 		openTimer = setTimeout(async () => {
 			isVisible = true;
 			await tick();
@@ -85,19 +91,49 @@
 
 	function handleMouseLeave() {
 		clearTimeout(openTimer);
-		isVisible = false;
+		if (interactive) {
+			closeTimer = setTimeout(() => {
+				isVisible = false;
+			}, closeDelay);
+		} else {
+			isVisible = false;
+		}
+	}
+
+	function handleTooltipMouseEnter() {
+		if (!interactive) return;
+		clearTimeout(closeTimer);
+	}
+
+	function handleTooltipMouseLeave() {
+		if (!interactive) return;
+		clearTimeout(closeTimer);
+		closeTimer = setTimeout(() => {
+			isVisible = false;
+		}, closeDelay);
 	}
 
 	async function handleFocusIn() {
 		clearTimeout(openTimer);
+		clearTimeout(closeTimer);
 		isVisible = true;
 		await tick();
 		updatePosition();
 	}
 
-	function handleFocusOut() {
+	function handleFocusOut(e: FocusEvent) {
 		clearTimeout(openTimer);
-		isVisible = false;
+		if (interactive) {
+			const related = e.relatedTarget as Node | null;
+			if (related && (containerEl?.contains(related) || tooltipEl?.contains(related))) {
+				return;
+			}
+			closeTimer = setTimeout(() => {
+				isVisible = false;
+			}, closeDelay);
+		} else {
+			isVisible = false;
+		}
 	}
 
 	$effect(() => {
@@ -144,10 +180,15 @@
 			id={tooltipId}
 			role="tooltip"
 			class="pixel-bordered pixel-popover-tooltip"
+			class:interactive
 			use:portal
 			data-side={placedSide}
 			style:left="{posX}px"
 			style:top="{posY}px"
+			onmouseenter={handleTooltipMouseEnter}
+			onmouseleave={handleTooltipMouseLeave}
+			onfocusin={() => clearTimeout(closeTimer)}
+			onfocusout={handleFocusOut}
 		>
 			{@render tooltipContent()}
 		</div>
@@ -178,5 +219,9 @@
 
 		white-space: normal;
 		max-width: 320px;
+	}
+
+	.pixel-popover-tooltip.interactive {
+		pointer-events: auto;
 	}
 </style>

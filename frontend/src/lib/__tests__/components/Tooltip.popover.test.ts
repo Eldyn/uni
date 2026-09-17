@@ -77,4 +77,32 @@ describe("Tooltip static pixel popover", () => {
 		expect(tooltip.style.left).toBe(initialLeft);
 		expect(tooltip.style.top).toBe(initialTop);
 	});
+
+	it("supports interactive hover bridge into tooltip content", async () => {
+		render(TooltipHarness, { props: { openDelay: 0, closeDelay: 150, interactive: true } });
+		const trigger = screen.getByRole("button", { name: "Trigger Button" });
+
+		await fireEvent.mouseEnter(trigger.parentElement!);
+		await act(() => vi.runAllTimers());
+
+		const tooltip = screen.getByRole("tooltip");
+		expect(tooltip).toBeInTheDocument();
+		expect(tooltip).toHaveClass("interactive");
+
+		// Mouse leaves trigger - closeDelay begins
+		await fireEvent.mouseLeave(trigger.parentElement!);
+		// Advance half the close delay (75ms): still open
+		await act(() => vi.advanceTimersByTime(75));
+		expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+		// Pointer enters tooltip: cancels close timer
+		await fireEvent.mouseEnter(tooltip);
+		await act(() => vi.advanceTimersByTime(200));
+		expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+		// Pointer leaves tooltip: closes after closeDelay
+		await fireEvent.mouseLeave(tooltip);
+		await act(() => vi.advanceTimersByTime(150));
+		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+	});
 });
