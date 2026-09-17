@@ -5,6 +5,7 @@
 #include <fstream>
 #include <chrono>
 #include <cctype>
+#include <algorithm>
 #include <nlohmann/json.hpp>
 
 /**
@@ -59,10 +60,28 @@ std::string SanitizeForFilename(const std::string& raw) {
 // instead it's appended to an in-memory buffer so a failure path can log a
 // short, bounded snippet of it. Never touches request headers, so the
 // api-key header set on the request is never within reach of this callback.
+
+// Capped at kMaxCapturedBody (only the first 200 chars are ever logged) so a
+// pathological/huge response body can't grow this buffer unbounded. Wrapped
+// in try/catch: this callback is invoked directly from libcurl's C stack, and
+// std::string::append can throw std::bad_alloc; letting a C++ exception
+// propagate through a C library's call frames is undefined behaviour, so any
+// exception here is swallowed and reported to curl as a short write, which
+// aborts the transfer cleanly via CURLE_WRITE_ERROR instead.
+constexpr size_t kMaxCapturedBody = 8192;
+
 size_t AppendResponseBody(char* data, size_t size, size_t count, void* user) {
-    auto* out = static_cast<std::string*>(user);
-    out->append(data, size * count);
-    return size * count;
+    const size_t total = size * count;
+    try {
+        auto* out = static_cast<std::string*>(user);
+        if (out->size() < kMaxCapturedBody) {
+            size_t remaining = kMaxCapturedBody - out->size();
+            out->append(data, std::min(remaining, total));
+        }
+        return total;
+    } catch (...) {
+        return 0;  // Signals a short write to libcurl, aborting the transfer.
+    }
 }
 #endif
 }  // namespace
@@ -105,6 +124,7 @@ BrevoEmailSender::BrevoEmailSender(std::string api_key) : api_key_(std::move(api
 
 VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
 #if UNI_HAS_LIBCURL
+  try {
     json payload = {
         {"sender", {{"name", Env::Get("EMAIL_FROM_NAME", "")},
                     {"email", Env::Get("EMAIL_FROM_ADDRESS", "")}}},
@@ -113,7 +133,11 @@ VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
         {"htmlContent", mail.html_body},
         {"textContent", mail.text_body}
     };
-    std::string body = payload.dump();
+    // error_handler_t::replace swaps any invalid UTF-8 byte sequence in the
+    // user-controlled fields above (to_address, to_name, subject, bodies)
+    // for U+FFFD instead of throwing nlohmann::json::type_error (316), which
+    // would otherwise escape unhandled on the EmailQueue worker thread.
+    std::string body = payload.dump(-1, ' ', false, json::error_handler_t::replace);
 
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -141,6 +165,10 @@ VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    // Prevents libcurl's non-threaded resolver from using SIGALRM-based
+    // timeout handling, which can corrupt process state when curl runs off
+    // the main thread (as it does here, from an EmailQueue worker thread).
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     CURLcode perform_result = curl_easy_perform(curl);
     if (perform_result != CURLE_OK) {
@@ -164,6 +192,16 @@ VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
     }
 
     return {};
+  } catch (const std::exception& e) {
+    // Defense in depth: nothing in the block above is expected to throw once
+    // payload.dump() uses error_handler_t::replace, but this still converts
+    // any unforeseen exception (e.g. std::bad_alloc) into a VoidResult
+    // instead of letting it escape Send() and terminate the process on the
+    // EmailQueue worker thread.
+    return std::unexpected(Error::Internal(std::string("[Email] Brevo send failed: ") + e.what()));
+  } catch (...) {
+    return std::unexpected(Error::Internal("[Email] Brevo send failed: unknown exception"));
+  }
 #else
     (void)mail;
     return std::unexpected(Error::Internal(

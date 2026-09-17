@@ -13,9 +13,27 @@
 #include <transport/presence_registry.hpp>
 #include <webserver.hpp>
 
+// Mirrors the UNI_HAS_LIBCURL switch in src/common/email_sender.cpp: only
+// uni_server links libcurl (BrevoEmailSender), so curl_global_init/cleanup
+// are only relevant in that binary.
+#ifndef UNI_HAS_LIBCURL
+#define UNI_HAS_LIBCURL 0
+#endif
+#if UNI_HAS_LIBCURL
+#include <curl/curl.h>
+#endif
+
 using json = nlohmann::json;
 
 int main() {
+#if UNI_HAS_LIBCURL
+    // curl_global_init/cleanup are not thread-safe against concurrent calls
+    // and must run exactly once per process, before any thread may call into
+    // libcurl (BrevoEmailSender::Send runs on an EmailQueue worker thread).
+    // Doing this here, once, at startup — rather than lazily inside Send()
+    // itself — avoids re-introducing that exact race on every call.
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+#endif
     try {
         Env::Load(".env");
 
@@ -69,8 +87,14 @@ int main() {
         });
 
         server.Run();
+#if UNI_HAS_LIBCURL
+        curl_global_cleanup();
+#endif
     } catch (const std::exception& e) {
         Logger::Error(std::string("Fatal: "), e.what());
+#if UNI_HAS_LIBCURL
+        curl_global_cleanup();
+#endif
         return 1;
     }
 }

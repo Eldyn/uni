@@ -23,7 +23,7 @@ class UniConan(ConanFile):
         "sqlite3/3.45.1",
         "jwt-cpp/0.7.0",
         "nlohmann_json/3.11.3",
-        "libcurl/8.6.0",
+        "libcurl/8.22.0",
     )
 
     tool_requires = "ninja/1.13.2"
