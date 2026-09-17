@@ -412,3 +412,17 @@ TEST_CASE("magic-link confirm from a clean cookie jar succeeds") {
         R"({"email":"link@example.com","code":")" + code + "\"}", /*no cookies*/ "");
     CHECK(response.status == 200);
 }
+
+TEST_CASE("confirm-code repeated unknown email attempts lock out by IP") {
+    ScopedTestServer server;
+    for (int i = 0; i < 5; ++i) {
+        auto res = SimulatePost("/auth/verify/confirm-code",
+            R"({"email":"unknown_does_not_exist@example.com","code":"123456"})", "");
+        CHECK(res.status == 401);
+    }
+    // 6th attempt should be locked out with 429
+    auto locked_res = SimulatePost("/auth/verify/confirm-code",
+        R"({"email":"unknown_does_not_exist@example.com","code":"123456"})", "");
+    CHECK(locked_res.status == 429);
+}
+

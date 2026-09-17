@@ -375,19 +375,15 @@ void AuthController::HandleConfirmCode(AppResponse* res, AppRequest* req) {
             }
         }
 
-        if (user_id == -1 || !valid_code) {
-            if (user_id == -1) {
-                verify_attempt_throttle_.RecordFailure("unknown|" + ip);
-            } else {
-                verify_attempt_throttle_.RecordFailure(std::to_string(user_id) + "|" + ip);
-            }
-            WriteError(res, Error::Unauthorised("Invalid or expired code"));
+        const std::string throttle_key = (user_id != -1) ? (std::to_string(user_id) + "|" + ip) : ip;
+        if (verify_attempt_throttle_.IsLocked(throttle_key)) {
+            WriteError(res, Error::TooManyRequests("Too many failed attempts. Try again later."));
             return;
         }
 
-        const std::string throttle_key = std::to_string(user_id) + "|" + ip;
-        if (verify_attempt_throttle_.IsLocked(throttle_key)) {
-            WriteError(res, Error::TooManyRequests("Too many failed attempts. Try again later."));
+        if (user_id == -1 || !valid_code) {
+            verify_attempt_throttle_.RecordFailure(throttle_key);
+            WriteError(res, Error::Unauthorised("Invalid or expired code"));
             return;
         }
 
