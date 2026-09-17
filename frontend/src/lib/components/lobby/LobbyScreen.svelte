@@ -7,7 +7,6 @@
 	import * as m from "$lib/paraglide/messages.js";
 
 	import LobbySettings from "./LobbySettings.svelte";
-	import LobbySave from "./LobbySave.svelte";
 	import Modal from "$components/common/Modal.svelte";
 	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
@@ -133,7 +132,11 @@
 	<header class="shell-topbar-secondary">
 		<div class="flex flex-wrap items-center gap-2">
 			<div class="flex items-center gap-1 bg-black px-3 py-2">
-				<span class="font-monogram w-24 text-center text-lg text-text sm:text-xl">
+				<span
+					class="font-monogram w-24 text-center text-text leading-none {showInviteCode
+						? 'text-xl tracking-wider'
+						: 'text-lg tracking-widest'}"
+				>
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
 				<button
@@ -159,28 +162,6 @@
 				</button>
 			</div>
 
-			<details class="relative w-fit select-none">
-				<summary
-					class="cursor-pointer list-none border border-white/10 bg-bg px-4 py-2 font-tiny text-xs uppercase [&::-webkit-details-marker]:hidden"
-				>
-					{m.lobby_saves_format(
-						{ count: storeLobby.savedMatches?.length ?? 0 },
-						{ locale: storeI18n.locale }
-					)}
-				</summary>
-				<ul
-					class="scrollbar-accent absolute left-0 top-[calc(100%+10px)] z-50 max-h-96 w-80 max-w-[90vw] list-none overflow-y-auto border-2 border-border bg-bg p-2 shadow-lg"
-				>
-					{#each storeLobby.savedMatches ?? [] as save}
-						<LobbySave {save} />
-					{/each}
-					{#if (storeLobby.savedMatches?.length ?? 0) === 0}
-						<li class="p-2.5 text-xs text-text">
-							{m.lobby_no_saved_matches({}, { locale: storeI18n.locale })}
-						</li>
-					{/if}
-				</ul>
-			</details>
 		</div>
 
 		<div class="ml-auto flex items-center gap-2">

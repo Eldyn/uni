@@ -35,7 +35,6 @@
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
-		save_state: storeLobby.current?.settings.save_state ?? false,
 
 		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
 		allow_bot_takeover: storeLobby.current?.settings.allow_bot_takeover ?? false,
@@ -102,14 +101,6 @@
 		checked={settings.quit_deletes_match}
 		disabled={!isHost}
 		oncommit={(v) => commit("quit_deletes_match", v)}
-	/>
-
-	<Toggle
-		label={m.lobby_settings_save_match({}, { locale: storeI18n.locale })}
-		description={m.lobby_settings_save_match_desc({}, { locale: storeI18n.locale })}
-		checked={settings.save_state}
-		disabled={!isHost}
-		oncommit={(v) => commit("save_state", v)}
 	/>
 
 	<hr class="settings-divider" />

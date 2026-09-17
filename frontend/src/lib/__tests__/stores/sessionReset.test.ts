@@ -20,7 +20,6 @@ describe("storeLobby.reset", () => {
 
 		storeLobby.current = { invite_code: "ABCD" } as never;
 		storeLobby.available = [{ id: 1 } as never];
-		storeLobby.savedMatches = [{ id: 1 } as never];
 		storeLobby.isLoadingList = true;
 		storeLobby.listError = true;
 
@@ -28,11 +27,9 @@ describe("storeLobby.reset", () => {
 
 		expect(storeLobby.current).toBeNull();
 		expect(storeLobby.available).toEqual([]);
-		expect(storeLobby.savedMatches).toBeNull();
 		expect(storeLobby.isLoadingList).toBe(false);
 		expect(storeLobby.isLoadingJoin).toBe(false);
 		expect(storeLobby.isLoadingStart).toBe(false);
-		expect(storeLobby.isLoadingSavedMatchList).toBe(false);
 		expect(storeLobby.listError).toBe(false);
 	});
 

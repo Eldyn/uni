@@ -38,7 +38,6 @@ export function makeLobby(overrides?: Partial<Lobby>): Lobby {
 		is_public: false,
 		active_mods: [],
 		turn_time_limit_ms: 15000,
-		save_state: false,
 		quit_deletes_match: false,
 		starting_cards: 7,
 		max_players: 4,

@@ -28,24 +28,6 @@ export enum BotTakeoverMode {
 	WaitUntilTurnEnd
 }
 
-/**
- * @interface SavedMatch
- * @brief Basic data of a match saved on the server.
- */
-export interface SavedMatch {
-	/** Unique identifier of the save in the database. */
-	match_id: string;
-	/** Date and time of the save. */
-	saved_at: string;
-	/** List of the usernames of the players present in that match. */
-	players: string[];
-}
-
-/**
- * @interface LobbySettings
- * @brief Represents the configuration and rules chosen for the lobby.
- * Defines the match parameters and the composition of the initial deck.
- */
 export interface LobbySettings {
 	/** If true, the lobby will appear in the public list of matches. */
 	is_public: boolean;
@@ -54,8 +36,6 @@ export interface LobbySettings {
 	/** Time limit in milliseconds allowed to complete a turn (e.g. 15000). */
 	turn_time_limit_ms: number;
 
-	/** If true, the match state will be saved to the database on every move. */
-	save_state: boolean;
 	/** If true, a player's voluntary quit will permanently delete the save. */
 	quit_deletes_match: boolean;
 
@@ -197,8 +177,6 @@ function parseLobby(raw: unknown): Lobby | null {
  * @brief Singleton store that manages all lobby-related state and the associated WebSocket interactions.
  */
 class StoreLobby implements SessionStore {
-	/** Saved matches compatible with the current player list. Null if not in a lobby. */
-	savedMatches = $state<SavedMatch[] | null>(null);
 	/** The lobby the user is currently in. Null if not in a lobby. */
 	current = $state<Lobby | null>(null);
 
@@ -218,9 +196,6 @@ class StoreLobby implements SessionStore {
 
 	/** True while a lobby creation or join request is in progress. */
 	isLoadingJoin = $state(false);
-
-	/** True while the list of saved matches is being fetched. */
-	isLoadingSavedMatchList = $state(false);
 
 	/** True while a start-match request is in flight. */
 	isLoadingStart = $state(false);
@@ -562,7 +537,6 @@ class StoreLobby implements SessionStore {
 			this.#armMatchRedirect(500);
 
 			storeNavigation.goto("lobby");
-			await this.#fetchSavedMatches();
 
 			// Ready up automatically the moment the player actually enters this
 			// lobby (fresh join/create), not on every re-render of the lobby
@@ -573,7 +547,7 @@ class StoreLobby implements SessionStore {
 			}
 		});
 
-		ws.on(ServerAction.LobbyUpdated, async (data) => {
+		ws.on(ServerAction.LobbyUpdated, (data) => {
 			const updatedLobby = parseLobby(data.lobby);
 			if (!updatedLobby) return;
 
@@ -601,8 +575,6 @@ class StoreLobby implements SessionStore {
 						updatedLobby.members.length >= updatedLobby.settings.max_players ? "full" : "open";
 				}
 			}
-
-			await this.#fetchSavedMatches();
 		});
 
 		const handleDisconnection = () => {
@@ -633,28 +605,6 @@ class StoreLobby implements SessionStore {
 		this.#matchRedirectTimer = null;
 		this.#matchRedirectUnsub?.();
 		this.#matchRedirectUnsub = null;
-	}
-
-	/**
-	 * @brief Fetches from the server the previous saves compatible with the players in the lobby.
-	 */
-	async #fetchSavedMatches(): Promise<void> {
-		if (!this.current) return;
-
-		this.isLoadingSavedMatchList = true;
-		try {
-			const result = await ws.emitAndWait(ClientAction.LobbyListSavedMatches);
-			if (result.ok) {
-				this.savedMatches = result.getOr<SavedMatch[]>("saved_matches", []);
-			} else {
-				storeToast.error("Saved games list error");
-			}
-		} catch (err) {
-			console.error("Failed to parse saved rooms details:", err);
-			storeToast.error("Saved games list error");
-		} finally {
-			this.isLoadingSavedMatchList = false;
-		}
 	}
 
 	/**
@@ -690,8 +640,6 @@ class StoreLobby implements SessionStore {
 
 			this.current = lobby;
 			storeNavigation.goto("lobby");
-
-			await this.#fetchSavedMatches();
 		} catch {
 			this.#disarmMatchRedirect();
 			this.#reset();
@@ -719,11 +667,9 @@ class StoreLobby implements SessionStore {
 		this.#disarmMatchRedirect();
 		this.#reset();
 		this.available = [];
-		this.savedMatches = null;
 		this.isLoadingList = false;
 		this.isLoadingJoin = false;
 		this.isLoadingStart = false;
-		this.isLoadingSavedMatchList = false;
 		this.listError = false;
 	}
 }

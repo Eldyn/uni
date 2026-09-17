@@ -80,24 +80,6 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
-    action_router_.On(ws::ClientAction::kLobbyListSavedMatches,
-                      [this](WsContext ctx, const json& msg) {
-        HandleGetSavedMatchesList(ctx, msg);
-        return true;
-    });
-
-    action_router_.On(ws::ClientAction::kLobbyDeleteSavedMatch,
-                      [this](WsContext ctx, const json& msg) {
-        HandleDeleteSavedMatch(ctx, msg);
-        return true;
-    });
-
-    action_router_.On(ws::ClientAction::kLobbyResumeSavedMatch,
-                      [this](WsContext ctx, const json& msg) {
-        HandleResumeSavedMatch(ctx, msg);
-        return true;
-    });
-
     action_router_.On(ws::ClientAction::kLobbyUpdateSettings,
                       [this](WsContext ctx, const json& msg) {
         HandleUpdateSettings(ctx, msg);
@@ -180,7 +162,6 @@ std::size_t LobbyController::ActiveMatchCount() const {
  */
 void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
     if (!lobby.match || lobby.match->IsMatchOver()) return;
-    if (!lobby.settings.save_state) return;
 
     json saved_state = lobby.match->ExportState();
     std::string json_payload = saved_state.dump();
@@ -813,192 +794,6 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 }
 
 /**
- * @brief Queries database layers compiling historical session records for connected users.
- * @param ctx Payload context wrapping request sockets and raw buffers.
- * @param message Inbound payload message.
- */
-void LobbyController::HandleGetSavedMatchesList(WsContext ctx, const json& message) {
-    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
-    const std::string& username = ctx.socket_data->username;
-    const std::string& code = ctx.socket_data->lobby_code;
-
-    if (code.empty()) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotInLobby,
-                               request_id);
-        return;
-    }
-
-    Lobby* lobby_ptr = GetLobbyByCode(code);
-    if (!lobby_ptr) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyNotFound,
-                               request_id);
-        return;
-    }
-    Lobby& lobby = *lobby_ptr;
-
-    std::vector<std::string> current_humans;
-    for (const auto& m : lobby.members) {
-        if (!m.is_bot) {
-            current_humans.push_back(m.username);
-        }
-    }
-
-    std::sort(current_humans.begin(), current_humans.end());
-
-    auto& db = Database::Get();
-    auto _ = db.Exec("DELETE FROM saved_matches WHERE expires_at <= CURRENT_TIMESTAMP", {});
-
-    auto rows_result = db.Query(R"(
-        SELECT m.id, m.saved_at
-        FROM saved_matches m
-        JOIN saved_match_participants p ON m.id = p.match_id
-        WHERE p.username = ?
-        ORDER BY m.saved_at DESC
-    )", {username});
-
-    json list = json::array();
-    if (rows_result) {
-        for (const auto& row : rows_result.value()) {
-            std::string match_id = row.Get<std::string>("id");
-            std::string saved_at = row.Get<std::string>("saved_at");
-
-            auto players_res = db.Query(
-                "SELECT username FROM saved_match_participants WHERE match_id = ?",
-                {match_id});
-
-            std::vector<std::string> match_humans;
-            if (players_res) {
-                for (const auto& p_row : players_res.value()) {
-                    match_humans.push_back(p_row.Get<std::string>("username"));
-                }
-            }
-
-            std::sort(match_humans.begin(), match_humans.end());
-
-            if (current_humans == match_humans) {
-                list.push_back({
-                    {"match_id", match_id},
-                    {"saved_at", saved_at},
-                    {"players", match_humans}
-                });
-            }
-        }
-    }
-
-    broadcaster_.SendSuccess(ctx.socket, ctx.op_code, request_id, {{"saved_matches", list}});
-}
-
-/**
- * @brief Removes a saved historical game session completely from persistence tracking.
- * @param context Payload context wrapping request sockets and raw buffers.
- * @param message Structure holding the specific `match_id` std::string to purge.
- */
-void LobbyController::HandleDeleteSavedMatch(WsContext context, const json& message) {
-    const std::string& code = context.socket_data->lobby_code;
-    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
-    auto payload_res = ws::ParsePayload<ws::LobbyDeleteSavedMatchPayload>(message);
-
-    if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInvalidPayload, request_id,
-                               payload_res.error().message);
-        return;
-    }
-    std::string match_id = payload_res->match_id;
-
-    Lobby* lobby_ptr = GetLobbyByCode(code);
-    if (!lobby_ptr) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kLobbyNotFound, request_id);
-        return;
-    }
-    Lobby& lobby = *lobby_ptr;
-
-    if (lobby.host != context.socket_data->username) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost,
-                               request_id);
-        return;
-    }
-
-    auto& db = Database::Get();
-    auto row = db.QueryOne("SELECT state_json FROM saved_matches WHERE id = ?", {match_id});
-
-    if (!row || !row->has_value()) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kSavedMatchNotFound, request_id);
-        return;
-    }
-
-    auto delete_status = db.Exec("DELETE FROM saved_matches WHERE id = ?", {match_id});
-    if (!delete_status) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInternalError, request_id);
-    }
-
-    BroadcastUpdate(lobby);
-    broadcaster_.SendSuccess(context.socket, context.op_code, request_id);
-}
-
-/**
- * @brief Restores a previously saved match state from the DB and broadcasts it to participants.
- * @param context Payload context wrapping request sockets and raw buffers.
- * @param message Structure containing the `match_id` targeting the saved state.
- */
-void LobbyController::HandleResumeSavedMatch(WsContext context, const json& message) {
-    const std::string& code = context.socket_data->lobby_code;
-    const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
-    auto payload_res = ws::ParsePayload<ws::LobbyResumeSavedMatchPayload>(message);
-
-    if (!payload_res) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInvalidPayload, request_id,
-                               payload_res.error().message);
-        return;
-    }
-    std::string match_id = payload_res->match_id;
-
-    Lobby* lobby_ptr = GetLobbyByCode(code);
-    if (!lobby_ptr) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kLobbyNotFound, request_id);
-        return;
-    }
-    Lobby& lobby = *lobby_ptr;
-
-    if (lobby.host != context.socket_data->username) {
-        broadcaster_.SendError(context.socket, context.op_code, contract::ErrorCode::kNotHost,
-                               request_id);
-        return;
-    }
-
-    auto& db = Database::Get();
-    auto row = db.QueryOne("SELECT state_json FROM saved_matches WHERE id = ?", {match_id});
-
-    if (!row || !row->has_value()) {
-        broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kSavedMatchNotFound, request_id);
-        return;
-    }
-
-    std::string state_json_str = row->value().Get<std::string>("state_json");
-    lobby.match = std::make_unique<match::MatchInstance>(json::parse(state_json_str),
-                                                          lobby.settings);
-    lobby.match->SetMatchId(match_id);
-
-    for (auto& cb : on_game_started_) cb(&lobby);
-
-    Logger::Info("[Lobby] Match successfully resumed by host in lobby ", lobby.id);
-
-    for (const auto& lobby_member : lobby.members) {
-        if (!lobby_member.is_connected || !lobby_member.socket) continue;
-
-        json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        response_payload["match_state"] = lobby.match->SerializePlayerState(lobby_member.username);
-        broadcaster_.Send(lobby_member.socket, response_payload.dump(), uWS::OpCode::TEXT);
-    }
-}
-
-/**
  * @brief Flips the caller's own ready state and broadcasts the updated lobby.
  * @param context Caller's socket/session context.
  * @param message Incoming lobby_toggle_ready payload.
@@ -1192,13 +987,12 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
         switch (result.match_outcome) {
             case MemberRemovalOutcome::kMatchAborted: {
                 Logger::Info("[Match] Human '", result.old_username,
-                             "' quit. Aborting and saving game.");
-                SaveMatchStateToDB(lobby);
+                             "' quit. Aborting match.");
 
                 json game_over_payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
                 game_over_payload["winner"] = "";
                 game_over_payload["reason"] =
-                    "A player left. The game state has been safely saved.";
+                    "A player left. Match aborted.";
 
                 for (const auto& m : lobby.members) {
                     if (m.is_connected && m.socket && m.username != result.old_username) {
@@ -1225,8 +1019,6 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
 
         CheckMatchIntegrity(lobby);
     }
-
-    SaveMatchStateToDB(lobby);
 
     bool has_humans = std::ranges::any_of(lobby.members, [](const LobbyMember& m) {
         return !m.is_bot;

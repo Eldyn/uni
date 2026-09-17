@@ -236,27 +236,6 @@ private:
     void HandleUpdateSettings(WsContext ctx, const json& msg);
 
     /**
-     * @brief Requests the list of previously saved matches.
-     * @param ctx WebSocket context of the request.
-     * @param msg Associated JSON payload.
-     */
-    void HandleGetSavedMatchesList(WsContext ctx, const json& msg);
-
-    /**
-     * @brief Resumes a saved match from its ID.
-     * @param ctx WebSocket context of the request.
-     * @param msg Associated JSON payload.
-     */
-    void HandleResumeSavedMatch(WsContext ctx, const json& msg);
-
-    /**
-     * @brief Permanently deletes a saved match from the DB.
-     * @param ctx WebSocket context of the request.
-     * @param msg Associated JSON payload.
-     */
-    void HandleDeleteSavedMatch(WsContext ctx, const json& msg);
-
-    /**
      * @brief Starts the match for the current lobby. Initializes the game instance.
      * @param context WebSocket context of the request.
      * @param message Associated JSON payload.

@@ -16,7 +16,6 @@ vi.mock("$stores/lobby.svelte", () => ({
 			],
 			settings: { max_players: 4, bot_count: 0 }
 		},
-		savedMatches: [],
 		startEligibility: { canStart: false, reason: "Waiting on 1 player to ready up" },
 		toggleReady,
 		startMatch: vi.fn(),

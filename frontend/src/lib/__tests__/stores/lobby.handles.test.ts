@@ -29,7 +29,6 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 		LobbyPromote: "lobby_promote",
 		LobbyKick: "lobby_kick",
 		LobbyUpdateSettings: "lobby_update_settings",
-		LobbyListSavedMatches: "lobby_list_saved_matches",
 		LobbyRejoin: "lobby_rejoin"
 	}
 }));

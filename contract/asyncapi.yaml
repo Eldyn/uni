@@ -60,9 +60,6 @@ channels:
           - $ref: "#/components/messages/LobbyKick"
           - $ref: "#/components/messages/LobbyUpdateSettings"
           - $ref: "#/components/messages/LobbyStartMatch"
-          - $ref: "#/components/messages/LobbyListSavedMatches"
-          - $ref: "#/components/messages/LobbyDeleteSavedMatch"
-          - $ref: "#/components/messages/LobbyResumeSavedMatch"
           - $ref: "#/components/messages/ChatSend"
           - $ref: "#/components/messages/ChatHistoryRequest"
           - $ref: "#/components/messages/FriendRequest"
@@ -512,30 +509,6 @@ components:
           request_id:
             type: string
 
-    LobbyListSavedMatches:
-      name: lobby_list_saved_matches
-      title: List Saved Matches for the Group
-      payload:
-        type: object
-        properties:
-          action:
-            type: string
-            enum: ["lobby_list_saved_matches"]
-          request_id:
-            type: string
-
-    LobbyDeleteSavedMatch:
-      name: lobby_delete_saved_match
-      title: Delete a Saved Match
-      payload:
-        $ref: "#/components/schemas/LobbyDeleteSavedMatchPayload"
-
-    LobbyResumeSavedMatch:
-      name: lobby_resume_saved_match
-      title: Resume a Saved Match
-      payload:
-        $ref: "#/components/schemas/LobbyResumeSavedMatchPayload"
-
     ChatSend:
       name: chat_send
       title: Send a Chat Message
@@ -736,8 +709,6 @@ components:
           type: boolean
         allow_bot_replacement:
           type: boolean
-        save_state:
-          type: boolean
         quit_deletes_match:
           type: boolean
         bot_mode:
@@ -754,22 +725,6 @@ components:
           type: array
           items:
             type: string
-
-    LobbyDeleteSavedMatchPayload:
-      type: object
-      required:
-        - match_id
-      properties:
-        match_id:
-          type: string
-
-    LobbyResumeSavedMatchPayload:
-      type: object
-      required:
-        - match_id
-      properties:
-        match_id:
-          type: string
 
     ChatSendPayload:
       type: object
@@ -935,7 +890,6 @@ components:
         UserNotInLobby: user_not_in_lobby
         CannotKickSelf: cannot_kick_self
         CannotPromoteBot: cannot_promote_bot
-        SavedMatchNotFound: saved_match_not_found
         FriendRequestInvalid: friend_request_invalid
         FriendRequestExists: friend_request_exists
         FriendRequestNotFound: friend_request_not_found

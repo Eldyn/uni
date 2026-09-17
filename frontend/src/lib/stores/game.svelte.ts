@@ -216,7 +216,6 @@ class StoreGame implements SessionStore {
 					bot_mode: s?.bot_mode,
 					allow_bot_takeover: s?.allow_bot_takeover,
 					allow_bot_replacement: s?.allow_bot_replacement,
-					save_state: s?.save_state,
 					quit_deletes_match: s?.quit_deletes_match,
 					is_public: s?.is_public
 				};

@@ -40,8 +40,6 @@ const ERROR_TEXT: Record<string, () => string> = {
 	[ErrorCode.UserNotInLobby]: () => m.error_user_not_in_lobby({}, { locale: storeI18n.locale }),
 	[ErrorCode.CannotKickSelf]: () => m.error_cannot_kick_self({}, { locale: storeI18n.locale }),
 	[ErrorCode.CannotPromoteBot]: () => m.error_cannot_promote_bot({}, { locale: storeI18n.locale }),
-	[ErrorCode.SavedMatchNotFound]: () =>
-		m.error_saved_match_not_found({}, { locale: storeI18n.locale }),
 	[ErrorCode.FriendRequestInvalid]: () =>
 		m.error_friend_request_invalid({}, { locale: storeI18n.locale }),
 	[ErrorCode.FriendRequestExists]: () =>
