@@ -90,6 +90,7 @@ namespace match {
         /**< The progression state. */
         MatchStatus status = MatchStatus::kWaitingToStart;
         std::string winner;  /**< Username of the winner (if concluded). */
+        std::vector<std::string> placements; /**< Placements (1st, 2nd, ...) in order. */
 
         /**< Ordered list (by turn) of the players. */
         std::vector<Player> players;

@@ -130,6 +130,13 @@ namespace match {
         void RemovePlayerMidGame(const std::string& username);
 
         /**
+         * @brief Shared core to remove a player index from rotation and correctly update current_player_index.
+         * @param index_to_remove Position in state_.players to remove.
+         * @param will_advance_turn True if an AdvanceTurnEffect is queued to run subsequently.
+         */
+        void RemovePlayerFromRotation(int index_to_remove, bool will_advance_turn = false);
+
+        /**
          * @brief Exports the entire MatchState into a savable JSON format.
          * @return json Serialized state.
          */
@@ -218,6 +225,7 @@ namespace match {
          * @return std::string Username of the winner.
          */
         std::string GetWinner() const { return state_.winner; }
+        const std::vector<std::string>& GetPlacements() const { return state_.placements; }
 
         /**
          * @brief Creates a JSON that represents the masked match state,
@@ -266,7 +274,7 @@ namespace match {
          * Match must have ranked setting true and at least kMinRankedHumans at match start.
          */
         bool IsRankedEligible() const {
-            return settings_.ranked && (initial_human_count_ >= kMinRankedHumans);
+            return (settings_.mode != "elimination") && settings_.ranked && (initial_human_count_ >= kMinRankedHumans);
         }
 
         /**

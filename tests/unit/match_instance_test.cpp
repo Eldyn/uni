@@ -530,3 +530,236 @@ TEST_CASE("Quit behavior: quit_deletes_match=true records aborted for all and to
         CHECK_EQ(r.Get<int>("ranked"), 0);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Elimination Mode Tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Elimination mode: 3 players turn rotation and placement resolution") {
+    json saved_state;
+    saved_state["rules"] = json::array();
+    saved_state["status"] = 1;  // kPlaying
+    saved_state["active_type"] = 0;  // kRed
+    saved_state["current_player_index"] = 0;
+    saved_state["play_direction"] = 1;
+    saved_state["pending_player"] = "";
+    saved_state["discard_pile"] = json::array({MakeCard(Type::kRed, Value::k5, 100)});
+    saved_state["draw_pile"] = json::array();
+
+    saved_state["players"] = json::array({
+        {
+            {"username", "el3_p0"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k1, 1)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "el3_p1"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k2, 2), MakeCard(Type::kRed, Value::k3, 3)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "el3_p2"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k4, 4), MakeCard(Type::kRed, Value::k6, 6)})},
+            {"is_bot", false}
+        }
+    });
+
+    LobbySettings settings = default_settings();
+    settings.mode = "elimination";
+    settings.survivor_count = 1;
+
+    MatchInstance m(saved_state, settings);
+    REQUIRE_EQ(m.GetCurrentPlayerUsername(), "el3_p0");
+
+    // el3_p0 plays their single card and empties hand
+    REQUIRE(m.PlayCard("el3_p0", 1));
+    m.Tick();
+
+    // el3_p0 should be eliminated and placed 1st. Match continues with 2 players (survivor_count = 1).
+    CHECK_FALSE(m.IsMatchOver());
+    REQUIRE_EQ(m.GetPlacements().size(), 1);
+    CHECK_EQ(m.GetPlacements()[0], "el3_p0");
+
+    // Next turn must be el3_p1 (no skipped turn!)
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "el3_p1");
+
+    // el3_p1 plays a card
+    REQUIRE(m.PlayCard("el3_p1", 2));
+    m.Tick();
+
+    // Next turn must be el3_p2
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "el3_p2");
+
+    // el3_p2 plays a card
+    REQUIRE(m.PlayCard("el3_p2", 4));
+    m.Tick();
+
+    // Turn returns to el3_p1 (1 card remaining)
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "el3_p1");
+
+    // el3_p1 plays their last card -> empties hand
+    REQUIRE(m.PlayCard("el3_p1", 3));
+    m.Tick();
+
+    // Match must conclude because remaining players <= survivor_count (1)
+    CHECK(m.IsMatchOver());
+    CHECK_EQ(m.GetWinner(), "el3_p0");
+
+    const auto& placements = m.GetPlacements();
+    REQUIRE_EQ(placements.size(), 3);
+    CHECK_EQ(placements[0], "el3_p0");
+    CHECK_EQ(placements[1], "el3_p1");
+    CHECK_EQ(placements[2], "el3_p2");
+}
+
+TEST_CASE("Elimination mode: 4 players rotation and survivor_count=2") {
+    json saved_state;
+    saved_state["rules"] = json::array();
+    saved_state["status"] = 1;  // kPlaying
+    saved_state["active_type"] = 0;  // kRed
+    saved_state["current_player_index"] = 0;
+    saved_state["play_direction"] = 1;
+    saved_state["pending_player"] = "";
+    saved_state["discard_pile"] = json::array({MakeCard(Type::kRed, Value::k5, 100)});
+    saved_state["draw_pile"] = json::array();
+
+    saved_state["players"] = json::array({
+        {
+            {"username", "A"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k1, 1)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "B"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k2, 2)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "C"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k3, 3), MakeCard(Type::kRed, Value::k4, 4)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "D"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k6, 6), MakeCard(Type::kRed, Value::k7, 7), MakeCard(Type::kRed, Value::k8, 8)})},
+            {"is_bot", false}
+        }
+    });
+
+    LobbySettings settings = default_settings();
+    settings.mode = "elimination";
+    settings.survivor_count = 2;
+
+    MatchInstance m(saved_state, settings);
+    REQUIRE_EQ(m.GetCurrentPlayerUsername(), "A");
+
+    // A empties hand
+    REQUIRE(m.PlayCard("A", 1));
+    m.Tick();
+
+    CHECK_FALSE(m.IsMatchOver());
+    CHECK_EQ(m.GetPlacements().size(), 1);
+    CHECK_EQ(m.GetPlacements()[0], "A");
+
+    // Turn moves to B
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "B");
+
+    // B empties hand
+    REQUIRE(m.PlayCard("B", 2));
+    m.Tick();
+
+    // With survivor_count=2 and 2 remaining players (C, D), match concludes immediately!
+    CHECK(m.IsMatchOver());
+    CHECK_EQ(m.GetWinner(), "A");
+
+    const auto& placements = m.GetPlacements();
+    REQUIRE_EQ(placements.size(), 4);
+    CHECK_EQ(placements[0], "A");
+    CHECK_EQ(placements[1], "B");
+    CHECK_EQ(placements[2], "C");  // C had 2 cards
+    CHECK_EQ(placements[3], "D");  // D had 3 cards
+}
+
+TEST_CASE("Elimination mode: max players (16) rotation with elimination before, at, and after current turn") {
+    std::vector<std::pair<std::string, bool>> players;
+    for (int i = 0; i < 16; ++i) {
+        players.emplace_back("player_" + std::to_string(i), false);
+    }
+
+    LobbySettings settings;
+    settings.max_players = 16;
+    settings.starting_cards = 5;
+    settings.turn_time_limit_ms = 15000;
+    settings.mode = "elimination";
+    settings.survivor_count = 1;
+    settings.Sanitize(16);
+
+    MatchInstance m(players, settings);
+    m.Start();
+
+    // 16 players, turn starts at player_0 (index 0)
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "player_0");
+
+    // Test elimination of player immediately after current turn (player_1, index 1)
+    m.RemovePlayerFromRotation(1, false);
+    // player_0 should still be current player
+    CHECK_EQ(m.GetCurrentPlayerUsername(), "player_0");
+
+    // Test player immediately before current turn:
+    auto exported = m.ExportState();
+    exported["current_player_index"] = 5;
+    std::string expected_current = exported["players"][5]["username"].get<std::string>();
+
+    MatchInstance m2(exported, settings);
+    CHECK_EQ(m2.GetCurrentPlayerUsername(), expected_current);
+
+    // Remove player at index 4 (immediately before current turn)
+    m2.RemovePlayerFromRotation(4, false);
+    CHECK_EQ(m2.GetCurrentPlayerUsername(), expected_current);
+
+    // Remove player at index 5 (immediately after current turn)
+    m2.RemovePlayerFromRotation(5, false);
+    CHECK_EQ(m2.GetCurrentPlayerUsername(), expected_current);
+}
+
+TEST_CASE("Elimination mode: ledger writes placement and leaves player_stats untouched") {
+    SetupTestUser("el_u1");
+    SetupTestUser("el_u2");
+    SetupTestUser("el_u3");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"el_u1", false}, {"el_u2", false}, {"el_u3", false}
+    };
+    LobbySettings settings = default_settings();
+    settings.mode = "elimination";
+    settings.ranked = true;  // Even if ranked is true, elimination must be unranked (ranked=0, no player_stats)
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("elim-ledger-test");
+    m.Start();
+
+    CHECK_FALSE(m.IsRankedEligible());  // Defense-in-depth
+
+    // Emulate completion with placements
+    m.RemovePlayerMidGame("el_u1");  // Just to get 1 remaining
+    m.RecordMatchCompleted("el_u1");
+
+    auto& db = Database::Get();
+    for (const auto& u : {"el_u1", "el_u2", "el_u3"}) {
+        auto stats = db.QueryOne("SELECT total_wins, total_losses FROM player_stats WHERE username = ?;", {u});
+        REQUIRE(stats.has_value());
+        if (stats->has_value()) {
+            CHECK_EQ(stats.value()->Get<int>("total_wins"), 0);
+            CHECK_EQ(stats.value()->Get<int>("total_losses"), 0);
+        }
+    }
+
+    auto rows = db.Query("SELECT username, mode, placement, result, ended_reason, ranked FROM match_history WHERE match_id = ? ORDER BY username;", {"elim-ledger-test"});
+    REQUIRE(rows.has_value());
+    REQUIRE_EQ(rows->size(), 3);
+    for (const auto& r : *rows) {
+        CHECK_EQ(r.Get<std::string>("mode"), "elimination");
+        CHECK_EQ(r.Get<int>("ranked"), 0);
+    }
+}
+

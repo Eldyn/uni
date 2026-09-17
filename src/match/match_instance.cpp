@@ -80,6 +80,7 @@ namespace match {
         state_json["rules"]                 = settings_.active_mods;
         state_json["pending_draws"]         = state_.pending_draws;
         state_json["winner"]                = state_.winner;
+        state_json["placements"]            = state_.placements;
         state_json["pending_player"]        = state_.pending_player;
         state_json["pending_action"]        = static_cast<int>(state_.pending_action);
         state_json["pending_input_context"] = state_.pending_input_context;
@@ -134,6 +135,7 @@ namespace match {
         state_.play_direction        = saved_state.value("play_direction", 1);
         state_.pending_draws         = saved_state.value("pending_draws", 0);
         state_.winner                = saved_state.value("winner", "");
+        state_.placements            = saved_state.value("placements", std::vector<std::string>{});
         state_.pending_player        = saved_state.value("pending_player", "");
         state_.pending_action        = static_cast<Action>(saved_state.value("pending_action", 0));
         state_.pending_input_context = saved_state.value("pending_input_context", nlohmann::json{});
@@ -193,29 +195,70 @@ namespace match {
         Logger::Info("[Match] Hot-joined player ", username, " with ", p.hand.size(), " cards.");
     }
 
+    void MatchInstance::RemovePlayerFromRotation(int index_to_remove, bool will_advance_turn) {
+        if (index_to_remove < 0 || index_to_remove >= static_cast<int>(state_.players.size())) {
+            return;
+        }
+
+        state_.players.erase(state_.players.begin() + index_to_remove);
+        int new_size = static_cast<int>(state_.players.size());
+        if (new_size == 0) return;
+
+        if (index_to_remove == state_.current_player_index) {
+            if (will_advance_turn) {
+                if (state_.play_direction == 1) {
+                    state_.current_player_index = (index_to_remove - 1 + new_size) % new_size;
+                } else {
+                    state_.current_player_index = index_to_remove % new_size;
+                }
+            } else {
+                if (state_.play_direction == 1) {
+                    state_.current_player_index = index_to_remove % new_size;
+                } else {
+                    state_.current_player_index = (index_to_remove - 1 + new_size) % new_size;
+                }
+            }
+        } else if (index_to_remove < state_.current_player_index) {
+            state_.current_player_index--;
+        } else if (state_.current_player_index >= new_size) {
+            state_.current_player_index %= new_size;
+        }
+    }
+
     void MatchInstance::RemovePlayerMidGame(const std::string& username) {
         auto it = std::ranges::find(state_.players, username, &Player::username);
         if (it != state_.players.end()) {
-            int index_to_remove = std::distance(state_.players.begin(), it);
+            int index_to_remove = static_cast<int>(std::distance(state_.players.begin(), it));
 
             // INFO: Safely dump their hand back into the draw pile so the
             //       cards aren't lost.
             state_.draw_pile.insert(state_.draw_pile.end(), it->hand.begin(), it->hand.end());
             std::shuffle(state_.draw_pile.begin(), state_.draw_pile.end(), rng_);
 
-            state_.players.erase(it);
+            RemovePlayerFromRotation(index_to_remove, /*will_advance_turn=*/false);
 
-            if (state_.players.empty()) {
-                state_.status = MatchStatus::kFinished;
+            int survivor_threshold = (settings_.mode == "elimination")
+                ? std::clamp(settings_.survivor_count, 1, std::max(1, static_cast<int>(state_.players.size())))
+                : 0;
+
+            if (state_.players.empty() || static_cast<int>(state_.players.size()) <= survivor_threshold) {
+                if (settings_.mode == "elimination" && !state_.players.empty()) {
+                    std::vector<Player> remaining = state_.players;
+                    std::stable_sort(remaining.begin(), remaining.end(),
+                        [](const Player& a, const Player& b) {
+                            return a.hand.size() < b.hand.size();
+                        });
+                    for (const auto& rp : remaining) {
+                        if (std::find(state_.placements.begin(), state_.placements.end(), rp.username) == state_.placements.end()) {
+                            state_.placements.push_back(rp.username);
+                        }
+                    }
+                    std::string winner = state_.placements.empty() ? "" : state_.placements.front();
+                    RecordMatchCompleted(winner);
+                } else {
+                    state_.status = MatchStatus::kFinished;
+                }
                 return;
-            }
-
-            // INFO: Shift the current turn index so the game doesn't skip a
-            //       player!
-            if (state_.current_player_index >= state_.players.size()) {
-                state_.current_player_index %= state_.players.size();
-            } else if (index_to_remove < state_.current_player_index) {
-                state_.current_player_index--;
             }
         }
     }
@@ -328,8 +371,37 @@ namespace match {
         state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
 
         if (current_player->hand.empty()) {
-            RecordMatchCompleted(username);
-            return true;
+            if (settings_.mode == "elimination") {
+                state_.placements.push_back(username);
+
+                int survivor_count = std::clamp(settings_.survivor_count, 1,
+                    std::max(1, static_cast<int>(state_.players.size()) - 1));
+
+                if (static_cast<int>(state_.players.size()) - 1 <= survivor_count) {
+                    int cur_idx = static_cast<int>(std::distance(state_.players.begin(),
+                        std::ranges::find(state_.players, username, &Player::username)));
+                    state_.players.erase(state_.players.begin() + cur_idx);
+
+                    std::vector<Player> remaining = state_.players;
+                    std::stable_sort(remaining.begin(), remaining.end(),
+                        [](const Player& a, const Player& b) {
+                            return a.hand.size() < b.hand.size();
+                        });
+                    for (const auto& rp : remaining) {
+                        state_.placements.push_back(rp.username);
+                    }
+                    RecordMatchCompleted(state_.placements.front());
+                    return true;
+                } else {
+                    int cur_idx = static_cast<int>(std::distance(state_.players.begin(),
+                        std::ranges::find(state_.players, username, &Player::username)));
+                    RemovePlayerFromRotation(cur_idx, /*will_advance_turn=*/true);
+                    return true;
+                }
+            } else {
+                RecordMatchCompleted(username);
+                return true;
+            }
         }
 
         return true;
@@ -379,94 +451,114 @@ namespace match {
                 }
             }
 
-            auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
-                                         {winner});
-            int legacy_match_id = 0;
-            if (match_status) {
-                auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
-                if (match_row && match_row->has_value()) {
-                    legacy_match_id = match_row->value().Get<int>("id");
+            if (settings_.mode == "elimination") {
+                int rank = 1;
+                for (const auto& player_name : state_.placements) {
+                    if (std::find(initial_humans_.begin(), initial_humans_.end(), player_name) != initial_humans_.end()) {
+                        if (!recorded_humans_.contains(player_name)) {
+                            std::string result = (rank == 1) ? "win" : "loss";
+                            WriteLedgerRow(db, player_name, "elimination", rank, result, "completed", 0);
+                            recorded_humans_.insert(player_name);
+                        }
+                    }
+                    rank++;
                 }
-            }
-
-            bool is_ranked = IsRankedEligible();
-            std::string ended_reason = (!settings_.ranked)
-                ? "completed"
-                : ((initial_human_count_ < kMinRankedHumans) ? "bot_majority" : "completed");
-            int ranked_flag = is_ranked ? 1 : 0;
-
-            for (const auto& p : state_.players) {
-                if (legacy_match_id > 0) {
-                    (void)db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)",
-                                  {legacy_match_id, p.username});
+                for (const auto& human_name : initial_humans_) {
+                    if (!recorded_humans_.contains(human_name)) {
+                        WriteLedgerRow(db, human_name, "elimination", std::nullopt, "loss", "completed", 0);
+                        recorded_humans_.insert(human_name);
+                    }
+                }
+            } else {
+                auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
+                                             {winner});
+                int legacy_match_id = 0;
+                if (match_status) {
+                    auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
+                    if (match_row && match_row->has_value()) {
+                        legacy_match_id = match_row->value().Get<int>("id");
+                    }
                 }
 
-                if (!is_ranked) continue;
+                bool is_ranked = IsRankedEligible();
+                std::string ended_reason = (!settings_.ranked)
+                    ? "completed"
+                    : ((initial_human_count_ < kMinRankedHumans) ? "bot_majority" : "completed");
+                int ranked_flag = is_ranked ? 1 : 0;
 
-                auto account_row = db.QueryOne(
-                    "SELECT 1 FROM users WHERE username = ?", {p.username});
-                if (!account_row || !account_row->has_value()) continue;
+                for (const auto& p : state_.players) {
+                    if (legacy_match_id > 0) {
+                        (void)db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)",
+                                      {legacy_match_id, p.username});
+                    }
 
-                auto profile_status = db.Exec(
-                    "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
-                    {p.username});
-                if (!profile_status) continue;
+                    if (!is_ranked) continue;
 
-                bool is_winner = (p.username == winner);
-                auto& stats = session_stats_[p.username];
+                    auto account_row = db.QueryOne(
+                        "SELECT 1 FROM users WHERE username = ?", {p.username});
+                    if (!account_row || !account_row->has_value()) continue;
 
-                (void)db.Exec(R"(
-                    UPDATE player_stats SET
-                        total_wins = total_wins + ?,
-                        total_losses = total_losses + ?,
+                    auto profile_status = db.Exec(
+                        "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
+                        {p.username});
+                    if (!profile_status) continue;
 
-                        cards_played_red = cards_played_red + ?,
-                        cards_played_blue = cards_played_blue + ?,
-                        cards_played_green = cards_played_green + ?,
-                        cards_played_yellow = cards_played_yellow + ?,
+                    bool is_winner = (p.username == winner);
+                    auto& stats = session_stats_[p.username];
 
-                        cards_played_0 = cards_played_0 + ?,
-                        cards_played_1 = cards_played_1 + ?,
-                        cards_played_2 = cards_played_2 + ?,
-                        cards_played_3 = cards_played_3 + ?,
-                        cards_played_4 = cards_played_4 + ?,
-                        cards_played_5 = cards_played_5 + ?,
-                        cards_played_6 = cards_played_6 + ?,
-                        cards_played_7 = cards_played_7 + ?,
-                        cards_played_8 = cards_played_8 + ?,
-                        cards_played_9 = cards_played_9 + ?,
-                        cards_played_skip = cards_played_skip + ?,
-                        cards_played_reverse = cards_played_reverse + ?,
-                        cards_played_draw2 = cards_played_draw2 + ?,
-                        cards_played_draw4 = cards_played_draw4 + ?,
-                        cards_played_jolly = cards_played_jolly + ?
-                    WHERE username = ?
-                )", {
-                    is_winner ? 1 : 0,
-                    is_winner ? 0 : 1,
+                    (void)db.Exec(R"(
+                        UPDATE player_stats SET
+                            total_wins = total_wins + ?,
+                            total_losses = total_losses + ?,
 
-                    stats.color_counts[0], stats.color_counts[1],
-                    stats.color_counts[2], stats.color_counts[3],
+                            cards_played_red = cards_played_red + ?,
+                            cards_played_blue = cards_played_blue + ?,
+                            cards_played_green = cards_played_green + ?,
+                            cards_played_yellow = cards_played_yellow + ?,
 
-                    stats.value_counts[0], stats.value_counts[1], stats.value_counts[2],
-                    stats.value_counts[3], stats.value_counts[4], stats.value_counts[5],
-                    stats.value_counts[6], stats.value_counts[7], stats.value_counts[8],
-                    stats.value_counts[9], stats.value_counts[10], stats.value_counts[11],
-                    stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
+                            cards_played_0 = cards_played_0 + ?,
+                            cards_played_1 = cards_played_1 + ?,
+                            cards_played_2 = cards_played_2 + ?,
+                            cards_played_3 = cards_played_3 + ?,
+                            cards_played_4 = cards_played_4 + ?,
+                            cards_played_5 = cards_played_5 + ?,
+                            cards_played_6 = cards_played_6 + ?,
+                            cards_played_7 = cards_played_7 + ?,
+                            cards_played_8 = cards_played_8 + ?,
+                            cards_played_9 = cards_played_9 + ?,
+                            cards_played_skip = cards_played_skip + ?,
+                            cards_played_reverse = cards_played_reverse + ?,
+                            cards_played_draw2 = cards_played_draw2 + ?,
+                            cards_played_draw4 = cards_played_draw4 + ?,
+                            cards_played_jolly = cards_played_jolly + ?
+                        WHERE username = ?
+                    )", {
+                        is_winner ? 1 : 0,
+                        is_winner ? 0 : 1,
 
-                    p.username
-                });
-            }
+                        stats.color_counts[0], stats.color_counts[1],
+                        stats.color_counts[2], stats.color_counts[3],
 
-            for (const auto& human_name : initial_humans_) {
-                if (recorded_humans_.contains(human_name)) continue;
+                        stats.value_counts[0], stats.value_counts[1], stats.value_counts[2],
+                        stats.value_counts[3], stats.value_counts[4], stats.value_counts[5],
+                        stats.value_counts[6], stats.value_counts[7], stats.value_counts[8],
+                        stats.value_counts[9], stats.value_counts[10], stats.value_counts[11],
+                        stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
 
-                bool is_winner = (human_name == winner);
-                std::optional<int> placement = is_winner ? std::optional<int>(1) : std::nullopt;
-                std::string result = is_winner ? "win" : "loss";
+                        p.username
+                    });
+                }
 
-                WriteLedgerRow(db, human_name, "standard", placement, result, ended_reason, ranked_flag);
-                recorded_humans_.insert(human_name);
+                for (const auto& human_name : initial_humans_) {
+                    if (recorded_humans_.contains(human_name)) continue;
+
+                    bool is_winner = (human_name == winner);
+                    std::optional<int> placement = is_winner ? std::optional<int>(1) : std::nullopt;
+                    std::string result = is_winner ? "win" : "loss";
+
+                    WriteLedgerRow(db, human_name, "standard", placement, result, ended_reason, ranked_flag);
+                    recorded_humans_.insert(human_name);
+                }
             }
 
             if (auto commit_status = tx.Commit(); !commit_status) {
@@ -501,12 +593,13 @@ namespace match {
             }
 
             bool is_ranked = IsRankedEligible();
-            std::string ended_reason = (!settings_.ranked)
+            std::string ended_reason = (!settings_.ranked || settings_.mode == "elimination")
                 ? "quit"
                 : ((initial_human_count_ < kMinRankedHumans) ? "bot_majority" : "quit");
             int ranked_flag = is_ranked ? 1 : 0;
+            std::string mode_str = (settings_.mode == "elimination") ? "elimination" : "standard";
 
-            WriteLedgerRow(db, username, "standard", std::nullopt, "quit", ended_reason, ranked_flag);
+            WriteLedgerRow(db, username, mode_str, std::nullopt, "quit", ended_reason, ranked_flag);
             recorded_humans_.insert(username);
 
             if (is_ranked) {
@@ -546,10 +639,11 @@ namespace match {
                 (void)db.Exec("DELETE FROM saved_matches WHERE id = ?", {match_id_});
             }
 
+            std::string mode_str = (settings_.mode == "elimination") ? "elimination" : "standard";
             for (const auto& human_name : initial_humans_) {
                 if (recorded_humans_.contains(human_name)) continue;
 
-                WriteLedgerRow(db, human_name, "standard", std::nullopt, "aborted", "aborted", 0);
+                WriteLedgerRow(db, human_name, mode_str, std::nullopt, "aborted", "aborted", 0);
                 recorded_humans_.insert(human_name);
             }
 
@@ -963,6 +1057,11 @@ bool MatchInstance::DrawCard(const std::string& username) {
             players_array.push_back(p_json);
         }
         root["players"] = players_array;
+        root["mode"] = settings_.mode;
+        root["placements"] = state_.placements;
+        if (state_.status == MatchStatus::kFinished) {
+            root["winner"] = state_.winner;
+        }
 
         return root;
     }
