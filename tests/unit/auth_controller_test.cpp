@@ -11,6 +11,7 @@
 #include <memory>
 #include <array>
 #include <map>
+#include <future>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -38,7 +39,7 @@ std::string exec(const char* cmd) {
     return result;
 }
 
-TestHttpResponse SimulateRegister(const std::string& username, const std::string& email, const std::string& password) {
+TestHttpResponse SimulateRegister(int port, const std::string& username, const std::string& email, const std::string& password) {
     json req_body = {
         {"username", username},
         {"email", email},
@@ -46,7 +47,7 @@ TestHttpResponse SimulateRegister(const std::string& username, const std::string
     };
     std::string cmd = "curl -s -i -k -X POST -H 'Content-Type: application/json' -d '" +
                       req_body.dump() + "' https://127.0.0.1:" +
-                      std::to_string(kAuthTestPort) + "/auth/register";
+                      std::to_string(port) + "/auth/register";
     std::string output = exec(cmd.c_str());
 
     TestHttpResponse res;
@@ -86,45 +87,60 @@ TestHttpResponse SimulateRegister(const std::string& username, const std::string
     return res;
 }
 
-struct TestServerStarter {
-    TestServerStarter() {
+struct ScopedTestServer {
+    std::thread server_thread;
+    uWS::Loop* loop{nullptr};
+    us_listen_socket_t* listen_socket{nullptr};
+    int port{kAuthTestPort};
+
+    ScopedTestServer() {
         setenv("JWT_SECRET", "test-jwt-secret", 1);
         setenv("PASSWORD_PEPPER", "test-password-pepper", 1);
         (void)Database::Get().RunMigrations();
 
-        std::thread([this] {
+        std::promise<void> bound;
+        server_thread = std::thread([this, &bound] {
+            loop = uWS::Loop::get();
+
             uWS::SocketContextOptions options;
             options.key_file_name = "key.pem";
             options.cert_file_name = "cert.pem";
 
-            router = std::make_unique<HttpRouter>();
-            auth_ctrl = std::make_unique<AuthController>(*router);
-            app = std::make_unique<AppHttp>(options);
-            router->Attach(*app);
+            HttpRouter router;
+            AuthController auth_ctrl(router);
+            AppHttp app(options);
+            router.Attach(app);
 
-            app->listen(kAuthTestPort, [](auto* token) {
+            app.listen(port, [this, &bound](auto* token) {
                 if (token) {
-                    // listening
+                    listen_socket = token;
                 }
+                bound.set_value();
             });
-            app->run();
-        }).detach();
+            app.run();
+        });
 
-        // Give the background event loop a moment to bind and listen
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        bound.get_future().wait();
     }
 
-    std::unique_ptr<HttpRouter> router;
-    std::unique_ptr<AuthController> auth_ctrl;
-    std::unique_ptr<AppHttp> app;
+    ~ScopedTestServer() {
+        if (listen_socket && loop) {
+            loop->defer([this]() {
+                us_listen_socket_close(kAppSSL, listen_socket);
+            });
+        }
+        if (server_thread.joinable()) {
+            server_thread.join();
+        }
+    }
 };
 
 }  // namespace
 
 TEST_CASE("Register response includes session cookies") {
-    static TestServerStarter server;
+    ScopedTestServer server;
 
-    auto response = SimulateRegister("newuser2", "new2@example.com", "password123");
+    auto response = SimulateRegister(server.port, "newuser2", "new2@example.com", "password123");
     CHECK(response.status == 200);
     CHECK(response.headers.count("Set-Cookie") > 0);
     CHECK(response.body.contains("username"));
