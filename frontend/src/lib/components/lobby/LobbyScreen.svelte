@@ -267,22 +267,44 @@
 
 						{#if member.username === storeAuth.username && !member.is_bot}
 							<button
-								class="btn-secondary absolute left-1 top-1 z-20 px-2 py-1 text-[10px] uppercase"
+								class="btn-secondary absolute left-1 top-1 z-20 flex h-6 w-6 items-center justify-center p-0 {member.is_ready
+									? 'text-success'
+									: 'text-gold'}"
 								aria-pressed={member.is_ready}
+								title={member.is_ready
+									? m.lobby_ready_confirmed({}, { locale: storeI18n.locale })
+									: m.lobby_ready_prompt({}, { locale: storeI18n.locale })}
+								aria-label={member.is_ready
+									? m.lobby_ready_confirmed({}, { locale: storeI18n.locale })
+									: m.lobby_ready_prompt({}, { locale: storeI18n.locale })}
 								onclick={(e) => {
 									e.stopPropagation();
 									storeLobby.toggleReady();
 								}}
 							>
-								{member.is_ready
-									? m.lobby_ready_confirmed({}, { locale: storeI18n.locale })
-									: m.lobby_ready_prompt({}, { locale: storeI18n.locale })}
+								<i
+									class="pia {member.is_ready
+										? 'pixelart-icons-font-check'
+										: 'pixelart-icons-font-clock'} text-sm leading-none"
+								></i>
 							</button>
-						{:else if member.is_ready}
+						{:else}
 							<span
-								class="pointer-events-none absolute left-1 top-1 z-20 bg-black/60 px-2 py-1 text-[10px] uppercase text-success"
+								class="pointer-events-none absolute left-1 top-1 z-20 flex h-6 w-6 items-center justify-center bg-black/60 {member.is_ready
+									? 'text-success'
+									: 'text-gold'}"
+								title={member.is_ready
+									? m.lobby_ready_status({}, { locale: storeI18n.locale })
+									: m.lobby_waiting({}, { locale: storeI18n.locale })}
+								aria-label={member.is_ready
+									? m.lobby_ready_status({}, { locale: storeI18n.locale })
+									: m.lobby_waiting({}, { locale: storeI18n.locale })}
 							>
-								{m.lobby_ready_status({}, { locale: storeI18n.locale })}
+								<i
+									class="pia {member.is_ready
+										? 'pixelart-icons-font-check'
+										: 'pixelart-icons-font-clock'} text-sm leading-none"
+								></i>
 							</span>
 						{/if}
 
