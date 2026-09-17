@@ -158,6 +158,29 @@ Result<AuthSession> AuthService::CreateGuestSession() {
     return AuthSession{*username, *token};
 }
 
+Result<AccountStatus> AuthService::GetAccountStatus(const std::string& username) {
+    auto row_result = db_.QueryOne(
+        "SELECT id, email, email_verified, locale FROM users WHERE username = ?;",
+        {username});
+
+    if (!row_result) {
+        Logger::Error("[Auth] DB error in GetAccountStatus: " + row_result.error().message);
+        return std::unexpected(Error::DatabaseFail(row_result.error().message));
+    }
+
+    if (!row_result->has_value()) {
+        return std::unexpected(Error::NotFound("User not found"));
+    }
+
+    const DbRow& row = row_result->value();
+    return AccountStatus{
+        row.Get<int>("id"),
+        row.Get<std::string>("email"),
+        static_cast<bool>(row.Get<int>("email_verified")),
+        row.Get<std::string>("locale")
+    };
+}
+
 Result<std::string> AuthService::GenerateGuestName() {
     // INFO: 5 random base32 chars ≈ 33M names, enough entropy that two
     //       concurrent guests won't collide at this project's scale.

@@ -51,13 +51,24 @@ AuthController::AuthController(HttpRouter& router)
             return;
         }
 
+        auto status = auth_service_.GetAccountStatus(payload->username);
+        if (!status) {
+            Logger::Warn("[HTTP] Rejected auth-me, user not found: " + payload->username);
+            res->writeStatus("401 Unauthorized")->end();
+            return;
+        }
+
         Logger::Info("[Auth] Login successful: " + payload->username);
         res->writeHeader("Set-Cookie",
                          "auth_token=" + *token + "; HttpOnly; Secure; SameSite=Strict; Path=/")
            ->writeHeader("Set-Cookie",
                          "ws_token=" + *token + "; HttpOnly; Secure; SameSite=None; Path=/")
            ->writeHeader("Content-Type", "application/json")
-           ->end("{\"username\": \"" + payload->username + "\"}");
+           ->end(json({
+               {"username", payload->username},
+               {"email", status->email},
+               {"email_verified", status->email_verified}
+           }).dump());
     });
 }
 

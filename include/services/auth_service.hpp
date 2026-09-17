@@ -30,6 +30,13 @@ struct AuthSession {
     std::string token;
 };
 
+struct AccountStatus {
+    int id;
+    std::string email;
+    bool email_verified;
+    std::string locale;
+};
+
 /**
  * @class AuthService
  * @brief Owns the authentication domain logic, independent of the HTTP/wire
@@ -75,6 +82,13 @@ public:
      * generation failed.
      */
     Result<AuthSession> CreateGuestSession();
+
+    /**
+     * @brief Gets account status for a given username.
+     * @param username The account username to look up.
+     * @return Result<AccountStatus> The account status, or Error::NotFound if no such user.
+     */
+    Result<AccountStatus> GetAccountStatus(const std::string& username);
 
     /**
      * @brief Generates a cryptographic salt and computes the hash of the password.

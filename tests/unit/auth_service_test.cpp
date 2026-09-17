@@ -192,4 +192,13 @@ TEST_CASE("Register sets created_at and defaults locale") {
     CHECK(row->value().Get<int>("email_verified") == 0);
 }
 
+TEST_CASE("GetAccountStatus reports unverified then verified") {
+    AuthFixture f;
+    AuthService svc;
+    svc.Register("auth_test_statususer", "auth_test_status@example.com", "password123");
+    auto status = svc.GetAccountStatus("auth_test_statususer");
+    REQUIRE(status.has_value());
+    CHECK(status->email_verified == false);
+}
+
 }  // TEST_SUITE
