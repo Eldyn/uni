@@ -119,6 +119,7 @@ find_package(uwebsockets REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(CURL REQUIRED)
 
 # --- Main Executable ---
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
@@ -129,7 +130,7 @@ if(WIN32)
     target_compile_definitions(uni_server PRIVATE WIN32_LEAN_AND_MEAN)
 endif()
 
-target_compile_definitions(uni_server PRIVATE UNI_ENABLE_SSL=$<BOOL:${UNI_ENABLE_SSL}>)
+target_compile_definitions(uni_server PRIVATE UNI_ENABLE_SSL=$<BOOL:${UNI_ENABLE_SSL}> UNI_HAS_LIBCURL=1)
 
 target_include_directories(uni_server PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
 add_dependencies(uni_server gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
@@ -145,6 +146,7 @@ target_link_libraries(uni_server PRIVATE
     SQLite::SQLite3
     jwt-cpp::jwt-cpp
     nlohmann_json::nlohmann_json
+    CURL::libcurl
 )
 
 # --- Copy the runtime assets next to the executable ---

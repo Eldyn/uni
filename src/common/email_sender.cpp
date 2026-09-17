@@ -5,6 +5,29 @@
 #include <fstream>
 #include <chrono>
 #include <cctype>
+#include <nlohmann/json.hpp>
+
+/**
+ * @def UNI_HAS_LIBCURL
+ * @brief Compile-time switch selecting whether BrevoEmailSender::Send has a
+ * real libcurl-backed implementation (1) or a stub that fails without
+ * touching the network (0).
+ *
+ * `src/common/email_sender.cpp` is compiled into both `uni_server` (which
+ * links `CURL::libcurl`) and `uni_tests` (which deliberately does not, since
+ * no test ever constructs a live BrevoEmailSender). CMakeLists.txt defines
+ * this to 1 only for `uni_server`; it defaults to 0 here so `uni_tests`
+ * never needs curl headers or the library at link time.
+ */
+#ifndef UNI_HAS_LIBCURL
+#define UNI_HAS_LIBCURL 0
+#endif
+
+#if UNI_HAS_LIBCURL
+#include <curl/curl.h>
+#endif
+
+using json = nlohmann::json;
 
 namespace {
 long long NowSeconds() {
@@ -30,6 +53,18 @@ std::string SanitizeForFilename(const std::string& raw) {
     }
     return safe;
 }
+
+#if UNI_HAS_LIBCURL
+// Replaces curl's default behaviour of writing the response body to stdout:
+// instead it's appended to an in-memory buffer so a failure path can log a
+// short, bounded snippet of it. Never touches request headers, so the
+// api-key header set on the request is never within reach of this callback.
+size_t AppendResponseBody(char* data, size_t size, size_t count, void* user) {
+    auto* out = static_cast<std::string*>(user);
+    out->append(data, size * count);
+    return size * count;
+}
+#endif
 }  // namespace
 
 DevFileEmailSender::DevFileEmailSender(std::string dir) : dir_(std::move(dir)) {}
@@ -68,10 +103,72 @@ VoidResult DevFileEmailSender::Send(const OutboundEmail& mail) {
 
 BrevoEmailSender::BrevoEmailSender(std::string api_key) : api_key_(std::move(api_key)) {}
 
-VoidResult BrevoEmailSender::Send(const OutboundEmail& /*mail*/) {
-    // Live Brevo delivery is not wired yet. Deliberately never touches
-    // api_key_ beyond storing it, and never logs it.
-    return std::unexpected(Error::Internal("[Email] BrevoEmailSender::Send not implemented yet"));
+VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
+#if UNI_HAS_LIBCURL
+    json payload = {
+        {"sender", {{"name", Env::Get("EMAIL_FROM_NAME", "")},
+                    {"email", Env::Get("EMAIL_FROM_ADDRESS", "")}}},
+        {"to", json::array({{{"email", mail.to_address}, {"name", mail.to_name}}})},
+        {"subject", mail.subject},
+        {"htmlContent", mail.html_body},
+        {"textContent", mail.text_body}
+    };
+    std::string body = payload.dump();
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return std::unexpected(Error::Internal("[Email] failed to initialise curl handle"));
+    }
+
+    // api_key_ only ever flows into this header, which is never logged, never
+    // otherwise inspected, and freed (curl_slist_free_all) right after the
+    // request completes.
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "accept: application/json");
+    headers = curl_slist_append(headers, "content-type: application/json");
+    headers = curl_slist_append(headers, ("api-key: " + api_key_).c_str());
+
+    std::string response_body;
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.brevo.com/v3/smtp/email");
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, AppendResponseBody);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+
+    CURLcode perform_result = curl_easy_perform(curl);
+    if (perform_result != CURLE_OK) {
+        std::string curl_error = curl_easy_strerror(perform_result);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return std::unexpected(Error::Internal("[Email] Brevo request failed: " + curl_error));
+    }
+
+    long status_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    if (status_code < 200 || status_code >= 300) {
+        Logger::Error("[Email] Brevo returned " + std::to_string(status_code) +
+                      ": " + response_body.substr(0, 200));
+        return std::unexpected(Error::Internal("[Email] Brevo returned " +
+                                                 std::to_string(status_code)));
+    }
+
+    return {};
+#else
+    (void)mail;
+    return std::unexpected(Error::Internal(
+        "[Email] BrevoEmailSender::Send unavailable: this binary was built without libcurl"));
+#endif
 }
 
 std::unique_ptr<IEmailSender> MakeEmailSender() {
