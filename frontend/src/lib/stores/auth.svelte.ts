@@ -42,6 +42,8 @@ class StoreAuth {
 	isGuest = $state(false);
 	/** Flag to show the loading indicators (spinners) during HTTP calls. */
 	isLoading = $state(false);
+	/** True when the account has verified its email address. */
+	emailVerified = $state(false);
 	#loggedOutHandlers = new Set<() => void>();
 
 	/**
@@ -62,8 +64,12 @@ class StoreAuth {
 					}).then((res) => (res.ok ? res.json() : null));
 
 			if (data && typeof data === "object") {
-				const { username, avatar } = data as { username: string; avatar?: string };
-				this.#setLoggedIn(username, avatar || "");
+				const { username, avatar, email_verified } = data as {
+					username: string;
+					avatar?: string;
+					email_verified?: boolean;
+				};
+				this.#setLoggedIn(username, avatar || "", Boolean(email_verified));
 				return true;
 			}
 
@@ -137,7 +143,7 @@ class StoreAuth {
 
 			if (res.ok) {
 				const body = await res.json();
-				this.#setLoggedIn(body.username, "");
+				this.#setLoggedIn(body.username, "", Boolean(body.email_verified));
 				storeAnalytics.track("sign_up");
 				storeToast.success("Account created!");
 				return {};
@@ -196,7 +202,7 @@ class StoreAuth {
 
 			if (res.ok) {
 				const data = await res.json();
-				this.#setLoggedIn(data.username, data.avatar || "");
+				this.#setLoggedIn(data.username, data.avatar || "", Boolean(data.email_verified));
 				await this.#resyncSocket();
 				storeAnalytics.track("login");
 				return {};
@@ -304,9 +310,10 @@ class StoreAuth {
 		await ws.connect();
 	}
 
-	#setLoggedIn(username: string, avatar: string = ""): void {
+	#setLoggedIn(username: string, avatar: string = "", emailVerified: boolean = false): void {
 		this.username = username;
 		this.avatar = avatar;
+		this.emailVerified = emailVerified;
 		this.isLoggedIn = true;
 		this.isGuest = false;
 	}
@@ -326,6 +333,7 @@ class StoreAuth {
 	setLoggedOut(): void {
 		this.username = "";
 		this.avatar = "";
+		this.emailVerified = false;
 		this.isLoggedIn = false;
 		this.isGuest = false;
 
