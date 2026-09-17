@@ -4,11 +4,31 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
+#include <cctype>
 
 namespace {
 long long NowSeconds() {
     return std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+// Filenames in EMAIL_DEV_DIR are built from an address supplied by the
+// caller. No caller is wired into this task yet, but nothing here should
+// trust that every future caller pre-sanitizes its input: any character
+// that isn't alphanumeric, '.', '-', or '_' is replaced with '_', which
+// also neutralises path separators and ".." traversal segments while
+// keeping the filename human-readable in EMAIL_DEV_DIR.
+std::string SanitizeForFilename(const std::string& raw) {
+    std::string safe;
+    safe.reserve(raw.size());
+    for (unsigned char c : raw) {
+        if (std::isalnum(c) || c == '.' || c == '-' || c == '_') {
+            safe.push_back(static_cast<char>(c));
+        } else {
+            safe.push_back('_');
+        }
+    }
+    return safe;
 }
 }  // namespace
 
@@ -22,7 +42,7 @@ VoidResult DevFileEmailSender::Send(const OutboundEmail& mail) {
             "[Email] failed to create dev output directory: " + ec.message()));
     }
 
-    std::string stem = std::to_string(NowSeconds()) + "-" + mail.to_address;
+    std::string stem = std::to_string(NowSeconds()) + "-" + SanitizeForFilename(mail.to_address);
     std::filesystem::path html_path = std::filesystem::path(dir_) / (stem + ".html");
     std::filesystem::path text_path = std::filesystem::path(dir_) / (stem + ".txt");
 
