@@ -91,6 +91,26 @@ add_custom_command(
 )
 add_custom_target(gen_ws_actions_hpp DEPENDS "${WS_ACTIONS_HPP_OUT}")
 
+# --- Localized email copy (common/email_copy.hpp) ---
+# Derives <common/email_copy.hpp> (namespace email_copy::) from the
+# 'email_*'-prefixed keys in the frontend's translated message bundles, so
+# outbound transactional email never hand-duplicates UI copy.
+# Source of truth: frontend/messages/<locale>.json
+# Output:          ${CMAKE_BINARY_DIR}/generated/common/email_copy.hpp
+set(EMAIL_COPY_HPP_SCRIPT  "${CMAKE_SOURCE_DIR}/scripts/generate_email_copy_hpp.py")
+set(EMAIL_MESSAGES_DIR     "${CMAKE_SOURCE_DIR}/frontend/messages")
+set(EMAIL_COPY_HPP_OUT     "${CMAKE_BINARY_DIR}/generated/common/email_copy.hpp")
+file(GLOB EMAIL_MESSAGES_JSON CONFIGURE_DEPENDS "${EMAIL_MESSAGES_DIR}/*.json")
+add_custom_command(
+    OUTPUT  "${EMAIL_COPY_HPP_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "-- Generating localized email copy from frontend/messages"
+    COMMAND "${Python3_EXECUTABLE}" "${EMAIL_COPY_HPP_SCRIPT}"
+            "${EMAIL_MESSAGES_DIR}" "${EMAIL_COPY_HPP_OUT}"
+    DEPENDS "${EMAIL_MESSAGES_JSON}" "${EMAIL_COPY_HPP_SCRIPT}"
+)
+add_custom_target(gen_email_copy_hpp DEPENDS "${EMAIL_COPY_HPP_OUT}")
+
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libuv REQUIRED)
@@ -111,7 +131,7 @@ endif()
 target_compile_definitions(uni_server PRIVATE UNI_ENABLE_SSL=$<BOOL:${UNI_ENABLE_SSL}>)
 
 target_include_directories(uni_server PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
-add_dependencies(uni_server gen_ws_messages gen_contract_hpp gen_ws_actions_hpp)
+add_dependencies(uni_server gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
 
 # --- Linking ---
 target_link_libraries(uni_server PRIVATE 
@@ -208,6 +228,7 @@ if(UNI_BUILD_TESTS)
         src/services/auth_service.cpp
         src/services/verification_service.cpp
         src/common/email_sender.cpp
+        src/common/email_templates.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
         src/services/chat_service.cpp
@@ -231,7 +252,7 @@ if(UNI_BUILD_TESTS)
         ZLIB::ZLIB
         jwt-cpp::jwt-cpp
     )
-    add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp)
+    add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
 
     add_test(NAME unit COMMAND uni_tests)
 endif()
