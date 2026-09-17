@@ -19,7 +19,7 @@ AuthService::AuthService(Database& db)
       last_evict_(LoginThrottle::Clock::now()) {}
 
 VoidResult AuthService::Register(const std::string& username, const std::string& email,
-                                  const std::string& password) {
+                                  const std::string& password, const std::string& locale) {
     if (username.size() < contract::kUsernameMin || username.size() > contract::kUsernameMax) {
         return std::unexpected(Error::InvalidInput("Username must be 3–32 characters"));
     }
@@ -77,9 +77,12 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
     std::string salt_b64 = hashed->substr(0, colon);
     std::string hash_b64 = hashed->substr(colon + 1);
 
+    int created_at = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+
     auto result = db_.Exec(
-        "INSERT INTO users (username, pass_hash, salt, email) VALUES (?, ?, ?, ?);",
-        {username, hash_b64, salt_b64, email});
+        "INSERT INTO users (username, pass_hash, salt, email, created_at, locale) VALUES (?, ?, ?, ?, ?, ?);",
+        {username, hash_b64, salt_b64, email, created_at, locale});
 
     if (!result) {
         Logger::Error("[Auth] DB insert failed: " + result.error().message);

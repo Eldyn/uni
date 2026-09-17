@@ -54,7 +54,7 @@ public:
      * rejected/failed.
      */
     VoidResult Register(const std::string& username, const std::string& email,
-                         const std::string& password);
+                         const std::string& password, const std::string& locale = "en");
 
     /**
      * @brief Verifies credentials against the throttle and the stored hash,

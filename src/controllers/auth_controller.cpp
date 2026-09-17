@@ -88,8 +88,9 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
         std::string username = data.value("username", "");
         std::string email    = data.value("email",    "");
         std::string password = data.value("password", "");
+        std::string locale   = data.value("locale",   "en");
 
-        auto result = auth_service_.Register(username, email, password);
+        auto result = auth_service_.Register(username, email, password, locale);
         if (!result) {
             WriteError(res, result.error());
             return;

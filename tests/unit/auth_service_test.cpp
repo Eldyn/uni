@@ -180,4 +180,16 @@ TEST_CASE("CreateGuestSession: issues a token for a generated Guest# name") {
     CHECK(payload->username == session->username);
 }
 
+TEST_CASE("Register sets created_at and defaults locale") {
+    AuthFixture f;
+    auto result = AuthService{}.Register("auth_test_freshuser", "auth_test_fresh@example.com", "password123");
+    REQUIRE(result.has_value());
+    auto row = Database::Get().QueryOne("SELECT created_at, locale, email_verified FROM users WHERE username = ?;", {"auth_test_freshuser"});
+    REQUIRE(row.has_value());
+    REQUIRE(row->has_value());
+    CHECK(row->value().Get<int>("created_at") > 0);
+    CHECK(row->value().Get<std::string>("locale") == "en");
+    CHECK(row->value().Get<int>("email_verified") == 0);
+}
+
 }  // TEST_SUITE
