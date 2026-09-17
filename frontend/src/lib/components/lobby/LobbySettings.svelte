@@ -188,15 +188,15 @@
 			/>
 			<hr class="settings-divider" />
 			<Toggle
-				label={m.lobby_settings_allow_bot_takeover({}, { locale: storeI18n.locale })}
-				description={m.lobby_settings_allow_bot_takeover_desc({}, { locale: storeI18n.locale })}
+				label={m.lobby_settings_players_replace_bots({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_players_replace_bots_desc({}, { locale: storeI18n.locale })}
 				checked={settings.allow_bot_takeover}
 				disabled={!isHost}
 				oncommit={(v) => commit("allow_bot_takeover", v)}
 			/>
 			<Toggle
-				label={m.lobby_settings_allow_player_replacement({}, { locale: storeI18n.locale })}
-				description={m.lobby_settings_allow_player_replacement_desc({}, { locale: storeI18n.locale })}
+				label={m.lobby_settings_bot_takes_over_seat({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_bot_takes_over_seat_desc({}, { locale: storeI18n.locale })}
 				checked={settings.allow_bot_replacement}
 				disabled={!isHost}
 				oncommit={(v) => commit("allow_bot_replacement", v)}
