@@ -131,6 +131,13 @@ public:
      */
     static Result<std::string> GenerateGuestName();
 
+    /**
+     * @brief Checks if a user is fully registered and email-verified.
+     * @param username The username to check.
+     * @return true if the user exists and has email_verified == 1, false otherwise (e.g. guests, unverified).
+     */
+    static bool IsFullMember(const std::string& username);
+
 private:
     Database& db_;
     LoginThrottle login_throttle_;

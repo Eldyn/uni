@@ -201,4 +201,14 @@ TEST_CASE("GetAccountStatus reports unverified then verified") {
     CHECK(status->email_verified == false);
 }
 
+TEST_CASE("IsFullMember is false for unverified, true for verified, false for guests") {
+    AuthFixture f;
+    AuthService svc;
+    svc.Register("auth_test_gateuser", "gate@example.com", "password123");
+    CHECK(AuthService::IsFullMember("auth_test_gateuser") == false);
+    Database::Get().Exec("UPDATE users SET email_verified = 1 WHERE username = 'auth_test_gateuser';");
+    CHECK(AuthService::IsFullMember("auth_test_gateuser") == true);
+    CHECK(AuthService::IsFullMember("Guest#ABCDE") == false);
+}
+
 }  // TEST_SUITE

@@ -7,6 +7,7 @@
 #include <controllers/friend_controller.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
+#include <services/auth_service.hpp>
 
 using json = nlohmann::json;
 
@@ -47,6 +48,11 @@ void FriendController::HandleFriendRequest(WsContext ctx, const json& message) {
     const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     const std::string& username = ctx.socket_data->username;
 
+    if (!AuthService::IsFullMember(username)) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kFriendRequestInvalid, request_id, "Email verification required");
+        return;
+    }
+
     auto payload_res = ws::ParsePayload<ws::FriendRequestPayload>(message);
     if (!payload_res) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
@@ -69,6 +75,11 @@ void FriendController::HandleFriendRequest(WsContext ctx, const json& message) {
 void FriendController::HandleFriendResponse(WsContext ctx, const json& message) {
     const std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
     const std::string& username = ctx.socket_data->username;
+
+    if (!AuthService::IsFullMember(username)) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kFriendRequestInvalid, request_id, "Email verification required");
+        return;
+    }
 
     auto payload_res = ws::ParsePayload<ws::FriendResponsePayload>(message);
     if (!payload_res) {

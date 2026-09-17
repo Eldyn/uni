@@ -181,6 +181,18 @@ Result<AccountStatus> AuthService::GetAccountStatus(const std::string& username)
     };
 }
 
+bool AuthService::IsFullMember(const std::string& username) {
+    auto row_result = Database::Get().QueryOne(
+        "SELECT email_verified FROM users WHERE username = ?;",
+        {username});
+    
+    if (!row_result || !row_result->has_value()) {
+        return false;
+    }
+    
+    return row_result->value().Get<int>("email_verified") == 1;
+}
+
 Result<std::string> AuthService::GenerateGuestName() {
     // INFO: 5 random base32 chars ≈ 33M names, enough entropy that two
     //       concurrent guests won't collide at this project's scale.
