@@ -18,6 +18,27 @@
 	let showInviteCode = $state(false);
 	let settingsOpen = $state(false);
 	let activeMenu = $state<string | null>(null);
+	let isAddingBot = $state(false);
+
+	async function handleAddBot() {
+		if (!isHost || isAddingBot) return;
+		const current = storeLobby.current;
+		if (!current) return;
+		const maxPlayers = current.settings.max_players;
+		if (current.members.length >= maxPlayers) return;
+
+		const currentBotCount = current.settings.bot_count ?? 0;
+		const humanCount = current.members.filter((m) => !m.is_bot).length;
+		const maxBots = maxPlayers - humanCount;
+		if (currentBotCount >= maxBots) return;
+
+		isAddingBot = true;
+		try {
+			await storeLobby.updateSettings({ bot_count: currentBotCount + 1 });
+		} finally {
+			isAddingBot = false;
+		}
+	}
 
 	// Last pointer kind to touch a seat card. Right-click opens the seat menu
 	// on desktop; tapping does the same job on touch, so both need distinct
@@ -342,20 +363,49 @@
 						class="seat-card relative w-32 shrink-0 sm:w-36 lg:w-44"
 						style="aspect-ratio: 1 / 1.5357; --card-color: {color};"
 					>
-						<div
-							class="seat-empty absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]"
-							style="filter: grayscale(0.55) brightness(0.85);"
-							use:syncPulse
-						>
-							<img
-								src="/assets/cards/background.png"
-								alt=""
-								class="absolute inset-0 h-full w-full object-fill"
-							/>
-							<div class="pointer-events-none absolute inset-0">
-								<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
+						{#if isHost}
+							<button
+								type="button"
+								class="seat-empty group absolute inset-0 w-full h-full overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)] border-none p-0 cursor-pointer disabled:cursor-not-allowed"
+								style="filter: grayscale(0.55) brightness(0.85);"
+								disabled={isAddingBot ||
+									(storeLobby.current?.members.length ?? 0) >=
+										(storeLobby.current?.settings.max_players ?? 4)}
+								onclick={handleAddBot}
+								title={m.lobby_add_bot({}, { locale: storeI18n.locale })}
+								aria-label={m.lobby_add_bot({}, { locale: storeI18n.locale })}
+								use:syncPulse
+							>
+								<img
+									src="/assets/cards/background.png"
+									alt=""
+									class="absolute inset-0 h-full w-full object-fill"
+								/>
+								<div class="pointer-events-none absolute inset-0">
+									<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
+								</div>
+								<div class="absolute inset-0 flex items-center justify-center z-10">
+									<i
+										class="pia pixelart-icons-font-plus text-3xl text-white/70 transition-transform group-hover:scale-125 group-hover:text-white"
+									></i>
+								</div>
+							</button>
+						{:else}
+							<div
+								class="seat-empty absolute inset-0 overflow-hidden rounded-[0.8em] shadow-[var(--elevation-1)]"
+								style="filter: grayscale(0.55) brightness(0.85);"
+								use:syncPulse
+							>
+								<img
+									src="/assets/cards/background.png"
+									alt=""
+									class="absolute inset-0 h-full w-full object-fill"
+								/>
+								<div class="pointer-events-none absolute inset-0">
+									<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
+								</div>
 							</div>
-						</div>
+						{/if}
 						<p
 							class="absolute inset-x-0 -bottom-5 text-center font-tiny text-[10px] uppercase text-text sm:text-xs"
 						>

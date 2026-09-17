@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 
-const { toggleReady } = vi.hoisted(() => ({ toggleReady: vi.fn() }));
+const { toggleReady, updateSettings } = vi.hoisted(() => ({
+	toggleReady: vi.fn(),
+	updateSettings: vi.fn()
+}));
 
 vi.mock("$stores/auth.svelte", () => ({ storeAuth: { username: "eldyn" } }));
 vi.mock("$stores/lobby.svelte", () => ({
@@ -18,6 +21,7 @@ vi.mock("$stores/lobby.svelte", () => ({
 		},
 		startEligibility: { canStart: false, reason: "Waiting on 1 player to ready up" },
 		toggleReady,
+		updateSettings,
 		startMatch: vi.fn(),
 		leave: vi.fn(),
 		isLoadingStart: false
@@ -37,5 +41,13 @@ describe("LobbyScreen ready state", () => {
 		const readyControl = screen.getByRole("button", { name: "Ready?" });
 		await fireEvent.click(readyControl);
 		expect(toggleReady).toHaveBeenCalled();
+	});
+
+	it("calls updateSettings to increment bot count when host clicks an empty seat", async () => {
+		render(LobbyScreen);
+		const addBotButtons = screen.getAllByRole("button", { name: "Add Bot" });
+		expect(addBotButtons.length).toBeGreaterThan(0);
+		await fireEvent.click(addBotButtons[0]);
+		expect(updateSettings).toHaveBeenCalledWith({ bot_count: 1 });
 	});
 });

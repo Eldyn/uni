@@ -187,5 +187,6 @@
 	"lobby_waiting": "Waiting…",
 	"lobby_promote": "Promote",
 	"lobby_kick": "Kick",
-	"lobby_host_badge_alt": "Host"
+	"lobby_host_badge_alt": "Host",
+	"lobby_add_bot": "Add Bot"
 }
