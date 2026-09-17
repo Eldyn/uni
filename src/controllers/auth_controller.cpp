@@ -3,17 +3,28 @@
 #include <common/env.hpp>
 #include <nlohmann/json.hpp>
 #include <logger.hpp>
+#include <common/email_templates.hpp>
 
 using json = nlohmann::json;
 
-AuthController::AuthController(HttpRouter& router)
-    : trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0") {
+AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
+    : trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
+      email_queue_(email_queue),
+      verify_request_limiter_(std::stod(Env::Get("RATE_VERIFY_BURST", "3")),
+                              std::stod(Env::Get("RATE_VERIFY_RPS",   "0.05"))),
+      verify_attempt_throttle_(std::stoi(Env::Get("VERIFY_MAX_FAILS", "5")),
+                               std::chrono::seconds(std::stoi(Env::Get("VERIFY_LOCKOUT_SEC", "300")))) {
     router.Post("/auth/register", [this](AppResponse* res, AppRequest* req) {
         HandleRegister(res, req);
     });
 
     router.Post("/auth/login", [this](AppResponse* res, AppRequest* req) {
         HandleLogin(res, req);
+    });
+
+    // Per-IP auth_limiter_ already covers routes starting with /auth/, so no additional wiring is needed there
+    router.Post("/auth/verify/request-code", [this](AppResponse* res, AppRequest* req) {
+        HandleRequestCode(res, req);
     });
 
     router.Post("/auth/guest", [this](AppResponse* res, AppRequest* req) {
@@ -203,5 +214,100 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
                                   "; HttpOnly; Secure; SameSite=None; Path=/")
                 ->writeHeader("Content-Type", "application/json")
                 ->end("{\"username\": \"" + session->username + "\"}");
+    });
+}
+
+void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
+    const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+
+    std::string_view cookies = req->getHeader("cookie");
+    auto ws_token = http::GetCookieValue(cookies, "ws_token");
+    auto auth_token = http::GetCookieValue(cookies, "auth_token");
+    auto token = ws_token;
+    if (auth_token) token = auth_token;
+
+    if (!token || token->empty()) {
+        res->writeStatus("401 Unauthorized")->end();
+        return;
+    }
+
+    auto payload = AuthService::VerifyToken(*token);
+    if (!payload) {
+        res->writeStatus("401 Unauthorized")->end();
+        return;
+    }
+
+    auto status = auth_service_.GetAccountStatus(payload->username);
+    if (!status) {
+        res->writeStatus("401 Unauthorized")->end();
+        return;
+    }
+
+    if (status->email_verified) {
+        res->writeStatus("409 Conflict")->end();
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_evict_ >= std::chrono::seconds(60)) {
+        last_evict_ = now;
+        verify_request_limiter_.Evict();
+        verify_attempt_throttle_.Evict();
+    }
+
+    if (!verify_request_limiter_.Allow(std::to_string(status->id) + "|" + ip)) {
+        WriteError(res, Error::TooManyRequests("Verification request limit reached. Please wait."));
+        return;
+    }
+
+    auto sends_res = verification_service_.SendsInLast24h(status->id);
+    if (!sends_res) {
+        WriteError(res, sends_res.error());
+        return;
+    }
+    if (*sends_res >= Env::GetInt("EMAIL_MAX_SENDS_PER_DAY", 5)) {
+        WriteError(res, Error::TooManyRequests("Daily verification email limit reached. Try again tomorrow."));
+        return;
+    }
+
+    http::ReadBody(res, kMaxBodyBytes, [this, res, id = status->id, username = payload->username, email = status->email, db_locale = status->locale](const std::string& body) {
+        std::string effective_locale = db_locale;
+        json data;
+        try {
+            if (!body.empty()) {
+                data = json::parse(body);
+            }
+        } catch (...) {
+        }
+
+        if (data.contains("locale") && data["locale"].is_string()) {
+            std::string req_locale = data["locale"].get<std::string>();
+            if (req_locale == "en" || req_locale == "de" || req_locale == "es" || 
+                req_locale == "it" || req_locale == "ja" || req_locale == "ko" || req_locale == "zh") {
+                effective_locale = req_locale;
+                (void)Database::Get().Exec("UPDATE users SET locale = ? WHERE id = ?;", {effective_locale, id});
+            }
+        }
+
+        auto issue_res = verification_service_.IssueCode(username);
+        if (!issue_res) {
+            WriteError(res, issue_res.error());
+            return;
+        }
+
+        auto mail = RenderVerifyEmail(VerifyEmailData{
+            .username = username,
+            .code = issue_res->plaintext_code,
+            .magic_link = BuildVerifyMagicLink(issue_res->plaintext_code),
+            .locale = effective_locale
+        });
+        mail.to_address = email;
+
+        email_queue_.Enqueue(std::move(mail));
+        verification_service_.RecordSend(id);
+
+        res->writeStatus("202 Accepted")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json({{"status", "queued"}}).dump());
     });
 }

@@ -1,6 +1,8 @@
 #include <common/env.hpp>
 #include <common/http.hpp>
 #include <common/ws.hpp>
+#include <common/email_queue.hpp>
+#include <common/email_sender.hpp>
 #include <controllers/auth_controller.hpp>
 #include <controllers/chat_controller.hpp>
 #include <controllers/friend_controller.hpp>
@@ -45,7 +47,8 @@ int main() {
 
         WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path);
 
-        AuthController   auth(server.GetHTTPRouter());
+        EmailQueue       email_queue(MakeEmailSender());
+        AuthController   auth(server.GetHTTPRouter(), email_queue);
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
                                server.GetTimerService(), presence);

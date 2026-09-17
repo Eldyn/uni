@@ -1,6 +1,10 @@
 #pragma once
 #include <http_router.hpp>
 #include <services/auth_service.hpp>
+#include <services/verification_service.hpp>
+#include <common/email_queue.hpp>
+#include <common/rate_limiter.hpp>
+#include <common/login_throttle.hpp>
 
 /**
  * @file auth_controller.hpp
@@ -23,7 +27,7 @@ public:
      * Automatically registers the POST and GET routes on the provided HTTP router (`/auth/register`, `/auth/login`, etc.).
      * * @param router Reference to the central HTTP router. Must outlive this class.
      */
-    explicit AuthController(HttpRouter& router);
+    explicit AuthController(HttpRouter& router, EmailQueue& email_queue);
 
 private:
     // --- HTTP Route Handlers ---
@@ -45,6 +49,16 @@ private:
      * @param req Pointer to the HTTP request.
      */
     void HandleLogin(AppResponse* res, AppRequest* req);
+
+    /**
+     * @brief Handles the POST route `/auth/verify/request-code`.
+     */
+    void HandleRequestCode(AppResponse* res, AppRequest* req);
+
+    /**
+     * @brief Handles the POST route `/auth/verify/confirm`.
+     */
+    void HandleConfirmCode(AppResponse* res, AppRequest* req);
 
     /**
      * @brief Handles the POST route `/auth/guest`.
@@ -92,4 +106,9 @@ private:
 
     bool trust_proxy_;      /**< Honour X-Forwarded-For when resolving the client IP. */
     AuthService auth_service_;
+    VerificationService verification_service_;
+    EmailQueue&         email_queue_;
+    RateLimiter         verify_request_limiter_;
+    LoginThrottle       verify_attempt_throttle_;
+    std::chrono::steady_clock::time_point last_evict_{std::chrono::steady_clock::now()};
 };

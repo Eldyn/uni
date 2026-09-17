@@ -13,6 +13,8 @@
 #include <map>
 #include <future>
 #include <nlohmann/json.hpp>
+#include <common/email_queue.hpp>
+#include <common/email_sender.hpp>
 
 using json = nlohmann::json;
 
@@ -138,6 +140,9 @@ struct ScopedTestServer {
     ScopedTestServer() {
         setenv("JWT_SECRET", "test-jwt-secret", 1);
         setenv("PASSWORD_PEPPER", "test-password-pepper", 1);
+        setenv("EMAIL_MAX_SENDS_PER_DAY", "5", 1);
+        setenv("RATE_VERIFY_BURST", "3", 1);
+        setenv("RATE_VERIFY_RPS", "1.0", 1); // faster rate for testing
         (void)Database::Get().RunMigrations();
 
         std::promise<void> bound;
@@ -149,7 +154,8 @@ struct ScopedTestServer {
             options.cert_file_name = "cert.pem";
 
             HttpRouter router;
-            AuthController auth_ctrl(router);
+            EmailQueue email_queue(std::make_unique<DevFileEmailSender>("."));
+            AuthController auth_ctrl(router, email_queue);
             AppHttp app(options);
             router.Attach(app);
 
@@ -176,6 +182,73 @@ struct ScopedTestServer {
         }
     }
 };
+
+struct TestSession {
+    std::string cookies;
+};
+
+TestHttpResponse SimulatePost(const std::string& path, const std::string& body, const std::string& cookies = "") {
+    std::string cmd = "curl -s -i -k -X POST -H 'Content-Type: application/json' ";
+    if (!cookies.empty()) {
+        cmd += "-H 'Cookie: " + cookies + "' ";
+    }
+    cmd += "-d '" + body + "' https://127.0.0.1:" + std::to_string(kAuthTestPort) + path;
+    
+    std::string output = exec(cmd.c_str());
+    TestHttpResponse res;
+    std::istringstream iss(output);
+    std::string line;
+    bool headers_done = false;
+    std::string body_str;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (res.status == 0 && line.starts_with("HTTP/")) {
+            auto pos = line.find(' ');
+            if (pos != std::string::npos) {
+                res.status = std::stoi(line.substr(pos + 1, 3));
+            }
+            continue;
+        }
+        if (line.empty()) {
+            headers_done = true;
+            continue;
+        }
+        if (!headers_done) {
+            auto pos = line.find(": ");
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string val = line.substr(pos + 2);
+                res.headers.insert({key, val});
+            }
+        } else {
+            body_str += line;
+        }
+    }
+    if (!body_str.empty()) {
+        try { res.body = json::parse(body_str); } catch (...) {}
+    }
+    return res;
+}
+
+TestSession SimulateLoginSession(const std::string& username, const std::string& email, const std::string& password) {
+    auto res = SimulateRegister(kAuthTestPort, username, email, password);
+    std::string cookies;
+    auto range = res.headers.equal_range("Set-Cookie");
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second.starts_with("auth_token=")) {
+            cookies += it->second.substr(0, it->second.find(';')) + "; ";
+        } else if (it->second.starts_with("ws_token=")) {
+            cookies += it->second.substr(0, it->second.find(';')) + "; ";
+        }
+    }
+    return {cookies};
+}
+
+TestSession SimulateVerifiedSession(const std::string& username) {
+    auto session = SimulateLoginSession(username, username + "@example.com", "password123");
+    (void)Database::Get().Exec("UPDATE users SET email_verified = 1 WHERE username = ?", {username});
+    return session;
+}
 
 }  // namespace
 
@@ -211,4 +284,35 @@ TEST_CASE("/auth/me returns email_verified") {
     CHECK(me_res.body["username"] == "meuser");
     CHECK(me_res.body["email"] == "me@example.com");
     CHECK(me_res.body["email_verified"] == false);
+}
+
+TEST_CASE("request-code queues an email for an unverified session") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("requser", "req@example.com", "password123");
+    auto response = SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    CHECK(response.status == 202);
+}
+
+TEST_CASE("request-code returns 409 when already verified") {
+    ScopedTestServer server;
+    auto session = SimulateVerifiedSession("verifieduser");
+    auto response = SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    CHECK(response.status == 409);
+}
+
+TEST_CASE("6th request in 24h returns 429 and does not queue an email") {
+    ScopedTestServer server;
+    auto session = SimulateLoginSession("cappeduser", "cap@example.com", "password123");
+    for (int i = 0; i < 5; ++i) {
+        auto res = SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+        CHECK(res.status == 202);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1100)); // clear token bucket
+    }
+    auto response = SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    CHECK(response.status == 429);
+    auto count_res = Database::Get().QueryOne(
+        "SELECT COUNT(*) as c FROM email_send_log WHERE user_id = (SELECT id FROM users WHERE username='cappeduser');");
+    CHECK(count_res.has_value());
+    CHECK(count_res->has_value());
+    CHECK(count_res->value().Get<int>("c") == 5);
 }
