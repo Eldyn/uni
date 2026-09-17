@@ -5,6 +5,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { ws, ClientAction } from "$stores/ws.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
 	import EnumSelector from "$components/lobby/settings/EnumSelector.svelte";
@@ -46,6 +47,18 @@
 	];
 
 	const inMatch = $derived(storeGame.state !== null);
+
+	let privacyMode = $state(
+		typeof localStorage !== "undefined" && localStorage.getItem("uni_privacy_mode") === "true"
+	);
+
+	function setPrivacyMode(v: boolean) {
+		privacyMode = v;
+		if (typeof localStorage !== "undefined") {
+			localStorage.setItem("uni_privacy_mode", v ? "true" : "false");
+		}
+		ws.emit(ClientAction.UserUpdatePrivacy, { privacy_mode: v });
+	}
 </script>
 
 {#snippet sectionHeading(text: string)}
@@ -151,6 +164,13 @@
 					{ value: "cards-inner", label: "Inner cards", description: "Curved between avatar and cards" }
 				]}
 				oncommit={(v) => storeRenderSettings.setSeatNameArcMode(v)}
+			/>
+
+			<Toggle
+				label={m.game_privacy_mode({}, { locale: storeI18n.locale })}
+				description={m.game_privacy_mode_desc({}, { locale: storeI18n.locale })}
+				checked={privacyMode}
+				oncommit={setPrivacyMode}
 			/>
 		</div>
 	</section>

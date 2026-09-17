@@ -127,12 +127,15 @@ struct LobbyMember {
     /**< True if this member is currently spectating rather than an active player. */
     bool is_spectator = false;
 
+    /**< True if this member has streamer/privacy mode enabled (hand hidden from spectators). */
+    bool privacy_mode = false;
+
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 
-    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1, bool spectator = false)
+    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1, bool spectator = false, bool privacy = false)
         : username(std::move(u)), socket(s), is_connected(c), is_bot(b), seat_index(seat),
-          is_spectator(spectator) {}
+          is_spectator(spectator), privacy_mode(privacy) {}
 };
 
 /**
@@ -171,9 +174,10 @@ struct MemberRemovalResult {
  * @brief Describes which path Lobby::AddOrHijack took to admit a new member.
  */
 enum class JoinOutcome {
-    kHijackedBot,      /**< An existing bot member was replaced by the joiner. */
-    kJoinedEmptySlot,  /**< The joiner filled a free member slot. */
-    kLobbyFull         /**< Neither path was available; the lobby is at capacity. */
+    kHijackedBot,          /**< An existing bot member was replaced by the joiner. */
+    kJoinedEmptySlot,      /**< The joiner filled a free member slot. */
+    kJoinedAsSpectator,    /**< The joiner joined an ongoing match as a spectator. */
+    kLobbyFull             /**< Neither path was available; the lobby is at capacity. */
 };
 
 /**
@@ -212,6 +216,19 @@ struct Lobby {
      * @param rng Shared RNG used to pick unique bot display names.
      */
     void SyncBots(std::mt19937& rng);
+
+    /**
+     * @brief Finds a member by username, or nullptr if not found.
+     */
+    LobbyMember* FindMember(const std::string& username) {
+        auto it = std::ranges::find(members, username, &LobbyMember::username);
+        return it != members.end() ? &(*it) : nullptr;
+    }
+
+    const LobbyMember* FindMember(const std::string& username) const {
+        auto it = std::ranges::find(members, username, &LobbyMember::username);
+        return it != members.end() ? &(*it) : nullptr;
+    }
 
     /**
      * @brief Picks a random bot display name not already taken in the lobby.

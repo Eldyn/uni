@@ -26,6 +26,21 @@
 		</button>
 
 		{#if !collapsed}
+			{#if storeGame.isSpectator}
+				<span class="spectating-badge pixel-corners">
+					{m.game_spectating_indicator({}, { locale: storeI18n.locale })}
+				</span>
+			{/if}
+
+			{#if storeGame.spectatorCount > 0}
+				<span
+					class="spectator-counter pixel-corners"
+					title={m.game_spectator_count({ count: storeGame.spectatorCount }, { locale: storeI18n.locale })}
+				>
+					<i class="hn hn-eye pix"></i> {storeGame.spectatorCount}
+				</span>
+			{/if}
+
 			<span
 				class="timer pixel-corners"
 				style="background: {storeGame.turnTimeRemaining <= 5
@@ -36,6 +51,19 @@
 			</span>
 
 			<TurnOrderStrip />
+
+			{#if storeGame.state?.mode === 'elimination' && storeGame.placements.length > 0}
+				<div
+					class="elimination-standings pixel-corners"
+					title={m.game_placement_standings({}, { locale: storeI18n.locale })}
+				>
+					{#each storeGame.placements as name, i}
+						<span class="placement-chip">
+							{m.game_placement_rank({ rank: i + 1, name }, { locale: storeI18n.locale })}
+						</span>
+					{/each}
+				</div>
+			{/if}
 
 			<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}>
 				{m.game_hud_exit({}, { locale: storeI18n.locale })}
@@ -100,5 +128,37 @@
 		padding: 6px 14px;
 		font-weight: bold;
 		font-size: 0.9rem;
+	}
+
+	.spectating-badge {
+		padding: 3px 8px;
+		background: var(--brand-2, #6366f1);
+		color: #fff;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.spectator-counter {
+		padding: 3px 8px;
+		background: var(--surface-2);
+		font-size: 0.8rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.elimination-standings {
+		display: flex;
+		gap: 4px;
+		background: var(--surface-2);
+		padding: 3px 8px;
+		font-size: 0.75rem;
+	}
+
+	.placement-chip {
+		color: var(--warning, #f59e0b);
 	}
 </style>

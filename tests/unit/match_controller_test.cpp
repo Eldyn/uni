@@ -357,3 +357,39 @@ TEST_CASE("Full match: mixed bot count (2 to 4 players) with every mod enabled a
     }
 }
 }  // TEST_SUITE("MatchController::FullGameSimulation")
+
+TEST_SUITE("MatchController::Spectator") {
+TEST_CASE("Spectator cannot play card, draw card, or provide input") {
+    MatchFixture f;
+    LobbySettings settings;
+    f.SetupMatch({{"Alice", false}, {"Bob", false}}, settings);
+
+    f.store.lobby.members.emplace_back("Charlie", nullptr, true, false, -1, /*is_spectator=*/true);
+
+    PerSocketData sd;
+    sd.username = "Charlie";
+    sd.lobby_id = 1;
+    auto* sock = reinterpret_cast<AppWebSocket*>(0x1234);
+    WsContext ctx{sock, &sd};
+
+    // Play card rejected
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", 1}
+    });
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err1 = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err1["action"], "error");
+    CHECK_EQ(err1["code"], "spectator_cannot_act");
+
+    // Draw card rejected
+    f.bus.Clear();
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchDrawCard}
+    });
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err2 = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err2["action"], "error");
+    CHECK_EQ(err2["code"], "spectator_cannot_act");
+}
+}

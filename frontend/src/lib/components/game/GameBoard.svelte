@@ -82,7 +82,10 @@
 	let mappedOpponents = $derived.by(() => {
 		const players = storeGame.state?.players ?? [];
 		const myUsername = storeGame.localPlayer?.username;
-		if (!myUsername || players.length <= 1) return [];
+		if (storeGame.isSpectator || !myUsername) {
+			return players.map((player) => ({ player }));
+		}
+		if (players.length <= 1) return [];
 
 		const rawOpponents = players.filter((p) => p.username !== myUsername);
 		const myIdx = players.findIndex((p) => p.username === myUsername);
@@ -196,14 +199,16 @@
 </script>
 
 <DrawStackIndicator />
-<AccessibleHandControls
-	{bus}
-	selectedId={selectedCardId}
-	onSelectionChange={handleSelectionChange}
-	onPlay={play}
-	focusedId={keyboardFocusId}
-	onFocusChange={(id) => (keyboardFocusId = id)}
-/>
+{#if !storeGame.isSpectator}
+	<AccessibleHandControls
+		{bus}
+		selectedId={selectedCardId}
+		onSelectionChange={handleSelectionChange}
+		onPlay={play}
+		focusedId={keyboardFocusId}
+		onFocusChange={(id) => (keyboardFocusId = id)}
+	/>
+{/if}
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
 	<div

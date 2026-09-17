@@ -98,6 +98,12 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kUserUpdatePrivacy,
+                      [this](WsContext context, const nlohmann::json& message) {
+        HandleUserUpdatePrivacy(context, message);
+        return true;
+    });
+
     timer_service_.Schedule("lobby_eviction", 1000, true, [this] {
         auto  now  = steady_clock::now();
 
@@ -408,12 +414,6 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
 
-    if (lobby.match && !lobby.settings.allow_bot_takeover) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code,
-                               contract::ErrorCode::kJoinDisabledInMatch, request_id);
-        return;
-    }
-
     JoinResult result = lobby.AddOrHijack(username, ctx.socket);
 
     switch (result.outcome) {
@@ -422,6 +422,9 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
             break;
         case JoinOutcome::kJoinedEmptySlot:
             Logger::Info("[Lobby] '", username, "' joined an empty slot.");
+            break;
+        case JoinOutcome::kJoinedAsSpectator:
+            Logger::Info("[Lobby] '", username, "' joined ongoing match as spectator.");
             break;
         case JoinOutcome::kLobbyFull:
             broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull,
@@ -449,9 +452,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
     BroadcastUpdate(lobby);
 
     if (lobby.match) {
-        auto game_resp = MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        game_resp["match_state"] = lobby.match->SerializePlayerState(username);
-        broadcaster_.Send(ctx.socket, game_resp.dump(), ctx.op_code);
+        SendMatchStateToSocket(lobby, ctx.socket, username, ctx.op_code);
     }
 }
 
@@ -910,7 +911,8 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
             {"is_bot", m.is_bot},
             {"seat_index", m.seat_index},
             {"is_ready", m.is_bot || m.is_ready},
-            {"is_spectator", m.is_spectator}
+            {"is_spectator", m.is_spectator},
+            {"privacy_mode", m.privacy_mode}
         });
     }
     return arr;
@@ -925,7 +927,24 @@ void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* w
                                               uWS::OpCode op_code) const {
     if (!lobby.match) return;
     json resp = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-    resp["match_state"] = lobby.match->SerializePlayerState(username);
+    const LobbyMember* m = lobby.FindMember(username);
+    if (m && m->is_spectator) {
+        json match_state = lobby.match->SerializeBaseState();
+        int spectator_count = 0;
+        for (const auto& mem : lobby.members) if (mem.is_spectator && mem.is_connected) spectator_count++;
+        match_state["spectator_count"] = spectator_count;
+        for (auto& p_json : match_state["players"]) {
+            std::string p_name = p_json["username"];
+            const LobbyMember* p_member = lobby.FindMember(p_name);
+            bool privacy = p_member ? p_member->privacy_mode : false;
+            if (!privacy) {
+                p_json["hand"] = lobby.match->SerializeHandFor(p_name);
+            }
+        }
+        resp["match_state"] = std::move(match_state);
+    } else {
+        resp["match_state"] = lobby.match->SerializePlayerState(username);
+    }
     if (lobby.match->IsWaitingForInput() && lobby.match->GetPendingPlayer() == username) {
         resp["action_required"] = static_cast<int>(lobby.match->GetPendingAction());
         const std::string ctx = lobby.match->GetPendingInputContext();
@@ -1048,4 +1067,19 @@ Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
     uint32_t lobby_id = presence_.GetUserLobbyId(username);
     if (lobby_id == 0) return nullptr;
     return GetLobbyById(lobby_id);
+}
+
+void LobbyController::HandleUserUpdatePrivacy(WsContext context, const nlohmann::json& message) {
+    bool privacy = ws::GetOr<bool>(message, "privacy_mode", false);
+    if (context.socket_data) {
+        context.socket_data->privacy_mode = privacy;
+    }
+    Lobby* lobby = GetLobbyById(context.socket_data->lobby_id);
+    if (lobby) {
+        LobbyMember* member = lobby->FindMember(context.socket_data->username);
+        if (member) {
+            member->privacy_mode = privacy;
+            BroadcastUpdate(*lobby);
+        }
+    }
 }

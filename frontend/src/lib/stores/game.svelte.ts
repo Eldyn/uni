@@ -43,7 +43,10 @@ const RawGameStateSchema = z.object({
 	pending_draws: z.number().int().default(0),
 	draw_pile_size: z.number().int().default(0),
 	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
-	turn_time_remaining_ms: z.number().optional()
+	turn_time_remaining_ms: z.number().optional(),
+	mode: z.string().optional(),
+	spectator_count: z.number().int().optional(),
+	placements: z.array(z.string()).optional()
 });
 
 /**
@@ -98,6 +101,12 @@ export interface GameState {
 	draw_pile_size: number;
 	/** Origin of the last played card, used to animate it from its source slot. */
 	last_play?: LastPlay;
+	/** Mode of the match ('standard' | 'elimination'). */
+	mode?: string;
+	/** Number of connected spectators. */
+	spectator_count?: number;
+	/** Current or final placement list in elimination mode. */
+	placements?: string[];
 	/** Flag indicating whether the match has reached a terminal state. */
 	is_over?: boolean;
 	/** Username of the winning player, if the match has ended. */
@@ -153,6 +162,18 @@ class StoreGame implements SessionStore {
 		this.state?.players.find((p) => p.username === storeAuth.username) ?? null
 	);
 
+	/** Derived property indicating whether client is a spectator (or eliminated). */
+	isSpectator = $derived(
+		storeLobby.current?.members.find((m) => m.username === storeAuth.username)?.is_spectator ??
+			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username))
+	);
+
+	/** Number of connected spectators. */
+	spectatorCount = $derived(this.state?.spectator_count ?? 0);
+
+	/** Current or final placement list in elimination mode. */
+	placements = $derived(this.state?.placements ?? []);
+
 	constructor() {
 		// FIXED: Register handlers exactly once at store initialization.
 		// They will safely survive any underlying WebSocket re-connections.
@@ -186,6 +207,9 @@ class StoreGame implements SessionStore {
 			const reason = data.reason as string | undefined;
 			this.state.is_over = true;
 			this.state.winner = winner;
+			if (data.placements) {
+				this.state.placements = data.placements as string[];
+			}
 			this.actionRequired = null;
 			this.actionContext = null;
 
@@ -272,6 +296,9 @@ class StoreGame implements SessionStore {
 				pending_draws: stateJson.pending_draws,
 				draw_pile_size: stateJson.draw_pile_size,
 				last_play: stateJson.last_play,
+				mode: stateJson.mode,
+				spectator_count: stateJson.spectator_count,
+				placements: stateJson.placements,
 				is_over: undefined,
 				winner: undefined
 			};
@@ -353,7 +380,7 @@ class StoreGame implements SessionStore {
 	 * @param cardId Unique 16-bit identifier of the selected card.
 	 */
 	playCard(cardId: number) {
-		if (this.isActionPending) return;
+		if (this.isSpectator || this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		// PLACEHOLDER-SFX: sfx.action.play-card, optimistic click SFX only,
@@ -368,7 +395,7 @@ class StoreGame implements SessionStore {
 	 * @brief Sends the request to draw a card from the central deck to the server.
 	 */
 	drawCard() {
-		if (this.isActionPending) return;
+		if (this.isSpectator || this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		// PLACEHOLDER-SFX: sfx.action.draw-card, optimistic click SFX only,
@@ -384,7 +411,7 @@ class StoreGame implements SessionStore {
 	 * @param value The value chosen by the user via modal (e.g. the type index for the Wild).
 	 */
 	submitInput(value: string) {
-		if (this.isActionPending) return;
+		if (this.isSpectator || this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		// PLACEHOLDER-SFX: sfx.action.submit-input, optimistic click SFX only,

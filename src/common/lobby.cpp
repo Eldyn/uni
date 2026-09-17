@@ -4,6 +4,7 @@
  * reconciliation.
  */
 #include "common/lobby.hpp"
+#include "websocket_context.hpp"
 #include <common/bot_names.hpp>
 #include <match/match_instance.hpp>
 #include <match/rule_registry.hpp>
@@ -185,6 +186,12 @@ bool Lobby::PromoteNextHost() {
 JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket) {
     JoinResult result;
 
+    bool user_privacy = false;
+    if (socket) {
+        auto* data = socket->getUserData();
+        if (data) user_privacy = data->privacy_mode;
+    }
+
     if (settings.allow_bot_takeover) {
         for (auto& member : members) {
             if (member.is_bot) {
@@ -194,6 +201,8 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
                 member.socket = socket;
                 member.is_connected = true;
                 member.is_bot = false;
+                member.is_spectator = false;
+                member.privacy_mode = user_privacy;
 
                 if (match) {
                     match::Player* engine_player = match->GetPlayer(old_bot_name);
@@ -210,13 +219,16 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
         }
     }
 
+    if (match) {
+        // When match in progress and no bot seat was hijacked, join as spectator!
+        members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true, user_privacy);
+        result.outcome = JoinOutcome::kJoinedAsSpectator;
+        return result;
+    }
+
     if (static_cast<int>(members.size()) < settings.max_players) {
         int seat = NextFreeSeat();
-        members.emplace_back(username, socket, true, false, seat);
-
-        if (match) {
-            match->AddPlayerMidGame(username, false, seat);
-        }
+        members.emplace_back(username, socket, true, false, seat, /*is_spectator=*/false, user_privacy);
 
         result.outcome = JoinOutcome::kJoinedEmptySlot;
         return result;

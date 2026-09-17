@@ -66,6 +66,7 @@ channels:
           - $ref: "#/components/messages/FriendResponse"
           - $ref: "#/components/messages/FriendListRequest"
           - $ref: "#/components/messages/MetadataRequest"
+          - $ref: "#/components/messages/UserUpdatePrivacy"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -557,6 +558,12 @@ components:
           request_id:
             type: string
 
+    UserUpdatePrivacy:
+      name: user_update_privacy
+      title: Update Player Privacy Mode
+      payload:
+        $ref: "#/components/schemas/UserUpdatePrivacyPayload"
+
   # -------------------------------------------------------------------------
   # Schemas
   # -------------------------------------------------------------------------
@@ -834,6 +841,21 @@ components:
           description: >
             Op-specific fields (e.g. move's destination slot, screenEffect's
             effect name and duration).
+
+    UserUpdatePrivacyPayload:
+      type: object
+      required:
+        - action
+        - privacy_mode
+      properties:
+        action:
+          type: string
+          enum: ["user_update_privacy"]
+        request_id:
+          type: string
+        privacy_mode:
+          type: boolean
+          description: Whether streamer / privacy mode is enabled (hides hand from spectators).
 
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)
