@@ -152,37 +152,43 @@
 	     contextual center slot (see lobbyNameSlot above), not here. -->
 	<header class="shell-topbar-secondary">
 		<div class="flex flex-wrap items-center gap-2">
-			<div class="flex items-center gap-1 bg-black px-3 py-2">
+			<div
+				class="pixel-bordered flex items-center gap-3 px-4 py-2 text-text-h shadow-[var(--elevation-1)] [--pc-fill:var(--bg)] [--pc-border:var(--border)]"
+			>
 				<span
-					class="font-monogram w-24 text-center text-text leading-none {showInviteCode
-						? 'text-xl tracking-wider'
-						: 'text-lg tracking-widest'}"
+					class="font-monogram select-all text-2xl font-bold leading-none tracking-widest text-text-h sm:text-3xl"
 				>
 					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
 				</span>
-				<button
-					class="flex items-center leading-none text-white"
-					onclick={() => (showInviteCode = !showInviteCode)}
-					title={showInviteCode
-						? m.lobby_hide_code({}, { locale: storeI18n.locale })
-						: m.lobby_show_code({}, { locale: storeI18n.locale })}
-				>
-					<i
-						class="pia {showInviteCode
-							? 'pixelart-icons-font-eye'
-							: 'pixelart-icons-font-eye-off'} text-lg"
-					></i>
-				</button>
-				<button
-					class="flex items-center leading-none text-white"
-					onclick={copyInviteLink}
-					title={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
-					aria-label={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
-				>
-					<i class="pia pixelart-icons-font-share text-lg"></i>
-				</button>
+				<div class="flex items-center gap-1 border-l border-white/10 pl-2">
+					<button
+						type="button"
+						class="flex items-center leading-none text-text transition-colors hover:text-white"
+						onclick={() => (showInviteCode = !showInviteCode)}
+						title={showInviteCode
+							? m.lobby_hide_code({}, { locale: storeI18n.locale })
+							: m.lobby_show_code({}, { locale: storeI18n.locale })}
+						aria-label={showInviteCode
+							? m.lobby_hide_code({}, { locale: storeI18n.locale })
+							: m.lobby_show_code({}, { locale: storeI18n.locale })}
+					>
+						<i
+							class="pia {showInviteCode
+								? 'pixelart-icons-font-eye'
+								: 'pixelart-icons-font-eye-off'} text-lg"
+						></i>
+					</button>
+					<button
+						type="button"
+						class="flex items-center leading-none text-text transition-colors hover:text-white"
+						onclick={copyInviteLink}
+						title={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
+						aria-label={m.lobby_share_link_tooltip({}, { locale: storeI18n.locale })}
+					>
+						<i class="pia pixelart-icons-font-share text-lg"></i>
+					</button>
+				</div>
 			</div>
-
 		</div>
 
 		<div class="ml-auto flex items-center gap-2">

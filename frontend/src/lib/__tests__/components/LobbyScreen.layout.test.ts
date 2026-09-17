@@ -48,4 +48,23 @@ describe("LobbyScreen responsive action bar placement", () => {
 		await fireEvent.click(exitBtn);
 		expect(leave).toHaveBeenCalled();
 	});
+
+	it("renders a prominent pixel-bordered chip for the join code with reveal and copy actions", async () => {
+		render(LobbyScreen);
+		// Initially masked
+		expect(screen.getByText("••••••")).toBeInTheDocument();
+
+		const showCodeBtn = screen.getByRole("button", { name: /show code/i });
+		expect(showCodeBtn).toBeInTheDocument();
+
+		const copyBtn = screen.getByRole("button", { name: /copy invite link/i });
+		expect(copyBtn).toBeInTheDocument();
+
+		// Reveal code
+		await fireEvent.click(showCodeBtn);
+		expect(screen.getByText("ABCD")).toBeInTheDocument();
+
+		const hideCodeBtn = screen.getByRole("button", { name: /hide code/i });
+		expect(hideCodeBtn).toBeInTheDocument();
+	});
 });
