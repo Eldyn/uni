@@ -16,6 +16,7 @@
 #include <webserver.hpp>
 #include <database.hpp>
 #include <logger.hpp>
+#include "services/account_reaper.hpp"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -37,6 +38,16 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
     if (!InitDB()) {
         throw std::runtime_error("Failed to initialise database");
     }
+    
+    auto grace_days = std::stoull(Env::Get("UNVERIFIED_GRACE_DAYS", "7"));
+    auto interval_sec = std::stoull(Env::Get("REAPER_INTERVAL_SEC", "3600"));
+    reaper_ = std::make_unique<AccountReaper>(
+        Database::Get(), 
+        std::chrono::seconds(interval_sec), 
+        std::chrono::hours(24 * grace_days)
+    );
+    reaper_->Start();
+
     RegisterRoutes();
     if (static_cache_enabled_) {
         LoadStaticFileCache();
@@ -56,6 +67,9 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
 }
 
 WebServer::~WebServer() {
+    if (reaper_) {
+        reaper_->Stop();
+    }
     if (Database::Get().IsOpen()) {
         Database::Get().Close();
         Logger::Info("Database closed");

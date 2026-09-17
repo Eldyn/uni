@@ -14,6 +14,8 @@
 #include <transport/uws_broadcaster.hpp>
 #include <transport/uws_timer_service.hpp>
 
+class AccountReaper;
+
 /**
  * @file webserver.hpp
  * @brief Definition of the main WebServer class that manages the entire lifecycle of the network application.
@@ -212,4 +214,6 @@ private:
 
     /** Source for the active-match count (see /internal/active-games). */
     std::function<std::size_t()> active_match_provider_;
+
+    std::unique_ptr<AccountReaper> reaper_;
 };

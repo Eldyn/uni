@@ -231,6 +231,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/chat_controller.cpp
         src/services/auth_service.cpp
         src/services/verification_service.cpp
+        src/services/account_reaper.cpp
         src/common/email_sender.cpp
         src/common/email_queue.cpp
         src/common/email_templates.cpp
