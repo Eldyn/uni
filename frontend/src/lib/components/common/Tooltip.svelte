@@ -6,6 +6,7 @@
 		type Align,
 		type Rect
 	} from "$lib/utils/anchorPlacement";
+	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 	interface Props {
 		children: Snippet;
@@ -28,7 +29,7 @@
 		align = "center",
 		offset = 8,
 		openDelay = 150,
-		closeDelay = 150,
+		closeDelay = 300,
 		interactive = false,
 		id,
 		class: extraClass = "",
@@ -150,6 +151,12 @@
 	});
 
 	$effect(() => {
+		if (storeTooltipStack.stack.length > 0 && isVisible) {
+			isVisible = false;
+		}
+	});
+
+	$effect(() => {
 		if (!containerEl) return;
 		const target =
 			containerEl.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]") ??
@@ -223,5 +230,12 @@
 
 	.pixel-popover-tooltip.interactive {
 		pointer-events: auto;
+	}
+
+	.pixel-popover-tooltip.interactive::before {
+		content: "";
+		position: absolute;
+		inset: -10px;
+		z-index: -1;
 	}
 </style>

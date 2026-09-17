@@ -67,4 +67,35 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		expect(keywordBtn).toBeInTheDocument();
 		expect(keywordBtn).toHaveTextContent("turn");
 	});
+
+	it("clicking keyword in RulesGrid tooltip spawns glossary tooltip in storeTooltipStack", async () => {
+		render(RulesGrid, {
+			props: {
+				rules: [
+					{
+						id: "draw_stacking",
+						label: "Draw Stacking",
+						description: "Stack +2 or +4 cards to pass the accumulated [k=draw]draw[/k] penalty.",
+						enabled: true
+					}
+				],
+				onrulechange: vi.fn()
+			}
+		});
+
+		const ruleLabel = screen.getByText("Draw Stacking");
+		const container = ruleLabel.closest(".tooltip-container")!;
+		await fireEvent.mouseEnter(container);
+		await act(() => vi.runAllTimers());
+
+		const tooltip = screen.getByRole("tooltip");
+		const keywordBtn = tooltip.querySelector<HTMLButtonElement>("button.glossary-keyword-btn")!;
+		expect(keywordBtn).toBeInTheDocument();
+
+		await fireEvent.click(keywordBtn);
+
+		expect(storeTooltipStack.stack).toHaveLength(1);
+		expect(storeTooltipStack.stack[0].keyword).toBe("draw");
+		expect(storeTooltipStack.stack[0].title).toBe("Draw");
+	});
 });

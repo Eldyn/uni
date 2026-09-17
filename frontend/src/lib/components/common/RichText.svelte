@@ -9,18 +9,22 @@
 		text,
 		class: className = "",
 		allowKeywords = false,
-		tooltipParentId = null
+		tooltipParentId = null,
+		censor = false
 	}: {
 		text: string;
 		class?: string;
 		allowKeywords?: boolean;
 		tooltipParentId?: string | null;
+		censor?: boolean;
 	} = $props();
 
-	// Kicks off the (idempotent) lazy load of the profanity word data on the
-	// first RichText anywhere, cheap to call from every instance, since
-	// loadCensorData() only actually fetches once.
-	loadCensorData();
+	// Kicks off lazy load of profanity word data only when censoring is enabled
+	$effect(() => {
+		if (censor) {
+			loadCensorData();
+		}
+	});
 
 	const segments = $derived(parseRichText(text, { allowKeywords }));
 
@@ -33,6 +37,7 @@
 
 <span class={className}>
 	{#each segments as segment, i (i)}
+		{@const displayText = censor ? censorText(segment.text) : segment.text}
 		{#if segment.keyword && hasGlossaryKeyword(segment.keyword)}
 			<button
 				type="button"
@@ -42,11 +47,11 @@
 					? 'font-style: italic;'
 					: ''}{segment.color ? `color: ${segment.color};` : ''}"
 			>
-				{censorText(segment.text)}
+				{displayText}
 			</button>
 		{:else if segment.effect}
 			<TextEffects
-				text={censorText(segment.text)}
+				text={displayText}
 				effect={segment.effect}
 				color={segment.color ?? ""}
 			/>
@@ -60,7 +65,7 @@
 					? 'font-style: italic;'
 					: ''}{segment.color ? `color: ${segment.color};` : ''}"
 			>
-				{censorText(segment.text)}
+				{displayText}
 			</span>
 		{/if}
 	{/each}
@@ -69,6 +74,7 @@
 <style>
 	.glossary-keyword-btn {
 		display: inline;
+		pointer-events: auto;
 		background: none;
 		border: none;
 		padding: 0;

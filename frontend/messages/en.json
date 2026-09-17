@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "7-0 Rule",
 	"glossary_seven_zero_desc": "Playing a 7 allows swapping hands with any player. Playing a 0 rotates all hands in [k=turn]turn[/k] direction.",
 	"glossary_draw_stacking_title": "Draw Stacking",
-	"glossary_draw_stacking_desc": "Stack +2 or +4 cards to pass the accumulated draw penalty to the next player.",
+	"glossary_draw_stacking_desc": "Stack +2 or +4 cards to pass the accumulated [k=draw]draw[/k] penalty to the next player.",
 	"glossary_force_play_title": "Force Play",
 	"glossary_force_play_desc": "When drawing a playable card from the deck, you must play it immediately.",
 	"glossary_jump_in_title": "Jump-In",

@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "7-0 규칙",
 	"glossary_seven_zero_desc": "7을 내면 원하는 플레이어와 손패를 맞바꿉니다. 0을 내면 모든 손패가 [k=turn]차례[/k] 방향으로 회전합니다.",
 	"glossary_draw_stacking_title": "드로우 누적",
-	"glossary_draw_stacking_desc": "+2 또는 +4 카드를 겹쳐 내어 누적된 드로우 페널티를 다음 플레이어에게 넘깁니다.",
+	"glossary_draw_stacking_desc": "+2 또는 +4 카드를 겹쳐 내어 누적된 [k=draw]드로우[/k] 페널티를 다음 플레이어에게 넘깁니다.",
 	"glossary_force_play_title": "강제 플레이",
 	"glossary_force_play_desc": "덱에서 낼 수 있는 카드를 뽑았을 때 반드시 즉시 내야 합니다.",
 	"glossary_jump_in_title": "끼어들기",

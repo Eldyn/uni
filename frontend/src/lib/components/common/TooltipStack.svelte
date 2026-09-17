@@ -41,7 +41,7 @@
 				class="pixel-bordered pixel-popover-glossary"
 				style:left="{item.x}px"
 				style:top="{item.y}px"
-				style:z-index={10000 + item.depth * 20}
+				style:z-index={20000 + item.depth * 20}
 				use:handleMeasure={item}
 			>
 				<div class="glossary-header">
@@ -71,7 +71,7 @@
 	.tooltip-stack-backdrop {
 		position: fixed;
 		inset: 0;
-		z-index: 9999;
+		z-index: 19999;
 		pointer-events: auto;
 	}
 

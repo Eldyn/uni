@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "7-0 规则",
 	"glossary_seven_zero_desc": "打出 7 允许与任意玩家交换手牌。打出 0 会沿[k=turn]回合[/k]方向轮换所有人的手牌。",
 	"glossary_draw_stacking_title": "累加摸牌",
-	"glossary_draw_stacking_desc": "叠加 +2 或 +4 牌，将累积的摸牌惩罚转给下一位玩家。",
+	"glossary_draw_stacking_desc": "叠加 +2 或 +4 牌，将累积的[k=draw]摸牌[/k]惩罚转给下一位玩家。",
 	"glossary_force_play_title": "强制出牌",
 	"glossary_force_play_desc": "从牌堆摸到可出的牌时必须立即打出。",
 	"glossary_jump_in_title": "抢出",

@@ -9,6 +9,8 @@
 	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { getGlossaryEntry } from "$lib/glossary/glossary";
+	import { ruleLabel } from "$lib/data/lobbyCatalogs";
 	import * as m from "$lib/paraglide/messages.js";
 	import {
 		STARTING_CARDS_MIN,
@@ -58,12 +60,15 @@
 	});
 
 	let rules = $derived<RuleDef[]>(
-		storeCatalog.rules.map((rule: RuleDefinition) => ({
-			id: rule.id,
-			label: rule.label,
-			description: rule.description,
-			enabled: storeLobby.current?.settings.active_mods.includes(rule.id) ?? false
-		}))
+		storeCatalog.rules.map((rule: RuleDefinition) => {
+			const glossary = getGlossaryEntry(rule.id, storeI18n.locale);
+			return {
+				id: rule.id,
+				label: glossary?.title ?? ruleLabel(rule, storeI18n.locale as any),
+				description: glossary?.description ?? rule.description,
+				enabled: storeLobby.current?.settings.active_mods.includes(rule.id) ?? false
+			};
+		})
 	);
 
 	/** A lobby always needs at least one human seat, so bots can fill the rest. */

@@ -67,7 +67,7 @@
 						style="font-family: var(--pypx); font-weight: 700; color: {line.color};"
 						>{line.username === storeAuth.username ? "You" : censorText(line.username)}:</span
 					>
-					<RichText text={line.text} />
+					<RichText text={line.text} censor={true} />
 				</p>
 			{/each}
 		</div>

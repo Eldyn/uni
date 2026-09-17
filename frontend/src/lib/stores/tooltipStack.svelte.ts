@@ -16,6 +16,7 @@ export interface TooltipStackEntry {
 	title: string;
 	description: string;
 	targetEl: HTMLElement | null;
+	triggerRect?: Rect;
 	depth: number;
 	parentId: string | null;
 	x: number;
@@ -109,6 +110,7 @@ class StoreTooltipStack {
 			title: entry.title,
 			description: entry.description,
 			targetEl,
+			triggerRect,
 			depth,
 			parentId: parent ? parent.id : null,
 			x: placement.x,
@@ -125,9 +127,17 @@ class StoreTooltipStack {
 	 */
 	measureAndReposition(id: string, contentSize: Size) {
 		const item = this.stack.find((s) => s.id === id);
-		if (!item || !item.targetEl) return;
+		if (!item) return;
 
-		const triggerRect = item.targetEl.getBoundingClientRect();
+		let triggerRect = item.triggerRect;
+		if (item.targetEl && item.targetEl.isConnected) {
+			const r = item.targetEl.getBoundingClientRect();
+			triggerRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+			item.triggerRect = triggerRect;
+		}
+
+		if (!triggerRect) return;
+
 		const avoidRects: Rect[] = this.stack
 			.filter((s) => s.id !== id)
 			.map((s) => ({

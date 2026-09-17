@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "7-0ルール",
 	"glossary_seven_zero_desc": "7を出すと任意のプレイヤーと手札を交換できます。0を出すと全員の手札が[k=turn]手番[/k]方向に回ります。",
 	"glossary_draw_stacking_title": "ドロースタック",
-	"glossary_draw_stacking_desc": "+2や+4カードを重ねて出し、蓄積されたドローペナルティを次のプレイヤーに送ります。",
+	"glossary_draw_stacking_desc": "+2や+4カードを重ねて出し、蓄積された[k=draw]ドロー[/k]ペナルティを次のプレイヤーに送ります。",
 	"glossary_force_play_title": "フォースプレイ",
 	"glossary_force_play_desc": "山札からプレイ可能なカードを引いた場合、即座に出さなければなりません。",
 	"glossary_jump_in_title": "ジャンプイン",

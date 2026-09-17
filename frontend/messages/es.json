@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "Regla 7-0",
 	"glossary_seven_zero_desc": "Jugar un 7 permite intercambiar la mano con cualquier jugador. Jugar un 0 rota todas las manos en el sentido del [k=turn]turno[/k].",
 	"glossary_draw_stacking_title": "Acumulación de robo",
-	"glossary_draw_stacking_desc": "Acumula cartas +2 o +4 para pasar la penalización acumulada al siguiente jugador.",
+	"glossary_draw_stacking_desc": "Acumula cartas +2 o +4 para pasar la penalización acumulada de [k=draw]robar[/k] al siguiente jugador.",
 	"glossary_force_play_title": "Jugada forzada",
 	"glossary_force_play_desc": "Al robar una carta jugable del mazo, debes jugarla inmediatamente.",
 	"glossary_jump_in_title": "Intervención",

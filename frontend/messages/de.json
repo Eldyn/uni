@@ -304,7 +304,7 @@
 	"glossary_seven_zero_title": "7-0-Regel",
 	"glossary_seven_zero_desc": "Eine 7 erlaubt den Handkartentausch mit einem beliebigen Spieler. Eine 0 rotiert alle Hände in [k=turn]Zugrichtung[/k].",
 	"glossary_draw_stacking_title": "Zieh-Ketten",
-	"glossary_draw_stacking_desc": "+2- oder +4-Karten sammeln, um die aufgelaufene Zieh-Strafe an den nächsten Spieler weiterzugeben.",
+	"glossary_draw_stacking_desc": "+2- oder +4-Karten sammeln, um die aufgelaufene [k=draw]Zieh[/k]-Strafe an den nächsten Spieler weiterzugeben.",
 	"glossary_force_play_title": "Spielzwang",
 	"glossary_force_play_desc": "Wird eine spielbare Karte gezogen, muss sie sofort gespielt werden.",
 	"glossary_jump_in_title": "Dazwischenlegen",
