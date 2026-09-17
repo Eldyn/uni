@@ -111,6 +111,7 @@ add_custom_command(
 )
 add_custom_target(gen_email_copy_hpp DEPENDS "${EMAIL_COPY_HPP_OUT}")
 
+find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libuv REQUIRED)
@@ -134,8 +135,9 @@ target_include_directories(uni_server PRIVATE include src "${CMAKE_BINARY_DIR}/g
 add_dependencies(uni_server gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
 
 # --- Linking ---
-target_link_libraries(uni_server PRIVATE 
-    OpenSSL::SSL 
+target_link_libraries(uni_server PRIVATE
+    Threads::Threads
+    OpenSSL::SSL
     OpenSSL::Crypto
     ZLIB::ZLIB
     libuv::uv_a
@@ -244,6 +246,7 @@ if(UNI_BUILD_TESTS)
     target_include_directories(uni_tests PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(uni_tests PRIVATE
         doctest::doctest
+        Threads::Threads
         nlohmann_json::nlohmann_json
         uwebsockets::uwebsockets
         usockets::usockets

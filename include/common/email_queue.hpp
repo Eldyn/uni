@@ -1,11 +1,11 @@
 #pragma once
-#include <common/email_sender.hpp>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <common/email_sender.hpp>
 
 /**
  * @file email_queue.hpp
