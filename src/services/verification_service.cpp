@@ -42,9 +42,16 @@ std::string VerificationService::HashCode(const std::string& code) {
     unsigned char out[EVP_MAX_MD_SIZE];
     unsigned int  len = 0;
 
-    // EVP_Digest returns 1 on success; a SHA-256 digest of a fixed-size,
-    // well-formed input cannot practically fail, but we guard anyway.
-    EVP_Digest(code.data(), code.size(), out, &len, EVP_sha256(), nullptr);
+    // EVP_Digest returns 1 on success. A SHA-256 digest of a well-formed,
+    // in-memory input essentially never fails in practice, but the return
+    // value is still checked: on failure we log loudly and return an empty
+    // digest, which ConfirmCode's length check (== 64 hex chars) already
+    // treats as a guaranteed non-match, so this fails closed rather than
+    // silently comparing against garbage.
+    if (EVP_Digest(code.data(), code.size(), out, &len, EVP_sha256(), nullptr) != 1) {
+        Logger::Error("[Verify] EVP_Digest failure while hashing a code");
+        return "";
+    }
 
     static constexpr char kHexDigits[] = "0123456789abcdef";
     std::string hex;
@@ -122,6 +129,16 @@ Result<IssuedCode> VerificationService::IssueCodeForEmail(const std::string& ema
 }
 
 VoidResult VerificationService::ConfirmCode(int user_id, const std::string& submitted) {
+    // INFO: The read (attempt_count/expires_at), the cap/expiry branch, and
+    //       the resulting write (increment/delete/confirm) all happen inside
+    //       one TransactionGuard so the whole check-then-act sequence is
+    //       atomic. Without this, N concurrent guesses could all read the
+    //       same pre-increment attempt_count before any of their increments
+    //       committed, letting more than kMaxAttempts guesses land before the
+    //       cap trips.
+    TransactionGuard tx(db_);
+    if (!tx.Ok()) return std::unexpected(tx.GetError());
+
     auto row_result = db_.QueryOne(
         "SELECT code_hash, expires_at, attempt_count FROM email_verification_codes WHERE user_id = ?;",
         {user_id});
@@ -138,6 +155,8 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
     if (attempt_count >= kMaxAttempts) {
         auto del = db_.Exec("DELETE FROM email_verification_codes WHERE user_id = ?;", {user_id});
         if (!del) return std::unexpected(del.error());
+        auto commit = tx.Commit();
+        if (!commit) return std::unexpected(commit.error());
         Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=locked");
         return std::unexpected(Error::TooManyRequests("Too many attempts. Request a new code."));
     }
@@ -146,6 +165,8 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
     if (NowSeconds() >= expires_at) {
         auto del = db_.Exec("DELETE FROM email_verification_codes WHERE user_id = ?;", {user_id});
         if (!del) return std::unexpected(del.error());
+        auto commit = tx.Commit();
+        if (!commit) return std::unexpected(commit.error());
         Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=expired");
         return std::unexpected(Error::Unauthorised("Invalid or expired code"));
     }
@@ -162,12 +183,11 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
             "UPDATE email_verification_codes SET attempt_count = attempt_count + 1 WHERE user_id = ?;",
             {user_id});
         if (!update) return std::unexpected(update.error());
+        auto commit = tx.Commit();
+        if (!commit) return std::unexpected(commit.error());
         Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=wrong");
         return std::unexpected(Error::Unauthorised("Invalid or expired code"));
     }
-
-    TransactionGuard tx(db_);
-    if (!tx.Ok()) return std::unexpected(tx.GetError());
 
     auto update_user = db_.Exec("UPDATE users SET email_verified = 1 WHERE id = ?;", {user_id});
     if (!update_user) return std::unexpected(update_user.error());
