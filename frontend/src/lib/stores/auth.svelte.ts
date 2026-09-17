@@ -136,8 +136,10 @@ class StoreAuth {
 			});
 
 			if (res.ok) {
+				const body = await res.json();
+				this.#setLoggedIn(body.username, "");
 				storeAnalytics.track("sign_up");
-				storeToast.success("Account created! You can now log in.");
+				storeToast.success("Account created!");
 				return {};
 			}
 

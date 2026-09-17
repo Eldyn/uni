@@ -52,7 +52,7 @@
 		{:else}
 			<RegisterForm
 				onRegisterSuccess={() => {
-					activeTab = "login";
+					onAuthSuccess();
 				}}
 			/>
 		{/if}

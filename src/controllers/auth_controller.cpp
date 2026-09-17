@@ -75,8 +75,12 @@ void WriteError(AppResponse* res, const Error& err) {
 
 }  // namespace
 
-void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
-    http::ReadBody(res, kMaxBodyBytes, [this, res](const std::string& body) {
+void AuthController::HandleRegister(AppResponse* res, AppRequest* req) {
+    // INFO: Resolve the IP synchronously: req is invalid once ReadBody's
+    //       async callback runs, so capture what is needed by value now.
+    const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+
+    http::ReadBody(res, kMaxBodyBytes, [this, res, ip](const std::string& body) {
         json data;
         try {
             data = json::parse(body);
@@ -96,8 +100,22 @@ void AuthController::HandleRegister(AppResponse* res, AppRequest* /*req*/) {
             return;
         }
 
-        res->writeHeader("Content-Type", "application/json")
-           ->end(json({{"status", "ok"}, {"message", "Registration successful"}}).dump());
+        auto session = auth_service_.Login(email, password, ip);
+        if (!session) {
+            WriteError(res, session.error());
+            return;
+        }
+
+        res->writeHeader("Set-Cookie",
+                         "auth_token=" + session->token +
+                             "; HttpOnly; Secure; SameSite=Strict; Path=/")
+           ->writeHeader("Set-Cookie",
+                         "ws_token=" + session->token +
+                             "; HttpOnly; Secure; SameSite=None; Path=/")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json({{"status", "ok"},
+                       {"username", session->username},
+                       {"email_verified", false}}).dump());
     });
 }
 
