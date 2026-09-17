@@ -103,8 +103,6 @@ static constexpr Migration MIGRATIONS[] = {
         ALTER TABLE users ADD COLUMN created_at     INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE users ADD COLUMN locale         TEXT    NOT NULL DEFAULT 'en';
         UPDATE users SET email_verified = 0;
-        UPDATE users SET created_at = CAST(strftime('%s','now') AS INTEGER)
-            WHERE created_at = 0;
         CREATE TABLE IF NOT EXISTS email_verification_codes (
             user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             code_hash     TEXT    NOT NULL,
