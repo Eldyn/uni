@@ -88,122 +88,138 @@
 		{m.lobby_settings_heading({}, { locale: storeI18n.locale })}
 	</h3>
 
-	<Toggle
-		label={m.lobby_settings_public_lobby({}, { locale: storeI18n.locale })}
-		checked={settings.is_public}
-		disabled={!isHost}
-		oncommit={(v) => commit("is_public", v)}
-	/>
+	<!-- General Section -->
+	<section class="settings-section pixel-bordered">
+		<h4 class="section-title">
+			{m.lobby_settings_section_general({}, { locale: storeI18n.locale })}
+		</h4>
+		<div class="section-content">
+			<Toggle
+				label={m.lobby_settings_public_lobby({}, { locale: storeI18n.locale })}
+				checked={settings.is_public}
+				disabled={!isHost}
+				oncommit={(v) => commit("is_public", v)}
+			/>
+			<Toggle
+				label={m.lobby_settings_quit_stops_match({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_quit_stops_match_desc({}, { locale: storeI18n.locale })}
+				checked={settings.quit_deletes_match}
+				disabled={!isHost}
+				oncommit={(v) => commit("quit_deletes_match", v)}
+			/>
+		</div>
+	</section>
 
-	<Toggle
-		label={m.lobby_settings_quit_stops_match({}, { locale: storeI18n.locale })}
-		description={m.lobby_settings_quit_stops_match_desc({}, { locale: storeI18n.locale })}
-		checked={settings.quit_deletes_match}
-		disabled={!isHost}
-		oncommit={(v) => commit("quit_deletes_match", v)}
-	/>
+	<!-- Game Rules Section -->
+	<section class="settings-section pixel-bordered">
+		<h4 class="section-title">
+			{m.lobby_settings_section_rules({}, { locale: storeI18n.locale })}
+		</h4>
+		<div class="section-content">
+			<Slider
+				id="card-count"
+				label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}
+				value={settings.starting_cards}
+				min={STARTING_CARDS_MIN}
+				max={STARTING_CARDS_MAX}
+				disabled={!isHost}
+				format={(v) => m.lobby_settings_cards_format({ count: v }, { locale: storeI18n.locale })}
+				oncommit={(v) => commit("starting_cards", v)}
+			/>
+			<hr class="settings-divider" />
+			<Slider
+				id="turn-timer"
+				label={m.lobby_settings_turn_timer({}, { locale: storeI18n.locale })}
+				value={settings.turn_time_limit_ms / 1000}
+				min={TURN_TIME_MIN_MS / 1000}
+				max={TURN_TIME_MAX_MS / 1000}
+				disabled={!isHost}
+				format={(v) => m.lobby_settings_seconds_format({ count: v }, { locale: storeI18n.locale })}
+				oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
+			/>
+			<hr class="settings-divider" />
+			<Slider
+				id="max-players"
+				label={m.lobby_settings_max_players({}, { locale: storeI18n.locale })}
+				value={settings.max_players}
+				min={MIN_MAX_PLAYERS}
+				max={MAX_LOBBY_MEMBERS}
+				disabled={!isHost}
+				format={(v) => m.lobby_settings_players_format({ count: v }, { locale: storeI18n.locale })}
+				oncommit={(v) => commit("max_players", v)}
+			/>
+		</div>
+	</section>
 
-	<hr class="settings-divider" />
+	<!-- Bots Section -->
+	<section class="settings-section pixel-bordered">
+		<h4 class="section-title">
+			{m.lobby_settings_section_bots({}, { locale: storeI18n.locale })}
+		</h4>
+		<div class="section-content">
+			<Slider
+				id="bot-count"
+				label={m.lobby_settings_bot_count({}, { locale: storeI18n.locale })}
+				value={settings.bot_count}
+				min={BOT_COUNT_MIN}
+				max={botCountMax}
+				disabled={!isHost}
+				oncommit={(v) => commit("bot_count", v)}
+			/>
+			<hr class="settings-divider" />
+			<EnumSelector
+				extraClass="bot-mode"
+				label={m.lobby_settings_bot_mode({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_bot_mode_desc({}, { locale: storeI18n.locale })}
+				value={settings.bot_mode}
+				options={[
+					{
+						value: 0,
+						label: m.lobby_settings_bot_mode_instant({}, { locale: storeI18n.locale }),
+						description: m.lobby_settings_bot_mode_instant_desc({}, { locale: storeI18n.locale })
+					},
+					{
+						value: 1,
+						label: m.lobby_settings_bot_mode_wait({}, { locale: storeI18n.locale }),
+						description: m.lobby_settings_bot_mode_wait_desc({}, { locale: storeI18n.locale })
+					}
+				]}
+				oncommit={(v) => commit("bot_mode", v)}
+			/>
+			<hr class="settings-divider" />
+			<Toggle
+				label={m.lobby_settings_allow_bot_takeover({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_allow_bot_takeover_desc({}, { locale: storeI18n.locale })}
+				checked={settings.allow_bot_takeover}
+				disabled={!isHost}
+				oncommit={(v) => commit("allow_bot_takeover", v)}
+			/>
+			<Toggle
+				label={m.lobby_settings_allow_player_replacement({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_allow_player_replacement_desc({}, { locale: storeI18n.locale })}
+				checked={settings.allow_bot_replacement}
+				disabled={!isHost}
+				oncommit={(v) => commit("allow_bot_replacement", v)}
+			/>
+		</div>
+	</section>
 
-	<Toggle
-		label={m.lobby_settings_allow_bot_takeover({}, { locale: storeI18n.locale })}
-		description={m.lobby_settings_allow_bot_takeover_desc({}, { locale: storeI18n.locale })}
-		checked={settings.allow_bot_takeover}
-		disabled={!isHost}
-		oncommit={(v) => commit("allow_bot_takeover", v)}
-	/>
-
-	<Toggle
-		label={m.lobby_settings_allow_player_replacement({}, { locale: storeI18n.locale })}
-		description={m.lobby_settings_allow_player_replacement_desc({}, { locale: storeI18n.locale })}
-		checked={settings.allow_bot_replacement}
-		disabled={!isHost}
-		oncommit={(v) => commit("allow_bot_replacement", v)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<Slider
-		id="card-count"
-		label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}
-		value={settings.starting_cards}
-		min={STARTING_CARDS_MIN}
-		max={STARTING_CARDS_MAX}
-		disabled={!isHost}
-		format={(v) => m.lobby_settings_cards_format({ count: v }, { locale: storeI18n.locale })}
-		oncommit={(v) => commit("starting_cards", v)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<Slider
-		id="turn-timer"
-		label={m.lobby_settings_turn_timer({}, { locale: storeI18n.locale })}
-		value={settings.turn_time_limit_ms / 1000}
-		min={TURN_TIME_MIN_MS / 1000}
-		max={TURN_TIME_MAX_MS / 1000}
-		disabled={!isHost}
-		format={(v) => m.lobby_settings_seconds_format({ count: v }, { locale: storeI18n.locale })}
-		oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<Slider
-		id="max-players"
-		label={m.lobby_settings_max_players({}, { locale: storeI18n.locale })}
-		value={settings.max_players}
-		min={MIN_MAX_PLAYERS}
-		max={MAX_LOBBY_MEMBERS}
-		disabled={!isHost}
-		format={(v) => m.lobby_settings_players_format({ count: v }, { locale: storeI18n.locale })}
-		oncommit={(v) => commit("max_players", v)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<Slider
-		id="bot-count"
-		label={m.lobby_settings_bot_count({}, { locale: storeI18n.locale })}
-		value={settings.bot_count}
-		min={BOT_COUNT_MIN}
-		max={botCountMax}
-		disabled={!isHost}
-		oncommit={(v) => commit("bot_count", v)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<EnumSelector
-		extraClass="bot-mode"
-		label={m.lobby_settings_bot_mode({}, { locale: storeI18n.locale })}
-		description={m.lobby_settings_bot_mode_desc({}, { locale: storeI18n.locale })}
-		value={settings.bot_mode}
-		options={[
-			{
-				value: 0,
-				label: m.lobby_settings_bot_mode_instant({}, { locale: storeI18n.locale }),
-				description: m.lobby_settings_bot_mode_instant_desc({}, { locale: storeI18n.locale })
-			},
-			{
-				value: 1,
-				label: m.lobby_settings_bot_mode_wait({}, { locale: storeI18n.locale }),
-				description: m.lobby_settings_bot_mode_wait_desc({}, { locale: storeI18n.locale })
-			}
-		]}
-		oncommit={(v) => commit("bot_mode", v)}
-	/>
-
-	<hr class="settings-divider" />
-
-	<RulesGrid {rules} disabled={!isHost} onrulechange={handleRuleChange} />
+	<!-- Custom Rules Section -->
+	<section class="settings-section pixel-bordered">
+		<h4 class="section-title">
+			{m.lobby_settings_section_custom({}, { locale: storeI18n.locale })}
+		</h4>
+		<div class="section-content">
+			<RulesGrid {rules} disabled={!isHost} onrulechange={handleRuleChange} />
+		</div>
+	</section>
 </div>
 
 <style>
 	.lobby-settings-panel {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 16px;
 		width: 100%;
 		box-sizing: border-box;
 	}
@@ -213,6 +229,30 @@
 		font-size: 1.1rem;
 		font-weight: 600;
 		color: var(--text-h);
+	}
+
+	.settings-section {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 14px 16px;
+		--pc-border: var(--border);
+		--pc-fill: var(--bg);
+	}
+
+	.section-title {
+		margin: 0;
+		font-family: var(--pixel);
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-h);
+	}
+
+	.section-content {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 
 	.settings-divider {
