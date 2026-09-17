@@ -94,6 +94,22 @@ static constexpr Migration MIGRATIONS[] = {
         CREATE INDEX IF NOT EXISTS idx_chat_dms_pair
             ON chat_dms(sender, recipient, id);
     )sql" },
+    { 5, R"sql(
+        CREATE TABLE IF NOT EXISTS match_history (
+            match_id     TEXT     NOT NULL,
+            username     TEXT     NOT NULL,
+            mode         TEXT     NOT NULL,
+            placement    INTEGER,
+            result       TEXT     NOT NULL,
+            ended_reason TEXT     NOT NULL,
+            ranked       INTEGER  NOT NULL,
+            ended_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_match_history_user
+            ON match_history(username, ended_at);
+        CREATE INDEX IF NOT EXISTS idx_match_history_match
+            ON match_history(match_id);
+    )sql" },
 };
 
 }  // namespace

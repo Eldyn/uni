@@ -33,9 +33,14 @@ namespace match {
         const std::vector<std::tuple<std::string, bool, int>>& players_info,
         const LobbySettings& settings) : settings_(settings) {
         for (const auto& player_info : players_info) {
-            state_.players.emplace_back(std::get<0>(player_info), std::get<1>(player_info),
-                                         std::get<2>(player_info));
+            bool is_bot = std::get<1>(player_info);
+            const std::string& name = std::get<0>(player_info);
+            state_.players.emplace_back(name, is_bot, std::get<2>(player_info));
+            if (!is_bot) {
+                initial_humans_.push_back(name);
+            }
         }
+        initial_human_count_ = static_cast<int>(initial_humans_.size());
 
         for (const auto& mod_name : settings.active_mods) {
             auto new_rule = RuleRegistry::Create(mod_name);
@@ -157,12 +162,18 @@ namespace match {
             std::vector<CompactCard> hand;
             if (player_json.contains("hand")) player_json["hand"].get_to(hand);
 
+            std::string uname = player_json.value("username", "");
+            bool is_bot = player_json.value("is_bot", false);
             state_.players.emplace_back(
-                player_json.value("username", ""),
+                uname,
                 hand,
-                player_json.value("is_bot", false),
+                is_bot,
                 player_json.value("seat_index", -1));
+            if (!is_bot && !uname.empty()) {
+                initial_humans_.push_back(uname);
+            }
         }
+        initial_human_count_ = static_cast<int>(initial_humans_.size());
     }
 
     void MatchInstance::AddPlayerMidGame(const std::string& username, bool is_bot,
@@ -317,130 +328,237 @@ namespace match {
         state_.effect_queue.push_back(std::make_unique<AdvanceTurnEffect>());
 
         if (current_player->hand.empty()) {
-            state_.status = MatchStatus::kFinished;
-            state_.winner = username;
-
-            try {
-                auto& db = Database::Get();
-                if (!db.IsOpen()) {
-                    throw std::runtime_error("DB is not open");
-                }
-
-                TransactionGuard tx(db);
-                if (!tx.Ok()) {
-                    throw std::runtime_error(tx.GetError().message);
-                }
-
-                if (!match_id_.empty()) {
-                    auto delete_save_status = db.Exec("DELETE FROM saved_matches WHERE id = ?",
-                                                       {match_id_});
-                    if (!delete_save_status) {
-                        Logger::Warn("[Match] Failed to clean up saved match: ",
-                                     delete_save_status.error().message);
-                    }
-                }
-
-                auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
-                                             {username});
-                if (!match_status) {
-                    throw std::runtime_error(match_status.error().message);
-                }
-
-                auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
-                if (!match_row) {
-                    throw std::runtime_error(match_row.error().message);
-                }
-
-                int match_id = match_row->value().Get<int>("id");
-
-                for (const auto& p : state_.players) {
-                    auto part_status = db.Exec(
-                        "INSERT INTO match_participants (match_id, username) VALUES (?, ?)",
-                        {match_id, p.username});
-                    if (!part_status) {
-                        throw std::runtime_error(part_status.error().message);
-                    }
-
-                    // INFO: Guests (and bots) have no `users` row, they're
-                    //       excluded from player_stats/the leaderboard
-                    //       entirely instead of accumulating throwaway stats
-                    //       under a name nobody can look back up.
-                    auto account_row = db.QueryOne(
-                        "SELECT 1 FROM users WHERE username = ?", {p.username});
-                    if (!account_row) {
-                        throw std::runtime_error(account_row.error().message);
-                    }
-                    if (!account_row->has_value()) continue;
-
-                    auto profile_status = db.Exec(
-                        "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
-                        {p.username});
-                    if (!profile_status) {
-                        throw std::runtime_error(profile_status.error().message);
-                    }
-
-                    bool is_winner = (p.username == username);
-                    auto& stats = session_stats_[p.username];
-
-                    auto update_status = db.Exec(R"(
-                        UPDATE player_stats SET
-                            total_wins = total_wins + ?,
-                            total_losses = total_losses + ?,
-
-                            cards_played_red = cards_played_red + ?,
-                            cards_played_blue = cards_played_blue + ?,
-                            cards_played_green = cards_played_green + ?,
-                            cards_played_yellow = cards_played_yellow + ?,
-
-                            cards_played_0 = cards_played_0 + ?,
-                            cards_played_1 = cards_played_1 + ?,
-                            cards_played_2 = cards_played_2 + ?,
-                            cards_played_3 = cards_played_3 + ?,
-                            cards_played_4 = cards_played_4 + ?,
-                            cards_played_5 = cards_played_5 + ?,
-                            cards_played_6 = cards_played_6 + ?,
-                            cards_played_7 = cards_played_7 + ?,
-                            cards_played_8 = cards_played_8 + ?,
-                            cards_played_9 = cards_played_9 + ?,
-                            cards_played_skip = cards_played_skip + ?,
-                            cards_played_reverse = cards_played_reverse + ?,
-                            cards_played_draw2 = cards_played_draw2 + ?,
-                            cards_played_draw4 = cards_played_draw4 + ?,
-                            cards_played_jolly = cards_played_jolly + ?
-                        WHERE username = ?
-                    )", {
-                        is_winner ? 1 : 0,
-                        is_winner ? 0 : 1,
-
-                        stats.color_counts[0], stats.color_counts[1],
-                        stats.color_counts[2], stats.color_counts[3],
-
-                        stats.value_counts[0], stats.value_counts[1], stats.value_counts[2],
-                        stats.value_counts[3], stats.value_counts[4], stats.value_counts[5],
-                        stats.value_counts[6], stats.value_counts[7], stats.value_counts[8],
-                        stats.value_counts[9], stats.value_counts[10], stats.value_counts[11],
-                        stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
-
-                        p.username
-                    });
-
-                    if (!update_status) {
-                        throw std::runtime_error(update_status.error().message);
-                    }
-                }
-
-                if (auto commit_status = tx.Commit(); !commit_status) {
-                    throw std::runtime_error(commit_status.error().message);
-                }
-                Logger::Info("[Match] Saved match stats to DB securely.");
-        } catch (const std::exception& e) {
-            Logger::Error("[Match DB Error] ", e.what());
-        }
-
+            RecordMatchCompleted(username);
             return true;
         }
 
         return true;
+    }
+
+    void MatchInstance::WriteLedgerRow(
+        Database& db,
+        const std::string& username,
+        const std::string& mode,
+        std::optional<int> placement,
+        const std::string& result,
+        const std::string& ended_reason,
+        int ranked) {
+        std::string mid = match_id_.empty() ? "match_legacy" : match_id_;
+        DbValue placement_val = placement.has_value() ? DbValue(*placement) : DbValue(nullptr);
+        auto res = db.Exec(
+            "INSERT INTO match_history (match_id, username, mode, placement, result, ended_reason, ranked) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            {mid, username, mode, placement_val, result, ended_reason, ranked});
+        if (!res) {
+            Logger::Warn("[Match Ledger] Failed to write ledger row: ", res.error().message);
+        }
+    }
+
+    void MatchInstance::RecordMatchCompleted(const std::string& winner) {
+        state_.status = MatchStatus::kFinished;
+        state_.winner = winner;
+
+        try {
+            auto& db = Database::Get();
+            if (!db.IsOpen()) {
+                return;
+            }
+
+            TransactionGuard tx(db);
+            if (!tx.Ok()) {
+                Logger::Error("[Match DB Error] ", tx.GetError().message);
+                return;
+            }
+
+            if (!match_id_.empty()) {
+                auto delete_save_status = db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                                                   {match_id_});
+                if (!delete_save_status) {
+                    Logger::Warn("[Match] Failed to clean up saved match: ",
+                                 delete_save_status.error().message);
+                }
+            }
+
+            auto match_status = db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
+                                         {winner});
+            int legacy_match_id = 0;
+            if (match_status) {
+                auto match_row = db.QueryOne("SELECT last_insert_rowid() as id", {});
+                if (match_row && match_row->has_value()) {
+                    legacy_match_id = match_row->value().Get<int>("id");
+                }
+            }
+
+            bool is_ranked = IsRankedEligible();
+            std::string ended_reason = (!settings_.ranked)
+                ? "completed"
+                : ((initial_human_count_ < kMinRankedHumans) ? "bot_majority" : "completed");
+            int ranked_flag = is_ranked ? 1 : 0;
+
+            for (const auto& p : state_.players) {
+                if (legacy_match_id > 0) {
+                    (void)db.Exec("INSERT INTO match_participants (match_id, username) VALUES (?, ?)",
+                                  {legacy_match_id, p.username});
+                }
+
+                if (!is_ranked) continue;
+
+                auto account_row = db.QueryOne(
+                    "SELECT 1 FROM users WHERE username = ?", {p.username});
+                if (!account_row || !account_row->has_value()) continue;
+
+                auto profile_status = db.Exec(
+                    "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
+                    {p.username});
+                if (!profile_status) continue;
+
+                bool is_winner = (p.username == winner);
+                auto& stats = session_stats_[p.username];
+
+                (void)db.Exec(R"(
+                    UPDATE player_stats SET
+                        total_wins = total_wins + ?,
+                        total_losses = total_losses + ?,
+
+                        cards_played_red = cards_played_red + ?,
+                        cards_played_blue = cards_played_blue + ?,
+                        cards_played_green = cards_played_green + ?,
+                        cards_played_yellow = cards_played_yellow + ?,
+
+                        cards_played_0 = cards_played_0 + ?,
+                        cards_played_1 = cards_played_1 + ?,
+                        cards_played_2 = cards_played_2 + ?,
+                        cards_played_3 = cards_played_3 + ?,
+                        cards_played_4 = cards_played_4 + ?,
+                        cards_played_5 = cards_played_5 + ?,
+                        cards_played_6 = cards_played_6 + ?,
+                        cards_played_7 = cards_played_7 + ?,
+                        cards_played_8 = cards_played_8 + ?,
+                        cards_played_9 = cards_played_9 + ?,
+                        cards_played_skip = cards_played_skip + ?,
+                        cards_played_reverse = cards_played_reverse + ?,
+                        cards_played_draw2 = cards_played_draw2 + ?,
+                        cards_played_draw4 = cards_played_draw4 + ?,
+                        cards_played_jolly = cards_played_jolly + ?
+                    WHERE username = ?
+                )", {
+                    is_winner ? 1 : 0,
+                    is_winner ? 0 : 1,
+
+                    stats.color_counts[0], stats.color_counts[1],
+                    stats.color_counts[2], stats.color_counts[3],
+
+                    stats.value_counts[0], stats.value_counts[1], stats.value_counts[2],
+                    stats.value_counts[3], stats.value_counts[4], stats.value_counts[5],
+                    stats.value_counts[6], stats.value_counts[7], stats.value_counts[8],
+                    stats.value_counts[9], stats.value_counts[10], stats.value_counts[11],
+                    stats.value_counts[12], stats.value_counts[14], stats.value_counts[13],
+
+                    p.username
+                });
+            }
+
+            for (const auto& human_name : initial_humans_) {
+                if (recorded_humans_.contains(human_name)) continue;
+
+                bool is_winner = (human_name == winner);
+                std::optional<int> placement = is_winner ? std::optional<int>(1) : std::nullopt;
+                std::string result = is_winner ? "win" : "loss";
+
+                WriteLedgerRow(db, human_name, "standard", placement, result, ended_reason, ranked_flag);
+                recorded_humans_.insert(human_name);
+            }
+
+            if (auto commit_status = tx.Commit(); !commit_status) {
+                Logger::Error("[Match DB Error] ", commit_status.error().message);
+            } else {
+                Logger::Info("[Match] Saved match stats and ledger to DB securely.");
+            }
+        } catch (const std::exception& e) {
+            Logger::Error("[Match DB Error] ", e.what());
+        }
+    }
+
+    void MatchInstance::RecordPlayerQuit(const std::string& username) {
+        if (IsMatchOver()) return;
+        if (std::find(initial_humans_.begin(), initial_humans_.end(), username) == initial_humans_.end()) {
+            return;
+        }
+        if (recorded_humans_.contains(username)) {
+            return;
+        }
+
+        try {
+            auto& db = Database::Get();
+            if (!db.IsOpen()) {
+                return;
+            }
+
+            TransactionGuard tx(db);
+            if (!tx.Ok()) {
+                Logger::Error("[Match DB Error] ", tx.GetError().message);
+                return;
+            }
+
+            bool is_ranked = IsRankedEligible();
+            std::string ended_reason = (!settings_.ranked)
+                ? "quit"
+                : ((initial_human_count_ < kMinRankedHumans) ? "bot_majority" : "quit");
+            int ranked_flag = is_ranked ? 1 : 0;
+
+            WriteLedgerRow(db, username, "standard", std::nullopt, "quit", ended_reason, ranked_flag);
+            recorded_humans_.insert(username);
+
+            if (is_ranked) {
+                auto account_row = db.QueryOne(
+                    "SELECT 1 FROM users WHERE username = ?", {username});
+                if (account_row && account_row->has_value()) {
+                    (void)db.Exec("INSERT OR IGNORE INTO player_stats (username) VALUES (?)", {username});
+                    (void)db.Exec("UPDATE player_stats SET total_losses = total_losses + 1 WHERE username = ?",
+                                  {username});
+                }
+            }
+
+            if (auto commit_status = tx.Commit(); !commit_status) {
+                Logger::Error("[Match DB Error] ", commit_status.error().message);
+            }
+        } catch (const std::exception& e) {
+            Logger::Error("[Match DB Error] ", e.what());
+        }
+    }
+
+    void MatchInstance::RecordMatchAborted() {
+        state_.status = MatchStatus::kFinished;
+
+        try {
+            auto& db = Database::Get();
+            if (!db.IsOpen()) {
+                return;
+            }
+
+            TransactionGuard tx(db);
+            if (!tx.Ok()) {
+                Logger::Error("[Match DB Error] ", tx.GetError().message);
+                return;
+            }
+
+            if (!match_id_.empty()) {
+                (void)db.Exec("DELETE FROM saved_matches WHERE id = ?", {match_id_});
+            }
+
+            for (const auto& human_name : initial_humans_) {
+                if (recorded_humans_.contains(human_name)) continue;
+
+                WriteLedgerRow(db, human_name, "standard", std::nullopt, "aborted", "aborted", 0);
+                recorded_humans_.insert(human_name);
+            }
+
+            if (auto commit_status = tx.Commit(); !commit_status) {
+                Logger::Error("[Match DB Error] ", commit_status.error().message);
+            }
+        } catch (const std::exception& e) {
+            Logger::Error("[Match DB Error] ", e.what());
+        }
     }
 
 bool MatchInstance::DrawCard(const std::string& username) {

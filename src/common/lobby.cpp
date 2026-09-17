@@ -129,6 +129,9 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     if (settings.quit_deletes_match) {
         result.match_outcome = MemberRemovalOutcome::kMatchAborted;
         result.old_username = old_name;
+        if (match) {
+            match->RecordMatchAborted();
+        }
         members.erase(member_it);
     } else if (settings.allow_bot_replacement) {
         std::string new_bot_name = PickBotName(rng);
@@ -144,12 +147,19 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
             engine_player->is_bot = true;
         }
 
+        if (match) {
+            match->RecordPlayerQuit(old_name);
+        }
+
         result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
         result.old_username = old_name;
         result.new_bot_name = new_bot_name;
         result.was_their_turn = was_their_turn;
     } else {
-        match->RemovePlayerMidGame(old_name);
+        if (match) {
+            match->RecordPlayerQuit(old_name);
+            match->RemovePlayerMidGame(old_name);
+        }
         members.erase(member_it);
 
         result.match_outcome = MemberRemovalOutcome::kPlayerDroppedFromEngine;

@@ -9,14 +9,10 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <optional>
+#include <unordered_set>
 
-/**
- * @file match_instance.hpp
- * @brief Definition of the main class that manages the entire lifecycle of a game match:
- * a state machine that applies the effects of each played card based on rules that define
- * its various properties.
- */
-
+class Database;
 struct LobbySettings;
 
 namespace match {
@@ -265,9 +261,44 @@ namespace match {
          */
         std::mt19937& Rng() const { return rng_; }
 
+        /**
+         * @brief Checks whether this match is eligible for ranked statistics.
+         * Match must have ranked setting true and at least kMinRankedHumans at match start.
+         */
+        bool IsRankedEligible() const {
+            return settings_.ranked && (initial_human_count_ >= kMinRankedHumans);
+        }
+
+        /**
+         * @brief Returns the number of human participants at match start.
+         */
+        int GetInitialHumanCount() const { return initial_human_count_; }
+
+        /**
+         * @brief Returns the initial human participants list.
+         */
+        const std::vector<std::string>& GetInitialHumans() const { return initial_humans_; }
+
+        /**
+         * @brief Records completion of the match (standard win/loss).
+         */
+        void RecordMatchCompleted(const std::string& winner);
+
+        /**
+         * @brief Records a mid-match quit for an individual participant.
+         */
+        void RecordPlayerQuit(const std::string& username);
+
+        /**
+         * @brief Records an aborted match (e.g. quit_deletes_match or unrecoverable drop).
+         */
+        void RecordMatchAborted();
+
     private:
         /**< Safety cap on consecutive bot moves in a single AdvanceBotTurns burst. */
         static constexpr int kMaxInstantBotSteps = 20;
+        /**< Minimum number of real humans required at start for a match to count for ranked stats. */
+        static constexpr int kMinRankedHumans = 3;
 
         MatchState state_;                        /**< The central match state. */
         LobbySettings settings_;                 /**< The rules and preferences of the match. */
@@ -276,9 +307,26 @@ namespace match {
         /**< Shared RNG for shuffles. */
         mutable std::mt19937 rng_{std::random_device {}()};
 
+        /**< List of human participants captured at match start. */
+        std::vector<std::string> initial_humans_;
+        int initial_human_count_ = 0;
+        /**< Set of participants whose ledger row has already been written. */
+        std::unordered_set<std::string> recorded_humans_;
+
         /**< Statistics collected during the match. */
         std::unordered_map<std::string, PlayerSessionStats> session_stats_;
         std::vector<std::unique_ptr<MatchRule>> active_rules_;  /**< Set of active rules. */
+
+        /**
+         * @brief Writes a single row to the match_history ledger.
+         */
+        void WriteLedgerRow(Database& db,
+                            const std::string& username,
+                            const std::string& mode,
+                            std::optional<int> placement,
+                            const std::string& result,
+                            const std::string& ended_reason,
+                            int ranked);
 
         /**
          * @brief Checks whether a given optional rule mod is currently active for this match.

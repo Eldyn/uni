@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <database.hpp>
 #include <match/match_instance.hpp>
 #include <match/match_state.hpp>
 
@@ -309,4 +310,223 @@ TEST_CASE("GetTurnTimeoutPolicy: a connected human under kPlayInstantly with no 
     m.Start();
 
     CHECK(m.GetTurnTimeoutPolicy(always_connected) == TurnTimeoutPolicy::kNone);
+}
+
+// ---------------------------------------------------------------------------
+// Match Ledger & Ranked Integrity Tests
+// ---------------------------------------------------------------------------
+
+static void SetupTestUser(const std::string& username) {
+    auto& db = Database::Get();
+    (void)db.RunMigrations();
+    (void)db.Exec("INSERT OR IGNORE INTO users (username, pass_hash, salt, email) VALUES (?, 'h', 's', ?);",
+                  {username, username + "@example.com"});
+    (void)db.Exec("DELETE FROM player_stats WHERE username = ?;", {username});
+    (void)db.Exec("DELETE FROM match_history WHERE username = ?;", {username});
+}
+
+TEST_CASE("Ranked integrity: 3+ humans match updates player_stats and writes match_history") {
+    SetupTestUser("mi_alice");
+    SetupTestUser("mi_bob");
+    SetupTestUser("mi_carol");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"mi_alice", false}, {"mi_bob", false}, {"mi_carol", false}
+    };
+    LobbySettings settings = default_settings();
+    settings.ranked = true;
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("ranked-3h-test");
+    m.Start();
+
+    REQUIRE(m.IsRankedEligible());
+    CHECK_EQ(m.GetInitialHumanCount(), 3);
+
+    m.RecordMatchCompleted("mi_alice");
+
+    auto& db = Database::Get();
+    auto alice_stats = db.QueryOne("SELECT total_wins, total_losses FROM player_stats WHERE username = ?;", {"mi_alice"});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK_EQ(alice_stats.value()->Get<int>("total_wins"), 1);
+    CHECK_EQ(alice_stats.value()->Get<int>("total_losses"), 0);
+
+    auto bob_stats = db.QueryOne("SELECT total_wins, total_losses FROM player_stats WHERE username = ?;", {"mi_bob"});
+    REQUIRE(bob_stats.has_value());
+    REQUIRE(bob_stats->has_value());
+    CHECK_EQ(bob_stats.value()->Get<int>("total_wins"), 0);
+    CHECK_EQ(bob_stats.value()->Get<int>("total_losses"), 1);
+
+    auto rows = db.Query("SELECT username, result, ended_reason, ranked, placement FROM match_history WHERE match_id = ? ORDER BY username;", {"ranked-3h-test"});
+    REQUIRE(rows.has_value());
+    REQUIRE_EQ(rows->size(), 3);
+
+    for (const auto& r : *rows) {
+        std::string uname = r.Get<std::string>("username");
+        CHECK_EQ(r.Get<int>("ranked"), 1);
+        CHECK_EQ(r.Get<std::string>("ended_reason"), "completed");
+        if (uname == "mi_alice") {
+            CHECK_EQ(r.Get<std::string>("result"), "win");
+            CHECK_EQ(r.Get<int>("placement"), 1);
+        } else {
+            CHECK_EQ(r.Get<std::string>("result"), "loss");
+            CHECK_EQ(r.GetOr<int>("placement", -1), -1);
+        }
+    }
+}
+
+TEST_CASE("Ranked integrity: <3 humans leaves player_stats untouched and logs bot_majority") {
+    SetupTestUser("mi_u1");
+    SetupTestUser("mi_u2");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"mi_u1", false}, {"mi_u2", false}, {"BotBuddy", true}
+    };
+    LobbySettings settings = default_settings();
+    settings.ranked = true;
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("bot-majority-test");
+    m.Start();
+
+    CHECK_FALSE(m.IsRankedEligible());
+    CHECK_EQ(m.GetInitialHumanCount(), 2);
+
+    m.RecordMatchCompleted("mi_u1");
+
+    auto& db = Database::Get();
+    auto u1_stats = db.QueryOne("SELECT total_wins FROM player_stats WHERE username = ?;", {"mi_u1"});
+    REQUIRE(u1_stats.has_value());
+    if (u1_stats->has_value()) {
+        CHECK_EQ(u1_stats.value()->Get<int>("total_wins"), 0);
+    }
+
+    auto rows = db.Query("SELECT username, result, ended_reason, ranked FROM match_history WHERE match_id = ? ORDER BY username;", {"bot-majority-test"});
+    REQUIRE(rows.has_value());
+    REQUIRE_EQ(rows->size(), 2);
+    for (const auto& r : *rows) {
+        CHECK_EQ(r.Get<int>("ranked"), 0);
+        CHECK_EQ(r.Get<std::string>("ended_reason"), "bot_majority");
+    }
+}
+
+TEST_CASE("Ranked integrity: ranked=false setting leaves player_stats untouched regardless of human count") {
+    SetupTestUser("mi_r1");
+    SetupTestUser("mi_r2");
+    SetupTestUser("mi_r3");
+    SetupTestUser("mi_r4");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"mi_r1", false}, {"mi_r2", false}, {"mi_r3", false}, {"mi_r4", false}
+    };
+    LobbySettings settings = default_settings();
+    settings.ranked = false;
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("unranked-test");
+    m.Start();
+
+    CHECK_FALSE(m.IsRankedEligible());
+    CHECK_EQ(m.GetInitialHumanCount(), 4);
+
+    m.RecordMatchCompleted("mi_r1");
+
+    auto& db = Database::Get();
+    auto r1_stats = db.QueryOne("SELECT total_wins FROM player_stats WHERE username = ?;", {"mi_r1"});
+    REQUIRE(r1_stats.has_value());
+    if (r1_stats->has_value()) {
+        CHECK_EQ(r1_stats.value()->Get<int>("total_wins"), 0);
+    }
+
+    auto rows = db.Query("SELECT username, result, ended_reason, ranked FROM match_history WHERE match_id = ?;", {"unranked-test"});
+    REQUIRE(rows.has_value());
+    REQUIRE_EQ(rows->size(), 4);
+    for (const auto& r : *rows) {
+        CHECK_EQ(r.Get<int>("ranked"), 0);
+        CHECK_EQ(r.Get<std::string>("ended_reason"), "completed");
+    }
+}
+
+TEST_CASE("Quit behavior: quit_deletes_match=false records loss for quitter and normal result for others") {
+    SetupTestUser("mi_q1");
+    SetupTestUser("mi_q2");
+    SetupTestUser("mi_q3");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"mi_q1", false}, {"mi_q2", false}, {"mi_q3", false}
+    };
+    LobbySettings settings = default_settings();
+    settings.ranked = true;
+    settings.quit_deletes_match = false;
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("quit-continue-test");
+    m.Start();
+
+    // mi_q2 quits mid-game
+    m.RecordPlayerQuit("mi_q2");
+
+    auto& db = Database::Get();
+    auto q2_stats = db.QueryOne("SELECT total_losses FROM player_stats WHERE username = ?;", {"mi_q2"});
+    REQUIRE(q2_stats.has_value());
+    REQUIRE(q2_stats->has_value());
+    CHECK_EQ(q2_stats.value()->Get<int>("total_losses"), 1);
+
+    auto q2_rows = db.Query("SELECT result, ended_reason, ranked FROM match_history WHERE match_id = ? AND username = ?;", {"quit-continue-test", "mi_q2"});
+    REQUIRE(q2_rows.has_value());
+    REQUIRE_EQ(q2_rows->size(), 1);
+    CHECK_EQ(q2_rows->front().Get<std::string>("result"), "quit");
+    CHECK_EQ(q2_rows->front().Get<std::string>("ended_reason"), "quit");
+    CHECK_EQ(q2_rows->front().Get<int>("ranked"), 1);
+
+    // Later, match finishes with mi_q1 winning
+    m.RecordMatchCompleted("mi_q1");
+
+    auto all_rows = db.Query("SELECT username, result, ranked FROM match_history WHERE match_id = ? ORDER BY username;", {"quit-continue-test"});
+    REQUIRE(all_rows.has_value());
+    REQUIRE_EQ(all_rows->size(), 3);
+
+    auto q1_stats = db.QueryOne("SELECT total_wins FROM player_stats WHERE username = ?;", {"mi_q1"});
+    REQUIRE(q1_stats.has_value());
+    REQUIRE(q1_stats->has_value());
+    CHECK_EQ(q1_stats.value()->Get<int>("total_wins"), 1);
+}
+
+TEST_CASE("Quit behavior: quit_deletes_match=true records aborted for all and touches no player_stats") {
+    SetupTestUser("mi_a1");
+    SetupTestUser("mi_a2");
+    SetupTestUser("mi_a3");
+
+    std::vector<std::pair<std::string, bool>> players = {
+        {"mi_a1", false}, {"mi_a2", false}, {"mi_a3", false}
+    };
+    LobbySettings settings = default_settings();
+    settings.ranked = true;
+    settings.quit_deletes_match = true;
+
+    MatchInstance m(players, settings);
+    m.SetMatchId("quit-abort-test");
+    m.Start();
+
+    m.RecordMatchAborted();
+
+    auto& db = Database::Get();
+    for (const auto& u : {"mi_a1", "mi_a2", "mi_a3"}) {
+        auto stats = db.QueryOne("SELECT total_wins, total_losses FROM player_stats WHERE username = ?;", {u});
+        REQUIRE(stats.has_value());
+        if (stats->has_value()) {
+            CHECK_EQ(stats.value()->Get<int>("total_wins"), 0);
+            CHECK_EQ(stats.value()->Get<int>("total_losses"), 0);
+        }
+    }
+
+    auto rows = db.Query("SELECT username, result, ended_reason, ranked FROM match_history WHERE match_id = ?;", {"quit-abort-test"});
+    REQUIRE(rows.has_value());
+    REQUIRE_EQ(rows->size(), 3);
+    for (const auto& r : *rows) {
+        CHECK_EQ(r.Get<std::string>("result"), "aborted");
+        CHECK_EQ(r.Get<std::string>("ended_reason"), "aborted");
+        CHECK_EQ(r.Get<int>("ranked"), 0);
+    }
 }

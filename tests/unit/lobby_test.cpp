@@ -589,3 +589,17 @@ TEST_CASE("lobby: LobbySettings ranked defaults to true and roundtrips through j
     LobbySettings unranked = j.get<LobbySettings>();
     CHECK(unranked.ranked == false);
 }
+
+TEST_CASE("lobby: 120s grace period is respected") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+
+    lobby.members.emplace_back("Bob", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now() - std::chrono::seconds(130);
+
+    auto expired = lobby.CollectExpiredDisconnects(std::chrono::steady_clock::now(), 120'000);
+    REQUIRE_EQ(expired.size(), 1);
+    CHECK_EQ(expired[0], "Bob");
+}
