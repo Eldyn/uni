@@ -2,6 +2,18 @@
 #include <common/http_utils.hpp>
 #include <filesystem>
 #include <fstream>
+#include <webserver.hpp>
+#include <common/email_queue.hpp>
+#include <common/email_sender.hpp>
+#include <database.hpp>
+#include <thread>
+#include <chrono>
+#include <future>
+#include <sstream>
+#include <array>
+#include <map>
+#include <nlohmann/json.hpp>
+#include <atomic>
 
 namespace fs = std::filesystem;
 
@@ -192,3 +204,213 @@ TEST_CASE("returns an empty string when the file does not exist") {
 }
 
 } // TEST_SUITE
+
+namespace {
+
+constexpr int kBlastTestPort = 49155;
+
+struct TestHttpResponse {
+    int status{0};
+    std::multimap<std::string, std::string> headers;
+    nlohmann::json body;
+};
+
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, int(*)(FILE*)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+class CapturingEmailSender : public IEmailSender {
+public:
+    std::vector<OutboundEmail> sent;
+    std::mutex mtx;
+
+    VoidResult Send(const OutboundEmail& mail) override {
+        std::lock_guard<std::mutex> lock(mtx);
+        sent.push_back(mail);
+        return {};
+    }
+};
+
+struct BlastTestServerFixture {
+    static BlastTestServerFixture& Instance() {
+        static BlastTestServerFixture instance;
+        return instance;
+    }
+
+    std::thread server_thread;
+    std::atomic<WebServer*> server_ptr{nullptr};
+
+    BlastTestServerFixture() {
+        setenv("DEPLOY_STATUS_TOKEN", "test-deploy-token-123", 1);
+        setenv("BLAST_MAX_RECIPIENTS", "50", 1);
+        setenv("JWT_SECRET", "test-jwt-secret", 1);
+        setenv("PASSWORD_PEPPER", "test-password-pepper", 1);
+
+        std::promise<void> bound;
+        server_thread = std::thread([this, &bound] {
+            auto email_queue = std::make_unique<EmailQueue>(std::make_unique<CapturingEmailSender>());
+            auto server = std::make_unique<WebServer>(
+                kBlastTestPort, "key.pem", "cert.pem", ":memory:", "public", email_queue.get());
+
+            server_ptr = server.get();
+
+            server->Run([&bound](bool ok) {
+                bound.set_value();
+            });
+
+            server_ptr.store(nullptr);
+            server.reset();
+            email_queue.reset();
+        });
+        bound.get_future().wait();
+    }
+
+    ~BlastTestServerFixture() {
+        WebServer* s = server_ptr.load();
+        if (s) {
+            s->Stop();
+        }
+        if (server_thread.joinable()) {
+            server_thread.join();
+        }
+    }
+};
+
+TestHttpResponse SimulatePost(const std::string& path, const std::string& body,
+                             const std::map<std::string, std::string>& extra_headers = {}) {
+    BlastTestServerFixture::Instance();
+    std::string proto = kAppSSL ? "https" : "http";
+    std::string cmd = "curl -s -i -k -X POST -H 'Content-Type: application/json' ";
+    for (const auto& [k, v] : extra_headers) {
+        cmd += "-H '" + k + ": " + v + "' ";
+    }
+    cmd += "-d '" + body + "' " + proto + "://127.0.0.1:" +
+           std::to_string(kBlastTestPort) + path;
+
+    std::string output = exec(cmd.c_str());
+    TestHttpResponse res;
+    std::istringstream iss(output);
+    std::string line;
+    bool headers_done = false;
+    std::string body_str;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (res.status == 0 && line.starts_with("HTTP/")) {
+            auto pos = line.find(' ');
+            if (pos != std::string::npos) {
+                res.status = std::stoi(line.substr(pos + 1, 3));
+            }
+            continue;
+        }
+        if (line.empty()) {
+            headers_done = true;
+            continue;
+        }
+        if (!headers_done) {
+            auto pos = line.find(": ");
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string val = line.substr(pos + 2);
+                res.headers.insert({key, val});
+            }
+        } else {
+            body_str += line;
+        }
+    }
+    if (!body_str.empty()) {
+        try {
+            res.body = nlohmann::json::parse(body_str);
+        } catch (...) {}
+    }
+    return res;
+}
+
+TestHttpResponse SimulatePostWithDeployToken(const std::string& path, const std::string& body) {
+    return SimulatePost(path, body, {{"X-Deploy-Token", "test-deploy-token-123"}});
+}
+
+int InsertTestUser(const std::string& username, int email_verified, std::int64_t created_at) {
+    auto& db = Database::Get();
+    (void)db.RunMigrations();
+    auto res = db.Exec("INSERT INTO users (username, pass_hash, salt, email, email_verified, created_at) VALUES (?, 'hash', 'salt', ?, ?, ?);",
+        {username, username + "@example.com", email_verified, static_cast<int>(created_at)});
+    if (!res) throw std::runtime_error("InsertTestUser failed: " + res.error().message);
+    
+    auto row = db.QueryOne("SELECT id FROM users WHERE username = ?;", {username});
+    if (!row || !row.value()) throw std::runtime_error("InsertTestUser couldn't find user");
+    return row.value()->Get<int>("id");
+}
+
+void ResetTestUsers() {
+    auto& db = Database::Get();
+    (void)db.RunMigrations();
+    (void)db.Exec("DELETE FROM email_send_log;");
+    (void)db.Exec("DELETE FROM email_verification_codes;");
+    (void)db.Exec("DELETE FROM users WHERE email_verified = 0 OR username LIKE 'blast%';");
+}
+
+} // namespace
+
+TEST_SUITE("WebServer::VerifyBlast") {
+
+TEST_CASE("verify-blast without token returns 404") {
+    ResetTestUsers();
+    auto response = SimulatePost("/internal/verify-blast", "{}", {});
+    CHECK(response.status == 404);
+
+    auto wrong_token = SimulatePost("/internal/verify-blast", "{}", {{"X-Deploy-Token", "wrong-token"}});
+    CHECK(wrong_token.status == 404);
+}
+
+TEST_CASE("verify-blast with valid token queues codes for all unverified users") {
+    ResetTestUsers();
+    InsertTestUser("blast1", 0, std::time(nullptr));
+    InsertTestUser("blast2", 0, std::time(nullptr));
+    InsertTestUser("blast_verified", 1, std::time(nullptr));
+    auto response = SimulatePostWithDeployToken("/internal/verify-blast", "{}");
+    CHECK(response.status == 200);
+    CHECK(response.body["queued"] == 2);
+    CHECK(response.body["skipped"] == 0);
+
+    auto codes = Database::Get().Query("SELECT user_id FROM email_verification_codes;");
+    CHECK(codes.has_value());
+    CHECK(codes->size() == 2);
+
+    auto sends = Database::Get().Query("SELECT user_id FROM email_send_log;");
+    CHECK(sends.has_value());
+    CHECK(sends->size() == 2);
+
+    auto ver_user = Database::Get().QueryOne("SELECT id FROM users WHERE username = 'blast_verified';");
+    CHECK(ver_user.has_value());
+    CHECK(ver_user->has_value());
+    int ver_id = ver_user->value().Get<int>("id");
+    auto ver_code = Database::Get().Query("SELECT user_id FROM email_verification_codes WHERE user_id = ?;", {ver_id});
+    CHECK(ver_code.has_value());
+    CHECK(ver_code->empty());
+
+    // Re-running re-issues codes and re-sends (intentional retry mechanism)
+    auto retry_response = SimulatePostWithDeployToken("/internal/verify-blast", "{}");
+    CHECK(retry_response.status == 200);
+    CHECK(retry_response.body["queued"] == 2);
+    CHECK(retry_response.body["skipped"] == 0);
+}
+
+TEST_CASE("verify-blast refuses when recipient count exceeds cap") {
+    ResetTestUsers();
+    for (int i = 0; i < 60; ++i)
+        InsertTestUser("blastmany" + std::to_string(i), 0, std::time(nullptr));
+    auto response = SimulatePostWithDeployToken("/internal/verify-blast", "{}");
+    CHECK(response.status == 409);
+}
+
+} // TEST_SUITE
+

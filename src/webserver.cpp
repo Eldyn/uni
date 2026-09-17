@@ -17,15 +17,20 @@
 #include <database.hpp>
 #include <logger.hpp>
 #include "services/account_reaper.hpp"
+#include "common/email_queue.hpp"
+#include "common/email_templates.hpp"
+#include "services/verification_service.hpp"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_file,
-                     std::string_view db_file, std::string_view frontend_path)
+                     std::string_view db_file, std::string_view frontend_path,
+                     EmailQueue* email_queue)
     : port_(port), db_file_(db_file), frontend_path_(frontend_path),
       trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
       static_cache_enabled_(Env::Get("STATIC_CACHE", "1") != "0"),
+      email_queue_(email_queue),
       app_(AppHttp({.key_file_name = key_file.data(), .cert_file_name = cert_file.data()})),
       http_limiter_(std::stod(Env::Get("RATE_HTTP_BURST", "120")),
                     std::stod(Env::Get("RATE_HTTP_RPS",   "50"))),
@@ -67,30 +72,51 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
 }
 
 WebServer::~WebServer() {
-    if (reaper_) {
-        reaper_->Stop();
-    }
-    if (Database::Get().IsOpen()) {
+    Stop();
+    if (db_file_ != ":memory:" && Database::Get().IsOpen()) {
         Database::Get().Close();
         Logger::Info("Database closed");
     }
 }
 
-void WebServer::Run() {
+void WebServer::Run(std::function<void(bool)> on_listen) {
     http_router_.Attach(app_);
+    loop_ = uWS::Loop::get();
 
-    app_.listen(port_, [this](auto *socket) {
+    app_.listen(port_, [this, on_listen = std::move(on_listen)](auto *socket) {
+        listen_socket_ = socket;
         if (socket) {
             Logger::Log("Server listening on ", (kAppSSL ? "https" : "http"),
                        "://localhost:", port_);
         } else {
             Logger::Error("Failed to bind to port " + std::to_string(port_));
         }
+        if (on_listen) {
+            on_listen(socket != nullptr);
+        }
     });
     app_.run();
 }
 
+void WebServer::Stop() {
+    if (reaper_) {
+        reaper_->Stop();
+    }
+    if (listen_socket_ && loop_) {
+        loop_->defer([this]() {
+            if (listen_socket_) {
+                us_listen_socket_close(kAppSSL, listen_socket_);
+                listen_socket_ = nullptr;
+            }
+        });
+    }
+}
+
 bool WebServer::InitDB() {
+    if (Database::Get().IsOpen() && db_file_ == ":memory:") {
+        return Database::Get().RunMigrations().has_value();
+    }
+
     VoidResult open_result = Database::Get().Open(db_file_);
 
     if (!open_result) {
@@ -158,6 +184,80 @@ void WebServer::RegisterRoutes() {
         const std::size_t count = active_match_provider_ ? active_match_provider_() : 0;
         res->writeHeader("Content-Type", "application/json")
            ->end(json({{"active_matches", count}}).dump());
+    });
+
+    // INFO: One-time migration email blast endpoint for unverified users.
+    //       Re-running re-issues codes and re-sends — intentional (retry mechanism)
+    //       but burns Brevo quota, hence token gate and cap.
+    app_.post("/internal/verify-blast", [this](AppResponse *res, AppRequest *req) {
+        const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
+        if (token.empty() || req->getHeader("x-deploy-token") != token) {
+            res->writeStatus("404 Not Found")->end("File not found");
+            return;
+        }
+
+        http::ReadBody(res, 4096, [this, res](const std::string& /*body*/) {
+            const int cap = Env::GetInt("BLAST_MAX_RECIPIENTS", 50);
+            auto rows = Database::Get().Query(
+                "SELECT id, username, email, locale FROM users WHERE email_verified = 0;");
+            if (!rows) {
+                Logger::Error("[VerifyBlast] Query failed: " + rows.error().message);
+                res->writeStatus("500 Internal Server Error")->end();
+                return;
+            }
+
+            if (static_cast<int>(rows->size()) > cap) {
+                res->writeStatus("409 Conflict")
+                   ->writeHeader("Content-Type", "application/json")
+                   ->end(json({{"error", "too many recipients"}}).dump());
+                return;
+            }
+
+            VerificationService verifier(Database::Get());
+            int queued = 0;
+            int skipped = 0;
+
+            for (const auto& row : *rows) {
+                const int user_id = row.Get<int>("id");
+                const std::string username = row.Get<std::string>("username");
+                const std::string email = row.Get<std::string>("email");
+                const std::string locale = row.Get<std::string>("locale");
+
+                if (!email_queue_) {
+                    Logger::Error("[VerifyBlast] No email queue configured; skipping " + username);
+                    ++skipped;
+                    continue;
+                }
+
+                auto issue_res = verifier.IssueCodeForEmail(email);
+                if (!issue_res) {
+                    Logger::Error("[VerifyBlast] Failed to issue code for " + username +
+                                  " (" + email + "): " + issue_res.error().message);
+                    ++skipped;
+                    continue;
+                }
+
+                try {
+                    auto mail = RenderMigrationEmail(VerifyEmailData{
+                        .username = username,
+                        .code = issue_res->plaintext_code,
+                        .magic_link = BuildVerifyMagicLink(issue_res->plaintext_code),
+                        .locale = locale
+                    });
+                    mail.to_address = email;
+
+                    email_queue_->Enqueue(std::move(mail));
+                    verifier.RecordSend(user_id);
+                    ++queued;
+                } catch (const std::exception& e) {
+                    Logger::Error("[VerifyBlast] Failed to send email to " + username + ": " + e.what());
+                    ++skipped;
+                }
+            }
+
+            res->writeHeader("Content-Type", "application/json")
+               ->end(json({{"queued", queued}, {"skipped", skipped}}).dump());
+        });
     });
 
     app_.head("/*", [this](AppResponse *res, AppRequest *req) {

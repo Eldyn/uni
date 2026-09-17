@@ -15,6 +15,7 @@
 #include <transport/uws_timer_service.hpp>
 
 class AccountReaper;
+class EmailQueue;
 
 /**
  * @file webserver.hpp
@@ -45,7 +46,8 @@ public:
                        std::string_view keyFile      = "key.pem",
                        std::string_view certFile     = "cert.pem",
                        std::string_view dbFile       = "uni.sqlite",
-                       std::string_view frontendPath = "public");
+                       std::string_view frontendPath = "public",
+                       EmailQueue* emailQueue        = nullptr);
 
     /**
      * @brief Destructor. Takes care of releasing any pending resources.
@@ -58,8 +60,21 @@ public:
     /**
      * @brief Starts the server's listening loop (blocking method).
      * Puts uWebSockets into listening mode on the specified port.
+     * @param on_listen Optional callback invoked when the listen socket binds or fails.
      */
-    void Run();
+    void Run(std::function<void(bool)> on_listen = nullptr);
+
+    /**
+     * @brief Stops the server's listening loop and closes the listen socket.
+     * Thread-safe; schedules socket close onto the uWS loop.
+     */
+    void Stop();
+
+    /**
+     * @brief Sets the EmailQueue pointer for outbound transactional email.
+     * @param queue Pointer to the live EmailQueue.
+     */
+    void SetEmailQueue(EmailQueue* queue) { email_queue_ = queue; }
 
     /**
      * @brief Retrieves a reference to the WebSocket action router.
@@ -216,4 +231,7 @@ private:
     std::function<std::size_t()> active_match_provider_;
 
     std::unique_ptr<AccountReaper> reaper_;
+    EmailQueue* email_queue_{nullptr};
+    us_listen_socket_t* listen_socket_{nullptr};
+    uWS::Loop* loop_{nullptr};
 };

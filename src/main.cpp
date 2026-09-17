@@ -45,9 +45,8 @@ int main() {
         const std::string ssl_cert      = Env::Get("SSL_CERT_PATH", "cert.pem");
         const std::string ssl_key       = Env::Get("SSL_KEY_PATH", "key.pem");
 
-        WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path);
-
         EmailQueue       email_queue(MakeEmailSender());
+        WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path, &email_queue);
         AuthController   auth(server.GetHTTPRouter(), email_queue);
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
