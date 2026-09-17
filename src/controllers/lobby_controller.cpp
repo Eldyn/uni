@@ -909,7 +909,8 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
             {"is_host",   m.username == lobby.host},
             {"is_bot", m.is_bot},
             {"seat_index", m.seat_index},
-            {"is_ready", m.is_bot || m.is_ready}
+            {"is_ready", m.is_bot || m.is_ready},
+            {"is_spectator", m.is_spectator}
         });
     }
     return arr;

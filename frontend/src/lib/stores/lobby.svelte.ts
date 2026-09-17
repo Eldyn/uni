@@ -69,6 +69,10 @@ export interface LobbySettings {
 	count_wild: number;
 	/** Total number of Wild Draw Four (+4) cards in the deck. */
 	count_wild_draw_four: number;
+	/** Game mode: standard or elimination. */
+	mode?: "standard" | "elimination";
+	/** Survivor count for elimination mode. */
+	survivor_count?: number;
 }
 
 /**
@@ -86,6 +90,8 @@ export interface LobbyMember {
 	is_bot: boolean;
 	/** True if this player has indicated they are ready to start the match. */
 	is_ready: boolean;
+	/** True if this member is currently spectating rather than an active player. */
+	is_spectator?: boolean;
 }
 
 /**

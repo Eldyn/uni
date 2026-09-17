@@ -27,6 +27,8 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
                                  contract::kStartingCardsMin, contract::kStartingCardsMax);
     bot_count = std::clamp(bot_count, contract::kBotCountMin, contract::kBotCountMax);
     max_players = std::clamp(max_players, 2, max_players_ceiling);
+    if (mode != "elimination") mode = "standard";
+    survivor_count = std::clamp(survivor_count, 1, std::max(1, max_players - 1));
 
     const int deck_size = DeckSize();
     if (deck_size > 0) {

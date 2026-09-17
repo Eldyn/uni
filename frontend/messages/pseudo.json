@@ -269,5 +269,16 @@
 	"game_action_keep_it": "[Kéép Ït ]",
 	"game_hud_exit": "[Éxït]",
 	"game_hud_expand": "[Éxpånd HÜD ]",
-	"game_hud_collapse": "[Cöllåpsé HÜD ~]"
+	"game_hud_collapse": "[Cöllåpsé HÜD ~]",
+	"lobby_settings_game_mode": "[Gåmé Mõdé ~~~]",
+	"lobby_settings_game_mode_desc": "[Ståndård éñds whéñ å plåýér émptíés théír håñd. Éłímíñátíõñ cõñtíñüés üñtíł sürvívõr cõüñt rémáíñs. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~]",
+	"lobby_mode_standard": "[Ståndård ~~~]",
+	"lobby_mode_elimination": "[Éłímíñátíõñ ~~~~]",
+	"error_spectator_cannot_act": "[Spéctåtõrs cåññõt pérfõrm åctíõñs düríñg thé måtch. ~~~~~~~~~~~~~~~~~~~]",
+	"game_spectating_indicator": "[Spéctåtíñg ~~~~~]",
+	"game_spectator_count": "[Spéctåtõrs: {count} ~~~~~~]",
+	"game_placement_standings": "[Plåcéméñts ~~~~~]",
+	"game_placement_rank": "[#{rank} {name} ~~~~]",
+	"game_privacy_mode": "[Stréåmér / Prívåcý Mõdé ~~~~~~~~]",
+	"game_privacy_mode_desc": "[Hídés ýõür håñd frõm spéctåtõrs ~~~~~~~~~~~~~~]"
 }

@@ -724,6 +724,15 @@ components:
           minimum: 2
           maximum: 20
           x-constants: { minimum: StartingCardsMin, maximum: StartingCardsMax }
+        mode:
+          type: string
+          enum: ["standard", "elimination"]
+          description: Game mode (standard or elimination).
+        survivor_count:
+          type: integer
+          minimum: 1
+          maximum: 15
+          description: Number of survivors remaining when elimination match ends (default 1).
         active_mods:
           type: array
           items:
@@ -896,4 +905,5 @@ components:
         FriendRequestInvalid: friend_request_invalid
         FriendRequestExists: friend_request_exists
         FriendRequestNotFound: friend_request_not_found
+        SpectatorCannotAct: spectator_cannot_act
         InternalError: internal_error

@@ -80,6 +80,11 @@ struct LobbySettings {
                + count_wild + count_wild_draw_four;
     }
 
+    /**< Game mode: "standard" or "elimination". */
+    std::string mode = "standard";
+    /**< Number of survivors remaining when elimination match ends (default 1). */
+    int survivor_count = 1;
+
     /**
      * @brief Clamps numeric fields into contract bounds and strips unknown or
      * duplicate entries from active_mods in place.
@@ -94,7 +99,7 @@ struct LobbySettings {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
     allow_bot_takeover, allow_bot_replacement, quit_deletes_match, is_public,
-    max_players, ranked
+    max_players, ranked, mode, survivor_count
 )
 
 /**
@@ -119,11 +124,15 @@ struct LobbyMember {
      * check), this field itself defaults false for them like everyone else. */
     bool is_ready = false;
 
+    /**< True if this member is currently spectating rather than an active player. */
+    bool is_spectator = false;
+
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 
-    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1)
-        : username(std::move(u)), socket(s), is_connected(c), is_bot(b), seat_index(seat)  {}
+    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1, bool spectator = false)
+        : username(std::move(u)), socket(s), is_connected(c), is_bot(b), seat_index(seat),
+          is_spectator(spectator) {}
 };
 
 /**

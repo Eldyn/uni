@@ -269,5 +269,16 @@
 	"game_action_keep_it": "Tieni",
 	"game_hud_exit": "Esci",
 	"game_hud_expand": "Espandi HUD",
-	"game_hud_collapse": "Comprimi HUD"
+	"game_hud_collapse": "Comprimi HUD",
+	"lobby_settings_game_mode": "Modalità di gioco",
+	"lobby_settings_game_mode_desc": "Standard termina quando un giocatore svuota la mano. Eliminazione continua fino al numero di sopravvissuti.",
+	"lobby_mode_standard": "Standard",
+	"lobby_mode_elimination": "Eliminazione",
+	"error_spectator_cannot_act": "Gli spettatori non possono eseguire azioni durante la partita",
+	"game_spectating_indicator": "Spettatore",
+	"game_spectator_count": "Spettatori: {count}",
+	"game_placement_standings": "Classifica",
+	"game_placement_rank": "#{rank} {name}",
+	"game_privacy_mode": "Modalità streamer / privacy",
+	"game_privacy_mode_desc": "Nasconde la tua mano agli spettatori"
 }

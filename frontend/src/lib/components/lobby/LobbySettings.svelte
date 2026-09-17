@@ -47,7 +47,10 @@
 
 		bot_mode: storeLobby.current?.settings.bot_mode ?? BotTakeoverMode.WaitUntilTurnEnd,
 
-		bot_count: storeLobby.current?.settings.bot_count ?? 0
+		bot_count: storeLobby.current?.settings.bot_count ?? 0,
+
+		mode: storeLobby.current?.settings.mode ?? "standard",
+		survivor_count: storeLobby.current?.settings.survivor_count ?? 1
 	} as LobbySettings);
 
 	onMount(() => {
@@ -124,6 +127,18 @@
 			{m.lobby_settings_section_rules({}, { locale: storeI18n.locale })}
 		</h4>
 		<div class="section-content">
+			<EnumSelector
+				label={m.lobby_settings_game_mode({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_game_mode_desc({}, { locale: storeI18n.locale })}
+				value={settings.mode ?? "standard"}
+				disabled={!isHost}
+				options={[
+					{ value: "standard", label: m.lobby_mode_standard({}, { locale: storeI18n.locale }) },
+					{ value: "elimination", label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }) }
+				]}
+				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
+			/>
+			<hr class="settings-divider" />
 			<Slider
 				id="card-count"
 				label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}

@@ -269,5 +269,16 @@
 	"game_action_keep_it": "Keep It",
 	"game_hud_exit": "Exit",
 	"game_hud_expand": "Expand HUD",
-	"game_hud_collapse": "Collapse HUD"
+	"game_hud_collapse": "Collapse HUD",
+	"lobby_settings_game_mode": "Game Mode",
+	"lobby_settings_game_mode_desc": "Standard ends when a player empties their hand. Elimination continues until survivor count remains.",
+	"lobby_mode_standard": "Standard",
+	"lobby_mode_elimination": "Elimination",
+	"error_spectator_cannot_act": "Spectators cannot perform actions during the match",
+	"game_spectating_indicator": "Spectating",
+	"game_spectator_count": "Spectators: {count}",
+	"game_placement_standings": "Placements",
+	"game_placement_rank": "#{rank} {name}",
+	"game_privacy_mode": "Streamer / Privacy Mode",
+	"game_privacy_mode_desc": "Hides your hand from spectators"
 }
