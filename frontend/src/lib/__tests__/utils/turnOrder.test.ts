@@ -28,4 +28,24 @@ describe("computeTurnOrderWindow", () => {
 		expect(window.prev).toEqual([null, null]);
 		expect(window.next).toEqual([null, null]);
 	});
+
+	it("respects reversed play direction, nearest-first-from-current on each side", () => {
+		const players = [player("a"), player("b"), player("c"), player("d")];
+		const window = computeTurnOrderWindow(players, "c", -1, 2);
+		expect(window.next.map((p) => p?.username)).toEqual(["b", "a"]);
+		expect(window.prev.map((p) => p?.username)).toEqual(["d", "a"]);
+	});
+
+	it("guards against a missing current turn or empty players with radius-length null slots", () => {
+		expect(computeTurnOrderWindow([player("a"), player("b")], "nobody", 1)).toEqual({
+			prev: [null, null],
+			current: null,
+			next: [null, null]
+		});
+		expect(computeTurnOrderWindow([], "a", 1)).toEqual({
+			prev: [null, null],
+			current: null,
+			next: [null, null]
+		});
+	});
 });
