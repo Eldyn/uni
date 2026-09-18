@@ -23,6 +23,13 @@ class StoreVerify {
 	error = $state("");
 
 	#intervalId: ReturnType<typeof setInterval> | undefined = undefined;
+	#targetTimestamp: number | undefined = undefined;
+
+	constructor() {
+		storeAuth.onLoggedOut(() => {
+			this.reset();
+		});
+	}
 
 	#startCooldown(seconds = 60): void {
 		if (this.#intervalId !== undefined) {
@@ -30,11 +37,14 @@ class StoreVerify {
 			this.#intervalId = undefined;
 		}
 		this.cooldownSeconds = seconds;
+		this.#targetTimestamp = Date.now() + seconds * 1000;
 		this.#intervalId = setInterval(() => {
-			this.cooldownSeconds--;
-			if (this.cooldownSeconds <= 0) {
+			const remaining = Math.max(0, Math.ceil(((this.#targetTimestamp ?? 0) - Date.now()) / 1000));
+			this.cooldownSeconds = remaining;
+			if (remaining <= 0) {
 				clearInterval(this.#intervalId);
 				this.#intervalId = undefined;
+				this.#targetTimestamp = undefined;
 			}
 		}, 1000);
 	}
@@ -65,6 +75,8 @@ class StoreVerify {
 			}
 
 			if (res.status === 409) {
+				this.dispose();
+				this.cooldownSeconds = 0;
 				storeAuth.emailVerified = true;
 				return true;
 			}
@@ -80,7 +92,9 @@ class StoreVerify {
 			storeToast.error(errorMsg);
 			return false;
 		} catch {
-			storeToast.error("Network error, check your connection.");
+			const networkErr = "Network error, check your connection.";
+			this.error = networkErr;
+			storeToast.error(networkErr);
 			return false;
 		} finally {
 			this.isSending = false;
@@ -115,6 +129,8 @@ class StoreVerify {
 			});
 
 			if (res.status === 200) {
+				this.dispose();
+				this.cooldownSeconds = 0;
 				storeAuth.emailVerified = true;
 				storeToast.success(m.verify_success_toast({}, { locale: storeI18n.locale }));
 				return true;
@@ -151,6 +167,18 @@ class StoreVerify {
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 		}
+		this.#targetTimestamp = undefined;
+	}
+
+	/**
+	 * @brief Resets all verify store state and timers (e.g. on user logout).
+	 */
+	reset(): void {
+		this.dispose();
+		this.cooldownSeconds = 0;
+		this.error = "";
+		this.isSending = false;
+		this.isConfirming = false;
 	}
 }
 

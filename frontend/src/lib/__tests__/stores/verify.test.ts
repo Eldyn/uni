@@ -61,6 +61,24 @@ describe("storeVerify", () => {
 			expect(storeVerify.cooldownSeconds).toBe(0);
 		});
 
+		it("computes cooldown accurately when interval is throttled in inactive tab", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 202 }));
+			await storeVerify.requestCode();
+			expect(storeVerify.cooldownSeconds).toBe(60);
+
+			// Simulate throttled interval in background tab: 15s jump at once
+			vi.advanceTimersByTime(15000);
+			expect(storeVerify.cooldownSeconds).toBe(45);
+
+			// Jump past remaining duration
+			vi.advanceTimersByTime(50000);
+			expect(storeVerify.cooldownSeconds).toBe(0);
+
+			// Interval was cleared, stays 0
+			vi.advanceTimersByTime(5000);
+			expect(storeVerify.cooldownSeconds).toBe(0);
+		});
+
 		it("requestCode is a no-op while cooling down", async () => {
 			storeVerify.cooldownSeconds = 30;
 			const spy = vi.mocked(fetch);
@@ -216,6 +234,25 @@ describe("storeVerify", () => {
 			expect(storeToast.error).toHaveBeenCalledWith("Network error, check your connection.");
 			expect(storeVerify.error).toBe("Network error, check your connection.");
 		});
+		it("confirmCode clears active cooldown timer on 200", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 202 }));
+			await storeVerify.requestCode();
+			expect(storeVerify.cooldownSeconds).toBe(60);
+
+			vi.advanceTimersByTime(10000);
+			expect(storeVerify.cooldownSeconds).toBe(50);
+
+			vi.mocked(fetch).mockResolvedValueOnce(
+				new Response(JSON.stringify({ status: "ok", email_verified: true }), { status: 200 })
+			);
+			const ok = await storeVerify.confirmCode("123456");
+			expect(ok).toBe(true);
+			expect(storeVerify.cooldownSeconds).toBe(0);
+
+			// Timer cancelled, stays 0
+			vi.advanceTimersByTime(5000);
+			expect(storeVerify.cooldownSeconds).toBe(0);
+		});
 	});
 
 	describe("dispose", () => {
@@ -229,6 +266,45 @@ describe("storeVerify", () => {
 			vi.advanceTimersByTime(5000);
 			// Timer was cancelled, so seconds do not tick down anymore
 			expect(storeVerify.cooldownSeconds).toBe(60);
+		});
+	});
+
+	describe("session cleanup and reset", () => {
+		it("resets store state and clears cooldown timer on reset()", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 202 }));
+			await storeVerify.requestCode();
+			expect(storeVerify.cooldownSeconds).toBe(60);
+
+			storeVerify.error = "Previous error";
+			storeVerify.isSending = true;
+			storeVerify.isConfirming = true;
+
+			storeVerify.reset();
+
+			expect(storeVerify.cooldownSeconds).toBe(0);
+			expect(storeVerify.error).toBe("");
+			expect(storeVerify.isSending).toBe(false);
+			expect(storeVerify.isConfirming).toBe(false);
+
+			// Interval cancelled, won't tick
+			vi.advanceTimersByTime(5000);
+			expect(storeVerify.cooldownSeconds).toBe(0);
+		});
+
+		it("resets store state when user logs out via storeAuth", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 202 }));
+			await storeVerify.requestCode();
+			expect(storeVerify.cooldownSeconds).toBe(60);
+
+			storeVerify.error = "Some error";
+			storeAuth.setLoggedOut();
+
+			expect(storeVerify.cooldownSeconds).toBe(0);
+			expect(storeVerify.error).toBe("");
+
+			// Timer cancelled
+			vi.advanceTimersByTime(5000);
+			expect(storeVerify.cooldownSeconds).toBe(0);
 		});
 	});
 });

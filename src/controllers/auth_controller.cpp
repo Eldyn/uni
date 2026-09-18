@@ -210,6 +210,9 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
             return;
         }
 
+        auto status = auth_service_.GetAccountStatus(session->username);
+        const bool email_verified = status ? status->email_verified : false;
+
         response->writeHeader("Set-Cookie",
                               "auth_token=" + session->token +
                                   "; HttpOnly; Secure; SameSite=Strict; Path=/")
@@ -217,7 +220,11 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
                               "ws_token=" + session->token +
                                   "; HttpOnly; Secure; SameSite=None; Path=/")
                 ->writeHeader("Content-Type", "application/json")
-                ->end("{\"username\": \"" + session->username + "\"}");
+                ->end(json({
+                    {"status", "ok"},
+                    {"username", session->username},
+                    {"email_verified", email_verified}
+                }).dump());
     });
 }
 
