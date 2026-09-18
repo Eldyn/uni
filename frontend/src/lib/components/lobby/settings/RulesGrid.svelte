@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
+	import * as m from "$lib/paraglide/messages.js";
+	import { storeI18n } from "$stores/i18n.svelte";
 
 	export interface RuleDef {
 		id: string;
@@ -24,7 +26,17 @@
 	<span class="rules-header">Custom Rules</span>
 	<div class="rules-grid">
 		{#each rules as rule (rule.id)}
-			<Tooltip interactive={true}>
+			<Tooltip
+				interactive={true}
+				title={rule.label}
+				tags={[
+					{
+						label: m.glossary_tag_rule({}, { locale: storeI18n.locale }),
+						bg: "#2563eb",
+						shadowColor: "#1d4ed8"
+					}
+				]}
+			>
 				{#snippet tooltipContent()}
 					<RichText text={rule.description} allowKeywords={true} />
 				{/snippet}

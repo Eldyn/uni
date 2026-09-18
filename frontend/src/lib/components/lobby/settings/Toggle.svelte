@@ -30,7 +30,7 @@
 {/snippet}
 
 {#if (description?.length ?? 0) > 0}
-	<Tooltip interactive={true}>
+	<Tooltip interactive={true} title={label}>
 		{#snippet tooltipContent()}
 			<RichText text={description ?? ""} allowKeywords={true} />
 		{/snippet}

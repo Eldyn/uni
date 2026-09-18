@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/svelte";
+import { createRawSnippet } from "svelte";
 import TooltipHarness from "./TooltipHarness.svelte";
+import Tooltip from "$components/common/Tooltip.svelte";
+import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 describe("Tooltip static pixel popover", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		storeTooltipStack.closeAll();
 	});
 
 	afterEach(() => {
 		vi.useRealTimers();
 		document.body.innerHTML = "";
+		storeTooltipStack.closeAll();
 	});
 
 	it("opens on hover after delay, renders pixel-bordered tooltip with role", async () => {
@@ -28,8 +33,8 @@ describe("Tooltip static pixel popover", () => {
 		const tooltip = screen.getByRole("tooltip");
 		expect(tooltip).toBeInTheDocument();
 		expect(tooltip).toHaveTextContent("Popover description text");
-		expect(tooltip).toHaveClass("pixel-bordered");
 		expect(tooltip).toHaveClass("pixel-popover-tooltip");
+		expect(tooltip.querySelector(".pixel-bordered")).toBeInTheDocument();
 
 		// Mouse leave closes tooltip
 		await fireEvent.mouseLeave(trigger.parentElement!);
@@ -104,5 +109,47 @@ describe("Tooltip static pixel popover", () => {
 		await fireEvent.mouseLeave(tooltip);
 		await act(() => vi.advanceTimersByTime(150));
 		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+	});
+
+	it("does NOT close root tooltip when stack has items", async () => {
+		render(TooltipHarness, {
+			props: { openDelay: 0, interactive: true }
+		});
+
+		const trigger = screen.getByRole("button", { name: "Trigger Button" });
+		await fireEvent.mouseEnter(trigger.parentElement!);
+		await act(() => vi.runAllTimers());
+
+		expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+		// Simulate a child item opened in storeTooltipStack (e.g. glossary keyword click)
+		storeTooltipStack.open("turn");
+		await act(() => vi.runAllTimers());
+
+		// Root tooltip must remain open!
+		expect(screen.getByRole("tooltip")).toBeInTheDocument();
+	});
+
+	it("renders title in root tooltip", async () => {
+		const { container } = render(Tooltip, {
+			props: {
+				title: "7-0 Rule",
+				openDelay: 0,
+				children: createRawSnippet(() => ({
+					render: () => `<button type="button">Trigger</button>`
+				})),
+				tooltipContent: createRawSnippet(() => ({
+					render: () => `<span>Body text</span>`
+				}))
+			}
+		});
+
+		const trigger = container.querySelector(".tooltip-container")!;
+		await fireEvent.mouseEnter(trigger);
+		await act(() => vi.runAllTimers());
+
+		const tooltip = screen.getByRole("tooltip");
+		expect(tooltip).toBeInTheDocument();
+		expect(tooltip).toHaveTextContent("7-0 Rule");
 	});
 });

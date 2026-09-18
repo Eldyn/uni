@@ -6,11 +6,14 @@
 		type Align,
 		type Rect
 	} from "$lib/utils/anchorPlacement";
-	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+	import type { GlossaryTag } from "$lib/glossary/glossary";
+	import TooltipCard from "$components/common/TooltipCard.svelte";
 
 	interface Props {
 		children: Snippet;
 		tooltipContent: Snippet;
+		title?: string;
+		tags?: GlossaryTag[];
 		side?: Side;
 		align?: Align;
 		offset?: number;
@@ -25,6 +28,8 @@
 	let {
 		children,
 		tooltipContent,
+		title,
+		tags,
 		side = "top",
 		align = "center",
 		offset = 8,
@@ -151,12 +156,6 @@
 	});
 
 	$effect(() => {
-		if (storeTooltipStack.stack.length > 0 && isVisible) {
-			isVisible = false;
-		}
-	});
-
-	$effect(() => {
 		if (!containerEl) return;
 		const target =
 			containerEl.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]") ??
@@ -186,7 +185,7 @@
 			bind:this={tooltipEl}
 			id={tooltipId}
 			role="tooltip"
-			class="pixel-bordered pixel-popover-tooltip"
+			class="pixel-popover-tooltip"
 			class:interactive
 			use:portal
 			data-side={placedSide}
@@ -197,7 +196,9 @@
 			onfocusin={() => clearTimeout(closeTimer)}
 			onfocusout={handleFocusOut}
 		>
-			{@render tooltipContent()}
+			<TooltipCard {title} tags={tags ?? []} onclose={() => (isVisible = false)}>
+				{@render tooltipContent()}
+			</TooltipCard>
 		</div>
 	{/if}
 </div>
@@ -213,17 +214,6 @@
 		pointer-events: none;
 		z-index: 10001;
 
-		padding: 8px 12px;
-		font-family: var(--tiny);
-		font-size: 0.75rem;
-		line-height: 1.3;
-		color: var(--text-h);
-		text-shadow: 1px 1px 0 var(--pixel-shadow, #000);
-
-		--pc-fill: #100110;
-		--pc-border: #2e0664;
-		box-shadow: var(--elevation-2);
-
 		white-space: normal;
 		max-width: 320px;
 	}
@@ -232,6 +222,12 @@
 		pointer-events: auto;
 	}
 
+	/* Invisible hit-area extension so the pointer can travel from the trigger
+	   into the popover without the closeTimer firing. This is a plain,
+	   absolutely-positioned pseudo-element scoped to `.pixel-popover-tooltip`
+	   only — the popover no longer carries `.pixel-bordered` itself (that now
+	   lives on TooltipCard's own inner card), so this rule can no longer
+	   clobber `.pixel-bordered::before`'s `inset: 0` border layer. */
 	.pixel-popover-tooltip.interactive::before {
 		content: "";
 		position: absolute;
