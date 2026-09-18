@@ -6,6 +6,9 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import Avatar from "$components/common/Avatar.svelte";
+	import VerifyCodeForm from "$components/auth/VerifyCodeForm.svelte";
+
+	let showVerify = $state(false);
 
 	// storeStats.myStats is a PlayerStats (see stats.svelte.ts): username,
 	// total_wins, total_losses, rank — there is no wins/matches_played field.
@@ -47,6 +50,14 @@
 	{/if}
 
 	<div class="flex flex-col gap-3">
+		{#if storeAuth.isLoggedIn && !storeAuth.emailVerified}
+			<button class="btn-secondary px-4 py-3 text-left" onclick={() => (showVerify = !showVerify)}>
+				{m.verify_profile_button({}, { locale: storeI18n.locale })}
+			</button>
+			{#if showVerify}
+				<VerifyCodeForm onVerified={() => (showVerify = false)} />
+			{/if}
+		{/if}
 		<button class="btn-secondary px-4 py-3 text-left" onclick={() => storeNavigation.goto("stats")}>
 			{m.profile_leaderboard_button({}, { locale: storeI18n.locale })}
 		</button>
