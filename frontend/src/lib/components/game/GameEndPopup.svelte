@@ -3,6 +3,7 @@
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 	import { BOT_COLOR, playerColorFor } from "$lib/palette";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -13,10 +14,10 @@
 	let isElimination = $derived(storeGame.state?.mode === "elimination");
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
-	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
+	let isMe = $derived(winnerName === storeAuth.username);
 
 	let myRank = $derived.by(() => {
-		const me = storeGame.localPlayer?.username;
+		const me = storeAuth.username;
 		if (!me) return -1;
 		const idx = storeGame.placements.indexOf(me);
 		return idx === -1 ? -1 : idx + 1;
@@ -117,9 +118,7 @@
 						</h2>
 						<ol class="standings-list">
 							{#each storeGame.placements as name, i}
-								<li
-									class="standing-item {name === storeGame.localPlayer?.username ? 'is-local' : ''}"
-								>
+								<li class="standing-item {name === storeAuth.username ? 'is-local' : ''}">
 									<span class="rank">#{i + 1}</span>
 									<span class="name">{name}</span>
 								</li>
