@@ -253,6 +253,12 @@ namespace match {
                             state_.placements.push_back(rp.username);
                         }
                     }
+
+                    // placements accumulated worst-first (elimination order) live;
+                    // reverse at completion to best-first (1st, 2nd, ...) per
+                    // MatchState doc / ledger / client assumptions.
+                    std::reverse(state_.placements.begin(), state_.placements.end());
+
                     std::string winner = state_.placements.empty() ? "" : state_.placements.front();
                     RecordMatchCompleted(winner);
                 } else {
@@ -390,6 +396,12 @@ namespace match {
                     for (const auto& rp : remaining) {
                         state_.placements.push_back(rp.username);
                     }
+
+                    // placements accumulated worst-first (elimination order) live;
+                    // reverse at completion to best-first (1st, 2nd, ...) per
+                    // MatchState doc / ledger / client assumptions.
+                    std::reverse(state_.placements.begin(), state_.placements.end());
+
                     RecordMatchCompleted(state_.placements.front());
                     return true;
                 } else {

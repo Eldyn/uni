@@ -575,7 +575,8 @@ TEST_CASE("Elimination mode: 3 players turn rotation and placement resolution") 
     REQUIRE(m.PlayCard("el3_p0", 1));
     m.Tick();
 
-    // el3_p0 should be eliminated and placed 1st. Match continues with 2 players (survivor_count = 1).
+    // el3_p0 should be eliminated and recorded worst-first (elimination order)
+    // while live. Match continues with 2 players (survivor_count = 1).
     CHECK_FALSE(m.IsMatchOver());
     REQUIRE_EQ(m.GetPlacements().size(), 1);
     CHECK_EQ(m.GetPlacements()[0], "el3_p0");
@@ -603,13 +604,16 @@ TEST_CASE("Elimination mode: 3 players turn rotation and placement resolution") 
 
     // Match must conclude because remaining players <= survivor_count (1)
     CHECK(m.IsMatchOver());
-    CHECK_EQ(m.GetWinner(), "el3_p0");
+
+    // Final placements are best-first (1st, 2nd, ...): the surviving player
+    // (el3_p2) is the true winner, then last-eliminated, first-eliminated last.
+    CHECK_EQ(m.GetWinner(), "el3_p2");
 
     const auto& placements = m.GetPlacements();
     REQUIRE_EQ(placements.size(), 3);
-    CHECK_EQ(placements[0], "el3_p0");
-    CHECK_EQ(placements[1], "el3_p1");
-    CHECK_EQ(placements[2], "el3_p2");
+    CHECK_EQ(placements[0], "el3_p2");  // survivor (1 card left) -> rank 1
+    CHECK_EQ(placements[1], "el3_p1");  // eliminated second -> rank 2
+    CHECK_EQ(placements[2], "el3_p0");  // eliminated first -> rank 3
 }
 
 TEST_CASE("Elimination mode: 4 players rotation and survivor_count=2") {
@@ -670,14 +674,80 @@ TEST_CASE("Elimination mode: 4 players rotation and survivor_count=2") {
 
     // With survivor_count=2 and 2 remaining players (C, D), match concludes immediately!
     CHECK(m.IsMatchOver());
-    CHECK_EQ(m.GetWinner(), "A");
+
+    // Final placements are best-first (1st, 2nd, ...): largest surviving hand
+    // ranks 1st, then the rest of the survivors, eliminations last in reverse
+    // order.
+    CHECK_EQ(m.GetWinner(), "D");
 
     const auto& placements = m.GetPlacements();
     REQUIRE_EQ(placements.size(), 4);
-    CHECK_EQ(placements[0], "A");
-    CHECK_EQ(placements[1], "B");
-    CHECK_EQ(placements[2], "C");  // C had 2 cards
-    CHECK_EQ(placements[3], "D");  // D had 3 cards
+    CHECK_EQ(placements[0], "D");  // 3 cards -> rank 1
+    CHECK_EQ(placements[1], "C");  // 2 cards -> rank 2
+    CHECK_EQ(placements[2], "B");  // eliminated second -> rank 3
+    CHECK_EQ(placements[3], "A");  // eliminated first -> rank 4
+}
+
+TEST_CASE("Elimination mode: mid-game removal reaching survivor_count yields best-first placements (path B)") {
+    json saved_state;
+    saved_state["rules"] = json::array();
+    saved_state["status"] = 1;  // kPlaying
+    saved_state["active_type"] = 0;  // kRed
+    saved_state["current_player_index"] = 0;
+    saved_state["play_direction"] = 1;
+    saved_state["pending_player"] = "";
+    saved_state["discard_pile"] = json::array({MakeCard(Type::kRed, Value::k5, 100)});
+    saved_state["draw_pile"] = json::array();
+
+    saved_state["players"] = json::array({
+        {
+            {"username", "rm_p0"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k1, 1)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "rm_p1"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k2, 2)})},
+            {"is_bot", false}
+        },
+        {
+            {"username", "rm_p2"},
+            {"hand", json::array({MakeCard(Type::kRed, Value::k3, 3), MakeCard(Type::kRed, Value::k4, 4)})},
+            {"is_bot", false}
+        }
+    });
+
+    LobbySettings settings = default_settings();
+    settings.mode = "elimination";
+    settings.survivor_count = 1;
+
+    MatchInstance m(saved_state, settings);
+    REQUIRE_EQ(m.GetCurrentPlayerUsername(), "rm_p0");
+
+    // rm_p0 empties hand -> eliminated live (worst-first accumulation while the
+    // match is running). Match continues with 2 players (survivor_count = 1).
+    REQUIRE(m.PlayCard("rm_p0", 1));
+    m.Tick();
+    CHECK_FALSE(m.IsMatchOver());
+    REQUIRE_EQ(m.GetPlacements().size(), 1);
+    CHECK_EQ(m.GetPlacements()[0], "rm_p0");
+
+    // rm_p1 leaves mid-game, dropping the remaining players to exactly
+    // survivor_count(1); RemovePlayerMidGame completes the match (path B).
+    // The removed player quits and is not ranked (recorded as "quit" in the
+    // ledger), so placements only ever contain eliminations + survivors.
+    m.RemovePlayerMidGame("rm_p1");
+
+    CHECK(m.IsMatchOver());
+
+    // Final placements are best-first: the sole survivor (rm_p2) is the winner,
+    // the first-eliminated player sits last.
+    CHECK_EQ(m.GetWinner(), "rm_p2");
+
+    const auto& placements = m.GetPlacements();
+    REQUIRE_EQ(placements.size(), 2);
+    CHECK_EQ(placements[0], "rm_p2");  // survivor (1 card left) -> rank 1
+    CHECK_EQ(placements[1], "rm_p0");  // eliminated first -> rank 2
 }
 
 TEST_CASE("Elimination mode: max players (16) rotation with elimination before, at, and after current turn") {
