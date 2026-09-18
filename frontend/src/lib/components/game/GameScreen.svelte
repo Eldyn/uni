@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GameBoard from "./GameBoard.svelte";
-	import GameOverPopup from "./GameOverPopup.svelte";
+	import GameEndPopup from "./GameEndPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
@@ -23,7 +23,7 @@
 
 <div class="game-screen">
 	<div class="ui-layer">
-		<GameOverPopup />
+		<GameEndPopup />
 
 		<div class="game-controls">
 			<GameHud />
