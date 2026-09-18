@@ -26,6 +26,19 @@ vi.mock("$lib/stores/stats.svelte", () => ({
 	}
 }));
 
+vi.mock("$stores/verify.svelte", () => ({
+	storeVerify: {
+		isSending: false,
+		isConfirming: false,
+		cooldownSeconds: 0,
+		error: "",
+		requestCode: vi.fn().mockResolvedValue(true),
+		confirmCode: vi.fn().mockResolvedValue(true),
+		reset: vi.fn(),
+		dispose: vi.fn()
+	}
+}));
+
 describe("ProfileScreen", () => {
 	it("shows the player's username and a stat summary", () => {
 		render(ProfileScreen);
@@ -62,6 +75,12 @@ describe("ProfileScreen", () => {
 	it("hides VERIFY button for verified accounts and guests", () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
 		vi.mocked(storeAuth).emailVerified = true;
+		const { unmount } = render(ProfileScreen);
+		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
+		unmount();
+
+		vi.mocked(storeAuth).isLoggedIn = false;
+		vi.mocked(storeAuth).emailVerified = false;
 		render(ProfileScreen);
 		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
 	});
@@ -71,10 +90,47 @@ describe("ProfileScreen", () => {
 		vi.mocked(storeAuth).emailVerified = false;
 		render(ProfileScreen);
 		const btn = screen.getByRole("button", { name: /verify/i });
+		expect(btn).toHaveAttribute("aria-expanded", "false");
 		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
 		await fireEvent.click(btn);
+		expect(btn).toHaveAttribute("aria-expanded", "true");
 		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
 		await fireEvent.click(btn);
+		expect(btn).toHaveAttribute("aria-expanded", "false");
 		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
+	});
+
+	it("closes verify code form when onVerified callback is triggered", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		render(ProfileScreen);
+		const btn = screen.getByRole("button", { name: /verify/i });
+		await fireEvent.click(btn);
+		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
+
+		const boxes = screen.getAllByLabelText(/digit/i);
+		for (let i = 0; i < 6; i++) {
+			await fireEvent.input(boxes[i], { target: { value: String(i + 1) } });
+		}
+		const submitBtn = screen.getByRole("button", { name: /verify.*submit/i });
+		await fireEvent.click(submitBtn);
+
+		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
+		expect(btn).toHaveAttribute("aria-expanded", "false");
+	});
+
+	it("closes verify code form when onSkip callback is triggered", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		render(ProfileScreen);
+		const btn = screen.getByRole("button", { name: /verify/i });
+		await fireEvent.click(btn);
+		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
+
+		const skipBtn = screen.getByRole("button", { name: /skip for now/i });
+		await fireEvent.click(skipBtn);
+
+		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
+		expect(btn).toHaveAttribute("aria-expanded", "false");
 	});
 });

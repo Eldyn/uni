@@ -51,11 +51,18 @@
 
 	<div class="flex flex-col gap-3">
 		{#if storeAuth.isLoggedIn && !storeAuth.emailVerified}
-			<button class="btn-secondary px-4 py-3 text-left" onclick={() => (showVerify = !showVerify)}>
+			<button
+				class="btn-secondary px-4 py-3 text-left"
+				aria-expanded={showVerify}
+				onclick={() => (showVerify = !showVerify)}
+			>
 				{m.verify_profile_button({}, { locale: storeI18n.locale })}
 			</button>
 			{#if showVerify}
-				<VerifyCodeForm onVerified={() => (showVerify = false)} />
+				<VerifyCodeForm
+					onVerified={() => (showVerify = false)}
+					onSkip={() => (showVerify = false)}
+				/>
 			{/if}
 		{/if}
 		<button class="btn-secondary px-4 py-3 text-left" onclick={() => storeNavigation.goto("stats")}>
