@@ -281,7 +281,7 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
         return;
     }
 
-    http::ReadBody(res, kMaxBodyBytes, [this, res, id = status->id, username = payload->username, email = status->email, db_locale = status->locale](const std::string& body) {
+    http::ReadBody(res, kMaxBodyBytes, [this, res, ip, id = status->id, username = payload->username, email = status->email, db_locale = status->locale](const std::string& body) {
         std::string effective_locale = db_locale;
         json data = json::object();
         if (!body.empty()) {
@@ -318,6 +318,8 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
 
         email_queue_.Enqueue(std::move(mail));
         verification_service_.RecordSend(id);
+        verify_attempt_throttle_.Reset(std::to_string(id) + "|" + ip);
+        verify_attempt_throttle_.Reset(ip);
 
         res->writeStatus("202 Accepted")
            ->writeHeader("Content-Type", "application/json")

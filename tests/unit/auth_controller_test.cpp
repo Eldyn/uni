@@ -401,6 +401,13 @@ TEST_CASE("5 wrong then correct returns 429, correct code no longer works") {
         SimulatePost("/auth/verify/confirm-code", R"({"code":"999999"})", session.cookies);
     auto response = SimulatePost("/auth/verify/confirm-code", R"({"code":")" + code + "\"}", session.cookies);
     CHECK(response.status == 429);
+
+    // Requesting a new code clears the lockout and allows confirming the new code
+    auto resend = SimulatePost("/auth/verify/request-code", "{}", session.cookies);
+    CHECK(resend.status == 202);
+    auto new_code = GetLastIssuedCodeForTest("brutuser");
+    auto new_response = SimulatePost("/auth/verify/confirm-code", R"({"code":")" + new_code + "\"}", session.cookies);
+    CHECK(new_response.status == 200);
 }
 
 TEST_CASE("magic-link confirm from a clean cookie jar succeeds") {
