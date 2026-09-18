@@ -869,6 +869,15 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
+    // Clears the is_spectator flag left over from a previous match's elimination
+    // (match_controller.cpp sets it on knockout). Only seated members are reset;
+    // voluntary spectators (seat_index == -1, joined mid-match) stay spectators.
+    for (auto& lobby_member : lobby.members) {
+        if (lobby_member.seat_index != -1) {
+            lobby_member.is_spectator = false;
+        }
+    }
+
     std::vector<std::tuple<std::string, bool, int>> players_info;
     for (const auto& lobby_member : lobby.members) {
         players_info.push_back(
