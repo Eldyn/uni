@@ -36,6 +36,7 @@
 	import { storeGame as _storeGame } from "./lib/stores/game.svelte";
 	import { installSessionResets } from "$stores/session";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let _unsubError: (() => void) | null = null;
 
@@ -62,6 +63,17 @@
 		})();
 	});
 
+	$effect(() => {
+		const code = storeNavigation.pendingVerifyCode;
+		if (!code) return;
+		storeNavigation.pendingVerifyCode = null;
+		if (storeAuth.isLoggedIn) {
+			storeNavigation.goto("profile");
+		} else {
+			storeNavigation.gotoAuth("login");
+		}
+	});
+
 	onMount(async () => {
 		storeI18n.init();
 		installSessionResets();
@@ -76,6 +88,10 @@
 		}
 
 		await storeAuth.checkSession();
+
+		if (storeAuth.isLoggedIn && !storeAuth.emailVerified) {
+			storeToast.warning(m.verify_reminder_toast({}, { locale: storeI18n.locale }));
+		}
 
 		if (storeAuth.isLoggedIn || storeAuth.isGuest) {
 			await ws.connect();

@@ -46,6 +46,13 @@ export function screenForPath(path: string): AppScreen | null {
 
 /** Matches the share-link format produced by LobbyScreen's invite copy button. */
 const INVITE_PATH = /^\/invite\/([A-Za-z0-9]{6})$/;
+
+/**
+ * Matches magic-link verification URLs.
+ * /profile/verify/<code> is already served index.html by http::IsClientRoute
+ * (src/common/http_utils.cpp:24-32) — no backend route change needed; don't add a redundant one.
+ */
+const VERIFY_PATH = /^\/profile\/verify\/(\d{6})$/;
 /**
  * @typedef HistoryState
  * @brief Shape of the object pushed to `window.history` on every navigation,
@@ -100,7 +107,7 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
  * (mobile Chrome/Safari swipe-back included) moves within the app instead
  * of leaving the page, as long as there's an in-app screen left to return to.
  */
-class StoreNavigation {
+export class StoreNavigation {
 	/** The screen currently displayed to the user. */
 	current = $state<AppScreen>("main");
 
@@ -121,6 +128,12 @@ class StoreNavigation {
 	pendingInviteCode = $state<string | null>(null);
 
 	/**
+	 * A 6-digit verification code captured off a deep-linked `/profile/verify/<code>` URL.
+	 * Cleared once consumed by App.svelte.
+	 */
+	pendingVerifyCode = $state<string | null>(null);
+
+	/**
 	 * Set by HomeScreen's "+ Create Lobby" button right before navigating to
 	 * "lobbies", so LobbyBrowse can pop its create modal open on arrival
 	 * instead of the button just landing on a bare list. Consumed (and reset)
@@ -137,7 +150,7 @@ class StoreNavigation {
 		return "anonymous";
 	}
 
-	constructor() {
+	constructor(initialPath?: string) {
 		// A hard refresh/deep link lands the browser on a URL (e.g. `/browse`)
 		// before this store exists. Resolve it back to a screen so the
 		// `replaceState` below writes a URL that matches what's shown, instead
@@ -145,12 +158,19 @@ class StoreNavigation {
 		// through to the "main" default (silently) if the path isn't ours or
 		// the resolved screen's guard rejects it — same stale-state guard the
 		// back/forward gesture already goes through.
-		const inviteMatch = window.location.pathname.match(INVITE_PATH);
+		const path = initialPath ?? (typeof window !== "undefined" ? window.location.pathname : "/");
+
+		const inviteMatch = path.match(INVITE_PATH);
 		if (inviteMatch) {
 			this.pendingInviteCode = inviteMatch[1].toUpperCase();
 		}
 
-		const deepLinkedScreen = screenForPath(window.location.pathname);
+		const verifyMatch = path.match(VERIFY_PATH);
+		if (verifyMatch) {
+			this.pendingVerifyCode = verifyMatch[1];
+		}
+
+		const deepLinkedScreen = screenForPath(path);
 		if (deepLinkedScreen) {
 			const guard = SCREEN_GUARDS[deepLinkedScreen];
 			if (!guard || guard()) {
@@ -158,13 +178,19 @@ class StoreNavigation {
 			}
 		}
 
-		// Seed the entry the browser already loaded us on with our state shape,
+		// Seed the entry the browser already loaded with the app's state shape,
 		// instead of leaving it `null`. Without this, the first back gesture
-		// after any in-app navigation lands on that `null` entry, we'd have
-		// nothing to restore from and the *next* back would skip straight past
-		// the app (closing the tab/going to the real previous page).
-		window.history.replaceState(this.#historyState, "", pathForScreen(this.current) + window.location.search);
-		window.addEventListener("popstate", this.#onPopState);
+		// after any in-app navigation lands on that `null` entry, the app would
+		// have nothing to restore from and the *next* back would skip straight
+		// past the app (closing the tab/going to the real previous page).
+		if (typeof window !== "undefined") {
+			window.history.replaceState(
+				this.#historyState,
+				"",
+				pathForScreen(this.current) + (window.location?.search ?? "")
+			);
+			window.addEventListener("popstate", this.#onPopState);
+		}
 
 		ws.onOpen(() => {
 			if (this.#screenRestored) return;
