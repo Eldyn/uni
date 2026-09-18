@@ -397,7 +397,7 @@ describe("createBaseBeatsWatcher", () => {
 		dispose();
 	});
 
-	it("flows held local card into hand when kept", () => {
+	it("flows held local card into hand when kept", async () => {
 		storeAuth.username = "me";
 		storeGame.state = {
 			active_type: "red",
@@ -469,6 +469,9 @@ describe("createBaseBeatsWatcher", () => {
 			draw_pile_size: 9
 		} as never;
 		flushSync();
+
+		cardRegistry.flushImmediately();
+		await Promise.resolve();
 
 		expect(bus.pendingLocalPlayDrawnId).toBeNull();
 
