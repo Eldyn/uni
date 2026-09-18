@@ -39,20 +39,36 @@
 			{#if storeGame.spectatorCount > 0}
 				<span
 					class="spectator-counter pixel-corners"
-					title={m.game_spectator_count({ count: storeGame.spectatorCount }, { locale: storeI18n.locale })}
+					title={m.game_spectator_count(
+						{ count: storeGame.spectatorCount },
+						{ locale: storeI18n.locale }
+					)}
 				>
-					<i class="hn hn-eye pix"></i> {storeGame.spectatorCount}
+					<i class="hn hn-eye pix"></i>
+					{storeGame.spectatorCount}
 				</span>
 			{/if}
 
-			<span
-				class="timer pixel-corners"
-				style="background: {storeGame.turnTimeRemaining <= 5
-					? 'var(--danger)'
-					: 'var(--surface-2)'};"
-			>
-				{formatTurnTimer(storeGame.turnTimeRemaining)}
-			</span>
+			<div class="timer-block">
+				<span
+					class="timer pixel-corners"
+					style="background: {storeGame.turnTimeRemaining <= 5
+						? 'var(--danger)'
+						: 'var(--surface-2)'};"
+				>
+					{formatTurnTimer(storeGame.turnTimeRemaining)}
+				</span>
+				<span class="gamemode-label">
+					{storeGame.state?.mode === "elimination"
+						? m.lobby_mode_elimination({}, { locale: storeI18n.locale })
+						: m.lobby_mode_standard({}, { locale: storeI18n.locale })}
+					{#if storeLobby.current?.settings?.ranked}
+						<span class="ranked-badge"
+							>{m.game_hud_ranked_badge({}, { locale: storeI18n.locale })}</span
+						>
+					{/if}
+				</span>
+			</div>
 
 			<TurnOrderStrip />
 
@@ -73,7 +89,7 @@
 				</Tooltip>
 			{/if}
 
-			{#if storeGame.state?.mode === 'elimination' && storeGame.placements.length > 0}
+			{#if storeGame.state?.mode === "elimination" && storeGame.placements.length > 0}
 				<div
 					class="elimination-standings pixel-corners"
 					title={m.game_placement_standings({}, { locale: storeI18n.locale })}
@@ -144,6 +160,26 @@
 		transition: background-color 0.3s ease;
 	}
 
+	.timer-block {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.gamemode-label {
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		opacity: 0.75;
+		display: block;
+		margin-top: -6px;
+	}
+
+	.ranked-badge {
+		color: var(--warning, #f59e0b);
+		margin-left: 4px;
+	}
+
 	/* Size override on top of the shared flat .btn */
 	.exit-btn {
 		padding: 6px 14px;
@@ -202,12 +238,22 @@
 		background: var(--text-h);
 	}
 
-	.top-card-dot.red { background: var(--redCard, #ef4444); }
-	.top-card-dot.blue { background: var(--blueCard, #3b82f6); }
-	.top-card-dot.green { background: var(--greenCard, #22c55e); }
-	.top-card-dot.yellow { background: var(--yellowCard, #eab308); }
+	.top-card-dot.red {
+		background: var(--redCard, #ef4444);
+	}
+	.top-card-dot.blue {
+		background: var(--blueCard, #3b82f6);
+	}
+	.top-card-dot.green {
+		background: var(--greenCard, #22c55e);
+	}
+	.top-card-dot.yellow {
+		background: var(--yellowCard, #eab308);
+	}
 	.top-card-dot.white,
-	.top-card-dot.black { background: #9333ea; }
+	.top-card-dot.black {
+		background: #9333ea;
+	}
 
 	.top-card-tooltip {
 		display: flex;

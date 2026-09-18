@@ -270,6 +270,7 @@
 	"game_hud_exit": "나가기",
 	"game_hud_expand": "HUD 펼치기",
 	"game_hud_collapse": "HUD 접기",
+	"game_hud_ranked_badge": "랭크",
 	"lobby_settings_game_mode": "게임 모드",
 	"lobby_settings_game_mode_desc": "스탠다드는 한 플레이어가 손패를 모두 비우면 끝납니다. 서바이벌은 목표 생존자 수만 남을 때까지 계속됩니다.",
 	"lobby_mode_standard": "스탠다드",

@@ -270,6 +270,7 @@
 	"game_hud_exit": "Salir",
 	"game_hud_expand": "Expandir HUD",
 	"game_hud_collapse": "Contraer HUD",
+	"game_hud_ranked_badge": "Clasificado",
 	"lobby_settings_game_mode": "Modo de juego",
 	"lobby_settings_game_mode_desc": "Estándar termina cuando un jugador vacía su mano. Eliminación continúa hasta que quede el recuento de supervivientes.",
 	"lobby_mode_standard": "Estándar",
