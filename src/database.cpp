@@ -94,11 +94,27 @@ static constexpr Migration MIGRATIONS[] = {
         CREATE INDEX IF NOT EXISTS idx_chat_dms_pair
             ON chat_dms(sender, recipient, id);
     )sql" },
-    // Migration v5: Email verification schema
+    { 5, R"sql(
+        CREATE TABLE IF NOT EXISTS match_history (
+            match_id     TEXT     NOT NULL,
+            username     TEXT     NOT NULL,
+            mode         TEXT     NOT NULL,
+            placement    INTEGER,
+            result       TEXT     NOT NULL,
+            ended_reason TEXT     NOT NULL,
+            ranked       INTEGER  NOT NULL,
+            ended_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_match_history_user
+            ON match_history(username, ended_at);
+        CREATE INDEX IF NOT EXISTS idx_match_history_match
+            ON match_history(match_id);
+    )sql" },
+    // Migration v6: Email verification schema
     // (a) ADD COLUMN defaults must be constant, hence DEFAULT 0/text constant + explicit UPDATE
     // (b) Verification timestamps are unix-seconds INTEGER, unlike v1-v4's DATETIME text columns
     // (c) user_id as email_verification_codes PRIMARY KEY enforces one-active-code-per-user
-    { 5, R"sql(
+    { 6, R"sql(
         ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE users ADD COLUMN created_at     INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE users ADD COLUMN locale         TEXT    NOT NULL DEFAULT 'en';

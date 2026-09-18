@@ -9,6 +9,8 @@
 	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { getGlossaryEntry } from "$lib/glossary/glossary";
+	import { ruleLabel } from "$lib/data/lobbyCatalogs";
 	import * as m from "$lib/paraglide/messages.js";
 	import {
 		STARTING_CARDS_MIN,
@@ -47,7 +49,10 @@
 
 		bot_mode: storeLobby.current?.settings.bot_mode ?? BotTakeoverMode.WaitUntilTurnEnd,
 
-		bot_count: storeLobby.current?.settings.bot_count ?? 0
+		bot_count: storeLobby.current?.settings.bot_count ?? 0,
+
+		mode: storeLobby.current?.settings.mode ?? "standard",
+		survivor_count: storeLobby.current?.settings.survivor_count ?? 1
 	} as LobbySettings);
 
 	onMount(() => {
@@ -55,12 +60,15 @@
 	});
 
 	let rules = $derived<RuleDef[]>(
-		storeCatalog.rules.map((rule: RuleDefinition) => ({
-			id: rule.id,
-			label: rule.label,
-			description: rule.description,
-			enabled: storeLobby.current?.settings.active_mods.includes(rule.id) ?? false
-		}))
+		storeCatalog.rules.map((rule: RuleDefinition) => {
+			const glossary = getGlossaryEntry(rule.id, storeI18n.locale);
+			return {
+				id: rule.id,
+				label: glossary?.title ?? ruleLabel(rule, storeI18n.locale as any),
+				description: glossary?.description ?? rule.description,
+				enabled: storeLobby.current?.settings.active_mods.includes(rule.id) ?? false
+			};
+		})
 	);
 
 	/** A lobby always needs at least one human seat, so bots can fill the rest. */
@@ -124,6 +132,18 @@
 			{m.lobby_settings_section_rules({}, { locale: storeI18n.locale })}
 		</h4>
 		<div class="section-content">
+			<EnumSelector
+				label={m.lobby_settings_game_mode({}, { locale: storeI18n.locale })}
+				description={m.lobby_settings_game_mode_desc({}, { locale: storeI18n.locale })}
+				value={settings.mode ?? "standard"}
+				disabled={!isHost}
+				options={[
+					{ value: "standard", label: m.lobby_mode_standard({}, { locale: storeI18n.locale }) },
+					{ value: "elimination", label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }) }
+				]}
+				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
+			/>
+			<hr class="settings-divider" />
 			<Slider
 				id="card-count"
 				label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}

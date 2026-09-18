@@ -42,7 +42,18 @@ vi.mock("$lib/paraglide/messages.js", () => ({
 	verify_resend_button: vi.fn(() => "Resend code"),
 	verify_resend_cooldown: vi.fn(({ seconds }: { seconds: number }) => `Resend in ${seconds}s`),
 	verify_skip_link: vi.fn(() => "Skip for now"),
-	error_verify_wrong_code: vi.fn(() => "Wrong code. Try again.")
+	error_verify_wrong_code: vi.fn(() => "Wrong code. Try again."),
+	auth_username_label: vi.fn(() => "Username:"),
+	auth_username_placeholder: vi.fn(() => "Choose a username"),
+	auth_email_label: vi.fn(() => "Email:"),
+	auth_email_placeholder: vi.fn(() => "Enter your email"),
+	auth_password_label: vi.fn(() => "Password:"),
+	auth_password_create_placeholder: vi.fn(() => "Create a strong password"),
+	auth_confirm_password_label: vi.fn(() => "Confirm Password:"),
+	auth_confirm_password_placeholder: vi.fn(() => "Confirm your password"),
+	auth_submit_register: vi.fn(() => "Register"),
+	auth_registering: vi.fn(() => "Registering..."),
+	auth_error_censor_username: vi.fn(() => "Username contains inappropriate language")
 }));
 
 describe("RegisterForm", () => {

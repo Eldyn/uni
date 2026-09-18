@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Tooltip from "$components/common/Tooltip.svelte";
+	import RichText from "$components/common/RichText.svelte";
 
 	export interface RuleDef {
 		id: string;
@@ -23,9 +24,9 @@
 	<span class="rules-header">Custom Rules</span>
 	<div class="rules-grid">
 		{#each rules as rule (rule.id)}
-			<Tooltip>
+			<Tooltip interactive={true}>
 				{#snippet tooltipContent()}
-					<span>{rule.description}</span>
+					<RichText text={rule.description} allowKeywords={true} />
 				{/snippet}
 
 				<label class="toggle-label rule-label" class:disabled>

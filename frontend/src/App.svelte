@@ -1,6 +1,7 @@
 <script lang="ts">
 	import MainScreen from "./lib/components/MainScreen.svelte";
 	import Toast from "./lib/components/common/Toast.svelte";
+	import TooltipStack from "./lib/components/common/TooltipStack.svelte";
 	import ChatDock from "$components/chat/ChatDock.svelte";
 	import ShellFrame from "./lib/components/shell/ShellFrame.svelte";
 
@@ -132,7 +133,9 @@
 
 	async function handleAuthSuccess() {
 		await ws.connect().catch((error) => {
-			storeToast.error(`Failed to connect to server. Please try again. (${error})`);
+			storeToast.error(
+				m.app_toast_connect_failed({ error: String(error) }, { locale: storeI18n.locale })
+			);
 		});
 
 		// INFO: The modal overlays whatever screen was already current, don't
@@ -147,6 +150,7 @@
 
 <div id="svelte-root">
 	<Toast />
+	<TooltipStack />
 	<!-- Both sit in the match board's own bottom-left corner, which the local
 	     hand row now reaches into on every viewport — the stamp is reference
 	     information, not something worth printing over the player's cards. -->

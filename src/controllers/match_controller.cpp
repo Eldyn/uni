@@ -82,6 +82,14 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     }
 
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
     auto payload_res = ws::ParsePayload<ws::GamePlayCardPayload>(message);
     if (!payload_res) {
         broadcaster_.SendError(context.socket, context.op_code,
@@ -98,6 +106,13 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kInvalidMove, request_identifier);
         return;
+    }
+
+    if (active_lobby->settings.mode == "elimination") {
+        LobbyMember* m = active_lobby->FindMember(context.socket_data->username);
+        if (m && !active_lobby->match->GetPlayer(m->username)) {
+            m->is_spectator = true;
+        }
     }
 
     active_lobby->match->Tick();
@@ -118,6 +133,13 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     }
 
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
 
     bool was_draw_successful = active_lobby->match->DrawCard(context.socket_data->username);
 
@@ -143,6 +165,14 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     if (!active_lobby || !active_lobby->match) return;
 
     std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
     auto payload_res = ws::ParsePayload<ws::GameSubmitInputPayload>(message);
     if (!payload_res) {
         broadcaster_.SendError(context.socket, context.op_code,
@@ -175,19 +205,40 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
     if (is_match_over) {
         match_over_payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
         match_over_payload["winner"] = current_lobby->match->GetWinner();
+        match_over_payload["mode"] = current_lobby->settings.mode;
+        match_over_payload["placements"] = current_lobby->match->GetPlacements();
     }
 
     json base_state = current_lobby->match->SerializeBaseState();
+    int spectator_count = 0;
+    for (const auto& m : current_lobby->members) {
+        if (m.is_spectator && m.is_connected) {
+            spectator_count++;
+        }
+    }
+    base_state["spectator_count"] = spectator_count;
 
     for (const auto& lobby_member : current_lobby->members) {
         if (!lobby_member.is_connected || !lobby_member.socket) continue;
 
         json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
         json match_state = base_state;
-        for (auto& p_json : match_state["players"]) {
-            if (p_json["username"] == lobby_member.username) {
-                p_json["hand"] = current_lobby->match->SerializeHandFor(lobby_member.username);
-                break;
+
+        if (lobby_member.is_spectator) {
+            for (auto& p_json : match_state["players"]) {
+                std::string p_name = p_json["username"];
+                LobbyMember* p_member = current_lobby->FindMember(p_name);
+                bool privacy = p_member ? p_member->privacy_mode : false;
+                if (!privacy) {
+                    p_json["hand"] = current_lobby->match->SerializeHandFor(p_name);
+                }
+            }
+        } else {
+            for (auto& p_json : match_state["players"]) {
+                if (p_json["username"] == lobby_member.username) {
+                    p_json["hand"] = current_lobby->match->SerializeHandFor(lobby_member.username);
+                    break;
+                }
             }
         }
         response_payload["match_state"] = std::move(match_state);

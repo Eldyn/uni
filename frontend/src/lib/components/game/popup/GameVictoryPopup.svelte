@@ -4,6 +4,8 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 	import { BOT_COLOR, playerColorFor } from "$lib/palette";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
@@ -44,7 +46,9 @@
 	contentClass="victory-content pixel-corners"
 >
 	<h1 id="victory-title" class="result {isMe ? 'result--win' : 'result--lose'}">
-		{isMe ? "VICTORY!" : "YOU LOST!"}
+		{isMe
+			? m.game_victory_title({}, { locale: storeI18n.locale })
+			: m.game_defeat_title({}, { locale: storeI18n.locale })}
 	</h1>
 
 	<div class="avatar-stage">
@@ -56,11 +60,25 @@
 	</div>
 
 	<p class="winner-line">
-		Winner: <span class="winner-name">{winnerName}</span>
+		{m.game_winner_label({ name: winnerName }, { locale: storeI18n.locale })}
 	</p>
 
+	{#if storeGame.state?.mode === 'elimination' && storeGame.placements.length > 0}
+		<div class="elimination-results pixel-corners">
+			<h2 class="standings-heading">{m.game_placement_standings({}, { locale: storeI18n.locale })}</h2>
+			<ol class="standings-list">
+				{#each storeGame.placements as name, i}
+					<li class="standing-item {name === storeGame.localPlayer?.username ? 'is-local' : ''}">
+						<span class="rank">#{i + 1}</span>
+						<span class="name">{name}</span>
+					</li>
+				{/each}
+			</ol>
+		</div>
+	{/if}
+
 	<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
-		Back to Lobby
+		{m.game_back_to_lobby({}, { locale: storeI18n.locale })}
 	</button>
 </Modal>
 
@@ -180,5 +198,48 @@
 		font-weight: bold;
 		font-size: 1.35rem;
 		display: inline-block;
+	}
+
+	.elimination-results {
+		width: 100%;
+		background: var(--surface-2);
+		padding: 10px 14px;
+		box-sizing: border-box;
+	}
+
+	.standings-heading {
+		font-size: 0.9rem;
+		margin: 0 0 8px 0;
+		color: var(--text-h);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.standings-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.standing-item {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.9rem;
+		padding: 3px 8px;
+		color: var(--text);
+	}
+
+	.standing-item.is-local {
+		background: var(--surface-3);
+		color: var(--brand, #38bdf8);
+		font-weight: bold;
+	}
+
+	.standing-item .rank {
+		font-weight: bold;
+		color: var(--warning, #f59e0b);
 	}
 </style>

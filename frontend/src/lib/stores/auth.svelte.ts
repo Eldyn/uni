@@ -15,6 +15,8 @@ import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
 import { ws } from "./ws.svelte";
+import { storeI18n } from "./i18n.svelte";
+import * as m from "$lib/paraglide/messages.js";
 
 /**
  * @interface AuthFieldErrors
@@ -145,31 +147,33 @@ class StoreAuth {
 				const body = await res.json();
 				this.#setLoggedIn(body.username, "", Boolean(body.email_verified));
 				storeAnalytics.track("sign_up");
-				storeToast.success("Account created!");
+				storeToast.success(m.auth_toast_registered({}, { locale: storeI18n.locale }));
 				return {};
 			}
 
 			storeAnalytics.track("auth_error", { method: "register", reason: String(res.status) });
 
 			if (res.status === 409) {
-				return { username: "Username or email is already taken." };
+				return { username: m.auth_error_taken({}, { locale: storeI18n.locale }) };
 			}
 			if (res.status === 422) {
 				const body = await res.json().catch(() => ({}));
-				return { username: body.error ?? "Invalid input." };
+				return {
+					username: body.error ?? m.auth_error_invalid_input({}, { locale: storeI18n.locale })
+				};
 			}
 			// 429: per-IP auth rate limiter (shared across all /auth/* routes).
 			if (res.status === 429) {
 				const body = await res.json().catch(() => ({}));
 				return {
-					username: body.error ?? "Too many attempts, please wait and try again."
+					username: body.error ?? m.auth_error_rate_limited({}, { locale: storeI18n.locale })
 				};
 			}
 
-			storeToast.error("Registration failed, please try again.");
+			storeToast.error(m.auth_toast_register_failed({}, { locale: storeI18n.locale }));
 			return {};
 		} catch {
-			storeToast.error("Network error, check your connection.");
+			storeToast.error(m.auth_toast_network_error({}, { locale: storeI18n.locale }));
 			return {};
 		} finally {
 			this.isLoading = false;
@@ -212,7 +216,7 @@ class StoreAuth {
 
 			// 401 is always "bad credentials", don't leak which field is wrong
 			if (res.status === 401) {
-				return { email: "Incorrect email or password." };
+				return { email: m.auth_error_bad_credentials({}, { locale: storeI18n.locale }) };
 			}
 
 			// 429: per-(email,ip) lockout after repeated failures, or the
@@ -220,14 +224,14 @@ class StoreAuth {
 			if (res.status === 429) {
 				const body = await res.json().catch(() => ({}));
 				return {
-					email: body.error ?? "Too many attempts, please wait and try again."
+					email: body.error ?? m.auth_error_rate_limited({}, { locale: storeI18n.locale })
 				};
 			}
 
-			storeToast.error("Login failed, please try again.");
+			storeToast.error(m.auth_toast_login_failed({}, { locale: storeI18n.locale }));
 			return {};
 		} catch {
-			storeToast.error("Network error, check your connection.");
+			storeToast.error(m.auth_toast_network_error({}, { locale: storeI18n.locale }));
 			return {};
 		} finally {
 			this.isLoading = false;
@@ -247,7 +251,7 @@ class StoreAuth {
 		try {
 			const res = await fetch("/auth/guest", { method: "POST", credentials: "include" });
 			if (!res.ok) {
-				storeToast.error("Could not start a guest session, please try again.");
+				storeToast.error(m.auth_toast_guest_failed({}, { locale: storeI18n.locale }));
 				return false;
 			}
 			const data = await res.json();
@@ -257,7 +261,7 @@ class StoreAuth {
 			storeAnalytics.track("guest_session");
 			return true;
 		} catch {
-			storeToast.error("Network error, check your connection.");
+			storeToast.error(m.auth_toast_network_error({}, { locale: storeI18n.locale }));
 			return false;
 		} finally {
 			this.isLoading = false;
@@ -274,10 +278,10 @@ class StoreAuth {
 			const prev = this.avatar;
 			this.avatar = URL.createObjectURL(file);
 			if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-			storeToast.success("Profile picture updated locally!");
+			storeToast.success(m.auth_toast_avatar_updated({}, { locale: storeI18n.locale }));
 			return true;
 		} catch {
-			storeToast.error("Unable to load the image.");
+			storeToast.error(m.auth_toast_avatar_load_failed({}, { locale: storeI18n.locale }));
 			return false;
 		}
 	}
@@ -288,7 +292,7 @@ class StoreAuth {
 	async logout(): Promise<void> {
 		const res = await fetch("/auth/logout", { method: "POST", credentials: "include" });
 		if (!res.ok) {
-			storeToast.error("Logout failed, please try again.");
+			storeToast.error(m.auth_toast_logout_failed({}, { locale: storeI18n.locale }));
 			return;
 		}
 		this.setLoggedOut();

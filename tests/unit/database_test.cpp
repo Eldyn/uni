@@ -10,7 +10,7 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 5);
+    CHECK(ver.value()->Get<int>("user_version") == 6);
 }
 
 TEST_CASE("migrations: expected tables exist") {
@@ -26,6 +26,24 @@ TEST_CASE("migrations: expected tables exist") {
     rows = Database::Get().Query(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
         {std::string("player_stats")});
+    REQUIRE(rows.has_value());
+    CHECK(rows->size() == 1);
+
+    rows = Database::Get().Query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        {std::string("match_history")});
+    REQUIRE(rows.has_value());
+    CHECK(rows->size() == 1);
+
+    rows = Database::Get().Query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        {std::string("email_verification_codes")});
+    REQUIRE(rows.has_value());
+    CHECK(rows->size() == 1);
+
+    rows = Database::Get().Query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        {std::string("email_send_log")});
     REQUIRE(rows.has_value());
     CHECK(rows->size() == 1);
 }

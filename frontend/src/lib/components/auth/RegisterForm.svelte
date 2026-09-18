@@ -4,6 +4,8 @@
 	import FormInput from "$components/common/FormInput.svelte";
 	import VerifyCodeForm from "$components/auth/VerifyCodeForm.svelte";
 	import { censorText, loadCensorData } from "$utils/censor.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let { onRegisterSuccess }: { onRegisterSuccess?: () => void } = $props();
 
@@ -35,7 +37,7 @@
 
 		await loadCensorData();
 		if (censorText(form.username) !== form.username) {
-			errors.username = "Please choose a different username.";
+			errors.username = m.auth_error_censor_username({}, { locale: storeI18n.locale });
 			return;
 		}
 
@@ -64,10 +66,10 @@
 	<form onsubmit={handleSubmit} class="auth-form">
 		<FormInput
 			id="register-username"
-			label="Username:"
+			label={m.auth_username_label({}, { locale: storeI18n.locale })}
 			bind:value={form.username}
 			error={errors.username}
-			placeholder="Choose a username"
+			placeholder={m.auth_username_placeholder({}, { locale: storeI18n.locale })}
 			disabled={storeAuth.isLoading}
 			name="username"
 			autocomplete="username"
@@ -76,10 +78,10 @@
 		<FormInput
 			id="register-email"
 			type="email"
-			label="Email:"
+			label={m.auth_email_label({}, { locale: storeI18n.locale })}
 			bind:value={form.email}
 			error={errors.email}
-			placeholder="Enter your email"
+			placeholder={m.auth_email_placeholder({}, { locale: storeI18n.locale })}
 			disabled={storeAuth.isLoading}
 			name="email"
 			autocomplete="email"
@@ -88,10 +90,10 @@
 		<FormInput
 			id="register-password"
 			type="password"
-			label="Password:"
+			label={m.auth_password_label({}, { locale: storeI18n.locale })}
 			bind:value={form.password}
 			error={errors.password}
-			placeholder="Create a strong password"
+			placeholder={m.auth_password_create_placeholder({}, { locale: storeI18n.locale })}
 			disabled={storeAuth.isLoading}
 			name="password"
 			autocomplete="new-password"
@@ -100,17 +102,19 @@
 		<FormInput
 			id="register-confirm-password"
 			type="password"
-			label="Confirm Password:"
+			label={m.auth_confirm_password_label({}, { locale: storeI18n.locale })}
 			bind:value={form.confirmPassword}
 			error={errors.confirmPassword}
-			placeholder="Confirm your password"
+			placeholder={m.auth_confirm_password_placeholder({}, { locale: storeI18n.locale })}
 			disabled={storeAuth.isLoading}
 			name="confirm-password"
 			autocomplete="new-password"
 		/>
 
 		<button type="submit" disabled={storeAuth.isLoading} class="btn pixel-corners">
-			{storeAuth.isLoading ? "Registering..." : "Register"}
+			{storeAuth.isLoading
+				? m.auth_registering({}, { locale: storeI18n.locale })
+				: m.auth_submit_register({}, { locale: storeI18n.locale })}
 		</button>
 	</form>
 {:else}

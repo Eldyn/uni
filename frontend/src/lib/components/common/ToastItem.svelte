@@ -1,13 +1,21 @@
 <script lang="ts">
 	import { usePan, type GestureCustomEvent } from "svelte-gestures";
 	import { storeToast, type Toast, type ToastType } from "$stores/toast.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
-	const PREFIX: Record<ToastType, string> = {
-		success: "SUCCESS!",
-		error: "ERROR!",
-		warning: "WARNING!",
-		info: "INFO!"
-	};
+	function getPrefix(type: ToastType): string {
+		switch (type) {
+			case "success":
+				return m.toast_prefix_success({}, { locale: storeI18n.locale });
+			case "error":
+				return m.toast_prefix_error({}, { locale: storeI18n.locale });
+			case "warning":
+				return m.toast_prefix_warning({}, { locale: storeI18n.locale });
+			case "info":
+				return m.toast_prefix_info({}, { locale: storeI18n.locale });
+		}
+	}
 
 	// Fixed threshold rather than a percentage of the toast's own width, the
 	// container is capped at 400px and shrinks to full viewport width on
@@ -138,7 +146,7 @@
 			{/if}
 		</span>
 		<span class="toast-message">
-			<span class="toast-prefix">{PREFIX[toast.type]}</span>
+			<span class="toast-prefix">{getPrefix(toast.type)}</span>
 			{toast.message}
 		</span>
 	</div>
@@ -146,7 +154,7 @@
 		type="button"
 		class="toast-close"
 		onclick={() => storeToast.remove(toast.id)}
-		aria-label="Close notification"
+		aria-label={m.toast_close_aria({}, { locale: storeI18n.locale })}
 	>
 		×
 	</button>

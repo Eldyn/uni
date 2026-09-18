@@ -2,6 +2,8 @@
 	import { chatStore, type ChatFriendStatus } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	let { onselect }: { onselect: () => void } = $props();
 
@@ -26,20 +28,24 @@
 		offline: "bg-zinc-500",
 		online: "bg-green-500"
 	};
-	const STATUS_LABEL: Record<ChatFriendStatus, string> = {
-		offline: "Offline",
-		online: "Online"
-	};
+
+	function statusLabel(status: ChatFriendStatus): string {
+		return status === "online"
+			? m.chat_friends_status_online({}, { locale: storeI18n.locale })
+			: m.chat_friends_status_offline({}, { locale: storeI18n.locale });
+	}
 </script>
 
 {#if storeAuth.isGuest}
 	<div class="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-		<p class="font-tiny text-sm text-text/70">Guests cannot add friends.</p>
+		<p class="font-tiny text-sm text-text/70">
+			{m.chat_friends_guest_notice({}, { locale: storeI18n.locale })}
+		</p>
 		<button
 			class="pixel-bordered px-4 py-2 font-pixel text-xs uppercase text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 			onclick={() => storeNavigation.gotoAuth("register")}
 		>
-			Register
+			{m.chat_friends_guest_register({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
 {:else}
@@ -49,20 +55,22 @@
 				bind:value={requestUsername}
 				onkeydown={(e) => e.key === "Enter" && sendRequest()}
 				class="min-w-0 flex-1 bg-transparent px-1 font-tiny text-sm text-text-h placeholder:text-text/60"
-				placeholder="Add friend by username…"
-				aria-label="Add friend by username"
+				placeholder={m.chat_friends_search_placeholder({}, { locale: storeI18n.locale })}
+				aria-label={m.chat_friends_search_aria({}, { locale: storeI18n.locale })}
 			/>
 			<button
 				class="pixel-bordered px-2 py-1 font-pixel text-xs uppercase text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
 				onclick={sendRequest}
 			>
-				Add
+				{m.chat_friends_add_button({}, { locale: storeI18n.locale })}
 			</button>
 		</div>
 
 		{#if chatStore.incomingRequests.length > 0}
 			<div class="border-b-2 border-border px-1 py-2">
-				<p class="mb-1 font-pypx text-xs font-bold uppercase text-text/70">Requests</p>
+				<p class="mb-1 font-pypx text-xs font-bold uppercase text-text/70">
+					{m.chat_friends_requests_heading({}, { locale: storeI18n.locale })}
+				</p>
 				{#each chatStore.incomingRequests as username (username)}
 					<div class="flex items-center justify-between gap-2 py-1">
 						<span class="font-tiny text-sm text-text-h">{username}</span>
@@ -71,13 +79,13 @@
 								class="px-2 py-0.5 font-pixel text-[10px] uppercase text-green-500 hover:text-green-400"
 								onclick={() => chatStore.respondToRequest(username, true)}
 							>
-								Accept
+								{m.chat_friends_accept({}, { locale: storeI18n.locale })}
 							</button>
 							<button
 								class="px-2 py-0.5 font-pixel text-[10px] uppercase text-danger hover:text-red-400"
 								onclick={() => chatStore.respondToRequest(username, false)}
 							>
-								Reject
+								{m.chat_friends_reject({}, { locale: storeI18n.locale })}
 							</button>
 						</div>
 					</div>
@@ -92,9 +100,9 @@
 			>
 				<span
 					class="h-2 w-2 shrink-0 {STATUS_DOT[friend.status]}"
-					title={STATUS_LABEL[friend.status]}
+					title={statusLabel(friend.status)}
 				></span>
-				<span class="sr-only">{STATUS_LABEL[friend.status]}</span>
+				<span class="sr-only">{statusLabel(friend.status)}</span>
 				<span class="font-tiny text-sm" style="color: {friend.color};">{friend.username}</span>
 			</button>
 		{/each}

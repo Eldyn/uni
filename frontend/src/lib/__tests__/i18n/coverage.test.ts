@@ -42,3 +42,28 @@ describe("i18n coverage for the P1.1 polish screens", () => {
 		});
 	}
 });
+
+describe("structural catalog parity and non-empty values", () => {
+	const enKeys = Object.keys(en).filter((k) => k !== "$schema").sort();
+	const itKeys = Object.keys(itLocale).filter((k) => k !== "$schema").sort();
+
+	it("en.json and it.json key sets are identical", () => {
+		expect(enKeys).toEqual(itKeys);
+	});
+
+	it("no value in en.json is empty or whitespace-only", () => {
+		for (const key of enKeys) {
+			const val = (en as Record<string, string>)[key];
+			expect(typeof val).toBe("string");
+			expect(val.trim().length, `en.json key "${key}" has empty value`).toBeGreaterThan(0);
+		}
+	});
+
+	it("no value in it.json is empty or whitespace-only", () => {
+		for (const key of itKeys) {
+			const val = (itLocale as Record<string, string>)[key];
+			expect(typeof val).toBe("string");
+			expect(val.trim().length, `it.json key "${key}" has empty value`).toBeGreaterThan(0);
+		}
+	});
+});

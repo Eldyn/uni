@@ -3,6 +3,8 @@
 	import { storeAudio } from "$stores/audio.svelte";
 	import { useGameLayoutContext } from "../game-layout-context.svelte";
 	import { worldToScreenPercent } from "../layout/screenProjection";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	const layout = useGameLayoutContext();
 	let screenPercent = $derived.by(() => {
@@ -25,7 +27,9 @@
 			? `left: ${screenPercent.leftPercent}%; top: ${screenPercent.topPercent}%; transform: translate(-50%, -100%);`
 			: undefined}
 	>
-		<div class="prompt-badge pixel-corners">You drew a playable card!</div>
+		<div class="prompt-badge pixel-corners">
+			{m.game_action_drew_playable({}, { locale: storeI18n.locale })}
+		</div>
 		<div class="action-buttons-group">
 			<button
 				type="button"
@@ -38,7 +42,7 @@
 					storeGame.submitInput("0");
 				}}
 			>
-				Play It
+				{m.game_action_play_it({}, { locale: storeI18n.locale })}
 			</button>
 			<button
 				class="btn pixel-corners sized-btn keep-btn"
@@ -49,7 +53,7 @@
 					storeGame.submitInput("1");
 				}}
 			>
-				Keep It
+				{m.game_action_keep_it({}, { locale: storeI18n.locale })}
 			</button>
 		</div>
 	</div>

@@ -250,6 +250,13 @@ private:
     void HandleToggleReady(WsContext context, const nlohmann::json& message);
 
     /**
+     * @brief Updates the caller's streamer / privacy mode preference.
+     * @param context Caller's socket/session context.
+     * @param message Incoming user_update_privacy payload.
+     */
+    void HandleUserUpdatePrivacy(WsContext context, const nlohmann::json& message);
+
+    /**
      * @brief Serializes the member list into JSON format for sending via WebSocket.
      * @param lobby The lobby whose members to serialize.
      * @return json JSON object representing the members.

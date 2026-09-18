@@ -140,7 +140,7 @@
 	{/if}
 {/each}
 
-{#if storeGame.localPlayer}
+{#if storeGame.localPlayer && !storeGame.isSpectator}
 	<LocalSeat3D
 		player={storeGame.localPlayer}
 		color={colorFor(storeGame.localPlayer.username)}

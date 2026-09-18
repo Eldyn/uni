@@ -6,6 +6,7 @@
 		type Align,
 		type Rect
 	} from "$lib/utils/anchorPlacement";
+	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 	interface Props {
 		children: Snippet;
@@ -14,6 +15,8 @@
 		align?: Align;
 		offset?: number;
 		openDelay?: number;
+		closeDelay?: number;
+		interactive?: boolean;
 		id?: string;
 		class?: string;
 		avoidRects?: Rect[];
@@ -26,6 +29,8 @@
 		align = "center",
 		offset = 8,
 		openDelay = 150,
+		closeDelay = 300,
+		interactive = false,
 		id,
 		class: extraClass = "",
 		avoidRects
@@ -43,6 +48,7 @@
 	let placedSide = $state<Side>("top");
 
 	let openTimer: ReturnType<typeof setTimeout> | undefined;
+	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
@@ -76,6 +82,7 @@
 
 	function handleMouseEnter() {
 		clearTimeout(openTimer);
+		clearTimeout(closeTimer);
 		openTimer = setTimeout(async () => {
 			isVisible = true;
 			await tick();
@@ -85,19 +92,49 @@
 
 	function handleMouseLeave() {
 		clearTimeout(openTimer);
-		isVisible = false;
+		if (interactive) {
+			closeTimer = setTimeout(() => {
+				isVisible = false;
+			}, closeDelay);
+		} else {
+			isVisible = false;
+		}
+	}
+
+	function handleTooltipMouseEnter() {
+		if (!interactive) return;
+		clearTimeout(closeTimer);
+	}
+
+	function handleTooltipMouseLeave() {
+		if (!interactive) return;
+		clearTimeout(closeTimer);
+		closeTimer = setTimeout(() => {
+			isVisible = false;
+		}, closeDelay);
 	}
 
 	async function handleFocusIn() {
 		clearTimeout(openTimer);
+		clearTimeout(closeTimer);
 		isVisible = true;
 		await tick();
 		updatePosition();
 	}
 
-	function handleFocusOut() {
+	function handleFocusOut(e: FocusEvent) {
 		clearTimeout(openTimer);
-		isVisible = false;
+		if (interactive) {
+			const related = e.relatedTarget as Node | null;
+			if (related && (containerEl?.contains(related) || tooltipEl?.contains(related))) {
+				return;
+			}
+			closeTimer = setTimeout(() => {
+				isVisible = false;
+			}, closeDelay);
+		} else {
+			isVisible = false;
+		}
 	}
 
 	$effect(() => {
@@ -111,6 +148,12 @@
 			window.removeEventListener("scroll", update, true);
 			window.removeEventListener("resize", update);
 		};
+	});
+
+	$effect(() => {
+		if (storeTooltipStack.stack.length > 0 && isVisible) {
+			isVisible = false;
+		}
 	});
 
 	$effect(() => {
@@ -144,10 +187,15 @@
 			id={tooltipId}
 			role="tooltip"
 			class="pixel-bordered pixel-popover-tooltip"
+			class:interactive
 			use:portal
 			data-side={placedSide}
 			style:left="{posX}px"
 			style:top="{posY}px"
+			onmouseenter={handleTooltipMouseEnter}
+			onmouseleave={handleTooltipMouseLeave}
+			onfocusin={() => clearTimeout(closeTimer)}
+			onfocusout={handleFocusOut}
 		>
 			{@render tooltipContent()}
 		</div>
@@ -178,5 +226,16 @@
 
 		white-space: normal;
 		max-width: 320px;
+	}
+
+	.pixel-popover-tooltip.interactive {
+		pointer-events: auto;
+	}
+
+	.pixel-popover-tooltip.interactive::before {
+		content: "";
+		position: absolute;
+		inset: -10px;
+		z-index: -1;
 	}
 </style>

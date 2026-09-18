@@ -79,4 +79,49 @@ describe("parseRichText", () => {
 	it("degrades an effect tag with an unrecognized value to literal text", () => {
 		expect(parseRichText("[fx=bogus]oops[/fx]")).toEqual([{ text: "[fx=bogus]oops[/fx]" }]);
 	});
+
+	it("keeps keyword tag as literal text when allowKeywords is false or omitted", () => {
+		expect(parseRichText("[k=draw]Draw[/k]")).toEqual([{ text: "[k=draw]Draw[/k]" }]);
+		expect(parseRichText("[k=draw]Draw[/k]", { allowKeywords: false })).toEqual([
+			{ text: "[k=draw]Draw[/k]" }
+		]);
+	});
+
+	it("parses keyword tag when allowKeywords is true", () => {
+		const segments = parseRichText("Please [k=draw]Draw Two[/k] cards", { allowKeywords: true });
+		expect(segments).toEqual([
+			{ text: "Please " },
+			{ text: "Draw Two", keyword: "draw" },
+			{ text: " cards" }
+		]);
+	});
+
+	it("combines keyword with bold and color formatting", () => {
+		const segments = parseRichText("[k=wild][c=#ff0000]**Wild Card**[/c][/k]", {
+			allowKeywords: true
+		});
+		expect(segments).toEqual([
+			{ text: "Wild Card", bold: true, color: "#ff0000", keyword: "wild" }
+		]);
+	});
+
+	it("degrades unmatched keyword tags to literal text", () => {
+		expect(parseRichText("[k=draw]open only", { allowKeywords: true })).toEqual([
+			{ text: "[k=draw]open only" }
+		]);
+		expect(parseRichText("stray[/k] close", { allowKeywords: true })).toEqual([
+			{ text: "stray[/k] close" }
+		]);
+	});
+
+	it("handles nested keyword tags and pops stack correctly", () => {
+		const segments = parseRichText("[k=turn]On your [k=draw]draw[/k] step[/k]", {
+			allowKeywords: true
+		});
+		expect(segments).toEqual([
+			{ text: "On your ", keyword: "turn" },
+			{ text: "draw", keyword: "draw" },
+			{ text: " step", keyword: "turn" }
+		]);
+	});
 });

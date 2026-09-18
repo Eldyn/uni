@@ -414,3 +414,9 @@ export class WebSocketClient {
 }
 
 export const ws = new WebSocketClient();
+
+ws.onOpen(() => {
+	if (typeof localStorage !== "undefined" && localStorage.getItem("uni_privacy_mode") === "true") {
+		ws.emit(ClientAction.UserUpdatePrivacy, { privacy_mode: true });
+	}
+});

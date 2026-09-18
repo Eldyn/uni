@@ -46,6 +46,8 @@ const ERROR_TEXT: Record<string, () => string> = {
 		m.error_friend_request_exists({}, { locale: storeI18n.locale }),
 	[ErrorCode.FriendRequestNotFound]: () =>
 		m.error_friend_request_not_found({}, { locale: storeI18n.locale }),
+	[ErrorCode.SpectatorCannotAct]: () =>
+		m.error_spectator_cannot_act({}, { locale: storeI18n.locale }),
 	[ErrorCode.InternalError]: () => m.error_internal({}, { locale: storeI18n.locale })
 };
 

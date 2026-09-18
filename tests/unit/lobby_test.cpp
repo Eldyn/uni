@@ -429,6 +429,23 @@ TEST_CASE("lobby: AddOrHijack reports full when at the lobby's max_players capac
     CHECK_EQ(lobby.members.size(), static_cast<std::size_t>(lobby.settings.max_players));
 }
 
+TEST_CASE("lobby: AddOrHijack admits mid-game joiner as spectator when no bots are hijackable") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = false;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+
+    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
+    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kJoinedAsSpectator);
+    LobbyMember* m = lobby.FindMember("Charlie");
+    REQUIRE(m);
+    CHECK(m->is_spectator);
+}
+
 TEST_CASE("lobby: AddOrHijack allows more than 4 members up to max_players") {
     Lobby lobby;
     lobby.id = 1;
@@ -588,4 +605,18 @@ TEST_CASE("lobby: LobbySettings ranked defaults to true and roundtrips through j
     j["ranked"] = false;
     LobbySettings unranked = j.get<LobbySettings>();
     CHECK(unranked.ranked == false);
+}
+
+TEST_CASE("lobby: 120s grace period is respected") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+
+    lobby.members.emplace_back("Bob", nullptr, false, false);
+    lobby.members.back().disconnected_at = std::chrono::steady_clock::now() - std::chrono::seconds(130);
+
+    auto expired = lobby.CollectExpiredDisconnects(std::chrono::steady_clock::now(), 120'000);
+    REQUIRE_EQ(expired.size(), 1);
+    CHECK_EQ(expired[0], "Bob");
 }

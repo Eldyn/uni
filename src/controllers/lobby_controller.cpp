@@ -29,7 +29,7 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
                                   ITimerService& timers, PresenceRegistry& presence)
     : action_router_(router), broadcaster_(broadcast), timer_service_(timers),
       presence_(presence) {
-    reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 30'000));
+    reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 120'000));
     absolute_max_lobby_members_ = std::clamp(
         Env::GetInt("ABSOLUTE_MAX_LOBBY_MEMBERS", contract::kMaxLobbyMembers),
         2, contract::kMaxLobbyMembers);
@@ -95,6 +95,12 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
     action_router_.On(ws::ClientAction::kLobbyToggleReady,
                       [this](WsContext context, const nlohmann::json& message) {
         HandleToggleReady(context, message);
+        return true;
+    });
+
+    action_router_.On(ws::ClientAction::kUserUpdatePrivacy,
+                      [this](WsContext context, const nlohmann::json& message) {
+        HandleUserUpdatePrivacy(context, message);
         return true;
     });
 
@@ -236,7 +242,10 @@ void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
 
         if (lobby.members.size() == 1) {
             const std::string& winner = lobby.members.front().username;
+            lobby.match->RecordMatchCompleted(winner);
             for (auto& cb : on_match_aborted_) cb(&lobby, winner);
+        } else {
+            lobby.match->RecordMatchAborted();
         }
 
         lobby.match.reset();
@@ -405,12 +414,6 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
         return;
     }
 
-    if (lobby.match && !lobby.settings.allow_bot_takeover) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code,
-                               contract::ErrorCode::kJoinDisabledInMatch, request_id);
-        return;
-    }
-
     JoinResult result = lobby.AddOrHijack(username, ctx.socket);
 
     switch (result.outcome) {
@@ -419,6 +422,9 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
             break;
         case JoinOutcome::kJoinedEmptySlot:
             Logger::Info("[Lobby] '", username, "' joined an empty slot.");
+            break;
+        case JoinOutcome::kJoinedAsSpectator:
+            Logger::Info("[Lobby] '", username, "' joined ongoing match as spectator.");
             break;
         case JoinOutcome::kLobbyFull:
             broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kLobbyFull,
@@ -446,9 +452,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
     BroadcastUpdate(lobby);
 
     if (lobby.match) {
-        auto game_resp = MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        game_resp["match_state"] = lobby.match->SerializePlayerState(username);
-        broadcaster_.Send(ctx.socket, game_resp.dump(), ctx.op_code);
+        SendMatchStateToSocket(lobby, ctx.socket, username, ctx.op_code);
     }
 }
 
@@ -865,6 +869,15 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
+    // Clears the is_spectator flag left over from a previous match's elimination
+    // (match_controller.cpp sets it on knockout). Only seated members are reset;
+    // voluntary spectators (seat_index == -1, joined mid-match) stay spectators.
+    for (auto& lobby_member : lobby.members) {
+        if (lobby_member.seat_index != -1) {
+            lobby_member.is_spectator = false;
+        }
+    }
+
     std::vector<std::tuple<std::string, bool, int>> players_info;
     for (const auto& lobby_member : lobby.members) {
         players_info.push_back(
@@ -906,7 +919,9 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
             {"is_host",   m.username == lobby.host},
             {"is_bot", m.is_bot},
             {"seat_index", m.seat_index},
-            {"is_ready", m.is_bot || m.is_ready}
+            {"is_ready", m.is_bot || m.is_ready},
+            {"is_spectator", m.is_spectator},
+            {"privacy_mode", m.privacy_mode}
         });
     }
     return arr;
@@ -921,7 +936,24 @@ void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* w
                                               uWS::OpCode op_code) const {
     if (!lobby.match) return;
     json resp = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-    resp["match_state"] = lobby.match->SerializePlayerState(username);
+    const LobbyMember* m = lobby.FindMember(username);
+    if (m && m->is_spectator) {
+        json match_state = lobby.match->SerializeBaseState();
+        int spectator_count = 0;
+        for (const auto& mem : lobby.members) if (mem.is_spectator && mem.is_connected) spectator_count++;
+        match_state["spectator_count"] = spectator_count;
+        for (auto& p_json : match_state["players"]) {
+            std::string p_name = p_json["username"];
+            const LobbyMember* p_member = lobby.FindMember(p_name);
+            bool privacy = p_member ? p_member->privacy_mode : false;
+            if (!privacy) {
+                p_json["hand"] = lobby.match->SerializeHandFor(p_name);
+            }
+        }
+        resp["match_state"] = std::move(match_state);
+    } else {
+        resp["match_state"] = lobby.match->SerializePlayerState(username);
+    }
     if (lobby.match->IsWaitingForInput() && lobby.match->GetPendingPlayer() == username) {
         resp["action_required"] = static_cast<int>(lobby.match->GetPendingAction());
         const std::string ctx = lobby.match->GetPendingInputContext();
@@ -1044,4 +1076,19 @@ Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
     uint32_t lobby_id = presence_.GetUserLobbyId(username);
     if (lobby_id == 0) return nullptr;
     return GetLobbyById(lobby_id);
+}
+
+void LobbyController::HandleUserUpdatePrivacy(WsContext context, const nlohmann::json& message) {
+    bool privacy = ws::GetOr<bool>(message, "privacy_mode", false);
+    if (context.socket_data) {
+        context.socket_data->privacy_mode = privacy;
+    }
+    Lobby* lobby = GetLobbyById(context.socket_data->lobby_id);
+    if (lobby) {
+        LobbyMember* member = lobby->FindMember(context.socket_data->username);
+        if (member) {
+            member->privacy_mode = privacy;
+            BroadcastUpdate(*lobby);
+        }
+    }
 }

@@ -4,6 +4,7 @@
  * reconciliation.
  */
 #include "common/lobby.hpp"
+#include "websocket_context.hpp"
 #include <common/bot_names.hpp>
 #include <match/match_instance.hpp>
 #include <match/rule_registry.hpp>
@@ -27,6 +28,8 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
                                  contract::kStartingCardsMin, contract::kStartingCardsMax);
     bot_count = std::clamp(bot_count, contract::kBotCountMin, contract::kBotCountMax);
     max_players = std::clamp(max_players, 2, max_players_ceiling);
+    if (mode != "elimination") mode = "standard";
+    survivor_count = std::clamp(survivor_count, 1, std::max(1, max_players - 1));
 
     const int deck_size = DeckSize();
     if (deck_size > 0) {
@@ -129,6 +132,9 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     if (settings.quit_deletes_match) {
         result.match_outcome = MemberRemovalOutcome::kMatchAborted;
         result.old_username = old_name;
+        if (match) {
+            match->RecordMatchAborted();
+        }
         members.erase(member_it);
     } else if (settings.allow_bot_replacement) {
         std::string new_bot_name = PickBotName(rng);
@@ -144,12 +150,19 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
             engine_player->is_bot = true;
         }
 
+        if (match) {
+            match->RecordPlayerQuit(old_name);
+        }
+
         result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
         result.old_username = old_name;
         result.new_bot_name = new_bot_name;
         result.was_their_turn = was_their_turn;
     } else {
-        match->RemovePlayerMidGame(old_name);
+        if (match) {
+            match->RecordPlayerQuit(old_name);
+            match->RemovePlayerMidGame(old_name);
+        }
         members.erase(member_it);
 
         result.match_outcome = MemberRemovalOutcome::kPlayerDroppedFromEngine;
@@ -173,6 +186,12 @@ bool Lobby::PromoteNextHost() {
 JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket) {
     JoinResult result;
 
+    bool user_privacy = false;
+    if (socket) {
+        auto* data = socket->getUserData();
+        if (data) user_privacy = data->privacy_mode;
+    }
+
     if (settings.allow_bot_takeover) {
         for (auto& member : members) {
             if (member.is_bot) {
@@ -182,6 +201,8 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
                 member.socket = socket;
                 member.is_connected = true;
                 member.is_bot = false;
+                member.is_spectator = false;
+                member.privacy_mode = user_privacy;
 
                 if (match) {
                     match::Player* engine_player = match->GetPlayer(old_bot_name);
@@ -198,13 +219,16 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
         }
     }
 
+    if (match) {
+        // When match in progress and no bot seat was hijacked, join as spectator!
+        members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true, user_privacy);
+        result.outcome = JoinOutcome::kJoinedAsSpectator;
+        return result;
+    }
+
     if (static_cast<int>(members.size()) < settings.max_players) {
         int seat = NextFreeSeat();
-        members.emplace_back(username, socket, true, false, seat);
-
-        if (match) {
-            match->AddPlayerMidGame(username, false, seat);
-        }
+        members.emplace_back(username, socket, true, false, seat, /*is_spectator=*/false, user_privacy);
 
         result.outcome = JoinOutcome::kJoinedEmptySlot;
         return result;

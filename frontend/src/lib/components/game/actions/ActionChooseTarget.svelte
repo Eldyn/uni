@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 
 	function autofocus(node: HTMLElement, enabled = true) {
 		if (enabled) {
@@ -22,7 +24,7 @@
 {#if storeGame.actionRequired === Action.ChooseTarget}
 	<div class="inline-action-container">
 		<div class="cute-bubble pixel-corners">
-			<h2 class="choose-target-text">Select a Target!</h2>
+			<h2 class="choose-target-text">{m.game_action_choose_target({}, { locale: storeI18n.locale })}</h2>
 			{#if targetList.length > 0}
 				<div class="target-buttons">
 					{#each targetList as username, i (username)}

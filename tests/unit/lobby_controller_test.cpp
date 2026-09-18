@@ -326,6 +326,42 @@ TEST_CASE("start: succeeds once every human member is ready") {
     CHECK(lp->match != nullptr);
 }
 
+TEST_CASE("start: clears is_spectator left over from a prior elimination for seated members") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+
+    // Simulate bob having been eliminated mid-match last round: he kept his
+    // seat but match_controller.cpp flagged him as a spectator.
+    for (auto& m : lp->members) {
+        if (m.username == "bob") m.is_spectator = true;
+    }
+
+    // Simulate a voluntary spectator who joined mid-match with no seat; they
+    // must stay a spectator after the flag reset.
+    lp->members.emplace_back("carol", nullptr, true, false, -1, /*is_spectator=*/true, false);
+    lp->members.back().is_ready = true;
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    bool bob_spectator = true;
+    bool carol_spectator = false;
+    for (const auto& m : lp->members) {
+        if (m.username == "bob") bob_spectator = m.is_spectator;
+        if (m.username == "carol") carol_spectator = m.is_spectator;
+    }
+    CHECK_FALSE(bob_spectator);
+    CHECK(carol_spectator);
+}
+
 TEST_CASE("kick: host can kick bob") {
     LobbyFixture f;
     std::string code = f.alice_creates();

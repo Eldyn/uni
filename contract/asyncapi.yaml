@@ -66,6 +66,7 @@ channels:
           - $ref: "#/components/messages/FriendResponse"
           - $ref: "#/components/messages/FriendListRequest"
           - $ref: "#/components/messages/MetadataRequest"
+          - $ref: "#/components/messages/UserUpdatePrivacy"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -557,6 +558,12 @@ components:
           request_id:
             type: string
 
+    UserUpdatePrivacy:
+      name: user_update_privacy
+      title: Update Player Privacy Mode
+      payload:
+        $ref: "#/components/schemas/UserUpdatePrivacyPayload"
+
   # -------------------------------------------------------------------------
   # Schemas
   # -------------------------------------------------------------------------
@@ -724,6 +731,15 @@ components:
           minimum: 2
           maximum: 20
           x-constants: { minimum: StartingCardsMin, maximum: StartingCardsMax }
+        mode:
+          type: string
+          enum: ["standard", "elimination"]
+          description: Game mode (standard or elimination).
+        survivor_count:
+          type: integer
+          minimum: 1
+          maximum: 15
+          description: Number of survivors remaining when elimination match ends (default 1).
         active_mods:
           type: array
           items:
@@ -826,6 +842,21 @@ components:
             Op-specific fields (e.g. move's destination slot, screenEffect's
             effect name and duration).
 
+    UserUpdatePrivacyPayload:
+      type: object
+      required:
+        - action
+        - privacy_mode
+      properties:
+        action:
+          type: string
+          enum: ["user_update_privacy"]
+        request_id:
+          type: string
+        privacy_mode:
+          type: boolean
+          description: Whether streamer / privacy mode is enabled (hides hand from spectators).
+
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)
   # -------------------------------------------------------------------------
@@ -896,4 +927,5 @@ components:
         FriendRequestInvalid: friend_request_invalid
         FriendRequestExists: friend_request_exists
         FriendRequestNotFound: friend_request_not_found
+        SpectatorCannotAct: spectator_cannot_act
         InternalError: internal_error
