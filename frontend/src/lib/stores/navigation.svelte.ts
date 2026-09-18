@@ -63,6 +63,7 @@ interface HistoryState {
 	authModalOpen: boolean;
 	authTab: "login" | "register";
 	settingsOpen: boolean;
+	verifyModalOpen?: boolean;
 }
 
 /**
@@ -111,6 +112,9 @@ export class StoreNavigation {
 	/** The screen currently displayed to the user. */
 	current = $state<AppScreen>("main");
 
+	/** The screen initially requested on page load / hard refresh. */
+	initialScreen = $state<AppScreen | null>(null);
+
 	/** Whether the AuthScreen modal is open, overlaid on top of whatever screen is current. */
 	isAuthModalOpen = $state(false);
 
@@ -119,6 +123,9 @@ export class StoreNavigation {
 
 	/** Whether the Settings modal is open, overlaid on top of whatever screen is current. */
 	isSettingsOpen = $state(false);
+
+	/** Whether the Verification modal is open, overlaid on top of whatever screen is current. */
+	isVerifyModalOpen = $state(false);
 
 	/**
 	 * An invite code captured off a deep-linked `/invite/<code>` URL, waiting
@@ -177,6 +184,7 @@ export class StoreNavigation {
 		}
 
 		const deepLinkedScreen = screenForPath(path);
+		this.initialScreen = deepLinkedScreen;
 		if (deepLinkedScreen) {
 			const guard = SCREEN_GUARDS[deepLinkedScreen];
 			if (!guard || guard()) {
@@ -202,6 +210,18 @@ export class StoreNavigation {
 			if (this.#screenRestored) return;
 			this.#screenRestored = true;
 
+			if (
+				this.initialScreen === "game" ||
+				this.initialScreen === "lobby" ||
+				this.current === "game" ||
+				this.current === "lobby" ||
+				storeLobby.isInLobby ||
+				storeGame.state !== null ||
+				localStorage.getItem("lobby_code")
+			) {
+				return;
+			}
+
 			const localScreen = localStorage.getItem("currentScreen");
 			if (!localScreen) return;
 			if (!storeAuth.isLoggedIn) {
@@ -222,7 +242,8 @@ export class StoreNavigation {
 			screen: this.current,
 			authModalOpen: this.isAuthModalOpen,
 			authTab: this.authTab,
-			settingsOpen: this.isSettingsOpen
+			settingsOpen: this.isSettingsOpen,
+			verifyModalOpen: this.isVerifyModalOpen
 		};
 	}
 
@@ -265,6 +286,7 @@ export class StoreNavigation {
 		this.isAuthModalOpen = state.authModalOpen;
 		this.authTab = state.authTab;
 		this.isSettingsOpen = state.settingsOpen;
+		this.isVerifyModalOpen = state.verifyModalOpen ?? false;
 		if (PERSISTED_SCREENS.has(to)) {
 			localStorage.setItem("currentScreen", to);
 		}
@@ -286,6 +308,10 @@ export class StoreNavigation {
 
 		const guard = SCREEN_GUARDS[screen];
 		if (guard && !guard()) return false;
+
+		if (screen === "game") {
+			this.closeVerifyModal();
+		}
 
 		this.current = screen;
 		if (PERSISTED_SCREENS.has(screen)) {
@@ -345,6 +371,32 @@ export class StoreNavigation {
 		if (!this.isSettingsOpen) return;
 		this.isSettingsOpen = false;
 		window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
+	}
+
+	/**
+	 * @brief Opens the Verification modal on top of the current screen.
+	 * Pushed as its own `window.history` entry, so a back gesture closes the
+	 * modal instead of leaving the screen underneath it.
+	 */
+	openVerifyModal(): void {
+		this.isVerifyModalOpen = true;
+		if (typeof window !== "undefined") {
+			window.history.pushState(this.#historyState, "", pathForScreen(this.current));
+		}
+	}
+
+	/**
+	 * @brief Closes the Verification modal, leaving the current screen untouched.
+	 * Replaces (rather than pushes) the `window.history` entry openVerifyModal
+	 * pushed to open it, so a later back gesture returns to whatever was
+	 * current before the modal opened instead of re-opening it.
+	 */
+	closeVerifyModal(): void {
+		if (!this.isVerifyModalOpen) return;
+		this.isVerifyModalOpen = false;
+		if (typeof window !== "undefined") {
+			window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
+		}
 	}
 }
 

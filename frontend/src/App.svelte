@@ -9,6 +9,7 @@
 	//       downloading ALL the resources before showing the landing.
 	//       AuthScreen is kept separate because it is the only one taking props.
 	const loadAuthScreen = () => import("./lib/components/auth/AuthScreen.svelte");
+	const loadVerifyModal = () => import("./lib/components/auth/VerifyModal.svelte");
 	const lazyScreens = {
 		lobbies: () => import("./lib/components/lobby/LobbyBrowse.svelte"),
 		lobby: () => import("./lib/components/lobby/LobbyScreen.svelte"),
@@ -95,8 +96,14 @@
 		await storeAuth.checkSession();
 		sessionChecked = true;
 
-		if (storeAuth.isLoggedIn && !storeAuth.emailVerified) {
-			storeToast.warning(m.verify_reminder_toast({}, { locale: storeI18n.locale }));
+		if (
+			storeAuth.isLoggedIn &&
+			!storeAuth.emailVerified &&
+			storeNavigation.initialScreen !== "game" &&
+			storeNavigation.current !== "game" &&
+			_storeGame.state === null
+		) {
+			storeNavigation.openVerifyModal();
 		}
 
 		if (storeAuth.isLoggedIn || storeAuth.isGuest) {
@@ -187,6 +194,12 @@
 	{#if storeNavigation.isSettingsOpen && (storeLobby.isInLobby || _storeGame.state !== null)}
 		{#await import("./lib/components/settings/SettingsModal.svelte") then { default: SettingsModal }}
 			<SettingsModal />
+		{/await}
+	{/if}
+
+	{#if storeNavigation.isVerifyModalOpen}
+		{#await loadVerifyModal() then { default: VerifyModal }}
+			<VerifyModal />
 		{/await}
 	{/if}
 </div>

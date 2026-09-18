@@ -11,6 +11,7 @@ import { ErrorCode } from "$lib/generated/schemas";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeAuth } from "./auth.svelte";
+import { storeGame } from "./game.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
@@ -412,6 +413,11 @@ class StoreLobby implements SessionStore {
 		if (!code) {
 			storeToast.error(m.lobby_toast_enter_code({}, { locale: storeI18n.locale }));
 			return false;
+		}
+
+		if (this.current?.invite_code === code.toUpperCase()) {
+			storeNavigation.goto(storeGame.state !== null ? "game" : "lobby");
+			return true;
 		}
 
 		this.isLoadingJoin = true;

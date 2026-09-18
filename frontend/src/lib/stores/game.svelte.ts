@@ -318,7 +318,7 @@ class StoreGame implements SessionStore {
 			const remainingMs = stateJson.turn_time_remaining_ms ?? 15000;
 			this.#syncTurnTimer(remainingMs);
 
-			if (storeNavigation.current === "lobby") {
+			if (storeNavigation.current === "lobby" || storeNavigation.initialScreen === "game") {
 				this.#matchStartedAt = Date.now();
 				storeNavigation.goto("game");
 			}
