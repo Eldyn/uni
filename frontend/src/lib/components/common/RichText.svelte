@@ -47,13 +47,23 @@
 					? 'font-style: italic;'
 					: ''}{segment.color ? `color: ${segment.color};` : ''}"
 			>
-				{displayText}
+				{#if segment.effect}
+					<TextEffects
+						text={displayText}
+						effect={segment.effect}
+						color={segment.color ?? "var(--redCard, #bd3130)"}
+						class="fx-{segment.effect}"
+					/>
+				{:else}
+					{displayText}
+				{/if}
 			</button>
 		{:else if segment.effect}
 			<TextEffects
 				text={displayText}
 				effect={segment.effect}
 				color={segment.color ?? ""}
+				class="fx-{segment.effect}"
 			/>
 		{:else}
 			<!-- Chat text inherits TinyUnicode (see ChatLog/ChatComposer) for near-
@@ -80,22 +90,22 @@
 		padding: 0;
 		margin: 0;
 		font: inherit;
-		color: var(--brand, #38bdf8);
+		font-weight: 700;
+		color: var(--redCard, #bd3130);
 		text-decoration: underline;
-		text-decoration-style: dotted;
+		text-decoration-style: solid;
 		text-underline-offset: 2px;
 		cursor: pointer;
 		line-height: inherit;
-		transition: color 0.15s ease;
+		transition: opacity 0.15s ease;
 	}
 
 	.glossary-keyword-btn:hover {
-		color: var(--brand-2, #818cf8);
-		text-decoration-style: solid;
+		opacity: 0.8;
 	}
 
 	.glossary-keyword-btn:focus-visible {
-		outline: 2px solid var(--brand, #38bdf8);
+		outline: 2px solid var(--redCard, #bd3130);
 		outline-offset: 1px;
 	}
 </style>
