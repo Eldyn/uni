@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeVerify } from "$stores/verify.svelte";
 	import FormInput from "$components/common/FormInput.svelte";
+	import VerifyCodeForm from "$components/auth/VerifyCodeForm.svelte";
 	import { censorText, loadCensorData } from "$utils/censor.svelte";
 
 	let { onRegisterSuccess }: { onRegisterSuccess?: () => void } = $props();
@@ -8,6 +10,9 @@
 	// Warm the censor data as soon as the register form mounts, so the
 	// username check on submit (below) doesn't wait on the fetch.
 	loadCensorData();
+
+	let step = $state<"form" | "verify">("form");
+	let registeredEmail = $state("");
 
 	let form = $state({
 		username: "",
@@ -49,62 +54,72 @@
 			return;
 		}
 
-		if (onRegisterSuccess) onRegisterSuccess();
+		registeredEmail = form.email;
+		step = "verify";
+		await storeVerify.requestCode();
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="auth-form">
-	<FormInput
-		id="register-username"
-		label="Username:"
-		bind:value={form.username}
-		error={errors.username}
-		placeholder="Choose a username"
-		disabled={storeAuth.isLoading}
-		name="username"
-		autocomplete="username"
-	/>
+{#if step === "form"}
+	<form onsubmit={handleSubmit} class="auth-form">
+		<FormInput
+			id="register-username"
+			label="Username:"
+			bind:value={form.username}
+			error={errors.username}
+			placeholder="Choose a username"
+			disabled={storeAuth.isLoading}
+			name="username"
+			autocomplete="username"
+		/>
 
-	<FormInput
-		id="register-email"
-		type="email"
-		label="Email:"
-		bind:value={form.email}
-		error={errors.email}
-		placeholder="Enter your email"
-		disabled={storeAuth.isLoading}
-		name="email"
-		autocomplete="email"
-	/>
+		<FormInput
+			id="register-email"
+			type="email"
+			label="Email:"
+			bind:value={form.email}
+			error={errors.email}
+			placeholder="Enter your email"
+			disabled={storeAuth.isLoading}
+			name="email"
+			autocomplete="email"
+		/>
 
-	<FormInput
-		id="register-password"
-		type="password"
-		label="Password:"
-		bind:value={form.password}
-		error={errors.password}
-		placeholder="Create a strong password"
-		disabled={storeAuth.isLoading}
-		name="password"
-		autocomplete="new-password"
-	/>
+		<FormInput
+			id="register-password"
+			type="password"
+			label="Password:"
+			bind:value={form.password}
+			error={errors.password}
+			placeholder="Create a strong password"
+			disabled={storeAuth.isLoading}
+			name="password"
+			autocomplete="new-password"
+		/>
 
-	<FormInput
-		id="register-confirm-password"
-		type="password"
-		label="Confirm Password:"
-		bind:value={form.confirmPassword}
-		error={errors.confirmPassword}
-		placeholder="Confirm your password"
-		disabled={storeAuth.isLoading}
-		name="confirm-password"
-		autocomplete="new-password"
-	/>
+		<FormInput
+			id="register-confirm-password"
+			type="password"
+			label="Confirm Password:"
+			bind:value={form.confirmPassword}
+			error={errors.confirmPassword}
+			placeholder="Confirm your password"
+			disabled={storeAuth.isLoading}
+			name="confirm-password"
+			autocomplete="new-password"
+		/>
 
-	<button type="submit" disabled={storeAuth.isLoading} class="btn pixel-corners">
-		{storeAuth.isLoading ? "Registering..." : "Register"}
-	</button>
-</form>
+		<button type="submit" disabled={storeAuth.isLoading} class="btn pixel-corners">
+			{storeAuth.isLoading ? "Registering..." : "Register"}
+		</button>
+	</form>
+{:else}
+	<VerifyCodeForm
+		email={registeredEmail}
+		onVerified={onRegisterSuccess}
+		onSkip={onRegisterSuccess}
+	/>
+{/if}
 
 <style>
 	.auth-form {
