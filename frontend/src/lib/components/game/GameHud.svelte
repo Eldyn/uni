@@ -7,6 +7,7 @@
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
 	import { getCardInfo } from "$lib/glossary/cardDescriptions";
+	import { formatTurnTimer } from "$utils/timeFormat";
 
 	let collapsed = $state(false);
 
@@ -50,7 +51,7 @@
 					? 'var(--danger)'
 					: 'var(--surface-2)'};"
 			>
-				00:{storeGame.turnTimeRemaining.toString().padStart(2, "0")}
+				{formatTurnTimer(storeGame.turnTimeRemaining)}
 			</span>
 
 			<TurnOrderStrip />
