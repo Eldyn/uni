@@ -155,12 +155,15 @@
 		gap: var(--space-1);
 		min-height: 44px;
 		padding: var(--space-2) 0;
-		/* Neutral gray by default; only the active destination gets its
-		   assigned accent colour (see the [aria-current="page"] rule below). */
+		/* Neutral gray by default; active destination and hover state get their
+		   assigned accent colour with a 12fps discrete stepped transition. */
 		color: var(--text);
 		text-decoration: none;
 		position: relative;
+		/* 12fps discrete steps: 0.25s * 12fps = 3 steps */
+		transition: color 0.25s steps(3, end);
 	}
+	.shell-navbar-item:hover,
 	.shell-navbar-item[aria-current="page"] {
 		color: var(--nav-item-color, var(--accent));
 	}

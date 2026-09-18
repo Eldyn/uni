@@ -97,7 +97,10 @@
 	let inFlightDrawCount = $derived(bus?.getInFlightDrawCount(player.username) ?? 0);
 	let inFlightPlayCount = $derived(bus?.getInFlightPlayCount(player.username) ?? 0);
 	let cardCount = $derived(
-		Math.max(0, (player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount + inFlightPlayCount)
+		Math.max(
+			0,
+			(player.card_count ?? 0) - (hasHoldingCard ? 1 : 0) - inFlightDrawCount + inFlightPlayCount
+		)
 	);
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
@@ -123,11 +126,31 @@
 	// since it's a filter on the seat's own pixels rather than a halo painted
 	// outside its box.
 	let dimmed = $derived(!isTurn && !isValidTarget);
+	function estimateTextUnits(text: string): number {
+		let units = 0;
+		for (const ch of text) {
+			const code = ch.charCodeAt(0);
+			if (code > 0x2e80) {
+				units += 1.0;
+			} else if (code <= 0x0020) {
+				units += 0.3;
+			} else if ("ijl|!:'.,;".includes(ch)) {
+				units += 0.35;
+			} else if ("mwMW@#%&".includes(ch)) {
+				units += 0.85;
+			} else {
+				units += 0.62;
+			}
+		}
+		units += text.length * 0.04;
+		return Math.max(1, units);
+	}
+
 	let effectiveArcMode = $derived(arcMode ?? storeRenderSettings.seatNameArcMode);
 	let isActive = $derived(isTurn || isValidTarget);
 	let displayName = $derived(
-		player.username && player.username.length > 15
-			? player.username.slice(0, 14) + "…"
+		player.username && player.username.length > 16
+			? player.username.slice(0, 15) + "…"
 			: (player.username ?? "")
 	);
 	let seatId = $derived(
@@ -146,10 +169,10 @@
 	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
 	let arcD = $derived(
 		effectiveArcMode === "overhead"
-			? describeArc(0, 0, overheadRadius, -165, -15, 1)
+			? describeArc(0, 0, overheadRadius, -172, -8, 1)
 			: effectiveArcMode === "cards-outer"
-				? describeArc(0, -75, 75, 145, 35, 0)
-				: describeArc(0, -50, 50, 145, 35, 0)
+				? describeArc(0, -75, 75, 148, 32, 0)
+				: describeArc(0, -50, 50, 148, 32, 0)
 	);
 	let arcViewBox = $derived(
 		effectiveArcMode === "overhead"
@@ -164,7 +187,31 @@
 	let arcHeight = $derived(
 		effectiveArcMode === "overhead" ? 140 : effectiveArcMode === "cards-outer" ? 60 : 50
 	);
-	let labelFontSize = $derived(Math.round(labelEm * 18));
+
+	let approxPathLength = $derived.by(() => {
+		if (effectiveArcMode === "overhead") {
+			return overheadRadius * ((164 * Math.PI) / 180);
+		} else if (effectiveArcMode === "cards-outer") {
+			return 75 * ((116 * Math.PI) / 180);
+		} else {
+			return 50 * ((116 * Math.PI) / 180);
+		}
+	});
+
+	let baseFontSize = $derived(Math.round(labelEm * 18));
+	let maxAllowedTextLength = $derived(Math.floor(approxPathLength * 0.9));
+	let labelFontSize = $derived.by(() => {
+		if (!displayName) return baseFontSize;
+		const units = estimateTextUnits(displayName);
+		const maxFit = Math.floor(maxAllowedTextLength / units);
+		return Math.max(9, Math.min(baseFontSize, maxFit));
+	});
+	let labelDy = $derived(-Math.max(4, Math.round(labelFontSize * 0.43)));
+	let needsTextLengthCompression = $derived.by(() => {
+		if (!displayName) return false;
+		const units = estimateTextUnits(displayName);
+		return units * labelFontSize > maxAllowedTextLength;
+	});
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let registeredKeys = new Set<string>();
@@ -181,7 +228,13 @@
 			const key = `ring:${username}:${i}`;
 			currentKeys.add(key);
 
-			const [worldX, worldY, worldZ] = ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
+			const [worldX, worldY, worldZ] = ringSlotWorldPose(
+				seat,
+				slot,
+				i,
+				radialScale,
+				RING_STACK_STEP
+			);
 			const spinDeg = baseSpinDeg + slot.rotateDeg;
 
 			const pose = cardRegistry.ensureEntry(
@@ -276,7 +329,6 @@
 </script>
 
 <T.Group position.x={seat.x} position.z={seat.z} rotation.y={seat.rotationY}>
-
 	<HTML position.y={AVATAR_HEIGHT} center pointerEvents="auto">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
@@ -310,20 +362,23 @@
 			class:is-active={isActive}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
-			style="--player-accent: {color}; {effectiveArcMode !== 'overhead' ? `transform: rotate(${(seat.rotationY * 180) / Math.PI}deg);` : ''}"
+			style="--player-accent: {color}; {effectiveArcMode !== 'overhead'
+				? `transform: rotate(${(seat.rotationY * 180) / Math.PI}deg);`
+				: ''}"
 		>
-			<svg
-				class="seat-arc-svg"
-				viewBox={arcViewBox}
-				width={arcWidth}
-				height={arcHeight}
-			>
+			<svg class="seat-arc-svg" viewBox={arcViewBox} width={arcWidth} height={arcHeight}>
 				<defs>
 					<path id={pathId} d={arcD} />
 				</defs>
 				<path class="seat-arc-rail" d={arcD} />
-				<text class="seat-arc-text" font-size={labelFontSize} dy="-9" text-anchor="middle">
-					<textPath href="#{pathId}" startOffset="50%" text-anchor="middle">
+				<text class="seat-arc-text" font-size={labelFontSize} dy={labelDy} text-anchor="middle">
+					<textPath
+						href="#{pathId}"
+						startOffset="50%"
+						text-anchor="middle"
+						textLength={needsTextLengthCompression ? maxAllowedTextLength : undefined}
+						lengthAdjust={needsTextLengthCompression ? "spacingAndGlyphs" : undefined}
+					>
 						{displayName}
 					</textPath>
 				</text>

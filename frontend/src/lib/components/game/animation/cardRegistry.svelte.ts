@@ -454,6 +454,13 @@ export class CardRegistry {
 				// and its shake. Only retire targets no later beat in this batch
 				// still needs.
 				for (const step of beat) {
+					if (typeof step.payload?._onCompleteSafe === "function") {
+						try {
+							step.payload._onCompleteSafe();
+						} catch (e) {
+							console.error(e);
+						}
+					}
 					const usedLater = batch.beats
 						.slice(beatIndex + 1)
 						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));

@@ -73,6 +73,7 @@ export function gzipAssets(outDir) {
 	if (!fs.existsSync(outDir)) return totals;
 
 	const walk = (dir) => {
+		if (!fs.existsSync(dir)) return;
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const full = path.join(dir, entry.name);
 

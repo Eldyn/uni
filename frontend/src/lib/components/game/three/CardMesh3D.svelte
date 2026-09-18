@@ -72,6 +72,8 @@ uniform vec4 uUvRectBack;
 		pushX = 0,
 		opacity = 1,
 		dimmed = false,
+		brightness = 1,
+		renderOrder = 0,
 		wildColor,
 		hoverSpinDeg = 0,
 		shadow,
@@ -80,6 +82,8 @@ uniform vec4 uUvRectBack;
 		card: Card;
 		turned?: boolean;
 		position?: [number, number, number];
+		/** Draw order / renderOrder for Three.js depth sorting. Defaults to 0. */
+		renderOrder?: number;
 		/** Rotation around the vertical (world Y) axis, in degrees. */
 		spinDeg?: number;
 		/** Rotation about a horizontal or vertical axis — a genuine edge-on
@@ -123,6 +127,8 @@ uniform vec4 uUvRectBack;
 		 *  for opponents outside their turn, where the card must stay opaque
 		 *  and readable, just dimmer, rather than turning see-through. */
 		dimmed?: boolean;
+		/** Ambient brightness multiplier (0 to 1). Defaults to 1. Used for inter-card ambient occlusion. */
+		brightness?: number;
 		/** The color a wild was turned into. A wild's own `type` is "white" —
 		 *  the absence of a color — so without this it stays untinted, which is
 		 *  correct for one sitting in a hand and wrong for one lying on the pile
@@ -192,7 +198,7 @@ uniform vec4 uUvRectBack;
 		void atlasPageVersion;
 		return getAtlasPage(activeFront.page);
 	});
-	let meshColor = $derived(WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1));
+	let meshColor = $derived(WHITE.clone().multiplyScalar((dimmed ? DIM_FACTOR : 1) * brightness));
 
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
@@ -324,11 +330,11 @@ uniform vec4 uUvRectBack;
 	});
 </script>
 
-<T.Group position={animatedPosition} scale={animatedScale} {onclick} {onpointerdown}>
+<T.Group position={animatedPosition} scale={animatedScale} {renderOrder} {onclick} {onpointerdown}>
 	<T.Group rotation.x={-Math.PI / 2}>
 		{#if shadow}
 			<T.Group rotation.z={spinRad}>
-				<T.Mesh position={shadowPosition} scale={shadowScale} renderOrder={-1}>
+				<T.Mesh position={shadowPosition} scale={shadowScale} renderOrder={renderOrder - 1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={shadow.texture}
@@ -347,7 +353,7 @@ uniform vec4 uUvRectBack;
 			rotation.z={spinRad}
 		>
 			{#if highlight && highlightTexture}
-				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={1}>
+				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={renderOrder + 1}>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
@@ -359,7 +365,7 @@ uniform vec4 uUvRectBack;
 					/>
 				</T.Mesh>
 			{/if}
-			<T.Mesh rotation.z={valueFlipRad}>
+			<T.Mesh rotation.z={valueFlipRad} {renderOrder}>
 				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<T.MeshBasicMaterial
 					bind:ref={cardMaterial}

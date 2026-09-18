@@ -78,7 +78,16 @@ export function moveRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 	}, duration / 2);
 
 	if (typeof step.payload?.onComplete === "function") {
-		timeline.call(step.payload.onComplete, [], duration);
+		const cb = step.payload.onComplete;
+		let called = false;
+		const safeCb = () => {
+			if (!called) {
+				called = true;
+				cb();
+			}
+		};
+		timeline.call(safeCb, [], duration);
+		step.payload._onCompleteSafe = safeCb;
 	}
 
 	return timeline;

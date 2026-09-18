@@ -124,6 +124,13 @@ export class CardBus {
 		}
 	}
 
+	/** During reshuffle animation, tracks current visual draw pile size as cards land.
+	 *  null when no reshuffle animation is in progress. */
+	reshuffleDrawPileSize = $state<number | null>(null);
+
+	/** Triggered each time a reshuffled card lands on the draw pile. */
+	onReshuffleCardLanding = $state<{ index: number; total: number; timestamp: number } | null>(null);
+
 	#inFlightDraws = new SvelteMap<string, number>();
 	#inFlightPlays = new SvelteMap<string, number>();
 

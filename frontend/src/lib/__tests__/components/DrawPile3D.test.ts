@@ -25,6 +25,7 @@ vi.mock("./textures", () => ({
 import { render, cleanup } from "@testing-library/svelte";
 import DrawPile3D from "$components/game/three/DrawPile3D.svelte";
 import { CardRegistry, CARD_REGISTRY_KEY } from "$components/game/animation/cardRegistry.svelte";
+import { CardBus, CARD_BUS_KEY } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -208,5 +209,35 @@ describe("DrawPile3D", () => {
 		});
 		registry.applyIdlePoseIfNotInTransit("pile:draw:0");
 		expect(seed0.x).toBeCloseTo(defaultPlacement.drawPileX);
+	});
+
+	it("overrides rendered count with bus.reshuffleDrawPileSize and updates dynamically", async () => {
+		const registry = new CardRegistry();
+		const bus = new CardBus();
+
+		storeRenderSettings.drawPileThickness = "full";
+		storeGame.state!.draw_pile_size = 30; // State says 30
+		bus.reshuffleDrawPileSize = 2; // Reshuffle starts with 2 cards arriving
+
+		render(DrawPile3D, {
+			props: { placement: defaultPlacement },
+			context: new Map<any, any>([
+				[CARD_REGISTRY_KEY, registry],
+				[CARD_BUS_KEY, bus]
+			])
+		});
+
+		// Should render 2 cards based on reshuffleDrawPileSize, not 30
+		expect(cardMeshInstances.length).toBe(2);
+
+		// Another card arrives (+1)
+		bus.reshuffleDrawPileSize = 3;
+		await new Promise((r) => setTimeout(r, 10));
+		expect(cardMeshInstances.length).toBe(3);
+
+		// Reshuffle completes, reset to null
+		bus.reshuffleDrawPileSize = null;
+		await new Promise((r) => setTimeout(r, 10));
+		expect(cardMeshInstances.length).toBe(30);
 	});
 });

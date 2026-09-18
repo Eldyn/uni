@@ -352,5 +352,6 @@
 	"email_verify_body_ignore": "[Îf ýöü dîdñ't réqüést thîs cödé, ýöü cåñ såfélý îgñöré thîs émäîl mæssågé cömplétély åñd fórevér.]",
 	"email_migration_subject": "[Pléåsé vérîfý ýöür émäîl åddréss ñöw för ÜÑÎ!]",
 	"email_migration_body_intro": "[Wé'ré röllîñg öüt émäîl vérîfîcåtîöñ fülly för åll üsérs. Pléåsé vérîfý ýöür åddréss tö kéép füll åccéss tö ýöür åccöüñt åñd gâmés cömplétély.]",
-	"email_migration_body_deadline": "[Pléåsé vérîfý wîthîñ thé ñéxt 30 dåýs tö åvöîd åñý întérrüptîöñ tö ýöür åccöüñt cömplétély.]"
+	"email_migration_body_deadline": "[Pléåsé vérîfý wîthîñ thé ñéxt 30 dåýs tö åvöîd åñý întérrüptîöñ tö ýöür åccöüñt cömplétély.]",
+	"chat_friends_unverified_notice": "[Üñvérîfîéd üsérs cåññöt ådd frîéñds, pléåsé vérîfý ýöür åccöüñt!]"
 }

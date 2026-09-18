@@ -50,6 +50,9 @@ export function visibleDrawPileStackSize(rawSize: number): number {
 	return Math.max(0, Math.min(MAX_VISIBLE_STACK, rawSize));
 }
 
+// Max cards rendered in full 3D mode so stack does not get hugely tall.
+export const MAX_DRAW_PILE_STACK = 50;
+
 /**
  * Computes the number of rendered cards and vertical step between layers for
  * the draw pile based on the thickness mode setting.
@@ -72,13 +75,14 @@ export function computeDrawPileCountAndStep(
 		return { renderedCount: 1, stepY: DRAW_PILE_STACK_STEP };
 	}
 
+	const cappedRawSize = Math.min(rawSize, MAX_DRAW_PILE_STACK);
 	const stepY = Math.max(
 		MIN_STACK_STEP,
-		Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (rawSize - 1))
+		Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (cappedRawSize - 1))
 	);
 	const renderedCount = Math.min(
-		rawSize,
-		Math.floor(MAX_PILE_HEIGHT / MIN_STACK_STEP)
+		cappedRawSize,
+		MAX_DRAW_PILE_STACK
 	);
 
 	return { renderedCount, stepY };

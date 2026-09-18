@@ -352,5 +352,6 @@
 	"email_verify_body_ignore": "Se non hai richiesto questo, puoi ignorare questa email.",
 	"email_migration_subject": "Verifica il tuo indirizzo email",
 	"email_migration_body_intro": "Stiamo introducendo la verifica dell'email. Verifica il tuo indirizzo per mantenere l'accesso completo al tuo account.",
-	"email_migration_body_deadline": "Verifica entro 30 giorni per evitare interruzioni."
+	"email_migration_body_deadline": "Verifica entro 30 giorni per evitare interruzioni.",
+	"chat_friends_unverified_notice": "Gli utenti non verificati non possono aggiungere amici."
 }

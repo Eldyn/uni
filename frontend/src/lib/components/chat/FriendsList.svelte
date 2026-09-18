@@ -48,6 +48,18 @@
 			{m.chat_friends_guest_register({}, { locale: storeI18n.locale })}
 		</button>
 	</div>
+{:else if storeAuth.isLoggedIn && !storeAuth.emailVerified}
+	<div class="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+		<p class="font-tiny text-sm text-text/70">
+			{m.chat_friends_unverified_notice({}, { locale: storeI18n.locale })}
+		</p>
+		<button
+			class="pixel-bordered px-4 py-2 font-pixel text-xs uppercase text-white [--pc-border:var(--accent)] [--pc-fill:var(--accent)]"
+			onclick={() => storeNavigation.openVerifyModal()}
+		>
+			{m.verify_submit_button({}, { locale: storeI18n.locale })}
+		</button>
+	</div>
 {:else}
 	<div class="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
 		<div class="flex items-center gap-1 border-b-2 border-border px-1 pb-2">

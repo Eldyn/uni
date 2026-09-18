@@ -1,12 +1,13 @@
-<!-- The local player's own avatar + name label, rendered in the WebGL scene
-     next to their (also-3D) hand — mirrors PlayerSeat3D's avatar/label
-     treatment but with no ring, since the local hand is a flat fan
-     (LocalHand3D.svelte), not a circle. -->
+<!-- The local player's avatar, rendered as a 3D mesh directly on the table plane
+     (y = -0.005) so it always renders under cards (y >= 0) rather than floating
+     in an HTML overlay above the WebGL canvas. Animated with base_player_strip.png. -->
 <script lang="ts">
-	import { T } from "@threlte/core";
-	import { HTML } from "@threlte/extras";
+	import { T, useTask } from "@threlte/core";
+	import { Color, type Texture } from "three";
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { BoardPlacement } from "../layout/boardPlacement";
+	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
+	import { loadSilhouette } from "./textures";
 
 	let {
 		player,
@@ -18,65 +19,68 @@
 		player: GamePlayer;
 		color: string;
 		placement: BoardPlacement;
-		/** Avatar box edge in px. Comes from Scene3D so it's the same WORLD size
-		 *  as every opponent's icon, rather than a CSS constant that would drift
-		 *  against them at every zoom level. */
-		avatarPx: number;
-		/** Darkens the avatar when it isn't this player's turn — see Scene3D's
-		 *  DIM_LOCAL_WHEN_NOT_TURN for why this is a toggle, not a given. */
+		/** Avatar box edge in px — kept for props compatibility. */
+		avatarPx?: number;
+		/** Darkens the avatar when it isn't this player's turn. */
 		dimmed?: boolean;
 	} = $props();
+
+	// Sits below cards (y >= 0) and above playmat/arrows (y <= -0.01)
+	const AVATAR_Y = -0.005;
+	const FRAME_COUNT = 5;
+	const FRAME_DURATION = 0.12;
+	// 96 / 68 ratio matches AVATAR_SPRITE_FILL so the figure is LOCAL_AVATAR_WORLD tall
+	const AVATAR_MESH_SIZE = LOCAL_AVATAR_WORLD * (96 / 68);
+
+	let avatarTexture = $state<Texture | null>(null);
+	let currentFrame = 0;
+	let frameElapsed = 0;
+
+	$effect(() => {
+		let cancelled = false;
+		loadSilhouette("/assets/base_player_strip.png").then((t) => {
+			if (cancelled) return;
+			const tex = t.clone();
+			tex.repeat.set(1 / FRAME_COUNT, 1);
+			tex.offset.x = 0;
+			avatarTexture = tex;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	useTask((delta) => {
+		if (!avatarTexture) return;
+		frameElapsed += delta;
+		if (frameElapsed >= FRAME_DURATION) {
+			frameElapsed %= FRAME_DURATION;
+			currentFrame = (currentFrame + 1) % FRAME_COUNT;
+			avatarTexture.offset.x = currentFrame / FRAME_COUNT;
+		}
+	});
+
+	let baseColor = $derived(new Color(color));
+	let effectiveColor = $derived(
+		dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor
+	);
 </script>
 
-<T.Group>
-	<HTML position.y={0.6} position.z={placement.localAvatarZ} center pointerEvents="none">
-		<div class="seat">
-			<!-- Your own name tells you nothing you don't know, and your hand is the
-			     only one showing faces, so no label here at all. -->
-			<div
-				class="avatar-box"
-				class:is-dimmed={dimmed}
-				style="width: {avatarPx}px; height: {avatarPx}px; background-color: {color};"
-			></div>
-		</div>
-	</HTML>
-</T.Group>
-
-<style>
-	/* Avatar and name are one unit: the badge hangs off the avatar's bottom
-	   edge rather than claiming its own row, which is what let the old stacked
-	   layout push the whole seat up into the board. */
-	.seat {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-	}
-
-	/* ONE layer, not an <img> with a multiply overlay on top: base_player.gif
-	   holds exactly two colours (#00000000 and #EDEDE9FF — verified with
-	   `magick base_player.gif[0] -unique-colors`), so a flat fill masked to the
-	   sprite is pixel-identical to multiplying the sprite by the seat colour.
-	   The two-layer version keeps coming back tinted wrong because it
-	   rasterizes the same 5-frame GIF twice and the two copies animate on
-	   independent clocks — there is no way to keep them in step, so don't
-	   reintroduce it. */
-	/* width/height come from the inline avatarPx. base_player.gif's own 96x96
-	   canvas carries built-in padding around the figure (idle-animation frames
-	   put it anywhere from row 14 to row 18, never past row 84 — see
-	   boardPlacement.ts's AVATAR_SPRITE_FILL for the exact measurement), which
-	   read as visible dead space around the icon at full size. 137.1428%
-	   (96/70) zooms the mask in to exactly the [14, 84] window every frame's
-	   figure sits inside, cropping that padding away via the box's own
-	   overflow: hidden — matched by AVATAR_SPRITE_FILL so avatarBoxPx still
-	   sizes the box to the FIGURE, not the now-cropped canvas. */
-	.avatar-box {
-		transition: filter 0.3s ease;
-		image-rendering: pixelated;
-		-webkit-mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
-		mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
-	}
-
-	.avatar-box.is-dimmed {
-		filter: brightness(0.45) saturate(0.6);
-	}
-</style>
+{#if avatarTexture}
+	<T.Mesh
+		position.x={0}
+		position.y={AVATAR_Y}
+		position.z={placement.localAvatarZ}
+		rotation.x={-Math.PI / 2}
+	>
+		<T.PlaneGeometry args={[AVATAR_MESH_SIZE, AVATAR_MESH_SIZE]} />
+		<T.MeshBasicMaterial
+			map={avatarTexture}
+			color={effectiveColor}
+			transparent
+			alphaTest={0.05}
+			depthWrite={false}
+			toneMapped={false}
+		/>
+	</T.Mesh>
+{/if}

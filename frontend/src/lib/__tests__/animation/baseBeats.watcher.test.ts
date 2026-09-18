@@ -374,6 +374,12 @@ describe("createBaseBeatsWatcher", () => {
 		expect(flight!.pose.z).toBeCloseTo(topPose[2]);
 
 		cardRegistry.flushImmediately();
+		const flightAfterFlip = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(flightAfterFlip).toBeDefined();
+		expect(flightAfterFlip!.pose.x).toBeCloseTo(topPose[0]);
+		expect(flightAfterFlip!.pose.y).toBeCloseTo(topPose[1] + DRAW_HOVER_LIFT);
+		expect(flightAfterFlip!.pose.z).toBeCloseTo(topPose[2]);
+		expect(flightAfterFlip!.pose.turned).toBe(false);
 
 		// Case 2A: Play it
 		storeGame.actionRequired = null;
@@ -446,6 +452,9 @@ describe("createBaseBeatsWatcher", () => {
 
 		expect(bus.pendingLocalPlayDrawnId).toBe(2);
 		cardRegistry.flushImmediately();
+		const flightAfterFlip2 = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(flightAfterFlip2).toBeDefined();
+		expect(flightAfterFlip2!.pose.turned).toBe(false);
 
 		// Case 2B: Keep it (actionRequired clears, top_card doesn't change)
 		storeGame.actionRequired = null;
@@ -469,6 +478,7 @@ describe("createBaseBeatsWatcher", () => {
 			draw_pile_size: 9
 		} as never;
 		flushSync();
+		cardRegistry.flushImmediately();
 
 		cardRegistry.flushImmediately();
 		await Promise.resolve();
@@ -678,4 +688,50 @@ describe("createBaseBeatsWatcher", () => {
 		expect(bus.getInFlightDrawCount("bob")).toBe(0);
 		dispose();
 	});
+
+	it("initializes pendingLocalPlayDrawnId on mount if actionRequired is PlayDrawn", () => {
+		storeAuth.username = "me";
+		storeGame.actionRequired = Action.PlayDrawn;
+		storeGame.actionContext = { card_id: 2 };
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "red", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 9
+		} as never;
+
+		const bus = new CardBus();
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		expect(bus.pendingLocalPlayDrawnId).toBe(2);
+		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(flight).toBeDefined();
+		expect(flight!.pose.turned).toBe(false);
+		const topPose = drawPileTopPose(placement, 10);
+		expect(flight!.pose.x).toBeCloseTo(topPose[0]);
+		expect(flight!.pose.y).toBeCloseTo(topPose[1] + DRAW_HOVER_LIFT);
+
+		dispose();
+	});
 });
+

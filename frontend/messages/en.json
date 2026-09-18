@@ -352,5 +352,6 @@
 	"email_verify_body_ignore": "If you didn't request this, you can safely ignore this email.",
 	"email_migration_subject": "Please verify your email address",
 	"email_migration_body_intro": "We're rolling out email verification. Please verify your address to keep full access to your account.",
-	"email_migration_body_deadline": "Please verify within the next 30 days to avoid any interruption."
+	"email_migration_body_deadline": "Please verify within the next 30 days to avoid any interruption.",
+	"chat_friends_unverified_notice": "Unverified users cannot add friends."
 }

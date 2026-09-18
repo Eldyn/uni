@@ -6,10 +6,12 @@
 <script lang="ts">
 	import { useTask } from "@threlte/core";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadSilhouette } from "./textures";
 
 	const cardRegistry = useCardRegistry();
+	const bus = useCardBus();
 
 	useTask((delta) => {
 		cardRegistry.tick(delta);
@@ -32,11 +34,14 @@
 </script>
 
 {#each cardRegistry.activeFlights as handle (handle.id)}
+	{@const isPendingPlayDrawn = handle.id === String(bus?.pendingLocalPlayDrawnId)}
+	{@const cardRenderOrder = isPendingPlayDrawn ? 20 : (handle.pose.liftT ? 10 : 5)}
 	<CardMesh3D
 		card={{ id: -1, type: handle.card.type as never, value: handle.card.value as never }}
 		wildColor={handle.card.wildColor}
 		turned={handle.pose.turned}
 		position={[handle.pose.x, handle.pose.y, handle.pose.z]}
+		renderOrder={cardRenderOrder}
 		spinDeg={handle.pose.spinDeg}
 		flipDeg={handle.pose.flipDeg}
 		flipAxis={handle.pose.flipAxis}

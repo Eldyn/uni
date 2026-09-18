@@ -50,4 +50,15 @@ describe("StoreNavigation magic link and deep links", () => {
 		const nav = new StoreNavigation();
 		expect(nav.pendingVerifyCode).toBe("654321");
 	});
+
+	it("opens and closes verify modal", () => {
+		const nav = new StoreNavigation();
+		expect(nav.isVerifyModalOpen).toBe(false);
+
+		nav.openVerifyModal();
+		expect(nav.isVerifyModalOpen).toBe(true);
+
+		nav.closeVerifyModal();
+		expect(nav.isVerifyModalOpen).toBe(false);
+	});
 });

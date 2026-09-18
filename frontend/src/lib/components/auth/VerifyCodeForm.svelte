@@ -146,7 +146,7 @@
 				? m.verify_title({}, { locale: storeI18n.locale })
 				: "Verify your email"}
 		</h2>
-		<p class="verify-subtitle">
+		<p class="verify-subtitle font-tiny">
 			{typeof m.verify_subtitle === "function"
 				? m.verify_subtitle({}, { locale: storeI18n.locale })
 				: "Enter the code we sent to your email to confirm your address."}
@@ -154,30 +154,37 @@
 	</div>
 
 	<div class="code-input-group">
-		<label for="code-box-0" class="code-label font-pixel text-text-h">
+		<label for="code-box-0" class="code-label font-pixel text-text-h text-center">
 			{typeof m.verify_code_input_label === "function"
 				? m.verify_code_input_label({}, { locale: storeI18n.locale })
 				: "Verification code"}
 		</label>
 		<div class="code-boxes" onpaste={handlePaste}>
 			{#each digits as digit, i}
-				<input
-					id="code-box-{i}"
-					type="text"
-					inputmode="numeric"
-					maxlength="1"
-					pattern="[0-9]"
-					autocomplete={i === 0 ? "one-time-code" : "off"}
-					class="code-box"
+				<label
+					for="code-box-{i}"
+					class="code-box pixel-bordered"
 					class:error={!!displayError}
-					value={digit}
-					bind:this={inputRefs[i]}
-					oninput={(e) => handleInput(e, i)}
-					onkeydown={(e) => handleKeyDown(e, i)}
-					onpaste={handlePaste}
-					aria-label={`Digit ${i + 1}`}
-					disabled={storeVerify.isConfirming}
-				/>
+					class:disabled={storeVerify.isConfirming}
+				>
+					<input
+						id="code-box-{i}"
+						type="text"
+						inputmode="numeric"
+						maxlength="1"
+						pattern="[0-9]"
+						autocomplete={i === 0 ? "one-time-code" : "off"}
+						class="code-input"
+						class:error={!!displayError}
+						value={digit}
+						bind:this={inputRefs[i]}
+						oninput={(e) => handleInput(e, i)}
+						onkeydown={(e) => handleKeyDown(e, i)}
+						onpaste={handlePaste}
+						aria-label={`Digit ${i + 1}`}
+						disabled={storeVerify.isConfirming}
+					/>
+				</label>
 			{/each}
 		</div>
 	</div>
@@ -221,7 +228,7 @@
 				: "Resend code"}
 	</button>
 
-	<button type="button" class="skip-link font-pixel" onclick={() => onSkip?.()}>
+	<button type="button" class="skip-link font-tiny" onclick={() => onSkip?.()}>
 		{typeof m.verify_skip_link === "function"
 			? m.verify_skip_link({}, { locale: storeI18n.locale })
 			: "Skip for now"}
@@ -242,13 +249,14 @@
 	}
 
 	.verify-title {
-		font-size: 18px;
-		font-weight: bold;
+		font-family: var(--pixel);
+		font-size: 16px;
 		color: var(--text-h);
 		margin: 0 0 6px 0;
 	}
 
 	.verify-subtitle {
+		font-family: var(--tiny);
 		font-size: 13px;
 		color: var(--text);
 		margin: 0;
@@ -260,12 +268,14 @@
 		flex-direction: column;
 		gap: 8px;
 		align-items: center;
+		width: 100%;
 	}
 
 	.code-label {
 		font-size: 14px;
 		font-weight: 500;
-		align-self: flex-start;
+		text-align: center;
+		align-self: center;
 	}
 
 	.code-boxes {
@@ -278,28 +288,43 @@
 	.code-box {
 		width: 44px;
 		height: 52px;
-		text-align: center;
-		font-size: 24px;
-		background: var(--surface);
-		border: 2px solid var(--border);
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		box-shadow: var(--elevation-1);
-		clip-path: var(--notch-clip);
-		color: var(--text-h);
-		font-family: var(--pixel);
-		outline: none;
-		transition: border-color 0.15s ease;
+		--pc-fill: var(--surface);
+		--pc-border: var(--border);
+		cursor: text;
 	}
 
-	.code-box:focus {
-		border-color: var(--accent);
+	.code-box:focus-within {
+		--pc-border: var(--accent);
 	}
 
 	.code-box.error {
-		border-color: var(--danger);
+		--pc-border: var(--danger);
 	}
 
-	.code-box.error:focus {
-		border-color: var(--accent);
+	.code-box.error:focus-within {
+		--pc-border: var(--accent);
+	}
+
+	.code-input {
+		width: 100%;
+		height: 100%;
+		text-align: center;
+		font-size: 24px;
+		background: transparent;
+		border: none;
+		outline: none;
+		color: var(--text-h);
+		font-family: var(--pixel);
+		caret-color: var(--accent);
+	}
+
+	.code-input:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.error-message {
@@ -319,6 +344,7 @@
 		color: var(--text);
 		text-decoration: underline;
 		cursor: pointer;
+		font-family: var(--tiny);
 		font-size: 13px;
 		padding: 4px 8px;
 		align-self: center;

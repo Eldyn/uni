@@ -10,6 +10,7 @@ import {
 	DRAW_PILE_STACK_STEP,
 	PILE_PEEK_Z,
 	MAX_PILE_HEIGHT,
+	MAX_DRAW_PILE_STACK,
 	computeDrawPileCountAndStep
 } from "$components/game/layout/drawPile";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -123,19 +124,18 @@ describe("computeDrawPileCountAndStep", () => {
 			expect(stepY).toBe(DRAW_PILE_STACK_STEP);
 		});
 
-		it("compresses step in full mode for large piles", () => {
+		it("compresses step in full mode for large piles and caps rendered count to MAX_DRAW_PILE_STACK (50)", () => {
 			const { renderedCount, stepY } = computeDrawPileCountAndStep(100, "full");
-			expect(renderedCount).toBe(100);
-			expect(stepY).toBeLessThan(DRAW_PILE_STACK_STEP);
+			expect(renderedCount).toBe(MAX_DRAW_PILE_STACK);
+			expect(stepY).toBeLessThanOrEqual(DRAW_PILE_STACK_STEP);
 			expect(stepY).toBeGreaterThanOrEqual(MIN_STACK_STEP);
-			expect(stepY).toBeCloseTo(MAX_PILE_HEIGHT / 99);
+			expect(stepY).toBeCloseTo(Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (MAX_DRAW_PILE_STACK - 1)));
 		});
 
-		it("clamps to max rendered count at MIN_STACK_STEP for huge piles", () => {
-			const maxExpected = Math.floor(MAX_PILE_HEIGHT / MIN_STACK_STEP);
+		it("clamps to max 50 rendered count for huge piles", () => {
 			const { renderedCount, stepY } = computeDrawPileCountAndStep(500, "full");
-			expect(renderedCount).toBe(maxExpected);
-			expect(stepY).toBe(MIN_STACK_STEP);
+			expect(renderedCount).toBe(MAX_DRAW_PILE_STACK);
+			expect(stepY).toBeCloseTo(MAX_PILE_HEIGHT / (MAX_DRAW_PILE_STACK - 1));
 		});
 	});
 });

@@ -14,7 +14,7 @@ import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
-import { drawPileTopPose } from "../layout/drawPile";
+import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
@@ -24,7 +24,7 @@ import {
 } from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
-import type { AnimationBeat } from "./types";
+import type { AnimationBeat, AnimationStep } from "./types";
 
 /** draw_pile_size can only ever decrease (a draw) or hold (no draw happened)
  *  under normal play — an increase is only possible when the engine just
@@ -40,20 +40,55 @@ export function reshuffleStaggerFor(cardCount: number): number {
 	return Math.min(0.06, 1.2 / Math.max(1, cardCount - 1));
 }
 
+export interface ReshuffleBeatOptions {
+	placement?: BoardPlacement;
+	isAlreadySliced?: boolean;
+	onCardArrive?: (index: number, total: number) => void;
+}
+
 /** All but the top discard card fly back onto the draw pile, staggered
- *  sequentially so cards leave in a cascade rather than teleporting simultaneously. */
-export function buildReshuffleBeat(history: DiscardEntry[]): AnimationBeat[] {
-	const toReshuffle = history.slice(0, -1);
+ *  sequentially so cards leave in a cascade rather than teleporting simultaneously.
+ *  Cards straighten their rotation to 0 and flip face-down as they reach the draw pile. */
+export function buildReshuffleBeat(
+	history: DiscardEntry[],
+	opts?: ReshuffleBeatOptions
+): AnimationBeat[] {
+	const toReshuffle = opts?.isAlreadySliced ? history : history.slice(0, -1);
 	if (toReshuffle.length === 0) return [];
 	const stagger = reshuffleStaggerFor(toReshuffle.length);
-	return [
-		toReshuffle.map((entry, i) => ({
-			op: "move" as const,
-			target: String(entry.card.id),
-			payload: { to: "draw-pile" },
-			atS: i * stagger
-		}))
-	];
+	const MOVE_DURATION_S = 0.25;
+	const FLIP_DURATION_S = 0.18;
+	const steps: AnimationStep[] = [];
+
+	for (const [i, entry] of toReshuffle.entries()) {
+		const targetId = String(entry.card.id);
+		const moveAtS = i * stagger;
+		const flipAtS = moveAtS + Math.max(0, MOVE_DURATION_S - FLIP_DURATION_S);
+
+		steps.push({
+			op: "move",
+			target: targetId,
+			payload: {
+				to: "draw-pile",
+				toSpinDeg: 0,
+				toScale: opts?.placement?.drawPileScale,
+				ease: "power2.in",
+				onComplete: opts?.onCardArrive
+					? () => opts.onCardArrive!(i, toReshuffle.length)
+					: undefined
+			},
+			atS: moveAtS
+		});
+
+		steps.push({
+			op: "flip",
+			target: targetId,
+			payload: { turned: true, axis: "x" },
+			atS: flipAtS
+		});
+	}
+
+	return [steps];
 }
 
 /** Builds the beat for a single play landing on the discard pile. Exported
@@ -315,6 +350,7 @@ export function createBaseBeatsWatcher(deps: {
 			if (!state) return;
 			const placement = deps.getPlacement();
 			const localUsername = storeGame.localPlayer?.username;
+			const _actionRequired = storeGame.actionRequired;
 
 			// One live resolver per tick, shared by every enqueue() call this
 			// tick — replaces the three duplicated per-call anchor-object blocks
@@ -337,7 +373,7 @@ export function createBaseBeatsWatcher(deps: {
 					];
 				}
 				if (name === "draw-pile") {
-					return [placement.drawPileX, 0, placement.drawPileZ];
+					return [placement.drawPileX, PILE_BASE_HEIGHT, placement.drawPileZ];
 				}
 				if (name.startsWith("seat:")) {
 					return deps.getOpponentSeatAnchor(name.slice("seat:".length));
@@ -450,6 +486,7 @@ export function createBaseBeatsWatcher(deps: {
 				if (playedByMe) {
 					const isPlayDrawn = deps.bus.pendingLocalPlayDrawnId === top.id;
 					if (isPlayDrawn) {
+						deps.cardRegistry.setPoseProvider(String(top.id), null);
 						deps.bus.setPendingLocalPlayDrawnId(null);
 						const [px, py, pz] = drawPileTopPose(
 							placement,
@@ -491,6 +528,7 @@ export function createBaseBeatsWatcher(deps: {
 					if (holding) {
 						pendingOpponentPlayDrawn.delete(lastPlay.player);
 						deps.bus.setHoldingOpponent(lastPlay.player, false);
+						deps.cardRegistry.setPoseProvider(holding.cardId, null);
 						deps.cardRegistry.removeEntry(holding.cardId);
 
 						const frontPose = deps.getOpponentFrontPose
@@ -563,6 +601,7 @@ export function createBaseBeatsWatcher(deps: {
 				if (storeGame.actionRequired === Action.PlayDrawn) return;
 
 				const keptCardId = deps.bus.pendingLocalPlayDrawnId;
+				deps.cardRegistry.setPoseProvider(String(keptCardId), null);
 				const localHand = state!.players?.find((p) => p.username === localUsername)?.hand ?? [];
 				const inHand = localHand.some((c) => c.id === keptCardId);
 				if (!inHand) {
@@ -614,6 +653,7 @@ export function createBaseBeatsWatcher(deps: {
 						continue;
 					}
 					pendingOpponentPlayDrawn.delete(username);
+					deps.cardRegistry.setPoseProvider(holding.cardId, null);
 					const player = state!.players?.find((p) => p.username === username);
 					if (!player) {
 						deps.cardRegistry.removeEntry(holding.cardId);
@@ -659,12 +699,56 @@ export function createBaseBeatsWatcher(deps: {
 				if (prevCardCounts === null) {
 					if (localUsername) {
 						prevLocalHandIds = new Set(
-							(state!.players.find((p) => p.username === localUsername)?.hand ?? []).map(
+							(state!.players?.find((p) => p.username === localUsername)?.hand ?? []).map(
 								(c) => c.id
 							)
 						);
 					}
 					prevCardCounts = new Map(state!.players?.map((p) => [p.username, p.card_count]) ?? []);
+					if (storeGame.actionRequired === Action.PlayDrawn && localUsername) {
+						const localPlayer = state!.players?.find((p) => p.username === localUsername);
+						const cardId =
+							storeGame.actionContext?.card_id ??
+							localPlayer?.hand?.[localPlayer.hand.length - 1]?.id;
+						const card = localPlayer?.hand?.find((c) => c.id === cardId);
+						if (card && cardId !== undefined) {
+							deps.cardRegistry.registerCardMeta(String(cardId), {
+								type: card.type,
+								value: card.value
+							});
+							const pileSize = Math.max(state!.draw_pile_size + 1, 1);
+							const [px, py, pz] = drawPileTopPose(
+								placement,
+								pileSize,
+								storeRenderSettings.drawPileThickness
+							);
+							deps.cardRegistry.clearDecoration(String(cardId));
+							deps.cardRegistry.ensureEntry(
+								String(cardId),
+								{
+									x: px,
+									y: py + DRAW_HOVER_LIFT,
+									z: pz,
+									spinDeg: 0,
+									flipDeg: 0,
+									scale: placement.drawPileScale,
+									turned: false,
+									opacity: 1
+								},
+								{ type: card.type, value: card.value }
+							);
+							deps.cardRegistry.setPoseProvider(String(cardId), () => {
+								const currentPlacement = deps.getPlacement();
+								const [topX, topY, topZ] = drawPileTopPose(
+									currentPlacement,
+									pileSize,
+									storeRenderSettings.drawPileThickness
+								);
+								return [topX, topY + DRAW_HOVER_LIFT, topZ];
+							});
+							deps.bus.setPendingLocalPlayDrawnId(cardId);
+						}
+					}
 					return;
 				}
 
@@ -694,9 +778,10 @@ export function createBaseBeatsWatcher(deps: {
 									type: card.type,
 									value: card.value
 								});
+								const pileSize = Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0);
 								const [px, py, pz] = drawPileTopPose(
 									placement,
-									Math.max(state!.draw_pile_size + 1, prevDrawPileSize ?? 0),
+									pileSize,
 									storeRenderSettings.drawPileThickness
 								);
 								deps.cardRegistry.clearDecoration(String(cardId));
@@ -709,6 +794,15 @@ export function createBaseBeatsWatcher(deps: {
 									scale: placement.drawPileScale,
 									turned: true,
 									opacity: 1
+								});
+								deps.cardRegistry.setPoseProvider(String(cardId), () => {
+									const currentPlacement = deps.getPlacement();
+									const [topX, topY, topZ] = drawPileTopPose(
+										currentPlacement,
+										pileSize,
+										storeRenderSettings.drawPileThickness
+									);
+									return [topX, topY + DRAW_HOVER_LIFT, topZ];
 								});
 								deps.bus.setPendingLocalPlayDrawnId(cardId);
 								deps.cardRegistry.enqueue(
@@ -832,6 +926,12 @@ export function createBaseBeatsWatcher(deps: {
 
 							deps.bus.setHoldingOpponent(p.username, true);
 							pendingOpponentPlayDrawn.set(p.username, { cardId });
+							deps.cardRegistry.setPoseProvider(cardId, () => {
+								const pose = deps.getOpponentFrontPose
+									? deps.getOpponentFrontPose(p.username)
+									: { position: deps.getOpponentSeatAnchor(p.username), spinDeg: 0 };
+								return pose.position;
+							});
 
 							deps.cardRegistry.enqueue(
 								[
@@ -947,7 +1047,33 @@ export function createBaseBeatsWatcher(deps: {
 			function processReshuffle(): void {
 				const currentDrawPileSize = state!.draw_pile_size;
 				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
-					const toReshuffle = deps.bus.discardHistory.slice(0, -1);
+					const amountToReshuffle = currentDrawPileSize - prevDrawPileSize;
+					deps.bus.reshuffleDrawPileSize = prevDrawPileSize;
+
+					const existingToReshuffle = deps.bus.discardHistory.slice(0, -1);
+					// If client-side discardHistory has fewer cards than amountToReshuffle
+					// (e.g. after a page refresh, where only the top card exists client-side),
+					// synthesize the missing cards so the animation and height progression reflect
+					// the actual amount reshuffled rather than client-side discard state.
+					const missingCount = Math.max(0, amountToReshuffle - existingToReshuffle.length);
+					const syntheticEntries: DiscardEntry[] = [];
+					for (let i = 0; i < missingCount; i++) {
+						const angle = ((i * 37) % 70) - 35;
+						const jx = (((i * 17) % 20) - 10) * 0.05;
+						const jy = (((i * 23) % 20) - 10) * 0.05;
+						syntheticEntries.push({
+							card: { id: -1000 - i, type: "wild", value: "0" },
+							seq: -1000 - i,
+							jitter: [jx, jy],
+							rotationDeg: angle
+						});
+					}
+					const slicedExisting = existingToReshuffle.slice(
+						0,
+						amountToReshuffle - syntheticEntries.length
+					);
+					const toReshuffle = [...syntheticEntries, ...slicedExisting];
+
 					for (const [i, entry] of toReshuffle.entries()) {
 						const idString = String(entry.card.id);
 						deps.cardRegistry.registerCardMeta(idString, entry.card);
@@ -963,14 +1089,35 @@ export function createBaseBeatsWatcher(deps: {
 							opacity: 1
 						});
 					}
-					const beats = buildReshuffleBeat(deps.bus.discardHistory);
+					const beats = buildReshuffleBeat(toReshuffle, {
+						placement,
+						isAlreadySliced: true,
+						onCardArrive: (cardIndex, totalCards) => {
+							const newSize = prevDrawPileSize! + cardIndex + 1;
+							deps.bus.reshuffleDrawPileSize = newSize;
+							deps.bus.onReshuffleCardLanding = {
+								index: cardIndex,
+								total: totalCards,
+								timestamp: Date.now()
+							};
+						}
+					});
 					if (beats.length > 0) {
-						deps.cardRegistry.enqueue(beats, resolveCardTarget).then(() => {
-							deps.bus.retainTopDiscard(toReshuffle.length);
-							for (const entry of toReshuffle) {
-								deps.cardRegistry.removeEntry(String(entry.card.id));
-							}
-						});
+						deps.cardRegistry
+							.enqueue(beats, resolveCardTarget)
+							.then(() => {
+								deps.bus.retainTopDiscard(slicedExisting.length);
+								for (const entry of toReshuffle) {
+									deps.cardRegistry.removeEntry(String(entry.card.id));
+								}
+							})
+							.finally(() => {
+								deps.bus.reshuffleDrawPileSize = null;
+								deps.bus.onReshuffleCardLanding = null;
+							});
+					} else {
+						deps.bus.reshuffleDrawPileSize = null;
+						deps.bus.onReshuffleCardLanding = null;
 					}
 				}
 				prevDrawPileSize = currentDrawPileSize;

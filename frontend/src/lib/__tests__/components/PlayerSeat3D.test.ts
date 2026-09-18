@@ -2,9 +2,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import MockThrelte from "./MockThrelte.svelte";
 
 vi.mock("@threlte/core", () => ({
-	T: new Proxy({}, {
-		get: () => MockThrelte
-	})
+	T: new Proxy(
+		{},
+		{
+			get: () => MockThrelte
+		}
+	)
 }));
 
 vi.mock("@threlte/extras", () => ({
@@ -291,5 +294,69 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		});
 
 		expect(svg?.getAttribute("viewBox")).toBe("-70 -40 140 50");
+	});
+
+	it("scales font size dynamically for long opponent names so they do not get cut off", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+
+		// Short name (3 chars) gets base font size 21 (1.15 * 18 = 21)
+		const { container, rerender } = render(PlayerSeat3D, {
+			props: {
+				player: { username: "bob", card_count: 1, is_bot: false },
+				seat,
+				color: "#00ffcc",
+				arcMode: "overhead"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		const textElem = container.querySelector(".seat-arc-text");
+		expect(textElem).toBeInTheDocument();
+		expect(Number(textElem?.getAttribute("font-size"))).toBe(21);
+		expect(Number(textElem?.getAttribute("dy"))).toBe(-9);
+
+		// Long name (12 chars: scriptxcorso) scales font size down to fit within arc
+		rerender({
+			player: { username: "scriptxcorso", card_count: 1, is_bot: false },
+			seat,
+			color: "#00ffcc",
+			arcMode: "overhead"
+		});
+
+		const scriptxFontSize = Number(textElem?.getAttribute("font-size"));
+		expect(scriptxFontSize).toBeLessThan(21);
+		expect(scriptxFontSize).toBeGreaterThanOrEqual(14);
+		expect(Number(textElem?.getAttribute("dy"))).toBeLessThanOrEqual(-6);
+
+		// 15-character name scales down further
+		rerender({
+			player: { username: "superlongplayer", card_count: 1, is_bot: false },
+			seat,
+			color: "#00ffcc",
+			arcMode: "overhead"
+		});
+
+		const longFontSize = Number(textElem?.getAttribute("font-size"));
+		expect(longFontSize).toBeLessThan(scriptxFontSize);
+		expect(longFontSize).toBeGreaterThanOrEqual(10);
+	});
+
+	it("truncates names longer than 16 chars with ellipsis and applies text compression fallback if needed", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+
+		const { container } = render(PlayerSeat3D, {
+			props: {
+				player: { username: "a_very_extremely_long_name_indeed", card_count: 1, is_bot: false },
+				seat,
+				color: "#00ffcc",
+				arcMode: "overhead"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		const textPath = container.querySelector("textPath");
+		expect(textPath?.textContent?.trim()).toBe("a_very_extremel…");
 	});
 });

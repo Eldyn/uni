@@ -57,40 +57,38 @@ describe("App", () => {
 		storeNavigation.current = "main";
 	});
 
-	it("shows nag toast on session load for unverified users", async () => {
+	it("opens verification modal on session load for unverified users", async () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
 		vi.mocked(storeAuth).emailVerified = false;
-		const toastSpy = vi.spyOn(storeToast, "warning");
+		const openModalSpy = vi.spyOn(storeNavigation, "openVerifyModal");
 
 		render(App);
 
 		await vi.waitFor(() => {
-			expect(toastSpy).toHaveBeenCalledWith(
-				m.verify_reminder_toast({}, { locale: expect.any(String) })
-			);
+			expect(openModalSpy).toHaveBeenCalled();
 		});
 	});
 
-	it("never shows nag toast for verified users", async () => {
+	it("never opens verification modal for verified users", async () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
 		vi.mocked(storeAuth).emailVerified = true;
-		const toastSpy = vi.spyOn(storeToast, "warning");
+		const openModalSpy = vi.spyOn(storeNavigation, "openVerifyModal");
 
 		render(App);
 
 		await vi.waitFor(() => {});
-		expect(toastSpy).not.toHaveBeenCalled();
+		expect(openModalSpy).not.toHaveBeenCalled();
 	});
 
-	it("never shows nag toast for logged out users", async () => {
+	it("never opens verification modal for logged out users", async () => {
 		vi.mocked(storeAuth).isLoggedIn = false;
 		vi.mocked(storeAuth).emailVerified = false;
-		const toastSpy = vi.spyOn(storeToast, "warning");
+		const openModalSpy = vi.spyOn(storeNavigation, "openVerifyModal");
 
 		render(App);
 
 		await vi.waitFor(() => {});
-		expect(toastSpy).not.toHaveBeenCalled();
+		expect(openModalSpy).not.toHaveBeenCalled();
 	});
 
 	it("waits for checkSession() before consuming pendingVerifyCode", async () => {

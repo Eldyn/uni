@@ -58,4 +58,10 @@ describe("NavBar", () => {
 		expect(screen.getByRole("link", { name: /browse/i })).toHaveAttribute("aria-current", "page");
 		expect(screen.getByRole("link", { name: /home/i })).not.toHaveAttribute("aria-current");
 	});
+
+	it("assigns per-item --nav-item-color style for active/hover state", () => {
+		render(NavBar);
+		const homeLink = screen.getByRole("link", { name: /home/i });
+		expect(homeLink.getAttribute("style")).toContain("--nav-item-color");
+	});
 });
