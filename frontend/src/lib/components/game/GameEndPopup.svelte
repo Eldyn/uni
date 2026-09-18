@@ -49,7 +49,12 @@
 	{#if isInterrupted}
 		<GameInterruptedPopup />
 	{:else if isVictory}
-		<Modal open={true} dismissible={false} titleId="end-title" contentClass="end-content pixel-corners">
+		<Modal
+			open={true}
+			dismissible={false}
+			titleId="end-title"
+			contentClass="end-content pixel-corners"
+		>
 			<h1 id="end-title" class="result {isMe ? 'result--win' : 'result--lose'}">
 				{isMe
 					? m.game_victory_title({}, { locale: storeI18n.locale })
@@ -99,7 +104,9 @@
 						</h2>
 						<ol class="standings-list">
 							{#each storeGame.placements as name, i}
-								<li class="standing-item {name === storeGame.localPlayer?.username ? 'is-local' : ''}">
+								<li
+									class="standing-item {name === storeGame.localPlayer?.username ? 'is-local' : ''}"
+								>
 									<span class="rank">#{i + 1}</span>
 									<span class="name">{name}</span>
 								</li>
