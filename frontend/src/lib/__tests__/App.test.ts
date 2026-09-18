@@ -53,6 +53,7 @@ describe("App", () => {
 		vi.mocked(storeAuth).isGuest = false;
 		vi.mocked(storeAuth).emailVerified = false;
 		storeNavigation.pendingVerifyCode = null;
+		storeNavigation.activeVerifyCode = null;
 		storeNavigation.current = "main";
 	});
 
@@ -92,7 +93,33 @@ describe("App", () => {
 		expect(toastSpy).not.toHaveBeenCalled();
 	});
 
-	it("consumes pendingVerifyCode and navigates to profile when logged in", async () => {
+	it("waits for checkSession() before consuming pendingVerifyCode", async () => {
+		let resolveSession!: (val: boolean) => void;
+		const sessionPromise = new Promise<boolean>((res) => {
+			resolveSession = res;
+		});
+		vi.mocked(storeAuth).checkSession.mockReturnValue(sessionPromise);
+		vi.mocked(storeAuth).isLoggedIn = true;
+		storeNavigation.pendingVerifyCode = "123456";
+		const gotoSpy = vi.spyOn(storeNavigation, "goto");
+
+		render(App);
+
+		// Before checkSession completes, pendingVerifyCode is not consumed
+		expect(storeNavigation.pendingVerifyCode).toBe("123456");
+		expect(gotoSpy).not.toHaveBeenCalled();
+
+		// Complete checkSession
+		resolveSession(true);
+
+		await vi.waitFor(() => {
+			expect(gotoSpy).toHaveBeenCalledWith("profile");
+			expect(storeNavigation.pendingVerifyCode).toBeNull();
+			expect(storeNavigation.activeVerifyCode).toBe("123456");
+		});
+	});
+
+	it("consumes pendingVerifyCode and sets activeVerifyCode when logged in", async () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
 		storeNavigation.pendingVerifyCode = "123456";
 		const gotoSpy = vi.spyOn(storeNavigation, "goto");
@@ -102,10 +129,11 @@ describe("App", () => {
 		await vi.waitFor(() => {
 			expect(gotoSpy).toHaveBeenCalledWith("profile");
 			expect(storeNavigation.pendingVerifyCode).toBeNull();
+			expect(storeNavigation.activeVerifyCode).toBe("123456");
 		});
 	});
 
-	it("consumes pendingVerifyCode and opens login modal when not logged in", async () => {
+	it("retains pendingVerifyCode and opens login modal when not logged in", async () => {
 		vi.mocked(storeAuth).isLoggedIn = false;
 		storeNavigation.pendingVerifyCode = "123456";
 		const gotoAuthSpy = vi.spyOn(storeNavigation, "gotoAuth");
@@ -114,7 +142,9 @@ describe("App", () => {
 
 		await vi.waitFor(() => {
 			expect(gotoAuthSpy).toHaveBeenCalledWith("login");
-			expect(storeNavigation.pendingVerifyCode).toBeNull();
+			// Must NOT discard code so it can be consumed once user logs in
+			expect(storeNavigation.pendingVerifyCode).toBe("123456");
+			expect(storeNavigation.activeVerifyCode).toBeNull();
 		});
 	});
 });

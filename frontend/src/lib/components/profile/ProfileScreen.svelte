@@ -8,7 +8,12 @@
 	import Avatar from "$components/common/Avatar.svelte";
 	import VerifyCodeForm from "$components/auth/VerifyCodeForm.svelte";
 
-	let showVerify = $state(false);
+	let showVerify = $state(Boolean(storeNavigation.activeVerifyCode));
+	$effect(() => {
+		if (storeNavigation.activeVerifyCode) {
+			showVerify = true;
+		}
+	});
 
 	// storeStats.myStats is a PlayerStats (see stats.svelte.ts): username,
 	// total_wins, total_losses, rank — there is no wins/matches_played field.
@@ -60,8 +65,16 @@
 			</button>
 			{#if showVerify}
 				<VerifyCodeForm
-					onVerified={() => (showVerify = false)}
-					onSkip={() => (showVerify = false)}
+					initialCode={storeNavigation.activeVerifyCode ?? ""}
+					autoSubmit={Boolean(storeNavigation.activeVerifyCode)}
+					onVerified={() => {
+						showVerify = false;
+						storeNavigation.activeVerifyCode = null;
+					}}
+					onSkip={() => {
+						showVerify = false;
+						storeNavigation.activeVerifyCode = null;
+					}}
 				/>
 			{/if}
 		{/if}

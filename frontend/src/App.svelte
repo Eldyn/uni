@@ -39,6 +39,7 @@
 	import * as m from "$lib/paraglide/messages.js";
 
 	let _unsubError: (() => void) | null = null;
+	let sessionChecked = $state(false);
 
 	// Warm the lazy GameScreen chunk while in a lobby so the match starts without
 	// a blank frame when the first state broadcast switches to the game screen.
@@ -65,11 +66,14 @@
 
 	$effect(() => {
 		const code = storeNavigation.pendingVerifyCode;
-		if (!code) return;
-		storeNavigation.pendingVerifyCode = null;
+		if (!code || !sessionChecked) return;
+
 		if (storeAuth.isLoggedIn) {
+			storeNavigation.pendingVerifyCode = null;
+			storeNavigation.activeVerifyCode = code;
 			storeNavigation.goto("profile");
 		} else {
+			// Keep pendingVerifyCode so that after login, this effect fires again!
 			storeNavigation.gotoAuth("login");
 		}
 	});
@@ -88,6 +92,7 @@
 		}
 
 		await storeAuth.checkSession();
+		sessionChecked = true;
 
 		if (storeAuth.isLoggedIn && !storeAuth.emailVerified) {
 			storeToast.warning(m.verify_reminder_toast({}, { locale: storeI18n.locale }));

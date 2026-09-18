@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import { storeAuth } from "$lib/stores/auth.svelte";
 import { storeStats } from "$lib/stores/stats.svelte";
+import { storeNavigation } from "$lib/stores/navigation.svelte";
+import { storeVerify } from "$stores/verify.svelte";
 import ProfileScreen from "$components/profile/ProfileScreen.svelte";
 
 vi.mock("$lib/stores/navigation.svelte", () => ({
-	storeNavigation: { goto: vi.fn(), openSettings: vi.fn() }
+	storeNavigation: { goto: vi.fn(), openSettings: vi.fn(), activeVerifyCode: null }
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({
 	storeAuth: {
@@ -40,6 +42,12 @@ vi.mock("$stores/verify.svelte", () => ({
 }));
 
 describe("ProfileScreen", () => {
+	beforeEach(() => {
+		storeNavigation.activeVerifyCode = null;
+		vi.mocked(storeVerify).confirmCode.mockReset();
+		vi.mocked(storeVerify).confirmCode.mockResolvedValue(true);
+	});
+
 	it("shows the player's username and a stat summary", () => {
 		render(ProfileScreen);
 		expect(screen.getByText("eldyn")).toBeInTheDocument();
@@ -132,5 +140,56 @@ describe("ProfileScreen", () => {
 
 		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
 		expect(btn).toHaveAttribute("aria-expanded", "false");
+	});
+
+	it("auto-opens verify code form with autoSubmit when activeVerifyCode is set", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		storeNavigation.activeVerifyCode = "123456";
+
+		render(ProfileScreen);
+
+		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
+		await vi.waitFor(() => {
+			expect(storeVerify.confirmCode).toHaveBeenCalledWith("123456", undefined);
+		});
+	});
+
+	it("clears activeVerifyCode when onVerified callback is triggered", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		storeNavigation.activeVerifyCode = "123456";
+		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(false);
+
+		render(ProfileScreen);
+
+		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
+		const boxes = screen.getAllByLabelText(/digit/i);
+		for (let i = 0; i < 6; i++) {
+			await fireEvent.input(boxes[i], { target: { value: String(i + 1) } });
+		}
+		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(true);
+		const submitBtn = screen.getByRole("button", { name: /verify.*submit/i });
+		await fireEvent.click(submitBtn);
+
+		expect(storeNavigation.activeVerifyCode).toBeNull();
+		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
+	});
+
+	it("clears activeVerifyCode when onSkip callback is triggered", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		storeNavigation.activeVerifyCode = "123456";
+		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(false);
+
+		render(ProfileScreen);
+
+		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
+
+		const skipBtn = screen.getByRole("button", { name: /skip for now/i });
+		await fireEvent.click(skipBtn);
+
+		expect(storeNavigation.activeVerifyCode).toBeNull();
+		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
 	});
 });

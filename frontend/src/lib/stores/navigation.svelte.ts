@@ -134,6 +134,12 @@ export class StoreNavigation {
 	pendingVerifyCode = $state<string | null>(null);
 
 	/**
+	 * Verification code currently active for auto-submitting in ProfileScreen / VerifyCodeForm.
+	 * Cleared once the form completes or is dismissed.
+	 */
+	activeVerifyCode = $state<string | null>(null);
+
+	/**
 	 * Set by HomeScreen's "+ Create Lobby" button right before navigating to
 	 * "lobbies", so LobbyBrowse can pop its create modal open on arrival
 	 * instead of the button just landing on a bare list. Consumed (and reset)
