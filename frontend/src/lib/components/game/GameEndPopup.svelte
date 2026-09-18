@@ -15,6 +15,14 @@
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeGame.localPlayer?.username);
 
+	let myRank = $derived.by(() => {
+		const me = storeGame.localPlayer?.username;
+		if (!me) return -1;
+		const idx = storeGame.placements.indexOf(me);
+		return idx === -1 ? -1 : idx + 1;
+	});
+	let isPodium = $derived(isElimination && !isMe && (myRank === 2 || myRank === 3));
+
 	let winnerIdx = $derived(
 		storeGame.state?.players?.findIndex((p) => p.username === winnerName) ?? -1
 	);
@@ -35,7 +43,7 @@
 	$effect(() => {
 		if (!isVictory || hasPlayedResultSfx) return;
 		hasPlayedResultSfx = true;
-		if (isMe) {
+		if (isMe || isPodium) {
 			// PLACEHOLDER-SFX: sfx.match.victory
 			storeAudio.playSfx("sfx.match.victory");
 		} else {
@@ -55,10 +63,15 @@
 			titleId="end-title"
 			contentClass="end-content pixel-corners"
 		>
-			<h1 id="end-title" class="result {isMe ? 'result--win' : 'result--lose'}">
+			<h1
+				id="end-title"
+				class="result {isMe ? 'result--win' : isPodium ? 'result--podium' : 'result--lose'}"
+			>
 				{isMe
 					? m.game_victory_title({}, { locale: storeI18n.locale })
-					: m.game_defeat_title({}, { locale: storeI18n.locale })}
+					: isPodium
+						? m.game_podium_finish_title({}, { locale: storeI18n.locale })
+						: m.game_defeat_title({}, { locale: storeI18n.locale })}
 			</h1>
 
 			<div class="avatar-stage">
@@ -162,6 +175,10 @@
 	}
 	.result--lose {
 		color: var(--danger);
+		text-shadow: 3px 3px 0px var(--pixel-shadow);
+	}
+	.result--podium {
+		color: var(--gold);
 		text-shadow: 3px 3px 0px var(--pixel-shadow);
 	}
 

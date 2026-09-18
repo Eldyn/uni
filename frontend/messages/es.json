@@ -287,6 +287,7 @@
 	"game_spectator_count": "Espectadores: {count}",
 	"game_placement_standings": "Clasificación",
 	"game_placement_rank": "#{rank} {name}",
+	"game_podium_finish_title": "¡AL PODIO!",
 	"game_podium_first_label": "1º",
 	"game_podium_second_label": "2º",
 	"game_podium_third_label": "3º",
