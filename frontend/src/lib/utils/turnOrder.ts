@@ -8,18 +8,14 @@
 import type { GamePlayer } from "$stores/game.svelte";
 
 export interface TurnOrderWindow {
-	/** Players before the current turn, ordered nearest-first-from-current. */
-	prev: GamePlayer[];
+	/** Always exactly `radius` long. Nearest-first-from-current. `null` only
+	 *  when there are 0-1 other players to show (nothing to repeat). */
+	prev: (GamePlayer | null)[];
 	current: GamePlayer | null;
-	/** Players after the current turn, ordered nearest-first-from-current. */
-	next: GamePlayer[];
+	/** Always exactly `radius` long. Nearest-first-from-current. */
+	next: (GamePlayer | null)[];
 }
 
-/**
- * Walks the player list in `playDirection` starting from whoever currently
- * has the turn, returning up to `radius` players on each side. Caps the
- * radius so a small table never shows the same player on both sides.
- */
 export function computeTurnOrderWindow(
 	players: GamePlayer[],
 	currentTurn: string,
@@ -28,14 +24,27 @@ export function computeTurnOrderWindow(
 ): TurnOrderWindow {
 	const n = players.length;
 	const idx = players.findIndex((p) => p.username === currentTurn);
-	if (idx === -1 || n === 0) return { prev: [], current: null, next: [] };
+	if (idx === -1 || n === 0) {
+		return {
+			prev: new Array(radius).fill(null),
+			current: null,
+			next: new Array(radius).fill(null)
+		};
+	}
 
 	const dir = playDirection >= 0 ? 1 : -1;
-	const maxRadius = Math.min(radius, Math.floor((n - 1) / 2));
+	// n - 1 other players to draw from; below that there's nothing left to
+	// repeat and the slot pads with null instead (e.g. a 1-player table).
+	const others = n - 1;
 
-	const prev: GamePlayer[] = [];
-	const next: GamePlayer[] = [];
-	for (let i = 1; i <= maxRadius; i++) {
+	const prev: (GamePlayer | null)[] = [];
+	const next: (GamePlayer | null)[] = [];
+	for (let i = 1; i <= radius; i++) {
+		if (others <= 0) {
+			prev.push(null);
+			next.push(null);
+			continue;
+		}
 		next.push(players[(((idx + dir * i) % n) + n) % n]);
 		prev.push(players[(((idx - dir * i) % n) + n) % n]);
 	}
