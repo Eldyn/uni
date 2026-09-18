@@ -108,4 +108,16 @@ describe("TooltipStack component", () => {
 		expect(drawChild!.x).toBe(playChild!.x);
 		expect(drawChild!.y).toBeGreaterThan(playChild!.y);
 	});
+
+	it("renders TooltipCard without close button and closes when card is clicked", async () => {
+		storeTooltipStack.open("turn");
+		render(TooltipStack);
+
+		expect(screen.queryByRole("button", { name: "✕" })).not.toBeInTheDocument();
+		expect(screen.getByText("Turn")).toBeInTheDocument();
+
+		const card = screen.getByText("Turn").closest(".balatro-tooltip-card")!;
+		await fireEvent.click(card);
+		expect(storeTooltipStack.stack.length).toBe(0);
+	});
 });
