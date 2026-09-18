@@ -4,23 +4,28 @@
  */
 
 import { computeAnchorPlacement, type Rect, type Side, type Size } from "$lib/utils/anchorPlacement";
-import { getGlossaryEntry } from "$lib/glossary/glossary";
+import { getGlossaryEntry, type GlossaryTag } from "$lib/glossary/glossary";
 
 export const MAX_TOOLTIP_DEPTH = 4;
 export const DEFAULT_TOOLTIP_WIDTH = 260;
 export const DEFAULT_TOOLTIP_HEIGHT = 140;
+/** Vertical gap between stacked sibling tooltips opened under the same parent. */
+export const SIBLING_STACK_GAP = 8;
 
 export interface TooltipStackEntry {
 	id: string;
 	keyword: string;
 	title: string;
 	description: string;
+	tags?: GlossaryTag[];
 	targetEl: HTMLElement | null;
 	triggerRect?: Rect;
 	depth: number;
 	parentId: string | null;
 	x: number;
 	y: number;
+	width?: number;
+	height?: number;
 	side: Side;
 }
 
@@ -85,37 +90,57 @@ class StoreTooltipStack {
 			triggerRect = { left: 100, top: 100, width: 10, height: 10 };
 		}
 
-		const avoidRects: Rect[] = this.stack.map((s) => ({
-			left: s.x,
-			top: s.y,
-			width: DEFAULT_TOOLTIP_WIDTH,
-			height: DEFAULT_TOOLTIP_HEIGHT
-		}));
+		// Siblings already opened under this same parent stack vertically below the
+		// last-opened sibling instead of re-anchoring to the trigger element.
+		const siblings = parent ? this.stack.filter((s) => s.parentId === parent.id) : [];
 
-		const placement = computeAnchorPlacement(
-			triggerRect,
-			{ width: DEFAULT_TOOLTIP_WIDTH, height: DEFAULT_TOOLTIP_HEIGHT },
-			{
-				side: depth === 0 ? "top" : "right",
-				align: "start",
-				offset: 10,
-				margin: 12,
-				avoidRects
-			}
-		);
+		let x: number;
+		let y: number;
+		let side: Side;
+
+		if (siblings.length > 0) {
+			const lastSibling = siblings[siblings.length - 1];
+			x = lastSibling.x;
+			y = lastSibling.y + (lastSibling.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
+			side = lastSibling.side;
+		} else {
+			const avoidRects: Rect[] = this.stack.map((s) => ({
+				left: s.x,
+				top: s.y,
+				width: s.width ?? DEFAULT_TOOLTIP_WIDTH,
+				height: s.height ?? DEFAULT_TOOLTIP_HEIGHT
+			}));
+
+			const placement = computeAnchorPlacement(
+				triggerRect,
+				{ width: DEFAULT_TOOLTIP_WIDTH, height: DEFAULT_TOOLTIP_HEIGHT },
+				{
+					side: depth === 0 ? "top" : "right",
+					align: "start",
+					offset: 10,
+					margin: 12,
+					avoidRects
+				}
+			);
+
+			x = placement.x;
+			y = placement.y;
+			side = placement.side;
+		}
 
 		const item: TooltipStackEntry = {
 			id,
 			keyword,
 			title: entry.title,
 			description: entry.description,
+			tags: entry.tags,
 			targetEl,
 			triggerRect,
 			depth,
 			parentId: parent ? parent.id : null,
-			x: placement.x,
-			y: placement.y,
-			side: placement.side
+			x,
+			y,
+			side
 		};
 
 		this.stack.push(item);
@@ -138,26 +163,58 @@ class StoreTooltipStack {
 
 		if (!triggerRect) return;
 
-		const avoidRects: Rect[] = this.stack
-			.filter((s) => s.id !== id)
-			.map((s) => ({
-				left: s.x,
-				top: s.y,
-				width: DEFAULT_TOOLTIP_WIDTH,
-				height: DEFAULT_TOOLTIP_HEIGHT
-			}));
+		item.width = contentSize.width;
+		item.height = contentSize.height;
 
-		const placement = computeAnchorPlacement(triggerRect, contentSize, {
-			side: item.depth === 0 ? "top" : "right",
-			align: "start",
-			offset: 10,
-			margin: 12,
-			avoidRects
-		});
+		// Siblings under the same parent (in open order): the first sibling keeps its
+		// anchor-based placement, later siblings stay stacked directly below the previous one.
+		const siblings = item.parentId ? this.stack.filter((s) => s.parentId === item.parentId) : [];
+		const siblingIndex = siblings.findIndex((s) => s.id === id);
 
-		item.x = placement.x;
-		item.y = placement.y;
-		item.side = placement.side;
+		if (siblingIndex > 0) {
+			const prevSibling = siblings[siblingIndex - 1];
+			item.x = prevSibling.x;
+			item.y = prevSibling.y + (prevSibling.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
+			item.side = prevSibling.side;
+		} else {
+			const avoidRects: Rect[] = this.stack
+				.filter((s) => s.id !== id)
+				.map((s) => ({
+					left: s.x,
+					top: s.y,
+					width: s.width ?? DEFAULT_TOOLTIP_WIDTH,
+					height: s.height ?? DEFAULT_TOOLTIP_HEIGHT
+				}));
+
+			const placement = computeAnchorPlacement(triggerRect, contentSize, {
+				side: item.depth === 0 ? "top" : "right",
+				align: "start",
+				offset: 10,
+				margin: 12,
+				avoidRects
+			});
+
+			item.x = placement.x;
+			item.y = placement.y;
+			item.side = placement.side;
+		}
+
+		this.restackSiblingsBelow(item.parentId);
+	}
+
+	/**
+	 * Re-adjusts the vertical positions of siblings following a parent's children whose
+	 * heights may have shifted after a measurement, so stacked siblings never overlap.
+	 */
+	private restackSiblingsBelow(parentId: string | null) {
+		if (!parentId) return;
+		const siblings = this.stack.filter((s) => s.parentId === parentId);
+		for (let i = 1; i < siblings.length; i++) {
+			const prev = siblings[i - 1];
+			const curr = siblings[i];
+			curr.x = prev.x;
+			curr.y = prev.y + (prev.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
+		}
 	}
 
 	/**

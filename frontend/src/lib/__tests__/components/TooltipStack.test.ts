@@ -88,4 +88,24 @@ describe("TooltipStack component", () => {
 		expect(entry!.x).toBeGreaterThan(0);
 		expect(entry!.y).toBeGreaterThan(0);
 	});
+
+	it("stacks multiple siblings of the same parent vertically without overlapping", () => {
+		// Open parent
+		const parent = storeTooltipStack.open("turn", null, null);
+		expect(parent).not.toBeNull();
+
+		// Open first child of turn
+		const playChild = storeTooltipStack.open("play", null, parent!.id);
+		expect(playChild).not.toBeNull();
+		expect(playChild!.parentId).toBe(parent!.id);
+		expect(playChild!.x).toBeGreaterThan(parent!.x);
+
+		// Open second child of turn (sibling of play)
+		const drawChild = storeTooltipStack.open("draw", null, parent!.id);
+		expect(drawChild).not.toBeNull();
+		expect(drawChild!.parentId).toBe(parent!.id);
+		// Same x as play, but stacked vertically below play
+		expect(drawChild!.x).toBe(playChild!.x);
+		expect(drawChild!.y).toBeGreaterThan(playChild!.y);
+	});
 });
