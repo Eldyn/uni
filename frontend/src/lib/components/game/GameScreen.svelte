@@ -3,6 +3,7 @@
 	import GameOverPopup from "./GameOverPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import SpectatorBanner from "./SpectatorBanner.svelte";
+	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
 	import GameActions from "./GameActions.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
@@ -29,7 +30,11 @@
 			<GameActions />
 		</div>
 
-		<SpectatorBanner eliminated={false} />
+		<SpectatorBanner
+			eliminated={storeGame.state?.mode === "elimination" && storeGame.eliminationOutcome !== null}
+		/>
+
+		<EliminationOutcomeBanner />
 
 		<div class="game-board-container">
 			<GameBoard />

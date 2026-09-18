@@ -175,6 +175,28 @@ class StoreGame implements SessionStore {
 	/** Current or final placement list in elimination mode. */
 	placements = $derived(this.state?.placements ?? []);
 
+	/** True for the tick where the local player's own elimination just landed
+	 *  in `placements` — used to fire the one-shot mid-match outcome banner
+	 *  exactly once, not on every subsequent state update. */
+	#previousPlacementsHadMe = false;
+	justEliminated = $derived.by(() => {
+		const inPlacementsNow = this.placements.includes(storeAuth.username);
+		const isNew = inPlacementsNow && !this.#previousPlacementsHadMe;
+		this.#previousPlacementsHadMe = inPlacementsNow;
+		return isNew;
+	});
+
+	/** "win" if the local player's final rank is top 3, "lose" otherwise; null
+	 *  if they aren't in `placements` yet (match ongoing for them, or not
+	 *  elimination mode). Fixed rank<=3 threshold — no small-lobby exception. */
+	eliminationOutcome = $derived<"win" | "lose" | null>(
+		(() => {
+			const rank = this.placements.indexOf(storeAuth.username);
+			if (rank === -1) return null;
+			return rank < 3 ? "win" : "lose";
+		})()
+	);
+
 	constructor() {
 		// FIXED: Register handlers exactly once at store initialization.
 		// They will safely survive any underlying WebSocket re-connections.
