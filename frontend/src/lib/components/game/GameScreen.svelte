@@ -2,6 +2,7 @@
 	import GameBoard from "./GameBoard.svelte";
 	import GameOverPopup from "./GameOverPopup.svelte";
 	import GameHud from "./GameHud.svelte";
+	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import GameActions from "./GameActions.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
@@ -27,6 +28,8 @@
 			<GameHud />
 			<GameActions />
 		</div>
+
+		<SpectatorBanner eliminated={false} />
 
 		<div class="game-board-container">
 			<GameBoard />
