@@ -120,4 +120,43 @@ describe("TooltipStack component", () => {
 		await fireEvent.click(card);
 		expect(storeTooltipStack.stack.length).toBe(0);
 	});
+
+	it("keeps tree open when cursor moves between tooltip items before the debounce elapses", async () => {
+		render(TooltipStack);
+
+		const parent = storeTooltipStack.open("turn", null, null);
+		const child = storeTooltipStack.open("play", null, parent!.id);
+		await act(() => {});
+
+		const parentItem = document.getElementById(parent!.id)!;
+		const childItem = document.getElementById(child!.id)!;
+		expect(parentItem).toBeInTheDocument();
+		expect(childItem).toBeInTheDocument();
+
+		await fireEvent.mouseLeave(parentItem);
+		await act(() => vi.advanceTimersByTime(200));
+		await fireEvent.mouseEnter(childItem);
+		await act(() => vi.advanceTimersByTime(1000));
+
+		expect(storeTooltipStack.stack.length).toBe(2);
+	});
+
+	it("closes the tree via debounce when the cursor leaves the last item with no re-entry", async () => {
+		render(TooltipStack);
+
+		const parent = storeTooltipStack.open("turn", null, null);
+		await act(() => {});
+
+		const parentItem = document.getElementById(parent!.id)!;
+		expect(parentItem).toBeInTheDocument();
+
+		await fireEvent.mouseEnter(parentItem);
+		await fireEvent.mouseLeave(parentItem);
+
+		await act(() => vi.advanceTimersByTime(299));
+		expect(storeTooltipStack.stack.length).toBe(1);
+
+		await act(() => vi.advanceTimersByTime(1));
+		expect(storeTooltipStack.stack.length).toBe(0);
+	});
 });

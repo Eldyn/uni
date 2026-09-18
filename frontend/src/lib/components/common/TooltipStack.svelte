@@ -45,13 +45,7 @@
 {#if storeTooltipStack.stack.length > 0}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="tooltip-stack-backdrop"
-		use:portal
-		onclick={handleBackdropClick}
-		onmouseenter={handleTreeMouseEnter}
-		onmouseleave={handleTreeMouseLeave}
-	>
+	<div class="tooltip-stack-backdrop" use:portal onclick={handleBackdropClick}>
 		{#each storeTooltipStack.stack as item (item.id)}
 			<div
 				id={item.id}
@@ -63,6 +57,8 @@
 				style:top="{item.y}px"
 				style:z-index={20000 + item.depth * 20}
 				use:handleMeasure={item}
+				onmouseenter={handleTreeMouseEnter}
+				onmouseleave={handleTreeMouseLeave}
 			>
 				<TooltipCard
 					title={item.title}
