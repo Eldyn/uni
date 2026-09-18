@@ -2,6 +2,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import TurnOrderStrip from "./TurnOrderStrip.svelte";
+	import ExitConfirmModal from "./ExitConfirmModal.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import Tooltip from "$components/common/Tooltip.svelte";
@@ -10,9 +11,19 @@
 	import { formatTurnTimer } from "$utils/timeFormat";
 
 	let collapsed = $state(false);
+	let showExitConfirm = $state(false);
 
-	function handleReturnToLobbies() {
+	function handleExitClick() {
+		showExitConfirm = true;
+	}
+
+	function confirmExit() {
+		showExitConfirm = false;
 		storeLobby.leave();
+	}
+
+	function cancelExit() {
+		showExitConfirm = false;
 	}
 </script>
 
@@ -117,11 +128,13 @@
 				</div>
 			{/if}
 
-			<button class="btn pixel-corners exit-btn" onclick={handleReturnToLobbies}>
+			<button class="btn pixel-corners exit-btn" onclick={handleExitClick}>
 				{m.game_hud_exit({}, { locale: storeI18n.locale })}
 			</button>
 		{/if}
 	</div>
+
+	<ExitConfirmModal open={showExitConfirm} onConfirm={confirmExit} onCancel={cancelExit} />
 {/if}
 
 <style>
