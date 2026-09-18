@@ -10,6 +10,11 @@
 	let visible = $state(false);
 
 	$effect(() => {
+		// Match-over gate: on the MatchOver tick the modal (GameVictoryPopup)
+		// owns the outcome — the mid-match banner must stay silent (no banner,
+		// no double SFX) for the winner or for the elimination that completes
+		// the match.
+		if (storeGame.state?.is_over) return;
 		if (!storeGame.justEliminated || !storeGame.eliminationOutcome) return;
 		visible = true;
 
