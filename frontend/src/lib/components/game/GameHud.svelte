@@ -95,8 +95,23 @@
 					title={m.game_placement_standings({}, { locale: storeI18n.locale })}
 				>
 					{#each storeGame.placements as name, i}
-						<span class="placement-chip">
-							{m.game_placement_rank({ rank: i + 1, name }, { locale: storeI18n.locale })}
+						{@const rank =
+							storeGame.state?.is_over === true
+								? i + 1
+								: storeGame.placements.length + (storeGame.state?.players?.length ?? 0) - i}
+						{@const rankClass =
+							rank === 1
+								? "text-gold"
+								: rank === 2
+									? "rank-silver"
+									: rank === 3
+										? "rank-bronze"
+										: "text-text/50"}
+						<span
+							class="placement-chip pixel-corners {rankClass}"
+							class:is-me={name === storeGame.localPlayer?.username}
+						>
+							{m.game_placement_rank({ rank, name }, { locale: storeI18n.locale })}
 						</span>
 					{/each}
 				</div>
@@ -216,7 +231,29 @@
 	}
 
 	.placement-chip {
-		color: var(--warning, #f59e0b);
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		background: #2a2a2d;
+		transition: background 0.1s ease;
+	}
+
+	.placement-chip:hover {
+		background: #323236;
+	}
+
+	.placement-chip.is-me {
+		background: #3a1b5c;
+		box-shadow: inset 0 0 0 4px var(--accent);
+	}
+
+	.rank-silver {
+		color: #d4d4d8;
+	}
+
+	.rank-bronze {
+		color: #cd7f32;
 	}
 
 	.top-card-chip {
