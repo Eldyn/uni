@@ -12,6 +12,7 @@ import { storeNavigation } from "./navigation.svelte";
 import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
+import { storeSpectator } from "./spectator.svelte";
 import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
 
 export const TYPE_MAP = TypeMap;
@@ -192,6 +193,7 @@ class StoreGame implements SessionStore {
 		this.actionRequired = null;
 		this.actionContext = null;
 		this.turnTimeRemaining = 0;
+		storeSpectator.reset();
 		storeNavigation.goto("lobby");
 	}
 
@@ -436,6 +438,7 @@ class StoreGame implements SessionStore {
 		this.actionContext = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
+		storeSpectator.reset();
 	}
 }
 
