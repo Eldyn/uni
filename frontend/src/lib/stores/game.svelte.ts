@@ -188,12 +188,26 @@ class StoreGame implements SessionStore {
 
 	/** "win" if the local player's final rank is top 3, "lose" otherwise; null
 	 *  if they aren't in `placements` yet (match ongoing for them, or not
-	 *  elimination mode). Fixed rank<=3 threshold — no small-lobby exception. */
+	 *  elimination mode). Fixed rank<=3 threshold — no small-lobby exception.
+	 *  Two regimes: while the match is live, placements is worst-first
+	 *  (elimination order), so a just-eliminated player's rank is
+	 *  placements.length + players.length - idx — the total participants at
+	 *  the moment they landed (players shrinks as players transfer to
+	 *  placements). After the backend's completion reverse, placements is
+	 *  best-first, so the rank is idx + 1. The terminal state is detected via
+	 *  `is_over` (set by MatchOver, the same moment the backend reverses).
+	 *  Corner: a mid-game quitter drops out of `players` without entering
+	 *  `placements`, shrinking the total — rare, accepted. */
 	eliminationOutcome = $derived<"win" | "lose" | null>(
 		(() => {
-			const rank = this.placements.indexOf(storeAuth.username);
-			if (rank === -1) return null;
-			return rank < 3 ? "win" : "lose";
+			const placements = this.placements;
+			const idx = placements.indexOf(storeAuth.username);
+			if (idx === -1) return null;
+			const finished = this.state?.is_over === true;
+			const rank = finished
+				? idx + 1 // best-first after completion reverse
+				: placements.length + (this.state?.players?.length ?? 0) - idx; // worst-first live
+			return rank <= 3 ? "win" : "lose";
 		})()
 	);
 
