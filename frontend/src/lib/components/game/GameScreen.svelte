@@ -65,7 +65,9 @@
 
 	/* The HUD floats on top of the board instead of stacking above it — the
 	   canvas must own the full screen or the scene's center drifts below the
-	   true screen center by half the HUD row's height. */
+	   true screen center by half the HUD row's height. Centering keeps the
+	   HUD in the middle at every width; GameActions renders only fixed
+	   overlays, so it never shifts this row. */
 	.game-controls {
 		position: absolute;
 		top: 0;
@@ -73,7 +75,7 @@
 		right: 0;
 		z-index: 2;
 		display: flex;
-		justify-content: space-between;
+		justify-content: center;
 		align-items: center;
 		padding: 16px;
 		pointer-events: none;
@@ -83,14 +85,6 @@
 	   stays click-through so it never blocks the board underneath. */
 	.game-controls > :global(*) {
 		pointer-events: auto;
-	}
-
-	/* Narrow screens: the HUD wraps (see GameHud.svelte) — center the bar so
-	   the wrapped rows don't hug the left edge. */
-	@media (max-width: 700px) {
-		.game-controls {
-			justify-content: center;
-		}
 	}
 
 	.game-board-container {

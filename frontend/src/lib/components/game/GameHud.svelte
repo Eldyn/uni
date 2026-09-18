@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
+	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import TurnOrderStrip from "./TurnOrderStrip.svelte";
 	import ExitConfirmModal from "./ExitConfirmModal.svelte";
@@ -106,21 +107,20 @@
 					title={m.game_placement_standings({}, { locale: storeI18n.locale })}
 				>
 					{#each storeGame.placements as name, i}
-						{@const rank =
-							storeGame.state?.is_over === true
-								? i + 1
-								: storeGame.placements.length + (storeGame.state?.players?.length ?? 0) - i}
+						{@const rank = i + 1}
 						{@const rankClass =
-							rank === 1
-								? "text-gold"
-								: rank === 2
-									? "rank-silver"
-									: rank === 3
-										? "rank-bronze"
-										: "text-text/50"}
+							storeGame.state?.is_over === true
+								? rank === 1
+									? "text-gold"
+									: rank === 2
+										? "rank-silver"
+										: rank === 3
+											? "rank-bronze"
+											: "text-text/50"
+								: "text-text/50"}
 						<span
 							class="placement-chip pixel-corners {rankClass}"
-							class:is-me={name === storeGame.localPlayer?.username}
+							class:is-me={name === storeAuth.username}
 						>
 							{m.game_placement_rank({ rank, name }, { locale: storeI18n.locale })}
 						</span>
@@ -200,7 +200,7 @@
 		letter-spacing: 0.04em;
 		opacity: 0.75;
 		display: block;
-		margin-top: -6px;
+		margin-top: 2px;
 	}
 
 	.ranked-badge {
