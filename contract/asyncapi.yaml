@@ -75,6 +75,41 @@ channels:
 # ---------------------------------------------------------------------------
 components:
   # -------------------------------------------------------------------------
+  # Event-stream packet type registry
+  # -------------------------------------------------------------------------
+  # The MatchEvent envelope's `type` field carries one of these EXACT wire
+  # strings; clients dispatch on the string and the server MUST emit the
+  # matching value. Key = wire `type`, value = the payload schema describing
+  # the envelope `payload` object. Add new packet types here additively.
+  # This map is documentation/registry only; the codegens ignore unknown
+  # `x-` extensions, so adding it changes no generated artifact.
+  x-packet-types:
+    match_start: MatchStartPayload
+    defs: DefsPayload
+    card_played: CardPlayedPayload
+    play_rejected: PlayRejectedPayload
+    cards_drawn: CardsDrawnPayload
+    reshuffle: ReshufflePayload
+    status_applied: StatusAppliedPayload
+    status_removed: StatusRemovedPayload
+    window_open: WindowOpenPayload
+    window_response: WindowResponsePayload
+    window_close: WindowClosePayload
+    auto_played: AutoPlayedPayload
+    prompt_open: PromptOpenPayload
+    prompt_close: PromptClosePayload
+    turn_advance: TurnAdvancePayload
+    round_advance: RoundAdvancePayload
+    roll_result: RollResultPayload
+    signal: SignalPayload
+    chain_aborted: ChainAbortedPayload
+    mod_disarmed: ModDisarmedPayload
+    visibility_granted: VisibilityGrantedPayload
+    visibility_revoked: VisibilityRevokedPayload
+    placement: PlacementPayload
+    match_end: MatchEndPayload
+
+  # -------------------------------------------------------------------------
   # Messages
   # -------------------------------------------------------------------------
   messages:
@@ -299,7 +334,8 @@ components:
         Ordered per-match event packet. FORWARD-COMPAT
         (normative): unknown packet discriminator values MUST be ignored by
         clients, never treated as errors. Envelope fields, ordering/gap rules,
-        and payload versioning are defined on the MatchEventPayload schema.
+        the packet registry, and payload versioning (x-packet-v1) are defined
+        on the MatchEventPayload schema.
       payload:
         $ref: "#/components/schemas/MatchEventPayload"
 
@@ -903,10 +939,24 @@ components:
     # preserves per-connection order. On a seq gap > 1 the client flushes its
     # animation queue, marks itself desynced, and reconciles from the next
     # state snapshot. FORWARD-COMPAT (normative): unknown `type` strings MUST be
-    # ignored by clients, never treated as errors. The inner payload shape per
-    # `type` is described by the named *Payload schemas below, versioned by name
-    # via the x-packet-v1 marker (`x-packet-version: "1"`); new packet types are
-    # added additively.
+    # ignored by clients, never treated as errors. The valid `type` values are
+    # pinned by components.x-packet-types; the inner payload shape per `type` is
+    # described by the named *Payload schemas below, versioned by name via the
+    # x-packet-v1 marker (`x-packet-version: "1"`); new packet types are added
+    # additively.
+    #
+    # WARN: `payload` (here, and the same for SignalPayload.payload and
+    #       PromptOpenPayload.payload) is intentionally opaque: the external
+    #       asyncapi_gencpp maps `additionalProperties: true` to an EMPTY C++
+    #       struct, so the generated Payload type neither serializes nor
+    #       parses its contents (toJson() -> `{}`, fromJson() discards). Do NOT
+    #       assume the C++ generated struct round-trips this field; consumers
+    #       must carry/parse raw JSON for it (the view layer and the session
+    # layer). WARN: `seq` is a uint32 on the wire but asyncapi_gencpp emits
+    #       every integer as C++ `int` (32-bit signed), so the 4294967295
+    #       maximum does not fit and the generated range check is inert. The
+    #       view layer and the controller must handle the uint32 range
+    #       explicitly (carry raw JSON or widen); no schema change is made here.
     MatchEventPayload:
       type: object
       x-packet-version: "1"
@@ -916,7 +966,9 @@ components:
           type: integer
           minimum: 0
           maximum: 4294967295
-          description: Per-match monotonic sequence number (uint32); gap-free per recipient.
+          description: >
+            Per-match monotonic sequence number (uint32); gap-free per
+            recipient. Generated C++ type is `int` (see WARN above).
         type:
           type: string
           description: Packet discriminator. Unknown values MUST be ignored by clients.
