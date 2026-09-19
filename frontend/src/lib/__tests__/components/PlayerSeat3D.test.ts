@@ -230,8 +230,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 				player: { username: "star_player", card_count: 2, is_bot: false },
 				seat,
 				color: "#00ffcc",
-				isTurn: false,
-				arcMode: "overhead"
+				isTurn: false
 			},
 			context: new Map([[CARD_REGISTRY_KEY, registry]])
 		});
@@ -252,48 +251,11 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			player: { username: "star_player", card_count: 2, is_bot: false },
 			seat,
 			color: "#00ffcc",
-			isTurn: true,
-			arcMode: "overhead"
+			isTurn: true
 		});
 
 		expect(labelContainer).toHaveClass("is-shown");
 		expect(labelContainer).toHaveClass("is-active");
-	});
-
-	it("updates arc path and viewBox when switching arcMode", () => {
-		const registry = new CardRegistry();
-		const seat = { x: 0, z: 0, rotationY: 0 };
-
-		const { container, rerender } = render(PlayerSeat3D, {
-			props: {
-				player: { username: "arc_tester", card_count: 1, is_bot: false },
-				seat,
-				color: "#ff0088",
-				arcMode: "overhead"
-			},
-			context: new Map([[CARD_REGISTRY_KEY, registry]])
-		});
-
-		const svg = container.querySelector(".seat-arc-svg");
-		expect(svg?.getAttribute("viewBox")).toBe("-100 -70 200 140");
-
-		rerender({
-			player: { username: "arc_tester", card_count: 1, is_bot: false },
-			seat,
-			color: "#ff0088",
-			arcMode: "cards-outer"
-		});
-
-		expect(svg?.getAttribute("viewBox")).toBe("-90 -50 180 60");
-
-		rerender({
-			player: { username: "arc_tester", card_count: 1, is_bot: false },
-			seat,
-			color: "#ff0088",
-			arcMode: "cards-inner"
-		});
-
-		expect(svg?.getAttribute("viewBox")).toBe("-70 -40 140 50");
 	});
 
 	it("scales font size dynamically for long opponent names so they do not get cut off", () => {
@@ -305,8 +267,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			props: {
 				player: { username: "bob", card_count: 1, is_bot: false },
 				seat,
-				color: "#00ffcc",
-				arcMode: "overhead"
+				color: "#00ffcc"
 			},
 			context: new Map([[CARD_REGISTRY_KEY, registry]])
 		});
@@ -320,8 +281,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		rerender({
 			player: { username: "scriptxcorso", card_count: 1, is_bot: false },
 			seat,
-			color: "#00ffcc",
-			arcMode: "overhead"
+			color: "#00ffcc"
 		});
 
 		const scriptxFontSize = Number(textElem?.getAttribute("font-size"));
@@ -333,8 +293,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		rerender({
 			player: { username: "superlongplayer", card_count: 1, is_bot: false },
 			seat,
-			color: "#00ffcc",
-			arcMode: "overhead"
+			color: "#00ffcc"
 		});
 
 		const longFontSize = Number(textElem?.getAttribute("font-size"));
@@ -350,8 +309,7 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 			props: {
 				player: { username: "a_very_extremely_long_name_indeed", card_count: 1, is_bot: false },
 				seat,
-				color: "#00ffcc",
-				arcMode: "overhead"
+				color: "#00ffcc"
 			},
 			context: new Map([[CARD_REGISTRY_KEY, registry]])
 		});

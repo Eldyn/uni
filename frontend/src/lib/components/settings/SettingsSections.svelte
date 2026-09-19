@@ -8,11 +8,12 @@
 	import { ws, ClientAction } from "$stores/ws.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
-	import EnumSelector from "$components/lobby/settings/EnumSelector.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
-	let { showCredits = false, showDangerZone = false }: { showCredits?: boolean; showDangerZone?: boolean } =
-		$props();
+	let {
+		showCredits = false,
+		showDangerZone = false
+	}: { showCredits?: boolean; showDangerZone?: boolean } = $props();
 
 	const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -104,7 +105,10 @@
 
 			<Toggle
 				label={m.settings_animation_always_upright_values({}, { locale: storeI18n.locale })}
-				description={m.settings_animation_always_upright_values_description({}, { locale: storeI18n.locale })}
+				description={m.settings_animation_always_upright_values_description(
+					{},
+					{ locale: storeI18n.locale }
+				)}
 				checked={storeAnimation.alwaysUprightValues}
 				oncommit={(v) => storeAnimation.setAlwaysUprightValues(v)}
 			/>
@@ -154,18 +158,6 @@
 				oncommit={(v) => storeRenderSettings.setAutoScrollOnEdgeCreep(v)}
 			/>
 
-			<EnumSelector
-				label="Seat name arc"
-				description="Curve opponent player names along an arc instead of flat text."
-				value={storeRenderSettings.seatNameArcMode}
-				options={[
-					{ value: "overhead", label: "Overhead", description: "Curved over avatar head" },
-					{ value: "cards-outer", label: "Outer cards", description: "Curved along outer card tips" },
-					{ value: "cards-inner", label: "Inner cards", description: "Curved between avatar and cards" }
-				]}
-				oncommit={(v) => storeRenderSettings.setSeatNameArcMode(v)}
-			/>
-
 			<Toggle
 				label={m.game_privacy_mode({}, { locale: storeI18n.locale })}
 				description={m.game_privacy_mode_desc({}, { locale: storeI18n.locale })}
@@ -201,9 +193,17 @@
 	{#if showCredits}
 		<section class="panel settings-panel">
 			{@render sectionHeading(m.settings_credits_heading({}, { locale: storeI18n.locale }))}
-			<nav class="mt-4 flex flex-wrap gap-3 font-tiny text-sm text-text/70" aria-label="Credits links">
+			<nav
+				class="mt-4 flex flex-wrap gap-3 font-tiny text-sm text-text/70"
+				aria-label="Credits links"
+			>
 				{#each SOCIAL_LINKS as link}
-					<a href={link.href} target="_blank" rel="noopener noreferrer" class="transition-colors hover:text-accent">
+					<a
+						href={link.href}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="transition-colors hover:text-accent"
+					>
 						{link.label}
 					</a>
 				{/each}
@@ -218,7 +218,11 @@
 		<section class="panel settings-panel settings-panel--danger">
 			{@render sectionHeading(m.settings_danger_zone_heading({}, { locale: storeI18n.locale }))}
 			<div class="mt-4 flex flex-col gap-2">
-				<button class="btn-secondary px-4 py-2" style="--pc-border: var(--danger); color: var(--danger);" onclick={() => storeGame.returnToLobby()}>
+				<button
+					class="btn-secondary px-4 py-2"
+					style="--pc-border: var(--danger); color: var(--danger);"
+					onclick={() => storeGame.returnToLobby()}
+				>
 					{m.settings_quit_match({}, { locale: storeI18n.locale })}
 				</button>
 			</div>

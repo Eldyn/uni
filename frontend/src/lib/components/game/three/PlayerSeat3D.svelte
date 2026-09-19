@@ -28,10 +28,8 @@
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
-	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { gsap } from "gsap";
-	import { CARD_HEIGHT } from "./units";
 
 	let {
 		player,
@@ -44,8 +42,7 @@
 		avatarPx = 56,
 		avatarWorld = 0.78,
 		labelEm = 1.15,
-		hasHoldingCard = false,
-		arcMode
+		hasHoldingCard = false
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -66,8 +63,6 @@
 		labelEm?: number;
 		/** If true, the player has 1 drawn card in front awaiting play decision. */
 		hasHoldingCard?: boolean;
-		/** Positioning curve mode for the seat name label. */
-		arcMode?: "overhead" | "cards-outer" | "cards-inner";
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
@@ -146,7 +141,6 @@
 		return Math.max(1, units);
 	}
 
-	let effectiveArcMode = $derived(arcMode ?? storeRenderSettings.seatNameArcMode);
 	let isActive = $derived(isTurn || isValidTarget);
 	let displayName = $derived(
 		player.username && player.username.length > 16
@@ -158,45 +152,15 @@
 	);
 	let pathId = $derived(`arc-path-${seatId}`);
 
-	let arcAnchorPos = $derived<[number, number, number]>(
-		effectiveArcMode === "overhead"
-			? [0, AVATAR_HEIGHT, 0]
-			: effectiveArcMode === "cards-outer"
-				? [0, AVATAR_HEIGHT, ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.1]
-				: [0, AVATAR_HEIGHT, Math.max(0.2, ringRadiusWorld - (CARD_HEIGHT * cardScale) / 2 - 0.06)]
-	);
+	let arcAnchorPos = $derived<[number, number, number]>([0, AVATAR_HEIGHT, 0]);
 
 	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
-	let arcD = $derived(
-		effectiveArcMode === "overhead"
-			? describeArc(0, 0, overheadRadius, -172, -8, 1)
-			: effectiveArcMode === "cards-outer"
-				? describeArc(0, -75, 75, 148, 32, 0)
-				: describeArc(0, -50, 50, 148, 32, 0)
-	);
-	let arcViewBox = $derived(
-		effectiveArcMode === "overhead"
-			? "-100 -70 200 140"
-			: effectiveArcMode === "cards-outer"
-				? "-90 -50 180 60"
-				: "-70 -40 140 50"
-	);
-	let arcWidth = $derived(
-		effectiveArcMode === "overhead" ? 200 : effectiveArcMode === "cards-outer" ? 180 : 140
-	);
-	let arcHeight = $derived(
-		effectiveArcMode === "overhead" ? 140 : effectiveArcMode === "cards-outer" ? 60 : 50
-	);
+	let arcD = $derived(describeArc(0, 0, overheadRadius, -172, -8, 1));
+	let arcViewBox = $derived("-100 -70 200 140");
+	let arcWidth = $derived(200);
+	let arcHeight = $derived(140);
 
-	let approxPathLength = $derived.by(() => {
-		if (effectiveArcMode === "overhead") {
-			return overheadRadius * ((164 * Math.PI) / 180);
-		} else if (effectiveArcMode === "cards-outer") {
-			return 75 * ((116 * Math.PI) / 180);
-		} else {
-			return 50 * ((116 * Math.PI) / 180);
-		}
-	});
+	let approxPathLength = $derived.by(() => overheadRadius * ((164 * Math.PI) / 180));
 
 	let baseFontSize = $derived(Math.round(labelEm * 18));
 	let maxAllowedTextLength = $derived(Math.floor(approxPathLength * 0.9));
@@ -362,9 +326,7 @@
 			class:is-active={isActive}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
-			style="--player-accent: {color}; {effectiveArcMode !== 'overhead'
-				? `transform: rotate(${(seat.rotationY * 180) / Math.PI}deg);`
-				: ''}"
+			style="--player-accent: {color};"
 		>
 			<svg class="seat-arc-svg" viewBox={arcViewBox} width={arcWidth} height={arcHeight}>
 				<defs>

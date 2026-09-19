@@ -5,7 +5,9 @@ vi.mock("$stores/navigation.svelte", () => ({ storeNavigation: { closeSettings: 
 vi.mock("$stores/audio.svelte", () => ({
 	storeAudio: { musicVolume: 0.5, sfxVolume: 0.5, setMusicVolume: vi.fn(), setSfxVolume: vi.fn() }
 }));
-vi.mock("$stores/i18n.svelte", () => ({ storeI18n: { locale: "en", locales: ["en", "it"], setLocale: vi.fn() } }));
+vi.mock("$stores/i18n.svelte", () => ({
+	storeI18n: { locale: "en", locales: ["en", "it"], setLocale: vi.fn() }
+}));
 vi.mock("$stores/auth.svelte", () => ({ storeAuth: { username: "eldyn", logout: vi.fn() } }));
 vi.mock("$stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false, leave: vi.fn() } }));
 vi.mock("$stores/game.svelte", () => ({ storeGame: { state: null, returnToLobby: vi.fn() } }));
@@ -15,12 +17,10 @@ vi.mock("$stores/renderSettings.svelte", () => ({
 		clickToPlay: true,
 		syncCursorOnClick: true,
 		autoScrollOnEdgeCreep: true,
-		seatNameArcMode: "overhead",
 		setDrawPileThickness: vi.fn(),
 		setClickToPlay: vi.fn(),
 		setSyncCursorOnClick: vi.fn(),
-		setAutoScrollOnEdgeCreep: vi.fn(),
-		setSeatNameArcMode: vi.fn()
+		setAutoScrollOnEdgeCreep: vi.fn()
 	}
 }));
 
@@ -63,12 +63,6 @@ describe("SettingsSections", () => {
 		expect(autoScrollToggle).toBeChecked();
 		await fireEvent.click(autoScrollToggle);
 		expect(storeRenderSettings.setAutoScrollOnEdgeCreep).toHaveBeenCalledWith(false);
-
-		const arcSelector = getByLabelText("Seat name arc");
-		expect(arcSelector).toBeInTheDocument();
-		expect(arcSelector).toHaveValue("overhead");
-		await fireEvent.change(arcSelector, { target: { value: "cards-outer" } });
-		expect(storeRenderSettings.setSeatNameArcMode).toHaveBeenCalledWith("cards-outer");
 	});
 
 	it("handles toggles when render settings are initially off or non-default", async () => {
