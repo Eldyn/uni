@@ -33,6 +33,26 @@ describe("CardMesh3D constants & pose derivation", () => {
 		expect(computeShadow(1)).toEqual({ scale: 1.15, extraOffset: 0.12 });
 	});
 
+	it("scales the resting shadow offset with the card so it stays a fixed fraction of card width", () => {
+		const DRAG_EXTRA = 0.12;
+		// Mirrors CardMesh3D's shadowPosition x term: `offsetX` is a local
+		// offset (scaled by the group), the drag extra is world-space.
+		const worldShadowOffsetX = (offsetX: number, scale: number, dragT = 0) =>
+			(-offsetX - (DRAG_EXTRA * dragT) / scale) * scale;
+
+		// A card is CARD_WIDTH (=1) world unit wide per unit of scale, so the
+		// shadow's fraction of the card must equal offsetX at every card size —
+		// this is the portrait opponent-ring regression (0.25x cards used to
+		// keep a full desktop-sized world offset, hanging ~32% off their edge).
+		for (const scale of [0.25, 0.55, 1.47, 1.8]) {
+			expect(-worldShadowOffsetX(0.08, scale) / scale).toBeCloseTo(0.08);
+		}
+		// The drag extra stays a fixed world displacement, not a scaled fraction.
+		expect(worldShadowOffsetX(0.08, 0.25, 1) - worldShadowOffsetX(0.08, 0.25, 0)).toBeCloseTo(
+			-DRAG_EXTRA
+		);
+	});
+
 	it("computes animated position correctly from liftT, pushX, and hoverPush", () => {
 		const position: [number, number, number] = [1, 2, 3];
 		const hoverPush: [number, number] = [0.1, -0.2];

@@ -16,7 +16,8 @@
 		shader.uniforms.uUvRectFront = { value: uniforms.uUvRectFront };
 		shader.uniforms.uUvRectBack = { value: uniforms.uUvRectBack };
 
-		shader.fragmentShader = `
+		shader.fragmentShader =
+			`
 uniform vec4 uUvRectFront;
 uniform vec4 uUvRectBack;
 ` + shader.fragmentShader;
@@ -213,7 +214,9 @@ uniform vec4 uUvRectBack;
 	let flipLift = $derived(Math.abs(Math.sin(flipRad)) * cardDimension * animatedScale);
 	// Flips the card by 180° when rotation is upside down (|angle| > 90°),
 	// keeping values like 6 vs 9 legible without breaking rectangular geometry.
-	let valueFlipRad = $derived(computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues));
+	let valueFlipRad = $derived(
+		computeValueFlipRad(totalSpinDeg, storeAnimation.alwaysUprightValues)
+	);
 
 	let animatedPosition = $derived<[number, number, number]>([
 		position[0] + hoverPush[0] * liftT + pushX,
@@ -224,10 +227,18 @@ uniform vec4 uUvRectBack;
 	// Perspective projection (larger and more distant shadow) ONLY applies to DnD (dragT)
 	let shadowExtraOffset = $derived(0.12 * dragT);
 	let shadowScale = $derived(1 + 0.15 * dragT);
+	// `offsetX` is a local offset (a fraction of the card's own width), so it is
+	// NOT divided by animatedScale: the group's scale turns it into a world
+	// offset that grows/shrinks with the card. Dividing it out pins the shadow
+	// to a fixed world distance instead, which on a small card — an opponent's
+	// ring fan on portrait is only ~0.25x — leaves it hanging a third of a
+	// card-width off its own edge. `dropZ` (clears the card's fixed layer
+	// z-steps) and the drag extra (a deliberate world-space perspective
+	// displacement) stay world-fixed and keep the division.
 	let shadowPosition = $derived<[number, number, number]>(
 		shadow
 			? [
-					(-shadow.offsetX - shadowExtraOffset) / animatedScale,
+					-shadow.offsetX - shadowExtraOffset / animatedScale,
 					0,
 					(-shadow.dropZ - shadowExtraOffset - flipLift) / animatedScale
 				]
@@ -353,7 +364,11 @@ uniform vec4 uUvRectBack;
 			rotation.z={spinRad}
 		>
 			{#if highlight && highlightTexture}
-				<T.Mesh position.z={HIGHLIGHT_DROP_Z} scale={1 + HIGHLIGHT_RIM_GROWTH} renderOrder={renderOrder + 1}>
+				<T.Mesh
+					position.z={HIGHLIGHT_DROP_Z}
+					scale={1 + HIGHLIGHT_RIM_GROWTH}
+					renderOrder={renderOrder + 1}
+				>
 					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 					<T.MeshBasicMaterial
 						map={highlightTexture}
