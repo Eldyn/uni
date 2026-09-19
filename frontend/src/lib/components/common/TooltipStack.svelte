@@ -3,10 +3,6 @@
 	import RichText from "$components/common/RichText.svelte";
 	import TooltipCard from "$components/common/TooltipCard.svelte";
 
-	const HOVER_LEAVE_DELAY_MS = 300;
-
-	let leaveTimer: ReturnType<typeof setTimeout> | undefined;
-
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
 		return {
@@ -30,15 +26,14 @@
 		}
 	}
 
+	// The tree-leave debounce lives on the store so the root Tooltip popover
+	// (a separate portal, and this stack's conceptual parent) can cancel it too.
 	function handleTreeMouseEnter() {
-		clearTimeout(leaveTimer);
+		storeTooltipStack.treeHoverEnter();
 	}
 
 	function handleTreeMouseLeave() {
-		clearTimeout(leaveTimer);
-		leaveTimer = setTimeout(() => {
-			storeTooltipStack.closeAll();
-		}, HOVER_LEAVE_DELAY_MS);
+		storeTooltipStack.treeHoverLeave();
 	}
 </script>
 
@@ -52,6 +47,7 @@
 				role="dialog"
 				aria-modal="false"
 				aria-label={item.title}
+				tabindex="-1"
 				class="tooltip-stack-item"
 				style:left="{item.x}px"
 				style:top="{item.y}px"
@@ -65,11 +61,7 @@
 					tags={item.tags}
 					onclose={() => storeTooltipStack.close(item.id)}
 				>
-					<RichText
-						text={item.description}
-						allowKeywords={true}
-						tooltipParentId={item.id}
-					/>
+					<RichText text={item.description} allowKeywords={true} tooltipParentId={item.id} />
 				</TooltipCard>
 			</div>
 		{/each}
@@ -77,10 +69,12 @@
 {/if}
 
 <style>
+	/* One below the root tooltip popover (19999) so the backdrop never covers
+	   it, and well below the stack items (20000+) themselves. */
 	.tooltip-stack-backdrop {
 		position: fixed;
 		inset: 0;
-		z-index: 19999;
+		z-index: 19998;
 		pointer-events: auto;
 	}
 

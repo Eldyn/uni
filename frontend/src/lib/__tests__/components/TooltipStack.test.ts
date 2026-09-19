@@ -46,7 +46,7 @@ describe("TooltipStack component", () => {
 
 		const backdrop = document.querySelector(".tooltip-stack-backdrop") as HTMLElement;
 		expect(backdrop).toBeInTheDocument();
-		expect(getComputedStyle(backdrop).zIndex).toBe("19999");
+		expect(getComputedStyle(backdrop).zIndex).toBe("19998");
 	});
 
 	it("spawns child tooltip from hover tooltip and handles unmounting gracefully", async () => {

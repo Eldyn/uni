@@ -3,7 +3,13 @@
  * @brief Reactive store managing multi-depth recursive glossary tooltips.
  */
 
-import { computeAnchorPlacement, type Rect, type Side, type Size } from "$lib/utils/anchorPlacement";
+import {
+	computeAnchorPlacement,
+	type Align,
+	type Rect,
+	type Side,
+	type Size
+} from "$lib/utils/anchorPlacement";
 import { getGlossaryEntry, type GlossaryTag } from "$lib/glossary/glossary";
 
 export const MAX_TOOLTIP_DEPTH = 4;
@@ -11,6 +17,8 @@ export const DEFAULT_TOOLTIP_WIDTH = 260;
 export const DEFAULT_TOOLTIP_HEIGHT = 140;
 /** Vertical gap between stacked sibling tooltips opened under the same parent. */
 export const SIBLING_STACK_GAP = 8;
+/** Grace period before a pointer leaving the tooltip tree closes the whole stack. */
+export const TREE_LEAVE_DELAY_MS = 300;
 
 export interface TooltipStackEntry {
 	id: string;
@@ -32,6 +40,7 @@ export interface TooltipStackEntry {
 class StoreTooltipStack {
 	stack = $state<TooltipStackEntry[]>([]);
 	#counter = 0;
+	#treeLeaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor() {
 		if (typeof window !== "undefined") {
@@ -50,10 +59,51 @@ class StoreTooltipStack {
 	}
 
 	/**
+	 * Cancels a pending tree-leave close. Called by every element that is part
+	 * of the open tooltip tree — the portaled stack items AND the root Tooltip
+	 * popover/trigger it was opened from — so moving the pointer between any
+	 * two of them never closes the tree.
+	 */
+	treeHoverEnter() {
+		clearTimeout(this.#treeLeaveTimer);
+	}
+
+	/**
+	 * Starts the shared tree-leave debounce. Any later treeHoverEnter (another
+	 * tree element) cancels it; if none arrives the whole stack closes.
+	 */
+	treeHoverLeave() {
+		clearTimeout(this.#treeLeaveTimer);
+		this.#treeLeaveTimer = setTimeout(() => this.closeAll(), TREE_LEAVE_DELAY_MS);
+	}
+
+	/**
+	 * Entries that stack vertically instead of overlapping. Depth>0 entries are
+	 * siblings of their parent. Depth-0 entries have no parent, but a root
+	 * popover's keywords all anchor to the SAME enclosing card element, so two
+	 * of them would otherwise collide: treat entries sharing that anchor as
+	 * siblings too.
+	 */
+	#siblingsOf(
+		parentId: string | null,
+		depth: number,
+		targetEl: HTMLElement | null
+	): TooltipStackEntry[] {
+		if (parentId) return this.stack.filter((s) => s.parentId === parentId);
+		return this.stack.filter(
+			(s) => s.depth === 0 && s.targetEl !== null && s.targetEl === targetEl
+		);
+	}
+
+	/**
 	 * Opens a glossary tooltip anchored to targetEl.
 	 * Returns the entry, or null if depth cap reached or keyword not found.
 	 */
-	open(keyword: string, targetEl: HTMLElement | null = null, explicitParentId?: string | null): TooltipStackEntry | null {
+	open(
+		keyword: string,
+		targetEl: HTMLElement | null = null,
+		explicitParentId?: string | null
+	): TooltipStackEntry | null {
 		const entry = getGlossaryEntry(keyword);
 		if (!entry) return null;
 
@@ -67,7 +117,7 @@ class StoreTooltipStack {
 		// Determine parent and depth
 		const parent =
 			explicitParentId !== undefined
-				? this.stack.find((s) => s.id === explicitParentId) ?? null
+				? (this.stack.find((s) => s.id === explicitParentId) ?? null)
 				: this.stack.length > 0
 					? this.stack[this.stack.length - 1]
 					: null;
@@ -90,9 +140,12 @@ class StoreTooltipStack {
 			triggerRect = { left: 100, top: 100, width: 10, height: 10 };
 		}
 
-		// Siblings already opened under this same parent stack vertically below the
-		// last-opened sibling instead of re-anchoring to the trigger element.
-		const siblings = parent ? this.stack.filter((s) => s.parentId === parent.id) : [];
+		// Siblings already opened under this same parent (or, for depth-0 root
+		// keywords, sharing the same enclosing anchor element) stack instead of
+		// re-anchoring to the trigger, so they never fully overlap. The stack
+		// grows AWAY from the anchor: upward when the group sits above it
+		// (side "top"), downward otherwise.
+		const siblings = this.#siblingsOf(parent ? parent.id : null, depth, targetEl);
 
 		let x: number;
 		let y: number;
@@ -100,9 +153,9 @@ class StoreTooltipStack {
 
 		if (siblings.length > 0) {
 			const lastSibling = siblings[siblings.length - 1];
-			x = lastSibling.x;
-			y = lastSibling.y + (lastSibling.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
 			side = lastSibling.side;
+			x = lastSibling.x;
+			y = this.#nextSiblingY(side, lastSibling, DEFAULT_TOOLTIP_HEIGHT);
 		} else {
 			const avoidRects: Rect[] = this.stack.map((s) => ({
 				left: s.x,
@@ -166,17 +219,13 @@ class StoreTooltipStack {
 		item.width = contentSize.width;
 		item.height = contentSize.height;
 
-		// Siblings under the same parent (in open order): the first sibling keeps its
-		// anchor-based placement, later siblings stay stacked directly below the previous one.
-		const siblings = item.parentId ? this.stack.filter((s) => s.parentId === item.parentId) : [];
+		// Only the first sibling (under a parent, or sharing a depth-0 root
+		// anchor) does anchor-based placement; later siblings are positioned by
+		// restackSiblings() at the end, so no siblingIndex>0 branch is needed.
+		const siblings = this.#siblingsOf(item.parentId, item.depth, item.targetEl);
 		const siblingIndex = siblings.findIndex((s) => s.id === id);
 
-		if (siblingIndex > 0) {
-			const prevSibling = siblings[siblingIndex - 1];
-			item.x = prevSibling.x;
-			item.y = prevSibling.y + (prevSibling.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
-			item.side = prevSibling.side;
-		} else {
+		if (siblingIndex <= 0) {
 			const avoidRects: Rect[] = this.stack
 				.filter((s) => s.id !== id)
 				.map((s) => ({
@@ -199,21 +248,30 @@ class StoreTooltipStack {
 			item.side = placement.side;
 		}
 
-		this.restackSiblingsBelow(item.parentId);
+		this.#restackSiblings(siblings);
 	}
 
 	/**
-	 * Re-adjusts the vertical positions of siblings following a parent's children whose
-	 * heights may have shifted after a measurement, so stacked siblings never overlap.
+	 * Y for the next sibling in a group, stacked away from the anchor: upward
+	 * when the group sits above the anchor (side "top"), downward otherwise.
 	 */
-	private restackSiblingsBelow(parentId: string | null) {
-		if (!parentId) return;
-		const siblings = this.stack.filter((s) => s.parentId === parentId);
+	#nextSiblingY(side: Side, last: TooltipStackEntry, newHeight: number): number {
+		const lastHeight = last.height ?? DEFAULT_TOOLTIP_HEIGHT;
+		if (side === "top") return last.y - newHeight - SIBLING_STACK_GAP;
+		return last.y + lastHeight + SIBLING_STACK_GAP;
+	}
+
+	/**
+	 * Re-adjusts the vertical positions of a sibling group (children of one
+	 * parent, or depth-0 entries sharing one root anchor) after a measurement,
+	 * so stacked siblings never overlap.
+	 */
+	#restackSiblings(siblings: TooltipStackEntry[]) {
 		for (let i = 1; i < siblings.length; i++) {
 			const prev = siblings[i - 1];
 			const curr = siblings[i];
 			curr.x = prev.x;
-			curr.y = prev.y + (prev.height ?? DEFAULT_TOOLTIP_HEIGHT) + SIBLING_STACK_GAP;
+			curr.y = this.#nextSiblingY(prev.side, prev, curr.height ?? DEFAULT_TOOLTIP_HEIGHT);
 		}
 	}
 

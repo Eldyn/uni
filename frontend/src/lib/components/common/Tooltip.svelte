@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type Snippet, tick } from "svelte";
+	import { type Snippet, tick, untrack } from "svelte";
 	import {
 		computeAnchorPlacement,
 		type Side,
@@ -8,6 +8,7 @@
 	} from "$lib/utils/anchorPlacement";
 	import type { GlossaryTag } from "$lib/glossary/glossary";
 	import TooltipCard from "$components/common/TooltipCard.svelte";
+	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 	interface Props {
 		children: Snippet;
@@ -55,6 +56,47 @@
 	let openTimer: ReturnType<typeof setTimeout> | undefined;
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
+	// Whether the pointer is currently over this tooltip's own trigger or
+	// popover (NOT any child glossary tooltip, which is portaled separately
+	// by TooltipStack and can't be tracked via DOM containment).
+	let isHoveringTree = $state(false);
+
+	/**
+	 * Starts the close timer, unless a child glossary tooltip opened from
+	 * inside this popover (storeTooltipStack) is still open. Moving the
+	 * pointer off this popover's DOM and onto a child tooltip's DOM (a
+	 * separate portal elsewhere in the document) fires this tooltip's own
+	 * mouseleave even though the user never really left the tooltip tree, so
+	 * the close must defer to whichever closes last, the child stack.
+	 */
+	function scheduleClose() {
+		if (storeTooltipStack.stack.length > 0) return;
+		closeTimer = setTimeout(() => {
+			isVisible = false;
+		}, closeDelay);
+	}
+
+	// Once every child glossary tooltip has closed, resume this tooltip's own
+	// leave-driven close if the pointer had already left it while children
+	// were still open (scheduleClose() no-op'd above, so nothing was pending).
+	// Only storeTooltipStack.stack.length should re-run this effect — reads of
+	// interactive/isVisible/isHoveringTree are wrapped in untrack() so their
+	// own, unrelated changes (e.g. re-entering the tooltip) don't re-fire it
+	// and race a second, untracked setTimeout against scheduleClose()'s.
+	$effect(() => {
+		const hasOpenChildren = storeTooltipStack.stack.length > 0;
+		untrack(() => {
+			if (hasOpenChildren) {
+				clearTimeout(closeTimer);
+				return;
+			}
+			if (!interactive || !isVisible || isHoveringTree) return;
+			closeTimer = setTimeout(() => {
+				isVisible = false;
+			}, closeDelay);
+		});
+	});
+
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
 		return {
@@ -86,6 +128,8 @@
 	}
 
 	function handleMouseEnter() {
+		isHoveringTree = true;
+		storeTooltipStack.treeHoverEnter();
 		clearTimeout(openTimer);
 		clearTimeout(closeTimer);
 		openTimer = setTimeout(async () => {
@@ -96,27 +140,29 @@
 	}
 
 	function handleMouseLeave() {
+		isHoveringTree = false;
+		storeTooltipStack.treeHoverLeave();
 		clearTimeout(openTimer);
 		if (interactive) {
-			closeTimer = setTimeout(() => {
-				isVisible = false;
-			}, closeDelay);
+			scheduleClose();
 		} else {
 			isVisible = false;
 		}
 	}
 
 	function handleTooltipMouseEnter() {
+		isHoveringTree = true;
+		storeTooltipStack.treeHoverEnter();
 		if (!interactive) return;
 		clearTimeout(closeTimer);
 	}
 
 	function handleTooltipMouseLeave() {
+		isHoveringTree = false;
+		storeTooltipStack.treeHoverLeave();
 		if (!interactive) return;
 		clearTimeout(closeTimer);
-		closeTimer = setTimeout(() => {
-			isVisible = false;
-		}, closeDelay);
+		scheduleClose();
 	}
 
 	async function handleFocusIn() {
@@ -209,13 +255,16 @@
 		width: 100%;
 	}
 
+	/* Above the tooltip-stack backdrop (19998) but below its stack items
+	   (20000+): the backdrop must never sit between this popover and the
+	   pointer, or moving into a child glossary tooltip would read as leaving
+	   the root and close it. */
 	.pixel-popover-tooltip {
 		position: fixed;
 		pointer-events: none;
-		z-index: 10001;
+		z-index: 19999;
 
 		white-space: normal;
-		max-width: 320px;
 	}
 
 	.pixel-popover-tooltip.interactive {

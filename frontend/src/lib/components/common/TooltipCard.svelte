@@ -6,17 +6,10 @@
 		title?: string;
 		tags?: GlossaryTag[];
 		children?: Snippet;
-		class?: string;
 		onclose?: () => void;
 	}
 
-	let {
-		title,
-		tags = [],
-		children,
-		class: extraClass = "",
-		onclose
-	}: Props = $props();
+	let { title, tags = [], children, onclose }: Props = $props();
 
 	function handleCardClick(e: MouseEvent) {
 		const target = e.target as HTMLElement | null;
@@ -27,12 +20,9 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-	class="balatro-tooltip-card pixel-bordered {extraClass}"
-	onclick={handleCardClick}
->
+<div class="balatro-tooltip-card pixel-bordered" onclick={handleCardClick}>
 	{#if title}
-		<div class="balatro-title pypx-thick">{title}</div>
+		<div class="balatro-title">{title}</div>
 	{/if}
 
 	<div class="balatro-content-box pixel-bordered">
@@ -56,11 +46,19 @@
 </div>
 
 <style>
+	/*
+	 * The south-facing "hard offset" shadow can't be a box-shadow on the main
+	 * element: .pixel-bordered only clips its ::before/::after pseudo layers
+	 * (see app.css), never the element itself, so a box-shadow here would
+	 * render as a plain rectangle underneath the notched card and mismatch at
+	 * every corner. filter: drop-shadow() shadows the actual painted alpha
+	 * (the clipped pseudo layers included), so it follows the notch shape.
+	 */
 	.balatro-tooltip-card {
-		--pc-fill: #374244;
-		--pc-border: #1e2628;
+		--pc-fill: var(--surface);
+		--pc-border: var(--border);
 		--pc-width: 2px;
-		box-shadow: 0 4px 0 #1b2223;
+		filter: drop-shadow(0 4px 0 var(--pixel-shadow));
 		padding: 8px 10px;
 		display: flex;
 		flex-direction: column;
@@ -73,25 +71,34 @@
 
 	.balatro-title {
 		text-align: center;
-		color: #ffffff;
-		font-family: var(--pypx);
-		font-weight: 800;
+		color: var(--text-h);
+		font-family: var(--heading);
+		font-weight: 400;
 		font-size: 0.95rem;
-		line-height: 1.1;
+		line-height: 1.3;
 		letter-spacing: 0.04em;
-		text-shadow: 1px 1px 0 #000000;
+		text-shadow: 1px 1px 0 var(--pixel-shadow);
 	}
 
+	/*
+	 * Recessed "hole", not a raised tile: no south drop-shadow (the outer
+	 * card keeps its own), clip the element itself to the notch so the fill
+	 * reads flush with the outer card, and bevel with dark top/left + light
+	 * bottom/right inset edges (classic pixel inset).
+	 */
 	.balatro-content-box {
-		--pc-fill: #ffffff;
-		--pc-border: #2c3537;
+		--pc-fill: var(--surface-deep);
+		--pc-border: var(--border);
 		--pc-width: 2px;
-		box-shadow: 0 3px 0 #c2c6ca;
+		clip-path: var(--notch-clip);
+		box-shadow:
+			inset 2px 2px 0 var(--pixel-shadow),
+			inset -2px -2px 0 var(--border);
 		padding: 8px 10px;
-		color: #2c3537;
+		color: var(--text-h);
 		font-family: var(--tiny);
 		font-size: 0.75rem;
-		line-height: 1.35;
+		line-height: 1.5;
 		cursor: default;
 	}
 
@@ -110,8 +117,8 @@
 		font-family: var(--pypx);
 		font-weight: 800;
 		font-size: 0.75rem;
-		line-height: 1.2;
-		border-radius: 4px;
+		line-height: 1.3;
+		clip-path: var(--notch-clip);
 		border: 1px solid rgba(0, 0, 0, 0.25);
 		box-shadow: 0 3px 0 var(--pill-shadow);
 		text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);

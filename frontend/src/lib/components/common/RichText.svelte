@@ -31,7 +31,18 @@
 	function handleKeywordClick(e: MouseEvent, keyword: string) {
 		e.preventDefault();
 		e.stopPropagation();
-		storeTooltipStack.open(keyword, e.currentTarget as HTMLElement, tooltipParentId);
+		const target = e.currentTarget as HTMLElement;
+		// A keyword inside a stacked glossary tooltip already has a real parent
+		// entry (tooltipParentId) to anchor against, so keep the keyword itself
+		// as the trigger. A keyword in an unparented card (the root hover
+		// popover, or the card-detail popover) has no stack parent: anchoring
+		// to the keyword would drop the child on top of the card's own text.
+		// Anchor to the enclosing card box instead, so the depth-0 placement
+		// puts the child outside (above/beside) it.
+		const anchor = tooltipParentId
+			? target
+			: (target.closest<HTMLElement>(".balatro-tooltip-card") ?? target);
+		storeTooltipStack.open(keyword, anchor, tooltipParentId);
 	}
 </script>
 
@@ -52,6 +63,7 @@
 						text={displayText}
 						effect={segment.effect}
 						color={segment.color ?? "var(--redCard, #bd3130)"}
+						shineBaseColor={segment.color ?? "var(--redCard, #bd3130)"}
 						class="fx-{segment.effect}"
 					/>
 				{:else}
@@ -83,6 +95,12 @@
 
 <style>
 	.glossary-keyword-btn {
+		/* app.css clips every `button:not(.pixel-bordered)` to the pixel-corner
+		   notch shape by default; this is an inline text link, not a chrome
+		   button, and that clip was cutting into glyph ascenders/descenders at
+		   its (tight, text-sized) corners. Opt out like .text-link-inline does. */
+		clip-path: none !important;
+		border-radius: 0 !important;
 		display: inline;
 		pointer-events: auto;
 		background: none;

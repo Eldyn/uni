@@ -130,6 +130,36 @@ describe("Tooltip static pixel popover", () => {
 		expect(screen.getByRole("tooltip")).toBeInTheDocument();
 	});
 
+	it("does not close root tooltip when the pointer leaves it for a portaled child glossary tooltip, and closes once the child tree empties with the pointer away", async () => {
+		render(TooltipHarness, {
+			props: { openDelay: 0, closeDelay: 150, interactive: true }
+		});
+
+		const trigger = screen.getByRole("button", { name: "Trigger Button" });
+		await fireEvent.mouseEnter(trigger.parentElement!);
+		await act(() => vi.runAllTimers());
+
+		const tooltip = screen.getByRole("tooltip");
+		await fireEvent.mouseEnter(tooltip);
+
+		// A glossary keyword inside the tooltip content spawns a child tooltip,
+		// portaled elsewhere in the DOM by TooltipStack.
+		await act(() => storeTooltipStack.open("turn"));
+
+		// The pointer leaves this tooltip's own DOM to move onto the (separately
+		// portaled) child — its mouseleave fires even though the user never
+		// really left the tooltip tree.
+		await fireEvent.mouseLeave(tooltip);
+		await act(() => vi.advanceTimersByTime(300));
+		expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+		// Once the child tree closes with the pointer no longer over the root
+		// tooltip, the root should close too.
+		await act(() => storeTooltipStack.closeAll());
+		await act(() => vi.advanceTimersByTime(150));
+		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+	});
+
 	it("renders title in root tooltip", async () => {
 		const { container } = render(Tooltip, {
 			props: {

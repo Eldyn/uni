@@ -19,7 +19,10 @@
 		// shine
 		shineSpeed = 2.5, // seconds per sweep
 		shineColor = "rgba(255, 255, 255, 0.9)",
-		shineBaseColor = "var(--text)", // base text color (currentColor breaks with background-clip: text)
+		// Base text color for the sweep. Falls back to `color` then --text so a
+		// caller passing only `color` (e.g. [fx=shine] with no explicit base)
+		// still gets its color instead of silently resetting to the default.
+		shineBaseColor = "",
 		// shake
 		shakeIntensity = 3, // max px displacement
 		shakeSpeed = 0.4 // seconds per shake cycle
@@ -46,12 +49,13 @@
 	// `color` there would win over the class's `color: transparent` and break
 	// the sweep effect. Every other branch applies it directly.
 	const colorStyle = $derived(color ? `color: ${color};` : "");
+	const resolvedShineBase = $derived(shineBaseColor || color || "var(--text)");
 </script>
 
 {#if effect === "shine"}
 	<span
 		class="shine {className}"
-		style="{fontStyle} --shine-speed: {shineSpeed}s; --shine-color: {shineColor}; --shine-base: {shineBaseColor}"
+		style="{fontStyle} --shine-speed: {shineSpeed}s; --shine-color: {shineColor}; --shine-base: {resolvedShineBase}"
 		>{text}</span
 	>
 {:else if effect === "undulate"}
