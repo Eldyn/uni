@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { storeGame } from "$stores/game.svelte";
+	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { computeTurnOrderWindow } from "$utils/turnOrder";
 	import { playerColorFor, BOT_COLOR } from "$lib/palette";
 	import { storeSpectator } from "$stores/spectator.svelte";
+	import TintedSprite from "$components/common/TintedSprite.svelte";
 
 	let turnWindow = $derived(
 		storeGame.state
@@ -51,49 +52,41 @@
 	}
 </script>
 
+{#snippet chip(p: GamePlayer | null, isCurrent = false)}
+	<button
+		type="button"
+		class="chip"
+		class:current={isCurrent}
+		class:dim={!isCurrent}
+		class:empty={!p}
+		class:clickable={storeSpectator.isSpectating && !!p}
+		title={p?.username}
+		aria-label={p?.username}
+		onclick={() => handleChipClick(p?.username)}
+	>
+		{#if p}
+			<TintedSprite
+				src="/assets/base_player.gif"
+				color={colorForPlayer(p.username)}
+				fit="contain"
+				size={16}
+			/>
+		{/if}
+	</button>
+	{#if p && revealedUsername === p.username}
+		<span class="name-reveal">{p.username}</span>
+	{/if}
+{/snippet}
+
 {#if turnWindow.current}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="turn-order-strip" aria-label="Turn order" onpointerleave={dismissReveal}>
 		{#each displayPrev as p, i (p?.username ?? `prev-empty-${i}`)}
-			<button
-				type="button"
-				class="chip dim"
-				class:empty={!p}
-				class:clickable={storeSpectator.isSpectating && !!p}
-				title={p?.username}
-				aria-label={p?.username}
-				style={p ? `background-color: ${colorForPlayer(p.username)};` : ""}
-				onclick={() => handleChipClick(p?.username)}
-			></button>
-			{#if p && revealedUsername === p.username}
-				<span class="name-reveal">{p.username}</span>
-			{/if}
+			{@render chip(p)}
 		{/each}
-		<button
-			type="button"
-			class="chip current"
-			title={turnWindow.current.username}
-			aria-label={turnWindow.current.username}
-			style="background-color: {colorForPlayer(turnWindow.current.username)};"
-			onclick={() => handleChipClick(turnWindow.current?.username)}
-		></button>
-		{#if revealedUsername === turnWindow.current.username}
-			<span class="name-reveal">{turnWindow.current.username}</span>
-		{/if}
+		{@render chip(turnWindow.current, true)}
 		{#each turnWindow.next as p, i (p?.username ?? `next-empty-${i}`)}
-			<button
-				type="button"
-				class="chip dim"
-				class:empty={!p}
-				class:clickable={storeSpectator.isSpectating && !!p}
-				title={p?.username}
-				aria-label={p?.username}
-				style={p ? `background-color: ${colorForPlayer(p.username)};` : ""}
-				onclick={() => handleChipClick(p?.username)}
-			></button>
-			{#if p && revealedUsername === p.username}
-				<span class="name-reveal">{p.username}</span>
-			{/if}
+			{@render chip(p)}
 		{/each}
 	</div>
 {/if}
@@ -103,18 +96,23 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.35em;
+		gap: 0.4em;
 		min-width: 0;
 		position: relative;
 	}
 
 	.chip {
-		width: 1.6em;
-		height: 1.6em;
+		width: 1.7em;
+		height: 1.7em;
 		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		border: 2px solid var(--table-chip);
-		border-radius: 4px;
+		border-radius: 5px;
 		padding: 0;
+		background: var(--surface-2);
+		line-height: 0;
 		cursor: default;
 	}
 
