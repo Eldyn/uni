@@ -163,9 +163,16 @@ class StoreGame implements SessionStore {
 		this.state?.players.find((p) => p.username === storeAuth.username) ?? null
 	);
 
-	/** Derived property indicating whether client is a spectator (or eliminated). */
+	/** Derived property indicating whether client is a spectator (or eliminated).
+	 *  Both conditions are OR-ed, not `??`-ed: the backend marks an eliminated
+	 *  player `is_spectator` in the LOBBY but only broadcasts match state, so the
+	 *  client's lobby copy keeps a stale `false` — which would win a `??` and hide
+	 *  that the player has left the match. Being absent from `state.players` is the
+	 *  reliable signal (a shed player is erased from the rotation), so it must be
+	 *  able to flip the result on its own. */
 	isSpectator = $derived(
-		storeLobby.current?.members.find((m) => m.username === storeAuth.username)?.is_spectator ??
+		(storeLobby.current?.members.find((m) => m.username === storeAuth.username)?.is_spectator ??
+			false) ||
 			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username))
 	);
 
