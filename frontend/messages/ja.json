@@ -184,6 +184,7 @@
 	"lobby_waiting": "待機中…",
 	"lobby_promote": "昇格",
 	"lobby_kick": "キック",
+	"lobby_message": "メッセージ",
 	"lobby_host_badge_alt": "ホスト",
 	"lobby_add_bot": "ボットを追加",
 	"stats_toast_load_failed": "個人統計の読み込みに失敗しました。",

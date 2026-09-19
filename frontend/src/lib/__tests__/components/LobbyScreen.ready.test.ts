@@ -7,6 +7,9 @@ const { toggleReady, updateSettings } = vi.hoisted(() => ({
 }));
 
 vi.mock("$stores/auth.svelte", () => ({ storeAuth: { username: "eldyn" } }));
+vi.mock("$stores/chat.svelte", () => ({
+	chatStore: { friends: [], selectChannel: vi.fn(), open: vi.fn() }
+}));
 vi.mock("$stores/lobby.svelte", () => ({
 	storeLobby: {
 		current: {

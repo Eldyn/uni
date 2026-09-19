@@ -184,6 +184,7 @@
 	"lobby_waiting": "等待中…",
 	"lobby_promote": "提升",
 	"lobby_kick": "踢出",
+	"lobby_message": "消息",
 	"lobby_host_badge_alt": "房主",
 	"lobby_add_bot": "添加电脑",
 	"stats_toast_load_failed": "无法加载个人统计数据。",

@@ -270,7 +270,12 @@ class StoreLobby implements SessionStore {
 		// PLACEHOLDER-SFX: sfx.lobby.kick, punchy "removed" sting when a member
 		// is kicked from the lobby.
 		storeAudio.playSfx("sfx.lobby.kick");
-		storeToast.success(m.lobby_toast_kicked({ username }, { locale: storeI18n.locale }));
+		// Bots are removed by decrementing the bot count rather than kicking a
+		// named member, so a "kicked <name>" toast would be misleading noise.
+		const target = this.current?.members.find((member) => member.username === username);
+		if (!target?.is_bot) {
+			storeToast.success(m.lobby_toast_kicked({ username }, { locale: storeI18n.locale }));
+		}
 	}
 
 	/**

@@ -184,6 +184,7 @@
 	"lobby_waiting": "대기 중…",
 	"lobby_promote": "승격",
 	"lobby_kick": "추방",
+	"lobby_message": "메시지",
 	"lobby_host_badge_alt": "호스트",
 	"lobby_add_bot": "봇 추가",
 	"stats_toast_load_failed": "개인 통계를 불러오지 못했습니다.",

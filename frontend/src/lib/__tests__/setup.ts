@@ -14,3 +14,12 @@ Object.defineProperty(window, "matchMedia", {
 		dispatchEvent: () => true
 	})
 });
+
+// jsdom has no ResizeObserver; Svelte's bind:clientWidth/clientHeight renders
+// through one, so any component using it would otherwise throw on mount.
+class ResizeObserverStub {
+	observe(): void {}
+	unobserve(): void {}
+	disconnect(): void {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;

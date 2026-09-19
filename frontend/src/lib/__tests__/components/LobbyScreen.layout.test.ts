@@ -6,6 +6,9 @@ const { leave } = vi.hoisted(() => ({
 }));
 
 vi.mock("$stores/auth.svelte", () => ({ storeAuth: { username: "eldyn" } }));
+vi.mock("$stores/chat.svelte", () => ({
+	chatStore: { friends: [], selectChannel: vi.fn(), open: vi.fn() }
+}));
 vi.mock("$stores/lobby.svelte", () => ({
 	storeLobby: {
 		current: {
@@ -29,7 +32,7 @@ vi.mock("$stores/lobby.svelte", () => ({
 import LobbyScreen from "$components/lobby/LobbyScreen.svelte";
 
 describe("LobbyScreen responsive action bar placement", () => {
-	it("renders settings and exit actions in top secondary header row, leaving bottom bar clear for chat", async () => {
+	it("keeps settings and exit in the secondary header on desktop and pins START outside the scroll region", async () => {
 		const { container } = render(LobbyScreen);
 		const header = container.querySelector("header.shell-topbar-secondary");
 		expect(header).toBeInTheDocument();
@@ -40,9 +43,13 @@ describe("LobbyScreen responsive action bar placement", () => {
 		expect(header).toContainElement(settingsBtn);
 		expect(header).toContainElement(exitBtn);
 
-		// Assert no bottom bar exists outside scrollable container
-		const bottomBars = container.querySelectorAll(".bottom-bar, footer");
-		expect(bottomBars.length).toBe(0);
+		// The START action bar sits outside the seat scroll area, so it can
+		// never be scrolled away from regardless of player count.
+		const scrollRegion = container.querySelector(".overflow-y-auto");
+		const actionBar = container.querySelector("footer");
+		expect(scrollRegion).not.toBeNull();
+		expect(actionBar).toBeInTheDocument();
+		expect(scrollRegion!.contains(actionBar!)).toBe(false);
 
 		// Verify leave triggers storeLobby.leave
 		await fireEvent.click(exitBtn);

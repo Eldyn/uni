@@ -184,6 +184,7 @@
 	"lobby_waiting": "Esperando…",
 	"lobby_promote": "Ascender",
 	"lobby_kick": "Expulsar",
+	"lobby_message": "Mensaje",
 	"lobby_host_badge_alt": "Anfitrión",
 	"lobby_add_bot": "Añadir bot",
 	"stats_toast_load_failed": "Error al cargar las estadísticas personales.",

@@ -184,6 +184,7 @@
 	"lobby_waiting": "Warten…",
 	"lobby_promote": "Befördern",
 	"lobby_kick": "Rauswerfen",
+	"lobby_message": "Nachricht",
 	"lobby_host_badge_alt": "Host",
 	"lobby_add_bot": "Bot hinzufügen",
 	"stats_toast_load_failed": "Persönliche Statistiken konnten nicht geladen werden.",
