@@ -1,3 +1,13 @@
+<script module lang="ts">
+	/* Every modal overlay is portaled to <body>, so all open overlays are
+	   siblings in the root stacking context. Equal z-index would then decide
+	   paint order by DOM order, which does not track which modal opened last
+	   across different components. This monotonic counter gives each overlay a
+	   z-index increasing with open order, so a modal opened later always paints
+	   above one opened earlier. */
+	let nextOverlayZ = 10000;
+</script>
+
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import { storeModal } from "$lib/stores/modal.svelte";
@@ -23,6 +33,19 @@
 	} = $props();
 
 	let contentEl = $state<HTMLElement>();
+	let overlayZ = $state(10000);
+
+	/* Portaling the overlay out of any ancestor that forms a stacking context
+	   (e.g. GameHud's .game-controls at z-index 2) keeps its z-index meaningful
+	   against every other modal instead of being trapped below the ancestor. */
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy: () => {
+				if (node.parentNode) node.remove();
+			}
+		};
+	}
 
 	const FOCUSABLE_SELECTOR =
 		'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -39,6 +62,7 @@
 	$effect(() => {
 		if (!open || !contentEl) return;
 
+		overlayZ = ++nextOverlayZ;
 		storeModal.register();
 
 		const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -88,7 +112,13 @@
 </script>
 
 {#if open}
-	<div class="modal-overlay dither-4 {overlayClass}" role="presentation" onclick={handleOverlayClick}>
+	<div
+		class="modal-overlay dither-4 {overlayClass}"
+		style:z-index={overlayZ}
+		role="presentation"
+		onclick={handleOverlayClick}
+		use:portal
+	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div
 			class="modal-content {contentClass}"

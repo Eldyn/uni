@@ -128,9 +128,11 @@
 				</div>
 			{/if}
 
-			<button class="btn pixel-corners exit-btn" onclick={handleExitClick}>
-				{m.game_hud_exit({}, { locale: storeI18n.locale })}
-			</button>
+			{#if !storeGame.state?.is_over}
+				<button class="btn pixel-corners exit-btn" onclick={handleExitClick}>
+					{m.game_hud_exit({}, { locale: storeI18n.locale })}
+				</button>
+			{/if}
 		{/if}
 	</div>
 
