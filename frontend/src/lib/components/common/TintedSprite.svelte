@@ -1,5 +1,5 @@
 <script lang="ts">
-	type SpriteSize = 16 | 32 | 48 | 64;
+	type SpriteSize = 16 | 32 | 48 | 64 | 96;
 
 	let {
 		src,

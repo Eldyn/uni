@@ -78,7 +78,7 @@
 			<div class="avatar-stage">
 				<div class="avatar-glow"></div>
 				<div class="avatar-frame">
-					<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" size={64} />
+					<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" size={96} />
 					<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
 				</div>
 			</div>
@@ -91,9 +91,17 @@
 				<div class="podium">
 					{#each podium as name, i}
 						<div class="podium-slot podium-slot--{i}">
-							{#if i === 0}
-								<img class="podium-crown" src="/assets/crown_host.gif" alt="" />
-							{/if}
+							<div class="podium-avatar">
+								<TintedSprite
+									src="/assets/base_player.gif"
+									color={colorForRankedName(name)}
+									fit="contain"
+									size={48}
+								/>
+								{#if i === 0}
+									<img class="podium-crown" src="/assets/crown_host.gif" alt="" />
+								{/if}
+							</div>
 							<div
 								class="podium-block rank-{i === 0 ? 'gold' : i === 1 ? 'silver' : 'bronze'}"
 								style="border-color: {colorForRankedName(name)};"
@@ -210,18 +218,14 @@
 		}
 	}
 
-	/* The crown gif shares the frame's exact box so it layers cleanly over the
-	   head of the base player sprite. */
+	/* The crown gif is authored on the same 96x96 canvas as base_player.gif, so
+	   the sprite and the crown render at the identical size in this frame and
+	   overlap exactly (crown on the head). Overlay sprites must match the user
+	   sprite's size, not exceed it — otherwise the crown appears to float. */
 	.avatar-frame {
 		position: relative;
-		width: 128px;
-		height: 128px;
-		/* TintedSprite now caps at its largest fixed step (64px) rather than
-		   filling this 128px frame, so centre it — the crown (absolutely
-		   positioned, unaffected by flex) still overlays the full frame. */
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		width: 96px;
+		height: 96px;
 		animation: float 2.2s ease-in-out infinite;
 	}
 	.crown {
@@ -354,10 +358,22 @@
 		background: var(--surface-2);
 	}
 
+	/* The podium avatar and its crown share one 48px box so the crown overlays
+	   the sprite exactly, the same rule as the winner stage above. */
+	.podium-avatar {
+		position: relative;
+		width: 48px;
+		height: 48px;
+	}
+
 	.podium-crown {
-		width: 28px;
-		height: 28px;
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 		image-rendering: pixelated;
+		pointer-events: none;
 	}
 
 	.podium-rank-label {
