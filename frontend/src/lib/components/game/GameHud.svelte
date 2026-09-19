@@ -157,20 +157,44 @@
 	@media (max-width: 700px) {
 		.hud-container {
 			width: 100%;
-			gap: 8px;
+			gap: 6px;
 			font-size: 1rem;
+		}
+
+		.hud-bar {
+			gap: var(--space-2);
+			padding: var(--space-1) var(--space-2);
 		}
 
 		.timer {
 			flex: none;
-			padding: 3px 6px;
-			font-size: 0.8rem;
+			padding: 4px 6px;
+			font-size: 1rem;
 		}
 
 		.exit-btn {
 			flex: none;
-			padding: 4px 10px;
-			font-size: 0.8rem;
+			padding: 6px 10px;
+			font-size: 0.75rem;
+		}
+
+		/* Timer pinned left, exit pinned right — everything else (spectator
+		   count, mode/ranked badges) keeps its DOM order between them instead of
+		   fighting for either corner. */
+		.timer-block {
+			order: -1;
+		}
+
+		.exit-btn {
+			order: 99;
+			margin-left: auto;
+		}
+
+		/* SpectatorBanner already announces "SPECTATING" prominently below the
+		   HUD row (see GameScreen.svelte) — this inline badge only duplicated it
+		   and was part of what made the top of the screen unreadable. */
+		.spectating-badge {
+			display: none;
 		}
 	}
 
