@@ -17,8 +17,14 @@ import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLa
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
 import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
-import { CARD_HEIGHT } from "$components/game/three/units";
-import { opponentRingRadiusWorld, opponentSeatReachWorld } from "$components/game/layout/handRing";
+import { CARD_HEIGHT, CARD_WIDTH } from "$components/game/three/units";
+import {
+	computeHandRingSlots,
+	opponentRingRadiusWorld,
+	opponentSeatReachWorld,
+	RING_RADIUS_EM,
+	ringSlotWorldPose
+} from "$components/game/layout/handRing";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 400, height: 800, orientation: "portrait" };
@@ -174,26 +180,58 @@ describe("computeSeatPositions3D", () => {
 		expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(PORTRAIT_RING_RX);
 	});
 
-	// Two neighbouring card rings overlap once the seats sit closer than the
-	// rings' combined diameter; the deepest portrait arch still has to clear
-	// that at the contract's maximum opponent count.
-	it("keeps every portrait neighbour's card ring clear of the next", () => {
+	// The real drawn fan reaches opponentSeatReachWorld from the seat centre —
+	// the ring radius plus a card's half-diagonal, i.e. measured to a corner,
+	// not the edge. Two neighbours' fans stay disjoint when their seats are
+	// further apart than the sum of those reaches; portrait's drawn fan scale is
+	// capped at the crowded end so this holds all the way to a full table.
+	it("keeps portrait seats further apart than the drawn card fans reach", () => {
 		for (let opponentCount = 4; opponentCount <= MAX_OPPONENTS; opponentCount++) {
 			const geometry = computeSceneGeometry(portrait, opponentCount);
-			// What PlayerSeat3D actually draws the ring at, from the same
-			// presentation sizes Scene3D hands it.
-			const fanRadius = opponentRingRadiusWorld(
+			// The cap only ever shrinks the trial size, never grows it.
+			expect(geometry.opponentCardScale).toBeLessThanOrEqual(0.25 + 1e-9);
+			expect(geometry.opponentCardScale).toBeGreaterThan(0.15);
+			const fanReach = opponentSeatReachWorld(
 				geometry.opponentAvatarWorld,
 				geometry.opponentCardScale
 			);
-			// Pin the portrait fan size: the gap guarantee must come from a
-			// deep enough arch, not from silently shrinking every opponent's
-			// cards until the bound is trivial.
-			expect(geometry.opponentCardScale).toBeCloseTo(0.25, 5);
 			const seats = geometry.seats3D;
 			for (let i = 1; i < seats.length; i++) {
 				const gap = Math.hypot(seats[i].x - seats[i - 1].x, seats[i].z - seats[i - 1].z);
-				expect(gap).toBeGreaterThan(2 * fanRadius);
+				expect(gap).toBeGreaterThan(2 * fanReach);
+			}
+		}
+	});
+
+	// Concrete worst-case check on the DRAWN geometry, not just seat centres:
+	// lay a full ring of cards around each seat and verify no card of one seat
+	// reaches any card of the next. A card is treated as a disc of its own
+	// half-diagonal, so this is conservative.
+	it("draws even a full hand ring clear of the neighbouring seat's cards", () => {
+		const MAX_FAN_CARDS = 20; // computeHandRingSlots has closed into a full ring here
+		for (const opponentCount of [4, 8, 12, MAX_OPPONENTS]) {
+			const geometry = computeSceneGeometry(portrait, opponentCount);
+			const ringRadius = opponentRingRadiusWorld(
+				geometry.opponentAvatarWorld,
+				geometry.opponentCardScale
+			);
+			const radialScale = ringRadius / RING_RADIUS_EM;
+			const cardHalfDiagonal =
+				(Math.hypot(CARD_WIDTH, CARD_HEIGHT) * geometry.opponentCardScale) / 2;
+			const slots = computeHandRingSlots(MAX_FAN_CARDS);
+			const seats = geometry.seats3D;
+			for (let i = 1; i < seats.length; i++) {
+				const previous = slots.map((slot, c) =>
+					ringSlotWorldPose(seats[i - 1], slot, c, radialScale)
+				);
+				const current = slots.map((slot, c) => ringSlotWorldPose(seats[i], slot, c, radialScale));
+				for (const [prevX, , prevZ] of previous) {
+					for (const [curX, , curZ] of current) {
+						expect(Math.hypot(prevX - curX, prevZ - curZ)).toBeGreaterThanOrEqual(
+							2 * cardHalfDiagonal
+						);
+					}
+				}
 			}
 		}
 	});

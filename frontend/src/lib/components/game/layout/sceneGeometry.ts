@@ -19,7 +19,12 @@ import {
 	LOCAL_AVATAR_WORLD,
 	type BoardPlacement
 } from "./boardPlacement";
-import { computeSeatPositions3D, ringRadiiFor, type SeatPosition3D } from "./seatLayout3D";
+import {
+	computeSeatPositions3D,
+	portraitFanCardScaleCap,
+	ringRadiiFor,
+	type SeatPosition3D
+} from "./seatLayout3D";
 import { opponentSeatReachWorld } from "./handRing";
 import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLayout";
 
@@ -107,9 +112,10 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// The size the ring is LAID OUT for; what actually gets drawn is this times
 	// OPPONENT_CARD_DRAW_SCALE. Every distance on the board — where a seat sits,
 	// how much room the discard pile has — is measured off this one so the trial
-	// card size can move without dragging the composition with it.
+	// card size can move without dragging the composition with it. Portrait
+	// additionally caps the DRAWN scale (below) so a full table's fans fit.
 	const opponentCardLayoutScale = (isPortrait ? 0.5 : 0.85 - 0.4 * crowdT) * ringWidthBoost;
-	const opponentCardScale = opponentCardLayoutScale * OPPONENT_CARD_DRAW_SCALE;
+	const desiredCardScale = opponentCardLayoutScale * OPPONENT_CARD_DRAW_SCALE;
 
 	// Avatars and labels are sized in WORLD units and only converted to CSS at
 	// the end. Declaring them in pixels is what made the board feel inverted: the
@@ -124,6 +130,16 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	const opponentAvatarWorld = isPortrait
 		? PORTRAIT_AVATAR_WORLD
 		: LANDSCAPE_AVATAR_WORLD - AVATAR_CROWD_SHRINK * crowdT;
+
+	// What a seat's hand fan is actually DRAWN at. Landscape's wide arch has
+	// room for the full trial size at every count; portrait's narrower one does
+	// not at the crowded end, so there the fan shrinks just enough that its
+	// drawn bounding radius (opponentSeatReachWorld — ring radius plus a card's
+	// half-diagonal) fits inside half the gap to the next seat. Without this the
+	// neighbours' fans visibly interleave from ~12 opponents up.
+	const opponentCardScale = isPortrait
+		? portraitFanCardScaleCap(opponentCount, viewport, opponentAvatarWorld, desiredCardScale)
+		: desiredCardScale;
 
 	// The name label reads fine well before the avatar does, so it tracks the
 	// avatar's world size but is clamped to a readable band in CSS terms — an

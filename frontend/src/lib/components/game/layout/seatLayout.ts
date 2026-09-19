@@ -87,7 +87,12 @@ const LANDSCAPE_SPAN_NARROW_ASPECT = 1.6; // e.g. 1440x900 — most slack
 const LANDSCAPE_SPAN_WIDE_ASPECT = 1.85; // slack is ~gone by here
 const LANDSCAPE_SPAN_NARROW_MAX_DEG = 140;
 const LANDSCAPE_SPAN_WIDE_MAX_DEG = 126;
-const PORTRAIT_MAX_HALF_SPAN_DEG = 118;
+// Portrait's ceiling is set by fan clearance, not by the hand row: a full
+// 15-opponent arch has to spread far enough that neighbouring card fans (each
+// roughly 2·opponentSeatReachWorld across) don't touch, and widening the sweep
+// down the sides is what buys that distance. 140° still stops the lowest seats
+// (z ≈ +5) well above the local hand row (z ≈ +6.8) and short of due-bottom.
+const PORTRAIT_MAX_HALF_SPAN_DEG = 140;
 
 function landscapeMaxHalfSpanFor(viewport: ViewportInfo): number {
 	const aspect = viewport.width / viewport.height;

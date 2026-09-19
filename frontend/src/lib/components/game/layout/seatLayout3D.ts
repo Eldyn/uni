@@ -19,6 +19,7 @@ import {
 	type ArcWarp,
 	type ViewportInfo
 } from "./seatLayout";
+import { opponentSeatReachWorld } from "./handRing";
 
 export interface SeatPosition3D {
 	/** World position on the playmat plane; y is fixed by the renderer. */
@@ -247,4 +248,45 @@ export function computeSeatPositions3D(
 		const rotationY = Math.atan2(-x, -z);
 		return { x, z, rotationY };
 	});
+}
+
+// Clearance kept between the two seats' drawn-fan bound circles, so the cap
+// below never lands the fans exactly tangent (or a hair into each other).
+export const PORTRAIT_FAN_CLEARANCE = 0.02;
+
+/** Smallest world gap between any two adjacent portrait seats, at full size. */
+export function portraitMinAdjacentGap(opponentCount: number, viewport: ViewportInfo): number {
+	if (viewport.orientation !== "portrait") return Infinity;
+	const seats = computeSeatPositions3D(opponentCount, viewport);
+	let min = Infinity;
+	for (let i = 1; i < seats.length; i++) {
+		min = Math.min(min, Math.hypot(seats[i].x - seats[i - 1].x, seats[i].z - seats[i - 1].z));
+	}
+	return min;
+}
+
+/**
+ * The scale an opponent's hand fan may be DRAWN at without its cards reaching
+ * the next seat's. Every drawn card lies within `opponentSeatReachWorld` of its
+ * seat's centre (ring radius plus the card's half-diagonal), so two neighbouring
+ * fans stay disjoint exactly when the seats are further apart than the two
+ * reaches added together. Landscape always has room for the desired scale;
+ * portrait's shorter arch does not at the crowded end, so sceneGeometry routes
+ * its drawn card scale through this and the fans give way instead of overlapping.
+ * `opponentSeatReachWorld` is affine in the card scale, so the two evaluations
+ * below solve for the reach budget in closed form.
+ */
+export function portraitFanCardScaleCap(
+	opponentCount: number,
+	viewport: ViewportInfo,
+	avatarWorld: number,
+	desiredCardScale: number
+): number {
+	if (viewport.orientation !== "portrait") return desiredCardScale;
+	const gap = portraitMinAdjacentGap(opponentCount, viewport);
+	if (!Number.isFinite(gap)) return desiredCardScale;
+	const reachAtZero = opponentSeatReachWorld(avatarWorld, 0);
+	const reachPerScale = opponentSeatReachWorld(avatarWorld, 1) - reachAtZero;
+	const maxScale = (gap / 2 - PORTRAIT_FAN_CLEARANCE - reachAtZero) / reachPerScale;
+	return Math.max(0, Math.min(desiredCardScale, maxScale));
 }
