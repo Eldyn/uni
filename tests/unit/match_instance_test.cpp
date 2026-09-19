@@ -575,8 +575,9 @@ TEST_CASE("Elimination mode: 3 players turn rotation and placement resolution") 
     REQUIRE(m.PlayCard("el3_p0", 1));
     m.Tick();
 
-    // el3_p0 should be eliminated and recorded worst-first (elimination order)
-    // while live. Match continues with 2 players (survivor_count = 1).
+    // el3_p0 has shed their hand and leaves first -> recorded first in
+    // placements (best-first, shedding order) while live. Match continues with
+    // 2 players (survivor_count = 1).
     CHECK_FALSE(m.IsMatchOver());
     REQUIRE_EQ(m.GetPlacements().size(), 1);
     CHECK_EQ(m.GetPlacements()[0], "el3_p0");
@@ -605,15 +606,16 @@ TEST_CASE("Elimination mode: 3 players turn rotation and placement resolution") 
     // Match must conclude because remaining players <= survivor_count (1)
     CHECK(m.IsMatchOver());
 
-    // Final placements are best-first (1st, 2nd, ...): the surviving player
-    // (el3_p2) is the true winner, then last-eliminated, first-eliminated last.
-    CHECK_EQ(m.GetWinner(), "el3_p2");
+    // Shedding race: the FIRST player to empty their hand wins (1st) and the
+    // last one still holding cards is the absolute loser. el3_p0 shed first,
+    // el3_p1 second, el3_p2 never shed (survivor) -> el3_p2 is last.
+    CHECK_EQ(m.GetWinner(), "el3_p0");
 
     const auto& placements = m.GetPlacements();
     REQUIRE_EQ(placements.size(), 3);
-    CHECK_EQ(placements[0], "el3_p2");  // survivor (1 card left) -> rank 1
-    CHECK_EQ(placements[1], "el3_p1");  // eliminated second -> rank 2
-    CHECK_EQ(placements[2], "el3_p0");  // eliminated first -> rank 3
+    CHECK_EQ(placements[0], "el3_p0");  // shed first -> 1st (winner)
+    CHECK_EQ(placements[1], "el3_p1");  // shed second -> 2nd
+    CHECK_EQ(placements[2], "el3_p2");  // last standing -> 3rd (absolute loser)
 }
 
 TEST_CASE("Elimination mode: 4 players rotation and survivor_count=2") {
@@ -675,17 +677,17 @@ TEST_CASE("Elimination mode: 4 players rotation and survivor_count=2") {
     // With survivor_count=2 and 2 remaining players (C, D), match concludes immediately!
     CHECK(m.IsMatchOver());
 
-    // Final placements are best-first (1st, 2nd, ...): largest surviving hand
-    // ranks 1st, then the rest of the survivors, eliminations last in reverse
-    // order.
-    CHECK_EQ(m.GetWinner(), "D");
+    // Shedding race: A shed first (winner), B second; C and D never shed, so
+    // they rank below the shed players, smaller held hand first (C's 2 cards
+    // before D's 3). The last player still holding cards is the absolute loser.
+    CHECK_EQ(m.GetWinner(), "A");
 
     const auto& placements = m.GetPlacements();
     REQUIRE_EQ(placements.size(), 4);
-    CHECK_EQ(placements[0], "D");  // 3 cards -> rank 1
-    CHECK_EQ(placements[1], "C");  // 2 cards -> rank 2
-    CHECK_EQ(placements[2], "B");  // eliminated second -> rank 3
-    CHECK_EQ(placements[3], "A");  // eliminated first -> rank 4
+    CHECK_EQ(placements[0], "A");  // shed first -> 1st (winner)
+    CHECK_EQ(placements[1], "B");  // shed second -> 2nd
+    CHECK_EQ(placements[2], "C");  // 2 cards -> 3rd
+    CHECK_EQ(placements[3], "D");  // 3 cards -> 4th (absolute loser)
 }
 
 TEST_CASE("Elimination mode: mid-game removal reaching survivor_count yields best-first placements (path B)") {
@@ -724,8 +726,9 @@ TEST_CASE("Elimination mode: mid-game removal reaching survivor_count yields bes
     MatchInstance m(saved_state, settings);
     REQUIRE_EQ(m.GetCurrentPlayerUsername(), "rm_p0");
 
-    // rm_p0 empties hand -> eliminated live (worst-first accumulation while the
-    // match is running). Match continues with 2 players (survivor_count = 1).
+    // rm_p0 empties hand -> leaves first, recorded first in placements
+    // (best-first, shedding order) while the match is running. Match continues
+    // with 2 players (survivor_count = 1).
     REQUIRE(m.PlayCard("rm_p0", 1));
     m.Tick();
     CHECK_FALSE(m.IsMatchOver());
@@ -740,14 +743,14 @@ TEST_CASE("Elimination mode: mid-game removal reaching survivor_count yields bes
 
     CHECK(m.IsMatchOver());
 
-    // Final placements are best-first: the sole survivor (rm_p2) is the winner,
-    // the first-eliminated player sits last.
-    CHECK_EQ(m.GetWinner(), "rm_p2");
+    // Shedding race: rm_p0 shed first and wins; rm_p2 never shed and is left
+    // standing, so it ranks last (absolute loser).
+    CHECK_EQ(m.GetWinner(), "rm_p0");
 
     const auto& placements = m.GetPlacements();
     REQUIRE_EQ(placements.size(), 2);
-    CHECK_EQ(placements[0], "rm_p2");  // survivor (1 card left) -> rank 1
-    CHECK_EQ(placements[1], "rm_p0");  // eliminated first -> rank 2
+    CHECK_EQ(placements[0], "rm_p0");  // shed first -> 1st (winner)
+    CHECK_EQ(placements[1], "rm_p2");  // last standing -> 2nd (absolute loser)
 }
 
 TEST_CASE("Elimination mode: max players (16) rotation with elimination before, at, and after current turn") {

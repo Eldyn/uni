@@ -254,11 +254,13 @@ namespace match {
                         }
                     }
 
-                    // placements accumulated worst-first (elimination order) live;
-                    // reverse at completion to best-first (1st, 2nd, ...) per
-                    // MatchState doc / ledger / client assumptions.
-                    std::reverse(state_.placements.begin(), state_.placements.end());
-
+                    // Elimination is a shedding race: the first player to drop
+                    // every card leaves first and WINS, and the last player still
+                    // holding cards is the absolute loser. placements is
+                    // therefore already best-first (1st, 2nd, ...) in the live
+                    // accumulation order and must NOT be reversed. Survivors are
+                    // appended smallest-hand-first, so a smaller held hand ranks
+                    // better.
                     std::string winner = state_.placements.empty() ? "" : state_.placements.front();
                     RecordMatchCompleted(winner);
                 } else {
@@ -397,11 +399,10 @@ namespace match {
                         state_.placements.push_back(rp.username);
                     }
 
-                    // placements accumulated worst-first (elimination order) live;
-                    // reverse at completion to best-first (1st, 2nd, ...) per
-                    // MatchState doc / ledger / client assumptions.
-                    std::reverse(state_.placements.begin(), state_.placements.end());
-
+                    // Already best-first: the just-emptied player is pushed in
+                    // shedding order (first to drop every card = 1st = winner),
+                    // then survivors smallest-hand-first. No reversal — see the
+                    // RemovePlayerMidGame completion path for the full rationale.
                     RecordMatchCompleted(state_.placements.front());
                     return true;
                 } else {
