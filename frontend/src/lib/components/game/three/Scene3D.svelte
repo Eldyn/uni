@@ -135,7 +135,7 @@
 <T.AmbientLight intensity={1.1} />
 <T.DirectionalLight intensity={0.4} position={[3, 6, 4]} />
 
-<Playmat3D mat={placement.mat} showFelt={viewport.orientation !== "portrait"} />
+<Playmat3D mat={placement.mat} showFelt={true} {viewport} />
 
 {#each mappedOpponents as { player }, i (player.username)}
 	{@const seat = seats3D[i]}

@@ -12,6 +12,7 @@
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
 	import type { MatPlacement } from "../layout/playmat";
+	import type { ViewportInfo } from "../layout/seatLayout";
 
 	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
 	 *  sized against the felt this draws and all three have to agree on it. The
@@ -20,13 +21,14 @@
 	 *  fit would slide them off the felt as soon as the two fits disagreed. */
 	let {
 		mat,
+		viewport,
 		showFelt = true
 	}: {
 		mat: MatPlacement;
-		/** Portrait drops the felt sheet — a table players visually "sit on top
-		 *  of" reads wrong on a phone-sized board — while keeping the turn-
-		 *  direction arrows, which are their own texture/mesh, not baked into
-		 *  the felt's. */
+		viewport: ViewportInfo;
+		/** General on/off switch for the felt sheet, kept for any future case
+		 *  that wants it hidden — no longer tied to orientation, since portrait
+		 *  now has its own dedicated mat art. */
 		showFelt?: boolean;
 	} = $props();
 
@@ -54,10 +56,14 @@
 	let matTexture = $state<Texture | null>(null);
 	let arrowsTexture = $state<Texture | null>(null);
 
+	let matSrc = $derived(
+		viewport.orientation === "portrait" ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
+	);
+
 	$effect(() => {
 		if (!showFelt) return;
 		let cancelled = false;
-		loadTexture("/assets/playmat.png").then((t) => {
+		loadTexture(matSrc).then((t) => {
 			if (!cancelled) matTexture = t;
 		});
 		return () => {
@@ -74,7 +80,6 @@
 			cancelled = true;
 		};
 	});
-
 </script>
 
 {#if showFelt && matTexture}
