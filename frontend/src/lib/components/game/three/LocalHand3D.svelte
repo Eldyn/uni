@@ -219,6 +219,26 @@
 		prevHiddenIds = currentIds;
 	});
 
+	// Real hand cards normally re-own the moment they leave the row: a play
+	// hands the card to DiscardPile3D. But when a spectator switches the viewed
+	// player, the outgoing player's cards leave this row with no new owner and
+	// would strand as ghost faces at the bottom of the board. Retire ids that
+	// left the row, aren't mid-flight (an animation/discard handoff owns those),
+	// and never reached the discard (a played card is in transit first, then in
+	// history). Synthetic backs are covered by the effect above.
+	let prevRealIds: string[] = [];
+	$effect(() => {
+		const liveIds = new Set(hiddenBackCount > 0 ? [] : cards.map((c) => String(c.id)));
+		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
+		for (const id of prevRealIds) {
+			if (liveIds.has(id)) continue;
+			if (cardRegistry.isInTransit(id)) continue;
+			if (discardIds.has(id)) continue;
+			cardRegistry.removeEntry(id);
+		}
+		prevRealIds = [...liveIds];
+	});
+
 	// Reconciled, not replaced: new card ids append at the end, missing ones
 	// drop out, everything else keeps its current position — so a drag that's
 	// mid-flight survives an unrelated state refresh.

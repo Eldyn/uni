@@ -33,6 +33,28 @@ export function resolveViewedPlayer(
 }
 
 /**
+ * The opponent ring, ordered in turn order starting from the seat *after* the
+ * POV player and wrapping around, excluding the POV player themselves. This is
+ * what makes "watching from X's POV" mean X sits at the bottom with X's real
+ * neighbours to either side: the ring rotates with the POV instead of keeping
+ * the server's raw seat order (which reads as a straight swap of two players).
+ *
+ * Shared by the local-player and spectator paths so a spectator's view and a
+ * player's own view can never order the ring differently. An unknown or absent
+ * POV player (a non-seated local, say) leaves the roster in its raw order, and
+ * an empty roster yields no opponents.
+ */
+export function rotatedOpponentsFor(
+	players: readonly GamePlayer[],
+	povUsername: string | null | undefined
+): GamePlayer[] {
+	if (players.length === 0) return [];
+	const povIndex = povUsername ? players.findIndex((p) => p.username === povUsername) : -1;
+	if (povIndex === -1) return [...players];
+	return [...players.slice(povIndex + 1), ...players.slice(0, povIndex)];
+}
+
+/**
  * The single POV-player resolver shared by the render layer (Scene3D's local
  * seat/hand) and the animation layer (baseBeats, which decides whose play is
  * "mine" and where a draw lands). A non-spectator is always themselves; a
