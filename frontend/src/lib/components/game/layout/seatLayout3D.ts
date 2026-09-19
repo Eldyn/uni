@@ -67,6 +67,12 @@ export const LANDSCAPE_RING_RX_FILL_CROWDED = 1.3;
 // reach stays under centerZ + halfHeight) and every side seat still bottoms out
 // well above the local hand row.
 export const PORTRAIT_RING_RX = 2.9;
+// How much wider the portrait arch grows toward a full 16-seat table, same
+// crowding ramp as landscape's own extra (LANDSCAPE_RING_RX_MAX_EXTRA) — a
+// crowded table has the seat count to justify the arch's flat top reaching
+// closer to the screen's edges instead of staying pinned to the sparse-table
+// width.
+export const PORTRAIT_RING_RX_MAX_EXTRA = 0.9;
 export const PORTRAIT_RING_RZ = 8;
 
 // The deepest the landscape arch is allowed to grow when it fills vertical
@@ -109,14 +115,19 @@ export function ringReachFor(
 // shape reads as a reversed U — curved across the top, near-vertical sides —
 // instead of side seats curling in toward the local hand. Z keeps the plain
 // sine so the lowest seats still rise smoothly above the hand row.
-//
-// Both orientations now share the same exponent. Portrait's old 5 (|cos|^0.4)
+
+// Both orientations started on the same exponent; portrait now runs higher.
+// Its old 5 (|cos|^0.4)
 // pinned X within a hair of ±rx for all but a few degrees around top-center,
 // turning the cap into a near-flat crease and the arch into "∥" — two rails
 // joined by a bar. 2.5 (|cos|^0.8) falls off gradually, so X sweeps smoothly
 // from +rx through 0 at due-top to −rx: a true ∩.
 export const LANDSCAPE_RING_X_EXPONENT = 2.5;
-export const PORTRAIT_RING_X_EXPONENT = 2.5;
+// Higher than landscape's: portrait's arch should read as flatter across the
+// top for longer before curling down the sides, so its edges reach toward
+// ±rx (and so toward the screen's own left/right edges) sooner as the angle
+// sweeps away from due-top.
+export const PORTRAIT_RING_X_EXPONENT = 4;
 
 /**
  * @param frustumHalfWidth The camera frustum's actual half-width, in world
@@ -145,7 +156,19 @@ export function ringRadiiFor(
 	maxRz?: number
 ): { rx: number; rz: number } {
 	if (viewport.orientation === "portrait") {
-		return { rx: PORTRAIT_RING_RX, rz: PORTRAIT_RING_RZ };
+		const t = Math.min(
+			1,
+			Math.max(0, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
+		);
+		const rx = PORTRAIT_RING_RX + PORTRAIT_RING_RX_MAX_EXTRA * t;
+		const filledRx =
+			frustumHalfWidth === undefined
+				? rx
+				: Math.min(
+						rx,
+						Math.max(PORTRAIT_RING_RX, frustumHalfWidth - ringReachFor(viewport, opponentCount))
+					);
+		return { rx: filledRx, rz: PORTRAIT_RING_RZ };
 	}
 	const t = Math.min(
 		1,
@@ -213,6 +236,18 @@ function arcLengthWarp(rx: number, rz: number, xExponent: number): ArcWarp {
 				);
 				cumulative.push(cumulative[i - 1] + Math.hypot(point.x - previous.x, point.z - previous.z));
 				previous = point;
+			}
+			// The arch is symmetric about its midpoint, so the cumulative-length
+			// table should be too, but floating-point summation of ~96 segment
+			// lengths leaves it a hair asymmetric. Portrait's X exponent puts a
+			// square root on a cosine that crosses zero at due-top, so that hair
+			// becomes a visible wobble on the top seat's X (the previous flat
+			// exponent never amplified it). Averaging each entry with its mirror
+			// restores the exact symmetry the geometry already has; idempotent,
+			// so re-applying it on a cached table is harmless.
+			const totalLength = cumulative[ARC_SAMPLES];
+			for (let i = 1; i < ARC_SAMPLES; i++) {
+				cumulative[i] = (cumulative[i] + (totalLength - cumulative[ARC_SAMPLES - i])) / 2;
 			}
 			tables.set(key, cumulative);
 		}

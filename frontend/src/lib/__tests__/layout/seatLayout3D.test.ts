@@ -9,6 +9,7 @@ import {
 	LANDSCAPE_RING_RZ_MAX,
 	LANDSCAPE_RING_X_EXPONENT,
 	PORTRAIT_RING_RX,
+	PORTRAIT_RING_RX_MAX_EXTRA,
 	PORTRAIT_RING_RZ,
 	PORTRAIT_RING_X_EXPONENT,
 	type SeatPosition3D
@@ -146,11 +147,14 @@ describe("computeSeatPositions3D", () => {
 
 	it("flips the ring proportions in portrait (narrow in X, deep in Z)", () => {
 		expect(PORTRAIT_RING_RZ).toBeGreaterThan(PORTRAIT_RING_RX);
-		expect(ringRadiiFor(portrait)).toEqual({ rx: PORTRAIT_RING_RX, rz: PORTRAIT_RING_RZ });
+		// Default opponentCount is MAX_OPPONENTS, so this is the fully-widened rx.
+		expect(ringRadiiFor(portrait)).toEqual({
+			rx: PORTRAIT_RING_RX + PORTRAIT_RING_RX_MAX_EXTRA,
+			rz: PORTRAIT_RING_RZ
+		});
 		for (const seat of computeSeatPositions3D(8, portrait)) {
-			expect(
-				onRing(seat, PORTRAIT_RING_RX, PORTRAIT_RING_RZ, PORTRAIT_RING_X_EXPONENT)
-			).toBeCloseTo(1, 5);
+			const { rx, rz } = ringRadiiFor(portrait, 8);
+			expect(onRing(seat, rx, rz, PORTRAIT_RING_X_EXPONENT)).toBeCloseTo(1, 5);
 		}
 	});
 
