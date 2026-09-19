@@ -467,7 +467,7 @@
 						</div>
 
 						<p
-							class="mt-3 w-full truncate text-center font-tiny text-[10px] uppercase text-white sm:text-xs"
+							class="mt-4 w-full truncate text-center font-tiny text-[10px] uppercase text-white sm:text-xs"
 						>
 							<span class="truncate">{member.username}</span>
 						</p>
@@ -528,7 +528,7 @@
 							{/if}
 						</div>
 						<p
-							class="mt-3 w-full truncate text-center font-tiny text-[10px] uppercase text-white/70 sm:text-xs"
+							class="mt-4 w-full truncate text-center font-tiny text-[10px] uppercase text-white/70 sm:text-xs"
 						>
 							{m.lobby_waiting({}, { locale: storeI18n.locale })}
 						</p>

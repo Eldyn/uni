@@ -2,16 +2,11 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
-	import TurnOrderStrip from "./TurnOrderStrip.svelte";
 	import ExitConfirmModal from "./ExitConfirmModal.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
-	import Tooltip from "$components/common/Tooltip.svelte";
-	import RichText from "$components/common/RichText.svelte";
-	import { getCardInfo } from "$lib/glossary/cardDescriptions";
 	import { formatTurnTimer } from "$utils/timeFormat";
 
-	let collapsed = $state(false);
 	let showExitConfirm = $state(false);
 
 	function handleExitClick() {
@@ -29,19 +24,8 @@
 </script>
 
 {#if storeGame.state && !storeGame.actionRequired}
-	<div class="hud-container" class:collapsed>
-		<button
-			class="collapse-toggle"
-			onclick={() => (collapsed = !collapsed)}
-			aria-expanded={!collapsed}
-			aria-label={collapsed
-				? m.game_hud_expand({}, { locale: storeI18n.locale })
-				: m.game_hud_collapse({}, { locale: storeI18n.locale })}
-		>
-			<i class="hn pix {collapsed ? 'hn-angle-small-down' : 'hn-angle-small-up'}"></i>
-		</button>
-
-		{#if !collapsed}
+	<div class="hud-container">
+		<div class="hud-bar pixel-bordered">
 			{#if storeGame.isSpectator}
 				<span class="spectating-badge pixel-corners">
 					{m.game_spectating_indicator({}, { locale: storeI18n.locale })}
@@ -74,32 +58,13 @@
 					{storeGame.state?.mode === "elimination"
 						? m.lobby_mode_elimination({}, { locale: storeI18n.locale })
 						: m.lobby_mode_standard({}, { locale: storeI18n.locale })}
-					{#if storeLobby.current?.settings?.ranked}
-						<span class="ranked-badge"
-							>{m.game_hud_ranked_badge({}, { locale: storeI18n.locale })}</span
-						>
-					{/if}
 				</span>
+				{#if storeLobby.current?.settings?.ranked}
+					<span class="ranked-badge"
+						>{m.game_hud_ranked_badge({}, { locale: storeI18n.locale })}</span
+					>
+				{/if}
 			</div>
-
-			<TurnOrderStrip />
-
-			{#if storeGame.state?.top_card}
-				{@const topCard = storeGame.state.top_card}
-				{@const cardInfo = getCardInfo(topCard, storeI18n.locale)}
-				<Tooltip interactive={true} side="bottom">
-					{#snippet tooltipContent()}
-						<div class="top-card-tooltip">
-							<div class="top-card-tooltip-title">{cardInfo.title}</div>
-							<RichText text={cardInfo.description} allowKeywords={true} />
-						</div>
-					{/snippet}
-					<div class="top-card-chip pixel-corners">
-						<span class="top-card-dot {topCard.type}"></span>
-						<span class="top-card-label">{cardInfo.title}</span>
-					</div>
-				</Tooltip>
-			{/if}
 
 			{#if storeGame.state?.mode === "elimination" && storeGame.placements.length > 0}
 				<div
@@ -129,11 +94,11 @@
 			{/if}
 
 			{#if !storeGame.state?.is_over}
-				<button class="btn pixel-corners exit-btn" onclick={handleExitClick}>
+				<button class="exit-btn pixel-corners" onclick={handleExitClick}>
 					{m.game_hud_exit({}, { locale: storeI18n.locale })}
 				</button>
 			{/if}
-		{/if}
+		</div>
 	</div>
 
 	<ExitConfirmModal open={showExitConfirm} onConfirm={confirmExit} onCancel={cancelExit} />
@@ -146,95 +111,140 @@
 		font-size: 1.2rem;
 		display: flex;
 		align-items: center;
-		gap: 15px;
+		gap: 10px;
 		min-width: 0;
 	}
 
-	/* Narrow screens: everything stays on ONE row, with the turn-order strip
-	   taking the slack and scrolling sideways inside it (see TurnOrderStrip).
-	   Wrapping instead used to push Exit onto a second line, and on a phone the
-	   HUD's height comes straight out of the board's. */
+	/* The HUD reads as one dark pixel panel floating over the board (see the
+	   reference art): near-black fill, 2px border, and a hard south offset
+	   shadow. drop-shadow (not box-shadow) so the shadow follows the notched
+	   clip-path, exactly as TooltipCard does. */
+	.hud-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		--pc-fill: var(--surface-deep);
+		--pc-border: var(--border);
+		--pc-width: 2px;
+		color: var(--table-text);
+		filter: drop-shadow(0 4px 0 var(--pixel-shadow));
+		min-width: 0;
+	}
+
+	/* Narrow screens: everything stays on ONE row. Wrapping instead used to
+	   push Exit onto a second line, and on a phone the HUD's height comes
+	   straight out of the board's. */
 	@media (max-width: 700px) {
 		.hud-container {
 			width: 100%;
-			gap: 8px;
+			gap: 6px;
 			font-size: 1rem;
+		}
+
+		.hud-bar {
+			gap: var(--space-2);
+			padding: var(--space-1) var(--space-2);
 		}
 
 		.timer {
 			flex: none;
-			padding: 3px 6px;
-			font-size: 0.8rem;
+			padding: 4px 6px;
+			font-size: 1rem;
 		}
 
 		.exit-btn {
 			flex: none;
-			padding: 4px 10px;
-			font-size: 0.8rem;
+			padding: 6px 10px;
+			font-size: 0.75rem;
 		}
-	}
-
-	.collapse-toggle {
-		border: none;
-		background: transparent;
-		color: var(--table-text);
-		cursor: pointer;
-		font-size: 1rem;
-		line-height: 1;
-		padding: 4px;
-	}
-
-	.timer {
-		padding: 4px 10px;
-		font-family: monospace;
-		transition: background-color 0.3s ease;
 	}
 
 	.timer-block {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
+		gap: 3px;
+		flex: none;
 	}
 
+	/* Pixel digits on a dark tile: the reference's chunky readout, and the
+	   only element in the bar allowed to grow. */
+	.timer {
+		padding: 7px 10px;
+		font-family: var(--pixel);
+		font-size: 1.35rem;
+		line-height: 1;
+		letter-spacing: 0.02em;
+		color: var(--text-h);
+		transition: background-color 0.3s ease;
+	}
+
+	/* Mode and ranked badge stack vertically so the timer block fills the
+	   taller avatar row instead of running wide beside it. */
 	.gamemode-label {
-		font-size: 0.65rem;
+		font-family: var(--tiny);
+		font-size: 0.7rem;
+		line-height: 1;
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		opacity: 0.75;
-		display: block;
-		margin-top: 2px;
+		letter-spacing: 0.06em;
+		color: var(--text);
+		text-align: center;
+		white-space: nowrap;
 	}
 
 	.ranked-badge {
-		color: var(--warning, #f59e0b);
-		margin-left: 4px;
+		font-family: var(--tiny);
+		font-size: 0.7rem;
+		line-height: 1;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--accent);
+		white-space: nowrap;
 	}
 
-	/* Size override on top of the shared flat .btn */
+	/* Blocky red Exit, matching the reference's chunky arcade button. */
 	.exit-btn {
-		padding: 6px 14px;
+		font-family: var(--pixel);
 		font-weight: bold;
-		font-size: 0.9rem;
+		font-size: 0.95rem;
+		color: #fff;
+		background: var(--danger);
+		border: none;
+		padding: 8px 18px;
+		cursor: pointer;
+		flex: none;
+		filter: drop-shadow(0 3px 0 var(--pixel-shadow));
+		transition: filter 0.12s ease;
+	}
+	.exit-btn:hover:not(:disabled) {
+		filter: brightness(1.12) drop-shadow(0 3px 0 var(--pixel-shadow));
 	}
 
 	.spectating-badge {
-		padding: 3px 8px;
-		background: var(--brand-2, #6366f1);
+		padding: 4px 8px;
+		background: var(--accent-violet);
 		color: #fff;
-		font-size: 0.75rem;
+		font-family: var(--tiny);
+		font-size: 0.7rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		display: inline-flex;
 		align-items: center;
+		flex: none;
+		filter: drop-shadow(0 2px 0 var(--pixel-shadow));
 	}
 
 	.spectator-counter {
-		padding: 3px 8px;
+		padding: 4px 8px;
 		background: var(--surface-2);
+		font-family: var(--tiny);
 		font-size: 0.8rem;
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+		flex: none;
 	}
 
 	.elimination-standings {
@@ -243,6 +253,8 @@
 		background: var(--surface-2);
 		padding: 3px 8px;
 		font-size: 0.75rem;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.placement-chip {
@@ -250,17 +262,13 @@
 		align-items: center;
 		gap: 4px;
 		padding: 2px 8px;
-		background: #2a2a2d;
+		background: var(--surface-2);
 		transition: background 0.1s ease;
-	}
-
-	.placement-chip:hover {
-		background: #323236;
+		white-space: nowrap;
 	}
 
 	.placement-chip.is-me {
-		background: #3a1b5c;
-		box-shadow: inset 0 0 0 4px var(--accent);
+		box-shadow: inset 0 0 0 3px var(--accent);
 	}
 
 	.rank-silver {
@@ -269,55 +277,5 @@
 
 	.rank-bronze {
 		color: #cd7f32;
-	}
-
-	.top-card-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		background: var(--surface-2);
-		padding: 3px 8px;
-		font-size: 0.8rem;
-		cursor: help;
-		user-select: none;
-	}
-
-	.top-card-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		display: inline-block;
-		background: var(--text-h);
-	}
-
-	.top-card-dot.red {
-		background: var(--redCard, #ef4444);
-	}
-	.top-card-dot.blue {
-		background: var(--blueCard, #3b82f6);
-	}
-	.top-card-dot.green {
-		background: var(--greenCard, #22c55e);
-	}
-	.top-card-dot.yellow {
-		background: var(--yellowCard, #eab308);
-	}
-	.top-card-dot.white,
-	.top-card-dot.black {
-		background: #9333ea;
-	}
-
-	.top-card-tooltip {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.top-card-tooltip-title {
-		font-weight: bold;
-		font-size: 0.85rem;
-		color: var(--warning, #f59e0b);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 </style>

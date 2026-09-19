@@ -72,7 +72,7 @@
 	.balatro-title {
 		text-align: center;
 		color: var(--text-h);
-		font-family: var(--heading);
+		font-family: var(--pixel);
 		font-weight: 400;
 		font-size: 0.95rem;
 		line-height: 1.3;
@@ -114,7 +114,7 @@
 	.balatro-tag-pill {
 		display: inline-block;
 		padding: 2px 10px;
-		font-family: var(--pypx);
+		font-family: var(--pixel);
 		font-weight: 800;
 		font-size: 0.75rem;
 		line-height: 1.3;

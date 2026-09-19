@@ -5,6 +5,7 @@
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
 	import GameActions from "./GameActions.svelte";
+	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -36,6 +37,8 @@
 
 		<EliminationOutcomeBanner />
 
+		<CardDetailPopover />
+
 		<div class="game-board-container">
 			<GameBoard />
 		</div>
@@ -50,7 +53,10 @@
 	   light canvas they lose the contrast they're read by. */
 	.game-screen {
 		width: 100%;
+		/* dvh, not vh: on mobile 100vh is the large viewport, which puts the
+		   bottom HUD row below the visible fold until the URL bar retracts. */
 		height: 100vh;
+		height: 100dvh;
 		background: var(--table);
 		position: relative;
 		overflow: hidden;
@@ -65,9 +71,9 @@
 
 	/* The HUD floats on top of the board instead of stacking above it — the
 	   canvas must own the full screen or the scene's center drifts below the
-	   true screen center by half the HUD row's height. Centering keeps the
-	   HUD in the middle at every width; GameActions renders only fixed
-	   overlays, so it never shifts this row. */
+	   true screen center by half the HUD row's height. It is anchored to the
+	   top-left corner; GameActions renders only fixed overlays, so it never
+	   shifts this row. */
 	.game-controls {
 		position: absolute;
 		top: 0;
@@ -75,7 +81,7 @@
 		right: 0;
 		z-index: 2;
 		display: flex;
-		justify-content: center;
+		justify-content: flex-start;
 		align-items: center;
 		padding: 16px;
 		pointer-events: none;

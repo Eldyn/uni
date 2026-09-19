@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/svelte";
+import { render } from "@testing-library/svelte";
 
 const { mockGameState, mockAuth } = vi.hoisted(() => ({
 	mockGameState: {
@@ -38,53 +38,21 @@ vi.mock("$stores/auth.svelte", () => ({
 
 vi.mock("$stores/lobby.svelte", () => ({
 	storeLobby: {
-		leave: vi.fn()
+		leave: vi.fn(),
+		current: { settings: { ranked: false } }
 	}
 }));
 
 import GameHud from "$components/game/GameHud.svelte";
-import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
-describe("GameHud top card inspection and rich tooltip", () => {
-	beforeEach(() => {
-		vi.useFakeTimers();
-	});
-
-	afterEach(() => {
-		vi.useRealTimers();
-		storeTooltipStack.closeAll();
-		document.body.innerHTML = "";
-	});
-
-	it("renders top card chip in HUD and opens tooltip with keyword link on hover", async () => {
+describe("GameHud", () => {
+	it("does not render a top-card indicator — details live on the cards themselves", () => {
 		render(GameHud);
 
-		const chip = screen.getByText("Skip");
-		expect(chip).toBeInTheDocument();
-
-		// Hover over chip container
-		const container = chip.closest(".tooltip-container")!;
-		await fireEvent.mouseEnter(container);
-		await act(() => vi.runAllTimers());
-
-		const tooltip = screen.getByRole("tooltip");
-		expect(tooltip).toBeInTheDocument();
-		expect(tooltip).toHaveTextContent("Causes the next player in turn order to be skipped");
-
-		// Find keyword buttons inside the tooltip
-		const keywordButtons = tooltip.querySelectorAll<HTMLButtonElement>(
-			"button.glossary-keyword-btn"
-		);
-		expect(keywordButtons.length).toBeGreaterThan(0);
-
-		// Click the first keyword button ("turn" or "skip")
-		const firstKeyword = keywordButtons[0];
-		expect(firstKeyword).toBeInTheDocument();
-
-		// Spying on storeTooltipStack.open
-		const openSpy = vi.spyOn(storeTooltipStack, "open");
-		await fireEvent.click(firstKeyword);
-		expect(openSpy).toHaveBeenCalled();
+		// The old chip (colored dot + card title) must be gone; the played card
+		// is inspected by right-clicking it on the board instead.
+		expect(document.querySelector(".top-card-chip")).toBeNull();
+		expect(document.querySelector(".top-card-dot")).toBeNull();
 	});
 });
 

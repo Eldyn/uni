@@ -3,6 +3,7 @@
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
 	import { BOT_COLOR, playerColorFor } from "$lib/palette";
@@ -24,13 +25,17 @@
 	});
 	let isPodium = $derived(isElimination && !isMe && (myRank === 2 || myRank === 3));
 
-	let winnerIdx = $derived(
-		storeGame.state?.players?.findIndex((p) => p.username === winnerName) ?? -1
-	);
-	let winnerIsBot = $derived(
-		winnerIdx !== -1 ? (storeGame.state?.players?.[winnerIdx]?.is_bot ?? false) : false
-	);
-	let winnerColor = $derived(winnerIsBot ? BOT_COLOR : playerColorFor(winnerIdx));
+	/** Whether a ranked player is a bot. The LOBBY roster is checked first: match
+	 *  players are erased from `state.players` the moment they shed their hand, so
+	 *  by the time this popup shows, most ranked names — the winner included — are
+	 *  no longer in the match roster. Bots are lobby members for the whole match,
+	 *  so the lobby is the reliable source. Falls back to the match roster. */
+	function isBotFor(name: string): boolean {
+		const member = storeLobby.current?.members.find((m) => m.username === name);
+		if (member) return member.is_bot ?? false;
+		const idx = storeGame.state?.players?.findIndex((p) => p.username === name) ?? -1;
+		return idx !== -1 ? (storeGame.state?.players?.[idx]?.is_bot ?? false) : false;
+	}
 
 	function colorForRankedName(name: string): string {
 		const idx = storeGame.state?.players?.findIndex((p) => p.username === name) ?? -1;
@@ -53,6 +58,24 @@
 		}
 	});
 </script>
+
+{#snippet avatarSprite(name: string, size: 48 | 96)}
+	{#if isBotFor(name)}
+		<img
+			class="avatar-img"
+			src="/assets/bot_animated.gif"
+			alt=""
+			style="width: {size}px; height: {size}px;"
+		/>
+	{:else}
+		<TintedSprite
+			src="/assets/base_player.gif"
+			color={colorForRankedName(name)}
+			fit="contain"
+			{size}
+		/>
+	{/if}
+{/snippet}
 
 {#if storeGame.state?.is_over}
 	{#if isInterrupted}
@@ -78,7 +101,7 @@
 			<div class="avatar-stage">
 				<div class="avatar-glow"></div>
 				<div class="avatar-frame">
-					<TintedSprite src="/assets/base_player.gif" color={winnerColor} fit="contain" size={96} />
+					{@render avatarSprite(winnerName, 96)}
 					<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
 				</div>
 			</div>
@@ -92,12 +115,7 @@
 					{#each podium as name, i}
 						<div class="podium-slot podium-slot--{i}">
 							<div class="podium-avatar">
-								<TintedSprite
-									src="/assets/base_player.gif"
-									color={colorForRankedName(name)}
-									fit="contain"
-									size={48}
-								/>
+								{@render avatarSprite(name, 48)}
 								{#if i === 0}
 									<img class="podium-crown" src="/assets/crown_host.gif" alt="" />
 								{/if}
@@ -227,6 +245,14 @@
 		width: 96px;
 		height: 96px;
 		animation: float 2.2s ease-in-out infinite;
+	}
+
+	/* Bots render the bot sprite directly (it carries its own colours); humans
+	   render a tinted silhouette. Both fill the same box as the crown overlay. */
+	.avatar-img {
+		display: block;
+		object-fit: contain;
+		image-rendering: pixelated;
 	}
 	.crown {
 		position: absolute;

@@ -235,11 +235,13 @@
 {/if}
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="scene-layer"
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
 		onpointerdown={() => cardRegistry.skipCurrent()}
+		oncontextmenu={(event) => event.preventDefault()}
 	>
 		<Canvas>
 			<Scene3D

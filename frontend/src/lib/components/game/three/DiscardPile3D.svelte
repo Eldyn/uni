@@ -13,6 +13,7 @@
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
+	import { storeCardDetail } from "$stores/cardDetail.svelte";
 
 	let {
 		history,
@@ -123,7 +124,15 @@
 {/each}
 
 {#if armed}
-	<T.Mesh position.y={CONFIRM_TARGET_Y} rotation.x={-Math.PI / 2} onclick={() => onConfirm?.()}>
+	<T.Mesh
+		position.y={CONFIRM_TARGET_Y}
+		rotation.x={-Math.PI / 2}
+		onclick={() => {
+			// A long-press on the pile inspected a card; don't also commit the play.
+			if (storeCardDetail.consumeLongPress()) return;
+			onConfirm?.();
+		}}
+	>
 		<T.PlaneGeometry
 			args={[CARD_WIDTH * scale * CONFIRM_TARGET_SCALE, CARD_HEIGHT * scale * CONFIRM_TARGET_SCALE]}
 		/>

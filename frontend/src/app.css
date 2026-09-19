@@ -15,7 +15,7 @@
 	   every plain button. An inset box-shadow draws inside the clipped shape
 	   instead, so it survives. */
 	button:not(.pixel-bordered):focus-visible {
-		outline:none;
+		outline: none;
 		box-shadow: inset 0 0 0 2px var(--accent);
 	}
 }
@@ -241,6 +241,19 @@
 	--greenCard: #4aab42;
 	--greenCardLight: #79bd4c;
 	--blackCard: #1f1b18;
+
+	/* Glossary tag pills (Action/Flow/Rule/Pile). Theme-independent saturated
+	   fills, deliberately separate from the muted semantic --danger/--success.
+	   Single source for glossary.ts's GLOSSARY_TAG_PRESETS so tooltip pills and
+	   the rules grid cannot drift. */
+	--glossary-tag-action: #2ca972;
+	--glossary-tag-action-shadow: #1d754e;
+	--glossary-tag-flow: #8b5cf6;
+	--glossary-tag-flow-shadow: #6d28d9;
+	--glossary-tag-rule: #2563eb;
+	--glossary-tag-rule-shadow: #1d4ed8;
+	--glossary-tag-pile: #d97706;
+	--glossary-tag-pile-shadow: #b45309;
 
 	/* Spacing scale, 4px base. Every hardcoded padding/margin in a component
 	   is replaced by one of these steps — see the P1b design system plan. */
@@ -824,13 +837,26 @@ code,
 #app,
 #svelte-root {
 	width: 100%;
+	/* 100vh on mobile means the *large* viewport (URL bar hidden), so the
+	   shell's in-flow bottom navbar lands below the visible fold until the
+	   user scrolls and the browser retracts its toolbar. dvh tracks the
+	   currently visible viewport instead, keeping the navbar pinned. */
 	height: 100vh;
+	height: 100dvh;
 	margin: 0 auto;
 	color-scheme: light dark;
 	color: var(--text);
 	background: var(--bg);
 	display: flex;
 	flex-direction: column;
+}
+
+/* The app root owns the viewport; every screen scrolls one of its own inner
+   panes (ShellFrame's .shell-content, MainScreen's root, etc.). Without this
+   the document itself can still scroll — e.g. if a screen's content exceeds
+   the shell — which drags the bottom navbar off-screen. */
+#svelte-root {
+	overflow: hidden;
 }
 
 /* Author-origin rules targeting #app (above) always beat the UA stylesheet's

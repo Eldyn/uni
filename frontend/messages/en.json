@@ -295,7 +295,6 @@
 	"game_privacy_mode": "Streamer / Privacy Mode",
 	"game_privacy_mode_desc": "Hides your hand from spectators",
 	"glossary_title": "Glossary",
-	"glossary_close": "Close",
 	"glossary_draw_title": "Draw",
 	"glossary_draw_desc": "Take one or more cards from the [k=draw_pile]draw pile[/k] into your hand.",
 	"glossary_skip_title": "Skip",

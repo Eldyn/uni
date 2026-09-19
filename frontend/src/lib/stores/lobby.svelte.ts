@@ -652,10 +652,7 @@ class StoreLobby implements SessionStore {
 				this.#reset();
 				if (response.action !== ServerAction.LobbyEvicted) {
 					storeToast.error(
-						m.lobby_toast_rejoin_failed(
-							{ message: response.message },
-							{ locale: storeI18n.locale }
-						)
+						m.lobby_toast_rejoin_failed({ message: response.message }, { locale: storeI18n.locale })
 					);
 				}
 				return;

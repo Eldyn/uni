@@ -18,7 +18,7 @@ export const HIDDEN_BACK_ID_BASE = -2_000_000;
 
 /**
  * Resolves which player's POV a spectator is viewing. `viewedUsername` (set by
- * the TurnOrderStrip chips) wins; otherwise the current turn's player — the
+ * the spectator UI) wins; otherwise the current turn's player — the
  * same fallback SpectatorBanner uses — and finally the first player, so the
  * board never renders seatless. Returns null only when there are no players.
  */

@@ -50,6 +50,7 @@
 		seat,
 		isTurn = false,
 		isValidTarget = false,
+		isViewable = false,
 		color,
 		onSelect,
 		cardScale = 0.55,
@@ -62,6 +63,9 @@
 		seat: SeatPosition3D;
 		isTurn?: boolean;
 		isValidTarget?: boolean;
+		/** Spectator mode: clicking this seat switches the viewed POV to the
+		 *  player, so the click must fire even though no card asks for a target. */
+		isViewable?: boolean;
 		color: string;
 		onSelect?: () => void;
 		/** Ring-card size; Scene3D shrinks it as the landscape table fills. */
@@ -213,7 +217,7 @@
 	});
 
 	function handleSelect() {
-		if (isValidTarget) onSelect?.();
+		if (isValidTarget || isViewable) onSelect?.();
 	}
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();

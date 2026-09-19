@@ -46,6 +46,7 @@
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 	import { ValueMap } from "$lib/generated/schemas";
 	import { hiddenBackCountFor, hiddenBackCard } from "../layout/spectatorPov";
+	import { storeCardDetail } from "$stores/cardDetail.svelte";
 
 	let {
 		rig,
@@ -547,6 +548,11 @@
 		return e.nativeEvent?.clientY ?? e.clientY ?? 0;
 	}
 
+	function buttonOf(event: unknown): number {
+		const e = event as { button?: number; nativeEvent?: { button?: number } };
+		return e.nativeEvent?.button ?? e.button ?? 0;
+	}
+
 	let settleTween: gsap.core.Tween | null = null;
 
 	// With a mouse, dragging always reorders — the wheel already pans, and the
@@ -555,6 +561,10 @@
 	// you already picked does.
 	function startGesture(cardId: number, index: number, event: unknown) {
 		if (readOnly) return;
+		// Right-click is inspection, not a gesture — starting one would let the
+		// matching pointerup select or play the card under the context menu.
+		if (buttonOf(event) !== 0) return;
+		storeCardDetail.resetLongPress();
 		settleTween?.kill();
 		settleTween = null;
 		dragLiftTween?.kill();
@@ -662,6 +672,9 @@
 		window.removeEventListener("pointermove", handleGestureMove);
 		const releasedId = gestureCardId;
 		const hadMoved = gestureMoved;
+		// A touch long-press opened the card detail popover on this same press;
+		// releasing must not also select/play the card it inspected.
+		const longPressed = storeCardDetail.consumeLongPress();
 
 		gestureCardId = null;
 		gestureIsReorder = false;
@@ -675,6 +688,7 @@
 			draggingId = null;
 			movementDelta = 0;
 			dragTiltDeg = 0;
+			if (longPressed) return;
 			if (storeRenderSettings.clickToPlay) {
 				onPlay(releasedId);
 			} else {

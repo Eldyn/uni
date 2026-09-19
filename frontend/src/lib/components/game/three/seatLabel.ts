@@ -15,11 +15,23 @@ import { AVATAR_SPRITE_FILL } from "../layout/boardPlacement";
 
 /** Mirrors app.css's `--tiny` stack without its nested `var()` (canvas fonts
  *  can't resolve custom-property references). */
-export const SEAT_LABEL_FONT = '"LanaPixel", "Habbo", monospace';
+export const SEAT_LABEL_FONT = '"Habbo", "LanaPixel", monospace';
 
 /** The original SVG arc swept from -172° to -8°: 164° across the top. */
 export const SEAT_LABEL_ARC_START_DEG = -172;
 export const SEAT_LABEL_ARC_SWEEP_DEG = 164;
+
+/** Very slight outward shift of the name from the rail it arcs along, as a
+ *  fraction of the font size, so the glyphs don't sit right on the line. */
+export const SEAT_LABEL_TEXT_LIFT = 0.2;
+
+/** Base font size, in canvas px, per world-scaled em. Habbo draws much larger
+ *  at a given px size than the LanaPixel-first stack used to, so this is the
+ *  halved metric that keeps the arc label in proportion. */
+export const SEAT_LABEL_BASE_PX_PER_EM = 9;
+
+/** Smallest font (canvas px) a very long name is allowed to shrink to. */
+export const SEAT_LABEL_MIN_FONT_PX = 5;
 
 /** Names shown on the arc are capped at 16 chars, ellipsized in the middle of
  *  the 16th, so an unwieldy username can't dominate the seat. */
@@ -66,7 +78,7 @@ export function computeSeatLabelLayout(
 	overheadRadius: number,
 	labelEm: number
 ): SeatLabelLayout {
-	const baseFontSize = Math.round(labelEm * 18);
+	const baseFontSize = Math.round(labelEm * SEAT_LABEL_BASE_PX_PER_EM);
 	const approxPathLength = overheadRadius * ((SEAT_LABEL_ARC_SWEEP_DEG * Math.PI) / 180);
 	const maxAllowedTextLength = Math.floor(approxPathLength * 0.9);
 
@@ -76,20 +88,20 @@ export function computeSeatLabelLayout(
 			approxPathLength,
 			maxAllowedTextLength,
 			fontSize: baseFontSize,
-			dy: -Math.max(4, Math.round(baseFontSize * 0.43)),
+			dy: -Math.max(2, Math.round(baseFontSize * 0.43)),
 			needsCompression: false
 		};
 	}
 
 	const units = estimateTextUnits(displayName);
 	const maxFit = Math.floor(maxAllowedTextLength / units);
-	const fontSize = Math.max(9, Math.min(baseFontSize, maxFit));
+	const fontSize = Math.max(SEAT_LABEL_MIN_FONT_PX, Math.min(baseFontSize, maxFit));
 	return {
 		baseFontSize,
 		approxPathLength,
 		maxAllowedTextLength,
 		fontSize,
-		dy: -Math.max(4, Math.round(fontSize * 0.43)),
+		dy: -Math.max(2, Math.round(fontSize * 0.43)),
 		needsCompression: units * fontSize > maxAllowedTextLength
 	};
 }
@@ -195,7 +207,7 @@ export function drawSeatLabel(
 	const glyphs = [...displayName].map((char) => ({ char, width: ctx.measureText(char).width }));
 	const placed = layoutArcGlyphs(
 		glyphs,
-		overheadRadius,
+		overheadRadius + layout.fontSize * SEAT_LABEL_TEXT_LIFT,
 		layout.needsCompression ? layout.maxAllowedTextLength : 0
 	);
 	for (const glyph of placed) {

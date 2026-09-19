@@ -41,13 +41,13 @@ const PORTRAIT_AVATAR_WORLD = 0.78;
 // shrinking the cards opens up the board instead of pulling every seat in
 // behind them. A trial setting — drop it back to 1 to undo.
 const OPPONENT_CARD_DRAW_SCALE = 0.5;
-const LANDSCAPE_LABEL_WORLD = 0.3;
+const LANDSCAPE_LABEL_WORLD = 0.4;
 const LABEL_CROWD_SHRINK = 0.1;
-const PORTRAIT_LABEL_WORLD = 0.27;
+const PORTRAIT_LABEL_WORLD = 0.36;
 // Readability floor/ceiling for the name plate once its world size is back in
 // CSS terms — a name is text, so past a point it stops scaling with the board.
 const MIN_LABEL_EM = 0.55;
-const MAX_LABEL_EM = 0.9;
+const MAX_LABEL_EM = 1.6;
 const CSS_PX_PER_EM = 16;
 
 export interface SceneGeometry {
