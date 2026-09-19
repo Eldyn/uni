@@ -26,10 +26,10 @@
 
 <style>
 	.spectator-banner {
-		position: absolute;
-		top: 0;
-		left: 50%;
-		transform: translateX(-50%);
+		/* Flows below the HUD row inside GameScreen's .top-overlay column instead
+		   of independently pinning itself to top:0 — that's what let it collide
+		   with the HUD on a short mobile viewport. align-items:center on the
+		   parent centers it the same way the old left:50%/transform did. */
 		margin-top: 8px;
 		text-align: center;
 		pointer-events: none;
@@ -37,7 +37,6 @@
 		opacity: 0;
 		animation: fadeIn 0.6s ease forwards;
 		animation-delay: 0.15s;
-		z-index: 5;
 		max-width: 90vw;
 	}
 

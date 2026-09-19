@@ -25,14 +25,17 @@
 	<div class="ui-layer">
 		<GameEndPopup />
 
-		<div class="game-controls">
-			<GameHud />
-			<GameActions />
-		</div>
+		<div class="top-overlay">
+			<div class="game-controls">
+				<GameHud />
+				<GameActions />
+			</div>
 
-		<SpectatorBanner
-			eliminated={storeGame.state?.mode === "elimination" && storeGame.eliminationOutcome !== null}
-		/>
+			<SpectatorBanner
+				eliminated={storeGame.state?.mode === "elimination" &&
+					storeGame.eliminationOutcome !== null}
+			/>
+		</div>
 
 		<EliminationOutcomeBanner />
 
@@ -63,19 +66,28 @@
 		height: 100%;
 	}
 
-	/* The HUD floats on top of the board instead of stacking above it — the
-	   canvas must own the full screen or the scene's center drifts below the
-	   true screen center by half the HUD row's height. Centering keeps the
-	   HUD in the middle at every width; GameActions renders only fixed
-	   overlays, so it never shifts this row. */
-	.game-controls {
+	/* Both the HUD row and the spectator banner float on top of the board
+	   instead of stacking above it — the canvas must own the full screen or the
+	   scene's center drifts below the true screen center. This wrapper owns the
+	   top-left anchoring and stacking BOTH of them used to do independently,
+	   which is what let them draw on the same pixels on a short mobile
+	   viewport: now the banner simply flows below the HUD row's real height. */
+	.top-overlay {
 		position: absolute;
 		top: 0;
 		left: 0;
 		right: 0;
 		z-index: 2;
 		display: flex;
-		justify-content: center;
+		flex-direction: column;
+		align-items: center;
+		pointer-events: none;
+	}
+
+	.game-controls {
+		width: 100%;
+		display: flex;
+		justify-content: flex-start;
 		align-items: center;
 		padding: 16px;
 		pointer-events: none;
