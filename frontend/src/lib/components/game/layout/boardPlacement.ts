@@ -12,7 +12,7 @@
  * ultrawide monitor get the same composition rather than two tuned cases.
  */
 
-import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "../three/units";
+import { CARD_HEIGHT, CARD_WIDTH } from "../three/units";
 import type { CameraRig } from "./cameraRig";
 import {
 	landscapeMatPlacement,
