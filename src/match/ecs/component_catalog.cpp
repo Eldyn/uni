@@ -104,4 +104,46 @@ std::vector<std::string_view> ComponentCatalog::Ids() const {
     return ids;
 }
 
+bool AddComponent(EntityStore& store, Entity entity, std::string_view id,
+                  const void* value) {
+    if (value == nullptr) return false;
+    if (!store.IsAlive(entity)) return false;
+    const ComponentType* type = ComponentCatalog::Instance().Find(id);
+    if (type == nullptr) return false;
+    return type->Acquire(store).AddErased(entity, value);
+}
+
+void* GetComponent(EntityStore& store, Entity entity, std::string_view id) {
+    if (!store.IsAlive(entity)) return nullptr;
+    const ComponentType* type = ComponentCatalog::Instance().Find(id);
+    if (type == nullptr) return nullptr;
+    IComponentPool* pool = store.FindPool(type->type);
+    if (pool == nullptr) return nullptr;
+    return pool->GetErased(entity);
+}
+
+const void* GetComponent(const EntityStore& store, Entity entity,
+                         std::string_view id) {
+    if (!store.IsAlive(entity)) return nullptr;
+    const ComponentType* type = ComponentCatalog::Instance().Find(id);
+    if (type == nullptr) return nullptr;
+    const IComponentPool* pool = store.FindPool(type->type);
+    if (pool == nullptr) return nullptr;
+    return pool->GetErased(entity);
+}
+
+bool HasComponent(const EntityStore& store, Entity entity,
+                  std::string_view id) {
+    return GetComponent(store, entity, id) != nullptr;
+}
+
+bool RemoveComponent(EntityStore& store, Entity entity, std::string_view id) {
+    if (!store.IsAlive(entity)) return false;
+    const ComponentType* type = ComponentCatalog::Instance().Find(id);
+    if (type == nullptr) return false;
+    IComponentPool* pool = store.FindPool(type->type);
+    if (pool == nullptr) return false;
+    return pool->RemoveErased(entity);
+}
+
 }  // namespace match::ecs

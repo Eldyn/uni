@@ -12,6 +12,10 @@ Entity EntityStore::Create() {
         index = free_slots_.back();
         free_slots_.pop_back();
     } else {
+        if (generations_.size() > kMaxEntityIndex) {
+            // INFO: slot-space safety cap reached; return a never-alive handle.
+            return Entity{kInvalidEntityIndex, 0};
+        }
         index = static_cast<uint32_t>(generations_.size());
         generations_.push_back(0);
         alive_.push_back(0);

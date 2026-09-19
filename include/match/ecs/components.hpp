@@ -427,6 +427,11 @@ struct PileContents {
 /**
  * @struct ComponentType
  * @brief Catalog entry: a component's string ID, C++ type and pool accessor.
+ *
+ * WARN: `Acquire` is an unchecked low-level hook — it does not validate entity
+ *       liveness. Use the checked `AddComponent` / `GetComponent` /
+ *       `HasComponent` / `RemoveComponent` wrappers below to address
+ *       components by ID.
  */
 struct ComponentType {
     std::string_view id;  /**< stable catalog ID referenced by mods. */
@@ -443,6 +448,11 @@ struct ComponentType {
  */
 class ComponentCatalog {
 public:
+    ComponentCatalog(const ComponentCatalog&) = delete;
+    ComponentCatalog& operator=(const ComponentCatalog&) = delete;
+    ComponentCatalog(ComponentCatalog&&) = delete;
+    ComponentCatalog& operator=(ComponentCatalog&&) = delete;
+
     /** Process-wide catalog instance. */
     static const ComponentCatalog& Instance();
 
@@ -464,5 +474,55 @@ private:
     std::vector<ComponentType> types_;
     std::unordered_map<std::string_view, std::size_t> by_id_;
 };
+
+// --- checked by-ID access (the sanctioned erased seam) ---------------------
+
+// These wrappers validate entity liveness AND catalog ID before touching a
+// pool, so dead handles and unknown IDs are structured misses. The ops and
+// The view builder should address components by catalog ID through these,
+// never through the raw `ComponentType::Acquire` / `*Erased` primitives.
+
+/**
+ * @brief Adds or overwrites a component addressed by catalog ID.
+ *
+ * @return true when stored; false on a dead entity, unknown ID or null value.
+ */
+bool AddComponent(EntityStore& store, Entity entity, std::string_view id,
+                  const void* value);
+
+/**
+ * @brief Mutable component addressed by catalog ID.
+ *
+ * @return Pointer to the component, or nullptr on a dead entity, unknown ID
+ *         or absent component. Invalidated by later `Add`/`Remove` on the
+ *         pool.
+ */
+void* GetComponent(EntityStore& store, Entity entity, std::string_view id);
+
+/**
+ * @brief Const component addressed by catalog ID.
+ *
+ * @return Pointer to the component, or nullptr on a dead entity, unknown ID
+ *         or absent component. Invalidated by later `Add`/`Remove` on the
+ *         pool.
+ */
+const void* GetComponent(const EntityStore& store, Entity entity,
+                         std::string_view id);
+
+/**
+ * @brief Presence of a component addressed by catalog ID.
+ *
+ * @return true only for a live entity carrying the component; false on a dead
+ *         entity, unknown ID or absent component.
+ */
+bool HasComponent(const EntityStore& store, Entity entity, std::string_view id);
+
+/**
+ * @brief Removes a component addressed by catalog ID.
+ *
+ * @return true when removed; false on a dead entity, unknown ID or absent
+ *         component.
+ */
+bool RemoveComponent(EntityStore& store, Entity entity, std::string_view id);
 
 }  // namespace match::ecs

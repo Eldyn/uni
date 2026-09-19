@@ -236,39 +236,65 @@ TEST_CASE("entity_store: catalog registers every phase-1 component id") {
     CHECK(catalog.Find("") == nullptr);
 }
 
-TEST_CASE("entity_store: catalog type-erased operations address by string id") {
+TEST_CASE("entity_store: catalog by-id access validates entity liveness") {
     EntityStore store;
     Entity e = store.Create();
 
-    const ComponentType* hand_type = ComponentCatalog::Instance().Find("hand");
-    REQUIRE(hand_type != nullptr);
-
-    IComponentPool& pool = hand_type->Acquire(store);
-    CHECK(&pool == static_cast<IComponentPool*>(&store.Pool<Hand>()));
-
-    CHECK_FALSE(pool.HasErased(e));
-    CHECK(pool.GetErased(e) == nullptr);
-    CHECK(pool.RemoveErased(e) == false);
-
     Hand hand;
     hand.cards.push_back(Entity{7, 0});
-    CHECK(pool.AddErased(e, &hand));
-    CHECK(pool.HasErased(e));
-    CHECK(pool.Size() == 1);
+    CHECK(AddComponent(store, e, "hand", &hand));
+    CHECK(HasComponent(store, e, "hand"));
+    CHECK(store.Pool<Hand>().Size() == 1);
 
-    const void* raw = pool.GetErased(e);
+    const void* raw = GetComponent(store, e, "hand");
     REQUIRE(raw != nullptr);
     const Hand* read = static_cast<const Hand*>(raw);
     REQUIRE(read->cards.size() == 1);
     CHECK(read->cards.front().index == 7);
 
-    CHECK(store.Has<Hand>(e));
+    void* mut = GetComponent(store, e, "hand");
+    REQUIRE(mut != nullptr);
+    static_cast<Hand*>(mut)->cards.push_back(Entity{8, 0});
+    CHECK(store.Get<Hand>(e)->cards.size() == 2);
 
+    // INFO: unknown IDs and null values are structured misses.
+    CHECK_FALSE(HasComponent(store, e, "no_such_component"));
+    CHECK(GetComponent(store, e, "no_such_component") == nullptr);
+    CHECK_FALSE(AddComponent(store, e, "no_such_component", &hand));
+    CHECK_FALSE(RemoveComponent(store, e, "no_such_component"));
+    CHECK_FALSE(AddComponent(store, e, "hand", nullptr));
+
+    REQUIRE(store.Destroy(e));
+
+    // INFO: a dead handle must never store a ghost via the erased seam.
+    CHECK_FALSE(AddComponent(store, e, "hand", &hand));
+    CHECK_FALSE(HasComponent(store, e, "hand"));
+    CHECK(GetComponent(store, e, "hand") == nullptr);
+    CHECK_FALSE(RemoveComponent(store, e, "hand"));
+    CHECK(store.Pool<Hand>().Size() == 0);
+}
+
+TEST_CASE("entity_store: unchecked pool primitives reject bogus indices") {
+    EntityStore store;
+    Entity e = store.Create();
+
+    const ComponentType* hand_type = ComponentCatalog::Instance().Find("hand");
+    REQUIRE(hand_type != nullptr);
+    IComponentPool& pool = hand_type->Acquire(store);
+    CHECK(&pool == static_cast<IComponentPool*>(&store.Pool<Hand>()));
+
+    Hand hand;
+    CHECK(pool.AddErased(e, &hand));
+    CHECK(pool.Size() == 1);
     CHECK(pool.RemoveErased(e));
     CHECK_FALSE(pool.HasErased(e));
-    CHECK(pool.Size() == 0);
 
-    CHECK_FALSE(pool.AddErased(e, nullptr));
+    // INFO: sentinel / over-cap indices must not resize the sparse index or
+    //       store anything.
+    CHECK_FALSE(pool.AddErased(Entity{kInvalidEntityIndex, 0}, &hand));
+    CHECK_FALSE(pool.AddErased(Entity{kMaxEntityIndex + 1, 0}, &hand));
+    CHECK(pool.Size() == 0);
+    CHECK(kMaxEntityIndex < kInvalidEntityIndex);
 }
 
 TEST_CASE("entity_store: compact card bound constants") {

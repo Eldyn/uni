@@ -29,6 +29,20 @@
 
 namespace match::ecs {
 
+/** Reserved entity index meaning "no entity"; never a live slot. */
+inline constexpr uint32_t kInvalidEntityIndex =
+    std::numeric_limits<uint32_t>::max();
+
+/**
+ * @brief Upper bound on addressable entity slot indices.
+ *
+ * Safety cap on the sparse index so a bogus handle cannot force a multi-GB
+ * allocation in `ComponentPool::Add`. Far above any real match size (card
+ * counts are bounded by deck content, never balance-capped) and shared by
+ * `EntityStore::Create` so no live entity can exceed it.
+ */
+inline constexpr uint32_t kMaxEntityIndex = (1u << 24) - 1;
+
 /**
  * @struct Entity
  * @brief Generational entity handle.
@@ -48,6 +62,12 @@ struct Entity {
  * Erased operations mirror the typed ones and use an `Erased` suffix so they
  * never collide with a typed overload (a `T* Get(Entity)` and a
  * `void* Get(Entity)` cannot coexist in one overload set).
+ *
+ * WARN: the `*Erased` primitives do NOT validate entity liveness or catalog
+ *       IDs — they are low-level storage hooks. Code outside the store must
+ *       use the checked by-ID wrappers in components.hpp (`AddComponent` /
+ *       `GetComponent` / `HasComponent` / `RemoveComponent`) or the typed
+ *       `EntityStore` API, never the primitives directly.
  */
 class IComponentPool {
 public:
@@ -93,11 +113,18 @@ public:
     /**
      * @brief Adds or updates the component for `entity`.
      *
+     * WARN: a pointer returned by `Add`/`Get` is invalidated by any later
+     *       `Add` (dense growth) or `Remove` (swap-pop) on the same pool.
+     *
      * @return Pointer to the stored value; nullptr when `entity.index` is the
-     *         reserved "no slot" sentinel (cannot be indexed).
+     *         reserved "no slot" sentinel or exceeds `kMaxEntityIndex` (the
+     *         sparse-index safety cap).
      */
     T* Add(Entity entity, T value) {
-        if (entity.index == kNoSlot) return nullptr;
+        if (entity.index == kInvalidEntityIndex ||
+            entity.index > kMaxEntityIndex) {
+            return nullptr;
+        }
         if (entity.index >= sparse_.size()) {
             sparse_.resize(static_cast<std::size_t>(entity.index) + 1, kNoSlot);
         }
@@ -114,10 +141,18 @@ public:
         return &dense_.back().value;
     }
 
-    /** Pointer to the component, or nullptr on a dead/missing handle. */
+    /**
+     * Pointer to the component, or nullptr on a dead/missing handle.
+     *
+     * WARN: invalidated by any later `Add`/`Remove` on this pool.
+     */
     T* Get(Entity entity) { return Find(entity); }
 
-    /** Const pointer to the component, or nullptr on a dead/missing handle. */
+    /**
+     * Const pointer to the component, or nullptr on a dead/missing handle.
+     *
+     * WARN: invalidated by any later `Add`/`Remove` on this pool.
+     */
     const T* Get(Entity entity) const { return Find(entity); }
 
     /** True when `entity` carries this component. */
@@ -174,7 +209,7 @@ public:
     bool RemoveErased(Entity entity) override { return Remove(entity); }
 
 private:
-    static constexpr uint32_t kNoSlot = std::numeric_limits<uint32_t>::max();
+    static constexpr uint32_t kNoSlot = kInvalidEntityIndex;
 
     T* Find(Entity entity) {
         if (entity.index >= sparse_.size()) return nullptr;
@@ -269,14 +304,23 @@ public:
     /** Existing erased pool by type, or nullptr. */
     const IComponentPool* FindPool(std::type_index type) const;
 
-    /** Adds or updates `T`; nullptr when `entity` is dead. */
+    /**
+     * Adds or updates `T`; nullptr when `entity` is dead.
+     *
+     * WARN: the returned pointer is invalidated by any later `Add`/`Remove`
+     *       on the same component pool.
+     */
     template <typename T>
     T* Add(Entity entity, T value) {
         if (!IsAlive(entity)) return nullptr;
         return Pool<T>().Add(entity, std::move(value));
     }
 
-    /** `T` for a live entity, or nullptr on dead/missing. */
+    /**
+     * `T` for a live entity, or nullptr on dead/missing.
+     *
+     * WARN: invalidated by any later `Add`/`Remove` on the `T` pool.
+     */
     template <typename T>
     T* Get(Entity entity) {
         if (!IsAlive(entity)) return nullptr;
@@ -285,7 +329,11 @@ public:
         return static_cast<T*>(pool->GetErased(entity));
     }
 
-    /** Const `T` for a live entity, or nullptr on dead/missing. */
+    /**
+     * Const `T` for a live entity, or nullptr on dead/missing.
+     *
+     * WARN: invalidated by any later `Add`/`Remove` on the `T` pool.
+     */
     template <typename T>
     const T* Get(Entity entity) const {
         if (!IsAlive(entity)) return nullptr;
