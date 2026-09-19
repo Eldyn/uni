@@ -161,11 +161,6 @@
 			font-size: 1rem;
 		}
 
-		.hud-bar {
-			gap: var(--space-2);
-			padding: var(--space-1) var(--space-2);
-		}
-
 		.timer {
 			flex: none;
 			padding: 4px 6px;
