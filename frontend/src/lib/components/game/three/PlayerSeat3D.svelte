@@ -153,17 +153,18 @@
 		let cancelled = false;
 		const bot = isBot;
 		const pending = bot
-			? loadTexture("/assets/bot_animated.gif")
+			? loadTexture("/assets/bot_animated_strip.png")
 			: loadSilhouette("/assets/base_player_strip.png");
 		pending.then((source) => {
 			if (cancelled) return;
 			// Clone so each seat steps its own frame offset independently of the
 			// shared texture cache (and of every other seat).
 			const texture = source.clone();
-			if (!bot) {
-				texture.repeat.set(1 / FRAME_COUNT, 1);
-				texture.offset.x = 0;
-			}
+			// Both strips are horizontal 5-frame sheets; the bot sheet carries
+			// the bot's own colours (tinted white below), the player sheet is a
+			// silhouette multiplied by the seat colour.
+			texture.repeat.set(1 / FRAME_COUNT, 1);
+			texture.offset.x = 0;
 			texture.needsUpdate = true;
 			avatarTexture = texture;
 		});
@@ -190,7 +191,7 @@
 	});
 
 	useTask((delta) => {
-		if (avatarTexture && !isBot) {
+		if (avatarTexture) {
 			frameElapsed += delta;
 			if (frameElapsed >= FRAME_DURATION) {
 				frameElapsed %= FRAME_DURATION;
