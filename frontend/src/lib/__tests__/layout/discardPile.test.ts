@@ -4,7 +4,6 @@ import {
 	appendDiscard,
 	discardEntryFor,
 	discardStackZ,
-	BURIED_DEPTH_CAP,
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
 	MAX_ROTATION_DEG,
@@ -37,9 +36,7 @@ describe("discardEntryFor", () => {
 
 	it("keeps rotation within the scatter bound", () => {
 		for (let id = 0; id < 50; id++) {
-			expect(Math.abs(discardEntryFor(card(id)).rotationDeg)).toBeLessThanOrEqual(
-				MAX_ROTATION_DEG
-			);
+			expect(Math.abs(discardEntryFor(card(id)).rotationDeg)).toBeLessThanOrEqual(MAX_ROTATION_DEG);
 		}
 	});
 });
@@ -126,35 +123,25 @@ describe("paintTopWild", () => {
 });
 
 describe("discardStackZ", () => {
-	it("caps Z stack depth for buried cards beyond 20 items", () => {
-		expect(BURIED_DEPTH_CAP).toBe(20);
-
-		// Single parameter index clamp
-		expect(discardStackZ(20)).toBeCloseTo(20 * DISCARD_STACK_STEP);
-		expect(discardStackZ(25)).toBe(discardStackZ(20));
-		expect(discardStackZ(100)).toBe(discardStackZ(20));
-
-		// Full pile with 30 cards: buried cards (depth >= 20 from top) share tier 0
-		const total = 30;
-		expect(discardStackZ(0, total)).toBe(0);
-		expect(discardStackZ(9, total)).toBe(0);
-		// Card right above buried tier gets tier 1
-		expect(discardStackZ(10, total)).toBeCloseTo(1 * DISCARD_STACK_STEP);
-		// Top card gets capped at 20 tiers
-		expect(discardStackZ(29, total)).toBeCloseTo(20 * DISCARD_STACK_STEP);
-
-		// Unbounded pile of 100 cards
-		expect(discardStackZ(0, 100)).toBe(0);
-		expect(discardStackZ(79, 100)).toBe(0);
-		expect(discardStackZ(80, 100)).toBeCloseTo(1 * DISCARD_STACK_STEP);
-		expect(discardStackZ(99, 100)).toBeCloseTo(20 * DISCARD_STACK_STEP);
+	it("gives every card its own depth, however deep the pile", () => {
+		// Regression: cards used to be collapsed onto a shared bottom tier past a
+		// 20-card cap. Multiple planes at one Y render as Z-fighting stripes
+		// across the pile, so no two indices may ever share a depth — including
+		// a pile at the DISCARD_CAP worst case.
+		for (const total of [1, 10, 20, 30, DISCARD_CAP]) {
+			const seen = new Set<number>();
+			for (let i = 0; i < total; i++) {
+				const y = discardStackZ(i);
+				expect(y).toBeCloseTo(i * DISCARD_STACK_STEP);
+				expect(seen.has(y)).toBe(false);
+				seen.add(y);
+			}
+		}
 	});
 
-	it("stacks all cards linearly when total count is within depth 20", () => {
-		const total = 10;
-		for (let i = 0; i < total; i++) {
-			expect(discardStackZ(i, total)).toBeCloseTo(i * DISCARD_STACK_STEP);
+	it("is strictly increasing with index", () => {
+		for (let i = 0; i < DISCARD_CAP; i++) {
+			expect(discardStackZ(i + 1)).toBeGreaterThan(discardStackZ(i));
 		}
 	});
 });
-

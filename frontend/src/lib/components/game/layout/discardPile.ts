@@ -48,27 +48,21 @@ export const MAX_JITTER_EM = 1.1;
  *  has to know a landing card's exact future height to avoid a visible pop
  *  when it hands off from its flight to this static pile). */
 export const DISCARD_STACK_STEP = 0.025;
-export const BURIED_DEPTH_CAP = 20;
-export const DISCARD_BURIED_TIER_DEPTH = 20;
 
 /**
  * Geometric stack depth (Y in world space / Z in depth buffer) for an item in
- * the discard pile. Cards buried deep beyond the BURIED_DEPTH_CAP (20) share
- * a single bottom tier (height 0) so the pile's depth does not grow
- * unboundedly past 20 items.
+ * the discard pile.
+ *
+ * Every card gets its OWN depth. An earlier version collapsed cards deeper
+ * than a 20-card cap onto a single shared bottom tier (all at y = 0), which
+ * put many card planes — and their transparent shadow planes — at exactly the
+ * same depth. That reads as dense Z-fighting stripes across the pile (verified
+ * by forcing the whole stack to one Y: the stripes appear immediately). The
+ * pile can never exceed DISCARD_CAP (30) entries, so 30 * 0.025 = 0.75 world
+ * units of height is already a bounded worst case and no cap is needed.
  */
-export function discardStackZ(index: number, totalCount?: number): number {
-	if (totalCount === undefined) {
-		return Math.min(index, BURIED_DEPTH_CAP) * DISCARD_STACK_STEP;
-	}
-	if (totalCount <= BURIED_DEPTH_CAP) {
-		return index * DISCARD_STACK_STEP;
-	}
-	const buriedCount = totalCount - BURIED_DEPTH_CAP;
-	if (index < buriedCount) {
-		return 0;
-	}
-	return (index - buriedCount + 1) * DISCARD_STACK_STEP;
+export function discardStackZ(index: number): number {
+	return index * DISCARD_STACK_STEP;
 }
 
 export const discardStackHeight = discardStackZ;
@@ -93,7 +87,11 @@ function seeded(seed: number): number {
  *  layered on TOP of it, not instead of it, so a card visibly keeps "which
  *  way it was thrown from" under the scatter instead of the scatter alone
  *  deciding its angle. */
-export function discardEntryFor(card: Card, seq: number = 0, baseRotationDeg: number = 0): DiscardEntry {
+export function discardEntryFor(
+	card: Card,
+	seq: number = 0,
+	baseRotationDeg: number = 0
+): DiscardEntry {
 	const seed = card.id + seq * 7919;
 	const r1 = seeded(seed);
 	const r2 = seeded(seed + 101);
@@ -145,8 +143,7 @@ export function previewDiscardLanding(
 		return { entry: last, index, z: discardStackZ(index, history.length) };
 	}
 	const entry = discardEntryFor(card, (last?.seq ?? 0) + 1, baseRotationDeg);
-	const currentTopZ =
-		history.length > 0 ? discardStackZ(history.length - 1, history.length) : 0;
+	const currentTopZ = history.length > 0 ? discardStackZ(history.length - 1, history.length) : 0;
 	const nextLength = Math.min(history.length + 1, cap);
 	const index = nextLength - 1;
 	const nominalZ = discardStackZ(index, nextLength);
