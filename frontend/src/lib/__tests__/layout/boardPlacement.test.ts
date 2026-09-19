@@ -57,27 +57,32 @@ describe("computeBoardPlacement", () => {
 		expect(placement.drawPileX).toBeCloseTo(DRAW_PILE_HOME_X, 5);
 	});
 
-	it("moves the draw pile off the hand row and onto the mat in portrait", () => {
-		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
-			const { placement } = placementFor(viewport);
-			expect(placement.drawPileBesideHand, name).toBe(false);
-			// Beside the discard, not under the hand.
-			expect(placement.drawPileZ, name).toBe(placement.discardZ);
-			expect(placement.drawPileScale, name).toBeLessThan(placement.centerScale);
-			// ...and the PAIR straddles the felt's center line rather than the
-			// discard alone sitting on it.
-			expect(placement.drawPileX, name).toBeLessThan(0);
-			expect(placement.discardX + placement.drawPileX, name).toBeCloseTo(0, 5);
-		}
-	});
-
-	it("keeps the draw pile beside the hand on a wide screen", () => {
-		for (const [name, viewport] of Object.entries({ landscape, wide })) {
+	it("keeps the draw pile beside the hand row in every orientation, smaller in portrait", () => {
+		for (const [name, viewport] of Object.entries(all)) {
 			const { placement } = placementFor(viewport);
 			expect(placement.drawPileBesideHand, name).toBe(true);
 			expect(placement.drawPileZ, name).toBeCloseTo(placement.localSeatZ, 5);
-			expect(placement.drawPileScale, name).toBeCloseTo(placement.handScale, 5);
 			expect(placement.discardX, name).toBe(0);
+		}
+		const { placement: landscapePlacement } = placementFor(landscape);
+		expect(landscapePlacement.drawPileScale).toBeCloseTo(landscapePlacement.handScale, 5);
+		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
+			const { placement } = placementFor(viewport);
+			expect(placement.drawPileScale, name).toBeLessThan(placement.handScale);
+		}
+	});
+
+	it("centers the discard pile on the felt in every orientation", () => {
+		for (const [name, viewport] of Object.entries(all)) {
+			const { placement } = placementFor(viewport);
+			if (viewport.orientation === "landscape") {
+				expect(placement.discardZ, name).toBe(0);
+			} else {
+				expect(placement.discardZ, name).toBeCloseTo(
+					(placement.mat.bounds.far + placement.mat.bounds.near) / 2,
+					5
+				);
+			}
 		}
 	});
 
