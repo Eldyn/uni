@@ -22,7 +22,7 @@
 	import { T, useTask } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
 	import { gsap } from "gsap";
-	import { storeGame, type Card } from "$stores/game.svelte";
+	import { storeGame, type Card, type GamePlayer } from "$stores/game.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
@@ -45,6 +45,7 @@
 	} from "../layout/handGesture";
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 	import { ValueMap } from "$lib/generated/schemas";
+	import { hiddenBackCountFor, hiddenBackCard } from "../layout/spectatorPov";
 
 	let {
 		rig,
@@ -55,7 +56,9 @@
 		onPlay,
 		dimmed = false,
 		focusedId = null,
-		onPointerHover
+		onPointerHover,
+		player = null,
+		readOnly = false
 	}: {
 		rig: CameraRig;
 		viewport: ViewportInfo;
@@ -77,7 +80,18 @@
 		 *  to drop any keyboard focus, so the mouse taking over doesn't leave a
 		 *  keyboard-focused card lit at the same time as the hovered one. */
 		onPointerHover?: () => void;
+		/** Whose hand this row renders. Defaults to the local player; Scene3D
+		 *  passes a spectator's viewed player so their hand becomes the bottom row. */
+		player?: GamePlayer | null;
+		/** Spectator POV: render only. The row's hit zones, drag/reorder gesture,
+		 *  wheel pan and sort button are all inert — a spectator can never play,
+		 *  drag or reorder the viewed player's cards. */
+		readOnly?: boolean;
 	} = $props();
+
+	// The prop is authoritative (Scene3D always passes it); the fallback keeps
+	// the component self-contained if it's ever used standalone.
+	let handPlayer = $derived(player ?? storeGame.localPlayer);
 
 	const bus = useCardBus();
 	const cardRegistry = useCardRegistry();
@@ -171,11 +185,36 @@
 			: -((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3)
 	);
 
-	let cards = $derived(
-		(storeGame.localPlayer?.hand ?? []).filter(
+	let handCards = $derived(handPlayer?.hand ?? []);
+	// A spectator viewing a player whose hand the server withheld (privacy_mode)
+	// still gets a full-looking row — of card backs, one per card_count, never
+	// inferred faces. Only ever non-zero for a spectator: the local player's own
+	// hand is always sent in full.
+	let hiddenBackCount = $derived(readOnly ? hiddenBackCountFor(handPlayer) : 0);
+
+	let cards = $derived.by(() => {
+		if (hiddenBackCount > 0) {
+			return Array.from({ length: hiddenBackCount }, (_, i) => hiddenBackCard(i));
+		}
+		if (readOnly) return handCards;
+		return handCards.filter(
 			(c) => c.id !== bus.pendingLocalPlayDrawnId && !bus.pendingLocalDrawIds.has(c.id)
-		)
-	);
+		);
+	});
+
+	// Synthetic facedown ids have no other owner to inherit them when the row
+	// shrinks or the viewed player changes — unlike a real card, which
+	// DiscardPile3D takes over after a play — so this row retires them itself.
+	// Without this, switching between spectators' POVs (or a viewed player
+	// playing a card while hidden) would strand back meshes on the board.
+	let prevHiddenIds: number[] = [];
+	$effect(() => {
+		const currentIds = hiddenBackCount > 0 ? cards.map((c) => c.id) : [];
+		for (const id of prevHiddenIds) {
+			if (!currentIds.includes(id)) cardRegistry.removeEntry(String(id));
+		}
+		prevHiddenIds = currentIds;
+	});
 
 	// Reconciled, not replaced: new card ids append at the end, missing ones
 	// drop out, everything else keeps its current position — so a drag that's
@@ -245,7 +284,9 @@
 			const slot = slots[i];
 			const neighborPush = isDragging ? 0 : neighborPushEm(i);
 
-			const [slotX, slotY, slotZ] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
+			const [slotX, slotY, slotZ] = handSlotPose(i, orderedCards.length, snapshot, placement, {
+				dragging: isDragging
+			});
 
 			cardRegistry.ensureEntry(
 				idString,
@@ -256,15 +297,17 @@
 					spinDeg: 0,
 					flipDeg: 0,
 					scale: placement.handScale,
-					turned: false,
+					turned: hiddenBackCount > 0,
 					opacity: 1,
 					dragT: isDragging ? 1 : 0
 				},
-				{ type: card.type, value: card.value }
+				hiddenBackCount > 0 ? null : { type: card.type, value: card.value }
 			);
 
 			cardRegistry.setPoseProvider(idString, () => {
-				const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, { dragging: isDragging });
+				const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, {
+					dragging: isDragging
+				});
 				return [
 					isDragging ? dragWorldX : x,
 					isDragging ? DRAG_LIFT : y,
@@ -283,7 +326,8 @@
 				const pose = cardRegistry.getPose(idString);
 				if (pose) {
 					const dx = Math.abs(pose.x - slotX);
-					const isFlightTransit = cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
+					const isFlightTransit =
+						cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
 
 					if (!isFlightTransit) {
 						if (dx > 0.01) {
@@ -321,14 +365,15 @@
 			}
 
 			const lifted =
-				isSelected || ((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
+				isSelected ||
+				((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
 			cardRegistry.setDecoration(idString, {
 				hovered: lifted,
 				instant: isSelected,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
 				pushX: neighborPush * handEmToWorld,
-				hoverSpinDeg: isDragging ? dragTiltDeg : (lifted ? tiltTowardPileDeg(slot.x) : 0),
+				hoverSpinDeg: isDragging ? dragTiltDeg : lifted ? tiltTowardPileDeg(slot.x) : 0,
 				opacity: isSelected ? 1 : fade,
 				dimmed,
 				shadow: shadowTexture
@@ -352,7 +397,7 @@
 	// a card mid-deal-in flight is only visually hidden, not actually gone,
 	// and clearing the selection out from under it is what silently ate a
 	// pre-armed selection for the whole draw-in animation window.
-	let rawHandIds = $derived(new Set((storeGame.localPlayer?.hand ?? []).map((card) => card.id)));
+	let rawHandIds = $derived(new Set((handPlayer?.hand ?? []).map((card) => card.id)));
 	$effect(() => {
 		if (selectedId !== null && !rawHandIds.has(selectedId)) {
 			onSelectionChange(null);
@@ -447,9 +492,7 @@
 
 	useTask((delta) => {
 		if (draggingId !== null) {
-			const frameDelta = hasPointerMove
-				? (currentPointerX - lastPointerX) * worldPerPixelX
-				: 0;
+			const frameDelta = hasPointerMove ? (currentPointerX - lastPointerX) * worldPerPixelX : 0;
 			lastPointerX = currentPointerX;
 			hasPointerMove = false;
 
@@ -492,6 +535,7 @@
 	// one gesture to spend, so it pans, and reordering is what dragging the card
 	// you already picked does.
 	function startGesture(cardId: number, index: number, event: unknown) {
+		if (readOnly) return;
 		settleTween?.kill();
 		settleTween = null;
 		dragLiftTween?.kill();
@@ -677,7 +721,7 @@
 	// mouse over a specific strip first. Re-anchoring on the clamped
 	// line.scrollEm rather than accumulating keeps the offset in range.
 	$effect(() => {
-		if (!pointerMode.canHover) return;
+		if (readOnly || !pointerMode.canHover) return;
 		const handleWheel = (event: WheelEvent) => {
 			if (!hasOverflow) return;
 			// A trackpad's two-finger swipe reports its own motion as deltaX; a
@@ -779,26 +823,28 @@
 	});
 </script>
 
-{#each orderedCards as card, i (card.id)}
-	{@const zone = hitZones[i]}
-	<T.Mesh
-		position={[zone.centerX * handEmToWorld, HIT_PLANE_Y, placement.localSeatZ]}
-		rotation.x={-Math.PI / 2}
-		onpointerenter={() => {
-			pointerOverHand = true;
-			onPointerHover?.();
-			if (draggingId === null) hoveredId = card.id;
-		}}
-		onpointerleave={() => {
-			pointerOverHand = false;
-			if (hoveredId === card.id) hoveredId = null;
-		}}
-		onpointerdown={(event: unknown) => startGesture(card.id, i, event)}
-	>
-		<T.PlaneGeometry args={[zone.widthEm * handEmToWorld, CARD_HEIGHT * placement.handScale]} />
-		<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
-	</T.Mesh>
-{/each}
+{#if !readOnly}
+	{#each orderedCards as card, i (card.id)}
+		{@const zone = hitZones[i]}
+		<T.Mesh
+			position={[zone.centerX * handEmToWorld, HIT_PLANE_Y, placement.localSeatZ]}
+			rotation.x={-Math.PI / 2}
+			onpointerenter={() => {
+				pointerOverHand = true;
+				onPointerHover?.();
+				if (draggingId === null) hoveredId = card.id;
+			}}
+			onpointerleave={() => {
+				pointerOverHand = false;
+				if (hoveredId === card.id) hoveredId = null;
+			}}
+			onpointerdown={(event: unknown) => startGesture(card.id, i, event)}
+		>
+			<T.PlaneGeometry args={[zone.widthEm * handEmToWorld, CARD_HEIGHT * placement.handScale]} />
+			<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
+		</T.Mesh>
+	{/each}
+{/if}
 
 {#if hasOverflow}
 	<HTML
@@ -819,20 +865,18 @@
 	</HTML>
 {/if}
 
-<HTML
-	position={[sortButtonX, 1, placement.localSeatZ]}
-	center
-	pointerEvents="auto"
->
-	<button
-		class="sort-button pixel-corners"
-		onclick={sortByRgby}
-		title="Sort hand"
-		aria-label="Sort hand"
-	>
-		<i class="hn pix hn-sort"></i>
-	</button>
-</HTML>
+{#if !readOnly}
+	<HTML position={[sortButtonX, 1, placement.localSeatZ]} center pointerEvents="auto">
+		<button
+			class="sort-button pixel-corners"
+			onclick={sortByRgby}
+			title="Sort hand"
+			aria-label="Sort hand"
+		>
+			<i class="hn pix hn-sort"></i>
+		</button>
+	</HTML>
+{/if}
 
 <style>
 	.overflow-hint {

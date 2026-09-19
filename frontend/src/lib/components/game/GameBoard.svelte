@@ -13,6 +13,8 @@
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { storeSpectator } from "$stores/spectator.svelte";
+	import { resolveViewedPlayer } from "./layout/spectatorPov";
 	import {
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
@@ -81,8 +83,21 @@
 	// the Threlte scene's own seat solver (layout/seatLayout3D.ts).
 	let mappedOpponents = $derived.by(() => {
 		const players = storeGame.state?.players ?? [];
+		if (storeGame.isSpectator) {
+			// A spectator "becomes" the viewed player: that player renders in the
+			// local seat/hand, so they must NOT also appear in the opponent ring.
+			const viewed = resolveViewedPlayer(
+				players,
+				storeSpectator.viewedUsername,
+				storeGame.state?.current_turn
+			);
+			return players
+				.filter((player) => player.username !== viewed?.username)
+				.map((player) => ({ player }));
+		}
+
 		const myUsername = storeGame.localPlayer?.username;
-		if (storeGame.isSpectator || !myUsername) {
+		if (!myUsername) {
 			return players.map((player) => ({ player }));
 		}
 		if (players.length <= 1) return [];
@@ -112,7 +127,9 @@
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
-				console.warn(`GameBoard: no seat found for opponent "${username}" — falling back to discard pile.`);
+				console.warn(
+					`GameBoard: no seat found for opponent "${username}" — falling back to discard pile.`
+				);
 				return [geometry.placement.discardX, 0, geometry.placement.discardZ];
 			}
 			const seat = geometry.seats3D[idx];
@@ -127,7 +144,11 @@
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
 				return {
-					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [number, number, number],
+					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [
+						number,
+						number,
+						number
+					],
 					spinDeg: 0
 				};
 			}
@@ -141,12 +162,11 @@
 			);
 			const radialScale = ringRadiusWorld / RING_RADIUS_EM;
 			const slots = computeHandRingSlots(cardCount);
-			const slot =
-				slots[Math.min(slots.length - 1, Math.max(0, slotIndex))] ?? {
-					x: 0,
-					y: RING_RADIUS_EM,
-					rotateDeg: 0
-				};
+			const slot = slots[Math.min(slots.length - 1, Math.max(0, slotIndex))] ?? {
+				x: 0,
+				y: RING_RADIUS_EM,
+				rotateDeg: 0
+			};
 			const position = ringSlotWorldPose(seat, slot, slotIndex, radialScale, 0.02);
 			const spinDeg = (seat.rotationY * 180) / Math.PI + slot.rotateDeg + 180;
 			return { position, spinDeg };
@@ -155,7 +175,11 @@
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
 				return {
-					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [number, number, number],
+					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [
+						number,
+						number,
+						number
+					],
 					spinDeg: 0
 				};
 			}

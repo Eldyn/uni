@@ -9,10 +9,12 @@
 	import { interactivity } from "@threlte/extras";
 	import type { OrthographicCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
+	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import type { SceneGeometry } from "../layout/sceneGeometry";
 	import type { ViewportInfo } from "../layout/seatLayout";
+	import { resolveViewedPlayer } from "../layout/spectatorPov";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -85,7 +87,20 @@
 		storeGame.submitInput(username);
 	}
 
-	let isLocalTurn = $derived(storeGame.state?.current_turn === storeGame.localPlayer?.username);
+	// Whose POV the board shows: yourself normally, or — for a spectator — the
+	// player being viewed (TurnOrderStrip chips / SpectatorBanner's fallback).
+	// Their seat and hand render in the local slots, so the board reads as
+	// "you are this player". Read-only is enforced on the hand itself.
+	let povPlayer = $derived.by(() => {
+		if (!storeGame.isSpectator) return storeGame.localPlayer;
+		return resolveViewedPlayer(
+			storeGame.state?.players ?? [],
+			storeSpectator.viewedUsername,
+			storeGame.state?.current_turn
+		);
+	});
+
+	let isLocalTurn = $derived(storeGame.state?.current_turn === povPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);
 
 	let artLoaded = $state(false);
@@ -140,10 +155,10 @@
 	{/if}
 {/each}
 
-{#if storeGame.localPlayer && !storeGame.isSpectator}
+{#if povPlayer}
 	<LocalSeat3D
-		player={storeGame.localPlayer}
-		color={colorFor(storeGame.localPlayer.username)}
+		player={povPlayer}
+		color={colorFor(povPlayer.username)}
 		{placement}
 		avatarPx={localAvatarPx}
 		dimmed={localDimmed}
@@ -153,7 +168,9 @@
 		{viewport}
 		{placement}
 		dimmed={localDimmed}
-		{selectedId}
+		player={povPlayer}
+		readOnly={storeGame.isSpectator}
+		selectedId={storeGame.isSpectator ? null : selectedId}
 		{onSelectionChange}
 		{onPlay}
 		{focusedId}
