@@ -196,7 +196,9 @@
 		if (hiddenBackCount > 0) {
 			return Array.from({ length: hiddenBackCount }, (_, i) => hiddenBackCard(i));
 		}
-		if (readOnly) return handCards;
+		// Same pending-draw/play hiding as the local player: baseBeats now treats
+		// the spectator's viewed player as "local" too, so a card it is
+		// animating into the POV row must not be planted already-revealed here.
 		return handCards.filter(
 			(c) => c.id !== bus.pendingLocalPlayDrawnId && !bus.pendingLocalDrawIds.has(c.id)
 		);

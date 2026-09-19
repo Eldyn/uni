@@ -33,6 +33,24 @@ export function resolveViewedPlayer(
 }
 
 /**
+ * The single POV-player resolver shared by the render layer (Scene3D's local
+ * seat/hand) and the animation layer (baseBeats, which decides whose play is
+ * "mine" and where a draw lands). A non-spectator is always themselves; a
+ * spectator is whoever `resolveViewedPlayer` picks. Returns null when the local
+ * player isn't known (or the roster is empty).
+ */
+export function resolvePovPlayer(
+	localPlayer: GamePlayer | null | undefined,
+	isSpectator: boolean,
+	players: readonly GamePlayer[],
+	viewedUsername: string | null | undefined,
+	currentTurn: string | null | undefined
+): GamePlayer | null {
+	if (!isSpectator) return localPlayer ?? null;
+	return resolveViewedPlayer(players, viewedUsername, currentTurn);
+}
+
+/**
  * Number of facedown cards that stand in for a player's hidden hand: the
  * server omits `hand` (or sends it empty) for spectator-private players,
  * leaving only `card_count`. A present, non-empty hand means the faces are

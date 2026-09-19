@@ -14,7 +14,7 @@
 	import { useCardBus } from "../card-bus.svelte";
 	import type { SceneGeometry } from "../layout/sceneGeometry";
 	import type { ViewportInfo } from "../layout/seatLayout";
-	import { resolveViewedPlayer } from "../layout/spectatorPov";
+	import { resolvePovPlayer } from "../layout/spectatorPov";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -90,15 +90,18 @@
 	// Whose POV the board shows: yourself normally, or — for a spectator — the
 	// player being viewed (TurnOrderStrip chips / SpectatorBanner's fallback).
 	// Their seat and hand render in the local slots, so the board reads as
-	// "you are this player". Read-only is enforced on the hand itself.
-	let povPlayer = $derived.by(() => {
-		if (!storeGame.isSpectator) return storeGame.localPlayer;
-		return resolveViewedPlayer(
+	// "you are this player". Read-only is enforced on the hand itself. The same
+	// resolver drives the animation layer (baseBeats), so the flight anchors and
+	// the rendered row can never disagree about who "local" is.
+	let povPlayer = $derived(
+		resolvePovPlayer(
+			storeGame.localPlayer,
+			storeGame.isSpectator,
 			storeGame.state?.players ?? [],
 			storeSpectator.viewedUsername,
 			storeGame.state?.current_turn
-		);
-	});
+		)
+	);
 
 	let isLocalTurn = $derived(storeGame.state?.current_turn === povPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);

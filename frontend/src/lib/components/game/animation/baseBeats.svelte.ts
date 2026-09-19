@@ -10,10 +10,12 @@
 
 import { storeGame, Action, type CardType } from "$stores/game.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
+import { storeSpectator } from "$stores/spectator.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
+import { resolvePovPlayer } from "../layout/spectatorPov";
 import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
@@ -73,9 +75,7 @@ export function buildReshuffleBeat(
 				toSpinDeg: 0,
 				toScale: opts?.placement?.drawPileScale,
 				ease: "power2.in",
-				onComplete: opts?.onCardArrive
-					? () => opts.onCardArrive!(i, toReshuffle.length)
-					: undefined
+				onComplete: opts?.onCardArrive ? () => opts.onCardArrive!(i, toReshuffle.length) : undefined
 			},
 			atS: moveAtS
 		});
@@ -332,6 +332,10 @@ export function createBaseBeatsWatcher(deps: {
 	// gating just below).
 	let prevCardCounts: Map<string, number> | null = null;
 	let prevLocalHandIds: Set<number> = new Set();
+	// Which player `prevLocalHandIds` was seeded from. A spectator switching POV
+	// changes this without a card being drawn, so the baseline must be reseeded
+	// or the new player's first draw animates their whole hand in as new.
+	let prevLocalUsername: string | undefined;
 	let drawIdCounter = 0;
 	let lastLandingBaseDeg = 0;
 	let pendingLocalHandSlots = new Map<string, [number, number, number]>();
@@ -349,8 +353,30 @@ export function createBaseBeatsWatcher(deps: {
 			const state = storeGame.state;
 			if (!state) return;
 			const placement = deps.getPlacement();
-			const localUsername = storeGame.localPlayer?.username;
+			// "Local" here means the player whose POV we render, not strictly the
+			// authenticated user: while spectating that is the viewed player
+			// (Scene3D's povPlayer), so a play reads as "mine" (seed from the POV
+			// hand, no reveal flip) and a draw lands in the POV hand instead of
+			// falling back to the discard-pile anchor. Same resolver as Scene3D.
+			const localUsername = resolvePovPlayer(
+				storeGame.localPlayer,
+				storeGame.isSpectator,
+				state.players ?? [],
+				storeSpectator.viewedUsername,
+				state.current_turn
+			)?.username;
 			const _actionRequired = storeGame.actionRequired;
+
+			// A spectator switching POV changes localUsername with no card drawn;
+			// reseed the local-hand baseline to the new player's current hand so
+			// their next increase isn't diffed against the previous player's ids
+			// (which would animate the whole hand in as a multi-card draw).
+			if (prevCardCounts !== null && localUsername !== prevLocalUsername) {
+				prevLocalHandIds = new Set(
+					(state.players?.find((p) => p.username === localUsername)?.hand ?? []).map((c) => c.id)
+				);
+				prevLocalUsername = localUsername;
+			}
 
 			// One live resolver per tick, shared by every enqueue() call this
 			// tick — replaces the three duplicated per-call anchor-object blocks

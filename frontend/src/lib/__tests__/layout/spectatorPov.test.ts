@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { GamePlayer } from "$stores/game.svelte";
 import {
 	resolveViewedPlayer,
+	resolvePovPlayer,
 	hiddenBackCountFor,
 	hiddenBackCard,
 	HIDDEN_BACK_ID_BASE
@@ -34,6 +35,33 @@ describe("resolveViewedPlayer", () => {
 
 	it("returns null with no players", () => {
 		expect(resolveViewedPlayer([], "bob", "bob")).toBeNull();
+	});
+});
+
+describe("resolvePovPlayer", () => {
+	const alice = player("alice", { card_count: 3, hand: [] });
+	const bob = player("bob", { card_count: 5 });
+	const carol = player("carol", { card_count: 2 });
+	const roster = [alice, bob, carol];
+
+	it("returns the local player for a non-spectator", () => {
+		expect(resolvePovPlayer(alice, false, roster, "bob", "carol")?.username).toBe("alice");
+	});
+
+	it("returns null for a non-spectator with no known local player", () => {
+		expect(resolvePovPlayer(null, false, roster, null, "carol")).toBeNull();
+	});
+
+	it("returns the explicitly viewed player for a spectator", () => {
+		expect(resolvePovPlayer(null, true, roster, "bob", "carol")?.username).toBe("bob");
+	});
+
+	it("falls back to the current turn for a spectator with no explicit view", () => {
+		expect(resolvePovPlayer(null, true, roster, null, "carol")?.username).toBe("carol");
+	});
+
+	it("returns null for a spectator with an empty roster", () => {
+		expect(resolvePovPlayer(null, true, [], "bob", "carol")).toBeNull();
 	});
 });
 
