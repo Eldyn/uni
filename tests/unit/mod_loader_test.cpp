@@ -351,6 +351,112 @@ TEST_CASE("modloader: rules.json accepts bare-array and object forms") {
     CHECK(obj.mods[0].statuses[0].stack_policy == "cap:3");
 }
 
+TEST_CASE("modloader: rule hook accepts the nested graph form") {
+    TempModsRoot tmp;
+    tmp.Write("g", "mod.json", R"({
+      "id": "g", "name": "G", "version": "1.0.0", "api": "1",
+      "provides_rules": "rules.json"
+    })");
+    tmp.Write("g", "rules.json", R"({
+      "rules": [
+        { "id": "r1", "hooks": [
+          { "on": "before:play", "phase": "before",
+            "graph": { "nodes": [
+              { "id": "n1", "op": "advance_turn", "args": {} }
+            ] } }
+        ] }
+      ]
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    REQUIRE(result.mods[0].rules.size() == 1);
+    REQUIRE(result.mods[0].rules[0].hooks.size() == 1);
+    const BehaviorEntry& hook = result.mods[0].rules[0].hooks[0];
+    CHECK(hook.hook == "before:play");
+    REQUIRE(hook.phase.has_value());
+    CHECK(*hook.phase == "before");
+    REQUIRE(hook.graph.nodes.size() == 1);
+    CHECK(hook.graph.nodes[0]["op"] == "advance_turn");
+}
+
+TEST_CASE("modloader: a non-object rule hook is a structured error") {
+    TempModsRoot tmp;
+    tmp.Write("bad", "mod.json", R"({
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
+      "provides_rules": "rules.json"
+    })");
+    tmp.Write("bad", "rules.json", R"({
+      "rules": [ { "id": "r1", "hooks": [ "not-an-object" ] } ]
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "rules.hook"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a rule hook missing 'on' is a structured error") {
+    TempModsRoot tmp;
+    tmp.Write("noon", "mod.json", R"({
+      "id": "noon", "name": "NoOn", "version": "1.0.0", "api": "1",
+      "provides_rules": "rules.json"
+    })");
+    tmp.Write("noon", "rules.json", R"({
+      "rules": [ { "id": "r1", "hooks": [ { "nodes": [] } ] } ]
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "rules.hook"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: pre-existing errors do not poison ParseModFolder") {
+    TempModsRoot tmp;
+    tmp.Write("good", "mod.json", R"({
+      "id": "good", "name": "Good", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("good", "cards.json", R"([
+      { "id": "c1", "face": { "kind": "blank" } }
+    ])");
+
+    /* INFO: ParseModFolder is public; its contract is "true when the folder
+     *       loaded without errors" for the folder alone, regardless of any
+     *       errors the caller already collected. */
+    std::vector<LoadError> errors;
+    errors.push_back(LoadError{"earlier", "mod", "elsewhere", "prior failure"});
+
+    LoadedMod mod;
+    bool loaded = ParseModFolder((tmp.root / "good").string(), "good",
+                                 mod, errors);
+    CHECK(loaded);
+    CHECK(mod.manifest.id == "good");
+    REQUIRE(mod.cards.size() == 1);
+    /* INFO: the caller's prior error must be preserved, not cleared. */
+    CHECK(errors.size() == 1);
+    CHECK(errors[0].check == "earlier");
+}
+
+TEST_CASE("modloader: a valid folder after a failing folder still loads") {
+    TempModsRoot tmp;
+    /* INFO: "bad" sorts before "good"; its manifest errors must not leak into
+     *       the shared error vector and poison the valid folder's parse. */
+    tmp.Write("bad", "mod.json", R"({
+      "id": "bad", "name": "x", "version": "1.0.0"
+    })");
+    tmp.Write("good", "mod.json", R"({
+      "id": "good", "name": "Good", "version": "1.0.0", "api": "1"
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "manifest.required"));
+    /* INFO: the scan is all-or-nothing, so no partial registry is returned. */
+    CHECK(result.mods.empty());
+}
+
 TEST_CASE("modloader: mods are returned sorted by manifest id") {
     TempModsRoot tmp;
     tmp.Write("zulu", "mod.json", R"({

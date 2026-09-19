@@ -201,14 +201,16 @@ bool ParseManifest(const fs::path& path,
     out.raw = json;
 
     static const char* kRequired[] = {"id", "name", "version", "api"};
+    bool had_required_error = false;
     for (const char* key : kRequired) {
         std::string value;
         if (!ParseStringField(json, key, value)) {
             AddError(errors, "manifest.required", "mod", path.string(),
                      std::string("mod.json requires a string '") + key + "'");
+            had_required_error = true;
         }
     }
-    if (!errors.empty()) return false;
+    if (had_required_error) return false;
 
     (void)ParseStringField(json, "id", out.id);
     (void)ParseStringField(json, "name", out.name);
@@ -319,7 +321,9 @@ bool ParseStatusEntry(const nlohmann::json& entry,
 
 bool ParseRuleEntry(const nlohmann::json& entry,
                     const std::string& ns,
-                    RuleDef& out) {
+                    RuleDef& out,
+                    std::vector<LoadError>& errors,
+                    const std::string& path) {
     if (!entry.is_object()) return false;
     if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
         return false;
@@ -329,21 +333,46 @@ bool ParseRuleEntry(const nlohmann::json& entry,
     out.raw = entry;
     (void)ParseStringField(entry, "title", out.title);
     (void)ParseStringField(entry, "description", out.description);
+
+    bool ok = true;
     auto hooks = entry.find("hooks");
-    if (hooks != entry.end() && hooks->is_array()) {
-        for (const auto& hook : *hooks) {
-            if (!hook.is_object()) continue;
-            BehaviorEntry be;
-            std::string on;
-            (void)ParseStringField(hook, "on", on);
-            be.hook = on;
-            auto where = hook.find("where");
-            if (where != hook.end()) be.where = *where;
-            if (hook.contains("nodes")) be.graph = ParseGraph(hook);
-            out.hooks.push_back(std::move(be));
-        }
+    if (hooks == entry.end()) return ok;
+    if (!hooks->is_array()) {
+        AddError(errors, "rules.hook", "rules", path,
+                 "rule '" + out.id + "' hooks must be an array");
+        return false;
     }
-    return true;
+    for (const auto& hook : *hooks) {
+        if (!hook.is_object()) {
+            AddError(errors, "rules.hook", "rules", path,
+                     "rule '" + out.id + "' has a non-object hook entry");
+            ok = false;
+            continue;
+        }
+        std::string on;
+        if (!ParseStringField(hook, "on", on)) {
+            AddError(errors, "rules.hook", "rules", path,
+                     "rule '" + out.id + "' hook requires a string 'on'");
+            ok = false;
+            continue;
+        }
+        BehaviorEntry be;
+        be.hook = on;
+        (void)ParseOptionalStringField(hook, "phase", be.phase);
+        auto where = hook.find("where");
+        if (where != hook.end()) be.where = *where;
+        /* INFO: mirror card behavior: `nodes` inline or nested under `graph`,
+         *       both accepted by rules.schema.json. */
+        if (hook.contains("nodes")) {
+            be.graph = ParseGraph(hook);
+        } else if (hook.contains("graph")) {
+            be.graph = ParseGraph(hook["graph"]);
+        } else {
+            be.graph = ParseGraph(nlohmann::json::object());
+        }
+        out.hooks.push_back(std::move(be));
+    }
+    return ok;
 }
 
 bool ParseRulesFile(const fs::path& path,
@@ -366,10 +395,13 @@ bool ParseRulesFile(const fs::path& path,
             return;
         }
         for (const auto& entry : *it) {
+            std::size_t before = errors.size();
             if (parse_one(entry)) continue;
-            AddError(errors, "rules.id", "rules", path.string(),
-                     std::string("every ") + key
-                         + " entry needs an id matching [a-z0-9_]+ (1-32)");
+            if (errors.size() == before) {
+                AddError(errors, "rules.id", "rules", path.string(),
+                         std::string("every ") + key
+                             + " entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
             ok = false;
         }
     };
@@ -378,9 +410,12 @@ bool ParseRulesFile(const fs::path& path,
         /* INFO: bare array form: rule entries only. */
         for (const auto& entry : json) {
             RuleDef rule;
-            if (!ParseRuleEntry(entry, ns, rule)) {
-                AddError(errors, "rules.id", "rules", path.string(),
-                         "rule entry needs an id matching [a-z0-9_]+ (1-32)");
+            std::size_t before = errors.size();
+            if (!ParseRuleEntry(entry, ns, rule, errors, path.string())) {
+                if (errors.size() == before) {
+                    AddError(errors, "rules.id", "rules", path.string(),
+                             "rule entry needs an id matching [a-z0-9_]+ (1-32)");
+                }
                 ok = false;
                 continue;
             }
@@ -402,7 +437,14 @@ bool ParseRulesFile(const fs::path& path,
 
     auto parse_rule = [&](const nlohmann::json& entry) {
         RuleDef rule;
-        if (!ParseRuleEntry(entry, ns, rule)) return false;
+        std::size_t before = errors.size();
+        if (!ParseRuleEntry(entry, ns, rule, errors, path.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "rules.id", "rules", path.string(),
+                         "rule entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
+            return false;
+        }
         if (!seen.insert(rule.id).second) {
             AddError(errors, "rule.id.duplicate", "rules", path.string(),
                      "duplicate rule id '" + rule.id + "'");
