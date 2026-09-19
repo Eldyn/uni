@@ -43,6 +43,7 @@
 		formatSeatName,
 		seatWorldPerPx
 	} from "./seatLabel";
+	import { RENDER_ORDER } from "./renderOrder";
 
 	let {
 		player,
@@ -334,6 +335,7 @@
 		<T.Sprite
 			position.y={AVATAR_HEIGHT}
 			scale={avatarScale}
+			renderOrder={RENDER_ORDER.seatSprite}
 			onclick={handleSelect}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
@@ -353,6 +355,7 @@
 		<T.Sprite
 			position={arcAnchorPos}
 			scale={labelWorldSize}
+			renderOrder={RENDER_ORDER.seatSprite}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
 		>
