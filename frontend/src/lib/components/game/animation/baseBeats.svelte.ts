@@ -20,11 +20,11 @@ import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
+	discardCardOffset,
 	discardStackZ,
 	previewDiscardLanding,
 	type DiscardEntry
 } from "../layout/discardPile";
-import { EM_TO_WORLD } from "../three/units";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import type { AnimationBeat, AnimationStep } from "./types";
 
@@ -392,11 +392,13 @@ export function createBaseBeatsWatcher(deps: {
 						DISCARD_CAP,
 						lastLandingBaseDeg
 					);
-					return [
-						placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-						z,
-						placement.discardZ + entry.jitter[1] * EM_TO_WORLD
-					];
+					const offset = discardCardOffset(
+						placement.discardX,
+						placement.discardZ,
+						entry,
+						placement.centerScale
+					);
+					return [offset.x, z, offset.z];
 				}
 				if (name === "draw-pile") {
 					return [placement.drawPileX, PILE_BASE_HEIGHT, placement.drawPileZ];
@@ -1104,10 +1106,16 @@ export function createBaseBeatsWatcher(deps: {
 						const idString = String(entry.card.id);
 						deps.cardRegistry.registerCardMeta(idString, entry.card);
 						deps.cardRegistry.clearDecoration(idString);
+						const offset = discardCardOffset(
+							placement.discardX,
+							placement.discardZ,
+							entry,
+							placement.centerScale
+						);
 						deps.cardRegistry.seedPose(idString, {
-							x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
+							x: offset.x,
 							y: discardStackZ(i, toReshuffle.length),
-							z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
+							z: offset.z,
 							spinDeg: entry.rotationDeg,
 							flipDeg: 0,
 							scale: placement.centerScale,

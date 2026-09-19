@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
 	appendDiscard,
+	discardCardOffset,
 	discardEntryFor,
 	discardStackZ,
 	discardStepFor,
@@ -13,6 +14,7 @@ import {
 	paintTopWild,
 	type DiscardEntry
 } from "$components/game/layout/discardPile";
+import { EM_TO_WORLD } from "$components/game/three/units";
 import type { Card } from "$stores/game.svelte";
 
 function card(id: number): Card {
@@ -144,6 +146,23 @@ describe("discardStepFor", () => {
 		for (const total of [1, 24, 25, 60, 150, 1000, 100000]) {
 			expect(discardStepFor(total)).toBeGreaterThanOrEqual(MIN_DISCARD_STEP);
 		}
+	});
+});
+
+describe("discardCardOffset", () => {
+	it("scales the jitter offset by the pile's card scale", () => {
+		const entry = discardEntryFor(card(1), 0);
+		const full = discardCardOffset(0, 0, entry, 1);
+		const half = discardCardOffset(0, 0, entry, 0.5);
+		expect(half.x).toBeCloseTo(full.x * 0.5, 10);
+		expect(half.z).toBeCloseTo(full.z * 0.5, 10);
+	});
+
+	it("adds the offset on top of the pile's own center", () => {
+		const entry = discardEntryFor(card(1), 0);
+		const offset = discardCardOffset(2, -3, entry, 1);
+		expect(offset.x).toBeCloseTo(2 + entry.jitter[0] * EM_TO_WORLD, 10);
+		expect(offset.z).toBeCloseTo(-3 + entry.jitter[1] * EM_TO_WORLD, 10);
 	});
 });
 

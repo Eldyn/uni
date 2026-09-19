@@ -10,6 +10,7 @@
  */
 
 import type { Card, CardType } from "$stores/game.svelte";
+import { EM_TO_WORLD } from "../three/units";
 
 export interface DiscardEntry {
 	card: Card;
@@ -31,6 +32,32 @@ export interface DiscardEntry {
 	rotationDeg: number;
 	/** Fixed [x, y] offset from the pile center, em. */
 	jitter: [number, number];
+}
+
+export interface DiscardCardOffset {
+	x: number;
+	z: number;
+}
+
+/**
+ * World-space X/Z for a discard entry's card (and its shadow, which reuses
+ * this same offset): the pile's own em-unit jitter, scaled by the pile's
+ * CURRENT card scale. Without the scale factor, a fixed absolute-world-unit
+ * jitter reads as a tight scatter on a big landscape pile and a blown-up
+ * smear on a small portrait one — the one place this math is allowed to
+ * live, so DiscardPile3D's static render and baseBeats's flight landing can
+ * never compute it differently.
+ */
+export function discardCardOffset(
+	discardX: number,
+	discardZ: number,
+	entry: DiscardEntry,
+	scale: number
+): DiscardCardOffset {
+	return {
+		x: discardX + entry.jitter[0] * EM_TO_WORLD * scale,
+		z: discardZ + entry.jitter[1] * EM_TO_WORLD * scale
+	};
 }
 
 /** Safety valve on the client-side history length. The stack HEIGHT is bounded

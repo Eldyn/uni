@@ -8,10 +8,15 @@
      cards, none faked" rule the rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
-	import { DISCARD_STACK_STEP, discardStackZ, type DiscardEntry } from "../layout/discardPile";
+	import {
+		DISCARD_STACK_STEP,
+		discardStackZ,
+		discardCardOffset,
+		type DiscardEntry
+	} from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
-	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
+	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 
 	let {
@@ -59,12 +64,13 @@
 	$effect(() => {
 		for (const [i, entry] of history.entries()) {
 			const idString = String(entry.card.id);
+			const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
 			cardRegistry.ensureEntry(
 				idString,
 				{
-					x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
+					x: offset.x,
 					y: discardStackZ(i, history.length),
-					z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
+					z: offset.z,
 					spinDeg: entry.rotationDeg,
 					flipDeg: 0,
 					scale,
@@ -73,11 +79,10 @@
 				},
 				{ type: entry.card.type, value: entry.card.value, wildColor: entry.wildColor }
 			);
-			cardRegistry.setPoseProvider(idString, () => [
-				placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-				discardStackZ(i, history.length),
-				placement.discardZ + entry.jitter[1] * EM_TO_WORLD
-			]);
+			cardRegistry.setPoseProvider(idString, () => {
+				const p = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
+				return [p.x, discardStackZ(i, history.length), p.z];
+			});
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
 				highlight: armed && i === topIndex ? { pulse: true } : undefined
@@ -99,11 +104,12 @@
 
 {#each history as entry, i (entry.seq)}
 	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card?.id ?? (entry as any).id))}
+		{@const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale)}
 		<T.Mesh
 			position={[
-				placement.discardX + entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
+				offset.x + SHADOW_OFFSET * scale,
 				discardStackZ(i, history.length) - SHADOW_DROP_Y,
-				placement.discardZ + entry.jitter[1] * EM_TO_WORLD + SHADOW_OFFSET
+				offset.z + SHADOW_OFFSET * scale
 			]}
 			rotation.x={-Math.PI / 2}
 			rotation.z={(entry.rotationDeg * Math.PI) / 180}
