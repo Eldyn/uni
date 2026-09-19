@@ -687,6 +687,17 @@ components:
         instead of this constant directly.
       x-constants: { maximum: MaxLobbyMembers }
 
+    # Mod content API version. A mod manifest's `api` field is rejected when
+    # it exceeds this value; bumping the content schema bumps this constant
+    # (frontend: MOD_API_VERSION, backend: contract::kModApiVersion).
+    ModApiVersion:
+      type: integer
+      minimum: 1
+      description: >
+        Highest mod content API version this engine accepts. Starts at 1 and
+        lives with the generated contract constants.
+      x-constants: { minimum: ModApiVersion }
+
     # --- Client → Server payload schemas (C++ structs generated from these) ---
     # Fields 'action' and 'request_id' are envelope fields handled by the router
     # and are intentionally excluded from these struct definitions.

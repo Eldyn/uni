@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/cards.schema.json",
+  "title": "Card definitions (cards.json)",
+  "description": "A JSON array of card definitions. Spec 6.3. Local id is unique within the mod; the full kind id is `namespace:id`.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/card"
+  },
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "face": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["text", "art_ref", "emoji", "blank"]
+        },
+        "color": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "art_ref placeholder; shape-validated only."
+        },
+        "art_version": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Participates in the client face-hash; bump when art changes."
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes"],
+      "additionalProperties": true,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "behaviorEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": ["before", "after"]
+        },
+        "where": {
+          "type": "object"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "graph": {
+          "$ref": "#/$defs/graph"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/behaviorEntry"
+      },
+      "description": "Named trigger entries keyed by hook name (e.g. on_play)."
+    },
+    "window": {
+      "type": "object",
+      "required": ["when_played"],
+      "additionalProperties": true,
+      "properties": {
+        "when_played": {
+          "type": "object",
+          "required": ["responders", "respond_with", "duration", "on_response", "default"],
+          "additionalProperties": true,
+          "properties": {
+            "responders": {
+              "type": "string"
+            },
+            "respond_with": {
+              "type": "object"
+            },
+            "duration": {
+              "type": "string"
+            },
+            "on_response": {
+              "type": "string"
+            },
+            "default": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "card": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "type": "string"
+        },
+        "face": {
+          "$ref": "#/$defs/face"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "behavior": {
+          "$ref": "#/$defs/behavior"
+        },
+        "window": {
+          "$ref": "#/$defs/window"
+        }
+      }
+    }
+  }
+}
