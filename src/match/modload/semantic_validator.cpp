@@ -117,13 +117,6 @@ const std::set<std::string>& ValidationKeywords() {
     return kKeywords;
 }
 
-const std::vector<std::string>& VanillaRestrictionIds() {
-    static const std::vector<std::string> kIds = {
-        "vanilla:turn_order", "vanilla:match_type_or_value",
-        "vanilla:must_own_card"};
-    return kIds;
-}
-
 }  // namespace
 
 // --- JSON Schema subset validator ------------------------------------------
@@ -599,7 +592,8 @@ class Checker {
             } else if (op == "remove_restriction") {
                 auto id = args->find("entry_id");
                 if (id == args->end() || !id->is_string()) continue;
-                removed_restrictions_.push_back({ns, id->get<std::string>()});
+                removed_restrictions_.push_back(
+                    {ns, NormalizeRef(id->get<std::string>(), ns)});
             }
         }
     }
@@ -671,7 +665,9 @@ class Checker {
                                                 false, false, nullptr});
                     }
                 }
-                if (card.window) CheckCardWindow(*card.window, ns, mod->path);
+                if (card.window) {
+                    CheckCardWindow(*card.window, card, ns, mod->path);
+                }
             }
             for (const auto& rule : mod->rules) {
                 for (const auto& hook : rule.hooks) {
@@ -706,12 +702,7 @@ class Checker {
             return;
         }
         if (kind_ids_.count(target)) return;
-        if (restriction_ids_.count(target)
-            || std::find(VanillaRestrictionIds().begin(),
-                         VanillaRestrictionIds().end(),
-                         target) != VanillaRestrictionIds().end()) {
-            return;
-        }
+        if (restriction_ids_.count(target)) return;
         if (!match_set_ && RefNamespace(target) != ns) return;
         buckets_.refs.push_back(Err("ref.kind", "mutations", path,
                                     "unresolved mutation target '" + target
@@ -779,6 +770,7 @@ class Checker {
     }
 
     void CheckCardWindow(const WindowSpec& window,
+                         const CardDef& card,
                          const std::string& ns,
                          const std::string& mod_path) {
         const std::string path = mod_path + "/cards.json";
@@ -797,10 +789,40 @@ class Checker {
                 "op.type", "cards", path,
                 "window duration must be 'env' or a duration object"));
         }
+
+        /* INFO: window.when_played is sugar for a window node at the head of
+         *       the card's on_play graph, so its routes resolve against that
+         *       graph's node ids. */
+        std::set<std::string> on_play_nodes;
+        for (const auto& be : card.behaviors) {
+            std::string name;
+            std::string phase;
+            if (!ResolveHook(be.hook, name, phase) || name != "play") continue;
+            for (const auto& node : be.graph.nodes) {
+                if (!node.is_object()) continue;
+                auto id = node.find("id");
+                if (id != node.end() && id->is_string()) {
+                    on_play_nodes.insert(id->get<std::string>());
+                }
+            }
+        }
+
         if (window.default_route.empty()) {
             buckets_.graph.push_back(
                 Err("window.default", "cards", path,
                     "card window requires a default route"));
+        } else if (!on_play_nodes.count(window.default_route)) {
+            buckets_.refs.push_back(Err(
+                "ref.graph", "cards", path,
+                "card window default route '" + window.default_route
+                    + "' does not resolve to a node in the on_play graph"));
+        }
+        if (!window.on_response.empty()
+            && !on_play_nodes.count(window.on_response)) {
+            buckets_.refs.push_back(Err(
+                "ref.graph", "cards", path,
+                "card window on_response route '" + window.on_response
+                    + "' does not resolve to a node in the on_play graph"));
         }
     }
 
@@ -1326,6 +1348,14 @@ class Checker {
                         where + " is not a comparison token"));
                 }
                 break;
+            case ArgType::kStackPolicy:
+                if (!value.is_string()
+                    || !IsValidStackPolicy(value.get<std::string>())) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " is not a valid stack policy"));
+                }
+                break;
             case ArgType::kObject:
                 if (!value.is_object()) {
                     buckets_.ops.push_back(Err("op.type", ctx.artifact,
@@ -1621,12 +1651,7 @@ class Checker {
                              const std::string& ns,
                              const GraphCtx& ctx) {
         const std::string full = NormalizeRef(raw, ns);
-        if (restriction_ids_.count(full)
-            || std::find(VanillaRestrictionIds().begin(),
-                         VanillaRestrictionIds().end(),
-                         full) != VanillaRestrictionIds().end()) {
-            return;
-        }
+        if (restriction_ids_.count(full)) return;
         if (!match_set_ && RefNamespace(full) != ns) return;
         buckets_.refs.push_back(Err("ref.restriction", ctx.artifact, ctx.path,
                                     "unresolved restriction ref '" + full
@@ -1645,18 +1670,27 @@ class Checker {
             if (repl == nullptr) continue;
             for (const MutationDef* m : list) {
                 if (m == repl) continue;
-                if (m->namespace_id == repl->namespace_id) continue;
-                if (m->mode == "replace" || m->mode == "wrap"
-                    || m->mode == "filter") {
-                    buckets_.conflicts.push_back(Err(
-                        "mutation.conflict", "mutations",
-                        repl->namespace_id + "/mutations.json",
-                        "mutation conflict on target '" + target + "': mod '"
-                            + repl->namespace_id
-                            + "' (replace) conflicts with mod '"
-                            + m->namespace_id + "' (" + m->mode + ")"));
-                    break;
+                if (m->mode != "replace" && m->mode != "wrap"
+                    && m->mode != "filter") {
+                    continue;
                 }
+                std::string message;
+                if (m->namespace_id == repl->namespace_id) {
+                    message = "mutation conflict on target '" + target
+                              + "': mod '" + repl->namespace_id
+                              + "' mutations '" + repl->mutation_id
+                              + "' (replace) and '" + m->mutation_id + "' ("
+                              + m->mode + ")";
+                } else {
+                    message = "mutation conflict on target '" + target
+                              + "': mod '" + repl->namespace_id
+                              + "' (replace) conflicts with mod '"
+                              + m->namespace_id + "' (" + m->mode + ")";
+                }
+                buckets_.conflicts.push_back(Err(
+                    "mutation.conflict", "mutations",
+                    repl->namespace_id + "/mutations.json", message));
+                break;
             }
         }
 

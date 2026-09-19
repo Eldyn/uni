@@ -23,6 +23,23 @@
 namespace match::modload {
 
 /**
+ * Behavior-graph node shapes as the validator reads them. The Resolver and the
+ * op layer and the content content must emit exactly these keys; every node is
+ * `{ "id": <string>, ... }` and every route value is a node id string.
+ *
+ * - `op` node: `{ "op": <catalog name>, "args": { ... }, "next"?: <node id> }`.
+ * - `window` node: `{ "window": { ... }, "default": <node id>,
+ *   "on_response"?: { <filter key>: <node id> } }`.
+ * - `branch` node: `{ "cases": [ { "when": <condition>, "next": <node id> } ],
+ *   "else": <node id> }`.
+ * - `fork` node: `{ "branches": [ <node id>, ... ] }` (sequential in ).
+ * - `schedule` node: `{ "schedule": <any marker>, "next": <node id>,
+ *   "duration": { "unit": ..., "value": ... } | [ ... ] }` — defers `next`
+ *   until the duration elapses; `duration` accepts the same object/array
+ *   form as a duration arg (compound array = AND).
+ */
+
+/**
  * @enum ArgType
  * @brief Declared type of an op/condition argument.
  */
@@ -47,6 +64,7 @@ enum class ArgType {
     kZone,              /**< hand | draw_pile | discard_pile | limbo. */
     kPileRef,           /**< draw | discard | @draw_pile | @discard_pile. */
     kComparison,        /**< comparison token (lt/lte/eq/ne/gt/gte). */
+    kStackPolicy,       /**< replace|accumulate|independent|cap:N. */
     kObject,            /**< JSON object. */
     kArray,             /**< JSON array. */
     kAny,               /**< any JSON value. */
@@ -256,7 +274,7 @@ inline const std::vector<OpSignature>& OpCatalog() {
                       Arg("status_kind", ArgType::kStatusRef),
                       Arg("params", ArgType::kObject, false),
                       Arg("duration", ArgType::kDuration, false),
-                      Arg("stack_policy", ArgType::kString, false)};
+                      Arg("stack_policy", ArgType::kStackPolicy, false)};
             add(std::move(s));
         }
         {

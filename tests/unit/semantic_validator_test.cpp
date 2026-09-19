@@ -937,3 +937,173 @@ TEST_CASE("restriction: parse entry validates shape") {
     CHECK_FALSE(ParseRestrictionEntry(
         json{{"id", "bad"}, {"phase", "allow"}}, entry, error));
 }
+
+// --- the validator review fixes
+// ------------------------------------------------------
+
+TEST_CASE("validator: no engine-embedded restriction ids (undeclared vanilla)") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {Op("n1", "remove_restriction", {{"entry_id", "vanilla:turn_order"}})});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    std::vector<LoadedMod> mods = {mod};
+    DeckDef deck = MakeDeck("alpha", "d", {"alpha"}, {{"alpha:c1", 1}},
+                            json::object());
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMatchSet(mods, deck);
+    CHECK(HasCheck(errors, "ref.restriction"));
+}
+
+TEST_CASE("validator: mutation target cannot be an engine-embedded restriction") {
+    LoadedMod mod = ValidMod();
+    mod.mutations.push_back(MakeMutation(
+        "alpha", "m1", "vanilla:turn_order", "replace",
+        {Op("n1", "advance_turn", json::object())}));
+    std::vector<LoadedMod> mods = {mod};
+    DeckDef deck = MakeDeck("alpha", "d", {"alpha"}, {{"alpha:c1", 1}},
+                            json::object());
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMatchSet(mods, deck);
+    CHECK(HasCheck(errors, "ref.kind"));
+}
+
+TEST_CASE("validator: mod-declared restriction entry still resolves") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {Op("n1", "add_restriction",
+            {{"entry_def",
+              {{"id", "alpha:own_entry"},
+               {"phase", "deny"},
+               {"condition", json{{"always", json::object()}}}}}},
+            "n2"),
+         Op("n2", "remove_restriction", {{"entry_id", "alpha:own_entry"}})});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    std::vector<LoadedMod> mods = {mod};
+    DeckDef deck = MakeDeck("alpha", "d", {"alpha"}, {{"alpha:c1", 1}},
+                            json::object());
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMatchSet(mods, deck);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: local-form remove_restriction fires the conflict gate") {
+    LoadedMod alpha = ValidMod("alpha");
+    LoadedMod beta = ValidMod("beta");
+    /* INFO: beta declares `beta:turn_order` and removes it via the local form
+     *       `"turn_order"`; alpha mutates the entry, so the gate must fire. */
+    beta.cards[0].behaviors[0].graph = MakeGraph(
+        {Op("n1", "add_restriction",
+            {{"entry_def",
+              {{"id", "beta:turn_order"},
+               {"phase", "deny"},
+               {"condition", json{{"always", json::object()}}}}}},
+            "n2"),
+         Op("n2", "remove_restriction", {{"entry_id", "turn_order"}})});
+    beta.cards[0].raw["behavior"] = json{
+        {"on_play", beta.cards[0].behaviors[0].graph.raw}};
+    alpha.mutations.push_back(MakeMutation(
+        "alpha", "m1", "beta:turn_order", "replace",
+        {Op("n1", "advance_turn", json::object())}));
+    std::vector<LoadedMod> mods = {alpha, beta};
+    DeckDef deck = MakeDeck("alpha", "d", {"alpha", "beta"},
+                            {{"alpha:c1", 1}, {"beta:c1", 1}}, json::object());
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMatchSet(mods, deck);
+    CHECK(HasCheck(errors, "mutation.conflict"));
+}
+
+TEST_CASE("validator: same-mod replace plus replace conflicts") {
+    LoadedMod mod = ValidMod();
+    mod.mutations.push_back(MakeMutation(
+        "alpha", "m1", "alpha:c1", "replace",
+        {Op("n1", "advance_turn", json::object())}));
+    mod.mutations.push_back(MakeMutation(
+        "alpha", "m2", "alpha:c1", "replace",
+        {Op("n1", "advance_turn", json::object())}));
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    REQUIRE(HasCheck(errors, "mutation.conflict"));
+    std::string message;
+    for (const auto& e : errors) {
+        if (e.check == "mutation.conflict") message = e.message;
+    }
+    CHECK(message.find("alpha:m1") != std::string::npos);
+    CHECK(message.find("alpha:m2") != std::string::npos);
+}
+
+TEST_CASE("validator: invalid stack policy is op.type") {
+    LoadedMod mod = ValidMod();
+    AddStatus(mod, "shielded", "replace");
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {Op("n1", "apply_status",
+            {{"target", "@self"},
+             {"status_kind", "alpha:shielded"},
+             {"stack_policy", "banana"}})});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.type"));
+}
+
+TEST_CASE("validator: valid cap:N stack policy passes") {
+    LoadedMod mod = ValidMod();
+    AddStatus(mod, "shielded", "replace");
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {Op("n1", "apply_status",
+            {{"target", "@self"},
+             {"status_kind", "alpha:shielded"},
+             {"stack_policy", "cap:3"}})});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: card window routes resolve against on_play nodes") {
+    LoadedMod mod = ValidMod();
+    WindowSpec window;
+    window.responders = "@others";
+    window.respond_with = json::object();
+    window.duration = "env";
+    window.on_response = "n2";
+    window.default_route = "n1";
+    window.raw = json::object();
+    mod.cards[0].window = window;
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: dangling card window on_response route is ref.graph") {
+    LoadedMod mod = ValidMod();
+    WindowSpec window;
+    window.responders = "@others";
+    window.respond_with = json::object();
+    window.duration = "env";
+    window.on_response = "ghost";
+    window.default_route = "n1";
+    window.raw = json::object();
+    mod.cards[0].window = window;
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "ref.graph"));
+}
+
+TEST_CASE("validator: dangling card window default route is ref.graph") {
+    LoadedMod mod = ValidMod();
+    WindowSpec window;
+    window.responders = "@others";
+    window.respond_with = json::object();
+    window.duration = "env";
+    window.on_response = "n2";
+    window.default_route = "ghost";
+    window.raw = json::object();
+    mod.cards[0].window = window;
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "ref.graph"));
+}
