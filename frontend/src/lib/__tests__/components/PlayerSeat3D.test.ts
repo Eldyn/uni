@@ -7,11 +7,28 @@ vi.mock("@threlte/core", () => ({
 		{
 			get: () => MockThrelte
 		}
-	)
+	),
+	useTask: vi.fn()
 }));
 
-vi.mock("@threlte/extras", () => ({
-	HTML: MockThrelte
+function makeFakeTexture() {
+	const texture: {
+		repeat: { set: ReturnType<typeof vi.fn> };
+		offset: { x: number };
+		needsUpdate: boolean;
+		clone: () => unknown;
+	} = {
+		repeat: { set: vi.fn() },
+		offset: { x: 0 },
+		needsUpdate: false,
+		clone: () => makeFakeTexture()
+	};
+	return texture;
+}
+
+vi.mock("$components/game/three/textures", () => ({
+	loadSilhouette: vi.fn(() => Promise.resolve(makeFakeTexture())),
+	loadTexture: vi.fn(() => Promise.resolve(makeFakeTexture()))
 }));
 
 import { render, cleanup } from "@testing-library/svelte";
@@ -221,100 +238,27 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		expect(flight.pose.x).toBeCloseTo(2);
 	});
 
-	it("renders player name on an SVG curved arc and updates active state on turn", () => {
-		const registry = new CardRegistry();
-		const seat = { x: 0, z: 0, rotationY: 0 };
-
-		const { container, rerender } = render(PlayerSeat3D, {
-			props: {
-				player: { username: "star_player", card_count: 2, is_bot: false },
-				seat,
-				color: "#00ffcc",
-				isTurn: false
-			},
-			context: new Map([[CARD_REGISTRY_KEY, registry]])
-		});
-
-		const labelContainer = container.querySelector(".seat-arc-container");
-		expect(labelContainer).toBeInTheDocument();
-		expect(labelContainer).not.toHaveClass("is-shown");
-		expect(labelContainer).not.toHaveClass("is-active");
-
-		const textPath = container.querySelector("textPath");
-		expect(textPath).toBeInTheDocument();
-		expect(textPath?.textContent?.trim()).toBe("star_player");
-
-		const rail = container.querySelector(".seat-arc-rail");
-		expect(rail).toBeInTheDocument();
-
-		rerender({
-			player: { username: "star_player", card_count: 2, is_bot: false },
-			seat,
-			color: "#00ffcc",
-			isTurn: true
-		});
-
-		expect(labelContainer).toHaveClass("is-shown");
-		expect(labelContainer).toHaveClass("is-active");
-	});
-
-	it("scales font size dynamically for long opponent names so they do not get cut off", () => {
-		const registry = new CardRegistry();
-		const seat = { x: 0, z: 0, rotationY: 0 };
-
-		// Short name (3 chars) gets base font size 21 (1.15 * 18 = 21)
-		const { container, rerender } = render(PlayerSeat3D, {
-			props: {
-				player: { username: "bob", card_count: 1, is_bot: false },
-				seat,
-				color: "#00ffcc"
-			},
-			context: new Map([[CARD_REGISTRY_KEY, registry]])
-		});
-
-		const textElem = container.querySelector(".seat-arc-text");
-		expect(textElem).toBeInTheDocument();
-		expect(Number(textElem?.getAttribute("font-size"))).toBe(21);
-		expect(Number(textElem?.getAttribute("dy"))).toBe(-9);
-
-		// Long name (12 chars: scriptxcorso) scales font size down to fit within arc
-		rerender({
-			player: { username: "scriptxcorso", card_count: 1, is_bot: false },
-			seat,
-			color: "#00ffcc"
-		});
-
-		const scriptxFontSize = Number(textElem?.getAttribute("font-size"));
-		expect(scriptxFontSize).toBeLessThan(21);
-		expect(scriptxFontSize).toBeGreaterThanOrEqual(14);
-		expect(Number(textElem?.getAttribute("dy"))).toBeLessThanOrEqual(-6);
-
-		// 15-character name scales down further
-		rerender({
-			player: { username: "superlongplayer", card_count: 1, is_bot: false },
-			seat,
-			color: "#00ffcc"
-		});
-
-		const longFontSize = Number(textElem?.getAttribute("font-size"));
-		expect(longFontSize).toBeLessThan(scriptxFontSize);
-		expect(longFontSize).toBeGreaterThanOrEqual(10);
-	});
-
-	it("truncates names longer than 16 chars with ellipsis and applies text compression fallback if needed", () => {
+	it("renders avatar and name label as scene objects with no DOM overlay", () => {
 		const registry = new CardRegistry();
 		const seat = { x: 0, z: 0, rotationY: 0 };
 
 		const { container } = render(PlayerSeat3D, {
 			props: {
-				player: { username: "a_very_extremely_long_name_indeed", card_count: 1, is_bot: false },
+				player: { username: "star_player", card_count: 2, is_bot: false },
 				seat,
-				color: "#00ffcc"
+				color: "#00ffcc",
+				isTurn: true
 			},
 			context: new Map([[CARD_REGISTRY_KEY, registry]])
 		});
 
-		const textPath = container.querySelector("textPath");
-		expect(textPath?.textContent?.trim()).toBe("a_very_extremel…");
+		// The old implementation emitted an HTML overlay (<button>, <svg>,
+		// <textPath>) that fell outside WebGL render order. The native-sprite
+		// version must emit none of it.
+		expect(container.querySelector(".avatar-box")).toBeNull();
+		expect(container.querySelector(".seat-arc-container")).toBeNull();
+		expect(container.querySelector(".seat-arc-text")).toBeNull();
+		expect(container.querySelector("svg")).toBeNull();
+		expect(container.querySelector("textPath")).toBeNull();
 	});
 });

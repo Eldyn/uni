@@ -1,10 +1,17 @@
 <!-- One opponent seat in the Threlte board: a flat ring of turned card-backs
      (computeHandRingSlots) laid out around the seat's world position, an
-     avatar billboard floating above it, and a name label beyond the ring's
-     far edge so it clears the circled cards. Everything
-     is parented to a single group positioned/rotated by seatLayout3D.ts's
-     SeatPosition3D, so ring-slot coordinates stay in the seat's own local
-     frame: local +Z already points toward the playmat center.
+     avatar sprite floating above it, and an arc-text name-label sprite beyond
+     the ring's far edge so it clears the circled cards.
+     Everything is parented to a single group positioned/rotated by
+     seatLayout3D.ts's SeatPosition3D, so ring-slot coordinates stay in the
+     seat's own local frame: local +Z already points toward the playmat center.
+
+     Avatar and label are native scene objects (a tinted/stepped sprite and a
+     canvas-text texture sprite), not HTML overlays: DOM overlays kept their
+     CSS-pixel size while the world-space avatar shrank on mobile, and they sat
+     outside the WebGL render-order system entirely (hence the drag-vs-name-tag
+     z-fight). Sizing the label texture through seatWorldPerPx ties it to the
+     avatar's world size instead.
 
      The avatar sits exactly at the ring's own center (no offset) — anything
      else drifts the two apart the moment a hand closes into a full circle,
@@ -14,8 +21,8 @@
      whatever avatarPx Scene3D is currently asking for. -->
 <script lang="ts">
 	import { onDestroy } from "svelte";
-	import { T } from "@threlte/core";
-	import { HTML } from "@threlte/extras";
+	import { T, useTask } from "@threlte/core";
+	import { CanvasTexture, Color, NearestFilter, SRGBColorSpace, type Texture } from "three";
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { SeatPosition3D } from "../layout/seatLayout3D";
 	import {
@@ -23,13 +30,19 @@
 		ringSlotWorldPose,
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
-		RING_CLEARANCE_WORLD,
 		RING_STACK_STEP
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { gsap } from "gsap";
+	import { loadSilhouette, loadTexture } from "./textures";
+	import {
+		computeSeatLabelLayout,
+		drawSeatLabel,
+		formatSeatName,
+		seatWorldPerPx
+	} from "./seatLabel";
 
 	let {
 		player,
@@ -53,7 +66,8 @@
 		/** Ring-card size; Scene3D shrinks it as the landscape table fills. */
 		cardScale?: number;
 		/** Avatar box edge in px — small on portrait, where the card fan is the
-		 *  seat's focus and the icon is just a marker. */
+		 *  seat's focus and the icon is just a marker. Kept for world-space
+		 *  sizing of the avatar frame and derived label, not CSS layout. */
 		avatarPx?: number;
 		/** The drawn figure's world height (avatarPx is its FRAME, padding
 		 *  included — see boardPlacement's AVATAR_SPRITE_FILL). The ring clears
@@ -68,24 +82,13 @@
 	// per-card step smaller than that lets one card's layers interleave with
 	// its neighbor's (z-fighting) — 0.02 clears that with margin.
 	const AVATAR_HEIGHT = 0.9;
-
-	function describeArc(
-		cx: number,
-		cy: number,
-		radius: number,
-		startAngleDeg: number,
-		endAngleDeg: number,
-		sweepFlag: 0 | 1
-	): string {
-		const startRad = (startAngleDeg * Math.PI) / 180;
-		const endRad = (endAngleDeg * Math.PI) / 180;
-		const x1 = (cx + radius * Math.cos(startRad)).toFixed(2);
-		const y1 = (cy + radius * Math.sin(startRad)).toFixed(2);
-		const x2 = (cx + radius * Math.cos(endRad)).toFixed(2);
-		const y2 = (cy + radius * Math.sin(endRad)).toFixed(2);
-		const largeArcFlag = Math.abs(endAngleDeg - startAngleDeg) > 180 ? 1 : 0;
-		return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${x2} ${y2}`;
-	}
+	// The strip/GIF frame is 96px but the figure only fills 68px of it; scaling
+	// the sprite by frame/figure keeps the drawn figure `avatarWorld` tall.
+	const AVATAR_FRAME_RATIO = 96 / 68;
+	const FRAME_COUNT = 5;
+	const FRAME_DURATION = 0.12;
+	const DIM_FACTOR = 0.45;
+	const WHITE = new Color("#ffffff");
 
 	const bus = useCardBus();
 	const cardRegistry = useCardRegistry();
@@ -114,68 +117,102 @@
 	// choosing them as a target, or when you deliberately point at them.
 	let hovered = $state(false);
 	let showLabel = $derived(isTurn || isValidTarget || hovered);
-	// A box-shadow glow on the avatar's own CSS transform (see the removed
-	// is-turn rule) barely rendered — the blur radius got crushed down to a
-	// hairline by the same transform that shrinks the avatar for a full table.
-	// Darkening every OTHER seat instead survives that transform untouched,
-	// since it's a filter on the seat's own pixels rather than a halo painted
-	// outside its box.
+	// Darkening every OTHER seat is a material colour multiply, so it survives
+	// the world-space scaling untouched (the old CSS box-shadow glow did not).
 	let dimmed = $derived(!isTurn && !isValidTarget);
-	function estimateTextUnits(text: string): number {
-		let units = 0;
-		for (const ch of text) {
-			const code = ch.charCodeAt(0);
-			if (code > 0x2e80) {
-				units += 1.0;
-			} else if (code <= 0x0020) {
-				units += 0.3;
-			} else if ("ijl|!:'.,;".includes(ch)) {
-				units += 0.35;
-			} else if ("mwMW@#%&".includes(ch)) {
-				units += 0.85;
-			} else {
-				units += 0.62;
-			}
-		}
-		units += text.length * 0.04;
-		return Math.max(1, units);
-	}
-
 	let isActive = $derived(isTurn || isValidTarget);
-	let displayName = $derived(
-		player.username && player.username.length > 16
-			? player.username.slice(0, 15) + "…"
-			: (player.username ?? "")
-	);
-	let seatId = $derived(
-		`seat-${(player.username ?? "player").replace(/[^a-zA-Z0-9_-]/g, "_")}-${Math.round(seat.rotationY * 100)}`
-	);
-	let pathId = $derived(`arc-path-${seatId}`);
+	let displayName = $derived(formatSeatName(player.username));
+
+	let avatarTexture = $state<Texture | null>(null);
+	let labelTexture = $state<Texture | null>(null);
+	let labelCanvasSize = $state(0);
+	let labelOpacity = $state(0);
+	let currentFrame = 0;
+	let frameElapsed = 0;
+	let pulsePhase = 0;
+	let pulseScale = $state(1);
 
 	let arcAnchorPos = $derived<[number, number, number]>([0, AVATAR_HEIGHT, 0]);
-
 	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
-	let arcD = $derived(describeArc(0, 0, overheadRadius, -172, -8, 1));
-	let arcViewBox = $derived("-100 -70 200 140");
-	let arcWidth = $derived(200);
-	let arcHeight = $derived(140);
+	// The label texture is drawn in CSS px, then scaled into the world through
+	// the same px→world ratio the avatar's frame came from — so it stays
+	// proportional to the avatar at every viewport instead of DOM-CSS-fixed.
+	let worldPerPx = $derived(seatWorldPerPx(avatarWorld, avatarPx));
+	let labelLayout = $derived(computeSeatLabelLayout(displayName, overheadRadius, labelEm));
+	let avatarSpriteSize = $derived(avatarWorld * AVATAR_FRAME_RATIO);
+	let avatarScale = $derived(avatarSpriteSize * pulseScale);
+	let labelWorldSize = $derived(labelCanvasSize * worldPerPx);
+	let tintColor = $derived(
+		isBot
+			? WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
+			: new Color(color).multiplyScalar(dimmed ? DIM_FACTOR : 1)
+	);
 
-	let approxPathLength = $derived.by(() => overheadRadius * ((164 * Math.PI) / 180));
+	$effect(() => {
+		let cancelled = false;
+		const bot = isBot;
+		const pending = bot
+			? loadTexture("/assets/bot_animated.gif")
+			: loadSilhouette("/assets/base_player_strip.png");
+		pending.then((source) => {
+			if (cancelled) return;
+			// Clone so each seat steps its own frame offset independently of the
+			// shared texture cache (and of every other seat).
+			const texture = source.clone();
+			if (!bot) {
+				texture.repeat.set(1 / FRAME_COUNT, 1);
+				texture.offset.x = 0;
+			}
+			texture.needsUpdate = true;
+			avatarTexture = texture;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
 
-	let baseFontSize = $derived(Math.round(labelEm * 18));
-	let maxAllowedTextLength = $derived(Math.floor(approxPathLength * 0.9));
-	let labelFontSize = $derived.by(() => {
-		if (!displayName) return baseFontSize;
-		const units = estimateTextUnits(displayName);
-		const maxFit = Math.floor(maxAllowedTextLength / units);
-		return Math.max(9, Math.min(baseFontSize, maxFit));
+	$effect(() => {
+		const canvas = drawSeatLabel(displayName, labelLayout, overheadRadius, color, isActive);
+		if (!canvas) {
+			labelTexture = null;
+			return;
+		}
+		const texture = new CanvasTexture(canvas);
+		texture.colorSpace = SRGBColorSpace;
+		texture.magFilter = NearestFilter;
+		texture.minFilter = NearestFilter;
+		labelTexture = texture;
+		labelCanvasSize = canvas.width;
+		return () => {
+			texture.dispose();
+		};
 	});
-	let labelDy = $derived(-Math.max(4, Math.round(labelFontSize * 0.43)));
-	let needsTextLengthCompression = $derived.by(() => {
-		if (!displayName) return false;
-		const units = estimateTextUnits(displayName);
-		return units * labelFontSize > maxAllowedTextLength;
+
+	useTask((delta) => {
+		if (avatarTexture && !isBot) {
+			frameElapsed += delta;
+			if (frameElapsed >= FRAME_DURATION) {
+				frameElapsed %= FRAME_DURATION;
+				currentFrame = (currentFrame + 1) % FRAME_COUNT;
+				avatarTexture.offset.x = currentFrame / FRAME_COUNT;
+			}
+		}
+
+		// Targetable seats pulse 1→1.05 once per 1.5s, the mesh equivalent of
+		// the old CSS @keyframes pulseTarget.
+		pulsePhase = (pulsePhase + delta) % 1.5;
+		pulseScale = isValidTarget ? 1 + 0.025 * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI)) : 1;
+
+		const targetOpacity = showLabel ? 1 : 0;
+		if (labelOpacity !== targetOpacity) {
+			labelOpacity += (targetOpacity - labelOpacity) * Math.min(1, delta * 12);
+			if (Math.abs(labelOpacity - targetOpacity) < 0.01) labelOpacity = targetOpacity;
+		}
 	});
+
+	function handleSelect() {
+		if (isValidTarget) onSelect?.();
+	}
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let registeredKeys = new Set<string>();
@@ -293,191 +330,39 @@
 </script>
 
 <T.Group position.x={seat.x} position.z={seat.z} rotation.y={seat.rotationY}>
-	<HTML position.y={AVATAR_HEIGHT} center pointerEvents="auto">
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="seat"
+	{#if avatarTexture}
+		<T.Sprite
+			position.y={AVATAR_HEIGHT}
+			scale={avatarScale}
+			onclick={handleSelect}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
 		>
-			<button
-				class="avatar-box"
-				class:is-dimmed={dimmed}
-				class:is-targetable={isValidTarget}
-				style="width: {avatarPx}px; height: {avatarPx}px;"
-				onclick={onSelect}
-				disabled={!isValidTarget}
-				aria-label={isValidTarget ? `Target ${player.username}` : player.username}
-			>
-				{#if isBot}
-					<img src="/assets/bot_animated.gif" alt="" />
-				{:else}
-					<div class="player-sprite" style="background-color: {color};"></div>
-				{/if}
-			</button>
-		</div>
-	</HTML>
+			<T.SpriteMaterial
+				map={avatarTexture}
+				color={tintColor}
+				transparent
+				alphaTest={0.05}
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Sprite>
+	{/if}
 
-	<HTML position={arcAnchorPos} center pointerEvents="auto">
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="seat-label seat-arc-container"
-			class:is-shown={showLabel}
-			class:is-active={isActive}
+	{#if labelTexture && labelWorldSize > 0}
+		<T.Sprite
+			position={arcAnchorPos}
+			scale={labelWorldSize}
 			onpointerenter={() => (hovered = true)}
 			onpointerleave={() => (hovered = false)}
-			style="--player-accent: {color};"
 		>
-			<svg class="seat-arc-svg" viewBox={arcViewBox} width={arcWidth} height={arcHeight}>
-				<defs>
-					<path id={pathId} d={arcD} />
-				</defs>
-				<path class="seat-arc-rail" d={arcD} />
-				<text class="seat-arc-text" font-size={labelFontSize} dy={labelDy} text-anchor="middle">
-					<textPath
-						href="#{pathId}"
-						startOffset="50%"
-						text-anchor="middle"
-						textLength={needsTextLengthCompression ? maxAllowedTextLength : undefined}
-						lengthAdjust={needsTextLengthCompression ? "spacingAndGlyphs" : undefined}
-					>
-						{displayName}
-					</textPath>
-				</text>
-			</svg>
-		</div>
-	</HTML>
+			<T.SpriteMaterial
+				map={labelTexture}
+				transparent
+				depthWrite={false}
+				toneMapped={false}
+				opacity={labelOpacity}
+			/>
+		</T.Sprite>
+	{/if}
 </T.Group>
-
-<style>
-	/* width/height come from the inline avatarPx. */
-	.avatar-box {
-		position: relative;
-		border-radius: 40%;
-		border: none;
-		padding: 0;
-		cursor: default;
-		transition:
-			box-shadow 0.3s ease,
-			filter 0.3s ease;
-		overflow: hidden;
-	}
-
-	.avatar-box img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		display: block;
-		image-rendering: pixelated;
-	}
-
-	/* ONE layer, not an <img> with a multiply overlay on top: base_player.gif
-	   holds exactly two colours (#00000000 and #EDEDE9FF — verified with
-	   `magick base_player.gif[0] -unique-colors`), so a flat fill masked to the
-	   sprite is pixel-identical to multiplying the sprite by the seat colour.
-	   The two-layer version keeps coming back tinted wrong because it
-	   rasterizes the same 5-frame GIF twice and the two copies animate on
-	   independent clocks — there is no way to keep them in step, so don't
-	   reintroduce it. Bots keep a real <img>: their sprite is full-colour art,
-	   not a silhouette, and it isn't seat-tinted. The 137.1428% (96/70)
-	   mask-size crops the canvas's own built-in padding around the figure —
-	   see LocalSeat3D's matching rule and boardPlacement.ts's
-	   AVATAR_SPRITE_FILL for the measurement it's derived from. */
-	.player-sprite {
-		width: 100%;
-		height: 100%;
-		image-rendering: pixelated;
-		-webkit-mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
-		mask: url("/assets/base_player.gif") center / 137.1428% no-repeat;
-	}
-
-	/* The turn's own seat stays at full brightness; every other seat dims —
-	   a filter on the seat's own pixels survives the transform that shrinks a
-	   full table's avatars, unlike a box-shadow glow (see the dimmed comment
-	   in the script block for why that approach got dropped). */
-	.avatar-box.is-dimmed {
-		filter: brightness(0.45) saturate(0.6);
-	}
-
-	.avatar-box.is-targetable {
-		cursor: pointer;
-		animation: pulseTarget 1.5s infinite;
-	}
-
-	.avatar-box.is-targetable:hover {
-		filter: drop-shadow(0 0 10px var(--accent));
-	}
-
-	@keyframes pulseTarget {
-		0%,
-		100% {
-			transform: scale(1);
-		}
-		50% {
-			transform: scale(1.05);
-		}
-	}
-
-	.seat {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 10px;
-		margin: -10px;
-	}
-
-	.seat-arc-container {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		padding: 10px;
-		margin: -10px;
-		pointer-events: auto;
-		opacity: 0;
-		transition:
-			opacity 0.2s ease,
-			filter 0.3s ease;
-	}
-
-	.seat-arc-container.is-shown {
-		opacity: 1;
-	}
-
-	.seat-arc-svg {
-		overflow: visible;
-	}
-
-	.seat-arc-rail {
-		fill: none;
-		stroke: rgba(255, 255, 255, 0.28);
-		stroke-width: 1.5px;
-		stroke-dasharray: 4 3;
-		stroke-linecap: round;
-		transition:
-			stroke 0.3s ease,
-			stroke-width 0.3s ease,
-			filter 0.3s ease;
-	}
-
-	.seat-arc-container.is-active .seat-arc-rail {
-		stroke: var(--player-accent, #00ffcc);
-		stroke-dasharray: none;
-		stroke-width: 2px;
-	}
-
-	.seat-arc-text {
-		font-family: var(--tiny);
-		letter-spacing: 0.04em;
-		fill: #ffffff;
-		user-select: none;
-		text-anchor: middle;
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
-		transition: fill 0.3s ease;
-	}
-
-	.seat-arc-container.is-active .seat-arc-text {
-		font-weight: bold;
-		fill: #ffffff;
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
-	}
-</style>
