@@ -9,7 +9,9 @@
 
 // This mounts the real component, changes only the viewport height, and
 // asserts a displacement tween is in flight with the card still at its old Z
-// (i.e. it is transitioning, not snapping).
+// (i.e. it is transitioning, not snapping). A second case covers the related
+// scale defect: ensureEntry is idempotent, so a card's draw-time pose.scale
+// must be re-synced by the apply path whenever placement.handScale changes.
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { gsap } from "gsap";
@@ -39,6 +41,8 @@ import type { GamePlayer } from "$stores/game.svelte";
 
 const tallPortrait: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
 const shortPortrait: ViewportInfo = { width: 390, height: 744, orientation: "portrait" };
+const wideLandscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
+const shortLandscape: ViewportInfo = { width: 1200, height: 600, orientation: "landscape" };
 
 const sevenCards: GamePlayer = {
 	username: "me",
@@ -110,5 +114,39 @@ describe("LocalHand3D abrupt resolution change", () => {
 		expect(registry.isInTransit("1")).toBe(true);
 		expect(pose!.z).toBeCloseTo(zBefore);
 		expect(pose!.z).not.toBeCloseTo(short.localSeatZ);
+	});
+
+	it("re-syncs pose.scale when the placement hand scale changes", async () => {
+		const bus = new CardBus();
+		const registry = new CardRegistry();
+		const context = new Map<any, any>([
+			[CARD_BUS_KEY, bus],
+			[CARD_REGISTRY_KEY, registry]
+		]);
+
+		const wide = computeSceneGeometry(wideLandscape, 0).placement;
+		const short = computeSceneGeometry(shortLandscape, 0).placement;
+		// Premise: this resize really does change the hand scale.
+		expect(short.handScale).not.toBeCloseTo(wide.handScale, 3);
+
+		const { rerender } = render(LocalHand3D, {
+			props: propsFor(wideLandscape),
+			context
+		});
+
+		await tick();
+		await tick();
+
+		const pose = registry.getPose("1");
+		expect(pose).toBeDefined();
+		expect(pose!.scale).toBeCloseTo(wide.handScale);
+
+		rerender(propsFor(shortLandscape));
+		await tick();
+		await tick();
+
+		// ensureEntry is idempotent, so without an explicit re-sync the pose
+		// would still carry the draw-time scale here.
+		expect(pose!.scale).toBeCloseTo(short.handScale);
 	});
 });

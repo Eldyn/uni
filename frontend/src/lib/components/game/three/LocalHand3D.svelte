@@ -290,7 +290,7 @@
 				dragging: isDragging
 			});
 
-			cardRegistry.ensureEntry(
+			const entryPose = cardRegistry.ensureEntry(
 				idString,
 				{
 					x: isDragging ? dragWorldX : slotX,
@@ -316,6 +316,15 @@
 					isDragging ? dragWorldZ : z
 				];
 			});
+
+			// ensureEntry is idempotent, so a card created before a resize keeps
+			// its draw-time scale forever unless the apply path re-syncs it —
+			// mirror PlayerSeat3D's own `if (!isInTransit) pose.scale = ...`.
+			// This is the base scale only; drag/lift scale lives in dragT/liftT
+			// (CardMesh3D), so it never fights an in-flight gesture.
+			if (!cardRegistry.isInTransit(idString)) {
+				entryPose.scale = placement.handScale;
+			}
 
 			if (isDragging) {
 				const pose = cardRegistry.getPose(idString);
