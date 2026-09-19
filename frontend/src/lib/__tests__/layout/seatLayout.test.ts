@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { computeSeatPositions, type ViewportInfo } from "$components/game/layout/seatLayout";
+import {
+	computeSeatAngles,
+	computeSeatPositions,
+	type ViewportInfo
+} from "$components/game/layout/seatLayout";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 400, height: 800, orientation: "portrait" };
@@ -77,16 +81,22 @@ describe("computeSeatPositions", () => {
 		}
 	});
 
-	it("never places a portrait seat near due-top once past the 4-player cross", () => {
+	it("draws one continuous portrait arch across due-top instead of two gapped rails", () => {
 		for (const count of [4, 5, 6, 8, 10, 13]) {
+			const angles = computeSeatAngles(count, portrait);
+			// The cap is populated: some seat always lands near due-top (90°).
+			// The old gapped rails left a ~60° hole there, so their nearest
+			// seat sat >40° off due-top.
+			const nearestTopDeg = Math.min(...angles.map((angle) => Math.abs(angle - 90)));
+			expect(nearestTopDeg).toBeLessThanOrEqual(30);
+			// ...and the arch still reaches both sides of the table.
 			const seats = computeSeatPositions(count, portrait);
-			for (const seat of seats) {
-				expect(seat.isTop).toBe(false);
-			}
+			expect(seats.some((seat) => seat.xPct > 50)).toBe(true);
+			expect(seats.some((seat) => seat.xPct < 50)).toBe(true);
 		}
 	});
 
-	it("splits portrait overflow seats evenly across the right and left rails", () => {
+	it("splits portrait overflow seats across both sides of the arch", () => {
 		const seats = computeSeatPositions(6, portrait);
 		const onRight = seats.filter((seat) => seat.xPct > 50).length;
 		const onLeft = seats.filter((seat) => seat.xPct < 50).length;

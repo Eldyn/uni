@@ -16,8 +16,9 @@ import {
 import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLayout";
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
+import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
 import { CARD_HEIGHT } from "$components/game/three/units";
-import { opponentSeatReachWorld } from "$components/game/layout/handRing";
+import { opponentRingRadiusWorld, opponentSeatReachWorld } from "$components/game/layout/handRing";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 400, height: 800, orientation: "portrait" };
@@ -120,7 +121,9 @@ describe("computeSeatPositions3D", () => {
 		expect(filled.rz).toBeGreaterThan(LANDSCAPE_RING_RZ);
 		expect(filled.rz).toBeLessThanOrEqual(LANDSCAPE_RING_RZ_MAX);
 		// Whatever it grew to, the outermost card still lands inside the frustum.
-		expect(filled.rz + opponentSeatReachWorld(1.5, 0.85)).toBeLessThanOrEqual(rig.halfHeight + 1e-6);
+		expect(filled.rz + opponentSeatReachWorld(1.5, 0.85)).toBeLessThanOrEqual(
+			rig.halfHeight + 1e-6
+		);
 		// The seats it pushes outward move AWAY from the pile, never toward it.
 		const base = computeSeatPositions3D(3, squarish, rig.halfWidth);
 		const grown = computeSeatPositions3D(3, squarish, rig.halfWidth, maxRz);
@@ -139,10 +142,59 @@ describe("computeSeatPositions3D", () => {
 		expect(PORTRAIT_RING_RZ).toBeGreaterThan(PORTRAIT_RING_RX);
 		expect(ringRadiiFor(portrait)).toEqual({ rx: PORTRAIT_RING_RX, rz: PORTRAIT_RING_RZ });
 		for (const seat of computeSeatPositions3D(8, portrait)) {
-			expect(onRing(seat, PORTRAIT_RING_RX, PORTRAIT_RING_RZ, PORTRAIT_RING_X_EXPONENT)).toBeCloseTo(
-				1,
-				5
+			expect(
+				onRing(seat, PORTRAIT_RING_RX, PORTRAIT_RING_RZ, PORTRAIT_RING_X_EXPONENT)
+			).toBeCloseTo(1, 5);
+		}
+	});
+
+	// The old portrait curve paired a high X exponent (|cos|^0.4) with two
+	// gapped rails, so X hugged ±rx almost everywhere and the cap sat empty:
+	// the arch read as "∥". A true ∩ has one top-center seat furthest away and
+	// both ends curled down the sides, with X sweeping continuously across.
+	it("sweeps portrait seats over one continuous ∩ (top-center far, ends curled down)", () => {
+		const seats = computeSeatPositions3D(9, portrait);
+		const top = seats[Math.floor(seats.length / 2)];
+		const rightEnd = seats[0];
+		const leftEnd = seats[seats.length - 1];
+
+		// The cap is populated: one seat sits at due-top, furthest from the camera.
+		expect(top.x).toBeCloseTo(0, 5);
+		expect(top.z).toBeCloseTo(-PORTRAIT_RING_RZ, 5);
+
+		// The ends have curled down the sides — near ±rx in X and pulled back
+		// toward the local player in Z, not level with the top seat like a rail.
+		expect(rightEnd.x).toBeGreaterThan(PORTRAIT_RING_RX * 0.9);
+		expect(leftEnd.x).toBeLessThan(-PORTRAIT_RING_RX * 0.9);
+		expect(rightEnd.z).toBeGreaterThan(top.z + 0.5);
+		expect(leftEnd.z).toBeGreaterThan(top.z + 0.5);
+
+		// X actually varies across the sweep rather than pinning to ±rx.
+		const xs = seats.map((seat) => seat.x);
+		expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(PORTRAIT_RING_RX);
+	});
+
+	// Two neighbouring card rings overlap once the seats sit closer than the
+	// rings' combined diameter; the deepest portrait arch still has to clear
+	// that at the contract's maximum opponent count.
+	it("keeps every portrait neighbour's card ring clear of the next", () => {
+		for (let opponentCount = 4; opponentCount <= MAX_OPPONENTS; opponentCount++) {
+			const geometry = computeSceneGeometry(portrait, opponentCount);
+			// What PlayerSeat3D actually draws the ring at, from the same
+			// presentation sizes Scene3D hands it.
+			const fanRadius = opponentRingRadiusWorld(
+				geometry.opponentAvatarWorld,
+				geometry.opponentCardScale
 			);
+			// Pin the portrait fan size: the gap guarantee must come from a
+			// deep enough arch, not from silently shrinking every opponent's
+			// cards until the bound is trivial.
+			expect(geometry.opponentCardScale).toBeCloseTo(0.25, 5);
+			const seats = geometry.seats3D;
+			for (let i = 1; i < seats.length; i++) {
+				const gap = Math.hypot(seats[i].x - seats[i - 1].x, seats[i].z - seats[i - 1].z);
+				expect(gap).toBeGreaterThan(2 * fanRadius);
+			}
 		}
 	});
 });

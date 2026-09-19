@@ -5,7 +5,7 @@
  * source, so both boards seat opponents identically) onto a SUPERELLIPTIC
  * arch on the XZ playmat plane: wide and shallow in landscape so seats curve
  * over the playmat's far side with room to breathe, narrow and deep in
- * portrait so the rails run down the screen's long axis instead.
+ * portrait so the arch's legs run down the screen's long axis instead.
  *
  * Frame: origin = playmat center, +X = table-right, +Z = toward the local
  * player (camera side, south), −Z = far side. Angle 90 (due-top) therefore
@@ -47,25 +47,26 @@ export const LANDSCAPE_RING_RZ = 4.2;
 // allowance ramps with the same crowding ratio everything else here uses.
 export const LANDSCAPE_RING_RX_FILL_SPARSE = 1.05;
 export const LANDSCAPE_RING_RX_FILL_CROWDED = 1.3;
-// Portrait's proportions track the screen's, not just "taller than wide": the
-// frustum is a "contain" fit, so a ring whose width/depth ratio is flatter than
-// the phone's own ratio makes the horizontal axis the binding one and buys that
-// slack back as dead space above and below — which is exactly what made every
-// card on a phone read at half the size it could have.
-// Depth is what the phone pays for twice over: the frustum is sized to hold
-// the ring's rows, and a ring deeper than the felt leaves the distance between
-// the top seats and the table as empty background — 235px of it under the HUD
-// at, roughly a third of the screen. The rails now sit just outside the
-// felt's own far corner instead, so the arch reads as seats AROUND the table
-// rather than seats stranded above it.
-// The rails also sit further in than the frustum's own edge than the reach
-// margin alone would suggest: a side seat's fan opens ACROSS the rail, so the
-// outermost card of a full 16-player table clears the seat by more than the
-// avatar and label do, and at the edge that overhang is simply cropped. Trading
-// radius for reach keeps the columns (and so the hand's card size) identical
-// while moving every seat's overhang back inside the frustum.
+// Width: the frustum is a "contain" fit, so a ring whose width/depth ratio is
+// flatter than the phone's own ratio makes the horizontal axis the binding one
+// and buys that slack back as dead space above and below. rx is therefore
+// pinned to the frustum's own width less the reach a seat's fan needs — a side
+// seat's fan opens ACROSS the rail, so the outermost card of a full table
+// clears the seat by more than the avatar and label do, and at the edge that
+// overhang is simply cropped. Trading radius for reach keeps every seat's
+// overhang inside the frustum.
+
+// Depth: on a width-bound portrait frustum the vertical axis is the one with
+// slack, so depth is close to free and rz is what actually spaces the seats.
+// At 4.6 the full 15-opponent arch's adjacent seats sat ~1.1 world units apart,
+// inside the 1.6-unit diameter of two neighbouring card rings, so the fans
+// interleaved down the sides. Deepening the arch lengthens it without widening
+// it; at 8 the worst adjacent gap on a full table clears that two-ring diameter
+// with margin. The top seat still lands inside the frustum (rz plus a seat's
+// reach stays under centerZ + halfHeight) and every side seat still bottoms out
+// well above the local hand row.
 export const PORTRAIT_RING_RX = 2.9;
-export const PORTRAIT_RING_RZ = 4.6;
+export const PORTRAIT_RING_RZ = 8;
 
 // The deepest the landscape arch is allowed to grow when it fills vertical
 // slack (see ringRadiiFor's frustumHalfHeight). Past this the arch stops
@@ -90,7 +91,10 @@ export const OPPONENT_RING_REACH = 2.6;
 export const LANDSCAPE_RING_REACH_MIN = 1.6;
 export const PORTRAIT_OPPONENT_RING_REACH = 1.55;
 
-export function ringReachFor(viewport: ViewportInfo, opponentCount: number = MAX_OPPONENTS): number {
+export function ringReachFor(
+	viewport: ViewportInfo,
+	opponentCount: number = MAX_OPPONENTS
+): number {
 	if (viewport.orientation === "portrait") return PORTRAIT_OPPONENT_RING_REACH;
 	const t = Math.min(
 		1,
@@ -103,10 +107,15 @@ export function ringReachFor(viewport: ViewportInfo, opponentCount: number = MAX
 // ellipse: seats near the ring's bottom get pushed outward toward ±rx, so the
 // shape reads as a reversed U — curved across the top, near-vertical sides —
 // instead of side seats curling in toward the local hand. Z keeps the plain
-// sine so the lowest seats still rise smoothly above the hand row. Portrait's
-// higher exponent makes its rails hug the screen edges almost vertically.
+// sine so the lowest seats still rise smoothly above the hand row.
+//
+// Both orientations now share the same exponent. Portrait's old 5 (|cos|^0.4)
+// pinned X within a hair of ±rx for all but a few degrees around top-center,
+// turning the cap into a near-flat crease and the arch into "∥" — two rails
+// joined by a bar. 2.5 (|cos|^0.8) falls off gradually, so X sweeps smoothly
+// from +rx through 0 at due-top to −rx: a true ∩.
 export const LANDSCAPE_RING_X_EXPONENT = 2.5;
-export const PORTRAIT_RING_X_EXPONENT = 5;
+export const PORTRAIT_RING_X_EXPONENT = 2.5;
 
 /**
  * @param frustumHalfWidth The camera frustum's actual half-width, in world

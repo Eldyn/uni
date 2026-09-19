@@ -58,12 +58,14 @@ const PORTRAIT_RING_RX = 40; // % of field width
 const PORTRAIT_RING_RY = 44; // % of field height; capped at 50 so due-top stays on screen
 const PORTRAIT_BASE_HALF_SPAN_DEG = 100;
 
-// Ocho-style mobile rail: opponents past the 4-player cross never sit near
-// due-top (that's HUD/timer territory) — they split into a left rail and a
-// right rail instead, each hugging the corners and running down the sides.
-// Must stay larger than TOP_ARC_HALF_WIDTH_DEG or a rail seat could still
-// read as (and render like) a "top" seat.
-const PORTRAIT_TOP_GAP_DEG = 30;
+// Portrait's opponents past the 4-player cross used to be split into a left
+// rail + right rail with a deliberate gap at due-top, on the theory that the
+// top of a phone is HUD/timer territory. In practice that put every seat on
+// one of two near-vertical rails and left the arch's cap empty, so the shape
+// read as "∥" instead of the intended "∩" and the rails' seats crowded into
+// each other. Portrait now draws one continuous arch over the top exactly like
+// landscape (the Ocho mockup's seats do curve across the top); what stays
+// portrait-specific is only its proportions (narrow/deep) and its spans below.
 
 // Each orientation widens toward its own max span at the full table, leaving
 // a clear gap at due-bottom for the local player's hand: the old shared 155°
@@ -91,16 +93,26 @@ function landscapeMaxHalfSpanFor(viewport: ViewportInfo): number {
 	const aspect = viewport.width / viewport.height;
 	const t = Math.min(
 		1,
-		Math.max(0, (aspect - LANDSCAPE_SPAN_NARROW_ASPECT) / (LANDSCAPE_SPAN_WIDE_ASPECT - LANDSCAPE_SPAN_NARROW_ASPECT))
+		Math.max(
+			0,
+			(aspect - LANDSCAPE_SPAN_NARROW_ASPECT) /
+				(LANDSCAPE_SPAN_WIDE_ASPECT - LANDSCAPE_SPAN_NARROW_ASPECT)
+		)
 	);
-	return LANDSCAPE_SPAN_NARROW_MAX_DEG + t * (LANDSCAPE_SPAN_WIDE_MAX_DEG - LANDSCAPE_SPAN_NARROW_MAX_DEG);
+	return (
+		LANDSCAPE_SPAN_NARROW_MAX_DEG +
+		t * (LANDSCAPE_SPAN_WIDE_MAX_DEG - LANDSCAPE_SPAN_NARROW_MAX_DEG)
+	);
 }
 /** The contract's MAX_LOBBY_MEMBERS minus the local player's own seat. */
 export const MAX_OPPONENTS = MAX_LOBBY_MEMBERS - 1;
 
 function halfSpanFor(opponentCount: number, baseHalfSpan: number, maxHalfSpan: number): number {
 	if (opponentCount <= CROSS_OPPONENT_COUNT) return baseHalfSpan;
-	const t = Math.min(1, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT));
+	const t = Math.min(
+		1,
+		(opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT)
+	);
 	return baseHalfSpan + t * (maxHalfSpan - baseHalfSpan);
 }
 
@@ -138,12 +150,7 @@ function scaleFor(opponentCount: number): number {
  */
 export type ArcWarp = (t: number, startDeg: number, endDeg: number) => number;
 
-function arcAngles(
-	n: number,
-	startDeg: number,
-	endDeg: number,
-	warp?: ArcWarp
-): number[] {
+function arcAngles(n: number, startDeg: number, endDeg: number, warp?: ArcWarp): number[] {
 	return Array.from({ length: n }, (_, i) => {
 		const t = (i + 0.5) / n;
 		return startDeg + (warp ? warp(t, startDeg, endDeg) : t) * (endDeg - startDeg);
@@ -160,13 +167,6 @@ function arcAngles(
 // seat, climbs to the top gap, crosses to the left rail's top, then descends
 // back toward local — anything else zigzags (near-right, then jump to
 // far-left) instead of sweeping around like the seats actually sit.
-function portraitRailAngles(n: number, halfSpan: number, warp?: ArcWarp): number[] {
-	const leftCount = Math.ceil(n / 2); // odd counts put the extra seat on the left rail
-	const rightCount = n - leftCount;
-	const rightAngles = arcAngles(rightCount, 90 - halfSpan, 90 - PORTRAIT_TOP_GAP_DEG, warp);
-	const leftAngles = arcAngles(leftCount, 90 + PORTRAIT_TOP_GAP_DEG, 90 + halfSpan, warp);
-	return [...rightAngles, ...leftAngles];
-}
 
 /**
  * Given how many opponents need a seat and the current viewport, returns one
@@ -176,15 +176,17 @@ function portraitRailAngles(n: number, halfSpan: number, warp?: ArcWarp): number
  *
  * At exactly 3 opponents (4 players total), seats form a cross with the
  * local player: due-right, due-top, due-left. Beyond that, opponents fan
- * around an ellipse ("ring") sized per orientation — a wide top-half arc in
- * landscape, and in portrait a left rail + right rail (never due-top, per
- * the mobile mockup) that grow down toward the bottom corners.
+ * around an ellipse ("ring") sized per orientation — both a single continuous
+ * arch that sweeps over the far side of the table and curls down the two
+ * sides (a "∩"), widening its span as the table fills so neighbouring seats
+ * keep their distance. Portrait's ring is merely narrower and deeper than
+ * landscape's; the curve family and the lap order are identical.
  */
 /**
  * The bare ring angles (in degrees, 90 = due-top / far side of the table) one
  * per opponent, before any DOM/world projection. Single-sources the cross vs.
- * arc vs. portrait-rail decision so seatLayout3D.ts places its world ring on
- * exactly the same seats as the DOM solver.
+ * arch decision so seatLayout3D.ts places its world ring on exactly the same
+ * seats as the DOM solver.
  */
 export function computeSeatAngles(
 	opponentCount: number,
@@ -198,12 +200,13 @@ export function computeSeatAngles(
 	const halfSpan = halfSpanFor(opponentCount, baseHalfSpan, maxHalfSpan);
 
 	if (opponentCount <= CROSS_OPPONENT_COUNT) return CROSS_ANGLES_BY_COUNT[opponentCount];
-	return isPortrait
-		? portraitRailAngles(opponentCount, halfSpan, warp)
-		: arcAngles(opponentCount, 90 - halfSpan, 90 + halfSpan, warp);
+	return arcAngles(opponentCount, 90 - halfSpan, 90 + halfSpan, warp);
 }
 
-export function computeSeatPositions(opponentCount: number, viewport: ViewportInfo): SeatPosition[] {
+export function computeSeatPositions(
+	opponentCount: number,
+	viewport: ViewportInfo
+): SeatPosition[] {
 	if (opponentCount <= 0) return [];
 	const isPortrait = viewport.orientation === "portrait";
 	const scale = scaleFor(opponentCount) * (isPortrait ? PORTRAIT_SCALE_MULTIPLIER : 1);
@@ -249,7 +252,10 @@ function handTransform(angleDeg: number, isTop: boolean, isPortrait: boolean): s
 	return `translate(-50%, -50%) rotate(${rotateDeg}deg)`;
 }
 
-function outwardPositions(angleDeg: number, isTop: boolean): Pick<SeatPosition, "labelPos" | "boxPos"> {
+function outwardPositions(
+	angleDeg: number,
+	isTop: boolean
+): Pick<SeatPosition, "labelPos" | "boxPos"> {
 	if (isTop) {
 		return {
 			labelPos: "bottom: -3em; left: 50%; transform: translateX(-50%);",
