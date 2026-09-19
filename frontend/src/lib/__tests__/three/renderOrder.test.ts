@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RENDER_ORDER, cardRenderOrder } from "$components/game/three/renderOrder";
+import { RENDER_ORDER, cardRenderOrder, isDragged } from "$components/game/three/renderOrder";
 
 describe("render-order tiers", () => {
 	it("orders the in-scene tiers bottom-to-top", () => {
@@ -26,5 +26,19 @@ describe("render-order tiers", () => {
 	it("keeps a dragged card above the seat sprites and below no in-scene object", () => {
 		expect(cardRenderOrder({ dragT: 1 }, false)).toBeGreaterThan(RENDER_ORDER.seatSprite);
 		expect(RENDER_ORDER.dragged).toBe(Math.max(...Object.values(RENDER_ORDER)));
+	});
+
+	it("puts the dragged card in the transparent pass so its tier can beat the transparent sprites", () => {
+		// Opaque objects always draw before transparent ones and renderOrder only
+		// applies within a pass, so CardMesh3D's face material keys `transparent`
+		// off this predicate — it must match the `dragged` tier exactly.
+		expect(isDragged(1)).toBe(true);
+		expect(isDragged(0.01)).toBe(true);
+		expect(isDragged(0)).toBe(false);
+		expect(isDragged(undefined)).toBe(false);
+		for (const dragT of [0, 0.5, 1]) {
+			const dragged = cardRenderOrder({ dragT }, false) === RENDER_ORDER.dragged;
+			expect(dragged).toBe(isDragged(dragT));
+		}
 	});
 });

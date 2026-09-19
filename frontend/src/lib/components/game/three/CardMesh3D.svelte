@@ -54,6 +54,7 @@ uniform vec4 uUvRectBack;
 	} from "./units";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { getFaceTexture, getAtlasPage, ATLAS_PAGE_VERSION } from "./cardFaceAtlas";
+	import { isDragged } from "./renderOrder";
 
 	let {
 		card,
@@ -200,6 +201,12 @@ uniform vec4 uUvRectBack;
 		return getAtlasPage(activeFront.page);
 	});
 	let meshColor = $derived(WHITE.clone().multiplyScalar((dimmed ? DIM_FACTOR : 1) * brightness));
+
+	// Three.js draws opaque objects before transparent ones and only applies
+	// renderOrder within a pass, so a dragged card must join the transparent
+	// pass for its `dragged` tier to beat the transparent opponent-seat sprites.
+	// Non-dragged cards stay opaque (unchanged pass, unchanged ordering).
+	let dragging = $derived(isDragged(dragT));
 
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
@@ -392,7 +399,7 @@ uniform vec4 uUvRectBack;
 					map={atlasTexture}
 					color={meshColor}
 					alphaTest={0.5}
-					transparent={false}
+					transparent={dragging}
 					depthWrite
 					toneMapped={false}
 					side={DoubleSide}

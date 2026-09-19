@@ -12,6 +12,14 @@
  *  20   the local card drawn pending a play/draw decision
  *  30   a card being dragged (`dragT > 0`) — the top in-scene tier
  *
+ * IMPORTANT — `renderOrder` only decides order WITHIN a render pass. Three.js
+ * draws all opaque objects first, then all transparent ones; an opaque object
+ * can never outrank a transparent one no matter how high its `renderOrder`.
+ * The seat sprites are transparent (SpriteMaterial) while a resting card face
+ * is opaque, so a dragged card must ALSO join the transparent pass for its
+ * `dragged` tier to take effect — see `isDragged` and CardMesh3D's face
+ * material. The card's own shadow/highlight meshes are already transparent.
+ *
  * The dragged tier is deliberately the highest number in the scene: a dragged
  * card must render above the discard pile and every opponent seat. It still
  * cannot escape the `<canvas>`: the HUD/topbar DOM layer lives in a separate
@@ -27,13 +35,20 @@ export const RENDER_ORDER = {
 	dragged: 30
 } as const;
 
+/** True while a card is being dragged. A dragged card renders in the
+ *  transparent pass (see the module doc) so its `dragged` renderOrder can
+ *  actually beat the transparent seat sprites. */
+export function isDragged(dragT: number | undefined): boolean {
+	return (dragT ?? 0) > 0;
+}
+
 /** Resolve a card's tier from its pose. Dragging outranks the pending-play
  *  card, which outranks a hovered/lifted card, which outranks an idle one. */
 export function cardRenderOrder(
 	pose: { dragT?: number; liftT?: number },
 	isPendingPlayDrawn: boolean
 ): number {
-	if ((pose.dragT ?? 0) > 0) return RENDER_ORDER.dragged;
+	if (isDragged(pose.dragT)) return RENDER_ORDER.dragged;
 	if (isPendingPlayDrawn) return RENDER_ORDER.pendingPlay;
 	if (pose.liftT) return RENDER_ORDER.lifted;
 	return RENDER_ORDER.idle;
