@@ -63,7 +63,7 @@
 				idString,
 				{
 					x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-					y: discardStackZ(i),
+					y: discardStackZ(i, history.length),
 					z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
 					spinDeg: entry.rotationDeg,
 					flipDeg: 0,
@@ -75,7 +75,7 @@
 			);
 			cardRegistry.setPoseProvider(idString, () => [
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-				discardStackZ(i),
+				discardStackZ(i, history.length),
 				placement.discardZ + entry.jitter[1] * EM_TO_WORLD
 			]);
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
@@ -102,7 +102,7 @@
 		<T.Mesh
 			position={[
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD + SHADOW_OFFSET,
-				discardStackZ(i) - SHADOW_DROP_Y,
+				discardStackZ(i, history.length) - SHADOW_DROP_Y,
 				placement.discardZ + entry.jitter[1] * EM_TO_WORLD + SHADOW_OFFSET
 			]}
 			rotation.x={-Math.PI / 2}

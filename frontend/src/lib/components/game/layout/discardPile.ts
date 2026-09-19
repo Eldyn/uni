@@ -33,7 +33,13 @@ export interface DiscardEntry {
 	jitter: [number, number];
 }
 
-export const DISCARD_CAP = 30;
+/** Safety valve on the client-side history length. The stack HEIGHT is bounded
+ *  by compression (see discardStackZ), so this is an allocation guard only, not
+ *  a visual device: it is set high enough that an ordinary match reaches the
+ *  reshuffle (which trims the pile) long before it. Deliberately NOT derived
+ *  from a deck size — mods can change that per match, so nothing here may
+ *  assume a particular deck size. */
+export const DISCARD_CAP = 128;
 
 // The scatter jitter ONLY — a seat-relative base rotation (see discardEntryFor's
 // baseRotationDeg) is layered on top of this, not folded into it, so cutting
@@ -41,28 +47,48 @@ export const DISCARD_CAP = 30;
 // rotation alone already makes it.
 export const MAX_ROTATION_DEG = 10;
 export const MAX_JITTER_EM = 1.1;
-/** CardMesh3D's own layered planes sit up to 0.004 world units apart; a
- *  per-card step smaller than that lets one card's layers interleave with its
- *  neighbor's (z-fighting) — 0.02 clears that with margin. Shared with
- *  DiscardPile3D (which stacks entries at this step) and baseBeats.ts (which
- *  has to know a landing card's exact future height to avoid a visible pop
- *  when it hands off from its flight to this static pile). */
+/** Comfortable per-card stack step; used until the pile would grow past
+ *  MAX_DISCARD_HEIGHT, then compressed. Shared with DiscardPile3D (which stacks
+ *  entries by it) and baseBeats.ts (which must know a landing card's exact
+ *  future depth to avoid a visible pop when a flight hands off to this pile). */
 export const DISCARD_STACK_STEP = 0.025;
+/** Visual height budget for the whole pile, world units. Every card keeps its
+ *  OWN depth inside this budget — the step compresses as the pile grows instead
+ *  of cards being dropped, collapsed onto a shared tier, or the pile towering.
+ *  Past MAX_DISCARD_HEIGHT / MIN_DISCARD_STEP (150 cards) the pile must grow
+ *  again; that is deliberately preferred over dropping or collapsing cards,
+ *  and every card still keeps a distinct depth. */
+export const MAX_DISCARD_HEIGHT = 0.6;
+/** Precision floor. CardMesh3D's own planes span up to 0.004 world units and
+ *  the depth buffer resolves far finer than that, so a step of 0.004 still
+ *  keeps neighbouring cards distinct. */
+export const MIN_DISCARD_STEP = 0.004;
+
+/**
+ * The stack step for a pile of `count` cards: the comfortable step until the
+ * pile would exceed MAX_DISCARD_HEIGHT, then compressed, floored at
+ * MIN_DISCARD_STEP. Depends only on the CURRENT pile length, never on a deck
+ * size, so modded decks of any size are handled without special cases.
+ */
+export function discardStepFor(count: number): number {
+	const n = Math.max(1, count);
+	return Math.min(DISCARD_STACK_STEP, Math.max(MIN_DISCARD_STEP, MAX_DISCARD_HEIGHT / n));
+}
 
 /**
  * Geometric stack depth (Y in world space / Z in depth buffer) for an item in
- * the discard pile.
+ * the discard pile, by its position `index` from the bottom.
  *
- * Every card gets its OWN depth. An earlier version collapsed cards deeper
- * than a 20-card cap onto a single shared bottom tier (all at y = 0), which
- * put many card planes — and their transparent shadow planes — at exactly the
- * same depth. That reads as dense Z-fighting stripes across the pile (verified
- * by forcing the whole stack to one Y: the stripes appear immediately). The
- * pile can never exceed DISCARD_CAP (30) entries, so 30 * 0.025 = 0.75 world
- * units of height is already a bounded worst case and no cap is needed.
+ * Every card gets its OWN depth, compressed into MAX_DISCARD_HEIGHT. An earlier
+ * version collapsed cards deeper than a 20-card tier onto a shared bottom tier
+ * (all at y = 0), which put many card planes — and their transparent shadow
+ * planes — at exactly the same depth; that renders as dense Z-fighting stripes
+ * (verified by forcing the whole stack to one Y: the stripes appear at once).
+ * Dropping old cards instead would make the pile visibly stop growing and sink,
+ * so the pile is compressed rather than truncated.
  */
-export function discardStackZ(index: number): number {
-	return index * DISCARD_STACK_STEP;
+export function discardStackZ(index: number, totalCount?: number): number {
+	return index * discardStepFor(totalCount ?? index + 1);
 }
 
 export const discardStackHeight = discardStackZ;
@@ -147,7 +173,9 @@ export function previewDiscardLanding(
 	const nextLength = Math.min(history.length + 1, cap);
 	const index = nextLength - 1;
 	const nominalZ = discardStackZ(index, nextLength);
-	const z = Math.max(nominalZ, currentTopZ + DISCARD_STACK_STEP);
+	// Must use the same (compressed) step the pile will actually render at, not
+	// the comfortable baseline, or the guard overshoots and the card pops.
+	const z = Math.max(nominalZ, currentTopZ + discardStepFor(nextLength));
 	return { entry, index, z };
 }
 

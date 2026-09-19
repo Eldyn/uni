@@ -1106,7 +1106,7 @@ export function createBaseBeatsWatcher(deps: {
 						deps.cardRegistry.clearDecoration(idString);
 						deps.cardRegistry.seedPose(idString, {
 							x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
-							y: discardStackZ(i),
+							y: discardStackZ(i, toReshuffle.length),
 							z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
 							spinDeg: entry.rotationDeg,
 							flipDeg: 0,

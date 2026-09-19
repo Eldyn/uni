@@ -4,8 +4,11 @@ import {
 	appendDiscard,
 	discardEntryFor,
 	discardStackZ,
+	discardStepFor,
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
+	MAX_DISCARD_HEIGHT,
+	MIN_DISCARD_STEP,
 	MAX_ROTATION_DEG,
 	paintTopWild,
 	type DiscardEntry
@@ -122,17 +125,37 @@ describe("paintTopWild", () => {
 	});
 });
 
+describe("discardStepFor", () => {
+	it("uses the comfortable step until the height budget is reached", () => {
+		expect(discardStepFor(1)).toBeCloseTo(DISCARD_STACK_STEP);
+		// MAX_DISCARD_HEIGHT / 24 == DISCARD_STACK_STEP, so 24 is the last
+		// uncompressed pile.
+		expect(discardStepFor(24)).toBeCloseTo(DISCARD_STACK_STEP);
+	});
+
+	it("compresses above the budget, floored at the precision limit", () => {
+		expect(discardStepFor(60)).toBeCloseTo(MAX_DISCARD_HEIGHT / 60);
+		// 0.6 / 150 == MIN_DISCARD_STEP; larger piles hold the floor.
+		expect(discardStepFor(150)).toBeCloseTo(MIN_DISCARD_STEP);
+		expect(discardStepFor(1000)).toBe(MIN_DISCARD_STEP);
+	});
+
+	it("never drops below the precision floor, for any pile size", () => {
+		for (const total of [1, 24, 25, 60, 150, 1000, 100000]) {
+			expect(discardStepFor(total)).toBeGreaterThanOrEqual(MIN_DISCARD_STEP);
+		}
+	});
+});
+
 describe("discardStackZ", () => {
-	it("gives every card its own depth, however deep the pile", () => {
+	it("gives every card its own depth, at any pile size", () => {
 		// Regression: cards used to be collapsed onto a shared bottom tier past a
-		// 20-card cap. Multiple planes at one Y render as Z-fighting stripes
-		// across the pile, so no two indices may ever share a depth — including
-		// a pile at the DISCARD_CAP worst case.
-		for (const total of [1, 10, 20, 30, DISCARD_CAP]) {
+		// 20-card cap. Multiple planes at one Y render as dense Z-fighting stripes
+		// across the pile, so no two indices may ever share a depth.
+		for (const total of [1, 10, 20, 30, 60, 150, DISCARD_CAP, 1000]) {
 			const seen = new Set<number>();
 			for (let i = 0; i < total; i++) {
-				const y = discardStackZ(i);
-				expect(y).toBeCloseTo(i * DISCARD_STACK_STEP);
+				const y = discardStackZ(i, total);
 				expect(seen.has(y)).toBe(false);
 				seen.add(y);
 			}
@@ -140,8 +163,24 @@ describe("discardStackZ", () => {
 	});
 
 	it("is strictly increasing with index", () => {
-		for (let i = 0; i < DISCARD_CAP; i++) {
-			expect(discardStackZ(i + 1)).toBeGreaterThan(discardStackZ(i));
+		const total = 60;
+		for (let i = 0; i < total - 1; i++) {
+			expect(discardStackZ(i + 1, total)).toBeGreaterThan(discardStackZ(i, total));
 		}
+	});
+
+	it("bounds the pile height by compressing, not by truncating", () => {
+		// 30 cards would be 0.75 at the comfortable step; compression fits it in
+		// the budget while still giving all 30 cards distinct depths.
+		const total = 30;
+		expect(discardStackZ(total - 1, total)).toBeLessThanOrEqual(MAX_DISCARD_HEIGHT + 1e-9);
+		expect(discardStackZ(total - 1, total)).toBeGreaterThan(0);
+	});
+
+	it("does not grow past the budget until the step floors", () => {
+		const total = 150;
+		expect(discardStackZ(total - 1, total)).toBeLessThanOrEqual(MAX_DISCARD_HEIGHT + 1e-9);
+		// Past the floor the pile must grow again rather than lose cards.
+		expect(discardStackZ(999, 1000)).toBeGreaterThan(0);
 	});
 });
