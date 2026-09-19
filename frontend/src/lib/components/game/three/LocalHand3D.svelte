@@ -327,12 +327,20 @@
 			} else {
 				const pose = cardRegistry.getPose(idString);
 				if (pose) {
-					const dx = Math.abs(pose.x - slotX);
+					// X alone misses a resolution change that moves the row in
+					// depth without changing any slot's X: a height-only resize
+					// (the mobile URL bar appearing, an orientation flip to a
+					// same-width frame) leaves every slotX identical while
+					// localSeatZ shifts by ~1.8 world units. Keying off X alone
+					// started no tween and let applyIdlePoseIfNotInTransit write
+					// the new Z in one frame — the card teleported. Measure the
+					// full horizontal displacement, exactly as PlayerSeat3D does.
+					const moved = Math.hypot(pose.x - slotX, pose.z - slotZ);
 					const isFlightTransit =
 						cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
 
 					if (!isFlightTransit) {
-						if (dx > 0.01) {
+						if (moved > 0.01) {
 							displacementTweens.get(idString)?.kill();
 							const duration = storeAnimation.enabled
 								? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)
