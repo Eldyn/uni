@@ -128,7 +128,7 @@ export const PORTRAIT_DRAW_PILE_SCALE = 0.6;
 // tall phone screen is generous enough to produce cards a quarter of the screen
 // wide — a readable card that you can only see three of is not a readable hand.
 export const HAND_WIDTH_FILL = 0.96;
-export const HAND_MIN_VISIBLE_CARDS = 7;
+export const HAND_MIN_VISIBLE_CARDS = 5;
 
 // Portrait draws the felt to an explicit box (see playmat.ts's
 // portraitMatPlacement) rather than fitting the sheet, so it needs to know how
