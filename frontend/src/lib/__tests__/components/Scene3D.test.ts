@@ -13,16 +13,20 @@ function resetPreload() {
 resetPreload();
 
 vi.mock("@threlte/core", () => ({
-	T: new Proxy({}, {
-		get: () => MockThrelte
-	}),
+	T: new Proxy(
+		{},
+		{
+			get: () => MockThrelte
+		}
+	),
 	useTask: vi.fn(),
 	useThrelte: () => ({ camera: { current: {} } })
 }));
 
 vi.mock("@threlte/extras", () => ({
 	HTML: MockThrelte,
-	interactivity: vi.fn()
+	interactivity: vi.fn(),
+	useInteractivity: () => ({ raycaster: { camera: null } })
 }));
 
 vi.mock("$components/game/three/cardFaceAtlas", () => ({

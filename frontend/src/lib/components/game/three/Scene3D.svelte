@@ -6,7 +6,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { T } from "@threlte/core";
-	import { interactivity } from "@threlte/extras";
+	import { interactivity, useInteractivity } from "@threlte/extras";
 	import type { OrthographicCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
@@ -25,6 +25,7 @@
 	import { preloadCardArt } from "./cardFaceAtlas";
 
 	interactivity();
+	const { raycaster } = useInteractivity();
 
 	// Whether the local player's own avatar/hand also dim outside their turn,
 	// the same way every opponent seat now does — kept as a single flip so the
@@ -81,6 +82,14 @@
 		if (!camRef) return;
 		camRef.lookAt(rig.lookAt[0], rig.lookAt[1], rig.lookAt[2]);
 		camRef.updateProjectionMatrix();
+		// Opponent avatars/labels are THREE.Sprite objects, and Sprite.raycast
+		// throws ("Raycaster.camera needs to be set") when the shared raycaster
+		// has no camera. Interactivity's default compute() only binds the camera
+		// on events that pass its canvas-size guard, so a pointer event arriving
+		// before its ResizeObserver has reported a non-zero size would raycast
+		// the sprites with a null camera. Binding it here, as soon as the camera
+		// exists, closes that window for every sprite in the scene.
+		raycaster.camera = camRef;
 	});
 
 	function confirmTarget(username: string) {
