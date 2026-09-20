@@ -1,0 +1,476 @@
+[
+  {
+    "id": "red_0",
+    "title": "Red 0",
+    "face": { "kind": "text", "color": "red", "label": "0", "art_version": 1 },
+    "tags": ["colored", "numbered", "red", "zero"]
+  },
+  {
+    "id": "red_1",
+    "title": "Red 1",
+    "face": { "kind": "text", "color": "red", "label": "1", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_2",
+    "title": "Red 2",
+    "face": { "kind": "text", "color": "red", "label": "2", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_3",
+    "title": "Red 3",
+    "face": { "kind": "text", "color": "red", "label": "3", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_4",
+    "title": "Red 4",
+    "face": { "kind": "text", "color": "red", "label": "4", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_5",
+    "title": "Red 5",
+    "face": { "kind": "text", "color": "red", "label": "5", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_6",
+    "title": "Red 6",
+    "face": { "kind": "text", "color": "red", "label": "6", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_7",
+    "title": "Red 7",
+    "face": { "kind": "text", "color": "red", "label": "7", "art_version": 1 },
+    "tags": ["colored", "numbered", "red", "seven"]
+  },
+  {
+    "id": "red_8",
+    "title": "Red 8",
+    "face": { "kind": "text", "color": "red", "label": "8", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_9",
+    "title": "Red 9",
+    "face": { "kind": "text", "color": "red", "label": "9", "art_version": 1 },
+    "tags": ["colored", "numbered", "red"]
+  },
+  {
+    "id": "red_skip",
+    "title": "Red Skip",
+    "face": { "kind": "text", "color": "red", "label": "skip", "art_version": 1 },
+    "tags": ["colored", "action", "red", "skip"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "red_reverse",
+    "title": "Red Reverse",
+    "face": { "kind": "text", "color": "red", "label": "reverse", "art_version": 1 },
+    "tags": ["colored", "action", "red", "reverse"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "reverse_direction", "args": {} }
+        ]
+      }
+    }
+  },
+  {
+    "id": "red_draw2",
+    "title": "Red Draw Two",
+    "face": { "kind": "text", "color": "red", "label": "+2", "art_version": 1 },
+    "tags": ["colored", "action", "red", "draw_penalty", "stackable"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "draw_cards",
+            "args": { "target": "@next_player", "n": 2 },
+            "next": "n2"
+          },
+          { "id": "n2", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "blue_0",
+    "title": "Blue 0",
+    "face": { "kind": "text", "color": "blue", "label": "0", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue", "zero"]
+  },
+  {
+    "id": "blue_1",
+    "title": "Blue 1",
+    "face": { "kind": "text", "color": "blue", "label": "1", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_2",
+    "title": "Blue 2",
+    "face": { "kind": "text", "color": "blue", "label": "2", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_3",
+    "title": "Blue 3",
+    "face": { "kind": "text", "color": "blue", "label": "3", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_4",
+    "title": "Blue 4",
+    "face": { "kind": "text", "color": "blue", "label": "4", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_5",
+    "title": "Blue 5",
+    "face": { "kind": "text", "color": "blue", "label": "5", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_6",
+    "title": "Blue 6",
+    "face": { "kind": "text", "color": "blue", "label": "6", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_7",
+    "title": "Blue 7",
+    "face": { "kind": "text", "color": "blue", "label": "7", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue", "seven"]
+  },
+  {
+    "id": "blue_8",
+    "title": "Blue 8",
+    "face": { "kind": "text", "color": "blue", "label": "8", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_9",
+    "title": "Blue 9",
+    "face": { "kind": "text", "color": "blue", "label": "9", "art_version": 1 },
+    "tags": ["colored", "numbered", "blue"]
+  },
+  {
+    "id": "blue_skip",
+    "title": "Blue Skip",
+    "face": { "kind": "text", "color": "blue", "label": "skip", "art_version": 1 },
+    "tags": ["colored", "action", "blue", "skip"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "blue_reverse",
+    "title": "Blue Reverse",
+    "face": { "kind": "text", "color": "blue", "label": "reverse", "art_version": 1 },
+    "tags": ["colored", "action", "blue", "reverse"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "reverse_direction", "args": {} }
+        ]
+      }
+    }
+  },
+  {
+    "id": "blue_draw2",
+    "title": "Blue Draw Two",
+    "face": { "kind": "text", "color": "blue", "label": "+2", "art_version": 1 },
+    "tags": ["colored", "action", "blue", "draw_penalty", "stackable"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "draw_cards",
+            "args": { "target": "@next_player", "n": 2 },
+            "next": "n2"
+          },
+          { "id": "n2", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "green_0",
+    "title": "Green 0",
+    "face": { "kind": "text", "color": "green", "label": "0", "art_version": 1 },
+    "tags": ["colored", "numbered", "green", "zero"]
+  },
+  {
+    "id": "green_1",
+    "title": "Green 1",
+    "face": { "kind": "text", "color": "green", "label": "1", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_2",
+    "title": "Green 2",
+    "face": { "kind": "text", "color": "green", "label": "2", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_3",
+    "title": "Green 3",
+    "face": { "kind": "text", "color": "green", "label": "3", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_4",
+    "title": "Green 4",
+    "face": { "kind": "text", "color": "green", "label": "4", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_5",
+    "title": "Green 5",
+    "face": { "kind": "text", "color": "green", "label": "5", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_6",
+    "title": "Green 6",
+    "face": { "kind": "text", "color": "green", "label": "6", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_7",
+    "title": "Green 7",
+    "face": { "kind": "text", "color": "green", "label": "7", "art_version": 1 },
+    "tags": ["colored", "numbered", "green", "seven"]
+  },
+  {
+    "id": "green_8",
+    "title": "Green 8",
+    "face": { "kind": "text", "color": "green", "label": "8", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_9",
+    "title": "Green 9",
+    "face": { "kind": "text", "color": "green", "label": "9", "art_version": 1 },
+    "tags": ["colored", "numbered", "green"]
+  },
+  {
+    "id": "green_skip",
+    "title": "Green Skip",
+    "face": { "kind": "text", "color": "green", "label": "skip", "art_version": 1 },
+    "tags": ["colored", "action", "green", "skip"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "green_reverse",
+    "title": "Green Reverse",
+    "face": { "kind": "text", "color": "green", "label": "reverse", "art_version": 1 },
+    "tags": ["colored", "action", "green", "reverse"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "reverse_direction", "args": {} }
+        ]
+      }
+    }
+  },
+  {
+    "id": "green_draw2",
+    "title": "Green Draw Two",
+    "face": { "kind": "text", "color": "green", "label": "+2", "art_version": 1 },
+    "tags": ["colored", "action", "green", "draw_penalty", "stackable"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "draw_cards",
+            "args": { "target": "@next_player", "n": 2 },
+            "next": "n2"
+          },
+          { "id": "n2", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "yellow_0",
+    "title": "Yellow 0",
+    "face": { "kind": "text", "color": "yellow", "label": "0", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow", "zero"]
+  },
+  {
+    "id": "yellow_1",
+    "title": "Yellow 1",
+    "face": { "kind": "text", "color": "yellow", "label": "1", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_2",
+    "title": "Yellow 2",
+    "face": { "kind": "text", "color": "yellow", "label": "2", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_3",
+    "title": "Yellow 3",
+    "face": { "kind": "text", "color": "yellow", "label": "3", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_4",
+    "title": "Yellow 4",
+    "face": { "kind": "text", "color": "yellow", "label": "4", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_5",
+    "title": "Yellow 5",
+    "face": { "kind": "text", "color": "yellow", "label": "5", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_6",
+    "title": "Yellow 6",
+    "face": { "kind": "text", "color": "yellow", "label": "6", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_7",
+    "title": "Yellow 7",
+    "face": { "kind": "text", "color": "yellow", "label": "7", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow", "seven"]
+  },
+  {
+    "id": "yellow_8",
+    "title": "Yellow 8",
+    "face": { "kind": "text", "color": "yellow", "label": "8", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_9",
+    "title": "Yellow 9",
+    "face": { "kind": "text", "color": "yellow", "label": "9", "art_version": 1 },
+    "tags": ["colored", "numbered", "yellow"]
+  },
+  {
+    "id": "yellow_skip",
+    "title": "Yellow Skip",
+    "face": { "kind": "text", "color": "yellow", "label": "skip", "art_version": 1 },
+    "tags": ["colored", "action", "yellow", "skip"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "yellow_reverse",
+    "title": "Yellow Reverse",
+    "face": { "kind": "text", "color": "yellow", "label": "reverse", "art_version": 1 },
+    "tags": ["colored", "action", "yellow", "reverse"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          { "id": "n1", "op": "reverse_direction", "args": {} }
+        ]
+      }
+    }
+  },
+  {
+    "id": "yellow_draw2",
+    "title": "Yellow Draw Two",
+    "face": { "kind": "text", "color": "yellow", "label": "+2", "art_version": 1 },
+    "tags": ["colored", "action", "yellow", "draw_penalty", "stackable"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "draw_cards",
+            "args": { "target": "@next_player", "n": 2 },
+            "next": "n2"
+          },
+          { "id": "n2", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  },
+  {
+    "id": "wild",
+    "title": "Wild",
+    "face": { "kind": "text", "color": "white", "label": "jolly", "art_version": 1 },
+    "tags": ["wild", "action"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "prompt",
+            "args": { "kind": "choose_color", "target": "@self" },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "set_active_type",
+            "args": { "from_prompt": "n1" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "wild_draw4",
+    "title": "Wild Draw Four",
+    "face": { "kind": "text", "color": "white", "label": "jolly_draw4", "art_version": 1 },
+    "tags": ["wild", "wild_draw4", "action", "draw_penalty", "stackable"],
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "prompt",
+            "args": { "kind": "choose_color", "target": "@self" },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "set_active_type",
+            "args": { "from_prompt": "n1" },
+            "next": "n3"
+          },
+          {
+            "id": "n3",
+            "op": "draw_cards",
+            "args": { "target": "@next_player", "n": 4 },
+            "next": "n4"
+          },
+          { "id": "n4", "op": "skip_turn", "args": { "target": "@next_player" } }
+        ]
+      }
+    }
+  }
+]
