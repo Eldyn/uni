@@ -210,34 +210,162 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     const LoadedMod* seven = find_mod("seven_zero");
     REQUIRE(seven != nullptr);
     REQUIRE(seven->rules.size() == 1);
-    CHECK(seven->rules.front().hooks.size() == 2);
+    REQUIRE(seven->rules.front().hooks.size() == 2);
     std::set<std::string> seven_tags;
+    bool seven_zero_rotates = false;
+    bool seven_zero_swaps = false;
     for (const auto& hook : seven->rules.front().hooks) {
-        if (!hook.where) continue;
-        const auto top = hook.where->find("top_of_discard");
-        if (top == hook.where->end() || !top->is_object()) continue;
-        const auto tag = top->find("tag");
-        if (tag != top->end() && tag->is_string()) {
-            seven_tags.insert(tag->get<std::string>());
+        if (hook.where) {
+            const auto top = hook.where->find("top_of_discard");
+            if (top != hook.where->end() && top->is_object()) {
+                const auto tag = top->find("tag");
+                if (tag != top->end() && tag->is_string()) {
+                    seven_tags.insert(tag->get<std::string>());
+                }
+            }
         }
+        bool graph_has_branch = false;
+        bool graph_has_pass = false;
+        bool graph_has_swap = false;
+        for (const auto& node : hook.graph.nodes) {
+            if (!node.is_object()) continue;
+            if (node.contains("cases")) graph_has_branch = true;
+            const std::string op = node.value("op", "");
+            if (op == "pass_hands") graph_has_pass = true;
+            if (op == "swap_hands") {
+                const auto args = node.find("args");
+                if (args != node.end() && args->is_object()
+                    && args->value("a", "") == "@self"
+                    && args->value("b", "") == "@choose_player") {
+                    graph_has_swap = true;
+                }
+            }
+        }
+        if (graph_has_branch && graph_has_pass) seven_zero_rotates = true;
+        if (graph_has_swap) seven_zero_swaps = true;
     }
     CHECK(seven_tags.count("zero") == 1);
     CHECK(seven_tags.count("seven") == 1);
+    CHECK_MESSAGE(seven_zero_rotates,
+                  "seven_zero 0-card branch does not rotate hands");
+    CHECK_MESSAGE(seven_zero_swaps,
+                  "seven_zero 7-card hook does not swap with @choose_player");
 
     /* INFO: draw_stacking is authored as a response-window rule
-     *       not as a pending_draws ValidatePlay hook. */
+     *       not as a pending_draws ValidatePlay hook. Assert the window fields
+     *       and that its routes are the expressible debt half (append on the
+     *       response route, clear on the default route). */
     const LoadedMod* stacking = find_mod("draw_stacking");
     REQUIRE(stacking != nullptr);
-    bool has_window = false;
+    bool stacking_window = false;
+    bool stacking_response_applies = false;
+    bool stacking_default_clears = false;
     for (const auto& rule : stacking->rules) {
         for (const auto& hook : rule.hooks) {
+            if (hook.hook != "after:play") continue;
             for (const auto& node : hook.graph.nodes) {
-                if (node.is_object() && node.contains("window")) {
-                    has_window = true;
+                if (!node.is_object() || !node.contains("window")) continue;
+                const auto& window = node["window"];
+                if (!window.is_object()) continue;
+                if (window.value("responders", "") == "@others"
+                    && window.value("duration", "") == "env") {
+                    stacking_window = true;
+                }
+                const auto on_response = node.find("on_response");
+                if (on_response == node.end() || !on_response->is_object()) {
+                    continue;
+                }
+                for (auto it = on_response->begin();
+                     it != on_response->end(); ++it) {
+                    if (!it.value().is_string()) continue;
+                    for (const auto& target : hook.graph.nodes) {
+                        if (!target.is_object()) continue;
+                        if (target.value("id", "")
+                            != it.value().get<std::string>()) {
+                            continue;
+                        }
+                        if (target.value("op", "") == "apply_status") {
+                            const auto args = target.find("args");
+                            if (args != target.end() && args->is_object()
+                                && args->value("status_kind", "")
+                                       == "vanilla:draw_debt") {
+                                stacking_response_applies = true;
+                            }
+                        }
+                    }
+                }
+                const std::string def = node.value("default", "");
+                for (const auto& target : hook.graph.nodes) {
+                    if (!target.is_object()) continue;
+                    if (target.value("id", "") != def) continue;
+                    if (target.value("op", "") != "remove_status") continue;
+                    const auto args = target.find("args");
+                    if (args != target.end() && args->is_object()
+                        && args->value("status_kind", "")
+                               == "vanilla:draw_debt") {
+                        stacking_default_clears = true;
+                    }
                 }
             }
         }
     }
-    CHECK_MESSAGE(has_window,
-                  "draw_stacking does not declare a window node");
+    CHECK_MESSAGE(stacking_window,
+                  "draw_stacking window missing @others/env fields");
+    CHECK_MESSAGE(stacking_response_applies,
+                  "draw_stacking response route does not append draw_debt");
+    CHECK_MESSAGE(stacking_default_clears,
+                  "draw_stacking default route does not clear draw_debt");
+
+    /* INFO: jump_in keeps the allow entry and adds a
+     *       response window whose on_response route redirects the turn to the
+     *       jumper (legacy jump_in.cpp:22-31). */
+    const LoadedMod* jump = find_mod("jump_in");
+    REQUIRE(jump != nullptr);
+    bool jump_redirects = false;
+    for (const auto& rule : jump->rules) {
+        for (const auto& hook : rule.hooks) {
+            if (hook.hook != "after:play") continue;
+            for (const auto& node : hook.graph.nodes) {
+                if (!node.is_object() || !node.contains("window")
+                    || !node.contains("on_response")) {
+                    continue;
+                }
+                const auto& mapping = node["on_response"];
+                if (!mapping.is_object()) continue;
+                for (auto it = mapping.begin(); it != mapping.end(); ++it) {
+                    if (!it.value().is_string()) continue;
+                    for (const auto& target : hook.graph.nodes) {
+                        if (!target.is_object()) continue;
+                        if (target.value("id", "")
+                            != it.value().get<std::string>()) {
+                            continue;
+                        }
+                        if (target.value("op", "") != "redirect_turn") {
+                            continue;
+                        }
+                        const auto args = target.find("args");
+                        if (args != target.end() && args->is_object()
+                            && args->value("target", "") == "@responder") {
+                            jump_redirects = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    CHECK_MESSAGE(jump_redirects,
+                  "jump_in response route does not redirect_turn(@responder)");
+
+    /* INFO: KNOWN GAPS. progressive and
+     *       force_play are declared for identity/activation only and ship no
+     *       graph. If a future fix authors hooks for them, this assertion
+     *       fails loudly so the known-gap list is updated. */
+    for (const char* id : {"progressive", "force_play"}) {
+        const LoadedMod* gap = find_mod(id);
+        REQUIRE_MESSAGE(gap != nullptr, "known-gap mod '" << id << "' missing");
+        REQUIRE(gap->rules.size() == 1);
+        CHECK_MESSAGE(gap->rules.front().hooks.empty(),
+                      "known gap '" << id << "' now has hooks; update the "
+                      "known-gap list and add content assertions");
+    }
 }
