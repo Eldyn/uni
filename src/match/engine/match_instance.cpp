@@ -16,12 +16,14 @@
 
 /**
  * @file match_instance.cpp
- * @brief Engine `MatchInstance` implementation (
- * ).
+ * @brief Engine `MatchInstance` implementation.
  *
- * The engine default play / draw / turn advance / win are implemented here
- * directly. Hook dispatch and Resolver graph draining are intentionally left
- * as documented seams; windows and prompts.
+ * The engine implemented the engine default play / draw / turn advance / win
+ * directly. The engine wraps every step in the EventBus hook dispatch,
+ * drains the played card's behavior graphs through the Resolver (op events
+ * into the ordered per-match log, `kNeedsInput` pauses resumed by
+ * `SubmitInput`), bridges op events to their observation hooks and runs the
+ *  must-apply auto cards. Windows and the full prompt UX stay the engine.
  */
 
 namespace match::engine {
@@ -62,6 +64,27 @@ std::string PlayerUsername(const ecs::EntityStore& store,
     return info == nullptr ? std::string() : info->username;
 }
 
+/** @brief Parse a `{index, generation}` entity handle from JSON. */
+std::optional<ecs::Entity> EntityFromJson(const json& value) {
+    if (value.is_number_unsigned()) {
+        ecs::Entity entity;
+        entity.index = value.get<uint32_t>();
+        return entity;
+    }
+    if (!value.is_object()) return std::nullopt;
+    const auto index = value.find("index");
+    if (index == value.end() || !index->is_number_unsigned()) {
+        return std::nullopt;
+    }
+    ecs::Entity entity;
+    entity.index = index->get<uint32_t>();
+    const auto generation = value.find("generation");
+    if (generation != value.end() && generation->is_number_unsigned()) {
+        entity.generation = generation->get<uint32_t>();
+    }
+    return entity;
+}
+
 }  // namespace
 
 // --- construction / start --------------------------------------------------
@@ -93,14 +116,25 @@ void MatchInstance::Start() {
         }
     }
 
-    // TODO: dispatch before/after `turn_start` (and `round_start` for
-    //               round 0) here once the EventBus hook path is wired.
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    if (!current.has_value()) return;
+
+    // INFO: round 0 opens at match start; `match_start` itself was dispatched
+    //       by assembly and must not be re-fired.
+    json round = json{{"round", 0}};
+    Before("round_start", round);
+    After("round_start", round);
+
+    json turn = json{{"player", EntityJson(*current)}};
+    Before("turn_start", turn);
+    After("turn_start", turn);
 }
 
 // --- input flow ------------------------------------------------------------
 
 bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
-    if (!started_ || finished_) return false;
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (Paused()) return false;
 
     ecs::EntityStore& store = assembly_->store;
     MatchRegistries& registries = assembly_->registries;
@@ -191,16 +225,32 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
         return false;
     }
 
-    // --- engine default play ------------------------------------------
+    // --: before:play -> engine default -> after:play -------------
     const std::string kind_id = attempt.card_kind;
     const json from_zone =
         ZoneJson(ecs::ZoneRef{ecs::ZoneKind::kHand, *player});
     const json to_zone =
         ZoneJson(ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
 
+    json play_data = json{{"card", EntityJson(card)},
+                          {"player", EntityJson(*player)},
+                          {"from", from_zone}};
+
+    // INFO: a `before:play` veto cancels the engine default entirely; the
+    //       mod graph owns the outcome, so neither the move nor `after:play`
+    //       runs (which would otherwise re-run the card's behavior).
+    if (Before("play", play_data)) return true;
+
+    json zone_data = json{{"card", EntityJson(card)},
+                          {"from", from_zone},
+                          {"to", to_zone}};
+    Before("card_left_zone", zone_data);
+    Before("card_entered_zone", zone_data);
     ops::MoveCardToZone(store, card,
                         ecs::ZoneRef{ecs::ZoneKind::kDiscardPile,
                                      ecs::Entity{}});
+    After("card_left_zone", zone_data);
+    After("card_entered_zone", zone_data);
 
     Emit("card_left_zone", json{{"card", EntityJson(card)},
                                 {"from", from_zone},
@@ -228,22 +278,34 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
         }
     }
 
-    // TODO: dispatch before/after `play` and run the played card's
-    //               behavior graph through the Resolver before settling.
-    // TODO: dispatch the veto-capable `hand_empty` / `win_check` hooks
-    //               before applying the default win.
-
-    const ecs::Hand* after = store.Get<ecs::Hand>(*player);
-    if (after != nullptr && after->cards.empty()) {
-        DeclareHandEmptyWin(*player);
-    } else {
-        AdvanceTurn();
+    // INFO: `after:play` is the resolver drain point for the played card's
+    //       behavior graph. A pause stops the flow for SubmitInput.
+    After("play", play_data);
+    if (Paused()) {
+        if (pending_input_.has_value()) {
+            pending_input_->settle_play = true;
+            pending_input_->actor = *player;
+        }
+        return true;
     }
+
+    // INFO: Must-apply auto cards fire before a window would open.
+    RunMustApply("play");
+    if (Paused()) {
+        if (pending_input_.has_value()) {
+            pending_input_->settle_play = true;
+            pending_input_->actor = *player;
+        }
+        return true;
+    }
+
+    SettleAfterPlay(*player);
     return true;
 }
 
 bool MatchInstance::DrawCard(const std::string& username) {
-    if (!started_ || finished_) return false;
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (Paused()) return false;
 
     ecs::EntityStore& store = assembly_->store;
     MatchRegistries& registries = assembly_->registries;
@@ -253,9 +315,16 @@ bool MatchInstance::DrawCard(const std::string& username) {
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value() || !(*current == *player)) return false;
 
-    // TODO: dispatch the veto-capable `draw_attempt` hook per card and
-    //               the `draw` hook after it lands; the engine owns draw
-    //               stacking.
+    // --- draw_attempt: a before-veto skips this draw ----------------------
+    json attempt = json{{"player", EntityJson(*player)},
+                        {"source", "draw_pile"}};
+    const bool skip = Before("draw_attempt", attempt);
+    After("draw_attempt", attempt);
+    if (skip || Paused()) {
+        if (!Paused()) AdvanceTurn();
+        return true;
+    }
+
     const ecs::PileContents* draw =
         store.Get<ecs::PileContents>(registries.draw_pile);
     if (draw == nullptr) return false;
@@ -268,11 +337,25 @@ bool MatchInstance::DrawCard(const std::string& username) {
         card = ops::DrawTop(store, registries.draw_pile);
         if (!card.has_value()) return false;
     }
+
+    // --- draw: the before-veto is an undo, so it fires before the move ----
+    json draw_data = json{{"card", EntityJson(*card)},
+                          {"player", EntityJson(*player)}};
+    const bool undo = Before("draw", draw_data);
+    if (undo) {
+        ops::MoveCardToZone(store, *card,
+                            ecs::ZoneRef{ecs::ZoneKind::kDrawPile,
+                                         ecs::Entity{}});
+        After("draw", draw_data);
+        if (!Paused()) AdvanceTurn();
+        return true;
+    }
     if (!ops::MoveCardToZone(
             store, *card,
             ecs::ZoneRef{ecs::ZoneKind::kHand, *player})) {
         return false;
     }
+    After("draw", draw_data);
 
     Emit("cards_drawn", json{{"player", username},
                              {"count", 1},
@@ -281,16 +364,47 @@ bool MatchInstance::DrawCard(const std::string& username) {
     // INFO: the drawn-card play decision (legacy DecideDrawnCard /
     //       progressive / force_play) is a seam; this slice always
     //       passes the turn after the draw.
-    AdvanceTurn();
+    if (!Paused()) AdvanceTurn();
     return true;
 }
 
 bool MatchInstance::SubmitInput(const std::string& username,
                                 const nlohmann::json& value) {
-    (void)username;
-    (void)value;
-    // TODO: bind a window/prompt response and resume the Resolver.
-    return false;
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (!pending_input_.has_value()) return false;
+
+    InputPause pending = std::move(*pending_input_);
+    pending_input_.reset();
+
+    // INFO: when the op asked a specific player, only that player may answer.
+    if (pending.has_target) {
+        const ecs::PlayerInfo* info =
+            assembly_->store.Get<ecs::PlayerInfo>(pending.target);
+        if (info != nullptr && !info->username.empty()
+            && info->username != username) {
+            pending_input_ = std::move(pending);
+            return false;
+        }
+    }
+
+    if (pending.system_index >= assembly_->systems.size()) {
+        // INFO: an auto-trigger graph pause has no subscribed system to
+        //       resume from here; the engine owns the window/prompt
+        //       continuation.
+        return false;
+    }
+    const modload::BehaviorGraph& graph =
+        assembly_->systems[pending.system_index].graph;
+
+    ops::ResolutionFrame frame = pending.frame;
+    const resolver::ResolveResult result = assembly_->resolver->ResumeInput(
+        graph, pending.mod_id, pending.context, frame, pending.pause,
+        value);
+
+    AppendResult(result, pending.system_index, pending.mod_id,
+                 pending.context, frame, pending.settle_play,
+                 pending.actor);
+    return true;
 }
 
 // --- tick / round boundary -------------------------------------------------
@@ -309,7 +423,15 @@ void MatchInstance::Tick() {
     const uint32_t round =
         static_cast<uint32_t>(turns_elapsed_ / player_count);
     if (round > meta->round) {
+        json end_data = json{{"round", meta->round}};
+        Before("round_end", end_data);
+        After("round_end", end_data);
+
         meta->round = round;
+
+        json start_data = json{{"round", round}};
+        Before("round_start", start_data);
+        After("round_start", start_data);
         Emit("round_advance", json{{"round", round}});
     }
 
@@ -323,6 +445,14 @@ void MatchInstance::Tick() {
 void MatchInstance::AdvanceTurn() {
     const std::optional<ecs::Entity> before = CurrentPlayer();
 
+    // INFO: A `before:turn_end` veto grants an extra turn, so the
+    //       advance op is skipped and the same player stays current.
+    if (before.has_value()) {
+        json end_data = json{{"player", EntityJson(*before)}};
+        if (Before("turn_end", end_data)) return;
+        if (Paused()) return;
+    }
+
     // INFO: Reuse the `advance_turn` op so the direction / extra-turn /
     //       one-shot-skip bookkeeping exists in exactly one place.
     ops::ResolutionFrame frame;
@@ -334,12 +464,22 @@ void MatchInstance::AdvanceTurn() {
         events_.push_back(std::move(event));
     }
 
+    if (before.has_value()) {
+        json end_data = json{{"player", EntityJson(*before)}};
+        After("turn_end", end_data);
+    }
+
     // INFO: only a real seat change counts toward a round; an extra turn
     //       replays the same player (the op's `from == to`) and does not.
     const std::optional<ecs::Entity> after = CurrentPlayer();
     if (before.has_value() && after.has_value()
         && !(*before == *after)) {
         ++turns_elapsed_;
+    }
+    if (after.has_value()) {
+        json start_data = json{{"player", EntityJson(*after)}};
+        Before("turn_start", start_data);
+        After("turn_start", start_data);
     }
 }
 
@@ -353,9 +493,21 @@ bool MatchInstance::ReshuffleDiscardIntoDraw() {
         store.Get<ecs::PileContents>(registries.discard_pile);
     if (discard == nullptr || discard->cards.size() <= 1) return false;
 
+    // INFO: `pile_empty` fires when the draw pile is exhausted; a
+    //       before-veto blocks the reshuffle (e.g. a stalemate rule).
+    json empty_data = json{{"pile", "draw_pile"}};
+    const bool blocked = Before("pile_empty", empty_data);
+    After("pile_empty", empty_data);
+    if (blocked) return false;
+
     const ecs::Entity top = discard->cards.back();
     std::vector<ecs::Entity> moved(discard->cards.begin(),
                                    discard->cards.end() - 1);
+
+    json shuffle_before = json{{"draw_size", 0},
+                               {"discard_size", discard->cards.size()}};
+    Before("shuffle", shuffle_before);
+
     for (ecs::Entity card : moved) {
         ops::MoveCardToZone(
             store, card,
@@ -365,8 +517,14 @@ bool MatchInstance::ReshuffleDiscardIntoDraw() {
 
     const ecs::PileContents* draw =
         store.Get<ecs::PileContents>(registries.draw_pile);
+    const std::size_t draw_size =
+        draw == nullptr ? 0 : draw->cards.size();
+    json shuffle_after = json{{"draw_size", draw_size},
+                              {"discard_size", 1}};
+    After("shuffle", shuffle_after);
+
     Emit("reshuffle",
-         json{{"draw_size", draw == nullptr ? 0 : draw->cards.size()},
+         json{{"draw_size", draw_size},
               {"discard_size", discard->cards.size()}});
     return true;
 }
@@ -400,6 +558,66 @@ void MatchInstance::ShuffleDrawPile() {
 
 // --- win / placement -------------------------------------------------------
 
+void MatchInstance::SettleAfterPlay(ecs::Entity player) {
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::Hand* after = store.Get<ecs::Hand>(player);
+    if (after != nullptr && !after->cards.empty()) {
+        AdvanceTurn();
+        return;
+    }
+
+    // INFO: `hand_empty` before-veto blocks the default win.
+    json hand_data = json{{"player", EntityJson(player)}};
+    const bool block_hand = Before("hand_empty", hand_data);
+    After("hand_empty", hand_data);
+    if (Paused()) {
+        if (pending_input_.has_value()) {
+            pending_input_->settle_play = true;
+            pending_input_->actor = player;
+        }
+        return;
+    }
+    if (block_hand) {
+        AdvanceTurn();
+        return;
+    }
+
+    // INFO: `win_check` before-veto blocks the default; a non-null rewrite of
+    //       `data.player` declares a different finisher, null blocks it.
+    json win_data = json{{"player", EntityJson(player)}};
+    const bool block_win = Before("win_check", win_data);
+    After("win_check", win_data);
+    if (Paused()) {
+        if (pending_input_.has_value()) {
+            pending_input_->settle_play = true;
+            pending_input_->actor = player;
+        }
+        return;
+    }
+
+    std::optional<ecs::Entity> winner = player;
+    if (win_data.is_object()) {
+        const auto it = win_data.find("player");
+        if (it != win_data.end()) {
+            if (it->is_null()) {
+                winner = std::nullopt;
+            } else if (const std::optional<ecs::Entity> rewritten =
+                           EntityFromJson(*it);
+                       rewritten.has_value()) {
+                winner = rewritten;
+            }
+            // WARN: a malformed non-null rewrite keeps the default candidate.
+        }
+    }
+
+    if (block_win || !winner.has_value() || !store.IsAlive(*winner)
+        || !store.Has<ecs::PlayerInfo>(*winner)) {
+        AdvanceTurn();
+        return;
+    }
+    DeclareHandEmptyWin(*winner);
+}
+
 void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
     ecs::EntityStore& store = assembly_->store;
     MatchRegistries& registries = assembly_->registries;
@@ -417,8 +635,342 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
     Emit("placement",
          json{{"player", PlayerUsername(store, player)}, {"place", place}});
 
-    // TODO: emit `match_end` and dispatch the `match_end` hooks once
-    //               the hook path owns the settle step.
+    // INFO: `match_end` closes the match. The settings snapshot is not
+    //       retained by the engine assembly yet (TODO: carry `deck.settings` on
+    //       the assembly), so the payload is an empty object for now.
+    json end_data = json{{"settings", json::object()}};
+    Before("match_end", end_data);
+    After("match_end", end_data);
+    Emit("match_end", end_data);
+}
+
+// --- the engine hook / resolver path
+// -------------------------------------------
+
+bool MatchInstance::Paused() const {
+    return pending_input_.has_value() || pending_window_.has_value();
+}
+
+bool MatchInstance::Before(const char* name, nlohmann::json& data) {
+    if (assembly_ == nullptr) return false;
+    ecs::HookPayload payload;
+    payload.hook = ecs::HookId{name, ecs::HookPhase::kBefore};
+    payload.data = std::move(data);
+    const ecs::HookDispatchResult result =
+        assembly_->bus.DispatchBefore(payload.hook, payload);
+    data = std::move(payload.data);
+    CollectRuns();
+    return result.vetoed;
+}
+
+void MatchInstance::After(const char* name, const nlohmann::json& data) {
+    if (assembly_ == nullptr) return;
+    ecs::HookPayload payload;
+    payload.hook = ecs::HookId{name, ecs::HookPhase::kAfter};
+    payload.data = data;
+    assembly_->bus.DispatchAfter(payload.hook, payload);
+    CollectRuns();
+}
+
+void MatchInstance::CollectRuns() {
+    if (assembly_ == nullptr || collecting_runs_) return;
+    collecting_runs_ = true;
+
+    while (collected_runs_ < assembly_->runs.size()) {
+        const HookRun run = assembly_->runs[collected_runs_++];
+
+        for (const json& event : run.events) {
+            events_.push_back(event);
+            BridgeRunEvent(event);
+        }
+
+        if (run.status == resolver::ResolveStatus::kNeedsInput
+            && run.input_request.has_value()) {
+            if (!pending_input_.has_value()) {
+                InputPause pending;
+                pending.target =
+                    run.input_request->target.value_or(ecs::Entity{});
+                pending.has_target = run.input_request->target.has_value();
+                pending.kind = run.input_request->kind;
+                pending.payload = run.input_request->payload;
+                pending.pause.status = run.status;
+                pending.pause.input_request = run.input_request;
+                pending.pause.resume = run.resume;
+                pending.context = run.context;
+                pending.system_index = run.system_index;
+                pending.mod_id = run.mod_id;
+                pending_input_ = std::move(pending);
+            }
+        } else if (run.status == resolver::ResolveStatus::kWindow
+                   && run.window.has_value()) {
+            // INFO: Must-apply auto cards fire before a window
+            //       would open; the engine then owns the window lifecycle.
+            RunMustApply("window");
+            if (!pending_window_.has_value()
+                && !pending_input_.has_value()) {
+                WindowPause window;
+                window.request = *run.window;
+                window.pause.status = run.status;
+                window.pause.resume = run.resume;
+                window.context = run.context;
+                window.system_index = run.system_index;
+                window.mod_id = run.mod_id;
+                pending_window_ = std::move(window);
+            }
+        }
+
+        // INFO: `effect_applied` observes a resolved op graph. The engine
+        //       reports the run's source as the op summary; per-op node
+        //       granularity would need the Resolver to surface it.
+        if (run.hook.name != "effect_applied") {
+            json effect = json{{"op", run.source_id},
+                               {"mod", run.mod_id},
+                               {"hook", run.hook.name},
+                               {"args", json::object()},
+                               {"targets", json::array()}};
+            After("effect_applied", effect);
+        }
+    }
+
+    collecting_runs_ = false;
+}
+
+void MatchInstance::BridgeRunEvent(const nlohmann::json& event) {
+    if (!event.is_object()) return;
+    const std::string type = event.value("type", std::string());
+    const json payload =
+        event.contains("payload") ? event["payload"] : json::object();
+
+    // INFO: op-emitted events map onto their observation hooks so mod
+    //       systems can react without the ops re-implementing dispatch.
+    if (type == "status_applied" || type == "status_removed"
+        || type == "visibility_granted" || type == "visibility_revoked") {
+        json data = payload;
+        Before(type.c_str(), data);
+        After(type.c_str(), data);
+        return;
+    }
+    if (type == "roll_result") {
+        json data = json{{"spec", payload.contains("spec")
+                                      ? payload["spec"]
+                                      : json::object()},
+                         {"outcome", payload.contains("outcomes")
+                                         ? payload["outcomes"]
+                                         : json()}};
+        Before("roll", data);
+        After("roll", data);
+    }
+}
+
+void MatchInstance::RunMustApply(const char* trigger) {
+    (void)trigger;
+    if (assembly_ == nullptr || must_apply_active_ || Paused()) return;
+    must_apply_active_ = true;
+
+    const uint32_t cap = assembly_->resolver->Config().must_apply_cap;
+    std::vector<ecs::Entity> played;
+    for (uint32_t depth = 0; depth < cap; ++depth) {
+        const std::optional<ecs::Entity> card = FindMustApplyCard(played);
+        if (!card.has_value()) break;
+        played.push_back(*card);
+        if (!AutoPlayCard(*card, trigger)) break;
+        if (Paused()) break;
+    }
+
+    must_apply_active_ = false;
+}
+
+std::optional<ecs::Entity> MatchInstance::FindMustApplyCard(
+    const std::vector<ecs::Entity>& played) {
+    ecs::EntityStore& store = assembly_->store;
+    for (ecs::Entity card : store.EntitiesWith<ecs::AutoTrigger>()) {
+        if (!store.IsAlive(card)) continue;
+        if (std::find(played.begin(), played.end(), card) != played.end()) {
+            continue;
+        }
+        if (AutoConditionMatches(card)) return card;
+    }
+    return std::nullopt;
+}
+
+bool MatchInstance::AutoConditionMatches(ecs::Entity card) {
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::AutoTrigger* trigger = store.Get<ecs::AutoTrigger>(card);
+    if (trigger == nullptr || !trigger->must_apply) return false;
+    if (trigger->condition.is_null()) return false;
+
+    resolver::SelectorContext context;
+    context.card = card;
+    context.in_card_context = true;
+    if (const ecs::InZone* zone = store.Get<ecs::InZone>(card);
+        zone != nullptr && zone->zone.kind == ecs::ZoneKind::kHand) {
+        context.self = zone->zone.owner;
+    } else {
+        context.self = CurrentPlayer();
+    }
+
+    ops::ResolutionFrame frame;
+    BindConditionSelectors(context, frame);
+    ops::OpContext ctx(assembly_->bus, assembly_->budget, frame);
+    return assembly_->conditions.Evaluate(store, trigger->condition, ctx);
+}
+
+bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::AutoTrigger* auto_trigger = store.Get<ecs::AutoTrigger>(card);
+    if (auto_trigger == nullptr) return false;
+
+    std::optional<ecs::Entity> owner;
+    const std::optional<ecs::ZoneRef> zone = ops::FindCardZone(store, card);
+    if (zone.has_value() && zone->kind == ecs::ZoneKind::kHand) {
+        owner = zone->owner;
+    } else {
+        owner = CurrentPlayer();
+    }
+
+    const json from_zone = zone.has_value() ? ZoneJson(*zone)
+                                            : json(nullptr);
+    const json to_zone =
+        ZoneJson(ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+    const json player_json =
+        owner.has_value() ? EntityJson(*owner) : json(nullptr);
+
+    json zone_data = json{{"card", EntityJson(card)},
+                          {"from", from_zone},
+                          {"to", to_zone}};
+    Before("card_left_zone", zone_data);
+    Before("card_entered_zone", zone_data);
+    ops::MoveCardToZone(store, card,
+                        ecs::ZoneRef{ecs::ZoneKind::kDiscardPile,
+                                     ecs::Entity{}});
+    After("card_left_zone", zone_data);
+    After("card_entered_zone", zone_data);
+
+    // INFO: run the auto-trigger graph with must-apply semantics so the
+    //       Resolver's `must_apply` depth cap bounds re-triggering.
+    modload::BehaviorGraph graph;
+    graph.raw = auto_trigger->graph;
+    if (auto_trigger->graph.is_object()
+        && auto_trigger->graph.contains("nodes")) {
+        graph.nodes = auto_trigger->graph["nodes"];
+    }
+
+    resolver::SelectorContext context;
+    context.self = owner;
+    context.card = card;
+    context.in_card_context = true;
+    ops::ResolutionFrame frame;
+    const resolver::ResolveResult result = assembly_->resolver->Resolve(
+        graph, std::string(), context, frame, std::string(), true);
+    for (const json& event : result.events) {
+        events_.push_back(event);
+        BridgeRunEvent(event);
+    }
+
+    if (result.status == resolver::ResolveStatus::kNeedsInput
+        && result.input_request.has_value() && !pending_input_.has_value()) {
+        InputPause pending;
+        pending.target = result.input_request->target.value_or(ecs::Entity{});
+        pending.has_target = result.input_request->target.has_value();
+        pending.kind = result.input_request->kind;
+        pending.payload = result.input_request->payload;
+        pending.pause = result;
+        pending.context = context;
+        pending.frame = frame;
+        pending.system_index = assembly_->systems.size();
+        pending_input_ = std::move(pending);
+    }
+
+    Emit("card_played", json{{"player", player_json},
+                             {"card", EntityJson(card)}});
+    Emit("auto_played", json{{"player", player_json},
+                             {"card", EntityJson(card)},
+                             {"trigger", trigger}});
+    CollectRuns();
+    return true;
+}
+
+void MatchInstance::AppendResult(const resolver::ResolveResult& result,
+                                 std::size_t system_index,
+                                 const std::string& mod_id,
+                                 const resolver::SelectorContext& context,
+                                 const ops::ResolutionFrame& frame,
+                                 bool settle_play, ecs::Entity actor) {
+    for (const json& event : result.events) {
+        events_.push_back(event);
+        BridgeRunEvent(event);
+    }
+    CollectRuns();
+
+    if (result.status == resolver::ResolveStatus::kNeedsInput
+        && result.input_request.has_value()) {
+        InputPause next;
+        next.target = result.input_request->target.value_or(ecs::Entity{});
+        next.has_target = result.input_request->target.has_value();
+        next.kind = result.input_request->kind;
+        next.payload = result.input_request->payload;
+        next.pause = result;
+        next.context = context;
+        next.frame = frame;
+        next.system_index = system_index;
+        next.mod_id = mod_id;
+        next.settle_play = settle_play;
+        next.actor = actor;
+        pending_input_ = std::move(next);
+        return;
+    }
+    if (result.status == resolver::ResolveStatus::kWindow
+        && result.window.has_value()) {
+        WindowPause next;
+        next.request = *result.window;
+        next.pause = result;
+        next.context = context;
+        next.system_index = system_index;
+        next.mod_id = mod_id;
+        pending_window_ = std::move(next);
+        return;
+    }
+
+    if (settle_play) SettleAfterPlay(actor);
+}
+
+void MatchInstance::BindConditionSelectors(
+    const resolver::SelectorContext& context, ops::ResolutionFrame& frame) {
+    ecs::EntityStore& store = assembly_->store;
+    if (context.self.has_value()) frame.BindSelector("@self", {*context.self});
+    if (context.target.has_value()) {
+        frame.BindSelector("@target", {*context.target});
+    }
+    if (context.card.has_value()) frame.BindSelector("@card", {*context.card});
+    if (const std::optional<ecs::Entity> match = ops::FindMatch(store);
+        match.has_value()) {
+        frame.BindSelector("@match", {*match});
+    }
+    if (const std::optional<ecs::Entity> draw =
+            ops::FindPile(store, ecs::PileKind::kDraw);
+        draw.has_value()) {
+        frame.BindSelector("@draw_pile", {*draw});
+    }
+    if (const std::optional<ecs::Entity> discard =
+            ops::FindPile(store, ecs::PileKind::kDiscard);
+        discard.has_value()) {
+        frame.BindSelector("@discard_pile", {*discard});
+    }
+    const std::vector<ecs::Entity> players = ops::PlayersBySeat(store);
+    frame.BindSelector("@all_players", players);
+    std::vector<ecs::Entity> others;
+    others.reserve(players.size());
+    for (ecs::Entity player : players) {
+        if (!context.self.has_value() || !(player == *context.self)) {
+            others.push_back(player);
+        }
+    }
+    frame.BindSelector("@others", std::move(others));
+    if (const std::optional<ecs::Entity> current =
+            ops::FindCurrentPlayer(store);
+        current.has_value()) {
+        frame.BindSelector("@current_player", {*current});
+    }
 }
 
 // --- read-only accessors ---------------------------------------------------
@@ -574,8 +1126,17 @@ json MatchInstance::ExportState() const {
 }
 
 std::optional<nlohmann::json> MatchInstance::PendingInput() const {
-    // INFO: no window or prompt can be open before the engine.
-    return std::nullopt;
+    if (!pending_input_.has_value()) return std::nullopt;
+    return json{{"kind", pending_input_->kind},
+                {"target", EntityJson(pending_input_->target)},
+                {"payload", pending_input_->payload}};
+}
+
+std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {
+    return pending_window_.has_value()
+               ? std::optional<resolver::WindowRequest>(
+                     pending_window_->request)
+               : std::nullopt;
 }
 
 std::vector<nlohmann::json> MatchInstance::TakeEvents() {

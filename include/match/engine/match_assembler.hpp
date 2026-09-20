@@ -12,6 +12,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -151,6 +152,17 @@ struct HookRun {
     resolver::ResolveStatus status = resolver::ResolveStatus::kComplete;
     std::vector<nlohmann::json> events;
     std::string error;
+
+    // INFO: Additive pause continuation. When a walk pauses
+    //       (`kNeedsInput` / `kWindow` / `kSchedule`) the engine (and the
+    //       engine for windows) resumes it from these fields; all empty means
+    //       the run completed without pausing. No frozen signature changes.
+    std::size_t system_index = 0;            /**< index into `systems`. */
+    resolver::SelectorContext context;       /**< selectors at the pause. */
+    std::optional<ops::InputRequest> input_request;
+    std::optional<resolver::WindowRequest> window;
+    std::optional<resolver::ScheduleRequest> schedule;
+    std::optional<resolver::ResumeToken> resume;
 };
 
 /**

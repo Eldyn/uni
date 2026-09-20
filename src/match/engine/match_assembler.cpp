@@ -332,6 +332,15 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
     run.status = result.status;
     run.events = result.events;
     run.error = result.error;
+
+    // INFO: Additive pause continuation captured for the engine.
+    run.system_index = index;
+    run.context = context;
+    run.input_request = result.input_request;
+    run.window = result.window;
+    run.schedule = result.schedule;
+    run.resume = result.resume;
+
     runs.push_back(std::move(run));
 }
 

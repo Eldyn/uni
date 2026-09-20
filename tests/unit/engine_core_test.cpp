@@ -205,6 +205,10 @@ TEST_CASE("engine core: legal play discards and advances the turn") {
     const std::size_t discard_before =
         PileSize(*engine, ecs::PileKind::kDiscard);
     REQUIRE(engine->PlayCard("player0", wilds[0]));
+    // INFO: vanilla:wild's on_play behavior opens a choose_color prompt
+    // the engine pauses until the actor submits a colour.
+    REQUIRE(engine->PendingInput().has_value());
+    REQUIRE(engine->SubmitInput("player0", "red"));
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
     CHECK_FALSE(engine->IsMatchOver());
 
@@ -212,7 +216,7 @@ TEST_CASE("engine core: legal play discards and advances the turn") {
     CHECK(PileSize(*engine, ecs::PileKind::kDiscard) == discard_before + 1);
 
     const nlohmann::json state = engine->ExportState();
-    CHECK(state["active_type"] == "white");
+    CHECK(state["active_type"] == "red");
     REQUIRE(state["last_play"].is_object());
     CHECK(state["last_play"]["player"] == "player0");
     CHECK(state["last_play"]["card"] == "vanilla:wild");
@@ -324,6 +328,7 @@ TEST_CASE("engine core: emptying the hand wins and records placement") {
     ForceHand(*engine, player0, {wilds[0]});
 
     REQUIRE(engine->PlayCard("player0", wilds[0]));
+    REQUIRE(engine->SubmitInput("player0", "red"));
     CHECK(engine->IsMatchOver());
     CHECK(engine->GetWinner() == "player0");
     CHECK(engine->GetPlacements() == std::vector<std::string>{"player0"});
@@ -357,11 +362,13 @@ TEST_CASE("engine core: tick advances the round on a full seat cycle") {
     ForceHand(*engine, player1, {wilds[2], wilds[3]});
 
     REQUIRE(engine->PlayCard("player0", wilds[0]));
+    REQUIRE(engine->SubmitInput("player0", "red"));
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
     engine->Tick();
     CHECK(engine->ExportState()["round"] == 0u);
 
     REQUIRE(engine->PlayCard("player1", wilds[2]));
+    REQUIRE(engine->SubmitInput("player1", "blue"));
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
     engine->Tick();
     CHECK(engine->ExportState()["round"] == 1u);
