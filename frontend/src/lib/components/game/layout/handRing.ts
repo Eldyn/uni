@@ -55,17 +55,10 @@ export function opponentRingRadiusWorld(avatarWorldSize: number, cardScale: numb
  * so dividing the required world radius back out by that constant repoints
  * them at the radius the avatar actually needs.
  *
- * The scale is purely a function of the avatar and card sizes: a seat's own
- * position/rotation place an already-scaled ring, it doesn't resize it. `seat`
- * is taken so a caller building a seat's arc pose can pass the same seat it
- * hands to `ringSlotWorldPose`, keeping the morph source and the drawn ring in
- * one frame; it does not enter the result.
+ * The scale depends only on the avatar and card sizes — a seat's position and
+ * rotation place an already-scaled ring, they don't resize it.
  */
-export function ringRadialScale(
-	seat: { x: number; z: number; rotationY: number },
-	avatarWorld: number,
-	cardScale: number
-): number {
+export function ringRadialScale(avatarWorld: number, cardScale: number): number {
 	return opponentRingRadiusWorld(avatarWorld, cardScale) / RING_RADIUS_EM;
 }
 

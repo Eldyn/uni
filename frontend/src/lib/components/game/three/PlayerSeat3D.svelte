@@ -109,9 +109,8 @@
 
 	// handRing.ts's slots are unit directions authored at its own fixed
 	// RING_RADIUS_EM; ringRadialScale repoints them at the world radius the
-	// avatar actually needs. Shared with GameBoard's morph source poses, so
-	// they land on exactly the ring drawn here.
-	let radialScale = $derived(ringRadialScale(seat, avatarWorld, cardScale));
+	// avatar actually needs.
+	let radialScale = $derived(ringRadialScale(avatarWorld, cardScale));
 
 	// Names are shown on demand, not always. At a full table a permanent label
 	// per seat is a wall of text that nothing on the board can outrank, and the
