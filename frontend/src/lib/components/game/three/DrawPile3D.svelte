@@ -20,26 +20,29 @@
 		PILE_PEEK_Z
 	} from "../layout/drawPile";
 
-	let { placement }: { placement: BoardPlacement } = $props();
+	let {
+		placement,
+		rotationY = 0
+	}: {
+		placement: BoardPlacement;
+		/** Extra in-place yaw (radians) applied about the pile's own center by the
+		 *  spectator table spin. Default 0 renders the pile exactly as before. */
+		rotationY?: number;
+	} = $props();
 
 	const bus = useCardBus();
 
 	let effectiveRawSize = $derived(
-		bus?.reshuffleDrawPileSize ?? (storeGame.state?.draw_pile_size ?? 0)
+		bus?.reshuffleDrawPileSize ?? storeGame.state?.draw_pile_size ?? 0
 	);
 
 	let pile = $derived(
-		computeDrawPileCountAndStep(
-			effectiveRawSize,
-			storeRenderSettings.drawPileThickness
-		)
+		computeDrawPileCountAndStep(effectiveRawSize, storeRenderSettings.drawPileThickness)
 	);
 	let renderedCount = $derived(pile.renderedCount);
 	let stepY = $derived(pile.stepY);
 
-	let targetHeight = $derived(
-		Math.max(0, renderedCount - 1) * stepY
-	);
+	let targetHeight = $derived(Math.max(0, renderedCount - 1) * stepY);
 
 	// Animated height tweening for fresh look on reshuffle arrivals
 	let animatedStackHeight = $state(0);
@@ -170,72 +173,73 @@
 	}
 </script>
 
-{#if renderedCount > 0 && silhouetteTexture}
-	<!-- Ground contact shadow on table surface anchoring the stack to the playmat -->
-	<T.Mesh
-		position={[
-			placement.drawPileX,
-			0.001,
-			placement.drawPileZ
-		]}
-		rotation.x={-Math.PI / 2}
-		scale={placement.drawPileScale * 1.04}
-	>
-		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-		<T.MeshBasicMaterial
-			map={silhouetteTexture}
-			color="#000000"
-			transparent
-			depthWrite={false}
-			opacity={0.42}
-			toneMapped={false}
-		/>
-	</T.Mesh>
-{/if}
+<!-- Pivot wrapper: the pile's own children are authored in absolute world
+     coordinates, so the outer group rotates about the pile's center while the
+     inner group undoes the outer translation. At rotationY 0 the two
+     translations cancel exactly and every child renders where it always did. -->
+<T.Group position.x={placement.drawPileX} position.z={placement.drawPileZ} rotation.y={rotationY}>
+	<T.Group position.x={-placement.drawPileX} position.z={-placement.drawPileZ}>
+		{#if renderedCount > 0 && silhouetteTexture}
+			<!-- Ground contact shadow on table surface anchoring the stack to the playmat -->
+			<T.Mesh
+				position={[placement.drawPileX, 0.001, placement.drawPileZ]}
+				rotation.x={-Math.PI / 2}
+				scale={placement.drawPileScale * 1.04}
+			>
+				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+				<T.MeshBasicMaterial
+					map={silhouetteTexture}
+					color="#000000"
+					transparent
+					depthWrite={false}
+					opacity={0.42}
+					toneMapped={false}
+				/>
+			</T.Mesh>
+		{/if}
 
-{#each Array.from({ length: renderedCount }) as _, i (i)}
-	{@const depthFraction = renderedCount > 1 ? (renderedCount - 1 - i) / (renderedCount - 1) : 0}
-	{@const cardBrightness = 1 - depthFraction * 0.35}
-	{#if i > 0 && silhouetteTexture}
-		<T.Mesh
-			position={[
-				placement.drawPileX,
-				cardY(i) - 0.001,
-				placement.drawPileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
-			]}
-			rotation.x={-Math.PI / 2}
-			scale={placement.drawPileScale}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={silhouetteTexture}
-				color="#000000"
-				transparent
-				depthWrite={false}
-				opacity={SHADOW_OPACITY}
-				toneMapped={false}
+		{#each Array.from({ length: renderedCount }) as _, i (i)}
+			{@const depthFraction = renderedCount > 1 ? (renderedCount - 1 - i) / (renderedCount - 1) : 0}
+			{@const cardBrightness = 1 - depthFraction * 0.35}
+			{#if i > 0 && silhouetteTexture}
+				<T.Mesh
+					position={[
+						placement.drawPileX,
+						cardY(i) - 0.001,
+						placement.drawPileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
+					]}
+					rotation.x={-Math.PI / 2}
+					scale={placement.drawPileScale}
+				>
+					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+					<T.MeshBasicMaterial
+						map={silhouetteTexture}
+						color="#000000"
+						transparent
+						depthWrite={false}
+						opacity={SHADOW_OPACITY}
+						toneMapped={false}
+					/>
+				</T.Mesh>
+			{/if}
+			<CardMesh3D
+				card={{ id: -1, type: "wild", value: "0" }}
+				turned={true}
+				position={[
+					placement.drawPileX,
+					cardY(i),
+					placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
+				]}
+				scale={placement.drawPileScale}
+				brightness={cardBrightness}
 			/>
-		</T.Mesh>
-	{/if}
-	<CardMesh3D
-		card={{ id: -1, type: "wild", value: "0" }}
-		turned={true}
-		position={[
-			placement.drawPileX,
-			cardY(i),
-			placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
-		]}
-		scale={placement.drawPileScale}
-		brightness={cardBrightness}
-	/>
-{/each}
+		{/each}
 
-{#if renderedCount > 0}
-	<T.Mesh
-		position={[placement.drawPileX, clickCenterY, clickCenterZ]}
-		onclick={handleDraw}
-	>
-		<T.BoxGeometry args={[CARD_WIDTH * placement.drawPileScale, clickHeightY, clickDepthZ]} />
-		<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
-	</T.Mesh>
-{/if}
+		{#if renderedCount > 0}
+			<T.Mesh position={[placement.drawPileX, clickCenterY, clickCenterZ]} onclick={handleDraw}>
+				<T.BoxGeometry args={[CARD_WIDTH * placement.drawPileScale, clickHeightY, clickDepthZ]} />
+				<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
+			</T.Mesh>
+		{/if}
+	</T.Group>
+</T.Group>
