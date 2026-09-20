@@ -60,7 +60,7 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	"music.fuzzsong": {
 		id: "music.fuzzsong",
 		kind: "single",
-		src: "/assets/audio/music/fuzzsong/full.mp3",
+		src: "/assets/audio/music/fuzzsong/full.m4a",
 		loop: true
 	}
 	// The 9-channel stem version of this same song exists locally
