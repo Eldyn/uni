@@ -14,6 +14,10 @@ export interface HandMorph {
 	username: string;
 	/** World pose per card index: arc source for "in", arc target for "out". */
 	poses: [number, number, number][];
+	/** Source in-plane orientation per card index, degrees, for the incoming
+	 *  morph: the ring slot's own spin at the arc source. The blend target is
+	 *  always the hand row's own 0, so only the source has to be carried. */
+	spinDegs?: number[];
 	/** Whether the morphed cards end face-up. */
 	open: boolean;
 }

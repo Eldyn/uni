@@ -136,7 +136,12 @@
 			const [x, y, z] = ringSlotWorldPose(bottomPose, slot, i, radial, RING_STACK_STEP);
 			return [x, y, z] as [number, number, number];
 		});
-		return { username, poses, open: !player.is_bot && hiddenBackCountFor(player) === 0 };
+		// The ring slot's own spin is what PlayerSeat3D would give these cards;
+		// the incoming hand blends from it to the row's 0. The bottom pivot is
+		// the local avatar pose, whose rotationY is 0 — hence the 180 base.
+		const baseSpinDeg = (bottomPose.rotationY * 180) / Math.PI + 180;
+		const spinDegs = slots.map((slot) => baseSpinDeg + slot.rotateDeg);
+		return { username, poses, spinDegs, open: !player.is_bot && hiddenBackCountFor(player) === 0 };
 	}
 
 	// The outgoing POV's hand is the local hand row as currently laid out; its
@@ -202,7 +207,7 @@
 					?.username ?? null)
 			: (storeGame.localPlayer?.username ?? null);
 
-		const from = storeTableSpin.renderPov ?? target;
+		const from = storeTableSpin.transition?.to ?? storeTableSpin.renderPov ?? target;
 		if (from === null || target === null) {
 			storeTableSpin.syncTarget(target, target ? [target] : [], 0, null, null);
 			return;

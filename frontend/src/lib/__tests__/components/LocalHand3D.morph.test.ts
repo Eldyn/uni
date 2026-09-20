@@ -62,6 +62,7 @@ const morph = {
 		[9, 0, 9],
 		[8, 0, 8]
 	] as [number, number, number][],
+	spinDegs: [180, 190],
 	open: false
 };
 
@@ -109,7 +110,7 @@ describe("LocalHand3D incoming morph", () => {
 		expect(registry.isInTransit("2")).toBe(false);
 	});
 
-	it("flips back to face across inheritProgress only when the morph is open", async () => {
+	it("turns back → face and blurs spin to the row across inheritProgress when open", async () => {
 		const bus = new CardBus();
 		const registry = new CardRegistry();
 		const context = new Map<any, any>([
@@ -125,15 +126,28 @@ describe("LocalHand3D incoming morph", () => {
 		await tick();
 		await tick();
 
-		// Early in the blend the card is still showing its back.
-		expect(registry.getPose("1")!.turned).toBe(true);
+		// Early in the blend it is edge-on at 180° (showing its back) and still
+		// carries the ring slot's in-plane spin.
+		expect(registry.getPose("1")!.turned).toBe(false);
+		expect(registry.getPose("1")!.flipDeg).toBeCloseTo(180);
+		expect(registry.getPose("1")!.spinDeg).toBeCloseTo(180);
+
+		rerender({ ...propsFor(), handMorph: openMorph, inheritProgress: 0.5 });
+		await tick();
+		await tick();
+
+		// Half-way it has turned half-way and its spin has blended half-way.
+		expect(registry.getPose("1")!.flipDeg).toBeCloseTo(90);
+		expect(registry.getPose("1")!.spinDeg).toBeCloseTo(90);
 
 		rerender({ ...propsFor(), handMorph: openMorph, inheritProgress: 1 });
 		await tick();
 		await tick();
 
-		// Late in the blend it has flipped face-up.
+		// Landed: face-up and square in the row.
 		expect(registry.getPose("1")!.turned).toBe(false);
+		expect(registry.getPose("1")!.flipDeg).toBeCloseTo(0);
+		expect(registry.getPose("1")!.spinDeg).toBeCloseTo(0);
 	});
 
 	it("keeps a hidden (non-open) morph's cards as backs", async () => {
@@ -152,5 +166,27 @@ describe("LocalHand3D incoming morph", () => {
 		await tick();
 
 		expect(registry.getPose("1")!.turned).toBe(true);
+		expect(registry.getPose("1")!.flipDeg).toBeCloseTo(0);
+	});
+
+	it("retires its registry entries on unmount", async () => {
+		const bus = new CardBus();
+		const registry = new CardRegistry();
+		const context = new Map<any, any>([
+			[CARD_BUS_KEY, bus],
+			[CARD_REGISTRY_KEY, registry]
+		]);
+
+		render(LocalHand3D, { props: propsFor(), context });
+		await tick();
+		await tick();
+
+		expect(registry.activeFlights.map((f) => f.id).sort()).toEqual(["1", "2"]);
+
+		cleanup();
+
+		// Without an onDestroy retirement the row's entries would strand and
+		// AllCards3D would draw them forever.
+		expect(registry.activeFlights).toHaveLength(0);
 	});
 });

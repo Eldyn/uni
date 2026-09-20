@@ -271,6 +271,58 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		expect(registry.isInTransit("ring:alice:1")).toBe(false);
 	});
 
+	it("blends face → back and row spin → ring spin across the outgoing morph", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+		const player = { username: "alice", card_count: 2, is_bot: false };
+		const morph = {
+			username: "alice",
+			poses: [
+				[9, 0, 9],
+				[8, 0, 8]
+			] as [number, number, number][],
+			open: false
+		};
+		const slots = computeHandRingSlots(2);
+		const baseSpinDeg = (seat.rotationY * 180) / Math.PI + 180;
+
+		const { rerender } = render(PlayerSeat3D, {
+			props: { player, seat, color: "#00ff00", ringMorph: morph, inheritProgress: 0 },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		// At the source it still reads as the hand-row card: face-up, row spin.
+		expect(registry.getPose("ring:alice:0")!.flipDeg).toBeCloseTo(0);
+		expect(registry.getPose("ring:alice:0")!.turned).toBe(false);
+		expect(registry.getPose("ring:alice:0")!.spinDeg).toBeCloseTo(0);
+
+		rerender({ player, seat, color: "#00ff00", ringMorph: morph, inheritProgress: 1 });
+
+		// At the target it has turned fully onto its back and taken the ring
+		// slot's own in-plane orientation.
+		expect(registry.getPose("ring:alice:0")!.flipDeg).toBeCloseTo(180);
+		expect(registry.getPose("ring:alice:0")!.turned).toBe(false);
+		expect(registry.getPose("ring:alice:0")!.spinDeg).toBeCloseTo(baseSpinDeg + slots[0].rotateDeg);
+	});
+
+	it("registers no ring cards and retires existing ones when ringCardsHidden", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+		const player = { username: "frank", card_count: 3, is_bot: false };
+
+		const { rerender } = render(PlayerSeat3D, {
+			props: { player, seat, color: "#ffffff" },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+		expect(registry.activeFlights).toHaveLength(3);
+
+		rerender({ player, seat, color: "#ffffff", ringCardsHidden: true });
+		expect(registry.activeFlights).toHaveLength(0);
+
+		rerender({ player, seat, color: "#ffffff", ringCardsHidden: false });
+		expect(registry.activeFlights).toHaveLength(3);
+	});
+
 	it("renders avatar and name label as scene objects with no DOM overlay", () => {
 		const registry = new CardRegistry();
 		const seat = { x: 0, z: 0, rotationY: 0 };

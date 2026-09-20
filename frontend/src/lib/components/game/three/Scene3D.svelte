@@ -140,9 +140,16 @@
 	// and so already carries the incoming player in their old ring position.
 	// Null outside the spin phase, which restores the normal composition.
 	const bottomPose = $derived({ x: 0, z: geometry.placement.localAvatarZ, rotationY: 0 });
+	// The outgoing POV player. `resolvePovPlayer` already reports the INCOMING
+	// player the moment the spectator clicks, so the outgoing one is looked up
+	// by name from `transition.from`. Only non-null during phase "spin".
+	const spinFromPlayer = $derived.by(() => {
+		const t = storeTableSpin.transition;
+		if (storeTableSpin.phase !== "spin" || !t) return null;
+		return (storeGame.state?.players ?? []).find((p) => p.username === t.from) ?? null;
+	});
 	const spinSeatViews = $derived.by(() => {
 		const t = storeTableSpin.transition;
-		const players = storeGame.state?.players ?? [];
 		if (storeTableSpin.phase !== "spin" || !t) return null;
 		const slots = buildSlotSequence(geometry.seats3D, bottomPose);
 		const n = slots.length;
@@ -153,11 +160,19 @@
 				storeTableSpin.spinProgress
 			);
 		const views: { player: GamePlayer; pose: SeatPosition3D }[] = [];
-		const fromPlayer = players.find((p) => p.username === t.from);
-		if (fromPlayer) views.push({ player: fromPlayer, pose: poseAt(0) });
+		if (spinFromPlayer) views.push({ player: spinFromPlayer, pose: poseAt(0) });
 		mappedOpponents.forEach((o, i) => views.push({ player: o.player, pose: poseAt(i + 1) }));
 		return views;
 	});
+	// The hand row's rendered player: the outgoing POV through phase 1 (its
+	// cards stay in the bottom row while the ring spins), then the incoming POV
+	// at commit. Hoisted above the spin/normal branch so the row never unmounts
+	// on a POV change — that unmount was what stranded the outgoing cards'
+	// registry entries.
+	const handPlayer = $derived(storeTableSpin.phase === "spin" ? spinFromPlayer : povPlayer);
+	const handDimmed = $derived(
+		DIM_LOCAL_WHEN_NOT_TURN && storeGame.state?.current_turn !== handPlayer?.username
+	);
 
 	let artLoaded = $state(false);
 
@@ -207,6 +222,7 @@
 			avatarPx={opponentAvatarPx}
 			avatarWorld={opponentAvatarWorld}
 			labelEm={opponentLabelEm}
+			ringCardsHidden={view.player.username === spinFromPlayer?.username}
 		/>
 	{/each}
 {:else}
@@ -244,24 +260,27 @@
 			avatarPx={localAvatarPx}
 			dimmed={localDimmed}
 		/>
-		<LocalHand3D
-			{rig}
-			{viewport}
-			{placement}
-			dimmed={localDimmed}
-			player={povPlayer}
-			readOnly={storeGame.isSpectator}
-			selectedId={storeGame.isSpectator ? null : selectedId}
-			{onSelectionChange}
-			{onPlay}
-			{focusedId}
-			{onPointerHover}
-			handMorph={storeTableSpin.transition?.incoming?.username === povPlayer.username
-				? storeTableSpin.transition.incoming
-				: null}
-			inheritProgress={storeTableSpin.inheritProgress}
-		/>
 	{/if}
+{/if}
+
+{#if handPlayer}
+	<LocalHand3D
+		{rig}
+		{viewport}
+		{placement}
+		dimmed={handDimmed}
+		player={handPlayer}
+		readOnly={storeGame.isSpectator}
+		selectedId={storeGame.isSpectator ? null : selectedId}
+		{onSelectionChange}
+		{onPlay}
+		{focusedId}
+		{onPointerHover}
+		handMorph={storeTableSpin.transition?.incoming?.username === handPlayer.username
+			? storeTableSpin.transition.incoming
+			: null}
+		inheritProgress={storeTableSpin.inheritProgress}
+	/>
 {/if}
 
 <DrawPile3D {placement} rotationY={placement.drawPileBesideHand ? 0 : storeTableSpin.pileAngle} />

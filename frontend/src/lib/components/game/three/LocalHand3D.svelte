@@ -19,6 +19,7 @@
      each input already has. Order isn't rules-significant, so the drag target
      is a local-only $state array reconciled against the server's hand. -->
 <script lang="ts">
+	import { onDestroy } from "svelte";
 	import { T, useTask } from "@threlte/core";
 	import { HTML } from "@threlte/extras";
 	import { gsap } from "gsap";
@@ -249,6 +250,21 @@
 		prevRealIds = [...liveIds];
 	});
 
+	// Unmount is the one case the two id-change retirement effects above cannot
+	// cover: the component is gone, so nothing observes its keys leaving. Retire
+	// every key this row currently owns — real ids and the synthetic hidden-back
+	// ids alike — with the same guards as those effects: a card mid-flight (a
+	// draw/play animation owns it) or one that reached the discard must not be
+	// deleted out from under that owner. Mirrors PlayerSeat3D's onDestroy.
+	onDestroy(() => {
+		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
+		for (const key of [...prevRealIds, ...prevHiddenIds.map(String)]) {
+			if (cardRegistry.isInTransit(key)) continue;
+			if (discardIds.has(key)) continue;
+			cardRegistry.removeEntry(key);
+		}
+	});
+
 	// Reconciled, not replaced: new card ids append at the end, missing ones
 	// drop out, everything else keeps its current position — so a drag that's
 	// mid-flight survives an unrelated state refresh.
@@ -360,6 +376,11 @@
 			// back to the normal hand pose (source === target → the blend is a
 			// no-op for that card rather than a snap to the world origin).
 			const morphSource: [number, number, number] | null = morph ? (morph.poses[i] ?? null) : null;
+			// Incoming morph, in-plane turn. The source is the ring slot's own
+			// orientation, the target is the row's 0; an open morph also turns
+			// the card in from back (flipDeg 180) to face (0) across the blend.
+			const morphSpinSource = morph ? (morph.spinDegs?.[i] ?? 0) : 0;
+			const entryFlipDeg = morph !== null && opening ? 180 * (1 - morphProgress) : 0;
 
 			const entryPose = cardRegistry.ensureEntry(
 				idString,
@@ -367,10 +388,10 @@
 					x: isDragging ? dragWorldX : slotX,
 					y: isDragging ? DRAG_LIFT : slotY,
 					z: isDragging ? dragWorldZ : slotZ,
-					spinDeg: 0,
-					flipDeg: 0,
+					spinDeg: morph ? morphSpinSource * (1 - morphProgress) : 0,
+					flipDeg: entryFlipDeg,
 					scale: placement.handScale,
-					turned: morph ? (opening ? morphProgress < 0.5 : true) : hiddenBackCount > 0,
+					turned: morph ? !opening : hiddenBackCount > 0,
 					opacity: 1,
 					dragT: isDragging ? 1 : 0
 				},
@@ -408,7 +429,12 @@
 				entryPose.y = sy + (slotY - sy) * morphProgress;
 				entryPose.z = sz + (slotZ - sz) * morphProgress;
 				entryPose.scale = placement.handScale;
-				entryPose.turned = opening ? morphProgress < 0.5 : true;
+				// Continuous across the blend, not a texture swap at 0.5: the
+				// card turns back → face over the whole inherit, and spins from
+				// the ring slot's orientation to the row's 0 at the same time.
+				entryPose.turned = !opening;
+				entryPose.flipDeg = opening ? 180 * (1 - morphProgress) : 0;
+				entryPose.spinDeg = morphSpinSource * (1 - morphProgress);
 				cardRegistry.markInTransit(idString, true);
 				morphRegisteredKeys.add(idString);
 			} else {

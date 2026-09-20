@@ -59,7 +59,8 @@
 		labelEm = 1.15,
 		hasHoldingCard = false,
 		ringMorph = null,
-		inheritProgress = 1
+		inheritProgress = 1,
+		ringCardsHidden = false
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -91,6 +92,10 @@
 		/** Inherit-phase progress, 0 → 1. Blends a morphed card from its
 		 *  `ringMorph` seed pose to its normal ring pose. */
 		inheritProgress?: number;
+		/** Registers/renders no ring cards. Used for the outgoing POV seat
+		 *  during the spectator spin: its cards are the hand row, so drawing a
+		 *  ring too would double them. Defaults false — full ring. */
+		ringCardsHidden?: boolean;
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
@@ -242,9 +247,9 @@
 
 		// Spectator POV spin, inherit phase. When this seat is the outgoing POV
 		// player, its cards seed at ringMorph's snapshot poses (the old local
-		// hand row) and blend to the ring pose over inheritProgress. ringMorph
-		// is only ever non-null for the matching seat, and always `open: false`
-		// (an outgoing hand is now an opponent's), so the cards stay backs.
+		// hand row) and blend to the ring pose over inheritProgress, turning
+		// from face (the row) to back (the ring) across the same blend.
+		// ringMorph is only ever non-null for the matching seat.
 		const morph = ringMorph !== null && ringMorph.username === player.username ? ringMorph : null;
 		const morphProgress = morph ? inheritProgress : 1;
 
@@ -268,7 +273,12 @@
 		}
 		prevMorphUsername = morphUsername;
 
-		for (const [i, slot] of ringSlots.entries()) {
+		// A hidden ring still keeps the seat's group (avatar/label) but
+		// registers nothing; the removal pass below retires any keys it
+		// previously owned when this flips on.
+		const slots = ringCardsHidden ? [] : ringSlots;
+
+		for (const [i, slot] of slots.entries()) {
 			const key = `ring:${username}:${i}`;
 			currentKeys.add(key);
 
@@ -320,9 +330,15 @@
 				pose.x = sx + (worldX - sx) * morphProgress;
 				pose.y = sy + (worldY - sy) * morphProgress;
 				pose.z = sz + (worldZ - sz) * morphProgress;
-				pose.spinDeg = spinDeg;
+				// Outgoing hand row → ring: in-plane spin eases from the row's
+				// 0 to the ring slot's own orientation, and the card turns from
+				// face (flipDeg 0) to back (180) across the same blend, rather
+				// than snapping texture at a threshold. `turned: false` keeps
+				// the face as the front texture so that flip is a real turn.
+				pose.spinDeg = spinDeg * morphProgress;
+				pose.flipDeg = 180 * morphProgress;
+				pose.turned = false;
 				pose.scale = cardScale;
-				pose.turned = true;
 				cardRegistry.markInTransit(key, morphProgress < 1);
 				cardRegistry.setDecoration(key, { dimmed });
 				continue;
@@ -331,6 +347,9 @@
 			if (!cardRegistry.isInTransit(key)) {
 				pose.scale = cardScale;
 				pose.turned = true;
+				// Clear any flip left by a morph that has since ended; the ring
+				// always rests as a back with no edge-on rotation.
+				pose.flipDeg = 0;
 			}
 
 			const dx = Math.hypot(pose.x - worldX, pose.z - worldZ);
