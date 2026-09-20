@@ -6,6 +6,7 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/timers.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -41,16 +42,26 @@
  *   `assembly.systems` order via the bus / `Resolver::Resolve`; op-emitted
  *   `ResolveResult` events are appended to the ordered per-match event list.
  *   A `kNeedsInput` pause is held and resumed through `SubmitInput` ->
- *   `Resolver::ResumeInput`; a `kWindow`/`kSchedule` pause is handed to the
- *   The engine seam (this slice detects and exposes it, it does not run the
- *   window).
+ *   `Resolver::ResumeInput`; a `kWindow` pause opens a response window
+ * a `kSchedule` pause remains a later-slice seam.
  * - Runs must-apply auto cards (`AutoTrigger.must_apply`) before a
  *   window would open, one per triggering event, emitting `auto_played`; the
  *   Resolver's `must_apply` depth cap bounds re-triggering.
  *
- * Explicitly NOT in this slice: response windows, prompts UX, draw stacking and
- * the full `SubmitInput` window flow; the gap vocabulary additions
- * WS/view building.
+ * Response windows: a `kWindow`
+ * pause opens a `WindowState` on the match entity (uniform responders, the
+ * `respond_with` eligibility filter, the default and response routes) and arms
+ * the `MatchTimers` window clock, which suspends the turn clock.
+ * `RespondWindow` plays an eligible card through the normal restriction /
+ * `before:play` pipeline and `PassWindow` records a pass; the first collected
+ * response wins (arrival order). Early close fires once every responder has
+ * replied, timeout routes the default. The winning route resumes through
+ * `Resolver::ResumeWindow`, emitting `window_open` / `window_response` /
+ * `window_close`.
+ *
+ * Explicitly NOT in this slice: the debt-magnitude draw / draw
+ * stacking, the gap vocabulary additions, and WS/view
+ * building.
  */
 
 namespace match::engine {
@@ -74,6 +85,24 @@ public:
      * @param assembly A successful `MatchAssembler::Assemble` result.
      */
     explicit MatchInstance(std::unique_ptr<MatchAssembly> assembly);
+
+    /**
+     * @brief Take ownership with an injected wall-clock seam.
+     *
+     * @param assembly A successful `MatchAssembler::Assemble` result.
+     * @param clock    Deterministic `NowMs` for window/turn timers.
+     */
+    MatchInstance(std::unique_ptr<MatchAssembly> assembly, match::NowMs clock);
+
+    /**
+     * @brief Take ownership with explicit window config and clock.
+     *
+     * @param assembly      A successful `MatchAssembler::Assemble` result.
+     * @param window_config Resolved `UNI_WINDOW_MS` / `UNI_WINDOW_MODE`.
+     * @param clock         Deterministic `NowMs` for window/turn timers.
+     */
+    MatchInstance(std::unique_ptr<MatchAssembly> assembly,
+                  match::WindowConfig window_config, match::NowMs clock);
 
     MatchInstance(const MatchInstance&) = delete;
     MatchInstance& operator=(const MatchInstance&) = delete;
@@ -138,12 +167,58 @@ public:
                      const nlohmann::json& value);
 
     /**
+     * @brief Answer an open response window with an eligible card.
+     *
+     * The responder must be in the window's responder set and have not yet
+     * replied. The card must be in the responder's hand, pass the
+     * restriction pipeline and the window's `respond_with` eligibility filter,
+     * and survive a `before:play` veto. The first accepted response wins
+     * (arrival order); later accepted responses are losers and their cards stay
+     * in hand. The window closes early once every responder has replied.
+     *
+     * @return true when the response was accepted; false on a closed/absent
+     *         window, a non-responder, a duplicate reply, an ineligible or
+     *         rejected card.
+     */
+    bool RespondWindow(const std::string& username, ecs::Entity card);
+
+    /**
+     * @brief Declare a pass in an open response window.
+     *
+     * The responder must be in the window's responder set and have not yet
+     * replied. The window closes early once every responder has replied; a
+     * window with no accepted response routes its default route.
+     *
+     * @return true when the pass was recorded; false otherwise.
+     */
+    bool PassWindow(const std::string& username);
+
+    /** @brief True while a response window is open on the match entity. */
+    bool WindowOpen() const;
+
+    /**
+     * @brief Deterministic response-window state JSON (headless assertions).
+     *
+     * Shape: `{open, id, responders[], default_route, filter_digest,
+     * deadline_ms, respond_with, responses[]}`; `responses[]` entries carry
+     * `{player, card, pass, outcome}`. Empty object when no window is parked.
+     */
+    nlohmann::json ExportWindow() const;
+
+    /** @brief The match's the timer layer window/turn timers (arm / inspect). */
+    match::MatchTimers& Timers() { return timers_; }
+    /** @brief The match's the timer layer window/turn timers (const). */
+    const match::MatchTimers& Timers() const { return timers_; }
+
+    /**
      * @brief Advance engine-side counters (round boundary).
      *
      * Turns elapsed seat cycles into `MatchMeta.round` plus a `round_advance`
      * event, wrapped in the `round_end` / `round_start` hook dispatch.
-     * Turn timers, window timers, real-time statuses and scheduled graphs are
-     * the seam.
+     * Then advances the `MatchTimers`: an open window times out (default
+     * route) or early-closes (winning/default route), otherwise the turn
+     * deadline is checked. Real-time statuses and scheduled graphs remain the
+     * The engine and the engine seam.
      */
     void Tick();
 
@@ -185,10 +260,11 @@ public:
     std::optional<nlohmann::json> PendingInput() const;
 
     /**
-     * @brief Pending response-window request, or nullopt.
+     * @brief The open response window's request, or nullopt.
      *
-     * The engine detects a `kWindow` pause and parks it here; the engine owns
-     * opening, timing, collecting responses and `Resolver::ResumeWindow`.
+     * Set when a `kWindow` pause opens the window and held until it closes
+     * (timeout, all-pass or a winning response); see `ExportWindow` for the
+     * live responder/response state.
      */
     std::optional<resolver::WindowRequest> PendingWindow() const;
 
@@ -241,13 +317,22 @@ private:
         ecs::Entity actor{};                /**< play actor to settle. */
     };
 
-    /** @brief A paused response window parked. */
+    /** @brief The open response window's parked resolver continuation (12). */
     struct WindowPause {
         resolver::WindowRequest request;
         resolver::ResolveResult pause;
         resolver::SelectorContext context;
         std::size_t system_index = 0;
         std::string mod_id;
+        // INFO: Response collection. `winner` is the first accepted
+        //       non-pass responder; its card is committed on close. Losers
+        //       never leave their hand.
+        ecs::Entity winner{};
+        ecs::Entity winner_card{};
+        bool has_winner = false;
+        uint64_t next_arrival = 0;   /**< server arrival counter. */
+        bool settle_play = false;  /**< settle the interrupted play on close. */
+        ecs::Entity actor{};       /**< play actor to settle. */
     };
 
     /** @brief Append an event descriptor to the log. */
@@ -287,6 +372,63 @@ private:
 
     /** @brief `hand_empty` / `win_check` settle after a play. */
     void SettleAfterPlay(ecs::Entity player);
+
+    // --- the engine response-window path
+    // ---------------------------------------
+
+    /**
+     * @brief Open a `kWindow` pause on the match entity.
+     *
+     * Ensures a `WindowState`, fills responders / routes / filter, arms the
+     * The timer layer window timer (suspending the turn clock), emits
+     * `window_open` and parks the pause in `pending_window_`.
+     */
+    void OpenWindow(WindowPause pause);
+
+    /**
+     * @brief Build the `PlayAttempt` for `card` by `player`.
+     *
+     * Mirrors the state the pipeline reads: `in_turn`, the discard top kind,
+     * the active type and the acting hand's kind ids.
+     */
+    modload::PlayAttempt BuildPlayAttempt(ecs::Entity player, ecs::Entity card,
+                                          bool in_turn) const;
+
+    /** @brief Run the restriction pipeline for `attempt`. */
+    modload::PlayDecision CheckPlayRestrictions(
+        const modload::PlayAttempt& attempt) const;
+
+    /** @brief True when `card` satisfies the window's `respond_with`. */
+    bool ResponseEligible(const nlohmann::json& respond_with,
+                          const modload::PlayAttempt& attempt) const;
+
+    /**
+     * @brief Derive the `on_response` route key for a winning response.
+     *
+     * Prefers the window's declared `filter_digest`, else the eligibility
+     * filter's condition keyword / matched tag, else the sole `on_response`
+     * key. Returns empty when no digest can be derived.
+     */
+    std::string ResponseDigest(ecs::Entity card) const;
+
+    /** @brief Route node for the collected winner, else `default_route`. */
+    std::string WinningRoute(const ecs::WindowState& window) const;
+
+    /**
+     * @brief Commit the winning response card: move to discard + zone events.
+     *
+     * TODO: the debt-magnitude draw / draw-stacking rebuild hooks in
+     * at this point; this slice only commits the winning card.
+     */
+    void CommitWinningPlay(ecs::Entity player, ecs::Entity card);
+
+    /**
+     * @brief Close the open window, emit `window_close` and resume the route.
+     *
+     * @param route   Resolver node id to resume (`ResumeWindow`).
+     * @param outcome `timeout` / `all_pass` / `response` (event payload).
+     */
+    void CloseWindowRoute(const std::string& route, const std::string& outcome);
 
     // --- the engine hook / resolver path
     // ---------------------------------------
@@ -373,6 +515,8 @@ private:
     bool must_apply_active_ = false;   /**< RunMustApply re-entry guard. */
     std::optional<InputPause> pending_input_;
     std::optional<WindowPause> pending_window_;
+    match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
+    uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };
 
 }  // namespace match::engine

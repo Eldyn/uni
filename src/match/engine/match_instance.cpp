@@ -90,7 +90,19 @@ std::optional<ecs::Entity> EntityFromJson(const json& value) {
 // --- construction / start --------------------------------------------------
 
 MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly)
-    : assembly_(std::move(assembly)) {
+    : MatchInstance(std::move(assembly), match::WindowConfig::FromEnv(),
+                    match::DefaultNowMs()) {}
+
+MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
+                             match::NowMs clock)
+    : MatchInstance(std::move(assembly), match::WindowConfig::FromEnv(),
+                    std::move(clock)) {}
+
+MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
+                             match::WindowConfig window_config,
+                             match::NowMs clock)
+    : assembly_(std::move(assembly)),
+      timers_(window_config, std::move(clock)) {
     if (assembly_ == nullptr) {
         // ERROR: a null assembly cannot run; treat it as a finished match so
         //        every input is refused rather than dereferencing null.
@@ -134,7 +146,10 @@ void MatchInstance::Start() {
 
 bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
-    if (Paused()) return false;
+    // INFO: while a window is open, a play attempt is a window response; a
+    //       pending op input takes precedence and refuses ordinary plays.
+    if (pending_input_.has_value()) return false;
+    if (pending_window_.has_value()) return RespondWindow(username, card);
 
     ecs::EntityStore& store = assembly_->store;
     MatchRegistries& registries = assembly_->registries;
@@ -160,59 +175,9 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
     const bool in_turn = current.has_value() && (*current == *player);
 
     // -- restriction pipeline over true engine state -------------
-    modload::PlayAttempt attempt;
-    attempt.player = username;
-    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
-    attempt.card_kind = identity == nullptr ? std::string() : identity->kind_id;
-    attempt.in_turn = in_turn;
-
-    json context = json::object();
-    if (const std::optional<ecs::Entity> top = TopDiscard();
-        top.has_value()) {
-        if (const ecs::CardIdentity* top_id =
-                store.Get<ecs::CardIdentity>(*top)) {
-            context["top_kind"] = top_id->kind_id;
-        }
-    }
-    if (const ecs::ActiveTypeReq* active =
-            store.Get<ecs::ActiveTypeReq>(registries.match)) {
-        context["active_type"] =
-            active->type.has_value() ? *active->type : std::string();
-    } else {
-        context["active_type"] = std::string();
-    }
-    json hand_kinds = json::array();
-    for (ecs::Entity held : hand->cards) {
-        if (const ecs::CardIdentity* held_id =
-                store.Get<ecs::CardIdentity>(held)) {
-            hand_kinds.push_back(held_id->kind_id);
-        }
-    }
-    context["hand"] = std::move(hand_kinds);
-    attempt.context = std::move(context);
-
-    std::vector<modload::RestrictionEntry> entries;
-    if (const ecs::PlayRestriction* pipeline =
-            store.Get<ecs::PlayRestriction>(registries.match)) {
-        entries.reserve(pipeline->entries.size());
-        for (const ecs::RestrictionEntry& entry : pipeline->entries) {
-            modload::RestrictionEntry converted;
-            converted.id = entry.id;
-            converted.phase = entry.phase == ecs::RestrictionPhase::kAllow
-                                  ? "allow"
-                                  : "deny";
-            converted.condition = entry.condition;
-            entries.push_back(std::move(converted));
-        }
-    }
-
-    modload::ConditionMatcher matcher =
-        [this](const json& condition, const modload::PlayAttempt& a) {
-            return assembly_->play_matcher != nullptr
-                && assembly_->play_matcher->Matches(condition, a);
-        };
-    const modload::PlayDecision decision =
-        modload::EvaluatePlayRestrictions(entries, attempt, matcher);
+    const modload::PlayAttempt attempt =
+        BuildPlayAttempt(*player, card, in_turn);
+    const modload::PlayDecision decision = CheckPlayRestrictions(attempt);
     if (!decision.allowed) {
         Emit("play_rejected",
              json{{"player", username}, {"reason_id", decision.reason_id}});
@@ -285,6 +250,9 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
         if (pending_input_.has_value()) {
             pending_input_->settle_play = true;
             pending_input_->actor = *player;
+        } else if (pending_window_.has_value()) {
+            pending_window_->settle_play = true;
+            pending_window_->actor = *player;
         }
         return true;
     }
@@ -295,6 +263,9 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
         if (pending_input_.has_value()) {
             pending_input_->settle_play = true;
             pending_input_->actor = *player;
+        } else if (pending_window_.has_value()) {
+            pending_window_->settle_play = true;
+            pending_window_->actor = *player;
         }
         return true;
     }
@@ -435,9 +406,30 @@ void MatchInstance::Tick() {
         Emit("round_advance", json{{"round", round}});
     }
 
-    // TODO: advance the turn/window/status timers and run scheduled
-    //             graphs whose duration elapsed; open windows when a graph
-    //             reaches a `window` node.
+    // INFO: Timers at the Tick point. While a window is open only
+    //       the window clock runs; timeout routes the default, early
+    //       close routes the collected winner (or default). Otherwise the turn
+    //       deadline is checked.
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    if (!current.has_value()) return;
+    const match::MatchTimerTick tick =
+        timers_.Tick(store, registries.match, *current);
+    if (tick.window_timeout) {
+        CloseWindowRoute(tick.default_route, "timeout");
+    } else if (tick.window_early_closed) {
+        ecs::WindowState* window =
+            store.Get<ecs::WindowState>(registries.match);
+        const std::string route =
+            window == nullptr ? std::string() : WinningRoute(*window);
+        CloseWindowRoute(
+            route, pending_window_.has_value()
+                       && pending_window_->has_winner ? "response"
+                                                      : "all_pass");
+    } else if (tick.turn_expired) {
+        // INFO: engine default for a lapsed turn clock; the engine may refine
+        //       the AFK/bot takeover policy.
+        AdvanceTurn();
+    }
 }
 
 // --- turn advance ----------------------------------------------------------
@@ -644,6 +636,512 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
     Emit("match_end", end_data);
 }
 
+// --- the engine response-window path
+// -------------------------------------------
+
+modload::PlayAttempt MatchInstance::BuildPlayAttempt(ecs::Entity player,
+                                                     ecs::Entity card,
+                                                     bool in_turn) const {
+    ecs::EntityStore& store = assembly_->store;
+    const MatchRegistries& registries = assembly_->registries;
+
+    modload::PlayAttempt attempt;
+    attempt.player = PlayerUsername(store, player);
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
+    attempt.card_kind = identity == nullptr ? std::string() : identity->kind_id;
+    attempt.in_turn = in_turn;
+
+    json context = json::object();
+    if (const std::optional<ecs::Entity> top = TopDiscard();
+        top.has_value()) {
+        if (const ecs::CardIdentity* top_id =
+                store.Get<ecs::CardIdentity>(*top)) {
+            context["top_kind"] = top_id->kind_id;
+        }
+    }
+    if (const ecs::ActiveTypeReq* active =
+            store.Get<ecs::ActiveTypeReq>(registries.match)) {
+        context["active_type"] =
+            active->type.has_value() ? *active->type : std::string();
+    } else {
+        context["active_type"] = std::string();
+    }
+    json hand_kinds = json::array();
+    if (const ecs::Hand* hand = store.Get<ecs::Hand>(player)) {
+        for (ecs::Entity held : hand->cards) {
+            if (const ecs::CardIdentity* held_id =
+                    store.Get<ecs::CardIdentity>(held)) {
+                hand_kinds.push_back(held_id->kind_id);
+            }
+        }
+    }
+    context["hand"] = std::move(hand_kinds);
+    attempt.context = std::move(context);
+    return attempt;
+}
+
+modload::PlayDecision MatchInstance::CheckPlayRestrictions(
+    const modload::PlayAttempt& attempt) const {
+    ecs::EntityStore& store = assembly_->store;
+    const MatchRegistries& registries = assembly_->registries;
+
+    std::vector<modload::RestrictionEntry> entries;
+    if (const ecs::PlayRestriction* pipeline =
+            store.Get<ecs::PlayRestriction>(registries.match)) {
+        entries.reserve(pipeline->entries.size());
+        for (const ecs::RestrictionEntry& entry : pipeline->entries) {
+            modload::RestrictionEntry converted;
+            converted.id = entry.id;
+            converted.phase = entry.phase == ecs::RestrictionPhase::kAllow
+                                  ? "allow"
+                                  : "deny";
+            converted.condition = entry.condition;
+            entries.push_back(std::move(converted));
+        }
+    }
+
+    modload::ConditionMatcher matcher =
+        [this](const json& condition, const modload::PlayAttempt& a) {
+            return assembly_->play_matcher != nullptr
+                && assembly_->play_matcher->Matches(condition, a);
+        };
+    return modload::EvaluatePlayRestrictions(entries, attempt, matcher);
+}
+
+bool MatchInstance::ResponseEligible(
+    const nlohmann::json& respond_with,
+    const modload::PlayAttempt& attempt) const {
+    if (respond_with.is_null()) return true;
+    if (!respond_with.is_object() || respond_with.empty()) return true;
+
+    // INFO: the declared `condition` form is jump_in/no_bluffing eligibility;
+    //       a bare single-keyword play condition is accepted too.
+    const auto condition = respond_with.find("condition");
+    if (condition != respond_with.end()) {
+        return assembly_->play_matcher != nullptr
+            && assembly_->play_matcher->Matches(*condition, attempt);
+    }
+    if (respond_with.size() == 1
+        && modload::IsPlayConditionKeyword(respond_with.begin().key())) {
+        return assembly_->play_matcher != nullptr
+            && assembly_->play_matcher->Matches(respond_with, attempt);
+    }
+
+    const auto facts_it = assembly_->card_facts.find(attempt.card_kind);
+    if (facts_it == assembly_->card_facts.end()) return false;
+    const modload::PlayCardFacts& facts = facts_it->second;
+
+    const auto any_tag = respond_with.find("any_tag");
+    if (any_tag != respond_with.end()) {
+        if (any_tag->is_string()) {
+            const std::string tag = any_tag->get<std::string>();
+            return std::find(facts.tags.begin(), facts.tags.end(), tag)
+                != facts.tags.end();
+        }
+        if (any_tag->is_array()) {
+            for (const json& tag : *any_tag) {
+                if (tag.is_string()
+                    && std::find(facts.tags.begin(), facts.tags.end(),
+                                 tag.get<std::string>())
+                           != facts.tags.end()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    const auto tag = respond_with.find("tag");
+    if (tag != respond_with.end() && tag->is_string()) {
+        const std::string wanted = tag->get<std::string>();
+        return std::find(facts.tags.begin(), facts.tags.end(), wanted)
+            != facts.tags.end();
+    }
+    const auto kind = respond_with.find("kind");
+    if (kind != respond_with.end() && kind->is_string()) {
+        return attempt.card_kind == kind->get<std::string>();
+    }
+    // WARN: an unrecognized filter admits nothing rather than everything.
+    return false;
+}
+
+std::string MatchInstance::ResponseDigest(ecs::Entity card) const {
+    if (!pending_window_.has_value()) return std::string();
+    if (!pending_window_->request.filter_digest.empty()) {
+        return pending_window_->request.filter_digest;
+    }
+
+    const json& filter = pending_window_->request.respond_with;
+    if (filter.is_object()) {
+        const auto condition = filter.find("condition");
+        if (condition != filter.end() && condition->is_object()
+            && condition->size() == 1) {
+            return condition->begin().key();
+        }
+        if (filter.size() == 1
+            && modload::IsPlayConditionKeyword(filter.begin().key())) {
+            return filter.begin().key();
+        }
+        const auto any_tag = filter.find("any_tag");
+        if (any_tag != filter.end()) {
+            const auto facts = assembly_->card_facts.find(
+                ops::CardKindId(assembly_->store, card));
+            if (facts != assembly_->card_facts.end()) {
+                if (any_tag->is_string()) {
+                    return any_tag->get<std::string>();
+                }
+                if (any_tag->is_array()) {
+                    for (const json& tag : *any_tag) {
+                        if (!tag.is_string()) continue;
+                        const std::string wanted = tag.get<std::string>();
+                        if (std::find(facts->second.tags.begin(),
+                                      facts->second.tags.end(), wanted)
+                            != facts->second.tags.end()) {
+                            return wanted;
+                        }
+                    }
+                }
+            }
+        }
+        const auto tag = filter.find("tag");
+        if (tag != filter.end() && tag->is_string()) {
+            return tag->get<std::string>();
+        }
+    }
+    if (pending_window_->request.on_response.size() == 1) {
+        return pending_window_->request.on_response.begin()->first;
+    }
+    return std::string();
+}
+
+std::string MatchInstance::WinningRoute(
+    const ecs::WindowState& window) const {
+    if (pending_window_.has_value() && pending_window_->has_winner) {
+        const std::string digest =
+            ResponseDigest(pending_window_->winner_card);
+        if (!digest.empty()) {
+            const auto it =
+                pending_window_->request.on_response.find(digest);
+            if (it != pending_window_->request.on_response.end()
+                && !it->second.empty()) {
+                return it->second;
+            }
+        }
+    }
+    return window.default_route;
+}
+
+void MatchInstance::OpenWindow(WindowPause pause) {
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::Entity match = assembly_->registries.match;
+
+    ecs::WindowState* window = store.Get<ecs::WindowState>(match);
+    if (window == nullptr) {
+        store.Add(match, ecs::WindowState{});
+        window = store.Get<ecs::WindowState>(match);
+    }
+    if (window == nullptr) return;
+
+    window->window_id = ++next_window_id_;
+    window->responders = pause.request.responders;
+    window->default_route = pause.request.default_route;
+    window->filter_digest = pause.request.filter_digest;
+
+    // INFO: Opening suspends the turn clock and arms the window
+    //       duration; the turn remainder is restored on close.
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    const match::WindowDuration duration = timers_.OpenWindow(
+        store, match, current.value_or(ecs::Entity{}));
+
+    json responders = json::array();
+    for (ecs::Entity responder : window->responders) {
+        responders.push_back(PlayerUsername(store, responder));
+    }
+    json body = json{{"id", window->window_id},
+                     {"node", pause.request.node_id},
+                     {"responders", std::move(responders)},
+                     {"respond_with", pause.request.respond_with},
+                     {"default_route", window->default_route},
+                     {"filter_digest", window->filter_digest},
+                     {"deadline_ms", window->deadline_ms},
+                     {"duration_ms", duration.duration_ms}};
+    // INFO: park before dispatching `window_open` so a hook that pauses cannot
+    //       recursively open a second window from the same pause.
+    pending_window_ = std::move(pause);
+
+    json hook_data = json{{"window", body}};
+    Before("window_open", hook_data);
+    After("window_open", hook_data);
+    Emit("window_open", body);
+}
+
+void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card) {
+    ecs::EntityStore& store = assembly_->store;
+    if (!store.IsAlive(card)) return;
+
+    const std::optional<ecs::ZoneRef> from = ops::FindCardZone(store, card);
+    const std::optional<uint32_t> ordinal = ops::CardOrdinal(store, card);
+    const json from_zone = from.has_value() ? ZoneJson(*from) : json(nullptr);
+    const json to_zone =
+        ZoneJson(ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+
+    json zone_data = json{{"card", EntityJson(card)},
+                          {"from", from_zone},
+                          {"to", to_zone}};
+    Before("card_left_zone", zone_data);
+    Before("card_entered_zone", zone_data);
+    ops::MoveCardToZone(
+        store, card,
+        ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+    After("card_left_zone", zone_data);
+    After("card_entered_zone", zone_data);
+
+    Emit("card_left_zone", json{{"card", EntityJson(card)},
+                                {"from", from_zone},
+                                {"to", to_zone}});
+    Emit("card_entered_zone", json{{"card", EntityJson(card)},
+                                   {"from", from_zone},
+                                   {"to", to_zone}});
+
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
+    const std::string kind =
+        identity == nullptr ? std::string() : identity->kind_id;
+    Emit("card_played",
+         json{{"player", PlayerUsername(store, player)},
+              {"card", EntityJson(card)},
+              {"kind", kind},
+              {"from_ordinal", ordinal.value_or(0)}});
+    last_play_ =
+        LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
+    // INFO: the winning response's own behavior graph is not re-drained; the
+    //       window's `on_response` route is the resolution continuation.
+}
+
+void MatchInstance::CloseWindowRoute(const std::string& route,
+                                     const std::string& outcome) {
+    if (!pending_window_.has_value() || assembly_ == nullptr) return;
+    WindowPause pause = std::move(*pending_window_);
+    pending_window_.reset();
+
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::Entity match = assembly_->registries.match;
+    ecs::WindowState* window = store.Get<ecs::WindowState>(match);
+    const uint32_t window_id = window == nullptr ? 0 : window->window_id;
+
+    // INFO: The first accepted response wins; its card is committed
+    //       here. Losers never left their hand ("returned unplayed").
+    if (pause.has_winner && store.IsAlive(pause.winner_card)) {
+        CommitWinningPlay(pause.winner, pause.winner_card);
+    }
+
+    // INFO: `Tick` already closes and resumes on timeout/early close; an
+    //       explicit all-pass/response close does both here.
+    if (window != nullptr && window->open) {
+        const std::optional<ecs::Entity> current = CurrentPlayer();
+        timers_.CloseWindow(store, match, current.value_or(ecs::Entity{}));
+    }
+
+    json body = json{
+        {"id", window_id},
+        {"outcome", outcome},
+        {"winner", pause.has_winner
+                       ? json(PlayerUsername(store, pause.winner))
+                       : json(nullptr)},
+        {"route", route}};
+    if (pause.has_winner && store.IsAlive(pause.winner_card)) {
+        body["card"] = EntityJson(pause.winner_card);
+    }
+    json hook_data = json{{"window", body}};
+    Before("window_close", hook_data);
+    After("window_close", hook_data);
+    Emit("window_close", body);
+
+    if (pause.system_index >= assembly_->systems.size()) return;
+    const modload::BehaviorGraph& graph =
+        assembly_->systems[pause.system_index].graph;
+    resolver::SelectorContext context = pause.context;
+    if (pause.has_winner) context.responder = pause.winner;
+    context.in_window = true;
+    ops::ResolutionFrame frame;
+    const resolver::ResolveResult result = assembly_->resolver->ResumeWindow(
+        graph, pause.mod_id, context, frame, pause.pause, route);
+    AppendResult(result, pause.system_index, pause.mod_id, context, frame,
+                 pause.settle_play, pause.actor);
+}
+
+bool MatchInstance::RespondWindow(const std::string& username,
+                                  ecs::Entity card) {
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (!pending_window_.has_value()) return false;
+
+    ecs::EntityStore& store = assembly_->store;
+    ecs::WindowState* window =
+        store.Get<ecs::WindowState>(assembly_->registries.match);
+    if (window == nullptr || !window->open) return false;
+
+    const std::optional<ecs::Entity> player = FindPlayer(username);
+    if (!player.has_value()) return false;
+    if (std::find(window->responders.begin(), window->responders.end(),
+                  *player)
+        == window->responders.end()) {
+        return false;
+    }
+    for (const ecs::WindowResponse& existing : window->responses) {
+        if (existing.responder == *player) return false;
+    }
+    if (!store.IsAlive(card) || !store.Has<ecs::CardIdentity>(card)) {
+        return false;
+    }
+    const ecs::Hand* hand = store.Get<ecs::Hand>(*player);
+    if (hand == nullptr
+        || std::find(hand->cards.begin(), hand->cards.end(), card)
+               == hand->cards.end()) {
+        return false;
+    }
+
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    const bool in_turn = current.has_value() && (*current == *player);
+    const modload::PlayAttempt attempt =
+        BuildPlayAttempt(*player, card, in_turn);
+
+    const modload::PlayDecision decision = CheckPlayRestrictions(attempt);
+    if (!decision.allowed) {
+        Emit("play_rejected",
+             json{{"player", username}, {"reason_id", decision.reason_id}});
+        return false;
+    }
+    if (!ResponseEligible(pending_window_->request.respond_with, attempt)) {
+        return false;
+    }
+
+    json play_data =
+        json{{"card", EntityJson(card)},
+             {"player", EntityJson(*player)},
+             {"from", ZoneJson(
+                          ecs::ZoneRef{ecs::ZoneKind::kHand, *player})}};
+    if (Before("play", play_data)) return false;
+
+    const bool winning = !pending_window_->has_winner;
+    ecs::WindowResponse response;
+    response.responder = *player;
+    response.card = card;
+    response.pass = false;
+    response.arrival_seq = pending_window_->next_arrival++;
+    window->responses.push_back(response);
+    if (winning) {
+        pending_window_->has_winner = true;
+        pending_window_->winner = *player;
+        pending_window_->winner_card = card;
+    }
+
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
+    Emit("window_response",
+         json{{"window", window->window_id},
+              {"player", username},
+              {"card", EntityJson(card)},
+              {"kind", identity == nullptr ? std::string()
+                                           : identity->kind_id},
+              {"pass", false},
+              {"outcome", winning ? "winning" : "lost"}});
+
+    if (timers_.Window().AllResponded(*window)) {
+        CloseWindowRoute(WinningRoute(*window), "response");
+    }
+    return true;
+}
+
+bool MatchInstance::PassWindow(const std::string& username) {
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (!pending_window_.has_value()) return false;
+
+    ecs::EntityStore& store = assembly_->store;
+    ecs::WindowState* window =
+        store.Get<ecs::WindowState>(assembly_->registries.match);
+    if (window == nullptr || !window->open) return false;
+
+    const std::optional<ecs::Entity> player = FindPlayer(username);
+    if (!player.has_value()) return false;
+    if (std::find(window->responders.begin(), window->responders.end(),
+                  *player)
+        == window->responders.end()) {
+        return false;
+    }
+    for (const ecs::WindowResponse& existing : window->responses) {
+        if (existing.responder == *player) return false;
+    }
+
+    ecs::WindowResponse response;
+    response.responder = *player;
+    response.pass = true;
+    response.arrival_seq = pending_window_->next_arrival++;
+    window->responses.push_back(response);
+    Emit("window_response", json{{"window", window->window_id},
+                                 {"player", username},
+                                 {"pass", true},
+                                 {"outcome", "pass"}});
+
+    if (timers_.Window().AllResponded(*window)) {
+        CloseWindowRoute(
+            WinningRoute(*window),
+            pending_window_->has_winner ? "response" : "all_pass");
+    }
+    return true;
+}
+
+bool MatchInstance::WindowOpen() const {
+    if (!pending_window_.has_value() || assembly_ == nullptr) return false;
+    const ecs::WindowState* window =
+        assembly_->store.Get<ecs::WindowState>(assembly_->registries.match);
+    return window != nullptr && window->open;
+}
+
+nlohmann::json MatchInstance::ExportWindow() const {
+    if (assembly_ == nullptr || !pending_window_.has_value()) {
+        return json::object();
+    }
+    const ecs::EntityStore& store = assembly_->store;
+    const ecs::WindowState* window =
+        store.Get<ecs::WindowState>(assembly_->registries.match);
+    if (window == nullptr) return json::object();
+
+    json responders = json::array();
+    for (ecs::Entity responder : window->responders) {
+        responders.push_back(PlayerUsername(store, responder));
+    }
+    json responses = json::array();
+    bool winner_seen = false;
+    for (const ecs::WindowResponse& response : window->responses) {
+        json entry =
+            json{{"player", PlayerUsername(store, response.responder)},
+                 {"pass", response.pass},
+                 {"arrival_seq", response.arrival_seq}};
+        if (response.pass) {
+            entry["outcome"] = "pass";
+        } else if (!winner_seen) {
+            winner_seen = true;
+            entry["outcome"] = "winning";
+        } else {
+            entry["outcome"] = "lost";
+        }
+        if (!response.pass && store.IsAlive(response.card)) {
+            entry["card"] = EntityJson(response.card);
+            const ecs::CardIdentity* identity =
+                store.Get<ecs::CardIdentity>(response.card);
+            entry["kind"] = identity == nullptr ? std::string()
+                                                : identity->kind_id;
+        }
+        responses.push_back(std::move(entry));
+    }
+
+    return json{{"open", window->open},
+                {"id", window->window_id},
+                {"responders", std::move(responders)},
+                {"default_route", window->default_route},
+                {"filter_digest", window->filter_digest},
+                {"deadline_ms", window->deadline_ms},
+                {"respond_with", pending_window_->request.respond_with},
+                {"responses", std::move(responses)}};
+}
+
 // --- the engine hook / resolver path
 // -------------------------------------------
 
@@ -704,7 +1202,7 @@ void MatchInstance::CollectRuns() {
         } else if (run.status == resolver::ResolveStatus::kWindow
                    && run.window.has_value()) {
             // INFO: Must-apply auto cards fire before a window
-            //       would open; the engine then owns the window lifecycle.
+            //       opens; the engine then opens and times the window.
             RunMustApply("window");
             if (!pending_window_.has_value()
                 && !pending_input_.has_value()) {
@@ -715,7 +1213,7 @@ void MatchInstance::CollectRuns() {
                 window.context = run.context;
                 window.system_index = run.system_index;
                 window.mod_id = run.mod_id;
-                pending_window_ = std::move(window);
+                OpenWindow(std::move(window));
             }
         }
 
@@ -927,7 +1425,9 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.context = context;
         next.system_index = system_index;
         next.mod_id = mod_id;
-        pending_window_ = std::move(next);
+        next.settle_play = settle_play;
+        next.actor = actor;
+        OpenWindow(std::move(next));
         return;
     }
 
