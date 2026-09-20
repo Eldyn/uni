@@ -843,8 +843,21 @@ class Checker {
             add(info.raw.value("next", nlohmann::json()));
         } else if (info.type == NodeType::kWindow) {
             add(info.raw.value("default", nlohmann::json()));
-            auto on_response = info.raw.find("on_response");
-            if (on_response != info.raw.end() && on_response->is_object()) {
+            const nlohmann::json* window = nullptr;
+            auto win = info.raw.find("window");
+            if (win != info.raw.end() && win->is_object()) window = &*win;
+            if (window != nullptr) {
+                add(window->value("default_route", nlohmann::json()));
+            }
+            const nlohmann::json* on_response = nullptr;
+            auto node_or = info.raw.find("on_response");
+            if (node_or != info.raw.end()) {
+                on_response = &*node_or;
+            } else if (window != nullptr) {
+                auto win_or = window->find("on_response");
+                if (win_or != window->end()) on_response = &*win_or;
+            }
+            if (on_response != nullptr && on_response->is_object()) {
                 for (auto it = on_response->begin(); it != on_response->end();
                      ++it) {
                     add(it.value());
@@ -914,13 +927,25 @@ class Checker {
             std::vector<std::size_t> roots;
             for (const auto& info : infos) {
                 if (info.type != NodeType::kWindow) continue;
-                if (!info.raw.contains("on_response")) continue;
-                const auto& mapping = info.raw["on_response"];
-                if (!mapping.is_object()) continue;
-                for (auto it = mapping.begin(); it != mapping.end(); ++it) {
+                const nlohmann::json* mapping = nullptr;
+                auto node_or = info.raw.find("on_response");
+                if (node_or != info.raw.end()) {
+                    mapping = &*node_or;
+                } else {
+                    auto win = info.raw.find("window");
+                    if (win != info.raw.end() && win->is_object()) {
+                        auto win_or = win->find("on_response");
+                        if (win_or != win->end()) mapping = &*win_or;
+                    }
+                }
+                if (mapping == nullptr || !mapping->is_object()) continue;
+                for (auto it = mapping->begin(); it != mapping->end(); ++it) {
                     if (it.value().is_string()) {
-                        auto found = index_by_id.find(it.value().get<std::string>());
-                        if (found != index_by_id.end()) roots.push_back(found->second);
+                        auto found =
+                            index_by_id.find(it.value().get<std::string>());
+                        if (found != index_by_id.end()) {
+                            roots.push_back(found->second);
+                        }
                     }
                 }
             }
@@ -1023,6 +1048,58 @@ class Checker {
         }
     }
 
+    /**
+     * @brief Validates the declared fields of a graph window node.
+     *
+     * A window node carries `responders`, `respond_with` and `duration` either
+     * inside its `window` object or at the node top level (the Resolver reads
+     * both). Only declared fields are checked: a missing `responders` or
+     * `duration` is not an error (the artifact model does not require them on
+     * the graph-node form). Response routes (`default`, `on_response`) are
+     * resolved by WalkGraph via ExtractTargets.
+     */
+    void CheckWindowFields(const nlohmann::json& node,
+                           const nlohmann::json* window,
+                           const GraphCtx& ctx) {
+        const auto field = [&](const char* key) -> const nlohmann::json* {
+            if (window != nullptr) {
+                auto it = window->find(key);
+                if (it != window->end()) return &*it;
+            }
+            auto it = node.find(key);
+            if (it != node.end()) return &*it;
+            return nullptr;
+        };
+
+        const nlohmann::json* responders = field("responders");
+        if (responders != nullptr) {
+            if (!responders->is_string()) {
+                buckets_.ops.push_back(Err(
+                    "op.type", ctx.artifact, ctx.path,
+                    "window responders must be a selector string"));
+            } else {
+                CheckSelectorValue(responders->get<std::string>(), ctx,
+                                   "window responders");
+            }
+        }
+
+        const nlohmann::json* duration = field("duration");
+        if (duration != nullptr) {
+            if (!duration->is_string()) {
+                buckets_.ops.push_back(Err(
+                    "op.type", ctx.artifact, ctx.path,
+                    "window duration must be 'env' or a duration unit"));
+            } else {
+                const std::string token = duration->get<std::string>();
+                if (token != "env" && !IsDurationUnit(token)) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        "window duration must be 'env' or a duration unit"));
+                }
+            }
+        }
+    }
+
     void CheckNode(const NodeInfo& info, const GraphCtx& base_ctx) {
         GraphCtx ctx = base_ctx;
         ctx.responder_ctx = info.responder;
@@ -1049,14 +1126,26 @@ class Checker {
             CheckArgs(ctx, op_name, info.raw, sig->args, sig->either_of,
                       sig->allows_extra_args);
         } else if (info.type == NodeType::kWindow) {
+            const nlohmann::json* window = nullptr;
+            auto win = info.raw.find("window");
+            if (win != info.raw.end() && win->is_object()) window = &*win;
+
+            CheckWindowFields(info.raw, window, ctx);
             auto def = info.raw.find("default");
             if (def == info.raw.end() || !def->is_string()) {
                 buckets_.graph.push_back(Err(
                     "window.default", ctx.artifact, ctx.path,
                     "window node '" + info.id + "' requires a default route"));
             }
-            auto on_response = info.raw.find("on_response");
-            if (on_response != info.raw.end()) {
+            const nlohmann::json* on_response = nullptr;
+            auto node_or = info.raw.find("on_response");
+            if (node_or != info.raw.end()) {
+                on_response = &*node_or;
+            } else if (window != nullptr) {
+                auto win_or = window->find("on_response");
+                if (win_or != window->end()) on_response = &*win_or;
+            }
+            if (on_response != nullptr) {
                 if (!on_response->is_object()) {
                     buckets_.ops.push_back(Err(
                         "op.type", ctx.artifact, ctx.path,

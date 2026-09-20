@@ -847,6 +847,72 @@ TEST_CASE("validator: @responder inside a window route is allowed") {
     CHECK(errors.empty());
 }
 
+TEST_CASE("validator: window responders must be a known selector") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {json{{"id", "w1"},
+              {"window",
+               {{"responders", "@nobody"}, {"duration", "env"}}},
+              {"default", "n2"}},
+         Op("n2", "advance_turn", json::object())});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "selector.unknown"));
+}
+
+TEST_CASE("validator: window duration must be env or a duration unit") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {json{{"id", "w1"},
+              {"window",
+               {{"responders", "@others"}, {"duration", "fortnight"}}},
+              {"default", "n2"}},
+         Op("n2", "advance_turn", json::object())});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.type"));
+}
+
+TEST_CASE("validator: window with declared fields validates clean") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {json{{"id", "w1"},
+              {"window",
+               {{"responders", "@others"},
+                {"respond_with", {{"any_tag", json::array({"stackable"})}}},
+                {"duration", "env"}}},
+              {"default", "n2"},
+              {"on_response", {{"stackable", "n3"}}}},
+         Op("n2", "advance_turn", json::object()),
+         Op("n3", "skip_turn", {{"target", "@responder"}})});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: window on_response inside the window object resolves") {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {json{{"id", "w1"},
+              {"window",
+               {{"responders", "@others"},
+                {"duration", "env"},
+                {"on_response", {{"stackable", "ghost"}}}}},
+              {"default", "n2"}},
+         Op("n2", "advance_turn", json::object())});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "ref.graph"));
+}
+
 TEST_CASE("validator: @card in a rule graph is selector.scope") {
     LoadedMod mod = ValidMod();
     AddRule(mod, "r1", "before:play", "before", json(),
