@@ -314,6 +314,90 @@ bool EnsureDrawSource(ecs::EntityStore& store, ecs::PileKind kind,
 }
 
 /**
+ * @brief Draw one card for `target` from `source_kind`, firing the
+ *        `draw_attempt` / `draw` hooks around the move.
+ *
+ * Shared by `draw_cards` and `draw_until_playable` so both use the exact same
+ * sourcing / reshuffle / hook choreography. `events` receives any `reshuffle`
+ * descriptor `EnsureDrawSource` emits.
+ *
+ * @return the drawn card, or nullopt when nothing was drawn: the source is
+ *         dry, a reshuffle was vetoed, no candidate passes `filter`, or a
+ *         before-hook vetoed the draw (the candidate then stays put).
+ */
+std::optional<ecs::Entity> DrawOneCard(ecs::EntityStore& store,
+                                       ecs::Entity target,
+                                       ecs::PileKind source_kind,
+                                       const json* filter, OpContext& ctx,
+                                       std::vector<json>& events) {
+    if (!EnsureDrawSource(store, source_kind, ctx, events)) {
+        return std::nullopt;
+    }
+    const std::optional<ecs::Entity> source = FindPile(store, source_kind);
+    if (!source.has_value()) return std::nullopt;
+    const std::optional<ecs::Entity> candidate =
+        PickCandidate(store, *source, filter, ctx);
+    if (!candidate.has_value()) return std::nullopt;
+
+    ecs::HookPayload attempt;
+    attempt.hook = ecs::HookId{"draw_attempt", ecs::HookPhase::kBefore};
+    attempt.data = json{{"player", EntityJson(target)},
+                        {"source", std::string(PileToken(source_kind))}};
+    if (ctx.event_bus.DispatchBefore(attempt.hook, attempt).vetoed) {
+        return std::nullopt;
+    }
+
+    const json draw_data = json{{"card", EntityJson(*candidate)},
+                                {"player", EntityJson(target)}};
+    ecs::HookPayload draw;
+    draw.hook = ecs::HookId{"draw", ecs::HookPhase::kBefore};
+    draw.data = draw_data;
+    const bool draw_vetoed =
+        ctx.event_bus.DispatchBefore(draw.hook, draw).vetoed;
+
+    std::optional<ecs::Entity> drawn;
+    if (!draw_vetoed) {
+        if (!MoveCardToZone(
+                store, *candidate,
+                ecs::ZoneRef{ecs::ZoneKind::kHand, target})) {
+            return std::nullopt;
+        }
+        drawn = *candidate;
+    }
+
+    DispatchHook(ctx, "draw", ecs::HookPhase::kAfter, draw_data);
+    DispatchHook(ctx, "draw_attempt", ecs::HookPhase::kAfter, attempt.data);
+    return drawn;
+}
+
+/**
+ * @brief True when `card` is playable as the just-drawn card.
+ *
+ * Reuses the `drawn_card_playable` condition by binding `card` as
+ * `@drawn_card` for the evaluation and restoring the prior binding, so the
+ * wild / colour / value rules live in exactly one place.
+ */
+bool DrawnCardPlayable(ecs::EntityStore& store, ecs::Entity card,
+                       OpContext& ctx) {
+    ResolutionFrame& frame = ctx.frame;
+    const auto it = frame.selectors.find("@drawn_card");
+    const bool had = it != frame.selectors.end();
+    const std::vector<ecs::Entity> saved =
+        had ? it->second : std::vector<ecs::Entity>();
+
+    frame.BindSelector("@drawn_card", {card});
+    const bool playable = DefaultConditions().Evaluate(
+        store, json{{"drawn_card_playable", json::object()}}, ctx);
+
+    if (had) {
+        frame.BindSelector("@drawn_card", saved);
+    } else {
+        frame.selectors.erase("@drawn_card");
+    }
+    return playable;
+}
+
+/**
  * @brief Open a `choose_card` prompt over `candidates`.
  *
  * Grants each candidate identity visibility to the chooser (the "revealed
@@ -420,42 +504,66 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
 
         int64_t drawn = 0;
         for (int64_t i = 0; i < target_n; ++i) {
-            if (!EnsureDrawSource(store, source_kind, ctx, events)) break;
-            const std::optional<ecs::Entity> candidate =
-                PickCandidate(store, *source, filter, ctx);
-            if (!candidate.has_value()) break;
-
-            ecs::HookPayload attempt;
-            attempt.hook =
-                ecs::HookId{"draw_attempt", ecs::HookPhase::kBefore};
-            attempt.data =
-                json{{"player", EntityJson(target)},
-                     {"source", std::string(PileToken(source_kind))}};
-            if (ctx.event_bus.DispatchBefore(attempt.hook, attempt).vetoed) {
+            if (!DrawOneCard(store, target, source_kind, filter, ctx, events)
+                     .has_value()) {
                 break;
             }
+            ++drawn;
+        }
 
-            const json draw_data = json{{"card", EntityJson(*candidate)},
-                                        {"player", EntityJson(target)}};
-            ecs::HookPayload draw;
-            draw.hook = ecs::HookId{"draw", ecs::HookPhase::kBefore};
-            draw.data = draw_data;
-            const bool draw_vetoed =
-                ctx.event_bus.DispatchBefore(draw.hook, draw).vetoed;
+        events.push_back(MakeEvent(
+            "cards_drawn",
+            json{{"player", EntityJson(target)}, {"count", drawn},
+                 {"source", std::string(PileToken(source_kind))}}));
+        total_drawn += drawn;
+    }
 
-            if (!draw_vetoed) {
-                if (!MoveCardToZone(
-                        store, *candidate,
-                        ecs::ZoneRef{ecs::ZoneKind::kHand, target})) {
-                    break;
-                }
-                ++drawn;
-            }
+    OpResult result = OpResult::Resolved(json{{"drawn", total_drawn}});
+    result.events = std::move(events);
+    return result;
+}
 
-            DispatchHook(ctx, "draw", ecs::HookPhase::kAfter, draw_data);
-            DispatchHook(ctx, "draw_attempt", ecs::HookPhase::kAfter,
-                         attempt.data);
-            if (draw_vetoed) break;
+OpResult OpDrawUntilPlayable(ecs::EntityStore& store, const OpArgs& args,
+                             OpContext& ctx) {
+    // INFO: Progressive capability. Draws one card at a time and stops
+    //       as soon as the freshly drawn card is playable (the engine
+    //       `drawn_card_playable` predicate), or when the source is exhausted
+    //       (the shared draw path reshuffles the discard when it can). The loop
+    //       is bounded by the source pool size - never a balance cap - so it
+    //       terminates even if a hook feeds the discard mid-draw. It draws at
+    //       least once, matching the legacy progressive draw-then-decide flow.
+    const std::vector<ecs::Entity> targets = args.EntitiesOrEmpty("target");
+    if (targets.empty()) return OpResult::Resolved();
+
+    std::string from_token = "draw";
+    if (args.Has("from") && !args.GetString("from", from_token)) {
+        return OpResult::Resolved();
+    }
+    ecs::PileKind source_kind = ecs::PileKind::kDraw;
+    if (!ParsePileKind(from_token, source_kind)) return OpResult::Resolved();
+
+    const std::optional<ecs::Entity> source = FindPile(store, source_kind);
+    if (!source.has_value()) return OpResult::Resolved();
+
+    std::size_t bound = PileOf(store, *source).size();
+    if (source_kind == ecs::PileKind::kDraw) {
+        const std::optional<ecs::Entity> discard =
+            FindPile(store, ecs::PileKind::kDiscard);
+        if (discard.has_value()) bound += PileOf(store, *discard).size();
+    }
+
+    std::vector<json> events;
+    int64_t total_drawn = 0;
+    for (ecs::Entity target : targets) {
+        if (!store.IsAlive(target) || !store.Has<ecs::Hand>(target)) continue;
+
+        int64_t drawn = 0;
+        for (std::size_t i = 0; i < bound; ++i) {
+            const std::optional<ecs::Entity> card =
+                DrawOneCard(store, target, source_kind, nullptr, ctx, events);
+            if (!card.has_value()) break;
+            ++drawn;
+            if (DrawnCardPlayable(store, *card, ctx)) break;
         }
 
         events.push_back(MakeEvent(

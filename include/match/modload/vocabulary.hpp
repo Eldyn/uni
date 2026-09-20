@@ -184,6 +184,19 @@ inline const std::vector<OpSignature>& OpCatalog() {
             add(std::move(s));
         }
         {
+            // INFO: Progressive capability. Draws from `from` (default
+            //       draw pile) one card at a time until the freshly drawn card
+            //       is playable under the `drawn_card_playable` rules,
+            //       or the source is exhausted (the shared draw path
+            //       reshuffles the discard). Bounded by the pile/card counts,
+            //       never a balance cap; emits `cards_drawn` (and `reshuffle`).
+            OpSignature s;
+            s.name = "draw_until_playable";
+            s.args = {Arg("target", ArgType::kSelector),
+                      Arg("from", ArgType::kPileRef, false)};
+            add(std::move(s));
+        }
+        {
             OpSignature s;
             s.name = "move_card";
             s.args = {Arg("card", ArgType::kSelector), Arg("to_zone", ArgType::kZone)};

@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+using match::ecs::ActiveTypeReq;
 using match::ecs::BudgetLedger;
 using match::ecs::CardIdentity;
 using match::ecs::Entity;
@@ -810,4 +811,153 @@ TEST_CASE("card_pile_ops: play_card fail-safe paths emit no effect") {
               .effects.empty());
 
     CHECK(HandOf(h.store, player) == std::vector<Entity>{card});
+}
+
+/* INFO: bind a match entity carrying the required active type, so the
+ *       `drawn_card_playable` predicate has colour facts to compare. */
+void AddActiveType(Harness& h, const std::string& type) {
+    Entity match = AddMatch(h.store, 1);
+    ActiveTypeReq req;
+    req.type = type;
+    h.store.Add(match, req);
+}
+
+TEST_CASE("card_pile_ops: draw_until_playable stops at the first playable") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    AddActiveType(h, "red");
+
+    Entity untouched = MakeCard(h.store, "vanilla:red_4", "red");
+    Entity playable = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity unplayable = MakeCard(h.store, "vanilla:blue_9", "blue");
+    h.store.Get<FaceSpec>(unplayable)->label = "9";
+    // INFO: pile order bottom -> top: untouched, playable, unplayable. The op
+    //       draws blue (unplayable), then red (playable) and stops; red_4
+    //       stays buried.
+    PutInPile(h.store, draw, untouched);
+    PutInPile(h.store, draw, playable);
+    PutInPile(h.store, draw, unplayable);
+
+    const OpResult result =
+        h.Invoke("draw_until_playable", json::object(), {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
+    CHECK(PileOf(h.store, draw) == std::vector<Entity>{untouched});
+    CHECK(result.value["drawn"] == 2);
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "cards_drawn");
+    CHECK(result.events[0]["payload"]["count"] == 2);
+    CHECK(result.events[0]["payload"]["source"] == "draw");
+}
+
+TEST_CASE("card_pile_ops: draw_until_playable exhausts a dry pile") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    AddActiveType(h, "red");
+
+    Entity a = MakeCard(h.store, "vanilla:blue_1", "blue");
+    Entity b = MakeCard(h.store, "vanilla:green_2", "green");
+    PutInPile(h.store, draw, a);
+    PutInPile(h.store, draw, b);
+
+    const OpResult result =
+        h.Invoke("draw_until_playable", json::object(), {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player).size() == 2);
+    CHECK(PileOf(h.store, draw).empty());
+    CHECK(result.value["drawn"] == 2);
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["count"] == 2);
+}
+
+TEST_CASE("card_pile_ops: draw_until_playable reshuffles to reach one") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity discard = AddPile(h.store, PileKind::kDiscard);
+    AddActiveType(h, "red");
+
+    Entity unplayable = MakeCard(h.store, "vanilla:blue_1", "blue");
+    Entity playable = MakeCard(h.store, "vanilla:red_2", "red");
+    PutInPile(h.store, draw, unplayable);
+    PutInPile(h.store, discard, playable);
+
+    const OpResult result =
+        h.Invoke("draw_until_playable", json::object(), {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
+    CHECK(result.value["drawn"] == 2);
+    REQUIRE(result.events.size() == 2);
+    CHECK(result.events[0]["type"] == "reshuffle");
+    CHECK(result.events[0]["payload"]["draw_size"] == 1);
+    CHECK(result.events[1]["type"] == "cards_drawn");
+    CHECK(result.events[1]["payload"]["count"] == 2);
+}
+
+TEST_CASE("card_pile_ops: draw_until_playable honors an explicit from pile") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity discard = AddPile(h.store, PileKind::kDiscard);
+    AddActiveType(h, "red");
+
+    Entity untouched = MakeCard(h.store, "vanilla:red_4", "red");
+    Entity unplayable = MakeCard(h.store, "vanilla:blue_1", "blue");
+    Entity playable = MakeCard(h.store, "vanilla:red_2", "red");
+    PutInPile(h.store, draw, untouched);
+    // INFO: discard top (back) is the unplayable card, so it is drawn first.
+    PutInPile(h.store, discard, playable);
+    PutInPile(h.store, discard, unplayable);
+
+    const OpResult result = h.Invoke(
+        "draw_until_playable", json{{"from", "discard"}},
+        {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
+    CHECK(PileOf(h.store, draw) == std::vector<Entity>{untouched});
+    CHECK(result.value["drawn"] == 2);
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["source"] == "discard");
+}
+
+TEST_CASE("card_pile_ops: draw_until_playable fail-safe targets and from") {
+    Harness h;
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    PutInPile(h.store, draw, card);
+    Entity not_a_player = h.store.Create();
+
+    // INFO: unbound target -> no targets -> no-op, no events.
+    const OpResult unbound =
+        h.Invoke("draw_until_playable", json::object());
+    CHECK(unbound.status == OpStatus::kResolved);
+    CHECK(unbound.events.empty());
+    CHECK(PileOf(h.store, draw).size() == 1);
+
+    // INFO: a live non-hand carrier is skipped.
+    const OpResult non_player = h.Invoke(
+        "draw_until_playable", json::object(), {{"target", {not_a_player}}});
+    CHECK(non_player.status == OpStatus::kResolved);
+    CHECK(non_player.events.empty());
+    CHECK(PileOf(h.store, draw).size() == 1);
+
+    // INFO: a dead target is skipped.
+    Entity dead = h.store.Create();
+    h.store.Destroy(dead);
+    const OpResult dead_result = h.Invoke(
+        "draw_until_playable", json::object(), {{"target", {dead}}});
+    CHECK(dead_result.status == OpStatus::kResolved);
+    CHECK(dead_result.events.empty());
+    CHECK(PileOf(h.store, draw).size() == 1);
+
+    // INFO: an unknown `from` token is a fail-safe no-op.
+    Entity player = AddPlayer(h.store, "p", 0);
+    const OpResult bad_from = h.Invoke(
+        "draw_until_playable", json{{"from", "limbo"}}, {{"target", {player}}});
+    CHECK(bad_from.status == OpStatus::kResolved);
+    CHECK(bad_from.events.empty());
+    CHECK(HandOf(h.store, player).empty());
+    CHECK(PileOf(h.store, draw).size() == 1);
 }

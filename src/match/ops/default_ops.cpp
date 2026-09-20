@@ -32,6 +32,7 @@ void RegisterDefaultOps(OpRuntime& runtime) {
     const std::map<std::string, OpFn> defaults = {
         // card and pile ops.
         {"draw_cards", &detail::OpDrawCards},
+        {"draw_until_playable", &detail::OpDrawUntilPlayable},
         {"move_card", &detail::OpMoveCard},
         {"play_card", &detail::OpPlayCard},
         {"transfer_card", &detail::OpTransferCard},

@@ -19,6 +19,7 @@ namespace match::ops::detail {
 
 // --- card and pile ops ------------------------------------------------
 OpResult OpDrawCards(ecs::EntityStore&, const OpArgs&, OpContext&);
+OpResult OpDrawUntilPlayable(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpMoveCard(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpPlayCard(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpTransferCard(ecs::EntityStore&, const OpArgs&, OpContext&);

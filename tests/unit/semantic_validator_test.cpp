@@ -976,6 +976,28 @@ TEST_CASE("validator: player_count n is bounds-checked") {
     CHECK(HasCheck(errors, "op.bounds"));
 }
 
+TEST_CASE("validator: draw_until_playable vocabulary validates clean") {
+    LoadedMod mod = ValidMod();
+    AddRule(mod, "prog", "turn_start", "after", json(),
+            {json{{"id", "n1"},
+                  {"op", "draw_until_playable"},
+                  {"args", json{{"target", "@self"}}}}});
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: draw_until_playable requires a target") {
+    LoadedMod mod = ValidMod();
+    AddRule(mod, "prog", "turn_start", "after", json(),
+            {json{{"id", "n1"},
+                  {"op", "draw_until_playable"},
+                  {"args", json{{"from", "draw"}}}}});
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.arity"));
+}
+
 // --- restriction pipeline
 
 namespace {
