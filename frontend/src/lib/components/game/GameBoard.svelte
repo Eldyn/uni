@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Canvas } from "@threlte/core";
-	import { storeGame } from "$stores/game.svelte";
+	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
@@ -14,10 +14,21 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
-	import { resolveViewedPlayer, rotatedOpponentsFor } from "./layout/spectatorPov";
+	import { storeTableSpin, type HandMorph } from "$stores/tableSpin.svelte";
+	import {
+		resolveViewedPlayer,
+		rotatedOpponentsFor,
+		hiddenBackCountFor
+	} from "./layout/spectatorPov";
+	import { buildSlotSequence, spinAngleBetween } from "./layout/tableSpin";
+	import { handSlotPose } from "./layout/handSlotPose";
+	import type { BoardPlacement } from "./layout/boardPlacement";
+	import type { SeatPosition3D } from "./layout/seatLayout3D";
 	import {
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
+		RING_STACK_STEP,
+		ringRadialScale,
 		computeHandRingSlots,
 		ringSlotWorldPose,
 		opponentFrontWorldPose
@@ -86,14 +97,14 @@
 	// viewed player occupies the local seat, and their true neighbours stay to
 	// either side, instead of the ring keeping the server's raw order (which
 	// looks like the viewed and previously-viewed players simply swapped).
-	let mappedOpponents = $derived.by(() => {
-		const players = storeGame.state?.players ?? [];
-		const povUsername = storeGame.isSpectator
-			? resolveViewedPlayer(players, storeSpectator.viewedUsername, storeGame.state?.current_turn)
-					?.username
-			: storeGame.localPlayer?.username;
-		return rotatedOpponentsFor(players, povUsername).map((player) => ({ player }));
-	});
+	// Spectator POV comes from the spin controller's committed `renderPov`, so
+	// the ring only re-anchors once a spin has actually landed on the new seat.
+	const povUsername = $derived(
+		storeGame.isSpectator ? storeTableSpin.renderPov : (storeGame.localPlayer?.username ?? null)
+	);
+	let mappedOpponents = $derived.by(() =>
+		rotatedOpponentsFor(storeGame.state?.players ?? [], povUsername).map((player) => ({ player }))
+	);
 
 	// Single source of truth for the scene's camera/seat/pile geometry — Scene3D
 	// draws from this same object (passed down as a prop below), so the pile
@@ -102,6 +113,93 @@
 	let geometry = $derived(computeSceneGeometry(sceneViewport, mappedOpponents.length));
 	$effect(() => {
 		layout.geometry = geometry;
+	});
+
+	// The incoming POV's hand arc, as it reads once their seat has swept down
+	// to the bottom pivot: the same ring/radial sizing Scene3D draws a seat with,
+	// but anchored on the local avatar pose. `open` only when a spectator can
+	// actually see the faces (not a bot, and nothing withheld by the server).
+	function buildIncomingMorph(
+		players: readonly GamePlayer[],
+		username: string,
+		bottomPose: SeatPosition3D,
+		opponentCardScale: number,
+		opponentAvatarWorld: number
+	): HandMorph | null {
+		const player = players.find((p) => p.username === username);
+		if (!player) return null;
+		const count = player.card_count;
+		if (count <= 0) return null;
+		const radial = ringRadialScale(opponentAvatarWorld, opponentCardScale);
+		const slots = computeHandRingSlots(count);
+		const poses = slots.map((slot, i) => {
+			const [x, y, z] = ringSlotWorldPose(bottomPose, slot, i, radial, RING_STACK_STEP);
+			return [x, y, z] as [number, number, number];
+		});
+		return { username, poses, open: !player.is_bot && hiddenBackCountFor(player) === 0 };
+	}
+
+	// The outgoing POV's hand is the local hand row as currently laid out; its
+	// morph target is that same row's slot poses, so the controller can fly
+	// those cards out to wherever the ring sends them.
+	function buildOutgoingMorph(
+		players: readonly GamePlayer[],
+		username: string,
+		placement: BoardPlacement
+	): HandMorph | null {
+		const player = players.find((p) => p.username === username);
+		if (!player) return null;
+		const count = player.card_count;
+		if (count <= 0) return null;
+		const snapshot = bus.localHandSnapshot ?? {
+			orderIds: [],
+			scrollEm: 0,
+			maxHalfSpanEm: Infinity
+		};
+		const poses = Array.from({ length: count }, (_, i) =>
+			handSlotPose(i, count, snapshot, placement)
+		);
+		return { username, poses, open: false };
+	}
+
+	// Drives the spectator table-spin controller from the resolved POV. The
+	// outgoing arrangement is `renderPov` (what is actually on screen); the
+	// target is resolved fresh. `targetGeometry` is recomputed here from the
+	// target rather than read off the renderPov-derived `geometry` above, so
+	// this effect does not depend on its own output. Committing a new renderPov
+	// re-runs the effect exactly once, and the controller's `target === renderPov`
+	// guard turns that re-run into a no-op.
+	$effect(() => {
+		const players = storeGame.state?.players ?? [];
+		const target = storeGame.isSpectator
+			? (resolveViewedPlayer(players, storeSpectator.viewedUsername, storeGame.state?.current_turn)
+					?.username ?? null)
+			: (storeGame.localPlayer?.username ?? null);
+
+		const from = storeTableSpin.renderPov ?? target;
+		if (from === null || target === null) {
+			storeTableSpin.syncTarget(target, target ? [target] : [], 0, null, null);
+			return;
+		}
+		const fromOpponents = rotatedOpponentsFor(players, from);
+		const order = [from, ...fromOpponents.map((p) => p.username)];
+		const targetGeometry = computeSceneGeometry(sceneViewport, order.length - 1);
+		const placement = targetGeometry.placement;
+		const bottomPose = { x: 0, z: placement.localAvatarZ, rotationY: 0 };
+		const slots = buildSlotSequence(targetGeometry.seats3D, bottomPose);
+		const toIndex = order.indexOf(target);
+		const spinAngle = toIndex <= 0 ? 0 : spinAngleBetween(slots[toIndex], bottomPose);
+
+		const incoming = buildIncomingMorph(
+			players,
+			target,
+			bottomPose,
+			targetGeometry.opponentCardScale,
+			targetGeometry.opponentAvatarWorld
+		);
+		const outgoing = buildOutgoingMorph(players, from, placement);
+
+		storeTableSpin.syncTarget(target, order, spinAngle, incoming, outgoing);
 	});
 
 	const disposeBaseBeatsWatcher = createBaseBeatsWatcher({
@@ -225,7 +323,10 @@
 		class="scene-layer"
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
-		onpointerdown={() => cardRegistry.skipCurrent()}
+		onpointerdown={() => {
+			cardRegistry.skipCurrent();
+			storeTableSpin.skip();
+		}}
 		oncontextmenu={(event) => event.preventDefault()}
 	>
 		<Canvas>
