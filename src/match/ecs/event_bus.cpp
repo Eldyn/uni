@@ -156,16 +156,22 @@ uint32_t EventBus::CurrentReentryDepth(const HookId& hook) const {
     return it == reentry_depth_.end() ? 0 : it->second;
 }
 
-void EventBus::AttributeAbort(const std::string& mod_id,
-                              HookDispatchResult& result) {
-    result.aborted_mod = mod_id;
+bool EventBus::NoteChainAbort(const std::string& mod_id) {
+    if (mod_id.empty()) return false;
     const uint32_t count = ++abort_counts_[mod_id];
     if (count >= disarm_threshold_ && !IsDisarmed(mod_id)) {
         disarmed_.insert(mod_id);
-        result.disarmed_mod = mod_id;
         Logger::Error("[EventBus] mod '", mod_id, "' disarmed after ", count,
                       " chain abort(s)");
+        return true;
     }
+    return false;
+}
+
+void EventBus::AttributeAbort(const std::string& mod_id,
+                              HookDispatchResult& result) {
+    result.aborted_mod = mod_id;
+    if (NoteChainAbort(mod_id)) result.disarmed_mod = mod_id;
 }
 
 }  // namespace match::ecs

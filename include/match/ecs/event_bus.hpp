@@ -108,6 +108,17 @@ public:
     /** @brief Chain aborts attributed to `mod_id` so far. */
     uint32_t AbortCount(const std::string& mod_id) const;
 
+    /**
+     * @brief Record a chain abort attributed to `mod_id` outside hook dispatch.
+     *
+     * The Resolver uses this for chain-budget breaches so they count
+     * toward the same per-mod disarm threshold as hook re-entry aborts
+     * An empty `mod_id` is ignored.
+     *
+     * @return true when this abort newly disarmed `mod_id`.
+     */
+    bool NoteChainAbort(const std::string& mod_id);
+
     /** @brief Live re-entry depth for `hook` (0 when not executing). */
     uint32_t CurrentReentryDepth(const HookId& hook) const;
 
