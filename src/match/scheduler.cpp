@@ -70,15 +70,20 @@ std::optional<uint32_t> Scheduler::Arm(ecs::EntityStore& store,
     return id;
 }
 
-std::vector<nlohmann::json> Scheduler::Tick(ecs::EntityStore& store,
-                                            ecs::Entity match,
-                                            int64_t now_ms) {
+std::vector<nlohmann::json> Scheduler::Run(ecs::EntityStore& store,
+                                           ecs::Entity match, int64_t now_ms,
+                                           Drive drive) {
     ecs::PendingSchedule* schedule =
         store.Get<ecs::PendingSchedule>(match);
-    if (schedule == nullptr) return {};
+    if (schedule == nullptr) {
+        progress_.clear();
+        return {};
+    }
 
     struct Group {
         nlohmann::json graph;
+        int64_t started_ms = 0;
+        std::vector<ecs::DurationSpec> legs;
         bool elapsed = false;
     };
 
@@ -87,10 +92,37 @@ std::vector<nlohmann::json> Scheduler::Tick(ecs::EntityStore& store,
     std::map<uint32_t, Group> groups;
     for (const ecs::PendingSchedule::Entry& entry : schedule->entries) {
         Group& group = groups[entry.id];
-        if (group.graph.is_null()) group.graph = entry.graph;
-        DurationProgress progress;
-        progress.elapsed_ms = now_ms - entry.started_ms;
-        if (LegElapsed(entry.duration, progress)) group.elapsed = true;
+        if (group.legs.empty()) {
+            group.graph = entry.graph;
+            group.started_ms = entry.started_ms;
+        }
+        group.legs.push_back(entry.duration);
+    }
+
+    for (auto& [id, group] : groups) {
+        DurationProgress& progress = progress_[id];
+        // INFO: wall-clock is refreshed on every driver so a compound ms leg
+        //       that elapsed between calls still fires on an event.
+        progress.elapsed_ms = now_ms - group.started_ms;
+        switch (drive) {
+            case Drive::kTurns:
+                progress.turns += 1;
+                break;
+            case Drive::kRounds:
+                progress.rounds += 1;
+                break;
+            case Drive::kCards:
+                progress.cards_played += 1;
+                break;
+            case Drive::kMs:
+                break;
+        }
+        for (const ecs::DurationSpec& leg : group.legs) {
+            if (LegElapsed(leg, progress)) {
+                group.elapsed = true;
+                break;
+            }
+        }
     }
 
     std::vector<nlohmann::json> elapsed_graphs;
@@ -111,7 +143,46 @@ std::vector<nlohmann::json> Scheduler::Tick(ecs::EntityStore& store,
                            }),
             entries.end());
     }
+
+    // INFO: drop counters for groups no longer armed (expired or removed).
+    std::set<uint32_t> live;
+    for (const ecs::PendingSchedule::Entry& entry : schedule->entries) {
+        live.insert(entry.id);
+    }
+    for (auto it = progress_.begin(); it != progress_.end();) {
+        if (live.count(it->first) == 0) {
+            it = progress_.erase(it);
+        } else {
+            ++it;
+        }
+    }
     return elapsed_graphs;
+}
+
+std::vector<nlohmann::json> Scheduler::Tick(ecs::EntityStore& store,
+                                            ecs::Entity match,
+                                            int64_t now_ms) {
+    return Run(store, match, now_ms, Drive::kMs);
+}
+
+std::vector<nlohmann::json> Scheduler::OnTurnEnd(ecs::EntityStore& store,
+                                                 ecs::Entity match,
+                                                 ecs::Entity owner) {
+    // INFO: schedules are match-scoped (the frozen entry has no owner slot),
+    //       so every `turns` leg advances; `owner` names the ended turn for
+    //       parity with status::StatusSystem::OnTurnEnd.
+    (void)owner;
+    return Run(store, match, clock_(), Drive::kTurns);
+}
+
+std::vector<nlohmann::json> Scheduler::OnRoundEnd(ecs::EntityStore& store,
+                                                  ecs::Entity match) {
+    return Run(store, match, clock_(), Drive::kRounds);
+}
+
+std::vector<nlohmann::json> Scheduler::OnCardPlayed(ecs::EntityStore& store,
+                                                    ecs::Entity match) {
+    return Run(store, match, clock_(), Drive::kCards);
 }
 
 std::size_t Scheduler::Pending(const ecs::EntityStore& store,

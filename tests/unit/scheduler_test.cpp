@@ -180,6 +180,128 @@ TEST_CASE("scheduler: started_ms is taken per entry from the clock") {
     CHECK(second[0] == late);
 }
 
+TEST_CASE("scheduler: turns leg advances on turn_end, not before") {
+    Harness h;
+    const json graph = Graph("turns");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     DurationSpec{DurationUnit::kTurns, 2})
+                .has_value());
+    const Entity owner = h.store.Create();
+
+    CHECK(h.scheduler.OnTurnEnd(h.store, h.match, owner).empty());
+    CHECK(h.scheduler.Pending(h.store, h.match) == 1);
+
+    const std::vector<json> elapsed =
+        h.scheduler.OnTurnEnd(h.store, h.match, owner);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+    CHECK(h.scheduler.OnTurnEnd(h.store, h.match, owner).empty());
+}
+
+TEST_CASE("scheduler: rounds leg advances on round_end") {
+    Harness h;
+    const json graph = Graph("rounds");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     DurationSpec{DurationUnit::kRounds, 2})
+                .has_value());
+
+    CHECK(h.scheduler.OnRoundEnd(h.store, h.match).empty());
+    const std::vector<json> elapsed =
+        h.scheduler.OnRoundEnd(h.store, h.match);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+}
+
+TEST_CASE("scheduler: cards_played leg advances on after_play") {
+    Harness h;
+    const json graph = Graph("cards");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     DurationSpec{DurationUnit::kCardsPlayed, 3})
+                .has_value());
+
+    CHECK(h.scheduler.OnCardPlayed(h.store, h.match).empty());
+    CHECK(h.scheduler.OnCardPlayed(h.store, h.match).empty());
+    const std::vector<json> elapsed =
+        h.scheduler.OnCardPlayed(h.store, h.match);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+}
+
+TEST_CASE("scheduler: compound turns+rounds expires on the first leg") {
+    Harness h;
+    const json graph = Graph("compound-events");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     Compound({DurationSpec{DurationUnit::kTurns, 5},
+                               DurationSpec{DurationUnit::kRounds, 2}}))
+                .has_value());
+    const Entity owner = h.store.Create();
+
+    CHECK(h.scheduler.OnRoundEnd(h.store, h.match).empty());
+    CHECK(h.scheduler.OnTurnEnd(h.store, h.match, owner).empty());
+    const std::vector<json> elapsed =
+        h.scheduler.OnRoundEnd(h.store, h.match);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+}
+
+TEST_CASE("scheduler: compound turns+ms expires on the turns leg") {
+    Harness h;
+    const json graph = Graph("turns-ms");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     Compound({DurationSpec{DurationUnit::kTurns, 1},
+                               DurationSpec{DurationUnit::kMs, 999999}}))
+                .has_value());
+    const Entity owner = h.store.Create();
+
+    const std::vector<json> elapsed =
+        h.scheduler.OnTurnEnd(h.store, h.match, owner);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+}
+
+TEST_CASE("scheduler: event driver fires an already-elapsed ms leg") {
+    Harness h;
+    const json graph = Graph("ms-first");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     Compound({DurationSpec{DurationUnit::kMs, 100},
+                               DurationSpec{DurationUnit::kRounds, 5}}))
+                .has_value());
+
+    h.now = 1200;
+    const std::vector<json> elapsed =
+        h.scheduler.OnRoundEnd(h.store, h.match);
+    REQUIRE(elapsed.size() == 1);
+    CHECK(elapsed[0] == graph);
+    CHECK(h.scheduler.Pending(h.store, h.match) == 0);
+}
+
+TEST_CASE("scheduler: event drivers do not advance each other's legs") {
+    Harness h;
+    const json graph = Graph("turns-only");
+    REQUIRE(h.scheduler
+                .Arm(h.store, h.match, graph,
+                     DurationSpec{DurationUnit::kTurns, 1})
+                .has_value());
+
+    CHECK(h.scheduler.OnRoundEnd(h.store, h.match).empty());
+    CHECK(h.scheduler.OnCardPlayed(h.store, h.match).empty());
+    CHECK(h.scheduler.Pending(h.store, h.match) == 1);
+
+    const Entity owner = h.store.Create();
+    CHECK(h.scheduler.OnTurnEnd(h.store, h.match, owner).size() == 1);
+}
+
 TEST_CASE("scheduler: invalid durations are rejected") {
     Harness h;
     CHECK(!h.scheduler
