@@ -1,6 +1,7 @@
 #include <match/ops/op_helpers.hpp>
 #include <match/status.hpp>
 
+#include <match/modload/vocabulary.hpp>
 #include <match/resolver.hpp>
 
 #include <nlohmann/json.hpp>
@@ -272,6 +273,19 @@ bool EvalAlways(ecs::EntityStore&, const json&, OpContext&) { return true; }
 /** @brief Always false. */
 bool EvalNever(ecs::EntityStore&, const json&, OpContext&) { return false; }
 
+/**
+ * @brief Fail-safe false for play-context predicates.
+ *
+ * Play-context keywords (`ConditionCatalog()` rows with `play_context`) are
+ * evaluated against a `PlayAttempt` by the restriction pipeline's
+ * `PlayConditionMatcher` (`match/modload/play_conditions.hpp`). The generic
+ * resolver never carries an attempt, so binding them here as false keeps the
+ * whole catalog registered while never fabricating a match.
+ */
+bool EvalPlayContextUnbound(ecs::EntityStore&, const json&, OpContext&) {
+    return false;
+}
+
 }  // namespace
 
 void RegisterDefaultConditions(resolver::ConditionRegistry& registry) {
@@ -291,6 +305,15 @@ void RegisterDefaultConditions(resolver::ConditionRegistry& registry) {
     registry.Register("turns_elapsed", &EvalTurnsElapsed);
     registry.Register("always", &EvalAlways);
     registry.Register("never", &EvalNever);
+
+    // INFO: play-context keywords are owned by the restriction pipeline; the
+    //       store-domain resolver has no PlayAttempt, so they stay false here.
+    for (const modload::ConditionSignature& signature :
+         modload::ConditionCatalog()) {
+        if (signature.play_context) {
+            registry.Register(signature.keyword, &EvalPlayContextUnbound);
+        }
+    }
 }
 
 }  // namespace match::ops

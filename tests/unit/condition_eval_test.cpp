@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -175,11 +176,30 @@ struct Fixture : Harness {
 
 TEST_CASE("condition_eval: every catalog keyword is registered") {
     Fixture fixture;
+    std::size_t store_conditions = 0;
+    std::size_t play_conditions = 0;
     for (const auto& signature : ConditionCatalog()) {
         CHECK(fixture.conditions.Has(signature.keyword));
+        if (signature.play_context) {
+            ++play_conditions;
+        } else {
+            ++store_conditions;
+        }
     }
-    CHECK(ConditionCatalog().size() == 13);
+    CHECK(store_conditions == 13);
+    CHECK(play_conditions == 13);
+    CHECK(ConditionCatalog().size() == 26);
     CHECK_FALSE(fixture.conditions.Has("no_such_condition"));
+}
+
+TEST_CASE("condition_eval: play-context keywords are fail-safe false") {
+    // INFO: the store-domain resolver never carries a PlayAttempt, so every
+    //       play-context predicate is bound to false there.
+    Harness bare;
+    for (const auto& signature : ConditionCatalog()) {
+        if (!signature.play_context) continue;
+        CHECK_FALSE(bare.Eval(json{{signature.keyword, json::object()}}));
+    }
 }
 
 TEST_CASE("condition_eval: has_card_kind") {

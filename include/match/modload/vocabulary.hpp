@@ -104,6 +104,14 @@ struct ConditionSignature {
     std::string keyword;
     std::vector<ArgSpec> args;
     std::vector<std::vector<std::string>> either_of;
+    /**
+     * True when this keyword is a play-context predicate. Such
+     * predicates are evaluated against a `PlayAttempt` by the restriction
+     * pipeline (`PlayConditionMatcher`, `play_conditions.hpp`), never against
+     * the entity store: the generic condition registry has no attempt and
+     * binds them to fail-safe false.
+     */
+    bool play_context = false;
 };
 
 /**
@@ -502,6 +510,45 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
             c.keyword = "never";
             add(std::move(c));
         }
+
+        // --- play-context predicates
+        // Evaluated against a PlayAttempt by PlayConditionMatcher
+        // (play_conditions.hpp), NOT against the entity store. Derived from
+        // the legacy legality predicates in src/match/rules/*.cpp; the
+        // generic condition registry binds every one of these to fail-safe
+        // false because it never carries a PlayAttempt.
+        auto add_play = [&out](const std::string& keyword,
+                               std::vector<ArgSpec> args = {}) {
+            ConditionSignature c;
+            c.keyword = keyword;
+            c.play_context = true;
+            c.args = std::move(args);
+            out.push_back(std::move(c));
+        };
+
+        // standard.cpp:8 (`if (event.is_out_of_turn) invalid`).
+        add_play("in_turn");
+        add_play("plays_out_of_turn");
+        // standard.cpp:16/23/27-34: wild is always legal; otherwise colour
+        // must equal the active type or value must equal the discard top.
+        add_play("plays_matches_active");
+        add_play("plays_matches_top");
+        add_play("plays_mismatch");
+        // jump_in.cpp:14-15: same type AND same value as the discard top.
+        add_play("plays_identical_to_top");
+        // Attempted-card identity (seven_zero value=7/0; no_bluffing +4).
+        add_play("plays_kind", {Arg("kind", ArgType::kKindRef)});
+        add_play("plays_tag", {Arg("tag", ArgType::kTagRef)});
+        add_play("plays_color", {Arg("color", ArgType::kString)});
+        add_play("plays_value", {Arg("value", ArgType::kString)});
+        // Hand ownership (`must_own_card`); `plays_unowned` is the violation
+        // form (a deny entry cannot express `not`).
+        add_play("owns_card");
+        add_play("plays_unowned");
+        // no_bluffing.cpp:12-30: playing `value` while holding a card whose
+        // colour equals the active type.
+        add_play("plays_bluffing", {Arg("value", ArgType::kString)});
+
         return out;
     }();
     return kConditions;
