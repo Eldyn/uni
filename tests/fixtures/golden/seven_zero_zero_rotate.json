@@ -1,0 +1,114 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "seven_zero_zero_rotate",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              10,
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          },
+          {
+            "hand": [
+              50855941
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Carol"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "seven_zero"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Alice:red0",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          10
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "last_play": {
+          "card": 10,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              50855941
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Carol"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "seven_zero"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

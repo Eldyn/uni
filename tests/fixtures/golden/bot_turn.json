@@ -1,0 +1,94 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "bot_turn",
+  "steps": [
+    {
+      "action": "load:Bob_to_move",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              16973825
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": true,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "bot:Bob",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          131076
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "last_play": {
+          "card": 131076,
+          "hand_index": 1,
+          "player": "Bob"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              16973825
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": true,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

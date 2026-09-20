@@ -1,0 +1,159 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "seven_zero_swap",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              458759,
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "seven_zero"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Alice:red7",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          458759
+        ],
+        "draw_pile": [],
+        "effect_queue": [
+          {
+            "type": 7,
+            "username": "Alice"
+          },
+          {
+            "type": "advance_turn"
+          }
+        ],
+        "last_play": {
+          "card": 458759,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 2,
+        "pending_draws": 0,
+        "pending_input_context": [
+          "Bob"
+        ],
+        "pending_player": "Alice",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "seven_zero"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "input:Alice:swap_with_Bob",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          458759
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "last_play": {
+          "card": 458759,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 2,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "seven_zero"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

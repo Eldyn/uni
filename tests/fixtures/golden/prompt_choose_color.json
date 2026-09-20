@@ -1,0 +1,149 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "prompt_choose_color",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              67960862,
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Alice:jolly",
+      "state": {
+        "active_type": 4,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          67960862
+        ],
+        "draw_pile": [],
+        "effect_queue": [
+          {
+            "stack_bonus": 0,
+            "target": "Alice",
+            "type": 5
+          },
+          {
+            "type": "advance_turn"
+          }
+        ],
+        "last_play": {
+          "card": 67960862,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "Alice",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "input:Alice:blue",
+      "state": {
+        "active_type": 1,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          67960862
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "last_play": {
+          "card": 67960862,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

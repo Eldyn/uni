@@ -1,0 +1,234 @@
+{
+  "engine": "old",
+  "may_differ": true,
+  "scenario": "draw_stacking",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663,
+          17105200,
+          17170737,
+          17236274,
+          17301811
+        ],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              786452,
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34340885,
+              589828
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "draw_stacking"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Alice:red_draw2",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          786452
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663,
+          17105200,
+          17170737,
+          17236274,
+          17301811
+        ],
+        "effect_queue": [],
+        "last_play": {
+          "card": 786452,
+          "hand_index": 0,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 2,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34340885,
+              589828
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "draw_stacking"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Bob:green_draw2_stack",
+      "state": {
+        "active_type": 2,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          786452,
+          34340885
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663,
+          17105200,
+          17170737,
+          17236274,
+          17301811
+        ],
+        "effect_queue": [],
+        "last_play": {
+          "card": 34340885,
+          "hand_index": 0,
+          "player": "Bob"
+        },
+        "pending_action": 0,
+        "pending_draws": 4,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              589828
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "draw_stacking"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "draw:Alice:takes_4",
+      "state": {
+        "active_type": 2,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          786452,
+          34340885
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663
+        ],
+        "effect_queue": [],
+        "last_play": {
+          "card": 34340885,
+          "hand_index": 0,
+          "player": "Bob"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898,
+              17301811,
+              17236274,
+              17170737,
+              17105200
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              589828
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "draw_stacking"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}
