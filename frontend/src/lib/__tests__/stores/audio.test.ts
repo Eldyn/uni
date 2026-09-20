@@ -57,7 +57,16 @@ function setTouchPrimary(touchPrimary: boolean) {
 	Object.defineProperty(window, "matchMedia", {
 		configurable: true,
 		writable: true,
-		value: vi.fn().mockReturnValue({ matches: touchPrimary } as MediaQueryList)
+		value: vi.fn().mockReturnValue({
+			matches: touchPrimary,
+			media: "",
+			onchange: null,
+			addListener: () => {},
+			removeListener: () => {},
+			addEventListener: () => {},
+			removeEventListener: () => {},
+			dispatchEvent: () => true
+		} as unknown as MediaQueryList)
 	});
 }
 
