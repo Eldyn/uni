@@ -4,6 +4,7 @@
 #include <match/modload/semantic_validator.hpp>
 
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -81,6 +82,44 @@ TEST_CASE("vanilla content: mods load and validate clean") {
         }
     }
     CHECK_MESSAGE(has_draw_debt, "vanilla:draw_debt status is not declared");
+
+    /* INFO: Content coverage: vanilla ships the three play-legality
+     *       restriction entries as data. They are delivered by a
+     *       rule hook that runs `add_restriction`; collect every declared
+     *       entry id and assert the full set is present with the expected
+     *       deny condition keyword. */
+    std::map<std::string, std::string> declared_restrictions;
+    for (const auto& rule : vanilla->rules) {
+        for (const auto& hook : rule.hooks) {
+            for (const auto& node : hook.graph.nodes) {
+                if (!node.is_object() || !node.contains("op")
+                    || !node["op"].is_string()
+                    || node["op"].get<std::string>() != "add_restriction") {
+                    continue;
+                }
+                const auto args = node.find("args");
+                if (args == node.end() || !args->is_object()) continue;
+                const auto entry = args->find("entry_def");
+                if (entry == args->end() || !entry->is_object()) continue;
+                const auto id = entry->find("id");
+                const auto condition = entry->find("condition");
+                if (id == entry->end() || !id->is_string()
+                    || condition == entry->end() || !condition->is_object()
+                    || condition->size() != 1) {
+                    continue;
+                }
+                declared_restrictions[id->get<std::string>()] =
+                    condition->begin().key();
+            }
+        }
+    }
+    CHECK(declared_restrictions.size() == 3);
+    CHECK(declared_restrictions["vanilla:turn_order"]
+          == "plays_out_of_turn");
+    CHECK(declared_restrictions["vanilla:match_type_or_value"]
+          == "plays_mismatch");
+    CHECK(declared_restrictions["vanilla:must_own_card"]
+          == "plays_unowned");
 
     const SemanticValidator validator((root / "contract" / "schemas").string());
 
