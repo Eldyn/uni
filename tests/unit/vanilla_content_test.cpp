@@ -66,6 +66,22 @@ TEST_CASE("vanilla content: mods load and validate clean") {
     REQUIRE(load.ok());
     REQUIRE_FALSE(load.mods.empty());
 
+    /* INFO: Content coverage: vanilla must declare the standard
+     *       draw-debt status, accumulated by magnitude. */
+    const LoadedMod* vanilla = nullptr;
+    for (const auto& mod : load.mods) {
+        if (mod.manifest.id == "vanilla") vanilla = &mod;
+    }
+    REQUIRE_MESSAGE(vanilla != nullptr, "vanilla mod not loaded");
+    bool has_draw_debt = false;
+    for (const auto& status : vanilla->statuses) {
+        if (status.status_id == "vanilla:draw_debt") {
+            has_draw_debt = true;
+            CHECK(status.stack_policy == "accumulate");
+        }
+    }
+    CHECK_MESSAGE(has_draw_debt, "vanilla:draw_debt status is not declared");
+
     const SemanticValidator validator((root / "contract" / "schemas").string());
 
     for (const auto& mod : load.mods) {
