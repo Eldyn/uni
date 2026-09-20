@@ -7,7 +7,7 @@
 import { Howler } from "howler";
 import { MusicPlayer } from "$lib/audio/musicPlayer";
 import { SfxPlayer } from "$lib/audio/sfxPlayer";
-import { resolveMusicForContext } from "$lib/audio/audioLogic";
+import { isMobileDevice, resolveMusicForContext } from "$lib/audio/audioLogic";
 import { storeNavigation } from "$stores/navigation.svelte";
 
 const SETTINGS_STORAGE_KEY = "uni:audio:settings";
@@ -58,6 +58,7 @@ class StoreAudio {
 		}
 
 		this.#unlockOnGesture();
+		this.#bindVisibilityPause();
 
 		// INFO: storeAudio is an app-lifetime singleton, so this effect is
 		//       meant to run for the whole session, the dispose function
@@ -99,6 +100,52 @@ class StoreAudio {
 			document.addEventListener("keydown", resume);
 		} catch {
 			// INFO: Howler.ctx unavailable, nothing to unlock.
+		}
+	}
+
+	/**
+	 * @brief Backgrounding a mobile page (tab switch, app switch, screen lock)
+	 * does not unload it, so without this the shared AudioContext keeps
+	 * rendering and audio plays on. Suspend it while hidden, resume on return.
+	 * Mobile-only: desktop browsers keep the music going in a hidden tab by
+	 * design. Both Howler tracks and the raw Web Audio multi-channel stems
+	 * route through `Howler.ctx`, so one suspend covers the whole audio system.
+	 */
+	#bindVisibilityPause(): void {
+		document.addEventListener("visibilitychange", this.#onVisibilityChange);
+	}
+
+	#onVisibilityChange = (): void => {
+		try {
+			if (!this.#shouldPauseOnHidden()) return;
+			const ctx = Howler.ctx;
+			if (!ctx) return;
+			if (document.hidden) {
+				if (ctx.state === "running") {
+					ctx.suspend().catch(() => {
+						// INFO: Already suspended or unsupported, nothing to do.
+					});
+				}
+			} else if (ctx.state === "suspended") {
+				ctx.resume().catch(() => {
+					// INFO: No gesture-granted permission yet, retry on gesture.
+				});
+			}
+		} catch {
+			// INFO: Howler.ctx unavailable, nothing to pause/resume.
+		}
+	};
+
+	#shouldPauseOnHidden(): boolean {
+		try {
+			return isMobileDevice({
+				userAgent: navigator.userAgent ?? "",
+				touchPrimary:
+					typeof window.matchMedia === "function" &&
+					window.matchMedia("(pointer: coarse) and (hover: none)").matches
+			});
+		} catch {
+			return false;
 		}
 	}
 

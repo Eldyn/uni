@@ -13,7 +13,11 @@ const { FakeHowl, HowlerMock } = vi.hoisted(() => {
 	}
 
 	const HowlerMock = {
-		ctx: null as { state: string; resume: () => Promise<void> } | null,
+		ctx: null as {
+			state: string;
+			resume: () => Promise<void>;
+			suspend: () => Promise<void>;
+		} | null,
 		volume: vi.fn()
 	};
 
@@ -24,11 +28,47 @@ vi.mock("howler", () => ({ Howl: FakeHowl, Howler: HowlerMock }));
 
 const SETTINGS_KEY = "uni:audio:settings";
 
+function makeCtx(state: string) {
+	return {
+		state,
+		resume: vi.fn().mockResolvedValue(undefined),
+		suspend: vi.fn().mockResolvedValue(undefined)
+	};
+}
+
+async function initAndCaptureVisibilityHandler() {
+	const addSpy = vi.spyOn(document, "addEventListener");
+	const { storeAudio } = await import("$stores/audio.svelte");
+	storeAudio.init();
+	const call = addSpy.mock.calls.find(([type]) => type === "visibilitychange");
+	if (!call) throw new Error("no visibilitychange listener registered");
+	return call[1] as () => void;
+}
+
+function setHidden(hidden: boolean) {
+	Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+}
+
+function setUserAgent(userAgent: string) {
+	Object.defineProperty(navigator, "userAgent", { configurable: true, get: () => userAgent });
+}
+
+function setTouchPrimary(touchPrimary: boolean) {
+	Object.defineProperty(window, "matchMedia", {
+		configurable: true,
+		writable: true,
+		value: vi.fn().mockReturnValue({ matches: touchPrimary } as MediaQueryList)
+	});
+}
+
 describe("storeAudio", () => {
 	beforeEach(() => {
 		localStorage.clear();
 		HowlerMock.volume.mockClear();
 		HowlerMock.ctx = null;
+		setHidden(false);
+		setUserAgent("Mozilla/5.0 (Linux; Android 13)");
+		setTouchPrimary(true);
 		vi.resetModules();
 	});
 
@@ -134,5 +174,74 @@ describe("storeAudio", () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
 
 		expect(() => storeAudio.init()).not.toThrow();
+	});
+
+	it("suspends the shared AudioContext when the document becomes hidden", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		const ctx = makeCtx("running");
+		HowlerMock.ctx = ctx;
+		setHidden(true);
+
+		handler();
+
+		expect(ctx.suspend).toHaveBeenCalledTimes(1);
+		expect(ctx.resume).not.toHaveBeenCalled();
+	});
+
+	it("resumes the shared AudioContext when the document becomes visible again", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		const ctx = makeCtx("suspended");
+		HowlerMock.ctx = ctx;
+		setHidden(false);
+
+		handler();
+
+		expect(ctx.resume).toHaveBeenCalledTimes(1);
+		expect(ctx.suspend).not.toHaveBeenCalled();
+	});
+
+	it("does not re-suspend an already-suspended context while hidden", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		const ctx = makeCtx("suspended");
+		HowlerMock.ctx = ctx;
+		setHidden(true);
+
+		handler();
+
+		expect(ctx.suspend).not.toHaveBeenCalled();
+	});
+
+	it("visibility handling no-ops when Howler.ctx is unavailable", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		HowlerMock.ctx = null;
+		setHidden(true);
+
+		expect(() => handler()).not.toThrow();
+	});
+
+	it("does not suspend audio on a non-mobile device when the tab is hidden", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		setUserAgent("Mozilla/5.0 (X11; Linux x86_64)");
+		setTouchPrimary(false);
+		const ctx = makeCtx("running");
+		HowlerMock.ctx = ctx;
+		setHidden(true);
+
+		handler();
+
+		expect(ctx.suspend).not.toHaveBeenCalled();
+	});
+
+	it("treats a coarse-pointer touch device as mobile even with a desktop user agent", async () => {
+		const handler = await initAndCaptureVisibilityHandler();
+		setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+		setTouchPrimary(true);
+		const ctx = makeCtx("running");
+		HowlerMock.ctx = ctx;
+		setHidden(true);
+
+		handler();
+
+		expect(ctx.suspend).toHaveBeenCalledTimes(1);
 	});
 });

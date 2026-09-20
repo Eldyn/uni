@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+	isMobileDevice,
 	pickVariant,
 	randomPitch,
 	resolveMusicForContext,
@@ -75,5 +76,31 @@ describe("audioLogic: shouldThrottle", () => {
 	it("returns false when minIntervalMs is undefined regardless of timing", () => {
 		const lastPlayedAt = new Map([["sfx.deal", 999]]);
 		expect(shouldThrottle("sfx.deal", lastPlayedAt, {}, 1000)).toBe(false);
+	});
+});
+
+describe("audioLogic: isMobileDevice", () => {
+	it("returns true for a coarse-pointer touch device", () => {
+		expect(
+			isMobileDevice({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)", touchPrimary: true })
+		).toBe(true);
+	});
+
+	it("returns true for an Android user agent", () => {
+		expect(
+			isMobileDevice({ userAgent: "Mozilla/5.0 (Linux; Android 13)", touchPrimary: false })
+		).toBe(true);
+	});
+
+	it("returns true for an iPhone user agent", () => {
+		expect(
+			isMobileDevice({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)", touchPrimary: false })
+		).toBe(true);
+	});
+
+	it("returns false for a desktop user agent with a fine pointer", () => {
+		expect(
+			isMobileDevice({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)", touchPrimary: false })
+		).toBe(false);
 	});
 });

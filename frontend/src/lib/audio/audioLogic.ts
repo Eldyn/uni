@@ -57,3 +57,16 @@ export function shouldThrottle(
 	if (last === undefined) return false;
 	return now - last < def.minIntervalMs;
 }
+
+/**
+ * @brief Whether backgrounding should pause audio. Mobile browsers keep
+ * rendering a hidden page's AudioContext (and on Android an app switch never
+ * unloads it), so mobile must pause. Desktop browsers keep playing the music
+ * when the tab is hidden, which is desirable there.
+ */
+export function isMobileDevice(hints: { userAgent: string; touchPrimary: boolean }): boolean {
+	if (hints.touchPrimary) return true;
+	return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+		hints.userAgent
+	);
+}
