@@ -3,8 +3,7 @@ import type { SeatPosition3D } from "$components/game/layout/seatLayout3D";
 import {
 	INHERIT_SECONDS,
 	SPIN_SECONDS,
-	buildSlotSequence,
-	interpolateSlotPath,
+	rotateSlotPose,
 	spinAngleBetween,
 	spinDurations,
 	spinStepsBetween
@@ -44,46 +43,28 @@ describe("spinStepsBetween", () => {
 	});
 });
 
-describe("buildSlotSequence", () => {
-	it("puts the bottom pose first and keeps arch order", () => {
-		const bottom = seat(0, 10);
-		const arch = [seat(1, 4), seat(-1, 4)];
-		expect(buildSlotSequence(arch, bottom)).toEqual([bottom, ...arch]);
-	});
-});
-
-describe("interpolateSlotPath", () => {
-	const from = seat(0, 5, 0);
-	const to = seat(5, 0, Math.PI / 2);
-
-	it("is exact at t = 0 and t = 1", () => {
-		const start = interpolateSlotPath(from, to, 0);
-		expect(start.x).toBeCloseTo(from.x);
-		expect(start.z).toBeCloseTo(from.z);
-		expect(start.rotationY).toBeCloseTo(from.rotationY);
-		const end = interpolateSlotPath(from, to, 1);
-		expect(end.x).toBeCloseTo(to.x);
-		expect(end.z).toBeCloseTo(to.z);
-		expect(end.rotationY).toBeCloseTo(to.rotationY);
+describe("rotateSlotPose", () => {
+	it("rotates a position about the origin and adds the yaw to rotationY", () => {
+		const rotated = rotateSlotPose(seat(5, 0, 0.2), Math.PI / 2);
+		expect(rotated.x).toBeCloseTo(0);
+		expect(rotated.z).toBeCloseTo(-5);
+		expect(rotated.rotationY).toBeCloseTo(0.2 + Math.PI / 2);
 	});
 
-	it("keeps the radius monotone and sweeps the short way", () => {
-		const mid = interpolateSlotPath(from, to, 0.5);
-		expect(Math.hypot(mid.x, mid.z)).toBeCloseTo(5);
-		expect(Math.atan2(mid.z, mid.x)).toBeCloseTo(Math.PI / 4);
-	});
-
-	it("lerps a radial difference", () => {
-		const mid = interpolateSlotPath(seat(5, 0), seat(10, 0), 0.5);
-		expect(mid.x).toBeCloseTo(7.5);
+	it("is the identity at yaw 0", () => {
+		const pose = seat(3, -4, 1.1);
+		const rotated = rotateSlotPose(pose, 0);
+		expect(rotated.x).toBeCloseTo(pose.x);
+		expect(rotated.z).toBeCloseTo(pose.z);
+		expect(rotated.rotationY).toBeCloseTo(pose.rotationY);
 	});
 });
 
 describe("spinAngleBetween", () => {
 	it("signs each direction", () => {
 		expect(spinAngleBetween(seat(0, 5), seat(0, 10))).toBeCloseTo(0);
-		expect(spinAngleBetween(seat(5, 0), seat(0, 5))).toBeCloseTo(Math.PI / 2);
-		expect(spinAngleBetween(seat(-5, 0), seat(0, 5))).toBeCloseTo(-Math.PI / 2);
+		expect(spinAngleBetween(seat(5, 0), seat(0, 5))).toBeCloseTo(-Math.PI / 2);
+		expect(spinAngleBetween(seat(-5, 0), seat(0, 5))).toBeCloseTo(Math.PI / 2);
 	});
 });
 

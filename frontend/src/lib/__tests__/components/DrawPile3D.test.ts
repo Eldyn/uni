@@ -4,14 +4,17 @@ import MockCardMesh from "./MockCardMesh.svelte";
 import { meshInstances, cardMeshInstances, resetMockState } from "./drawPileMockState";
 
 vi.mock("@threlte/core", () => ({
-	T: new Proxy({}, {
-		get: (_, prop) => {
-			if (prop === "Mesh") {
-				return MockMesh;
+	T: new Proxy(
+		{},
+		{
+			get: (_, prop) => {
+				if (prop === "Mesh") {
+					return MockMesh;
+				}
+				return MockMesh; // PlaneGeometry, MeshBasicMaterial, etc. pass through
 			}
-			return MockMesh; // PlaneGeometry, MeshBasicMaterial, etc. pass through
 		}
-	})
+	)
 }));
 
 vi.mock("$components/game/three/CardMesh3D.svelte", () => ({

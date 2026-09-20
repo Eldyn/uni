@@ -49,7 +49,9 @@ describe("CardMesh3DAtlas onBeforeCompile shader", () => {
 		expect(dummyShader.fragmentShader).toContain("gl_FrontFacing ? uUvRectFront : uUvRectBack");
 
 		// Verify mirrored back UV and UV remapping formula using vMapUv and atlasUv
-		expect(dummyShader.fragmentShader).toContain("vec2(gl_FrontFacing ? vMapUv.x : (1.0 - vMapUv.x), vMapUv.y)");
+		expect(dummyShader.fragmentShader).toContain(
+			"vec2(gl_FrontFacing ? vMapUv.x : (1.0 - vMapUv.x), vMapUv.y)"
+		);
 		expect(dummyShader.fragmentShader).toContain("vec2 atlasUv = rect.xy + baseUv * rect.zw;");
 		expect(dummyShader.fragmentShader).toContain("texture2D( map, atlasUv )");
 	});

@@ -12,7 +12,8 @@
  * ultrawide monitor get the same composition rather than two tuned cases.
  */
 
-import { CARD_HEIGHT, CARD_WIDTH } from "../three/units";
+import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "../three/units";
+import { MAX_JITTER_EM } from "./discardPile";
 import type { CameraRig } from "./cameraRig";
 import {
 	landscapeMatPlacement,
@@ -26,37 +27,42 @@ import type { ViewportInfo } from "./seatLayout";
 export interface BoardPlacement {
 	/** Where the playmat sheet is drawn, and where its felt lands. */
 	mat: MatPlacement;
-	/** Uniform scale for the local hand row and the draw pile beside it. */
+	/** Uniform scale for the local hand row (and, on portrait, the draw pile
+	 *  beside it). */
 	handScale: number;
-	/** Scale for the discard pile at the mat's center — the same size as the
-	 *  hand's own cards, so the card you're about to play and the card it lands
-	 *  on read as the same object. Shrinks below that only when the nearest
-	 *  opponent seat is close enough that a full-size pile would collide. */
+	/** Scale for the discard pile — the same size as the hand's own cards, so
+	 *  the card you're about to play and the card it lands on read as the same
+	 *  object. Shrinks below that only when the nearest opponent seat is close
+	 *  enough that a full-size pile would collide. */
 	centerScale: number;
-	/** World X of the discard pile's center. Always zero — the pile sits on the
-	 *  felt's own center line. */
+	/** World X of the discard pile's center. Zero on portrait (the felt's center
+	 *  line); on landscape it is the right-hand half of the center pile PAIR,
+	 *  offset from the mat's center line by the pile spread. */
 	discardX: number;
-	/** World Z of the discard pile's center. The world origin on a wide screen;
-	 *  on a portrait one it's the felt's true midpoint, since there the felt is
-	 *  drawn to an explicit box rather than filling the whole frustum. */
+	/** World Z of the discard pile's center. Zero on landscape (the screen's
+	 *  center line, where both center piles sit); on portrait it's the felt's
+	 *  true midpoint, since there the felt is drawn to an explicit box rather
+	 *  than filling the whole frustum. */
 	discardZ: number;
-	/** World Z of the local hand row (and of the draw pile's top card). */
+	/** World Z of the local hand row. */
 	localSeatZ: number;
 	/** World Z of the local player's own avatar, just above the hand row. */
 	localAvatarZ: number;
-	/** World X of the draw pile's center, left of the hand row. */
+	/** World X of the draw pile's center. On landscape it is the left-hand half
+	 *  of the center pile pair (left of the mat's center line); on portrait it
+	 *  slides in from the left edge to sit beside the hand. */
 	drawPileX: number;
-	/** World Z of the draw pile's center. Equal to the hand row's own Z in
-	 *  every orientation — the pile always sits beside the hand. */
+	/** World Z of the draw pile's center. Zero on landscape (it shares the
+	 *  discard pile's center line); on portrait it equals the hand row's own Z,
+	 *  where the pile sits beside the hand. */
 	drawPileZ: number;
-	/** Scale for the draw pile's cards. Matches the hand on a wide screen; a
-	 *  fraction of that on a narrow one, where the pile is a small tap target
-	 *  sharing the hand row rather than a stack sized to read. */
+	/** Scale for the draw pile's cards. Matches the discard pile at the center
+	 *  on a wide screen; a fraction of the hand's size on a narrow one, where
+	 *  the pile is a small tap target sharing the hand row. */
 	drawPileScale: number;
-	/** Always true — the draw pile shares the hand row in every orientation,
-	 *  just smaller on a narrow screen. Kept as a field (rather than always
-	 *  assuming it) because the hand's own span solver needs to know whether
-	 *  the pile eats into the row's width. */
+	/** Whether the draw pile shares the hand row (portrait) rather than sitting
+	 *  at the mat's center beside the discard pile (landscape). The hand's own
+	 *  span solver reads this to know whether the pile eats into its width. */
 	drawPileBesideHand: boolean;
 }
 
@@ -111,11 +117,36 @@ export const MIN_CENTER_SCALE = 0.85;
 // single upright card's half-height; this covers the overhang.
 export const CENTER_RING_MARGIN = 0.35;
 
-// The draw pile's resting place beside the hand on a wide screen. On a narrow
-// one that X would fall outside the frustum, so it slides inward to sit one
-// card-half plus a margin inside the left edge instead.
+// The draw pile's resting place beside the hand on portrait. That X would fall
+// outside a phone's frustum, so it slides inward to sit one card-half plus a
+// margin inside the left edge instead — this is the outward cap it slides in
+// from, never a position it actually reaches on a portrait screen.
 export const DRAW_PILE_HOME_X = -5.5;
 export const DRAW_PILE_EDGE_MARGIN = 0.2;
+
+// Gap left between the two center piles (draw + discard) on a landscape screen.
+// Half a card plus the discard scatter's overhang already separates them; this
+// is the breathing room on top. Sized generously: the discard stack is jittered
+// and rotated, so its real footprint fans out well past a single upright card,
+// and at 0.3 the two piles read as one crowded mass rather than two.
+export const CENTER_PILE_GAP = 0.9;
+
+// Clearance kept between the DISCARD pile's own scattered footprint and the
+// felt's right edge on a landscape screen. The discard pile is clamped by this
+// rather than mirrored to the draw pile's X, so the pair is deliberately off
+// centre as a group — the pile reads as sitting comfortably on the felt, which
+// matters more than the two piles being equidistant from the centre line.
+// Measured from the felt's OUTER painted edge, but the art's inner border line
+// is inset ~0.9 world units further in, so this has to exceed roughly
+// 0.9 + the scatter's reach before the clamp does anything at all; at 0.9 the
+// clamp never bound on a 16:9 screen and the scatter sat almost on the inner
+// line. 1.9 pulls it a comfortable ~0.9 units clear of that line.
+export const CENTER_DISCARD_MARGIN = 1.9;
+
+// Hard floor on the two center piles' separation, in world units. The discard
+// clamp above may pull the pair inward on a narrow felt; this stops it pulling
+// them into each other.
+export const CENTER_PILE_MIN_SPREAD = 1.5;
 
 // Small tap target: on a narrow screen the pile shares the hand row but at a
 // fraction of its size, since there it's a target to tap rather than a stack
@@ -187,16 +218,18 @@ export function computeBoardPlacement(
 
 	const localSeatZ = nearEdgeZ - (CARD_HEIGHT * handScale) / 2 - HAND_BOTTOM_MARGIN;
 	const localAvatarZ = localSeatZ - (CARD_HEIGHT * handScale) / 2 - LOCAL_SEAT_GAP;
-	const drawPileBesideHand = true;
+	// Landscape puts BOTH communal piles side by side on the felt's center line
+	// — draw on the left, discard on the right — so the middle of the mat carries
+	// the whole play area and a spectator spin can pivot around it without a
+	// pile to look after. The draw pile therefore no longer shares the hand row
+	// (which is what frees the hand to span the full width). Portrait keeps the
+	// compact beside-the-hand layout, where there is no room at center.
+	const drawPileBesideHand = isPortrait;
 	const drawPileScale = isPortrait ? handScale * PORTRAIT_DRAW_PILE_SCALE : handScale;
-	const drawPileX = Math.max(
-		DRAW_PILE_HOME_X,
-		-(rig.halfWidth - (CARD_WIDTH * drawPileScale) / 2 - DRAW_PILE_EDGE_MARGIN)
-	);
-	const discardX = 0;
-	// The felt: covering the frustum in landscape, and in portrait filling the
-	// band between the opponents' arch and the local player's own avatar, so
-	// there is no background showing between the table and either seat.
+	// The felt: covering the frustum in landscape (zoomed up a touch, see
+	// playmat.ts), and in portrait filling the band between the opponents' arch
+	// and the local player's own avatar, so there is no background showing
+	// between the table and either seat.
 	const mat = isPortrait
 		? portraitMatPlacement(
 				2 * rig.halfWidth * PORTRAIT_MAT_WIDTH_FILL,
@@ -205,8 +238,40 @@ export function computeBoardPlacement(
 			)
 		: landscapeMatPlacement(rig.halfWidth, rig.halfHeight);
 
+	// How far each center pile's center sits from the mat's center line. Each
+	// side has to clear half a card plus the discard scatter's own overhang, so
+	// it scales with the card size and holds on any viewport.
+	const pileCardScale = Math.max(centerScale, drawPileScale);
+	const pileSpread =
+		(CARD_WIDTH * pileCardScale) / 2 +
+		MAX_JITTER_EM * EM_TO_WORLD * pileCardScale +
+		CENTER_PILE_GAP;
+
+	const drawPileX = isPortrait
+		? Math.max(
+				DRAW_PILE_HOME_X,
+				-(rig.halfWidth - (CARD_WIDTH * drawPileScale) / 2 - DRAW_PILE_EDGE_MARGIN)
+			)
+		: -pileSpread;
+	// The discard pile is clamped against the MAT's right edge, not mirrored to
+	// the draw pile's X. The two piles are deliberately not centred as a pair:
+	// the discard's cards are randomly jittered and rotated, so their real
+	// footprint fans well right of the pile centre and, at a symmetric spread,
+	// visually crowded the felt's right border even though the pile CENTRE was
+	// inside it. Pulling it in to keep a clearance from the border reads as more
+	// balanced than exact symmetry does. `CENTER_DISCARD_MARGIN` is that
+	// clearance, measured from the felt edge to the scatter's own reach.
+	const discardReach =
+		(CARD_WIDTH * pileCardScale) / 2 + MAX_JITTER_EM * EM_TO_WORLD * pileCardScale;
+	const discardMaxX = mat.bounds.right - CENTER_DISCARD_MARGIN - discardReach;
+	// A floor on the spread keeps the two piles from ever crowding each other if
+	// a very narrow felt clamps the discard hard inward; the clamp still wins
+	// over symmetry, it just can't pull the pair into overlap.
+	const discardX = isPortrait
+		? 0
+		: Math.max(CENTER_PILE_MIN_SPREAD, Math.min(pileSpread, discardMaxX));
 	const discardZ = isPortrait ? (mat.bounds.far + mat.bounds.near) / 2 : 0;
-	const drawPileZ = localSeatZ;
+	const drawPileZ = isPortrait ? localSeatZ : 0;
 
 	return {
 		mat,

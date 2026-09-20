@@ -20,19 +20,18 @@
 		rotatedOpponentsFor,
 		hiddenBackCountFor
 	} from "./layout/spectatorPov";
-	import { buildSlotSequence, spinAngleBetween } from "./layout/tableSpin";
+	import { boardRotationFor } from "./layout/boardRotation";
 	import { handSlotPose } from "./layout/handSlotPose";
 	import type { BoardPlacement } from "./layout/boardPlacement";
 	import type { SeatPosition3D } from "./layout/seatLayout3D";
 	import {
-		opponentRingRadiusWorld,
-		RING_RADIUS_EM,
 		RING_STACK_STEP,
 		ringRadialScale,
 		computeHandRingSlots,
 		ringSlotWorldPose,
 		opponentFrontWorldPose
 	} from "./layout/handRing";
+	import { computeOpponentRingPoses } from "./layout/seatRingPerspective";
 
 	const bus = createCardBus();
 	const cardRegistry = createCardRegistry();
@@ -217,9 +216,12 @@
 		const targetGeometry = computeSceneGeometry(sceneViewport, order.length - 1);
 		const placement = targetGeometry.placement;
 		const bottomPose = { x: 0, z: placement.localAvatarZ, rotationY: 0 };
-		const slots = buildSlotSequence(targetGeometry.seats3D, bottomPose);
+		// The whole table turns by the incoming seat's own bearing to the bottom
+		// pivot — the seat's world position swings down to where the local seat
+		// sits. No per-seat orbital math any more; see boardRotation.ts.
 		const toIndex = order.indexOf(target);
-		const spinAngle = toIndex <= 0 ? 0 : spinAngleBetween(slots[toIndex], bottomPose);
+		const toSeat = toIndex > 0 ? targetGeometry.seats3D[toIndex - 1] : undefined;
+		const spinAngle = toSeat ? boardRotationFor(toSeat, bottomPose) : 0;
 
 		const incoming = buildIncomingMorph(
 			players,
@@ -270,20 +272,22 @@
 			if (!seat) {
 				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
 			}
-			const ringRadiusWorld = opponentRingRadiusWorld(
+			// Must match PlayerSeat3D's own ring placement exactly, or a card
+			// flying to an opponent's hand lands beside it: same perspective-
+			// solved screen-space ring (seatRingPerspective.ts).
+			const poses = computeOpponentRingPoses(
+				geometry.rig,
+				sceneViewport,
+				seat,
 				geometry.opponentAvatarWorld,
-				geometry.opponentCardScale
+				geometry.opponentCardScale,
+				cardCount
 			);
-			const radialScale = ringRadiusWorld / RING_RADIUS_EM;
-			const slots = computeHandRingSlots(cardCount);
-			const slot = slots[Math.min(slots.length - 1, Math.max(0, slotIndex))] ?? {
-				x: 0,
-				y: RING_RADIUS_EM,
-				rotateDeg: 0
-			};
-			const position = ringSlotWorldPose(seat, slot, slotIndex, radialScale, 0.02);
-			const spinDeg = (seat.rotationY * 180) / Math.PI + slot.rotateDeg + 180;
-			return { position, spinDeg };
+			const pose = poses[Math.min(poses.length - 1, Math.max(0, slotIndex))];
+			if (!pose) {
+				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
+			}
+			return { position: pose.position, spinDeg: pose.spinDeg };
 		},
 		getOpponentFrontPose: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);

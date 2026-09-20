@@ -11,8 +11,10 @@
 import { storeGame, Action, type CardType } from "$stores/game.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
+import { storeTableSpin } from "$stores/tableSpin.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
+import { anchorWithBoardRotation } from "./cardBoardPose";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
@@ -385,6 +387,13 @@ export function createBaseBeatsWatcher(deps: {
 			// evaluated at the moment each step renderer actually asks for the
 			// anchor, not a value snapshotted once when enqueue() was called.
 			function resolveCardTarget(name: string): [number, number, number] {
+				// Table-bound anchors (piles, seats) are measured in the board's
+				// canonical, unrotated frame — the same frame their owners lay
+				// them out in. A spectator spin turns the rendered board, so a
+				// flight landing on one of these has to be folded through the same
+				// yaw, or it would touch down on the pile's old (unrotated) spot.
+				// Hand-row anchors are the viewer's own UI and stay unrotated.
+				const yaw = storeTableSpin.boardRotationY;
 				if (name === "discard-pile") {
 					const { entry, z } = previewDiscardLanding(
 						deps.bus.discardHistory,
@@ -398,22 +407,29 @@ export function createBaseBeatsWatcher(deps: {
 						entry,
 						placement.centerScale
 					);
-					return [offset.x, z, offset.z];
+					return anchorWithBoardRotation([offset.x, z, offset.z], yaw);
 				}
 				if (name === "draw-pile") {
-					return [placement.drawPileX, PILE_BASE_HEIGHT, placement.drawPileZ];
+					return anchorWithBoardRotation(
+						[placement.drawPileX, PILE_BASE_HEIGHT, placement.drawPileZ],
+						yaw
+					);
 				}
 				if (name.startsWith("seat:")) {
-					return deps.getOpponentSeatAnchor(name.slice("seat:".length));
+					return anchorWithBoardRotation(
+						deps.getOpponentSeatAnchor(name.slice("seat:".length)),
+						yaw
+					);
 				}
 				if (name.startsWith("opponent-front:")) {
 					const username = name.slice("opponent-front:".length);
-					return deps.getOpponentFrontPose
+					const front = deps.getOpponentFrontPose
 						? deps.getOpponentFrontPose(username).position
 						: deps.getOpponentSeatAnchor(username);
+					return anchorWithBoardRotation(front, yaw);
 				}
 				if (name.startsWith("opponent-slot:")) {
-					return pendingOpponentSlots.get(name) ?? [0, 0, 0];
+					return anchorWithBoardRotation(pendingOpponentSlots.get(name) ?? [0, 0, 0], yaw);
 				}
 				if (
 					name.startsWith("local-slot:") ||
@@ -513,6 +529,13 @@ export function createBaseBeatsWatcher(deps: {
 
 				if (playedByMe) {
 					const isPlayDrawn = deps.bus.pendingLocalPlayDrawnId === top.id;
+					// Consume any drop-play seed on the first local play, whether
+					// or not it matches — a seed only ever describes the very next
+					// local play, so a stale one must not survive to mis-seed a
+					// later card that happens to recycle the same id.
+					const pendingDrag = deps.bus.pendingLocalDragPlay;
+					if (pendingDrag) deps.bus.setPendingLocalDragPlay(null);
+					const dragSeed = pendingDrag && pendingDrag.id === top.id ? pendingDrag : null;
 					if (isPlayDrawn) {
 						deps.cardRegistry.setPoseProvider(String(top.id), null);
 						deps.bus.setPendingLocalPlayDrawnId(null);
@@ -531,6 +554,25 @@ export function createBaseBeatsWatcher(deps: {
 							scale: placement.drawPileScale,
 							turned: false,
 							opacity: 1
+						});
+					} else if (dragSeed) {
+						// Committed by dropping the card on the pile: fly from where
+						// it was released (the seed captured the live drag pose)
+						// rather than localCardAnchor, which would snap it back to
+						// its old hand slot for a frame before the flight. dragT is
+						// reset so it doesn't carry the 1.2x drag scale into the
+						// landing.
+						deps.cardRegistry.clearDecoration(String(top.id));
+						deps.cardRegistry.seedPose(String(top.id), {
+							x: dragSeed.x,
+							y: dragSeed.y,
+							z: dragSeed.z,
+							spinDeg: dragSeed.spinDeg,
+							flipDeg: dragSeed.flipDeg,
+							scale: dragSeed.scale,
+							turned: dragSeed.turned,
+							opacity: 1,
+							dragT: 0
 						});
 					} else {
 						const [sx, sy, sz] = localCardAnchor(

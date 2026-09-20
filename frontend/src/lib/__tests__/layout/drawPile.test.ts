@@ -57,7 +57,9 @@ describe("drawPileTopPose", () => {
 		const [x, y, z] = drawPileTopPose(placement, 40, "full");
 		expect(x).toBe(placement.drawPileX);
 		expect(y).toBe(PILE_BASE_HEIGHT + (renderedCount - 1) * stepY);
-		expect(z).toBe(placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
+		expect(z).toBe(
+			placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale
+		);
 	});
 });
 
@@ -129,7 +131,9 @@ describe("computeDrawPileCountAndStep", () => {
 			expect(renderedCount).toBe(MAX_DRAW_PILE_STACK);
 			expect(stepY).toBeLessThanOrEqual(DRAW_PILE_STACK_STEP);
 			expect(stepY).toBeGreaterThanOrEqual(MIN_STACK_STEP);
-			expect(stepY).toBeCloseTo(Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (MAX_DRAW_PILE_STACK - 1)));
+			expect(stepY).toBeCloseTo(
+				Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (MAX_DRAW_PILE_STACK - 1))
+			);
 		});
 
 		it("clamps to max 50 rendered count for huge piles", () => {
@@ -139,4 +143,3 @@ describe("computeDrawPileCountAndStep", () => {
 		});
 	});
 });
-

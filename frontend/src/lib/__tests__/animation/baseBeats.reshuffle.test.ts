@@ -52,7 +52,9 @@ describe("buildReshuffleBeat", () => {
 
 		const moveSteps = beat.filter((s) => s.op === "move");
 		expect(moveSteps).toHaveLength(2);
-		expect(moveSteps.every((s) => s.payload?.to === "draw-pile" && s.payload?.toSpinDeg === 0)).toBe(true);
+		expect(
+			moveSteps.every((s) => s.payload?.to === "draw-pile" && s.payload?.toSpinDeg === 0)
+		).toBe(true);
 		expect(moveSteps.map((s) => s.target)).toEqual(["1", "2"]);
 
 		const flipSteps = beat.filter((s) => s.op === "flip");

@@ -107,10 +107,23 @@ function boundsOf(size: [number, number], offsetZ: number): MatBounds {
  * Landscape: "cover" the frustum, exactly as the CSS background it replaced.
  * The felt's natural 16:9-ish shape already matches a landscape window, so the
  * overflow is table the player can use rather than table that falls off-screen.
+ * A small zoom on top of the cover fit enlarges the felt itself — the room the
+ * two center piles now share — while the near edge is pinned so the local hand's
+ * strip is untouched.
  */
+export const LANDSCAPE_MAT_ZOOM = 1.12;
+
 export function landscapeMatPlacement(halfWidth: number, halfHeight: number): MatPlacement {
-	const size = coverSize(SHEET_WIDTH, SHEET_HEIGHT, halfWidth, halfHeight);
-	return { size, offsetZ: 0, bounds: boundsOf(size, 0) };
+	const base = coverSize(SHEET_WIDTH, SHEET_HEIGHT, halfWidth, halfHeight);
+	const size: [number, number] = [base[0] * LANDSCAPE_MAT_ZOOM, base[1] * LANDSCAPE_MAT_ZOOM];
+	// Anchor the felt's NEAR (player-side) edge exactly where the base fit put
+	// it, so the zoom only pushes the far edge and the sides outward. Growing it
+	// symmetrically would drag the near edge down over the strip the local hand
+	// is fitted into and shrink the player's own cards — the opposite of the
+	// extra hand room this change is for.
+	const baseNear = boundsOf(base, 0).near;
+	const offsetZ = baseNear - (size[1] / 2) * BOTTOM_FRACTION;
+	return { size, offsetZ, bounds: boundsOf(size, offsetZ) };
 }
 
 /**

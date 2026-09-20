@@ -12,7 +12,10 @@ describe("computeDesignGrid", () => {
 	it("matches the viewport's exact aspect ratio (no distortion, no letterboxing)", () => {
 		for (const viewport of [landscape, portrait, square]) {
 			const grid = computeDesignGrid(viewport, 1);
-			expect(grid.halfWidthUnits / grid.halfHeightUnits).toBeCloseTo(viewport.width / viewport.height, 5);
+			expect(grid.halfWidthUnits / grid.halfHeightUnits).toBeCloseTo(
+				viewport.width / viewport.height,
+				5
+			);
 		}
 	});
 

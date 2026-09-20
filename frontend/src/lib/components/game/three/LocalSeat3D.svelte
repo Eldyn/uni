@@ -61,9 +61,7 @@
 	});
 
 	let baseColor = $derived(new Color(color));
-	let effectiveColor = $derived(
-		dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor
-	);
+	let effectiveColor = $derived(dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor);
 </script>
 
 {#if avatarTexture}

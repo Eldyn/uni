@@ -13,10 +13,12 @@ import {
 	HAND_MIN_VISIBLE_CARDS,
 	HAND_SPACING_RATIO,
 	MIN_CENTER_SCALE,
-	CENTER_RING_MARGIN
+	CENTER_RING_MARGIN,
+	CENTER_DISCARD_MARGIN
 } from "$components/game/layout/boardPlacement";
+import { MAX_JITTER_EM } from "$components/game/layout/discardPile";
 import { matBounds } from "$components/game/layout/playmat";
-import { CARD_WIDTH, CARD_HEIGHT } from "$components/game/three/units";
+import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "$components/game/three/units";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
@@ -52,24 +54,47 @@ describe("computeBoardPlacement", () => {
 		});
 	}
 
-	it("leaves the draw pile at its home X when the frustum is wide enough", () => {
-		const { placement } = placementFor(wide);
-		expect(placement.drawPileX).toBeCloseTo(DRAW_PILE_HOME_X, 5);
+	it("puts both center piles side by side on the mat's center line (landscape)", () => {
+		for (const [name, viewport] of Object.entries({ landscape, wide })) {
+			const { placement } = placementFor(viewport);
+			expect(placement.drawPileBesideHand, name).toBe(false);
+			expect(placement.drawPileZ, name).toBeCloseTo(0, 5);
+			expect(placement.discardZ, name).toBeCloseTo(0, 5);
+			// Draw on the left, discard on the right.
+			expect(placement.drawPileX, name).toBeLessThan(0);
+			expect(placement.discardX, name).toBeGreaterThan(0);
+			// And far enough apart that their cards cannot overlap.
+			const edgeGap = placement.discardX - placement.drawPileX - CARD_WIDTH * placement.handScale;
+			expect(edgeGap, name).toBeGreaterThan(0);
+		}
 	});
 
-	it("keeps the draw pile beside the hand row in every orientation, smaller in portrait", () => {
-		for (const [name, viewport] of Object.entries(all)) {
+	it("keeps the discard's scatter clear of the felt's right edge (landscape)", () => {
+		// The pair is deliberately NOT symmetric: the discard's randomly jittered
+		// footprint fans right, so it is clamped inward to keep a clearance from
+		// the felt edge rather than mirrored to the draw pile's X.
+		for (const [name, viewport] of Object.entries({ landscape, wide })) {
+			const { placement } = placementFor(viewport);
+			const scale = Math.max(placement.centerScale, placement.drawPileScale);
+			const reach = (CARD_WIDTH * scale) / 2 + MAX_JITTER_EM * EM_TO_WORLD * scale;
+			expect(placement.discardX + reach, name).toBeLessThanOrEqual(
+				placement.mat.bounds.right - CENTER_DISCARD_MARGIN + 1e-6
+			);
+			// Off-centre as a group: the discard sits closer to the centre line
+			// than a mirror of the draw pile would.
+			expect(placement.discardX, name).toBeLessThan(-placement.drawPileX);
+		}
+	});
+
+	it("keeps the draw pile beside the hand row only in portrait, smaller there", () => {
+		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
 			const { placement } = placementFor(viewport);
 			expect(placement.drawPileBesideHand, name).toBe(true);
 			expect(placement.drawPileZ, name).toBeCloseTo(placement.localSeatZ, 5);
-			expect(placement.discardX, name).toBe(0);
+			expect(placement.drawPileScale, name).toBeLessThan(placement.handScale);
 		}
 		const { placement: landscapePlacement } = placementFor(landscape);
 		expect(landscapePlacement.drawPileScale).toBeCloseTo(landscapePlacement.handScale, 5);
-		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
-			const { placement } = placementFor(viewport);
-			expect(placement.drawPileScale, name).toBeLessThan(placement.handScale);
-		}
 	});
 
 	it("centers the discard pile on the felt in every orientation", () => {
@@ -104,9 +129,7 @@ describe("computeBoardPlacement", () => {
 		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
 			const { rig, placement } = placementFor(viewport);
 			const rowWidth =
-				CARD_WIDTH *
-				placement.handScale *
-				(1 + (HAND_MIN_VISIBLE_CARDS - 1) * HAND_SPACING_RATIO);
+				CARD_WIDTH * placement.handScale * (1 + (HAND_MIN_VISIBLE_CARDS - 1) * HAND_SPACING_RATIO);
 			expect(rowWidth, name).toBeLessThanOrEqual(2 * rig.halfWidth * HAND_WIDTH_FILL + 1e-6);
 		}
 	});

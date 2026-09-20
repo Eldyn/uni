@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { PerspectiveCamera } from "three";
 
 import { worldToScreenPercent } from "$components/game/layout/screenProjection";
-import { computeCameraRig } from "$components/game/layout/cameraRig";
+import { computeCameraRig, type CameraRig } from "$components/game/layout/cameraRig";
 import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
@@ -11,62 +12,57 @@ const portrait: ViewportInfo = { width: 390, height: 844, orientation: "portrait
 
 const viewports = { landscape, wide, portrait };
 
-// The formula GameBoard.svelte used before this module existed: a single
-// pixels-per-world-unit constant (derived from the viewport's HEIGHT, which
-// only equals the width-derived constant because the frustum always matches
-// the viewport's exact aspect ratio — see designGrid.ts), added as raw
-// pixels to a 50% CSS anchor.
-function legacyPercent(
-	viewport: ViewportInfo,
-	halfHeight: number,
-	worldOffset: number,
-	axisPx: number
-) {
-	const pxPerUnit = viewport.height / (2 * halfHeight);
-	return 50 + (worldOffset * pxPerUnit * 100) / axisPx;
+/** Builds the same camera Scene3D mounts, from the rig the projection reads. */
+function cameraFor(rig: CameraRig): PerspectiveCamera {
+	const camera = new PerspectiveCamera(rig.fov, 1, rig.near, rig.far);
+	camera.position.set(...rig.position);
+	camera.lookAt(...rig.lookAt);
+	camera.updateMatrixWorld();
+	camera.updateProjectionMatrix();
+	return camera;
 }
 
 describe("worldToScreenPercent", () => {
 	for (const [name, viewport] of Object.entries(viewports)) {
 		it(`projects the point the camera looks at to dead center (${name})`, () => {
 			const rig = computeCameraRig(viewport, 9);
-			const { leftPercent, topPercent } = worldToScreenPercent(rig, 0, rig.centerZ);
+			const camera = cameraFor(rig);
+			const { leftPercent, topPercent } = worldToScreenPercent(camera, 0, 0, rig.centerZ);
 			expect(leftPercent).toBeCloseTo(50, 5);
 			expect(topPercent).toBeCloseTo(50, 5);
 		});
 
-		it(`matches the legacy hand-rolled pixel formula for a nonzero pile offset (${name})`, () => {
+		it(`maps the board center line to the screen's horizontal center (${name})`, () => {
 			const rig = computeCameraRig(viewport, 9);
+			const camera = cameraFor(rig);
 			const placement = computeBoardPlacement(viewport, rig);
-
-			const { leftPercent, topPercent } = worldToScreenPercent(
-				rig,
-				placement.drawPileX,
-				placement.localSeatZ
-			);
-
-			expect(leftPercent).toBeCloseTo(
-				legacyPercent(viewport, rig.halfHeight, placement.drawPileX, viewport.width),
-				5
-			);
-			// The legacy formula measured every offset from the world origin, which
-			// is only the screen's center while the camera looks straight at it.
-			expect(topPercent).toBeCloseTo(
-				legacyPercent(
-					viewport,
-					rig.halfHeight,
-					placement.localSeatZ - rig.centerZ,
-					viewport.height
-				),
-				5
-			);
+			// A point on the board's center line (x=0) stays horizontally centered
+			// regardless of its Z, because the camera is not rolled.
+			const { leftPercent } = worldToScreenPercent(camera, 0, 0, placement.localSeatZ);
+			expect(leftPercent).toBeCloseTo(50, 5);
 		});
 	}
 
-	it("scales linearly with the frustum's half-width/half-height", () => {
+	it("puts a +X point right of center and a -X point left of it", () => {
 		const rig = computeCameraRig(landscape, 9);
-		const near = worldToScreenPercent(rig, rig.halfWidth / 2, 0);
-		const far = worldToScreenPercent(rig, rig.halfWidth, 0);
-		expect(far.leftPercent - 50).toBeCloseTo((near.leftPercent - 50) * 2, 5);
+		const camera = cameraFor(rig);
+		const right = worldToScreenPercent(camera, rig.halfWidth / 2, 0, 0);
+		const left = worldToScreenPercent(camera, -rig.halfWidth / 2, 0, 0);
+		expect(right.leftPercent).toBeGreaterThan(50);
+		expect(left.leftPercent).toBeLessThan(50);
+		// Symmetric about center.
+		expect(right.leftPercent - 50).toBeCloseTo(50 - left.leftPercent, 4);
+	});
+
+	it("foreshortens with depth — the same world offset covers less screen when farther", () => {
+		const rig = computeCameraRig(landscape, 9);
+		const camera = cameraFor(rig);
+		// Same world X offset, two different depths. The camera is tilted toward
+		// +Z, so a point at +Z is nearer and its offset covers more screen than
+		// the same offset at -Z. (At the look-at depth the mapping is linear by
+		// construction; the perspective divide only shows once Z differs.)
+		const near = worldToScreenPercent(camera, rig.halfWidth / 2, 0, rig.centerZ + 5);
+		const far = worldToScreenPercent(camera, rig.halfWidth / 2, 0, rig.centerZ - 5);
+		expect(near.leftPercent - 50).toBeGreaterThan(far.leftPercent - 50);
 	});
 });

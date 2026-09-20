@@ -2,19 +2,20 @@
      discardHistory (card-bus.svelte.ts) as a scattered stack at the playmat
      center, each card keeping its fixed seeded rotation/jitter (see
      layout/discardPile.ts), newest on top. Every card also drops a soft black
-     shadow offset toward the bottom-right — without it, same-colored cards
-     visually merge into one blob as they stack. No decorative base card — an
-     empty history means an honestly empty pile, matching the "render ALL
-     cards, none faked" rule the rest of the board follows. -->
+     drop shadow — without it, same-colored cards visually merge into one blob
+     as they stack. No decorative base card — an empty history means an
+     honestly empty pile, matching the "render ALL cards, none faked" rule the
+     rest of the board follows. -->
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import {
-		DISCARD_STACK_STEP,
 		discardStackZ,
 		discardCardOffset,
+		discardStepFor,
 		type DiscardEntry
 	} from "../layout/discardPile";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { useCardBus } from "../card-bus.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -35,18 +36,22 @@
 
 	// Shared with discardPile.ts's previewDiscardLanding, so a card's flight
 	// lands at exactly the height it's about to statically render at here.
-	const STACK_STEP = DISCARD_STACK_STEP;
 	let scale = $derived(placement.centerScale);
 
 	// The shadow reuses the card background texture as a silhouette (rounded
-	// corners included) tinted black. It sits just below its own card but above
-	// the card beneath: a card's layers span ~0.006 units upward, so half the
-	// stack step down still clears the previous card's top layer. Kept short and
-	// faint on purpose — a long, dark offset makes the pile read as a tall tower
-	// rather than a few loose cards lying on the mat.
+	// corners included) tinted black, the same recipe the hand uses. It sits
+	// just below its own card but above the card beneath: half the pile's step
+	// down still clears the previous card's top layer. Drawn through
+	// CardMesh3D's own `shadow` decoration (rather than a second, separately
+	// offset mesh here), so there is one shadow per card — the duplicate mesh
+	// was the visible "double shadow" — and its offset stays world-fixed as the
+	// card's seed rotation spins it.
 	const SHADOW_OFFSET = 0.09;
-	const SHADOW_DROP_Y = STACK_STEP / 2;
 	const SHADOW_OPACITY = 0.22;
+	// Half the pile's CURRENT (compressed) step, not the comfortable baseline:
+	// once a tall pile compresses its step below the baseline, a baseline-sized
+	// drop would sink the shadow under the card beneath it.
+	let shadowDropY = $derived(discardStepFor(history.length) / 2);
 
 	// The halo hugs the top card so the pile reads as "tap this one", and the tap
 	// target is a plain plane over it — big enough to hit with a thumb, and above
@@ -57,6 +62,24 @@
 	let topIndex = $derived(history.length - 1);
 
 	const cardRegistry = useCardRegistry();
+	const bus = useCardBus();
+	// A card picked up in the hand and dragged over the pile counts as armed
+	// too, so the same "tap here" pulse becomes the drop cue. LocalHand3D owns
+	// whether the drop would actually be accepted (legal card, player's turn).
+	// `bus` is absent when this pile is mounted standalone (tests), hence the
+	// optional read.
+	let dropArmed = $derived(armed || bus?.draggingOverDiscard === true);
+
+	let shadowTexture = $state<import("three").Texture | null>(null);
+	$effect(() => {
+		let cancelled = false;
+		loadTexture("/assets/cards/background.png").then((t) => {
+			if (!cancelled) shadowTexture = t;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	// One registry entry per discard-pile card, kept idle at this pile's own
 	// jitter/rotation/stack pose whenever it isn't mid-flight — mirrors
@@ -66,7 +89,7 @@
 		for (const [i, entry] of history.entries()) {
 			const idString = String(entry.card.id);
 			const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
-			cardRegistry.ensureEntry(
+			const pose = cardRegistry.ensureEntry(
 				idString,
 				{
 					x: offset.x,
@@ -84,50 +107,30 @@
 				const p = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
 				return [p.x, discardStackZ(i, history.length), p.z];
 			});
+			// ensureEntry is idempotent, so a pile card created before a resize
+			// keeps its draw-time scale forever unless this re-syncs it — the bug
+			// that left already-played cards oversized after a resolution change.
+			// Mirrors LocalHand3D/PlayerSeat3D; skipped mid-flight so a flight's
+			// own tween owns the scale.
+			if (!cardRegistry.isInTransit(idString)) {
+				pose.scale = scale;
+			}
 			cardRegistry.applyIdlePoseIfNotInTransit(idString);
 			cardRegistry.setDecoration(idString, {
-				highlight: armed && i === topIndex ? { pulse: true } : undefined
+				tableBound: true,
+				shadow: shadowTexture
+					? {
+							texture: shadowTexture,
+							offsetX: SHADOW_OFFSET,
+							dropZ: shadowDropY,
+							opacity: SHADOW_OPACITY
+						}
+					: undefined,
+				highlight: dropArmed && i === topIndex ? { pulse: true } : undefined
 			});
 		}
 	});
-
-	let shadowTexture = $state<import("three").Texture | null>(null);
-	$effect(() => {
-		let cancelled = false;
-		loadTexture("/assets/cards/background.png").then((t) => {
-			if (!cancelled) shadowTexture = t;
-		});
-		return () => {
-			cancelled = true;
-		};
-	});
 </script>
-
-{#each history as entry, i (entry.seq)}
-	{#if shadowTexture && !cardRegistry.isInTransit(String(entry.card?.id ?? (entry as any).id))}
-		{@const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale)}
-		<T.Mesh
-			position={[
-				offset.x + SHADOW_OFFSET * scale,
-				discardStackZ(i, history.length) - SHADOW_DROP_Y,
-				offset.z + SHADOW_OFFSET * scale
-			]}
-			rotation.x={-Math.PI / 2}
-			rotation.z={(entry.rotationDeg * Math.PI) / 180}
-			{scale}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<T.MeshBasicMaterial
-				map={shadowTexture}
-				color="#000000"
-				transparent
-				opacity={SHADOW_OPACITY}
-				depthWrite={false}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
-{/each}
 
 {#if armed}
 	<T.Mesh

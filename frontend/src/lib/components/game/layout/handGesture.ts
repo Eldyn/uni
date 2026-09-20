@@ -20,6 +20,54 @@ export function pastDragThreshold(deltaPx: number, thresholdPx: number): boolean
 	return Math.abs(deltaPx) >= thresholdPx;
 }
 
+/** What a touch drag on a card is doing, decided once from its first
+ *  movement and then locked for the rest of the gesture. */
+export type GestureAxis = "scroll" | "pickup";
+
+/**
+ * Classifies a gesture's intent from its first screen-pixel movement. A
+ * predominantly horizontal drag scrolls the hand row — the idiom the row's
+ * own horizontal layout already invites — while a predominantly vertical
+ * drag picks the card up and moves it. Locking this at the first threshold
+ * crossing is what stops a pickup that later drifts sideways (toward the
+ * discard pile) from turning back into a scroll halfway through.
+ */
+export function decideGestureAxis(deltaPx: number, deltaPy: number): GestureAxis {
+	return Math.abs(deltaPx) >= Math.abs(deltaPy) ? "scroll" : "pickup";
+}
+
+/**
+ * Whether a dragged card's world-space center is close enough to the discard
+ * pile's center to count as a drop onto it. `radius` is the pile's own reach
+ * (half a card plus its scatter) scaled by the current placement — computed by
+ * the caller, not here, so this stays a pure hit-test.
+ */
+export function isOverDiscard(
+	worldX: number,
+	worldZ: number,
+	discardX: number,
+	discardZ: number,
+	radius: number
+): boolean {
+	return Math.hypot(worldX - discardX, worldZ - discardZ) <= radius;
+}
+
+/**
+ * Which way a card held at `pointerPx` should auto-scroll the hand: -1 inside
+ * the left edge band, +1 inside the right band, 0 between. Used while dragging
+ * so holding a card against a screen edge pans the row to reach off-screen
+ * cards, on both touch and mouse.
+ */
+export function edgeScrollDirection(
+	pointerPx: number,
+	viewportWidthPx: number,
+	bandPx: number
+): -1 | 0 | 1 {
+	if (pointerPx < bandPx) return -1;
+	if (pointerPx > viewportWidthPx - bandPx) return 1;
+	return 0;
+}
+
 /** The hand's new scroll offset (in em) for a pan gesture that has moved
  *  `deltaPx` screen pixels since it started at `scrollStartEm`. Content
  *  follows the finger: dragging right reveals the cards off the left end,

@@ -80,10 +80,7 @@ export function computeDrawPileCountAndStep(
 		MIN_STACK_STEP,
 		Math.min(DRAW_PILE_STACK_STEP, MAX_PILE_HEIGHT / (cappedRawSize - 1))
 	);
-	const renderedCount = Math.min(
-		cappedRawSize,
-		MAX_DRAW_PILE_STACK
-	);
+	const renderedCount = Math.min(cappedRawSize, MAX_DRAW_PILE_STACK);
 
 	return { renderedCount, stepY };
 }

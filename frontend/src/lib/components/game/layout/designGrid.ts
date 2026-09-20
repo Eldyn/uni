@@ -102,8 +102,7 @@ export function computeDesignGrid(viewport: ViewportInfo, zoom: number): DesignG
 	const halfHeightUnits = Math.max(rows / 2, columns / 2 / aspect) / zoom;
 
 	const verticalSlack = Math.max(0, halfHeightUnits - rows / 2);
-	const centerZ =
-		viewport.orientation === "portrait" ? verticalSlack * PORTRAIT_NEAR_BIAS : 0;
+	const centerZ = viewport.orientation === "portrait" ? verticalSlack * PORTRAIT_NEAR_BIAS : 0;
 
 	return {
 		halfWidthUnits: halfHeightUnits * aspect,

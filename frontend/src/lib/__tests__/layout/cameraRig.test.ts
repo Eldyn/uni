@@ -22,11 +22,42 @@ function ringCoverageFor(viewport: ViewportInfo) {
 }
 
 describe("computeCameraRig", () => {
-	it("looks straight down (top-down, no perspective) from directly above the content center", () => {
+	it("sits above the content center, tilted off vertical toward the player", () => {
 		const rig = computeCameraRig(landscape, 3);
+		// Horizontal centering is unchanged: the camera is on the board's own
+		// center line, looking down at it.
 		expect(rig.position[0]).toBe(rig.lookAt[0]);
-		expect(rig.position[2]).toBe(rig.lookAt[2]);
+		// The tilt is the whole point of the perspective camera — the camera is
+		// NOT directly above the look-at point any more, it sits toward the local
+		// (+Z) side so the far edge of the mat is seen at a shallow angle.
+		expect(rig.position[2]).toBeGreaterThan(rig.lookAt[2]);
 		expect(rig.position[1]).toBeGreaterThan(0);
+		expect(rig.tiltRad).toBeGreaterThan(0);
+	});
+
+	it("places the camera at the lid of a cone whose tilt matches the rig", () => {
+		const rig = computeCameraRig(wide, 9);
+		const dx = rig.position[0] - rig.lookAt[0];
+		const dy = rig.position[1] - rig.lookAt[1];
+		const dz = rig.position[2] - rig.lookAt[2];
+		// Distance is exactly the hypotenuse, and the tilt is its angle from
+		// vertical (the Y axis).
+		expect(Math.hypot(dx, dy, dz)).toBeCloseTo(rig.distance, 5);
+		expect(Math.atan2(Math.abs(dz), dy)).toBeCloseTo(rig.tiltRad, 5);
+	});
+
+	it("sizes the perspective distance so the board's NEAR edge fits the frustum", () => {
+		const rig = computeCameraRig(landscape, 9);
+		const halfFovRad = (rig.fov * Math.PI) / 360;
+		const cosT = Math.cos(rig.tiltRad);
+		const sinT = Math.sin(rig.tiltRad);
+		const tanHalfFov = Math.tan(halfFovRad);
+		// The defining relation: the near edge's axis distance times tan(fov/2)
+		// equals the board's half-height, i.e. the near edge touches the bottom of
+		// the frustum exactly. (At the look-at plane the coverage is smaller than
+		// halfHeight because that plane is farther from the tilted camera.)
+		const nearAxisDistance = rig.distance - sinT * rig.halfHeight;
+		expect(nearAxisDistance * tanHalfFov).toBeCloseTo(cosT * rig.halfHeight, 4);
 	});
 
 	for (const [name, viewport] of Object.entries({ landscape, wide, portrait, narrowPortrait })) {

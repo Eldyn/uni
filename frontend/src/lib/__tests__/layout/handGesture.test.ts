@@ -5,7 +5,10 @@ import {
 	computeScrollEm,
 	findNearestSlotIndex,
 	findReorderTargetIndex,
-	computeReorderedIds
+	computeReorderedIds,
+	decideGestureAxis,
+	isOverDiscard,
+	edgeScrollDirection
 } from "$components/game/layout/handGesture";
 
 describe("pastDragThreshold", () => {
@@ -77,6 +80,73 @@ describe("computeReorderedIds", () => {
 
 	it("leaves a single-element list unchanged", () => {
 		expect(computeReorderedIds([7], 0, 0)).toEqual([7]);
+	});
+});
+
+describe("decideGestureAxis", () => {
+	it("scrolls on a predominantly horizontal drag", () => {
+		expect(decideGestureAxis(20, 0)).toBe("scroll");
+		expect(decideGestureAxis(-30, 10)).toBe("scroll");
+	});
+
+	it("picks up on a predominantly vertical drag", () => {
+		expect(decideGestureAxis(0, -20)).toBe("pickup");
+		expect(decideGestureAxis(10, -30)).toBe("pickup");
+	});
+
+	it("treats an exact diagonal as a scroll", () => {
+		expect(decideGestureAxis(15, 15)).toBe("scroll");
+	});
+
+	it("picks up on a downward vertical drag too, not just upward", () => {
+		expect(decideGestureAxis(0, 20)).toBe("pickup");
+	});
+});
+
+describe("isOverDiscard", () => {
+	const discardX = 3;
+	const discardZ = 0;
+	const radius = 2;
+
+	it("counts a card centered on the pile", () => {
+		expect(isOverDiscard(3, 0, discardX, discardZ, radius)).toBe(true);
+	});
+
+	it("counts a card just inside the pile's reach", () => {
+		expect(isOverDiscard(4.9, 0, discardX, discardZ, radius)).toBe(true);
+	});
+
+	it("rejects a card outside the pile's reach", () => {
+		expect(isOverDiscard(5.1, 0, discardX, discardZ, radius)).toBe(false);
+	});
+
+	it("measures distance on both axes, not just X", () => {
+		expect(isOverDiscard(3, 1.9, discardX, discardZ, radius)).toBe(true);
+		expect(isOverDiscard(3, 2.1, discardX, discardZ, radius)).toBe(false);
+	});
+});
+
+describe("edgeScrollDirection", () => {
+	const width = 400;
+	const band = 72;
+
+	it("scrolls left when held against the left edge", () => {
+		expect(edgeScrollDirection(10, width, band)).toBe(-1);
+	});
+
+	it("scrolls right when held against the right edge", () => {
+		expect(edgeScrollDirection(390, width, band)).toBe(1);
+	});
+
+	it("does not scroll in the middle", () => {
+		expect(edgeScrollDirection(200, width, band)).toBe(0);
+	});
+
+	it("is exclusive at both band boundaries", () => {
+		expect(edgeScrollDirection(72, width, band)).toBe(0);
+		expect(edgeScrollDirection(71.999, width, band)).toBe(-1);
+		expect(edgeScrollDirection(328, width, band)).toBe(0);
+		expect(edgeScrollDirection(328.001, width, band)).toBe(1);
 	});
 });
 

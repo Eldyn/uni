@@ -1,4 +1,5 @@
 import type { SeatPosition3D } from "./seatLayout3D";
+import { boardRotationFor } from "./boardRotation";
 
 export const SPIN_SECONDS = 0.5;
 export const INHERIT_SECONDS = 0.35;
@@ -6,7 +7,6 @@ export const SPIN_EASE = "power2.inOut";
 export const INHERIT_EASE = "power2.out";
 
 const MIN_SPEED_MULTIPLIER = 0.1;
-const TAU = Math.PI * 2;
 
 export interface SlotPose {
 	x: number;
@@ -15,6 +15,7 @@ export interface SlotPose {
 }
 
 function shortestAngle(delta: number): number {
+	const TAU = Math.PI * 2;
 	let a = delta % TAU;
 	if (a > Math.PI) a -= TAU;
 	if (a < -Math.PI) a += TAU;
@@ -24,7 +25,8 @@ function shortestAngle(delta: number): number {
 /**
  * Signed shortest number of slots that rotates `to` onto slot 0 of `order`.
  * Positive steps move seats toward lower slot indices. Equally-short ties
- * break toward `lastDirection` (clockwise on a cold start).
+ * break toward `lastDirection` (clockwise on a cold start). Used only to pick
+ * the spin's DIRECTION; the angle itself is `boardRotationFor`.
  */
 export function spinStepsBetween(
 	order: readonly string[],
@@ -44,32 +46,25 @@ export function spinStepsBetween(
 	return lastDirection > 0 ? delta : delta - n;
 }
 
-/** Slot 0 is the bottom pivot; slots 1..N-1 follow the arch seats. */
-export function buildSlotSequence(
-	seats3D: readonly SeatPosition3D[],
-	bottomPose: SeatPosition3D
-): SeatPosition3D[] {
-	return [bottomPose, ...seats3D];
-}
-
-/** Pose between two slots, rotating about the mat center (world origin). */
-export function interpolateSlotPath(from: SeatPosition3D, to: SeatPosition3D, t: number): SlotPose {
-	const rFrom = Math.hypot(from.x, from.z);
-	const rTo = Math.hypot(to.x, to.z);
-	const rotationY = from.rotationY + shortestAngle(to.rotationY - from.rotationY) * t;
-	if (rFrom === 0 && rTo === 0) return { x: 0, z: 0, rotationY };
-	const aFrom = rFrom === 0 ? Math.atan2(to.z, to.x) : Math.atan2(from.z, from.x);
-	const aTo = rTo === 0 ? Math.atan2(from.z, from.x) : Math.atan2(to.z, to.x);
-	const angle = aFrom + shortestAngle(aTo - aFrom) * t;
-	const radius = rFrom + (rTo - rFrom) * t;
-	return { x: radius * Math.cos(angle), z: radius * Math.sin(angle), rotationY };
-}
-
-/** Signed angle the incoming seat sweeps to the bottom pivot, about origin. */
+/**
+ * The signed shortest yaw that brings the incoming seat's own bearing around to
+ * the bottom pivot's. Wraps `boardRotationFor` with the ring-order sign so the
+ * table always turns the short way, matching `spinStepsBetween`'s direction.
+ */
 export function spinAngleBetween(fromSeat: SeatPosition3D, bottomPose: SeatPosition3D): number {
-	const aFrom = Math.atan2(fromSeat.z, fromSeat.x);
-	const aTo = Math.atan2(bottomPose.z, bottomPose.x);
-	return shortestAngle(aTo - aFrom);
+	return boardRotationFor(fromSeat, bottomPose);
+}
+
+/** Rotates a slot pose about the origin by `yaw` — used by callers that need a
+ *  one-off rotated seat position rather than a whole spinning group. */
+export function rotateSlotPose(pose: SlotPose, yaw: number): SlotPose {
+	const cos = Math.cos(yaw);
+	const sin = Math.sin(yaw);
+	return {
+		x: pose.x * cos + pose.z * sin,
+		z: -pose.x * sin + pose.z * cos,
+		rotationY: pose.rotationY + yaw
+	};
 }
 
 export function spinDurations(
@@ -80,3 +75,5 @@ export function spinDurations(
 	const m = Math.max(MIN_SPEED_MULTIPLIER, speedMultiplier);
 	return { spin: SPIN_SECONDS / m, inherit: INHERIT_SECONDS / m };
 }
+
+export { shortestAngle };

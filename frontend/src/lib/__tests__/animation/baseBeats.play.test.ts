@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { flushSync } from "svelte";
-import { buildPlayBeat, createBaseBeatsWatcher, localCardAnchor } from "$components/game/animation/baseBeats.svelte";
+import {
+	buildPlayBeat,
+	createBaseBeatsWatcher,
+	localCardAnchor
+} from "$components/game/animation/baseBeats.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
 import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import { storeGame } from "$stores/game.svelte";
@@ -79,7 +83,12 @@ describe("localCardAnchor", () => {
 
 	it("warns and falls back to hand-center when the card is in neither snapshot", () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const [x] = localCardAnchor(999, placement, { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 }, null);
+		const [x] = localCardAnchor(
+			999,
+			placement,
+			{ orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 },
+			null
+		);
 		expect(x).toBe(0);
 		expect(warn).toHaveBeenCalled();
 		warn.mockRestore();
@@ -108,7 +117,12 @@ describe("processPlay clear-before-seed", () => {
 			play_direction: 1,
 			top_card: { id: 1, type: "red", value: "5" },
 			players: [
-				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] },
+				{
+					username: "me",
+					card_count: 5,
+					is_bot: false,
+					hand: [{ id: 1, type: "red", value: "5" }]
+				},
 				{ username: "bob", card_count: 3, is_bot: false }
 			],
 			pending_draws: 0,
@@ -215,4 +229,3 @@ describe("processPlay clear-before-seed", () => {
 		dispose();
 	});
 });
-

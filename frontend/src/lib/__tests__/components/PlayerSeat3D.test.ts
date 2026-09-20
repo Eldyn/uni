@@ -88,6 +88,49 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 		}
 	});
 
+	it("renders real faces for a hand the server sent (spectator view)", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+		const hand = [
+			{ id: 11, type: "red", value: "5" },
+			{ id: 12, type: "blue", value: "skip" }
+		];
+
+		render(PlayerSeat3D, {
+			props: {
+				player: { username: "bot_1", card_count: 2, is_bot: true, hand },
+				seat,
+				color: "#00ff00"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		expect(registry.activeFlights).toHaveLength(2);
+		const first = registry.activeFlights.find((f) => f.id === "ring:bot_1:0")!;
+		const second = registry.activeFlights.find((f) => f.id === "ring:bot_1:1")!;
+		expect(first.pose.turned).toBe(false);
+		expect(second.pose.turned).toBe(false);
+		expect(first.card.value).toBe("5");
+		expect(second.card.value).toBe("skip");
+	});
+
+	it("keeps the ring as backs when the server withheld the hand", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+
+		render(PlayerSeat3D, {
+			props: {
+				player: { username: "human_1", card_count: 2, is_bot: false },
+				seat,
+				color: "#00ff00"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		expect(registry.activeFlights).toHaveLength(2);
+		expect(registry.activeFlights.every((f) => f.pose.turned === true)).toBe(true);
+	});
+
 	it("updates dimmed decoration when isTurn or isValidTarget is true", () => {
 		const registry = new CardRegistry();
 		const seat = { x: 0, z: 0, rotationY: 0 };

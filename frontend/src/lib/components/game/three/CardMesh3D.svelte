@@ -210,6 +210,14 @@ uniform vec4 uUvRectBack;
 	// renderOrder within a pass, so a dragged card must join the transparent
 	// pass for its `dragged` tier to beat the transparent opponent-seat sprites.
 	// Non-dragged cards stay opaque (unchanged pass, unchanged ordering).
+	//
+	// Joining that pass is also why the dragged face turns its depth test OFF
+	// (see the face material below): its DRAG_LIFT (0.5) sits below the discard
+	// pile's own stack height (up to MAX_DISCARD_HEIGHT 0.6) and the draw pile's
+	// base (0.6), so against the already-drawn opaque pile cards a depth-tested
+	// dragged card is simply hidden behind any pile taller than its lift.
+	// Skipping the test while dragging is what makes the `dragged` tier
+	// actually mean "on top".
 	let dragging = $derived(isDragged(dragT));
 
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
@@ -362,19 +370,27 @@ uniform vec4 uUvRectBack;
 >
 	<T.Group rotation.x={-Math.PI / 2}>
 		{#if shadow}
-			<T.Group rotation.z={spinRad}>
-				<T.Mesh position={shadowPosition} scale={shadowScale} renderOrder={renderOrder - 1}>
-					<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-					<T.MeshBasicMaterial
-						map={shadow.texture}
-						color="#000000"
-						transparent
-						opacity={shadow.opacity * (1 + 0.2 * dragT) * opacity}
-						depthWrite={false}
-						toneMapped={false}
-					/>
-				</T.Mesh>
-			</T.Group>
+			<!-- The shadow's OFFSET is applied in this group's own (world-aligned)
+			     space, while only the silhouette spins: the offset must stay put as
+			     the card turns, since it comes from a fixed light direction. Nested
+			     inside the spin group instead (as it used to be) the offset rotates
+			     with the card, flipping a spun card's shadow to the opposite side. -->
+			<T.Mesh
+				position={shadowPosition}
+				rotation.z={spinRad}
+				scale={shadowScale}
+				renderOrder={renderOrder - 1}
+			>
+				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+				<T.MeshBasicMaterial
+					map={shadow.texture}
+					color="#000000"
+					transparent
+					opacity={shadow.opacity * (1 + 0.2 * dragT) * opacity}
+					depthWrite={false}
+					toneMapped={false}
+				/>
+			</T.Mesh>
 		{/if}
 		<T.Group
 			rotation.x={flipAxis === "x" ? flipRad : 0}
@@ -411,6 +427,7 @@ uniform vec4 uUvRectBack;
 					color={meshColor}
 					alphaTest={0.5}
 					transparent={dragging}
+					depthTest={!dragging}
 					depthWrite
 					toneMapped={false}
 					side={DoubleSide}

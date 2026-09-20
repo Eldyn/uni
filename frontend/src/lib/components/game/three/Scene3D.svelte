@@ -1,13 +1,15 @@
 <!-- Threlte scene root: camera + lights + the playmat, the opponent ring, the
      local seat and hand, and the piles. Everything that used to be DOM —
      opponents, piles, the local player's own hand, and now the playmat and
-     turn-direction arrows too — lives here, viewed from a straight top-down
-     orthographic camera (no perspective). -->
+     turn-direction arrows too — lives here, viewed from a tilted perspective
+     camera (see cameraRig.ts). Every piece of table furniture sits under one
+     rotating group so a spectator spin turns the whole board as a single
+     object; the local hand row is the one thing outside it. -->
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { T } from "@threlte/core";
 	import { interactivity, useInteractivity } from "@threlte/extras";
-	import type { OrthographicCamera } from "three";
+	import type { PerspectiveCamera } from "three";
 	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -16,8 +18,7 @@
 	import type { ViewportInfo } from "../layout/seatLayout";
 	import { resolvePovPlayer } from "../layout/spectatorPov";
 	import { storeTableSpin } from "$stores/tableSpin.svelte";
-	import { buildSlotSequence, interpolateSlotPath } from "../layout/tableSpin";
-	import type { SeatPosition3D } from "../layout/seatLayout3D";
+	import { storeBoardCamera } from "$stores/boardCamera.svelte";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -80,11 +81,22 @@
 	let opponentLabelEm = $derived(geometry.opponentLabelEm);
 	let placement = $derived(geometry.placement);
 
-	let camRef = $state<OrthographicCamera>();
+	// The perspective camera's aspect MUST track the canvas's real box, or the
+	// projection stretches: a `T.PerspectiveCamera` defaults `aspect` to 1, which
+	// on a 16:9 board skews the whole scene into a trapezoid and reads as a huge
+	// unintended camera tilt. The orthographic camera this replaced never needed
+	// this (its `left/right/top/bottom` already encoded the aspect), so switching
+	// to perspective has to wire it up explicitly.
+	let aspect = $derived(viewport.width / viewport.height);
+
+	let camRef = $state<PerspectiveCamera>();
 	$effect(() => {
 		if (!camRef) return;
 		camRef.lookAt(rig.lookAt[0], rig.lookAt[1], rig.lookAt[2]);
 		camRef.updateProjectionMatrix();
+		// Published for the DOM overlays outside the canvas that have to project
+		// world positions to screen space (ActionPlayDrawn, DrawStackIndicator).
+		storeBoardCamera.camera = camRef;
 		// Opponent avatars/labels are THREE.Sprite objects, and Sprite.raycast
 		// throws ("Raycaster.camera needs to be set") when the shared raycaster
 		// has no camera. Interactivity's default compute() only binds the camera
@@ -93,6 +105,9 @@
 		// the sprites with a null camera. Binding it here, as soon as the camera
 		// exists, closes that window for every sprite in the scene.
 		raycaster.camera = camRef;
+		return () => {
+			if (storeBoardCamera.camera === camRef) storeBoardCamera.camera = null;
+		};
 	});
 
 	function confirmTarget(username: string) {
@@ -130,45 +145,26 @@
 	let isLocalTurn = $derived(storeGame.state?.current_turn === povPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);
 
-	// Spectator table spin, first half: every player is drawn as a seat that
-	// slides along the ring's slot sequence from its old slot to its new one.
-	// Slot 0 is the outgoing POV player (the bottom seat before the spin) —
-	// `resolvePovPlayer` already reports the INCOMING player the moment the
-	// spectator clicks, so the outgoing one has to be looked up by name from
-	// `transition.from` rather than reusing `povPlayer`. The opponents come from
-	// `mappedOpponents`, which is still derived from the outgoing `renderPov`
-	// and so already carries the incoming player in their old ring position.
-	// Null outside the spin phase, which restores the normal composition.
-	const bottomPose = $derived({ x: 0, z: geometry.placement.localAvatarZ, rotationY: 0 });
-	// The outgoing POV player. `resolvePovPlayer` already reports the INCOMING
-	// player the moment the spectator clicks, so the outgoing one is looked up
-	// by name from `transition.from`. Only non-null during phase "spin".
+	// Spectator table spin, first half: the WHOLE TABLE turns as one rigid
+	// group about the mat's center. There is no per-seat orbital interpolation
+	// any more — the seats, the mat, the arrows and both piles all live under
+	// `boardGroup`, so a single group rotation carries every one of them and
+	// they can never disagree about where the table is.
+	//
+	// The outgoing POV player is looked up by name from `transition.from`
+	// (rather than reusing `povPlayer`, which already reports the INCOMING
+	// player the moment the spectator clicks). Only non-null during phase
+	// "spin", when its bottom-row cards still need to be hidden from the ring.
 	const spinFromPlayer = $derived.by(() => {
 		const t = storeTableSpin.transition;
 		if (storeTableSpin.phase !== "spin" || !t) return null;
 		return (storeGame.state?.players ?? []).find((p) => p.username === t.from) ?? null;
 	});
-	const spinSeatViews = $derived.by(() => {
-		const t = storeTableSpin.transition;
-		if (storeTableSpin.phase !== "spin" || !t) return null;
-		const slots = buildSlotSequence(geometry.seats3D, bottomPose);
-		const n = slots.length;
-		const poseAt = (oldIndex: number) =>
-			interpolateSlotPath(
-				slots[oldIndex],
-				slots[(oldIndex - t.steps + n) % n],
-				storeTableSpin.spinProgress
-			);
-		const views: { player: GamePlayer; pose: SeatPosition3D }[] = [];
-		if (spinFromPlayer) views.push({ player: spinFromPlayer, pose: poseAt(0) });
-		mappedOpponents.forEach((o, i) => views.push({ player: o.player, pose: poseAt(i + 1) }));
-		return views;
-	});
 	// The hand row's rendered player: the outgoing POV through phase 1 (its
-	// cards stay in the bottom row while the ring spins), then the incoming POV
-	// at commit. Hoisted above the spin/normal branch so the row never unmounts
-	// on a POV change — that unmount was what stranded the outgoing cards'
-	// registry entries.
+	// cards stay in the bottom row while the table turns), then the incoming
+	// POV at commit. Hoisted above the branch so the row never unmounts on a
+	// POV change — that unmount was what stranded the outgoing cards' registry
+	// entries.
 	const handPlayer = $derived(storeTableSpin.phase === "spin" ? spinFromPlayer : povPlayer);
 	const handDimmed = $derived(
 		DIM_LOCAL_WHEN_NOT_TURN && storeGame.state?.current_turn !== handPlayer?.username
@@ -187,45 +183,28 @@
 	});
 </script>
 
-<T.OrthographicCamera
+<T.PerspectiveCamera
 	makeDefault
 	manual
 	bind:ref={camRef}
 	position={rig.position}
-	left={-rig.halfWidth}
-	right={rig.halfWidth}
-	top={rig.halfHeight}
-	bottom={-rig.halfHeight}
-	near={0.1}
-	far={100}
+	fov={rig.fov}
+	{aspect}
+	near={rig.near}
+	far={rig.far}
 />
 
 <T.AmbientLight intensity={1.1} />
 <T.DirectionalLight intensity={0.4} position={[3, 6, 4]} />
 
-<Playmat3D mat={placement.mat} showFelt={true} {viewport} />
+<!-- The whole table: mat, arrows, both center piles, every seat (the outgoing
+     POV player included, drawn at the bottom pivot) and the local avatar. One
+     yaw drives all of it — see boardRotation.ts. The local HAND row is
+     deliberately outside this group: it is the viewer's own UI, not table
+     furniture, and always stays upright at the bottom of the screen. -->
+<T.Group rotation.y={storeTableSpin.boardRotationY}>
+	<Playmat3D mat={placement.mat} showFelt={true} {viewport} />
 
-{#if spinSeatViews}
-	{#each spinSeatViews as view (view.player.username)}
-		<PlayerSeat3D
-			player={view.player}
-			seat={view.pose}
-			hasHoldingCard={bus.isHoldingOpponent(view.player.username)}
-			isTurn={storeGame.state?.current_turn === view.player.username}
-			isValidTarget={storeGame.actionRequired === Action.ChooseTarget &&
-				Array.isArray(storeGame.actionContext) &&
-				storeGame.actionContext.includes(view.player.username)}
-			color={colorFor(view.player.username)}
-			isViewable={storeGame.isSpectator}
-			onSelect={() => selectOpponent(view.player.username)}
-			cardScale={opponentCardScale}
-			avatarPx={opponentAvatarPx}
-			avatarWorld={opponentAvatarWorld}
-			labelEm={opponentLabelEm}
-			ringCardsHidden={view.player.username === spinFromPlayer?.username}
-		/>
-	{/each}
-{:else}
 	{#each mappedOpponents as { player }, i (player.username)}
 		{@const seat = seats3D[i]}
 		{#if seat}
@@ -244,6 +223,8 @@
 				avatarPx={opponentAvatarPx}
 				avatarWorld={opponentAvatarWorld}
 				labelEm={opponentLabelEm}
+				{rig}
+				{viewport}
 				ringMorph={storeTableSpin.transition?.outgoing?.username === player.username
 					? storeTableSpin.transition.outgoing
 					: null}
@@ -261,7 +242,20 @@
 			dimmed={localDimmed}
 		/>
 	{/if}
-{/if}
+
+	<DrawPile3D {placement} />
+	<!-- The discard's own cards are all laid out around their pile's center, so
+	     the pile moves as a group rather than every jitter/shadow offset having
+	     to carry the placement's Z itself. -->
+	<T.Group position.x={placement.discardX} position.z={placement.discardZ}>
+		<DiscardPile3D
+			history={bus.discardHistory}
+			{placement}
+			armed={selectedId !== null}
+			onConfirm={() => selectedId !== null && onPlay(selectedId)}
+		/>
+	</T.Group>
+</T.Group>
 
 {#if handPlayer}
 	<LocalHand3D
@@ -282,23 +276,6 @@
 		inheritProgress={storeTableSpin.inheritProgress}
 	/>
 {/if}
-
-<DrawPile3D {placement} rotationY={placement.drawPileBesideHand ? 0 : storeTableSpin.pileAngle} />
-<!-- The discard's own cards are all laid out around their pile's center, so the
-     pile moves as a group rather than every jitter/shadow offset having to
-     carry the placement's Z itself. -->
-<T.Group
-	position.x={placement.discardX}
-	position.z={placement.discardZ}
-	rotation.y={storeTableSpin.pileAngle}
->
-	<DiscardPile3D
-		history={bus.discardHistory}
-		{placement}
-		armed={selectedId !== null}
-		onConfirm={() => selectedId !== null && onPlay(selectedId)}
-	/>
-</T.Group>
 
 {#if artLoaded}
 	<AllCards3D />

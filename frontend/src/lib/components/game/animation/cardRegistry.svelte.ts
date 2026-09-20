@@ -20,6 +20,14 @@ export interface CardDecoration {
 	hoverSpinDeg?: number;
 	opacity?: number;
 	dimmed?: boolean;
+	/** Ambient brightness multiplier (0-1) — inter-card ambient occlusion, e.g.
+	 *  darker cards deeper in a stack. Defaults to 1 when unset. */
+	brightness?: number;
+	/** True when this card belongs to the rotating TABLE (a ring, discard or
+	 *  draw-pile card) rather than to the viewer's own hand row. AllCards3D
+	 *  folds the spectator-spin board yaw into the pose only for table-bound
+	 *  cards — see animation/cardBoardPose.ts. */
+	tableBound?: boolean;
 	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
 	highlight?: { color?: string; pulse?: boolean };
 }
@@ -340,6 +348,19 @@ export class CardRegistry {
 		resolveAnchor: (name: string) => [number, number, number]
 	): Promise<void> {
 		return new Promise((resolve) => {
+			// Reserve every target up front, not just when its beat starts
+			// playing in #playBatch. A beat queued behind a currently-playing
+			// one can wait many frames, and during that window an owner's
+			// cleanup effect (LocalHand3D/DiscardPile3D seeing the card leave
+			// its row, not yet "in transit", not yet in the discard) would
+			// removeEntry it — deleting the pose AND meta the flight was seeded
+			// with. The flight then recreated the card at the world origin with
+			// CardRegistry's dummy {wild,"0"} meta: the "white zero in the
+			// middle of the screen" the spectator saw. Marking them in-transit
+			// here makes owners leave the seeded pose alone until its beat runs.
+			for (const beat of beats) {
+				for (const step of beat) this.#inTransitIds.add(step.target);
+			}
 			this.#pending.push({ beats, resolveAnchor, resolve });
 			this.#pump();
 		});
@@ -494,6 +515,17 @@ export class CardRegistry {
 				`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`,
 				err
 			);
+			// Release the reservation enqueue() made for this beat's targets, or
+			// a card whose renderer threw stays permanently in-transit and its
+			// owner can never re-sync it. Targets a later beat still needs stay
+			// reserved.
+			const failedBeat = batch.beats[beatIndex];
+			for (const step of failedBeat) {
+				const usedLater = batch.beats
+					.slice(beatIndex + 1)
+					.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
+				if (!usedLater) this.#inTransitIds.delete(step.target);
+			}
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);

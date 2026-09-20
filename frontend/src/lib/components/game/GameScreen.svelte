@@ -3,6 +3,8 @@
 	import GameEndPopup from "./GameEndPopup.svelte";
 	import GameHud from "./GameHud.svelte";
 	import SpectatorBanner from "./SpectatorBanner.svelte";
+	import SpectatorFade from "./SpectatorFade.svelte";
+	import EliminationStandings from "./EliminationStandings.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
 	import GameActions from "./GameActions.svelte";
 	import CardDetailPopover from "./CardDetailPopover.svelte";
@@ -40,12 +42,16 @@
 
 		<EliminationOutcomeBanner />
 
+		<EliminationStandings />
+
 		<CardDetailPopover />
 
 		<div class="game-board-container">
 			<GameBoard />
 		</div>
 	</div>
+
+	<SpectatorFade />
 </div>
 
 <style>

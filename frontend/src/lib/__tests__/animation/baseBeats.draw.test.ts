@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildDrawBeats, drawStaggerFor, opponentSeatAnchor, localHandSlotAnchor } from "$components/game/animation/baseBeats.svelte";
+import {
+	buildDrawBeats,
+	drawStaggerFor,
+	opponentSeatAnchor,
+	localHandSlotAnchor
+} from "$components/game/animation/baseBeats.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {

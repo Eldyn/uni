@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { flushSync } from "svelte";
-import { createBaseBeatsWatcher, DRAW_HOVER_LIFT } from "$components/game/animation/baseBeats.svelte";
+import {
+	createBaseBeatsWatcher,
+	DRAW_HOVER_LIFT
+} from "$components/game/animation/baseBeats.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
 import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import { storeGame, Action } from "$stores/game.svelte";
@@ -734,4 +737,3 @@ describe("createBaseBeatsWatcher", () => {
 		dispose();
 	});
 });
-

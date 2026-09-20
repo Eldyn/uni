@@ -10,56 +10,43 @@ function sync(target: string) {
 
 describe("storeTableSpin", () => {
 	beforeEach(() => {
-		storeAnimation.enabled = false; // instant commit path
+		storeAnimation.enabled = true; // even with animation on, commits are instant
 		storeTableSpin.reset();
 	});
 
-	it("seeds the first target without animating", () => {
+	it("seeds the first target without any transition", () => {
 		sync("a");
 		expect(storeTableSpin.renderPov).toBe("a");
+		expect(storeTableSpin.targetPov).toBe("a");
 		expect(storeTableSpin.phase).toBe("idle");
+		expect(storeTableSpin.transition).toBeNull();
 	});
 
-	it("commits both phases instantly when animations are disabled", () => {
+	it("commits a POV switch immediately — the spin is gone", () => {
 		sync("a");
 		sync("b");
 		expect(storeTableSpin.renderPov).toBe("b");
 		expect(storeTableSpin.phase).toBe("idle");
 		expect(storeTableSpin.inheritProgress).toBe(1);
+		expect(storeTableSpin.boardRotationY).toBe(0);
 	});
 
-	it("skip commits immediately", () => {
-		storeAnimation.enabled = true;
+	it("skip is a no-op with nothing in flight", () => {
 		sync("a");
-		sync("c"); // starts a timed spin
-		expect(storeTableSpin.phase).toBe("spin");
+		sync("c");
 		storeTableSpin.skip();
 		expect(storeTableSpin.renderPov).toBe("c");
 		expect(storeTableSpin.phase).toBe("idle");
 	});
 
-	it("retargets from the settled state", () => {
+	it("retargets straight to the newest target", () => {
 		sync("a");
 		sync("b");
 		sync("c");
 		expect(storeTableSpin.renderPov).toBe("c");
 	});
 
-	it("settles the in-flight target, then chains a new transition on a mid-flight retarget", () => {
-		storeAnimation.enabled = true;
-		sync("a");
-		sync("b"); // starts a timed spin toward b
-		expect(storeTableSpin.phase).toBe("spin");
-		sync("c"); // retarget mid-flight
-		expect(storeTableSpin.renderPov).toBe("b"); // old target settled
-		expect(storeTableSpin.phase).toBe("spin"); // new transition to c in flight
-		storeTableSpin.skip();
-		expect(storeTableSpin.renderPov).toBe("c");
-		expect(storeTableSpin.phase).toBe("idle");
-	});
-
-	it("cancelAndCommit settles instantly on the target", () => {
-		storeAnimation.enabled = true;
+	it("cancelAndCommit keeps the committed target", () => {
 		sync("a");
 		sync("b");
 		storeTableSpin.cancelAndCommit();
@@ -67,11 +54,25 @@ describe("storeTableSpin", () => {
 		expect(storeTableSpin.phase).toBe("idle");
 	});
 
-	it("does nothing for a single-player ring", () => {
+	it("accepts a null target (no players)", () => {
+		sync("a");
+		storeTableSpin.syncTarget(null, [], 0, null, null);
+		expect(storeTableSpin.renderPov).toBeNull();
+	});
+
+	it("never rotates the board", () => {
+		sync("a");
+		storeTableSpin.syncTarget("c", order, Math.PI / 2, null, null);
+		expect(storeTableSpin.renderPov).toBe("c");
+		expect(storeTableSpin.boardRotationY).toBe(0);
+		expect(storeTableSpin.active).toBe(false);
+	});
+
+	it("resets to a clean idle state", () => {
+		sync("a");
 		storeTableSpin.reset();
-		storeTableSpin.syncTarget("a", ["a"], 0, null, null);
-		storeTableSpin.syncTarget("a", ["a"], 0, null, null);
-		expect(storeTableSpin.renderPov).toBe("a");
+		expect(storeTableSpin.renderPov).toBeNull();
+		expect(storeTableSpin.targetPov).toBeNull();
 		expect(storeTableSpin.phase).toBe("idle");
 	});
 });

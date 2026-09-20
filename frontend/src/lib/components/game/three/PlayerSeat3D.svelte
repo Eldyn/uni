@@ -25,12 +25,15 @@
 	import { CanvasTexture, Color, NearestFilter, SRGBColorSpace, type Texture } from "three";
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { SeatPosition3D } from "../layout/seatLayout3D";
+	import type { CameraRig } from "../layout/cameraRig";
+	import type { ViewportInfo } from "../layout/seatLayout";
 	import {
 		computeHandRingSlots,
 		ringSlotWorldPose,
 		ringRadialScale,
 		RING_STACK_STEP
 	} from "../layout/handRing";
+	import { computeOpponentRingPoses, computeSeatMarkerOffset } from "../layout/seatRingPerspective";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
@@ -60,7 +63,9 @@
 		hasHoldingCard = false,
 		ringMorph = null,
 		inheritProgress = 1,
-		ringCardsHidden = false
+		ringCardsHidden = false,
+		rig = null,
+		viewport = null
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -96,6 +101,12 @@
 		 *  during the spectator spin: its cards are the hand row, so drawing a
 		 *  ring too would double them. Defaults false — full ring. */
 		ringCardsHidden?: boolean;
+		/** Shared camera rig + viewport, used to solve the ring and the
+		 *  avatar/name anchor in screen space (see seatRingPerspective.ts).
+		 *  Optional only so isolated component tests can render without the
+		 *  full scene — the app always wires them from Scene3D. */
+		rig?: CameraRig | null;
+		viewport?: ViewportInfo | null;
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
@@ -120,12 +131,35 @@
 		)
 	);
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
+	// Faces the server actually sent for this player. A spectator receives the
+	// hand of every non-private player (bots by default, humans without
+	// streamer/privacy mode); a normal player's opponents always arrive with
+	// `hand` omitted, so their ring stays card backs. The presence of `hand` IS
+	// the permission — faces are never inferred from card_count.
+	let handCards = $derived(player.hand ?? []);
+	let visibleFaceCount = $derived(handCards.length > 0 ? Math.min(cardCount, handCards.length) : 0);
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
 
 	// handRing.ts's slots are unit directions authored at its own fixed
 	// RING_RADIUS_EM; ringRadialScale repoints them at the world radius the
-	// avatar actually needs.
+	// avatar actually needs. Only the fallback path uses it — with a camera rig
+	// the ring is solved in screen space instead (seatRingPerspective.ts).
 	let radialScale = $derived(ringRadialScale(avatarWorld, cardScale));
+
+	// Perspective-correct placement. With a rig, the ring is authored as a
+	// screen-space circle around the seat and unprojected onto the table, and
+	// the lifted avatar/name sprite is nudged along the camera ray so it lands
+	// back on the seat's ground point — both of which the orthographic camera
+	// never needed. Without a rig (isolated tests) the legacy world-space ring
+	// is used unchanged.
+	let ringPoses = $derived(
+		rig && viewport
+			? computeOpponentRingPoses(rig, viewport, seat, avatarWorld, cardScale, cardCount)
+			: null
+	);
+	let markerOffset = $derived<[number, number]>(
+		rig && viewport ? computeSeatMarkerOffset(rig, viewport, seat, AVATAR_HEIGHT) : [0, 0]
+	);
 
 	// Names are shown on demand, not always. At a full table a permanent label
 	// per seat is a wall of text that nothing on the board can outrank, and the
@@ -148,7 +182,11 @@
 	let pulsePhase = 0;
 	let pulseScale = $state(1);
 
-	let arcAnchorPos = $derived<[number, number, number]>([0, AVATAR_HEIGHT, 0]);
+	let arcAnchorPos = $derived<[number, number, number]>([
+		markerOffset[0],
+		AVATAR_HEIGHT,
+		markerOffset[1]
+	]);
 	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
 	// The label texture is drawn in CSS px, then scaled into the world through
 	// the same px→world ratio the avatar's frame came from — so it stays
@@ -282,15 +320,22 @@
 			const key = `ring:${username}:${i}`;
 			currentKeys.add(key);
 
-			const [worldX, worldY, worldZ] = ringSlotWorldPose(
-				seat,
-				slot,
-				i,
-				radialScale,
-				RING_STACK_STEP
-			);
-			const spinDeg = baseSpinDeg + slot.rotateDeg;
+			// Perspective-solved slot (screen-space ring unprojected onto the
+			// table); falls back to the legacy world-space ring without a rig.
+			const solved = ringPoses?.[i];
+			const [worldX, worldY, worldZ] = solved
+				? solved.position
+				: ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
+			const spinDeg = solved ? solved.spinDeg : baseSpinDeg + slot.rotateDeg;
+			const slotScale = solved ? solved.scale : cardScale;
 			const morphSource: [number, number, number] | null = morph ? (morph.poses[i] ?? null) : null;
+			// A visible face for this slot, or null for a withheld hand. Kept in
+			// lockstep with `turned` below: a face is only ever registered when
+			// its real meta is, so a hidden back can never be inspected as a card.
+			const faceCard = i < visibleFaceCount ? handCards[i] : null;
+			const faceMeta = faceCard
+				? { type: faceCard.type as string, value: faceCard.value as string }
+				: null;
 
 			const pose = cardRegistry.ensureEntry(
 				key,
@@ -300,15 +345,17 @@
 					z: worldZ,
 					spinDeg,
 					flipDeg: 0,
-					scale: cardScale,
-					turned: true,
+					scale: slotScale,
+					turned: faceCard === null,
 					opacity: 1
 				},
-				null
+				faceMeta
 			);
 
 			cardRegistry.setPoseProvider(key, () => {
-				const [tx, ty, tz] = ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
+				const [tx, ty, tz] = solved
+					? solved.position
+					: ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
 				if (!morphSource) return [tx, ty, tz];
 				return [
 					morphSource[0] + (tx - morphSource[0]) * morphProgress,
@@ -338,17 +385,17 @@
 				pose.spinDeg = spinDeg * morphProgress;
 				pose.flipDeg = 180 * morphProgress;
 				pose.turned = false;
-				pose.scale = cardScale;
+				pose.scale = slotScale;
 				cardRegistry.markInTransit(key, morphProgress < 1);
-				cardRegistry.setDecoration(key, { dimmed });
+				cardRegistry.setDecoration(key, { tableBound: true, dimmed });
 				continue;
 			}
 
 			if (!cardRegistry.isInTransit(key)) {
-				pose.scale = cardScale;
-				pose.turned = true;
+				pose.scale = slotScale;
+				pose.turned = faceCard === null;
 				// Clear any flip left by a morph that has since ended; the ring
-				// always rests as a back with no edge-on rotation.
+				// rests flat whichever way it faces up.
 				pose.flipDeg = 0;
 			}
 
@@ -392,6 +439,7 @@
 			}
 
 			cardRegistry.setDecoration(key, {
+				tableBound: true,
 				dimmed
 			});
 		}
@@ -422,7 +470,7 @@
 <T.Group position.x={seat.x} position.z={seat.z} rotation.y={seat.rotationY}>
 	{#if avatarTexture}
 		<T.Sprite
-			position.y={AVATAR_HEIGHT}
+			position={arcAnchorPos}
 			scale={avatarScale}
 			renderOrder={RENDER_ORDER.seatSprite}
 			onclick={handleSelect}

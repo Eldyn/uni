@@ -13,7 +13,9 @@
 	import { useTask } from "@threlte/core";
 	import { useCardRegistry, type FlightHandle } from "../animation/cardRegistry.svelte";
 	import { isInspectable } from "../animation/inspectable";
+	import { poseWithBoardRotation } from "../animation/cardBoardPose";
 	import { useCardBus } from "../card-bus.svelte";
+	import { storeTableSpin } from "$stores/tableSpin.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
 	import { loadSilhouette } from "./textures";
 	import { cardRenderOrder } from "./renderOrder";
@@ -113,13 +115,26 @@
 {#each cardRegistry.activeFlights as handle (handle.id)}
 	{@const isPendingPlayDrawn = handle.id === String(bus?.pendingLocalPlayDrawnId)}
 	{@const cardRenderOrderValue = cardRenderOrder(handle.pose, isPendingPlayDrawn)}
+	<!-- Table-bound cards (ring, discard, draw-pile) fold the spectator-spin
+	     board yaw in here; hand cards do not, because they are the viewer's own
+	     UI rather than table furniture. See animation/cardBoardPose.ts. -->
+	{@const boardPose = poseWithBoardRotation(
+		{
+			x: handle.pose.x,
+			y: handle.pose.y,
+			z: handle.pose.z,
+			spinDeg: handle.pose.spinDeg,
+			tableBound: handle.decoration?.tableBound
+		},
+		storeTableSpin.boardRotationY
+	)}
 	<CardMesh3D
 		card={{ id: -1, type: handle.card.type as never, value: handle.card.value as never }}
 		wildColor={handle.card.wildColor}
 		turned={handle.pose.turned}
-		position={[handle.pose.x, handle.pose.y, handle.pose.z]}
+		position={[boardPose.x, boardPose.y, boardPose.z]}
 		renderOrder={cardRenderOrderValue}
-		spinDeg={handle.pose.spinDeg}
+		spinDeg={boardPose.spinDeg}
 		flipDeg={handle.pose.flipDeg}
 		flipAxis={handle.pose.flipAxis}
 		scale={handle.pose.scale}

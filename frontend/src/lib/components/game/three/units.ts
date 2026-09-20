@@ -23,7 +23,6 @@ export const CARD_HOVER_SCALE = 1.15;
 export const MIN_STACK_STEP = 0.004;
 export const RING_STACK_STEP = 0.02;
 
-
 // Where the local hand row, the draw pile and their card size actually land is
 // a function of the camera's frustum rather than a fixed world coordinate —
 // see layout/boardPlacement.ts. This file stays pure card geometry.
@@ -36,7 +35,6 @@ export const RING_STACK_STEP = 0.02;
  */
 export function computeValueFlipRad(spinDeg: number, alwaysUprightValues: boolean): number {
 	if (!alwaysUprightValues) return 0;
-	const normalizedDeg = ((spinDeg % 360) + 540) % 360 - 180;
+	const normalizedDeg = (((spinDeg % 360) + 540) % 360) - 180;
 	return Math.abs(normalizedDeg) > 90 ? Math.PI : 0;
 }
-

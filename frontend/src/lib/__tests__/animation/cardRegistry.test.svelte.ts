@@ -279,6 +279,45 @@ describe("CardRegistry pose providers", () => {
 		expect(registry.isInTransit("7")).toBe(true);
 	});
 
+	it("reserves a queued beat's targets up front, so an owner can't delete the seeded pose while it waits", async () => {
+		const registry = new CardRegistry();
+		const seed = (id: string) =>
+			registry.seedPose(id, {
+				x: 0,
+				y: 0,
+				z: 0,
+				spinDeg: 0,
+				flipDeg: 0,
+				scale: 1,
+				turned: false,
+				opacity: 1
+			});
+		seed("A");
+		seed("B");
+
+		// A starts playing immediately; B is queued behind it and hasn't begun.
+		const doneA = registry.enqueue([[{ op: "move", target: "A", payload: { to: "x" } }]], () => [
+			1, 0, 1
+		]);
+		const doneB = registry.enqueue([[{ op: "move", target: "B", payload: { to: "y" } }]], () => [
+			2, 0, 2
+		]);
+
+		// The regression: without the up-front reservation, B was only marked
+		// in-transit when its own beat started, leaving a window in which the
+		// hand's cleanup effect saw it leave the row, removed it, and the
+		// flight then recreated it at the origin as the dummy white "0".
+		expect(registry.isInTransit("B")).toBe(true);
+		expect(registry.getPose("B")).toBeDefined();
+
+		registry.skipCurrent(); // finish A, pump B
+		registry.skipCurrent(); // finish B
+		await doneA;
+		await doneB;
+		flushSync();
+		expect(registry.isInTransit("B")).toBe(false);
+	});
+
 	it("isInTransit is reactive and triggers effects when transit state changes", async () => {
 		const registry = new CardRegistry();
 		registry.seedPose("7", {

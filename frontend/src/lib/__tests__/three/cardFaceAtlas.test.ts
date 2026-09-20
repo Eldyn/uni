@@ -113,9 +113,13 @@ describe("cardFaceAtlas", () => {
 		expect(unpaintedJollyEntry).toBeDefined();
 
 		// Check painted jolly
-		const paintedJollyKey: CardFaceKey = { type: "white", value: "jolly", wildColor: "green", turned: false };
+		const paintedJollyKey: CardFaceKey = {
+			type: "white",
+			value: "jolly",
+			wildColor: "green",
+			turned: false
+		};
 		const paintedJollyEntry = getFaceTexture(paintedJollyKey);
 		expect(paintedJollyEntry).toBeDefined();
 	});
 });
-

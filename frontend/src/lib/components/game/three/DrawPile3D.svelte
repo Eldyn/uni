@@ -21,13 +21,9 @@
 	} from "../layout/drawPile";
 
 	let {
-		placement,
-		rotationY = 0
+		placement
 	}: {
 		placement: BoardPlacement;
-		/** Extra in-place yaw (radians) applied about the pile's own center by the
-		 *  spectator table spin. Default 0 renders the pile exactly as before. */
-		rotationY?: number;
 	} = $props();
 
 	const bus = useCardBus();
@@ -173,12 +169,12 @@
 	}
 </script>
 
-<!-- Pivot wrapper: the pile's own children are authored in absolute world
-     coordinates, so the outer group rotates about the pile's center while the
-     inner group undoes the outer translation. At rotationY 0 the two
-     translations cancel exactly and every child renders where it always did. -->
-<T.Group position.x={placement.drawPileX} position.z={placement.drawPileZ} rotation.y={rotationY}>
-	<T.Group position.x={-placement.drawPileX} position.z={-placement.drawPileZ}>
+<!-- The pile's own children are authored in absolute world coordinates. The
+     spectator spin is carried by Scene3D's shared boardGroup, so this component
+     no longer applies any yaw of its own — every table-bound piece rotates
+     through the one group transform. -->
+<T.Group>
+	<T.Group>
 		{#if renderedCount > 0 && silhouetteTexture}
 			<!-- Ground contact shadow on table surface anchoring the stack to the playmat -->
 			<T.Mesh

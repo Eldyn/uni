@@ -1,23 +1,23 @@
 <!-- The local player's own hand: a straight, slightly overlapping row of
      cards (layout/handLine.ts), top-down like the rest of the board.
 
-     How you play a card depends on whether the device can hover
-     (layout/pointerMode.svelte.ts), not on how big its screen is:
+     How you play a card:
 
-       mouse — point at a card to preview it lifted, click to play it. One step,
-               because the hover already showed you what you were committing to.
-       touch — tap the card to pick it, then tap the discard pile to confirm.
-               There is no preview to point with, and a mis-play is
-               unrecoverable. Scene3D owns the selection so the pile can light
-               up as the confirm target.
+       mouse — point at a card to preview it lifted, click to play it (one
+               step, because the hover already showed you what you were
+               committing to). You can also pick a card up and drop it on the
+               discard pile to play it.
+       touch — tap the card to play it. A drag picks the card up instead: a
+               predominantly vertical drag lifts it so it can be dropped on
+               the discard pile (or reordered in the row), while a
+               predominantly horizontal drag scrolls the hand. Holding a
+               picked-up card against a screen edge also auto-scrolls the row,
+               on both touch and mouse, so off-screen cards stay reachable.
 
      A hand too wide for the screen stops compressing and becomes a scrollable
-     strip: cards fade out at the ends rather than being cut off mid-card. Touch
-     pans it by dragging any unpicked card (dragging the PICKED one reorders
-     instead, and it's already lifted and outlined, so which mode you're in is
-     visible); a mouse reorders by dragging and pans with the wheel, the idioms
-     each input already has. Order isn't rules-significant, so the drag target
-     is a local-only $state array reconciled against the server's hand. -->
+     strip: cards fade out at the ends rather than being cut off mid-card.
+     Order isn't rules-significant, so the drag target is a local-only $state
+     array reconciled against the server's hand. -->
 <script lang="ts">
 	import { onDestroy } from "svelte";
 	import { T, useTask } from "@threlte/core";
@@ -42,8 +42,12 @@
 		computeScrollEm,
 		findNearestSlotIndex,
 		findReorderTargetIndex,
-		computeReorderedIds
+		computeReorderedIds,
+		decideGestureAxis,
+		isOverDiscard,
+		edgeScrollDirection
 	} from "../layout/handGesture";
+	import { MAX_JITTER_EM } from "../layout/discardPile";
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 	import { ValueMap } from "$lib/generated/schemas";
 	import { hiddenBackCountFor, hiddenBackCard } from "../layout/spectatorPov";
@@ -134,6 +138,13 @@
 	// Below this, a pointer gesture is a tap; above it, a drag. Without it every
 	// tap on a touch screen registers a few pixels of travel and scrolls the row.
 	const DRAG_THRESHOLD_PX = 6;
+	// How wide a band at each screen edge counts as "hold here to scroll" while
+	// a card is picked up. Sized for a finger, not a cursor.
+	const EDGE_SCROLL_BAND_PX = 72;
+	// Auto-scroll speed while a held card sits in an edge band, in cards per
+	// second. Expressed in cards rather than em so the feel doesn't change with
+	// the solved hand scale.
+	const EDGE_SCROLL_CARDS_PER_SEC = 5;
 	// Wheel/trackpad panning is lock-stepped one card at a time rather than
 	// smooth, so scrolling a long hand feels like flipping through it (and,
 	// later, can click a notch per step) instead of a continuous slide. This
@@ -167,6 +178,12 @@
 	const DRAG_SHADOW_OFFSET = 0.14;
 	const DRAG_SHADOW_DROP_Y = 0.2;
 	const DRAG_SHADOW_OPACITY = 0.28;
+	// Multiplier on the discard pile's own footprint (half a card plus its
+	// scatter) for how close a dragged card must get to count as dropped on it.
+	// Deliberately generous: a finger covers more than a card center, and a near
+	// miss that silently re-sorts the hand instead of playing is the worst
+	// failure mode here.
+	const DISCARD_DROP_FORGIVENESS = 1.25;
 
 	// The placement's hand scale also scales the slot spacing and lift push so
 	// the row's overlap proportions stay the same at any card size.
@@ -259,6 +276,7 @@
 	// draw/play animation owns it) or one that reached the discard must not be
 	// deleted out from under that owner. Mirrors PlayerSeat3D's onDestroy.
 	onDestroy(() => {
+		bus.setDraggingOverDiscard(false);
 		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
 		for (const key of [...prevRealIds, ...prevHiddenIds.map(String)]) {
 			if (cardRegistry.isInTransit(key)) continue;
@@ -513,6 +531,7 @@
 				((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
 			cardRegistry.setDecoration(idString, {
+				tableBound: false,
 				hovered: lifted,
 				instant: isSelected,
 				hoverPush: [0, HOVER_PUSH_EM * handEmToWorld],
@@ -577,6 +596,14 @@
 	let slots = $derived(line.slots);
 	let worldPerPixelX = $derived((2 * rig.halfWidth) / viewport.width);
 	let worldPerPixelZ = $derived((2 * rig.halfHeight) / viewport.height);
+	// The discard pile's own reach, from the same half-card + scatter formula
+	// boardPlacement uses to lay it out — how near a dragged card counts as
+	// dropped on it.
+	let discardDropRadius = $derived(
+		((CARD_WIDTH * placement.centerScale) / 2 +
+			MAX_JITTER_EM * EM_TO_WORLD * placement.centerScale) *
+			DISCARD_DROP_FORGIVENESS
+	);
 
 	$effect(() => {
 		if (bus.handScrollRequest !== null) {
@@ -630,8 +657,16 @@
 	// the next wheel tick and get carried forward instead of recentered.
 	let pointerOverHand = $state(false);
 	let gestureCardId: number | null = null;
-	let gestureIsReorder = false;
+	// Touch only: null until the first threshold-crossing movement decides
+	// whether this drag scrolls the row or picks the card up (decideGestureAxis).
+	// Hover devices seed it straight to "pickup" — the cursor already shows the
+	// card and the wheel covers scrolling, so there is nothing to disambiguate.
+	let gestureMode: "scroll" | "pickup" | null = null;
 	let gestureMoved = false;
+	// Whether the card being dragged is currently over the discard pile as a
+	// valid drop. Mirrored onto the bus for the pile's highlight; read here on
+	// release to decide play-vs-settle.
+	let dragOverDiscard = false;
 	let pointerStartX = 0;
 	let pointerStartY = 0;
 	let scrollStartEm = 0;
@@ -643,6 +678,19 @@
 
 	useTask((delta) => {
 		if (draggingId !== null) {
+			// Edge auto-scroll: holding the picked-up card against a screen edge
+			// pans the row so off-screen cards can be reached without dropping
+			// the card. Runs every frame (not just on pointermove) so it keeps
+			// scrolling while the finger rests still in the band.
+			if (storeRenderSettings.autoScrollOnEdgeCreep && hasOverflow) {
+				const dir = edgeScrollDirection(currentPointerX, viewport.width, EDGE_SCROLL_BAND_PX);
+				if (dir !== 0) {
+					const max = line.maxScrollEm;
+					const step = dir * line.spacingEm * EDGE_SCROLL_CARDS_PER_SEC * delta;
+					scrollEm = Math.max(-max, Math.min(max, scrollEm + step));
+				}
+			}
+
 			const frameDelta = hasPointerMove ? (currentPointerX - lastPointerX) * worldPerPixelX : 0;
 			lastPointerX = currentPointerX;
 			hasPointerMove = false;
@@ -695,10 +743,11 @@
 
 	let settleTween: gsap.core.Tween | null = null;
 
-	// With a mouse, dragging always reorders — the wheel already pans, and the
-	// cursor makes the grabbed card unambiguous. With a finger there is only the
-	// one gesture to spend, so it pans, and reordering is what dragging the card
-	// you already picked does.
+	// With a mouse, dragging always picks the card up: the wheel already pans,
+	// and the cursor makes the grabbed card unambiguous. With a finger there is
+	// only the one pointer to spend, so the axis of the first movement decides —
+	// horizontal scrolls the row, vertical picks the card up (see
+	// handleGestureMove and decideGestureAxis).
 	function startGesture(cardId: number, index: number, event: unknown) {
 		if (readOnly) return;
 		// Right-click is inspection, not a gesture — starting one would let the
@@ -716,7 +765,9 @@
 			settlingCardId = null;
 		}
 		gestureCardId = cardId;
-		gestureIsReorder = pointerMode.canHover || selectedId === cardId;
+		bus.setDraggingOverDiscard(false);
+		dragOverDiscard = false;
+		gestureMode = pointerMode.canHover ? "pickup" : null;
 		gestureMoved = false;
 		dragIndex = index;
 		dragStartCardWorldX = slots[index] ? slots[index].x * handEmToWorld : 0;
@@ -744,7 +795,13 @@
 		if (!gestureMoved && Math.hypot(deltaPx, deltaPy) < DRAG_THRESHOLD_PX) return;
 		gestureMoved = true;
 
-		if (!gestureIsReorder) {
+		// Touch: this first threshold-crossing movement is what decides the
+		// gesture's intent, then it's locked for the rest of the drag.
+		if (gestureMode === null) {
+			gestureMode = decideGestureAxis(deltaPx, deltaPy);
+		}
+
+		if (gestureMode === "scroll") {
 			// Content follows the finger: dragging right reveals the cards off the
 			// left end, which is a decreasing scroll offset.
 			scrollEm = computeScrollEm(scrollStartEm, deltaPx, worldPerPixelX, handEmToWorld);
@@ -801,6 +858,22 @@
 			orderIds = computeReorderedIds(orderIds, dragIndex, targetIndex);
 			dragIndex = targetIndex;
 		}
+
+		// Drop target: over the pile, and would a play actually be accepted
+		// right now? One flag drives both the pile's highlight and the release
+		// decision, so they can never disagree.
+		const draggedCard = orderedCards.find((c) => c.id === gestureCardId);
+		const droppable = draggedCard?.can_play !== false && !storeGame.isActionPending;
+		dragOverDiscard =
+			droppable &&
+			isOverDiscard(
+				dragWorldX,
+				dragWorldZ,
+				placement.discardX,
+				placement.discardZ,
+				discardDropRadius
+			);
+		bus.setDraggingOverDiscard(dragOverDiscard);
 	}
 
 	// The pointer ends a gesture wherever it happens to be, which is rarely over
@@ -813,14 +886,18 @@
 		window.removeEventListener("pointermove", handleGestureMove);
 		const releasedId = gestureCardId;
 		const hadMoved = gestureMoved;
+		const mode = gestureMode;
 		// A touch long-press opened the card detail popover on this same press;
 		// releasing must not also select/play the card it inspected.
 		const longPressed = storeCardDetail.consumeLongPress();
 
 		gestureCardId = null;
-		gestureIsReorder = false;
+		gestureMode = null;
 		gestureMoved = false;
 		hoveredId = null;
+		const wasOverDiscard = dragOverDiscard;
+		dragOverDiscard = false;
+		bus.setDraggingOverDiscard(false);
 
 		if (releasedId !== null && !hadMoved) {
 			const releasedCardIdStr = String(releasedId);
@@ -838,10 +915,56 @@
 			return;
 		}
 
+		// A scroll gesture only ever moved the row; the card itself never left
+		// its slot, so there is nothing to settle or play.
+		if (mode === "scroll") {
+			draggingId = null;
+			movementDelta = 0;
+			dragTiltDeg = 0;
+			return;
+		}
+
 		if (releasedId !== null && hadMoved) {
-			settleTween?.kill();
 			const releasedCardIdStr = String(releasedId);
 			const pose = cardRegistry.getPose(releasedCardIdStr);
+
+			if (wasOverDiscard) {
+				// Committed by dropping on the pile. Mark the card in-transit so
+				// this row's own layout effect doesn't tween it back to its slot
+				// during the server round-trip, then hand baseBeats the pose it
+				// was released at so the play flight starts there instead of
+				// snapping back to the old hand slot (localCardAnchor). Ease the
+				// drag lift off meanwhile. If the play is somehow refused, the
+				// card stays in hand and a fresh drag settles it back.
+				cardRegistry.markInTransit(releasedCardIdStr, true);
+				if (pose) {
+					bus.setPendingLocalDragPlay({
+						id: releasedId,
+						x: pose.x,
+						y: pose.y,
+						z: pose.z,
+						spinDeg: pose.spinDeg,
+						flipDeg: pose.flipDeg,
+						scale: pose.scale,
+						turned: pose.turned
+					});
+					const releaseDuration = storeAnimation.enabled
+						? 0.12 / Math.max(0.1, storeAnimation.speedMultiplier)
+						: 0;
+					if (releaseDuration > 0) {
+						gsap.to(pose, { dragT: 0, duration: releaseDuration, ease: "power2.out" });
+					} else {
+						pose.dragT = 0;
+					}
+				}
+				draggingId = null;
+				movementDelta = 0;
+				dragTiltDeg = 0;
+				onPlay(releasedId);
+				return;
+			}
+
+			settleTween?.kill();
 			const targetSlotX = slots[dragIndex] ? slots[dragIndex].x * handEmToWorld : 0;
 			const targetSlotY = dragIndex * HAND_STACK_STEP;
 			const targetSlotZ = placement.localSeatZ;
