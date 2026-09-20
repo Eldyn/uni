@@ -162,6 +162,32 @@
 		return { username, poses, open: false };
 	}
 
+	// Roster/viewport guard: a spin is choreographed against the ring it started
+	// with, so a roster change or a viewport re-orientation mid-flight leaves its
+	// from/to geometry stale. Settle instantly on the target instead. The
+	// previous roster/seat-count/orientation live in local state so only an
+	// actual change (not this effect's own re-runs) trips the guard: the first
+	// run records the current values, and `cancelAndCommit` clears `active`, so
+	// the follow-up run sees `active === false` and cannot retrigger itself. The
+	// syncTarget effect below turns the resulting renderPov commit into a no-op.
+	let guardRosterKey = "";
+	let guardSeatCount = 0;
+	let guardOrientation = sceneViewport.orientation;
+	$effect(() => {
+		const players = storeGame.state?.players ?? [];
+		const rosterKey = players.map((p) => p.username).join("\u0000");
+		const seatCount = players.length;
+		const orientation = sceneViewport.orientation;
+		const changed =
+			rosterKey !== guardRosterKey ||
+			seatCount !== guardSeatCount ||
+			orientation !== guardOrientation;
+		guardRosterKey = rosterKey;
+		guardSeatCount = seatCount;
+		guardOrientation = orientation;
+		if (changed && storeTableSpin.active) storeTableSpin.cancelAndCommit();
+	});
+
 	// Drives the spectator table-spin controller from the resolved POV. The
 	// outgoing arrangement is `renderPov` (what is actually on screen); the
 	// target is resolved fresh. `targetGeometry` is recomputed here from the
