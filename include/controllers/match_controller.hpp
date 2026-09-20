@@ -46,8 +46,6 @@ private:
     /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
     int bot_wait_min_ms_;
     int bot_wait_max_ms_;        /**< Upper bound (exclusive) of the randomised "thinking" delay. */
-    /**< Safety cap on consecutive bot moves in a single instant-advance burst. */
-    int max_instant_bot_steps_;
 
     /**< Mersenne Twister RNG for bot delay jitter. */
     std::mt19937 rng_{std::random_device {}()};
@@ -79,22 +77,22 @@ private:
 
     /**
      * @brief Callback/Hook triggered at the start of each new player turn.
-     * Starts/resets the AFK timer based on the lobby settings.
+     * Drives the new-engine session turn (bot steps / AFK timers).
      * @param active_lobby Pointer to the lobby whose turn has started.
      */
     void OnTurnStarted(Lobby* active_lobby);
 
     /**
-     * @brief New-engine turn driver: drives bots/disconnected seats through
-     * `BotStep` and arms the AFK/prompt timer for connected humans.
+     * @brief New-engine turn driver.
+     * Drives bots/disconnected seats through `BotStep` and arms the
+     * AFK/prompt timer for connected humans.
      * @param active_lobby Pointer to the lobby whose session must advance.
      */
     void OnTurnStartedSession(Lobby* active_lobby);
 
     /**
-     * @brief Sends the censored match state to all connected members.
-     * Iterating over each user, it uses `MatchInstance::SerializePlayerState` to
-     * hide opponents' hands and forwards the WS message.
+     * @brief Sends the filtered match snapshot to all connected members and
+     * forwards the terminal teardown once the engine is finished.
      * @param current_lobby Pointer to the lobby to update.
      */
     void BroadcastMatchState(Lobby* current_lobby);

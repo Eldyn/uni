@@ -6,8 +6,9 @@
 #include "common/lobby.hpp"
 #include "websocket_context.hpp"
 #include <common/bot_names.hpp>
-#include <match/match_instance.hpp>
-#include <match/rule_registry.hpp>
+#include <logger.hpp>
+#include <match/ecs/components.hpp>
+#include <match/engine/match_instance.hpp>
 #include <match/server/match_session.hpp>
 #include <openssl/rand.h>
 #include <algorithm>
@@ -23,10 +24,9 @@ constexpr int  kAlphabetLen    = 36;
 }  // namespace
 
 // INFO: The move operations and destructor are defined here, where the
-//       incomplete `unique_ptr` member types (`match::MatchInstance` and
-//       `match::server::MatchSession`) are both complete. Declaring them in
-//       the header suppresses the implicit special members, so all four are
-//       written out explicitly.
+//       incomplete `unique_ptr` member type (`match::server::MatchSession`)
+//       is complete. Declaring them in the header suppresses the implicit
+//       special members, so all four are written out explicitly.
 Lobby::Lobby() = default;
 Lobby::Lobby(Lobby&&) noexcept = default;
 Lobby& Lobby::operator=(Lobby&&) noexcept = default;
@@ -50,11 +50,12 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
     bot_mode = static_cast<BotTakeoverMode>(std::clamp(
         static_cast<int>(bot_mode), contract::kBotModeMin, contract::kBotModeMax));
 
-    const auto& registered_rules = match::RuleRegistry::GetMap();
+    // INFO: Mod names are no longer validated against the legacy rule
+    //       registry; the mod loader / assembler ignores unknown ids. Only
+    //       deduplicate here, preserving the caller's order.
     std::vector<std::string> sanitized_mods;
     std::unordered_set<std::string> seen_mods;
     for (auto& mod : active_mods) {
-        if (registered_rules.find(mod) == registered_rules.end()) continue;
         if (!seen_mods.insert(mod).second) continue;
         sanitized_mods.push_back(mod);
     }
@@ -91,7 +92,7 @@ int Lobby::NextFreeSeat() const {
 }
 
 void Lobby::SyncBots(std::mt19937& rng) {
-    if (match) return;
+    if (session) return;
     int human_count = 0;
     int bot_count = 0;
 
@@ -124,6 +125,10 @@ void Lobby::SyncBots(std::mt19937& rng) {
 
 MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt19937& rng) {
     MemberRemovalResult result;
+    // INFO: bot-name selection is only needed by SyncBots now; a mid-game
+    //       replacement keeps the departing username so the engine mapping
+    //       survives.
+    (void)rng;
 
     auto member_it = std::ranges::find(members, username, &LobbyMember::username);
     if (member_it == members.end()) return result;
@@ -132,53 +137,38 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     result.was_connected = member_it->is_connected && member_it->socket;
     result.socket = member_it->socket;
 
-    if (!match) {
+    if (!session) {
         members.erase(member_it);
         return result;
     }
 
-    std::string old_name = member_it->username;
-    bool was_their_turn = (match->GetCurrentPlayerUsername() == old_name);
+    // INFO: A live match never loses a seated engine player
+    //       mid-game. Departure policy only touches lobby bookkeeping; a
+    //       departed seat is driven by the turn timeout / bot policy.
+    const std::string old_name = member_it->username;
+    result.was_their_turn =
+        (session->Engine().GetCurrentPlayerUsername() == old_name);
 
     if (settings.quit_deletes_match) {
         result.match_outcome = MemberRemovalOutcome::kMatchAborted;
         result.old_username = old_name;
-        if (match) {
-            match->RecordMatchAborted();
-        }
         members.erase(member_it);
     } else if (settings.allow_bot_replacement) {
-        std::string new_bot_name = PickBotName(rng);
-
-        member_it->username = new_bot_name;
+        // INFO: keep the seat and username so the engine mapping holds; the
+        //       member flag alone routes the seat through the bot policy.
         member_it->is_bot = true;
         member_it->is_connected = true;
         member_it->socket = nullptr;
-
-        match::Player* engine_player = match->GetPlayer(old_name);
-        if (engine_player) {
-            engine_player->username = new_bot_name;
-            engine_player->is_bot = true;
-        }
-
-        if (match) {
-            match->RecordPlayerQuit(old_name);
-        }
+        member_it->disconnected_at = std::chrono::steady_clock::time_point{};
 
         result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
         result.old_username = old_name;
-        result.new_bot_name = new_bot_name;
-        result.was_their_turn = was_their_turn;
+        result.new_bot_name = old_name;
     } else {
-        if (match) {
-            match->RecordPlayerQuit(old_name);
-            match->RemovePlayerMidGame(old_name);
-        }
         members.erase(member_it);
 
         result.match_outcome = MemberRemovalOutcome::kPlayerDroppedFromEngine;
         result.old_username = old_name;
-        result.was_their_turn = was_their_turn;
     }
 
     return result;
@@ -205,32 +195,35 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
 
     if (settings.allow_bot_takeover) {
         for (auto& member : members) {
-            if (member.is_bot) {
-                std::string old_bot_name = member.username;
+            if (!member.is_bot) continue;
+            const std::string old_bot_name = member.username;
 
-                member.username = username;
-                member.socket = socket;
-                member.is_connected = true;
-                member.is_bot = false;
-                member.is_spectator = false;
-                member.privacy_mode = user_privacy;
-
-                if (match) {
-                    match::Player* engine_player = match->GetPlayer(old_bot_name);
-                    if (engine_player) {
-                        engine_player->username = username;
-                        engine_player->is_bot = false;
-                    }
-                }
-
-                result.outcome = JoinOutcome::kHijackedBot;
-                result.old_bot_name = old_bot_name;
-                return result;
+            // INFO: A mid-match hijack rebinds the existing engine
+            //       seat (username + socket) so the engine and the lobby stay
+            //       in sync. When the seat cannot be rebound the hijack is
+            //       skipped (logged) and the joiner falls through to the
+            //       spectator path below.
+            if (session &&
+                !session->RebindPlayer(old_bot_name, username, socket)) {
+                Logger::Warn("[Lobby] Mid-game hijack of bot '", old_bot_name,
+                             "' by '", username, "' skipped: rebind failed");
+                continue;
             }
+
+            member.username = username;
+            member.socket = socket;
+            member.is_connected = true;
+            member.is_bot = false;
+            member.is_spectator = false;
+            member.privacy_mode = user_privacy;
+
+            result.outcome = JoinOutcome::kHijackedBot;
+            result.old_bot_name = old_bot_name;
+            return result;
         }
     }
 
-    if (match) {
+    if (session) {
         // When match in progress and no bot seat was hijacked, join as spectator!
         members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true, user_privacy);
         result.outcome = JoinOutcome::kJoinedAsSpectator;

@@ -72,7 +72,7 @@ public:
 
     /**
      * @brief Notifies the lobby layer that a match has ended normally.
-     * Transfers teardown ownership to LobbyController (resets lobby.match).
+     * Transfers teardown ownership to LobbyController (resets lobby.session).
      * @param lobby_id ID of the lobby whose match ended.
      */
     virtual void NotifyMatchOver(uint32_t lobby_id) = 0;

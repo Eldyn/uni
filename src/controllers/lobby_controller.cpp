@@ -10,7 +10,6 @@
 #include <common/env.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
-#include <match/rule_registry.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
@@ -274,7 +273,7 @@ LobbyController::~LobbyController() {}
 std::size_t LobbyController::ActiveMatchCount() const {
     return static_cast<std::size_t>(std::ranges::count_if(lobbies_, [](const auto& entry) {
         const Lobby& lobby = entry.second;
-        return lobby.match && !lobby.match->IsMatchOver();
+        return lobby.session && !lobby.session->Engine().IsMatchOver();
     }));
 }
 
@@ -283,11 +282,12 @@ std::size_t LobbyController::ActiveMatchCount() const {
  * @param lobby Reference to the target active lobby containing the current game match.
  */
 void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
-    if (!lobby.match || lobby.match->IsMatchOver()) return;
+    if (!lobby.session || lobby.session->Engine().IsMatchOver()) return;
 
-    json saved_state = lobby.match->ExportState();
+    json saved_state = lobby.session->Engine().ExportState();
     std::string json_payload = saved_state.dump();
-    std::string match_id = lobby.match->GetMatchId();
+    std::string match_id = lobby.match_id;
+    if (match_id.empty()) return;
 
     try {
         auto& db = Database::Get();
@@ -344,7 +344,8 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
 void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
     Lobby* lobby = GetLobbyById(lobby_id);
     if (!lobby) return;
-    lobby->match.reset();
+    lobby->session.reset();
+    lobby->match_id.clear();
     Logger::Info("[MATCH] destroyed after MatchOver in lobby ", lobby_id);
 }
 
@@ -353,18 +354,20 @@ void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
  * @param lobby Reference to the checked targeted room instance.
  */
 void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
-    if (lobby.match && lobby.members.size() < 2) {
+    if (lobby.session && lobby.members.size() < 2) {
         Logger::Info("[Lobby] Match aborted for lobby ", lobby.id, " due to disconnections.");
 
+        // INFO: The engine never removes a mid-game seat, so an
+        //       abort only tears the session down. A sole survivor is
+        //       reported through the abort callback (the caller sends the
+        //       terminal frame); per-player DB history is a concern.
         if (lobby.members.size() == 1) {
             const std::string& winner = lobby.members.front().username;
-            lobby.match->RecordMatchCompleted(winner);
             for (auto& cb : on_match_aborted_) cb(&lobby, winner);
-        } else {
-            lobby.match->RecordMatchAborted();
         }
 
-        lobby.match.reset();
+        lobby.session.reset();
+        lobby.match_id.clear();
     }
 }
 
@@ -386,6 +389,12 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
             member.disconnected_at = steady_clock::time_point{};
             sd->lobby_code         = lobby->invite_code;
             sd->lobby_id           = lobby->id;
+
+            // INFO: a reconnect replaces the socket pointer; rebind the live
+            //       session so later broadcasts do not target the dead socket.
+            if (lobby->session) {
+                lobby->session->BindSocket(sd->username, ws);
+            }
 
             broadcaster_.Subscribe(ws, "lobby_" + lobby->invite_code);
 
@@ -567,7 +576,7 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     BroadcastUpdate(lobby);
 
-    if (lobby.match) {
+    if (lobby.session) {
         SendMatchStateToSocket(lobby, ctx.socket, username, ctx.op_code);
     }
 }
@@ -583,7 +592,7 @@ void LobbyController::HandleQuickJoin(WsContext context, const nlohmann::json& m
     Lobby* best = nullptr;
     for (auto& [id, lobby] : lobbies_) {
         if (!lobby.settings.is_public) continue;
-        if (lobby.match != nullptr) continue;
+        if (lobby.session != nullptr) continue;
         if (static_cast<int>(lobby.members.size()) >= lobby.settings.max_players) {
             // A lobby that's full only because bots occupy every seat is
             // still joinable when bot-takeover is enabled, the same
@@ -718,7 +727,7 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 
         if (!any_connected) continue;
 
-        std::string status = lobby.match != nullptr ? "in-game"
+        std::string status = lobby.session != nullptr ? "in-game"
                        : humans >= lobby.settings.max_players ? "full"
                        : "open";
 
@@ -740,15 +749,35 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 }
 
 /**
- * @brief Returns static server metadata (currently the rule catalog).
+ * @brief Returns static server metadata (the rule catalog).
  * @param ctx Payload context wrapping request sockets and raw buffers.
  * @param message JSON message block from the client requesting metadata.
  */
 void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
 
+    // INFO: Swap: the catalog is now the mod-folder scan
+    //       rather than the legacy in-process RuleRegistry. `vanilla` is the
+    //       always-on base mod, so it is not offered as a toggleable rule.
+    json available_rules = json::array();
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Warn("[Lobby] Metadata: mods scan failed for '", mods_root_,
+                     "' (", loaded.errors.size(), " error(s))");
+    } else {
+        for (const auto& mod : loaded.mods) {
+            if (mod.manifest.id == "vanilla") continue;
+            available_rules.push_back({
+                {"id",          mod.manifest.id},
+                {"label",       mod.manifest.name},
+                {"description", mod.manifest.description}
+            });
+        }
+    }
+
     auto resp = MakeResponse(ws::ServerAction::kMetadata, request_id);
-    resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
+    resp["available_rules"] = std::move(available_rules);
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 
@@ -1055,7 +1084,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
-    if (lobby.match != nullptr) {
+    if (lobby.session != nullptr) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kMatchAlreadyStarted, request_id);
         return;
@@ -1085,94 +1114,83 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         }
     }
 
-    std::vector<std::tuple<std::string, bool, int>> players_info;
-    for (const auto& lobby_member : lobby.members) {
-        players_info.push_back(
-            {lobby_member.username, lobby_member.is_bot, lobby_member.seat_index});
-    }
-
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    lobby.match->SetMatchId("match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode());
-    lobby.match->Start();
-
-    // INFO: Additive scaffold. Assemble a new-engine
-    //       `match::server::MatchSession` from the same seated players and
-    //       stage it on the lobby. Nothing drives it yet; the legacy `match`
-    //       above stays authoritative. Assembly failures are logged and
-    //       leave `session` null without aborting the legacy start.
+    // INFO: Swap: the assembled `match::server::MatchSession` is the sole
+    //       match owner. A scan or assembly failure aborts the start (there is
+    //       no legacy fallback) and is reported as an internal error.
     lobby.session.reset();
+
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
     if (!loaded.ok()) {
-        Logger::Warn("[Lobby] New-engine scaffold: mod scan failed for '",
-                     mods_root_, "' (", loaded.errors.size(), " error(s))");
-    } else {
-        match::modload::DeckDef deck_def =
-            DeckSnapshotHasCards(lobby.settings.deck)
-                ? DeckDefFromSnapshot(lobby.settings.deck)
-                : SynthesizeFreestyleDeck(lobby.settings);
-        if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+        Logger::Error("[Lobby] Start failed: mods scan failed for '",
+                      mods_root_, "' (", loaded.errors.size(),
+                      " error(s))");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
+        return;
+    }
 
-        std::vector<match::modload::LoadedMod> active_mods;
-        for (const auto& mod : loaded.mods) {
-            if (std::ranges::find(deck_def.mods, mod.manifest.id)
-                != deck_def.mods.end()) {
-                active_mods.push_back(mod);
-            }
-        }
+    match::modload::DeckDef deck_def =
+        DeckSnapshotHasCards(lobby.settings.deck)
+            ? DeckDefFromSnapshot(lobby.settings.deck)
+            : SynthesizeFreestyleDeck(lobby.settings);
+    if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
 
-        match::engine::MatchAssemblyOptions options;
-        options.starting_cards = lobby.settings.starting_cards;
-
-        std::vector<const LobbyMember*> seated;
-        for (const auto& member : lobby.members) {
-            if (member.seat_index >= 0) seated.push_back(&member);
-        }
-        std::ranges::sort(seated, {}, &LobbyMember::seat_index);
-        for (const LobbyMember* member : seated) {
-            options.players.push_back({member->username, member->is_bot,
-                                       member->is_connected,
-                                       member->is_ready});
-        }
-
-        match::engine::AssemblyResult assembly =
-            match::engine::MatchAssembler::Assemble(active_mods, deck_def,
-                                                    options);
-        if (!assembly.ok()) {
-            Logger::Warn("[Lobby] New-engine scaffold: assembly failed (",
-                         assembly.error->check, "): ",
-                         assembly.error->message);
-        } else {
-            auto engine = std::make_unique<match::engine::MatchInstance>(
-                std::move(assembly.assembly));
-
-            match::server::MatchSession::SocketMap sockets;
-            for (const LobbyMember* member : seated) {
-                if (!member->is_connected || member->socket == nullptr) {
-                    continue;
-                }
-                sockets[member->username] = member->socket;
-            }
-
-            lobby.session = std::make_unique<match::server::MatchSession>(
-                std::move(engine), std::move(active_mods),
-                std::move(sockets));
+    std::vector<match::modload::LoadedMod> active_mods;
+    for (const auto& mod : loaded.mods) {
+        if (std::ranges::find(deck_def.mods, mod.manifest.id)
+            != deck_def.mods.end()) {
+            active_mods.push_back(mod);
         }
     }
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = lobby.settings.starting_cards;
+
+    std::vector<const LobbyMember*> seated;
+    for (const auto& member : lobby.members) {
+        if (member.seat_index >= 0) seated.push_back(&member);
+    }
+    std::ranges::sort(seated, {}, &LobbyMember::seat_index);
+    for (const LobbyMember* member : seated) {
+        options.players.push_back({member->username, member->is_bot,
+                                   member->is_connected,
+                                   member->is_ready});
+    }
+
+    match::engine::AssemblyResult assembly =
+        match::engine::MatchAssembler::Assemble(active_mods, deck_def,
+                                                options);
+    if (!assembly.ok()) {
+        Logger::Error("[Lobby] Start failed: assembly error (",
+                      assembly.error->check, "): ", assembly.error->message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
+        return;
+    }
+
+    auto engine = std::make_unique<match::engine::MatchInstance>(
+        std::move(assembly.assembly));
+
+    match::server::MatchSession::SocketMap sockets;
+    for (const LobbyMember* member : seated) {
+        if (!member->is_connected || member->socket == nullptr) {
+            continue;
+        }
+        sockets[member->username] = member->socket;
+    }
+
+    lobby.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), std::move(active_mods), std::move(sockets));
+    lobby.match_id =
+        "match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode();
 
     for (auto& cb : on_game_started_) cb(&lobby);
 
     Logger::Info("[Lobby] Match started by host '", lobby.host, "' in lobby ", lobby.id);
 
-    for (const auto& lobby_member : lobby.members) {
-        if (!lobby_member.is_connected || !lobby_member.socket) {
-            continue;
-        }
-
-        nlohmann::json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        response_payload["match_state"] = lobby.match->SerializePlayerState(lobby_member.username);
-        broadcaster_.Send(lobby_member.socket, response_payload.dump(), uWS::OpCode::TEXT);
-    }
+    lobby.session->EmitEvents(broadcaster_);
+    lobby.session->BroadcastSnapshot(broadcaster_);
 
     broadcaster_.SendSuccess(context.socket, uWS::OpCode::TEXT, request_id);
 }
@@ -1206,32 +1224,15 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
 void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws,
                                               const std::string& username,
                                               uWS::OpCode op_code) const {
-    if (!lobby.match) return;
-    json resp = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-    const LobbyMember* m = lobby.FindMember(username);
-    if (m && m->is_spectator) {
-        json match_state = lobby.match->SerializeBaseState();
-        int spectator_count = 0;
-        for (const auto& mem : lobby.members) if (mem.is_spectator && mem.is_connected) spectator_count++;
-        match_state["spectator_count"] = spectator_count;
-        for (auto& p_json : match_state["players"]) {
-            std::string p_name = p_json["username"];
-            const LobbyMember* p_member = lobby.FindMember(p_name);
-            bool privacy = p_member ? p_member->privacy_mode : false;
-            if (!privacy) {
-                p_json["hand"] = lobby.match->SerializeHandFor(p_name);
-            }
-        }
-        resp["match_state"] = std::move(match_state);
-    } else {
-        resp["match_state"] = lobby.match->SerializePlayerState(username);
-    }
-    if (lobby.match->IsWaitingForInput() && lobby.match->GetPendingPlayer() == username) {
-        resp["action_required"] = static_cast<int>(lobby.match->GetPendingAction());
-        const std::string ctx = lobby.match->GetPendingInputContext();
-        if (!ctx.empty()) resp["action_context"] = json::parse(ctx);
-    }
-    broadcaster_.Send(ws, resp.dump(), op_code);
+    if (!lobby.session) return;
+    // INFO: the view snapshot owns per-recipient filtering and the pending
+    //       prompt; `op_code` is retained for signature parity but the
+    //       transport wrapper always emits TEXT.
+    (void)op_code;
+
+    const LobbyMember* member = lobby.FindMember(username);
+    const bool is_spectator = (member != nullptr) && member->is_spectator;
+    lobby.session->SendSnapshot(broadcaster_, ws, username, is_spectator);
 }
 
 void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
@@ -1304,7 +1305,8 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                     }
                 }
 
-                lobby.match.reset();
+                lobby.session.reset();
+                lobby.match_id.clear();
                 break;
             }
             case MemberRemovalOutcome::kPlayerReplacedByBot:

@@ -107,6 +107,80 @@ bool MatchSession::PassWindow(const std::string& username) {
 
 void MatchSession::Tick() { engine_->Tick(); }
 
+bool MatchSession::RebindPlayer(const std::string& old_username,
+                                const std::string& new_username,
+                                AppWebSocket* socket) {
+    if (old_username.empty() || new_username.empty() ||
+        old_username == new_username) {
+        return false;
+    }
+
+    const std::optional<match::ecs::Entity> player =
+        engine_->FindPlayer(old_username);
+    if (!player.has_value()) return false;
+    match::ecs::PlayerInfo* info =
+        engine_->Store().Get<match::ecs::PlayerInfo>(*player);
+    if (info == nullptr) return false;
+    info->username = new_username;
+    info->is_bot = false;
+    info->connected = true;
+
+    auto socket_it = sockets_.find(old_username);
+    AppWebSocket* bound =
+        (socket != nullptr)
+            ? socket
+            : (socket_it != sockets_.end() ? socket_it->second : nullptr);
+    if (socket_it != sockets_.end()) sockets_.erase(socket_it);
+    sockets_[new_username] = bound;
+
+    // INFO: move the per-recipient stream/prompt state to the new key so the
+    //       hijacker inherits the seat's `seq` watermark and prompt dedupe.
+    auto move_node = [&](auto& map) {
+        auto node = map.extract(old_username);
+        if (node.empty()) {
+            map.try_emplace(new_username);
+            return;
+        }
+        node.key() = new_username;
+        map.insert(std::move(node));
+    };
+    move_node(sinks_);
+    move_node(prompt_signature_);
+    move_node(prompt_outcome_);
+    return true;
+}
+
+bool MatchSession::BindSocket(const std::string& username,
+                              AppWebSocket* socket) {
+    auto it = sockets_.find(username);
+    if (it == sockets_.end()) return false;
+    it->second = socket;
+    return true;
+}
+
+void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
+                                const std::string& username,
+                                bool is_spectator) const {
+    if (socket == nullptr) return;
+
+    if (!is_spectator) {
+        const auto it = sinks_.find(username);
+        if (it != sinks_.end()) {
+            broadcaster.SendJson(
+                socket, builder_.BuildSnapshot(
+                            match::view::Viewer::Player(username), it->second));
+            return;
+        }
+    }
+
+    // INFO: a spectator (or an unknown recipient) gets the omniscient
+    //       spectator view on a fresh stream; it never receives match_event
+    //       packets, so a seq-0 watermark is consistent.
+    match::view::EventSink sink;
+    broadcaster.SendJson(socket, builder_.BuildSnapshot(
+                                     match::view::Viewer::Spectator(), sink));
+}
+
 void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
     const std::vector<json>& events = engine_->Events();
     for (; cursor_ < events.size(); ++cursor_) {

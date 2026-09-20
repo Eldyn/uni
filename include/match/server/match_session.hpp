@@ -120,6 +120,33 @@ public:
     /** @brief Advance engine timers / round bookkeeping. */
     void Tick();
 
+    // --- identity / socket rebinding ----------------------------------------
+
+    /**
+     * @brief Rebind an existing engine seat to a new username and socket.
+     *
+     * Used for a mid-game bot hijack: renames the engine player's
+     * `PlayerInfo.username`, moves its per-recipient event sink and prompt
+     * bookkeeping to the new key, and updates the socket map. The seat, its
+     * hand and its turn state are untouched.
+     *
+     * @param old_username Current engine username of the seat.
+     * @param new_username Username to bind the seat to.
+     * @param socket       New socket, or nullptr to leave the current binding.
+     * @return false when the old seat does not exist or the names match.
+     */
+    bool RebindPlayer(const std::string& old_username,
+                      const std::string& new_username,
+                      AppWebSocket* socket);
+
+    /**
+     * @brief Update the socket bound to a seated recipient (reconnect).
+     * @param username Seated player username.
+     * @param socket   Replacement socket.
+     * @return false when `username` is not a session recipient.
+     */
+    bool BindSocket(const std::string& username, AppWebSocket* socket);
+
     // --- wire output --------------------------------------------------------
 
     /**
@@ -145,6 +172,23 @@ public:
      * @param broadcaster Transport sink for `SendJson`.
      */
     void BroadcastSnapshot(IBroadcaster& broadcaster);
+
+    /**
+     * @brief Send one recipient their `match_state_updated` snapshot.
+     *
+     * Unlike `BroadcastSnapshot`, this targets a single socket so a joiner /
+     * reconnect can be served without re-broadcasting to everyone. A seated
+     * recipient is built against its persistent sink (correct `seq`
+     * watermark); a spectator (or unknown recipient) gets the omniscient
+     * spectator view on a fresh stream.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @param socket      Recipient socket (nullptr is a no-op).
+     * @param username    Recipient username.
+     * @param is_spectator True to force the spectator view.
+     */
+    void SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
+                      const std::string& username, bool is_spectator) const;
 
     /**
      * @brief Send the terminal `match_over` packet once, if finished.

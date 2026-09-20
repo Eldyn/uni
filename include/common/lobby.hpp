@@ -15,8 +15,6 @@
  */
 
 namespace match {
-    class MatchInstance;
-
     namespace server {
         class MatchSession;
     }
@@ -98,8 +96,9 @@ struct LobbySettings {
     nlohmann::json deck = nlohmann::json::object();
 
     /**
-     * @brief Clamps numeric fields into contract bounds and strips unknown or
-     * duplicate entries from active_mods in place.
+     * @brief Clamps numeric fields into contract bounds and deduplicates
+     * entries from active_mods in place (order-preserving; unknown mod names
+     * are left for the mod loader to ignore).
      * @param max_players_ceiling Absolute upper bound to clamp max_players
      * against (env-driven ABSOLUTE_MAX_LOBBY_MEMBERS at the caller), defaults
      * to the compile-time contract::kMaxLobbyMembers for callers (tests,
@@ -158,7 +157,7 @@ enum class MemberRemovalOutcome {
     kMatchUnaffected,        /**< No match in progress, or match unaffected by this removal. */
     kMatchAborted,           /**< quit_deletes_match path: match was torn down. */
     kPlayerReplacedByBot,    /**< allow_bot_replacement path. */
-    kPlayerDroppedFromEngine /**< Neither of the above: RemovePlayerMidGame path. */
+    kPlayerDroppedFromEngine /**< Neither of the above: member erased, engine seat kept. */
 };
 
 /**
@@ -216,19 +215,19 @@ struct Lobby {
     std::string              name;
     LobbySettings            settings;      /**< Current settings of the match in this lobby. */
 
-    /** * @brief Instance of the game engine.
-     * If nullptr, the lobby is in the waiting phase. If populated, a match is currently in progress.
-     */
-    std::unique_ptr<match::MatchInstance> match;
-
     /**
-     * @brief Additive new-engine session.
-     * Holds a `match::server::MatchSession` assembled from the same seated
-     * players as `match` above. The legacy `match` stays authoritative; this
-     * member is only staged here so the swap can flip ownership without
-     * another structural change. Null while waiting or when assembly failed.
+     * @brief The new-engine match session.
+     * Null while the lobby is waiting or when assembly failed; a populated
+     * session means a match is in progress and is the sole match owner.
      */
     std::unique_ptr<match::server::MatchSession> session;
+
+    /**
+     * @brief Persistence id assigned when the match starts (`match_...`).
+     * The new engine carries no match id of its own, so the lobby keeps it
+     * for `SaveMatchStateToDB` / saved-match rows.
+     */
+    std::string match_id;
 
     /** @brief Default-constructs an empty, waiting lobby (out-of-line). */
     Lobby();
@@ -236,9 +235,9 @@ struct Lobby {
     Lobby& operator=(Lobby&&) noexcept;
     /**
      * @brief Out-of-line destructor.
-     * The `unique_ptr` members above hold incomplete types in this header, so
-     * destruction is instantiated in src/common/lobby.cpp where both
-     * `match::MatchInstance` and `match::server::MatchSession` are complete.
+     * The `unique_ptr` member above holds an incomplete type in this header,
+     * so destruction is instantiated in src/common/lobby.cpp where
+     * `match::server::MatchSession` is complete.
      */
     ~Lobby();
 
@@ -289,14 +288,17 @@ struct Lobby {
 
     /**
      * @brief Removes a member from the lobby, applying departure policy: if a
-     * match is in progress, either flags it for abort, replaces the departing
-     * human with a bot, or drops them from the engine directly, per
-     * settings.quit_deletes_match / settings.allow_bot_replacement. Always
-     * erases the member from `members`. On the kMatchAborted outcome, `match`
-     * is deliberately left intact so the caller can persist its state before
-     * tearing it down, the caller must reset `match` itself after saving.
+     * match is in progress, either flags it for abort, keeps the member as a
+     * bot, or erases the member while leaving the engine seat seated, per
+     * settings.quit_deletes_match / settings.allow_bot_replacement (the engine
+     * has no mid-game removal; the turn timeout + bot policy drive a seat
+     * whose member left). Always erases the member from `members` except on
+     * kPlayerReplacedByBot. On the kMatchAborted outcome, `session` is
+     * deliberately left intact so the caller can persist its state before
+     * tearing it down, the caller must reset `session` itself after saving.
      * @param username Username of the member to remove.
-     * @param rng Shared RNG, forwarded to PickBotName for the bot-replacement path.
+     * @param rng Shared RNG (retained for API parity; unused on the
+     * match-in-progress paths).
      * @return MemberRemovalResult describing what happened, for the caller to
      * react to (broadcasting, persistence, callbacks), this method does not
      * touch sockets, the database, or controller-level callback lists.

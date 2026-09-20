@@ -1,11 +1,18 @@
 #include <doctest/doctest.h>
 #include <common/lobby.hpp>
 #include <common/contract.hpp>
-#include <match/match_instance.hpp>
+#include <match/ecs/components.hpp>
+#include <match/engine/match_assembler.hpp>
+#include <match/engine/match_instance.hpp>
+#include <match/modload/mod_loader.hpp>
+#include <match/server/match_session.hpp>
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
+#include <memory>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 TEST_CASE("LobbyMember defaults to not ready") {
@@ -92,13 +99,16 @@ TEST_CASE("lobby: Sanitize clamps out-of-range bot_mode") {
     CHECK(static_cast<int>(settings.bot_mode) == contract::kBotModeMax);
 }
 
-TEST_CASE("lobby: Sanitize strips unknown mod names") {
+TEST_CASE("lobby: Sanitize deduplicates mod names preserving order") {
     LobbySettings settings;
     settings.active_mods = {"seven_zero", "not_a_real_mod", "force_play"};
 
     settings.Sanitize();
 
-    CHECK(settings.active_mods == std::vector<std::string>{"seven_zero", "force_play"});
+    // INFO: unknown mod names are no longer stripped here; the mod loader
+    //       ignores ids it cannot resolve, so Sanitize only dedupes.
+    CHECK(settings.active_mods ==
+          std::vector<std::string>{"seven_zero", "not_a_real_mod", "force_play"});
 }
 
 TEST_CASE("lobby: Sanitize deduplicates repeated valid mods preserving order") {
@@ -128,6 +138,106 @@ int CountBots(const Lobby& lobby) {
     return static_cast<int>(std::ranges::count_if(lobby.members, [](const LobbyMember& m) {
         return m.is_bot;
     }));
+}
+
+namespace fs = std::filesystem;
+
+/** @brief Locate the repo root so mods load cwd-independently. */
+fs::path ProjectRoot() {
+    fs::path p(__FILE__);
+    while (!p.empty()) {
+        std::error_code ec;
+        if (fs::is_directory(p / "contract" / "schemas", ec)) return p;
+        fs::path parent = p.parent_path();
+        if (parent == p) break;
+        p = parent;
+    }
+    return {};
+}
+
+struct SessionContent {
+    std::vector<match::modload::LoadedMod> mods;
+    match::modload::DeckDef classic;
+};
+
+bool LoadSessionContent(SessionContent& out) {
+    const fs::path root = ProjectRoot();
+    if (root.empty()) return false;
+    match::modload::LoadResult load =
+        match::modload::ScanModsDirectory((root / "mods").string());
+    if (!load.ok()) return false;
+    out.mods = std::move(load.mods);
+    for (const match::modload::LoadedMod& mod : out.mods) {
+        for (const match::modload::DeckDef& deck : mod.decks) {
+            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+        }
+    }
+    return !out.classic.deck_id.empty();
+}
+
+const SessionContent& Content() {
+    static SessionContent content;
+    static const bool loaded = LoadSessionContent(content);
+    REQUIRE_MESSAGE(loaded, "failed to load mods/classic deck");
+    return content;
+}
+
+/**
+ * @brief Attach a started new-engine session for `players` to `lobby`.
+ *
+ * Mirrors `LobbyController::HandleStartGame`: the vanilla classic deck plus
+ * any rule mods named by `lobby.settings.active_mods`.
+ */
+void AttachSession(Lobby& lobby,
+                   const std::vector<std::pair<std::string, bool>>& players) {
+    const SessionContent& content = Content();
+    match::modload::DeckDef deck = content.classic;
+    for (const std::string& mod : lobby.settings.active_mods) {
+        if (std::find(deck.mods.begin(), deck.mods.end(), mod)
+            == deck.mods.end()) {
+            deck.mods.push_back(mod);
+        }
+    }
+
+    std::vector<match::modload::LoadedMod> active_mods;
+    for (const auto& mod : content.mods) {
+        if (std::find(deck.mods.begin(), deck.mods.end(), mod.manifest.id)
+            != deck.mods.end()) {
+            active_mods.push_back(mod);
+        }
+    }
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = lobby.settings.starting_cards;
+    options.seed = 12345;
+    for (const auto& [username, is_bot] : players) {
+        options.players.push_back({username, is_bot, true, true});
+    }
+
+    match::engine::AssemblyResult result =
+        match::engine::MatchAssembler::Assemble(active_mods, deck, options);
+    std::string assembly_error = result.error.has_value()
+                                     ? result.error->message
+                                     : std::string("assembly failed");
+    REQUIRE_MESSAGE(result.ok(), assembly_error);
+    auto engine = std::make_unique<match::engine::MatchInstance>(
+        std::move(result.assembly));
+
+    match::server::MatchSession::SocketMap sockets;
+    for (const auto& [username, is_bot] : players) {
+        (void)is_bot;
+        sockets[username] = nullptr;
+    }
+    lobby.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), std::move(active_mods), std::move(sockets));
+}
+
+/** @brief The engine `PlayerInfo` for `username`, or nullptr. */
+const match::ecs::PlayerInfo* EnginePlayer(Lobby& lobby,
+                                           const std::string& username) {
+    const auto entity = lobby.session->Engine().FindPlayer(username);
+    if (!entity.has_value()) return nullptr;
+    return lobby.session->Engine().Store().Get<match::ecs::PlayerInfo>(*entity);
 }
 
 }  // namespace
@@ -184,8 +294,7 @@ TEST_CASE("lobby: SyncBots is a no-op when a match is in progress") {
     lobby.members.emplace_back("Host", nullptr, true, false);
     lobby.settings.bot_count = 2;
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Host", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Host", false}, {"BotX", true}});
 
     std::mt19937 rng(42);
     lobby.SyncBots(rng);
@@ -251,16 +360,15 @@ TEST_CASE("lobby: RemoveMember aborts the match when quit_deletes_match is set")
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bob", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
 
     std::mt19937 rng(42);
     auto result = lobby.RemoveMember("Alice", rng);
 
     CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kMatchAborted);
-    // match is deliberately left intact so the caller can persist its state
+    // session is deliberately left intact so the caller can persist its state
     // before tearing it down itself.
-    CHECK(lobby.match);
+    CHECK(lobby.session);
     CHECK_EQ(lobby.members.size(), 1);
 }
 
@@ -271,15 +379,14 @@ TEST_CASE("lobby: RemoveMember replaces the departing player with a bot") {
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bob", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
 
     std::mt19937 rng(42);
     auto result = lobby.RemoveMember("Alice", rng);
 
     CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kPlayerReplacedByBot);
     CHECK_FALSE(result.new_bot_name.empty());
-    REQUIRE(lobby.match);
+    REQUIRE(lobby.session);
     CHECK_EQ(lobby.members.size(), 2);
     bool bot_present = false;
     for (const auto& m : lobby.members)
@@ -294,9 +401,9 @@ TEST_CASE("lobby: RemoveMember replacing the current turn-holder reports was_the
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bob", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    std::string turn_holder = lobby.match->GetCurrentPlayerUsername();
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+    std::string turn_holder =
+        lobby.session->Engine().GetCurrentPlayerUsername();
 
     std::mt19937 rng(42);
     auto result = lobby.RemoveMember(turn_holder, rng);
@@ -311,9 +418,9 @@ TEST_CASE("lobby: RemoveMember replacing a non-turn-holder reports was_their_tur
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bob", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    std::string turn_holder = lobby.match->GetCurrentPlayerUsername();
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+    std::string turn_holder =
+        lobby.session->Engine().GetCurrentPlayerUsername();
     std::string other = (turn_holder == "Alice") ? "Bob" : "Alice";
 
     std::mt19937 rng(42);
@@ -322,7 +429,7 @@ TEST_CASE("lobby: RemoveMember replacing a non-turn-holder reports was_their_tur
     CHECK_FALSE(result.was_their_turn);
 }
 
-TEST_CASE("lobby: RemoveMember drops the player from the engine when neither policy applies") {
+TEST_CASE("lobby: RemoveMember erases the member but keeps the engine seat") {
     Lobby lobby;
     lobby.id = 1;
     lobby.settings.quit_deletes_match = false;
@@ -330,14 +437,13 @@ TEST_CASE("lobby: RemoveMember drops the player from the engine when neither pol
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bob", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
 
     std::mt19937 rng(42);
     auto result = lobby.RemoveMember("Alice", rng);
 
     CHECK_EQ(result.match_outcome, MemberRemovalOutcome::kPlayerDroppedFromEngine);
-    REQUIRE(lobby.match);
+    REQUIRE(lobby.session);
     CHECK_EQ(lobby.members.size(), 1);
 }
 
@@ -393,16 +499,16 @@ TEST_CASE("lobby: AddOrHijack renames the engine-side player when hijacking mid-
     lobby.members.emplace_back("Alice", nullptr, true, false);
     lobby.members.emplace_back("Bot1", nullptr, true, true);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bot1", true}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Alice", false}, {"Bot1", true}});
 
     auto result = lobby.AddOrHijack("Charlie", nullptr);
 
     CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
-    match::Player* engine_player = lobby.match->GetPlayer("Charlie");
-    REQUIRE(engine_player);
+    const match::ecs::PlayerInfo* engine_player =
+        EnginePlayer(lobby, "Charlie");
+    REQUIRE(engine_player != nullptr);
     CHECK_FALSE(engine_player->is_bot);
-    CHECK_FALSE(lobby.match->GetPlayer("Bot1"));
+    CHECK(EnginePlayer(lobby, "Bot1") == nullptr);
 }
 
 TEST_CASE("lobby: AddOrHijack fills an empty slot when no bots are hijackable") {
@@ -435,8 +541,7 @@ TEST_CASE("lobby: AddOrHijack admits mid-game joiner as spectator when no bots a
     lobby.settings.allow_bot_takeover = false;
     lobby.members.emplace_back("Alice", nullptr, true, false);
 
-    std::vector<std::pair<std::string, bool>> players_info{{"Alice", false}, {"Bob", false}};
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
 
     auto result = lobby.AddOrHijack("Charlie", nullptr);
 

@@ -341,7 +341,7 @@ TEST_CASE("start: refuses when a human member is not ready") {
 }
 
 TEST_CASE("start: succeeds once every human member is ready") {
-    LobbyFixture f;
+    LobbyFixture f{ProjectModsRoot()};
     std::string code = f.alice_creates();
     f.bob_joins(code);
     f.bus.Clear();
@@ -354,11 +354,11 @@ TEST_CASE("start: succeeds once every human member is ready") {
 
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
-    CHECK(lp->match != nullptr);
+    CHECK(lp->session != nullptr);
 }
 
 TEST_CASE("start: clears is_spectator left over from a prior elimination for seated members") {
-    LobbyFixture f;
+    LobbyFixture f{ProjectModsRoot()};
     std::string code = f.alice_creates();
     f.bob_joins(code);
     f.bus.Clear();

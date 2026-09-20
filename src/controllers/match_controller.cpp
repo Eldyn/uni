@@ -4,7 +4,6 @@
  */
 
 #include "controllers/match_controller.hpp"
-#include "match/match_instance.hpp"
 #include "match/server/bot_policy.hpp"
 #include "match/server/match_session.hpp"
 #include "match/view/view_util.hpp"
@@ -111,7 +110,6 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     bot_instant_delay_ms_  = std::max(0, Env::GetInt("BOT_TURN_DELAY_MS", 1000));
     bot_wait_min_ms_       = std::max(0, Env::GetInt("BOT_WAIT_MIN_MS", 500));
     bot_wait_max_ms_       = std::max(bot_wait_min_ms_ + 1, Env::GetInt("BOT_WAIT_MAX_MS", 3500));
-    max_instant_bot_steps_ = std::max(1, Env::GetInt("MAX_INSTANT_BOT_STEPS", 20));
     Logger::Info("[Match] Bot instant delay: ", bot_instant_delay_ms_, "ms, wait spread: ",
                  bot_wait_min_ms_, "-", bot_wait_max_ms_, "ms");
 
@@ -185,65 +183,32 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
 
     // INFO: new-engine path. `card_id` carries the wire
     //       `CompactCardV2.bits`; the session resolves it to an entity.
-    if (active_lobby->session) {
-        auto payload_res = ws::ParsePayload<ws::GamePlayCardPayload>(message);
-        if (!payload_res) {
-            broadcaster_.SendError(context.socket, context.op_code,
-                                   contract::ErrorCode::kInvalidPayload,
-                                   request_identifier,
-                                   payload_res.error().message);
-            return;
-        }
-        uint32_t card_bits = static_cast<uint32_t>(payload_res->card_id);
-
-        if (!active_lobby->session->PlayCard(context.socket_data->username,
-                                             card_bits)) {
-            broadcaster_.SendError(context.socket, context.op_code,
-                                   contract::ErrorCode::kInvalidMove,
-                                   request_identifier);
-            return;
-        }
-
-        active_lobby->session->EmitEvents(broadcaster_);
-        active_lobby->session->BroadcastSnapshot(broadcaster_);
-        ClearTurnTimer(active_lobby->id);
-        OnTurnStarted(active_lobby);
-        return;
-    }
-
-    if (!active_lobby->match) {
+    if (!active_lobby->session) {
         return;
     }
 
     auto payload_res = ws::ParsePayload<ws::GamePlayCardPayload>(message);
     if (!payload_res) {
         broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               contract::ErrorCode::kInvalidPayload,
+                               request_identifier,
                                payload_res.error().message);
         return;
     }
-    uint16_t card_identifier = payload_res->card_id;
+    uint32_t card_bits = static_cast<uint32_t>(payload_res->card_id);
 
-    bool was_play_successful = active_lobby->match->PlayCard(context.socket_data->username,
-                                                              card_identifier);
-
-    if (!was_play_successful) {
+    if (!active_lobby->session->PlayCard(context.socket_data->username,
+                                         card_bits)) {
         broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInvalidMove, request_identifier);
+                               contract::ErrorCode::kInvalidMove,
+                               request_identifier);
         return;
     }
 
-    if (active_lobby->settings.mode == "elimination") {
-        LobbyMember* m = active_lobby->FindMember(context.socket_data->username);
-        if (m && !active_lobby->match->GetPlayer(m->username)) {
-            m->is_spectator = true;
-        }
-    }
-
-    active_lobby->match->Tick();
+    active_lobby->session->EmitEvents(broadcaster_);
+    active_lobby->session->BroadcastSnapshot(broadcaster_);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
-    BroadcastMatchState(active_lobby);
 }
 
 /**
@@ -267,37 +232,21 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     }
 
     // INFO: new-engine path.
-    if (active_lobby->session) {
-        if (!active_lobby->session->DrawCard(context.socket_data->username)) {
-            broadcaster_.SendError(context.socket, context.op_code,
-                                   contract::ErrorCode::kCannotDraw,
-                                   request_identifier);
-            return;
-        }
-
-        active_lobby->session->EmitEvents(broadcaster_);
-        active_lobby->session->BroadcastSnapshot(broadcaster_);
-        ClearTurnTimer(active_lobby->id);
-        OnTurnStarted(active_lobby);
+    if (!active_lobby->session) {
         return;
     }
 
-    if (!active_lobby->match) {
-        return;
-    }
-
-    bool was_draw_successful = active_lobby->match->DrawCard(context.socket_data->username);
-
-    if (!was_draw_successful) {
+    if (!active_lobby->session->DrawCard(context.socket_data->username)) {
         broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kCannotDraw, request_identifier);
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
         return;
     }
 
-    active_lobby->match->Tick();
+    active_lobby->session->EmitEvents(broadcaster_);
+    active_lobby->session->BroadcastSnapshot(broadcaster_);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
-    BroadcastMatchState(active_lobby);
 }
 
 /**
@@ -321,134 +270,44 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     // INFO: new-engine path. The prompt channel carries
     //       `{prompt_id, value}` and the value is read RAW: the generated
     //       MatchPromptResponsePayload::Value drops the JSON body.
-    if (active_lobby->session) {
-        auto prompt_id = ws::Get<std::string>(message, "prompt_id");
-        const auto value_it = message.find("value");
-        if (!prompt_id || value_it == message.end()) {
-            broadcaster_.SendError(context.socket, context.op_code,
-                                   contract::ErrorCode::kInvalidPayload,
-                                   request_identifier);
-            return;
-        }
+    if (!active_lobby->session) return;
 
-        if (!active_lobby->session->SubmitInput(context.socket_data->username,
-                                                *prompt_id, *value_it)) {
-            broadcaster_.SendError(context.socket, context.op_code,
-                                   contract::ErrorCode::kInvalidMove,
-                                   request_identifier);
-            return;
-        }
-
-        active_lobby->session->EmitEvents(broadcaster_);
-        active_lobby->session->BroadcastSnapshot(broadcaster_);
-        ClearTurnTimer(active_lobby->id);
-        OnTurnStarted(active_lobby);
-        return;
-    }
-
-    if (!active_lobby->match) return;
-
-    auto payload_res = ws::ParsePayload<ws::GameSubmitInputPayload>(message);
-    if (!payload_res) {
+    auto prompt_id = ws::Get<std::string>(message, "prompt_id");
+    const auto value_it = message.find("value");
+    if (!prompt_id || value_it == message.end()) {
         broadcaster_.SendError(context.socket, context.op_code,
-                               contract::ErrorCode::kInvalidPayload, request_identifier,
-                               payload_res.error().message);
+                               contract::ErrorCode::kInvalidPayload,
+                               request_identifier);
         return;
     }
-    std::string input_value = payload_res->value;
-    active_lobby->match->ProvideInput(context.socket_data->username, input_value);
-    active_lobby->match->Tick();
 
+    if (!active_lobby->session->SubmitInput(context.socket_data->username,
+                                            *prompt_id, *value_it)) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidMove,
+                               request_identifier);
+        return;
+    }
+
+    active_lobby->session->EmitEvents(broadcaster_);
+    active_lobby->session->BroadcastSnapshot(broadcaster_);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
-    BroadcastMatchState(active_lobby);
 }
 
 /**
- * @brief Serializes complete match configurations, sending unique filtered match boards down to each user.
+ * @brief Broadcasts each connected recipient their filtered match snapshot.
  * @param current_lobby Target room pointer whose context needs to be synchronized.
  */
 void MatchController::BroadcastMatchState(Lobby* current_lobby) {
-    if (!current_lobby) return;
+    if (!current_lobby || !current_lobby->session) return;
 
-    // INFO: new-engine path. BroadcastSnapshot owns the per-recipient
+    // INFO: BroadcastSnapshot owns the per-recipient
     //       `match_state_updated` filtering and the terminal `match_over`
     //       packet (winner + placements); the controller only forwards the
     //       lobby-store teardown notification once the engine is finished.
-    if (current_lobby->session) {
-        current_lobby->session->BroadcastSnapshot(broadcaster_);
-        if (current_lobby->session->Engine().IsMatchOver()) {
-            lobby_store_.NotifyMatchOver(current_lobby->id);
-        }
-        return;
-    }
-
-    if (!current_lobby->match) return;
-
-    bool is_match_over = current_lobby->match->IsMatchOver();
-    bool is_waiting_for_input = current_lobby->match->IsWaitingForInput();
-    std::string pending_player_username = current_lobby->match->GetPendingPlayer();
-    match::Action required_action = current_lobby->match->GetPendingAction();
-
-    json match_over_payload;
-    if (is_match_over) {
-        match_over_payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
-        match_over_payload["winner"] = current_lobby->match->GetWinner();
-        match_over_payload["mode"] = current_lobby->settings.mode;
-        match_over_payload["placements"] = current_lobby->match->GetPlacements();
-    }
-
-    json base_state = current_lobby->match->SerializeBaseState();
-    int spectator_count = 0;
-    for (const auto& m : current_lobby->members) {
-        if (m.is_spectator && m.is_connected) {
-            spectator_count++;
-        }
-    }
-    base_state["spectator_count"] = spectator_count;
-
-    for (const auto& lobby_member : current_lobby->members) {
-        if (!lobby_member.is_connected || !lobby_member.socket) continue;
-
-        json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        json match_state = base_state;
-
-        if (lobby_member.is_spectator) {
-            for (auto& p_json : match_state["players"]) {
-                std::string p_name = p_json["username"];
-                LobbyMember* p_member = current_lobby->FindMember(p_name);
-                bool privacy = p_member ? p_member->privacy_mode : false;
-                if (!privacy) {
-                    p_json["hand"] = current_lobby->match->SerializeHandFor(p_name);
-                }
-            }
-        } else {
-            for (auto& p_json : match_state["players"]) {
-                if (p_json["username"] == lobby_member.username) {
-                    p_json["hand"] = current_lobby->match->SerializeHandFor(lobby_member.username);
-                    break;
-                }
-            }
-        }
-        response_payload["match_state"] = std::move(match_state);
-
-        if (is_waiting_for_input && lobby_member.username == pending_player_username) {
-            response_payload["action_required"] = static_cast<int>(required_action);
-
-            const nlohmann::json& pending_context = current_lobby->match->GetPendingInputContext();
-            if (!pending_context.is_null()) {
-                response_payload["action_context"] = pending_context;
-            }
-        }
-
-        broadcaster_.Send(lobby_member.socket, response_payload.dump(), uWS::OpCode::TEXT);
-
-        if (is_match_over) {
-            broadcaster_.Send(lobby_member.socket, match_over_payload.dump(), uWS::OpCode::TEXT);
-        }
-    }
-
-    if (is_match_over) {
+    current_lobby->session->BroadcastSnapshot(broadcaster_);
+    if (current_lobby->session->Engine().IsMatchOver()) {
         lobby_store_.NotifyMatchOver(current_lobby->id);
     }
 }
@@ -458,129 +317,8 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
  * @param active_lobby Target active match room layout evaluated.
  */
 void MatchController::OnTurnStarted(Lobby* active_lobby) {
-    if (!active_lobby) {
-        return;
-    }
-
-    if (active_lobby->session) {
-        OnTurnStartedSession(active_lobby);
-        return;
-    }
-
-    if (!active_lobby->match || active_lobby->match->IsMatchOver()) {
-        return;
-    }
-
-    std::string current_player_username = active_lobby->match->GetCurrentPlayerUsername();
-
-    auto is_connected = [active_lobby](const std::string& username) {
-        for (const auto& m : active_lobby->members) {
-            if (m.username == username && m.is_connected) return true;
-        }
-        return false;
-    };
-
-    switch (active_lobby->match->GetTurnTimeoutPolicy(is_connected)) {
-        case match::TurnTimeoutPolicy::kBotThinking: {
-            int bot_thinking_ms =
-                active_lobby->settings.bot_mode == BotTakeoverMode::kPlayInstantly
-                    ? bot_instant_delay_ms_
-                    : std::uniform_int_distribution<int>(
-                          bot_wait_min_ms_, bot_wait_max_ms_ - 1)(rng_);
-
-            // INFO: Waiting for each input is tiresome. "Pending Color" -> ~2
-            //       seconds, "Draw or Play" -> ~2 seconds. This stacks up.
-            //       Let's be instantaneous!
-            if (active_lobby->match->IsWaitingForInput()) bot_thinking_ms = bot_instant_delay_ms_;
-
-            auto end_time = std::chrono::steady_clock::now() +
-                std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-            active_lobby->match->SetTurnEndTime(end_time);
-
-            uint32_t current_lobby_id = active_lobby->id;
-
-            SetTurnTimer(current_lobby_id, bot_thinking_ms,
-                        [this, current_lobby_id, current_player_username]() {
-                Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-                if (verified_lobby && verified_lobby->match) {
-                    if (verified_lobby->match->GetCurrentPlayerUsername() ==
-                        current_player_username) {
-                        verified_lobby->match->TakeBotTurn();
-                        OnTurnStarted(verified_lobby);
-                        BroadcastMatchState(verified_lobby);
-                    }
-                }
-            });
-            return;
-        }
-
-        case match::TurnTimeoutPolicy::kInstantBotAdvance: {
-            Logger::Info("[MATCH] Bot instant turn for: ", current_player_username);
-
-            // INFO: Broadcast between each step so every action is visible to
-            //       connected players.
-            auto on_step = [this, active_lobby]() { BroadcastMatchState(active_lobby); };
-
-            auto advance_result = active_lobby->match->AdvanceBotTurns(
-                is_connected, on_step, max_instant_bot_steps_);
-            if (advance_result.stalled) {
-                Logger::Error("[MATCH] kPlayInstantly stall detected, aborting bot loop");
-            }
-
-            OnTurnStarted(active_lobby);
-            return;
-        }
-
-        case match::TurnTimeoutPolicy::kInputWaitTimeout: {
-            // INFO: The engine is waiting for action input (e.g. colour pick
-            //       after a Jolly). A timer is always armed here regardless of
-            //       bot mode, the pending player must respond within the turn
-            //       time limit or a bot handles it for them.
-            std::string pending = active_lobby->match->GetPendingPlayer();
-            auto end_time = std::chrono::steady_clock::now() +
-                            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-            active_lobby->match->SetTurnEndTime(end_time);
-            uint32_t current_lobby_id = active_lobby->id;
-            SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
-                [this, current_lobby_id, pending]() {
-                    Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-                    if (!verified_lobby || !verified_lobby->match) return;
-                    if (!verified_lobby->match->IsWaitingForInput()) return;
-                    if (verified_lobby->match->GetPendingPlayer() != pending) return;
-                    Logger::Info("[MATCH] Action timeout for player: ", pending);
-                    verified_lobby->match->TakeBotTurn();
-                    OnTurnStarted(verified_lobby);
-                    BroadcastMatchState(verified_lobby);
-                });
-            return;
-        }
-
-        case match::TurnTimeoutPolicy::kHumanAfkTimeout: {
-            auto end_time = std::chrono::steady_clock::now() +
-                            std::chrono::milliseconds(active_lobby->settings.turn_time_limit_ms);
-            active_lobby->match->SetTurnEndTime(end_time);
-
-            uint32_t current_lobby_id = active_lobby->id;
-            SetTurnTimer(current_lobby_id, active_lobby->settings.turn_time_limit_ms,
-                        [this, current_lobby_id, current_player_username]() {
-                Lobby* verified_lobby = lobby_store_.GetLobbyById(current_lobby_id);
-                if (verified_lobby && verified_lobby->match) {
-                    if (verified_lobby->match->GetCurrentPlayerUsername() ==
-                        current_player_username) {
-                        Logger::Info("[MATCH] Bot playing for AFK player: ",
-                                     current_player_username);
-                        verified_lobby->match->TakeBotTurn();
-                        OnTurnStarted(verified_lobby);
-                        BroadcastMatchState(verified_lobby);
-                    }
-                }
-            });
-            return;
-        }
-
-        case match::TurnTimeoutPolicy::kNone:
-            return;
-    }
+    if (!active_lobby || !active_lobby->session) return;
+    OnTurnStartedSession(active_lobby);
 }
 
 /**
