@@ -153,6 +153,32 @@ public:
     void SaveMatchStateToDB(Lobby& lobby);
 
     /**
+     * @brief Persists a completed match's rows for the new engine.
+     *
+     * Writes the `matches` row, one `match_participants` row per engine
+     * player and the per-human `match_history` ledger rows. The per-player
+     * `player_stats` aggregate is updated ONLY when
+     * `match::server::StatsGateAllows` accepts the lobby's mod set and deck
+     * kind multiset; the match rows themselves are written for every match.
+     *
+     * @param lobby  Lobby whose live session just finished. Its
+     *               `session` must still be populated (read before teardown).
+     * @param winner Winning username, or empty for a no-survivor abort.
+     */
+    void RecordMatchResult(Lobby& lobby, const std::string& winner);
+
+    /**
+     * @brief Persists an aborted match's per-human ledger rows.
+     *
+     * Aborts have no winner, so no `matches` row is written (mirrors the
+     * pre-swap `RecordMatchAborted`): only `match_history` rows with result
+     * and reason `"aborted"` are recorded. The stats gate never applies.
+     *
+     * @param lobby Lobby whose live session is being torn down.
+     */
+    void RecordMatchAborted(Lobby& lobby);
+
+    /**
      * @brief Counts the lobbies whose match is currently in progress (not finished).
      * Used by the deploy gate to avoid swapping the container mid-game.
      * @return std::size_t Number of active matches.

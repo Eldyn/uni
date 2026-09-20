@@ -2,10 +2,17 @@
 #include <action_router.hpp>
 #include <controllers/lobby_controller.hpp>
 #include <common/ws.hpp>
+#include <database.hpp>
+#include <match/ecs/compact_card.hpp>
+#include <match/ecs/components.hpp>
+#include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/server/match_session.hpp>
+#include <match/server/stats_gate.hpp>
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 #include "support/fake_broadcaster.hpp"
@@ -822,6 +829,298 @@ TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
     CHECK_FALSE(lp->settings.ranked);
     // The loaded snapshot survives later freestyle scalar edits.
     CHECK(lp->settings.deck.value("id", "") == "classic");
+}
+
+} // TEST_SUITE
+
+// ---------------------------------------------------------------------------
+// match-end persistence + the stats gate.
+//
+// The gate comparator itself is covered by stats_gate_test.cpp; these cases
+// verify the *wiring*: a real assembled match's mod set / deck multiset must
+// decide whether the per-player player_stats aggregate is updated, while the
+// matches / match_participants rows are written for every match.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/* INFO: force a seat's hand to exactly `cards` (scripted human win),
+ *       mirroring match_controller_test.cpp. */
+void ForceHand(match::engine::MatchInstance& engine,
+               match::ecs::Entity player,
+               const std::vector<match::ecs::Entity>& cards) {
+    match::ecs::Hand* hand = engine.Store().Get<match::ecs::Hand>(player);
+    REQUIRE(hand != nullptr);
+    const std::vector<match::ecs::Entity> existing = hand->cards;
+    for (match::ecs::Entity card : existing) {
+        match::ops::MoveCardToZone(
+            engine.Store(), card,
+            match::ecs::ZoneRef{match::ecs::ZoneKind::kDrawPile,
+                                match::ecs::Entity{}});
+    }
+    for (match::ecs::Entity card : cards) {
+        match::ops::MoveCardToZone(
+            engine.Store(), card,
+            match::ecs::ZoneRef{match::ecs::ZoneKind::kHand, player});
+    }
+}
+
+std::vector<match::ecs::Entity> CardsByKind(
+    const match::engine::MatchInstance& engine, const std::string& kind) {
+    std::vector<match::ecs::Entity> out;
+    for (match::ecs::Entity card : engine.Registries().cards) {
+        const match::ecs::CardIdentity* identity =
+            engine.Store().Get<match::ecs::CardIdentity>(card);
+        if (identity != nullptr && identity->kind_id == kind) {
+            out.push_back(card);
+        }
+    }
+    return out;
+}
+
+uint32_t BitsOf(const match::engine::MatchInstance& engine,
+                match::ecs::Entity card) {
+    const std::optional<match::ecs::CompactCardV2> id =
+        engine.Registries().CardId(card);
+    REQUIRE(id.has_value());
+    return id->bits;
+}
+
+/** @brief Insert a minimal `users` row so the stats gate can apply. */
+void InsertUser(const std::string& username) {
+    REQUIRE(Database::Get()
+                .Exec("INSERT OR IGNORE INTO users "
+                      "(username, pass_hash, salt, email) "
+                      "VALUES (?, 'h', 's', ?);",
+                      {username, username + "@wp13fix2.test"})
+                .has_value());
+}
+
+/** @brief Remove the test usernames' DB rows so cases stay independent. */
+void CleanupUsers(const std::vector<std::string>& users) {
+    for (const std::string& user : users) {
+        (void)Database::Get().Exec(
+            "DELETE FROM player_stats WHERE username = ?;", {user});
+        (void)Database::Get().Exec("DELETE FROM users WHERE username = ?;",
+                                   {user});
+    }
+}
+
+/** @brief Ready both humans and start the match. */
+void ReadyAndStart(LobbyFixture& f) {
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+}
+
+/**
+ * @brief Drives the live session to a scripted Alice win, then persists it.
+ *
+ * Alice is forced down to a single wild, plays it and answers the colour
+ * prompt, emptying her hand. `NotifyMatchOver` is then invoked exactly as the
+ * MatchController teardown would.
+ *
+ * @param f            Fixture whose lobby holds the live session.
+ * @param alice        Alice's username in this fixture.
+ * @param out_match_id Receives `lobby.match_id` before it is cleared.
+ */
+void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
+                        std::string& out_match_id) {
+    Lobby* lobby = f.lobby.GetLobbyByCode(f.alice_sd.lobby_code);
+    REQUIRE(lobby != nullptr);
+    REQUIRE(lobby->session != nullptr);
+    out_match_id = lobby->match_id;
+    REQUIRE(!out_match_id.empty());
+
+    match::engine::MatchInstance& engine = lobby->session->Engine();
+    const std::vector<match::ecs::Entity> wilds =
+        CardsByKind(engine, "vanilla:wild");
+    REQUIRE(wilds.size() >= 1);
+    const match::ecs::Entity alice_entity = *engine.FindPlayer(alice);
+    ForceHand(engine, alice_entity, {wilds[0]});
+
+    REQUIRE(lobby->session->PlayCard(alice, BitsOf(engine, wilds[0])));
+    REQUIRE(lobby->session->SubmitInput(alice, "choose_color", "red"));
+    REQUIRE(engine.IsMatchOver());
+    REQUIRE(engine.GetWinner() == alice);
+
+    f.lobby.NotifyMatchOver(lobby->id);
+    CHECK(lobby->session == nullptr);
+}
+
+}  // namespace
+
+TEST_SUITE("LobbyController::MatchEnd") {
+
+TEST_CASE("match end: vanilla classic updates player_stats and writes rows") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "wp13g_alice";
+    const std::string bob = "wp13g_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    auto alice_stats = Database::Get().QueryOne(
+        "SELECT total_wins, total_losses FROM player_stats "
+        "WHERE username = ?;", {alice});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK(alice_stats->value().Get<int>("total_wins") == 1);
+    CHECK(alice_stats->value().Get<int>("total_losses") == 0);
+
+    auto bob_stats = Database::Get().QueryOne(
+        "SELECT total_wins, total_losses FROM player_stats "
+        "WHERE username = ?;", {bob});
+    REQUIRE(bob_stats.has_value());
+    REQUIRE(bob_stats->has_value());
+    CHECK(bob_stats->value().Get<int>("total_wins") == 0);
+    CHECK(bob_stats->value().Get<int>("total_losses") == 1);
+
+    auto match_row = Database::Get().QueryOne(
+        "SELECT id, winner_username FROM matches ORDER BY id DESC LIMIT 1;",
+        {});
+    REQUIRE(match_row.has_value());
+    REQUIRE(match_row->has_value());
+    CHECK(match_row->value().Get<std::string>("winner_username") == alice);
+    const int match_row_id = match_row->value().Get<int>("id");
+
+    auto participants = Database::Get().Query(
+        "SELECT COUNT(*) AS n FROM match_participants WHERE match_id = ?;",
+        {match_row_id});
+    REQUIRE(participants.has_value());
+    REQUIRE(!participants->empty());
+    CHECK(participants->front().Get<int>("n") == 2);
+
+    auto ledger = Database::Get().QueryOne(
+        "SELECT placement, result FROM match_history "
+        "WHERE match_id = ? AND username = ?;", {match_id, alice});
+    REQUIRE(ledger.has_value());
+    REQUIRE(ledger->has_value());
+    CHECK(ledger->value().Get<int>("placement") == 1);
+    CHECK(ledger->value().Get<std::string>("result") == "win");
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "wp13m_alice";
+    const std::string bob = "wp13m_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    // INFO: a second, real loaded mod flips the gate while the deck
+    //       multiset stays the vanilla classic one.
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    lobby->settings.active_mods = {"vanilla", "progressive"};
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    CHECK_FALSE(Database::Get()
+                    .QueryOne("SELECT 1 FROM player_stats WHERE username = ?;",
+                              {alice})
+                    .value()
+                    .has_value());
+    CHECK_FALSE(Database::Get()
+                    .QueryOne("SELECT 1 FROM player_stats WHERE username = ?;",
+                              {bob})
+                    .value()
+                    .has_value());
+
+    auto match_row = Database::Get().QueryOne(
+        "SELECT id, winner_username FROM matches ORDER BY id DESC LIMIT 1;",
+        {});
+    REQUIRE(match_row.has_value());
+    REQUIRE(match_row->has_value());
+    CHECK(match_row->value().Get<std::string>("winner_username") == alice);
+    const int match_row_id = match_row->value().Get<int>("id");
+
+    auto participants = Database::Get().Query(
+        "SELECT COUNT(*) AS n FROM match_participants WHERE match_id = ?;",
+        {match_row_id});
+    REQUIRE(participants.has_value());
+    REQUIRE(!participants->empty());
+    CHECK(participants->front().Get<int>("n") == 2);
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "wp13d_alice";
+    const std::string bob = "wp13d_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    // INFO: a real assembled classic deck with one kind's multiplicity
+    //       changed (red_0 x2 instead of x1) still assembles, but the gate
+    //       must reject it.
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    json deck = json{{"id", "classic"},
+                     {"name", "Classic"},
+                     {"namespace", "vanilla"},
+                     {"mods", json::array({"vanilla"})},
+                     {"cards", json::object()}};
+    for (const auto& [kind, count] :
+         match::server::VanillaClassicDeckCards()) {
+        deck["cards"][kind] = count;
+    }
+    deck["cards"]["vanilla:red_0"] = 2;
+    lobby->settings.deck = std::move(deck);
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    CHECK_FALSE(Database::Get()
+                    .QueryOne("SELECT 1 FROM player_stats WHERE username = ?;",
+                              {alice})
+                    .value()
+                    .has_value());
+    CHECK_FALSE(Database::Get()
+                    .QueryOne("SELECT 1 FROM player_stats WHERE username = ?;",
+                              {bob})
+                    .value()
+                    .has_value());
+
+    auto match_row = Database::Get().QueryOne(
+        "SELECT winner_username FROM matches ORDER BY id DESC LIMIT 1;", {});
+    REQUIRE(match_row.has_value());
+    REQUIRE(match_row->has_value());
+    CHECK(match_row->value().Get<std::string>("winner_username") == alice);
+
+    CleanupUsers({alice, bob});
 }
 
 } // TEST_SUITE

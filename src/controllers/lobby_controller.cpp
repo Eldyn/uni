@@ -13,11 +13,15 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
+#include <match/server/stats_gate.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace std::chrono;
 
@@ -115,6 +119,26 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
     def.cards.emplace_back("vanilla:wild", settings.count_wild);
     def.cards.emplace_back("vanilla:wild_draw4",
                            settings.count_wild_draw_four);
+    return def;
+}
+
+/**
+ * @brief Resolves the deck definition a lobby's settings describe.
+ *
+ * Mirrors `HandleStartGame`'s selection (deck snapshot when present, else the
+ * synthesized freestyle deck) so the match-end persistence path evaluates the
+ * stats gate on the same mod set / card multiset the match was
+ * assembled from.
+ *
+ * @param settings Lobby settings to resolve.
+ * @return DeckDef The resolved deck definition, always carrying a mod list.
+ */
+match::modload::DeckDef ResolveMatchDeck(const LobbySettings& settings) {
+    match::modload::DeckDef def =
+        DeckSnapshotHasCards(settings.deck)
+            ? DeckDefFromSnapshot(settings.deck)
+            : SynthesizeFreestyleDeck(settings);
+    if (def.mods.empty()) def.mods.push_back("vanilla");
     return def;
 }
 
@@ -338,12 +362,190 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
 }
 
 /**
+ * @brief Persists a completed match's rows for the new engine.
+ *
+ * Restores the pre-swap `RecordMatchCompleted` SQL shape: one `matches` row
+ * (winner), one `match_participants` row per engine player, and per-human
+ * `match_history` ledger rows carrying the finish placement. The per-player
+ * `player_stats` aggregate is updated ONLY when the gate accepts the
+ * lobby's mod set / deck kind multiset; the match rows are always written.
+ *
+ * @param lobby  Lobby whose live session just finished.
+ * @param winner Winning username.
+ */
+void LobbyController::RecordMatchResult(Lobby& lobby,
+                                        const std::string& winner) {
+    if (!lobby.session) return;
+
+    auto& db = Database::Get();
+    if (!db.IsOpen()) return;
+
+    // INFO: Gate only the player_stats aggregate; match rows and
+    //       ledger placements are recorded for every match.
+    const match::modload::DeckDef deck = ResolveMatchDeck(lobby.settings);
+    const bool stats_allowed =
+        match::server::StatsGateAllows(deck.mods, deck.cards);
+
+    const json state = lobby.session->Engine().ExportState();
+    const std::vector<std::string> placements =
+        lobby.session->Engine().GetPlacements();
+
+    try {
+        TransactionGuard tx(db);
+        if (!tx.Ok()) {
+            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
+            return;
+        }
+
+        if (!lobby.match_id.empty()) {
+            (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                          {lobby.match_id});
+        }
+
+        int match_row_id = 0;
+        auto match_status =
+            db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
+                    {winner});
+        if (match_status) {
+            auto row = db.QueryOne("SELECT last_insert_rowid() as id", {});
+            if (row && row->has_value()) {
+                match_row_id = row->value().Get<int>("id");
+            }
+        } else {
+            Logger::Warn("[Lobby DB Error] matches insert failed: ",
+                         match_status.error().message);
+        }
+
+        for (const auto& player : state.value("players", json::array())) {
+            const std::string username =
+                player.value("username", std::string());
+            if (username.empty()) continue;
+
+            // INFO: pre-swap inserted a participant row for every engine
+            //       player, bots included.
+            if (match_row_id > 0) {
+                (void)db.Exec(
+                    "INSERT OR IGNORE INTO match_participants "
+                    "(match_id, username) VALUES (?, ?)",
+                    {match_row_id, username});
+            }
+
+            const bool is_bot = player.value("is_bot", false);
+            if (is_bot) continue;
+
+            if (!lobby.match_id.empty()) {
+                auto placement_it =
+                    std::ranges::find(placements, username);
+                std::optional<int> placement;
+                if (placement_it != placements.end()) {
+                    placement = static_cast<int>(
+                                    std::distance(placements.begin(),
+                                                  placement_it)) +
+                                1;
+                }
+                const std::string result =
+                    (username == winner) ? "win" : "loss";
+                (void)db.Exec(
+                    "INSERT INTO match_history "
+                    "(match_id, username, mode, placement, result, "
+                    "ended_reason, ranked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    {lobby.match_id, username, lobby.settings.mode,
+                     placement ? DbValue(*placement) : DbValue(nullptr),
+                     result, "completed", stats_allowed ? 1 : 0});
+            }
+
+            if (!stats_allowed) continue;
+
+            auto account = db.QueryOne(
+                "SELECT 1 FROM users WHERE username = ?", {username});
+            if (!account || !account->has_value()) continue;
+
+            (void)db.Exec(
+                "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
+                {username});
+            const int is_winner = (username == winner) ? 1 : 0;
+            (void)db.Exec(R"(
+                UPDATE player_stats SET
+                    total_wins = total_wins + ?,
+                    total_losses = total_losses + ?
+                WHERE username = ?
+            )", {is_winner, is_winner == 1 ? 0 : 1, username});
+        }
+
+        if (auto commit_status = tx.Commit(); !commit_status) {
+            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
+        } else {
+            Logger::Info("[Lobby] Persisted match result for ", lobby.match_id);
+        }
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] ", e.what());
+    }
+}
+
+/**
+ * @brief Persists an aborted match's per-human ledger rows.
+ *
+ * Mirrors the pre-swap `RecordMatchAborted`: no `matches` row (an abort has
+ * no winner), only `match_history` rows marking each human as aborted. The
+ * stats gate never applies to an abort.
+ *
+ * @param lobby Lobby whose live session is being torn down.
+ */
+void LobbyController::RecordMatchAborted(Lobby& lobby) {
+    if (!lobby.session) return;
+
+    auto& db = Database::Get();
+    if (!db.IsOpen()) return;
+
+    const json state = lobby.session->Engine().ExportState();
+
+    try {
+        TransactionGuard tx(db);
+        if (!tx.Ok()) {
+            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
+            return;
+        }
+
+        if (!lobby.match_id.empty()) {
+            (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                          {lobby.match_id});
+        }
+
+        for (const auto& player : state.value("players", json::array())) {
+            const std::string username =
+                player.value("username", std::string());
+            if (username.empty()) continue;
+            if (player.value("is_bot", false)) continue;
+            if (lobby.match_id.empty()) continue;
+
+            (void)db.Exec(
+                "INSERT INTO match_history "
+                "(match_id, username, mode, placement, result, "
+                "ended_reason, ranked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                {lobby.match_id, username, lobby.settings.mode,
+                 DbValue(nullptr), "aborted", "aborted", 0});
+        }
+
+        if (auto commit_status = tx.Commit(); !commit_status) {
+            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
+        }
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] ", e.what());
+    }
+}
+
+/**
  * @brief Tears down the match for the given lobby after a normal match-over.
  * @param lobby_id ID of the lobby whose match to destroy.
  */
 void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
     Lobby* lobby = GetLobbyById(lobby_id);
     if (!lobby) return;
+    // INFO: persist before the session is released - winner / placements /
+    //       player list all live on the engine.
+    if (lobby->session) {
+        RecordMatchResult(*lobby, lobby->session->Engine().GetWinner());
+    }
     lobby->session.reset();
     lobby->match_id.clear();
     Logger::Info("[MATCH] destroyed after MatchOver in lobby ", lobby_id);
@@ -359,11 +561,15 @@ void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
 
         // INFO: The engine never removes a mid-game seat, so an
         //       abort only tears the session down. A sole survivor is
-        //       reported through the abort callback (the caller sends the
-        //       terminal frame); per-player DB history is a concern.
+        //       persisted as a completed match (mirroring the pre-swap
+        //       `RecordMatchCompleted(winner)`); with no survivors left only
+        //       the aborted ledger rows are recorded.
         if (lobby.members.size() == 1) {
             const std::string& winner = lobby.members.front().username;
+            RecordMatchResult(lobby, winner);
             for (auto& cb : on_match_aborted_) cb(&lobby, winner);
+        } else {
+            RecordMatchAborted(lobby);
         }
 
         lobby.session.reset();
@@ -1340,6 +1546,9 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                     }
                 }
 
+                // INFO: Persist the abort before the session is
+                //       released (no winner: ledger rows only).
+                RecordMatchAborted(lobby);
                 lobby.session.reset();
                 lobby.match_id.clear();
                 break;
