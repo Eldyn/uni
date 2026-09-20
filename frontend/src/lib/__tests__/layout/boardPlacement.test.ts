@@ -45,7 +45,7 @@ describe("computeBoardPlacement", () => {
 			const { rig, placement } = placementFor(viewport);
 			// Never further out than the frustum's left edge, never further in than
 			// its home X — it only ever gets pulled toward the center, never past it.
-			const pileLeftX = placement.drawPileX - (CARD_WIDTH * placement.handScale) / 2;
+			const pileLeftX = placement.drawPileX - (CARD_WIDTH * placement.drawPileScale) / 2;
 			expect(pileLeftX).toBeGreaterThanOrEqual(-rig.halfWidth - 1e-6);
 			expect(placement.drawPileX).toBeGreaterThanOrEqual(DRAW_PILE_HOME_X - 1e-6);
 			expect(placement.drawPileX).toBeLessThan(0);

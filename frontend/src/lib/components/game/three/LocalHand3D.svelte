@@ -107,8 +107,8 @@
 	const HIT_PLANE_Y = 1;
 	// The row grows symmetrically from center, so its left edge heads for the
 	// draw pile: cap the span where the leftmost card's edge would reach the
-	// pile's right edge (pile half-width + card half-width = one scaled card)
-	// plus a small gap.
+	// pile's right edge (pile half-width + card half-width) plus a small gap.
+	// The pile is drawn at its own scale, smaller than the hand in portrait.
 	const HAND_PILE_GAP = 0.25;
 	// The fade reads off the actual screen, not the layout's own span cap: the
 	// draw pile pins maxHalfSpanEm well inside the true frustum edge (see
@@ -169,7 +169,9 @@
 	let maxHalfSpanEm = $derived(
 		(placement.drawPileBesideHand
 			? Math.min(
-					Math.abs(placement.drawPileX) - CARD_WIDTH * placement.handScale - HAND_PILE_GAP,
+					Math.abs(placement.drawPileX) -
+						(CARD_WIDTH * (placement.handScale + placement.drawPileScale)) / 2 -
+						HAND_PILE_GAP,
 					edgeHalfSpan
 				)
 			: edgeHalfSpan) / handEmToWorld

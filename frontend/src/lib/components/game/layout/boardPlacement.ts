@@ -191,7 +191,7 @@ export function computeBoardPlacement(
 	const drawPileScale = isPortrait ? handScale * PORTRAIT_DRAW_PILE_SCALE : handScale;
 	const drawPileX = Math.max(
 		DRAW_PILE_HOME_X,
-		-(rig.halfWidth - (CARD_WIDTH * handScale) / 2 - DRAW_PILE_EDGE_MARGIN)
+		-(rig.halfWidth - (CARD_WIDTH * drawPileScale) / 2 - DRAW_PILE_EDGE_MARGIN)
 	);
 	const discardX = 0;
 	// The felt: covering the frustum in landscape, and in portrait filling the
