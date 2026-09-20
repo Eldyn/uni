@@ -45,6 +45,19 @@ describe("storeTableSpin", () => {
 		expect(storeTableSpin.renderPov).toBe("c");
 	});
 
+	it("settles the in-flight target, then chains a new transition on a mid-flight retarget", () => {
+		storeAnimation.enabled = true;
+		sync("a");
+		sync("b"); // starts a timed spin toward b
+		expect(storeTableSpin.phase).toBe("spin");
+		sync("c"); // retarget mid-flight
+		expect(storeTableSpin.renderPov).toBe("b"); // old target settled
+		expect(storeTableSpin.phase).toBe("spin"); // new transition to c in flight
+		storeTableSpin.skip();
+		expect(storeTableSpin.renderPov).toBe("c");
+		expect(storeTableSpin.phase).toBe("idle");
+	});
+
 	it("cancelAndCommit settles instantly on the target", () => {
 		storeAnimation.enabled = true;
 		sync("a");

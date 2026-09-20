@@ -46,17 +46,27 @@ class StoreTableSpin {
 		return this.phase !== "idle";
 	}
 
-	/** Snap the whole transition to its end and commit. */
-	skip(): void {
-		if (this.phase === "idle") return;
-		this.#kill();
+	/**
+	 * Snap the in-flight transition to its end and commit it. `spinAngle` is
+	 * folded into `pileAngle` only while the spin phase is still running —
+	 * `#commitSpin` already applied it once the inherit phase began, so adding
+	 * it again here would double-count and over-rotate the piles.
+	 */
+	#settle(): void {
 		const t = this.transition;
-		if (t) this.pileAngle += t.spinAngle;
-		if (t) this.renderPov = t.to;
+		this.#kill();
+		if (t && this.phase === "spin") this.pileAngle += t.spinAngle;
+		this.renderPov = t ? t.to : this.targetPov;
 		this.spinProgress = 1;
 		this.inheritProgress = 1;
 		this.phase = "idle";
 		this.transition = null;
+	}
+
+	/** Snap the whole transition to its end and commit. */
+	skip(): void {
+		if (this.phase === "idle") return;
+		this.#settle();
 	}
 
 	reset(): void {
@@ -68,17 +78,14 @@ class StoreTableSpin {
 		this.inheritProgress = 0;
 		this.pileAngle = 0;
 		this.transition = null;
+		this.#lastDirection = 1;
 		this.#seeded = false;
 	}
 
 	/** Roster/order/viewport change or eliminated target: settle instantly. */
 	cancelAndCommit(): void {
-		this.#kill();
+		this.#settle();
 		if (this.targetPov !== null) this.renderPov = this.targetPov;
-		this.phase = "idle";
-		this.spinProgress = 0;
-		this.inheritProgress = 0;
-		this.transition = null;
 	}
 
 	/**
@@ -102,8 +109,11 @@ class StoreTableSpin {
 		// A re-run caused by our own renderPov commit must not cancel the
 		// in-flight phase it just started.
 		if (target === this.targetPov && this.phase !== "idle") return;
+		// Settle the in-flight transition onto its own target before the
+		// requested target changes, so a mid-flight retarget chains from the
+		// settled state instead of collapsing both hops into one.
+		if (this.phase !== "idle") this.#settle();
 		this.targetPov = target;
-		if (this.phase !== "idle") this.cancelAndCommit();
 		if (target === this.renderPov) return;
 		if (target === null || order.length <= 1) {
 			this.renderPov = target;
@@ -122,6 +132,7 @@ class StoreTableSpin {
 		if (spin === 0) {
 			this.pileAngle += spinAngle;
 			this.renderPov = target;
+			this.spinProgress = 1;
 			this.inheritProgress = 1;
 			this.transition = null;
 			return;
