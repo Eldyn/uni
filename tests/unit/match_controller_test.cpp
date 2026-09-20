@@ -2,16 +2,21 @@
 #include <action_router.hpp>
 #include <controllers/match_controller.hpp>
 #include <controllers/ilobby_store.hpp>
+#include <match/ecs/compact_card.hpp>
+#include <match/ecs/components.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/server/match_session.hpp>
 #include <common/lobby.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include "support/fake_broadcaster.hpp"
@@ -140,6 +145,13 @@ struct MatchFixture {
     FakeLobbyStore   store;
     MatchController  match_ctrl{router, bus, timers, store};
 
+    // INFO: an opaque per-seat socket key; the FakeBroadcaster stores but
+    //       never dereferences it, so EmitEvents/BroadcastSnapshot reach it.
+    static AppWebSocket* SeatSocket(int index) {
+        return reinterpret_cast<AppWebSocket*>(
+            static_cast<std::uintptr_t>(0x200 + index));
+    }
+
     // Builds and starts a new-engine match for the given players, wiring it
     // into the fake lobby store, then fires the OnGameStarted hook (as
     // LobbyController would after a real match start).
@@ -154,8 +166,9 @@ struct MatchFixture {
 
         int seat = 0;
         for (const auto& [username, is_bot] : players_info) {
-            store.lobby.members.emplace_back(username, nullptr, !is_bot,
-                                             is_bot, seat++);
+            store.lobby.members.emplace_back(username, SeatSocket(seat),
+                                             !is_bot, is_bot, seat);
+            ++seat;
         }
 
         const Content& content = ContentCache();
@@ -194,7 +207,7 @@ struct MatchFixture {
 
         match::server::MatchSession::SocketMap sockets;
         for (const auto& member : store.lobby.members) {
-            sockets[member.username] = nullptr;
+            sockets[member.username] = member.socket;
         }
         store.lobby.session = std::make_unique<match::server::MatchSession>(
             std::move(engine), std::move(active_mods), std::move(sockets));
@@ -222,6 +235,48 @@ struct MatchFixture {
         return fired;
     }
 };
+
+// INFO: force a seat's hand to exactly `cards` (test setup for a scripted
+//       human win), mirroring match_session_test.cpp.
+static void ForceHand(match::engine::MatchInstance& engine,
+                      match::ecs::Entity player,
+                      const std::vector<match::ecs::Entity>& cards) {
+    match::ecs::Hand* hand = engine.Store().Get<match::ecs::Hand>(player);
+    REQUIRE(hand != nullptr);
+    const std::vector<match::ecs::Entity> existing = hand->cards;
+    for (match::ecs::Entity card : existing) {
+        match::ops::MoveCardToZone(
+            engine.Store(), card,
+            match::ecs::ZoneRef{match::ecs::ZoneKind::kDrawPile,
+                                match::ecs::Entity{}});
+    }
+    for (match::ecs::Entity card : cards) {
+        match::ops::MoveCardToZone(
+            engine.Store(), card,
+            match::ecs::ZoneRef{match::ecs::ZoneKind::kHand, player});
+    }
+}
+
+static std::vector<match::ecs::Entity> CardsByKind(
+    const match::engine::MatchInstance& engine, const std::string& kind) {
+    std::vector<match::ecs::Entity> out;
+    for (match::ecs::Entity card : engine.Registries().cards) {
+        const match::ecs::CardIdentity* identity =
+            engine.Store().Get<match::ecs::CardIdentity>(card);
+        if (identity != nullptr && identity->kind_id == kind) {
+            out.push_back(card);
+        }
+    }
+    return out;
+}
+
+static uint32_t BitsOf(const match::engine::MatchInstance& engine,
+                       match::ecs::Entity card) {
+    const std::optional<match::ecs::CompactCardV2> id =
+        engine.Registries().CardId(card);
+    REQUIRE(id.has_value());
+    return id->bits;
+}
 
 static LobbySettings settings_with_mode(BotTakeoverMode mode, int turn_time_limit_ms = 15'000) {
     LobbySettings s;
@@ -504,3 +559,150 @@ TEST_CASE("Spectator cannot play card, draw card, or provide input") {
     CHECK_EQ(err2["code"], "spectator_cannot_act");
 }
 }
+
+// ---------------------------------------------------------------------------
+// a human action that ends the match must notify the lobby store
+// (teardown + rematch allowed), and an already-finished engine must be
+// notified on turn start instead of silently returning.
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::MatchOver") {
+TEST_CASE("A human play that wins the match notifies the lobby store") {
+    MatchFixture f;
+    // INFO: Alice is human and seated first, so she holds the opening turn.
+    f.SetupMatch(human_vs_bot(), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+
+    REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
+    const std::vector<match::ecs::Entity> wilds =
+        CardsByKind(f.Engine(), "vanilla:wild");
+    REQUIRE(wilds.size() >= 2);
+    const match::ecs::Entity alice = *f.Engine().FindPlayer("Alice");
+    ForceHand(f.Engine(), alice, {wilds[0]});
+    const uint32_t wild_bits = BitsOf(f.Engine(), wilds[0]);
+
+    PerSocketData sd;
+    sd.username = "Alice";
+    sd.lobby_id = 1;
+    WsContext ctx{f.store.lobby.FindMember("Alice")->socket, &sd,
+                  uWS::OpCode::TEXT};
+
+    REQUIRE(f.store.match_over_notifications == 0);
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", wild_bits}
+    });
+    // INFO: the wild parks a colour prompt; answering it ends the match.
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPromptResponse},
+        {"prompt_id", "choose_color"},
+        {"value", "red"}
+    });
+
+    CHECK(f.Engine().IsMatchOver());
+    CHECK(f.Engine().GetWinner() == "Alice");
+    // INFO: Without routing the post-input broadcast through
+    //       BroadcastMatchState this stays 0 and a rematch is rejected.
+    CHECK_GE(f.store.match_over_notifications, 1);
+}
+
+TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already over") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+
+    const std::vector<match::ecs::Entity> wilds =
+        CardsByKind(f.Engine(), "vanilla:wild");
+    REQUIRE(wilds.size() >= 2);
+    const match::ecs::Entity alice = *f.Engine().FindPlayer("Alice");
+    ForceHand(f.Engine(), alice, {wilds[0]});
+
+    REQUIRE(f.store.match_over_notifications == 0);
+
+    PerSocketData sd;
+    sd.username = "Alice";
+    sd.lobby_id = 1;
+    WsContext ctx{f.store.lobby.FindMember("Alice")->socket, &sd,
+                  uWS::OpCode::TEXT};
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(f.Engine(), wilds[0])}
+    });
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPromptResponse},
+        {"prompt_id", "choose_color"},
+        {"value", "red"}
+    });
+    REQUIRE(f.Engine().IsMatchOver());
+
+    // INFO: a subsequent turn-start on the finished engine must notify again
+    //       rather than returning silently (idempotent at the store level).
+    const uint32_t before = f.store.match_over_notifications;
+    Lobby* lobby = f.store.GetLobbyById(1);
+    REQUIRE(lobby != nullptr);
+    f.store.FireGameStarted();
+    CHECK_GE(f.store.match_over_notifications, before);
+}
+}
+
+// ---------------------------------------------------------------------------
+// bot / AFK timer steps must emit `match_event` frames, not just
+// snapshots (an all-bot match previously emitted no events at all).
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::BotEvents") {
+TEST_CASE("Bot timer steps emit match_event frames to the seated sockets") {
+    MatchFixture f;
+    f.SetupMatch(all_bots(2), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+
+    REQUIRE(f.timers.Has("turn_1"));
+    const std::uintptr_t socket0 =
+        reinterpret_cast<std::uintptr_t>(MatchFixture::SeatSocket(0));
+    const std::uintptr_t socket1 =
+        reinterpret_cast<std::uintptr_t>(MatchFixture::SeatSocket(1));
+
+    constexpr int kMaxFires = 20'000;
+    const int fired = f.DrainTurnTimer(kMaxFires);
+    REQUIRE(fired < kMaxFires);
+    REQUIRE(f.Engine().IsMatchOver());
+
+    std::size_t match_events = 0;
+    for (const SentFrame& frame : f.bus.sent) {
+        const std::uintptr_t to = reinterpret_cast<std::uintptr_t>(frame.to);
+        if (to != socket0 && to != socket1) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_event") {
+            ++match_events;
+        }
+    }
+    // INFO: The bot steps must have flushed real events, not
+    //       only state snapshots, even without any human input.
+    CHECK_GT(match_events, 0u);
+}
+
+TEST_CASE("AFK takeover timer emits match_event frames") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+    REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
+
+    const std::uintptr_t alice_socket =
+        reinterpret_cast<std::uintptr_t>(MatchFixture::SeatSocket(0));
+
+    constexpr int kMaxFires = 20'000;
+    const int fired = f.DrainTurnTimer(kMaxFires);
+    REQUIRE(fired < kMaxFires);
+
+    std::size_t match_events = 0;
+    for (const SentFrame& frame : f.bus.sent) {
+        if (reinterpret_cast<std::uintptr_t>(frame.to) != alice_socket) {
+            continue;
+        }
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_event") {
+            ++match_events;
+        }
+    }
+    CHECK_GT(match_events, 0u);
+}
+}
+

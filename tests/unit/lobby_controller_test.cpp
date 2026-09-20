@@ -3,6 +3,7 @@
 #include <controllers/lobby_controller.hpp>
 #include <common/ws.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/server/match_session.hpp>
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <string>
@@ -355,6 +356,68 @@ TEST_CASE("start: succeeds once every human member is ready") {
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
     CHECK(lp->session != nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// a disconnect must unbind the live session's socket, or the
+// session keeps a freed `AppWebSocket*` and sends through it once the seat is
+// bot-driven.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("close: disconnecting a seated player unbinds the live session socket") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    // INFO: the seated sockets were bound at match start.
+    REQUIRE(lp->session->Sockets().count("alice") == 1);
+    CHECK(lp->session->Sockets().at("alice") == f.alice_sock);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    // INFO: C1 - the member socket is nulled AND the session entry is nulled,
+    //       so BroadcastSnapshot/EmitEvents skip the dead pointer.
+    REQUIRE(lp->session != nullptr);
+    REQUIRE(lp->session->Sockets().count("alice") == 1);
+    CHECK(lp->session->Sockets().at("alice") == nullptr);
+    CHECK(lp->session->Sockets().at("bob") == f.bob_sock);
+}
+
+TEST_CASE("close: a spectator is unbound from the live session viewer map") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    // A mid-match spectator joins while the session is live.
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    f.router.Dispatch(make_ctx(carol_sock, &carol_sd), join_msg(code));
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE(lp->session->Viewers().count("carol") == 1);
+    CHECK(lp->session->Viewers().at("carol") == carol_sock);
+
+    f.lobby.OnClose(carol_sock, &carol_sd);
+
+    // INFO: /I2 - a disconnected spectator is dropped entirely
+    //       rather than left holding a freed socket.
+    CHECK(lp->session->Viewers().count("carol") == 0);
 }
 
 TEST_CASE("start: clears is_spectator left over from a prior elimination for seated members") {

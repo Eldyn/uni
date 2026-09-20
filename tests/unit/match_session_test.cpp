@@ -416,3 +416,59 @@ TEST_CASE("match session: per-recipient seq persists across batches") {
     CHECK(seq1.front() == 0);
 }
 
+TEST_CASE("match session: a bound spectator keeps receiving live updates") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    REQUIRE(wilds.size() >= 4);
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player0, {wilds[0], wilds[1]});
+    ForceHand(*engine, player1, {wilds[2], wilds[3]});
+    const uint32_t wild0 = BitsOf(*engine, wilds[0]);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+
+    // INFO: A mid-match spectator registers a viewer socket and
+    //       must receive every subsequent `match_event` / snapshot, not just
+    //       the one snapshot taken at join time.
+    AppWebSocket* spectator = PlayerSocket(9);
+    session.BindViewer("watcher", spectator);
+    REQUIRE(session.Viewers().count("watcher") == 1);
+    REQUIRE(session.Viewers().at("watcher") == spectator);
+
+    FakeBroadcaster fake;
+    session.SendSnapshot(fake, spectator, "watcher", /*is_spectator=*/true);
+    CHECK(FindPacket(PacketsFor(fake, spectator), "match_state_updated")
+          != nullptr);
+
+    fake.Clear();
+    REQUIRE(session.PlayCard("player0", wild0));
+    session.EmitEvents(fake);
+    session.BroadcastSnapshot(fake);
+    const std::vector<json> spectator_packets = PacketsFor(fake, spectator);
+    const json* played = FindEvent(spectator_packets, "card_played");
+    REQUIRE(played != nullptr);
+    CHECK((*played)["payload"]["card"] == wild0);
+    // INFO: the spectator view is omniscient, so it sees the owner's hand.
+    const json* snapshot = FindPacket(spectator_packets, "match_state_updated");
+    REQUIRE(snapshot != nullptr);
+
+    // INFO: a spectator is never a prompt target, so it sees no prompt_open.
+    CHECK(FindEvent(spectator_packets, "prompt_open") == nullptr);
+
+    // INFO: unbinding drops the viewer from the live stream entirely.
+    REQUIRE(session.UnbindViewer("watcher"));
+    CHECK(session.Viewers().count("watcher") == 0);
+    fake.Clear();
+    session.BroadcastSnapshot(fake);
+    CHECK(FindPacket(PacketsFor(fake, spectator), "match_state_updated")
+          == nullptr);
+}
+

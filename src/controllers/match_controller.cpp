@@ -206,7 +206,10 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    active_lobby->session->BroadcastSnapshot(broadcaster_);
+    // INFO: Route the post-input broadcast through
+    //       BroadcastMatchState so a human action that ends the match also
+    //       notifies the lobby store (teardown + rematch allowed).
+    BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
 }
@@ -244,7 +247,7 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    active_lobby->session->BroadcastSnapshot(broadcaster_);
+    BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
 }
@@ -290,7 +293,7 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    active_lobby->session->BroadcastSnapshot(broadcaster_);
+    BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
 }
@@ -334,7 +337,12 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
  */
 void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
     match::server::MatchSession& session = *active_lobby->session;
+    // INFO: A finished engine must still notify the lobby store
+    //       so `lobby.session` / `match_id` are torn down (else a rematch is
+    //       rejected with `kMatchAlreadyStarted`); BroadcastMatchState is
+    //       idempotent and owns the terminal `match_over` send.
     if (session.Engine().IsMatchOver()) {
+        BroadcastMatchState(active_lobby);
         return;
     }
 
@@ -374,6 +382,10 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
             match::server::BotStep(*verified_lobby->session, policy,
                                    auto_actor);
             verified_lobby->session->Tick();
+            // INFO: Flush the bot step's engine events before
+            //       the snapshot; otherwise an all-bot match emits no
+            //       `match_event` until the next human input.
+            verified_lobby->session->EmitEvents(broadcaster_);
             OnTurnStarted(verified_lobby);
             BroadcastMatchState(verified_lobby);
         });
@@ -396,6 +408,9 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
             BotSeed(lobby_id, human_actor));
         match::server::BotStep(*verified_lobby->session, policy, human_actor);
         verified_lobby->session->Tick();
+        // INFO: Flush the takeover step's engine events before
+        //       the snapshot so AFK plays reach the wire as `match_event`.
+        verified_lobby->session->EmitEvents(broadcaster_);
         OnTurnStarted(verified_lobby);
         BroadcastMatchState(verified_lobby);
     });

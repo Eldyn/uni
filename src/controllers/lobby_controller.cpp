@@ -392,8 +392,14 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
 
             // INFO: a reconnect replaces the socket pointer; rebind the live
             //       session so later broadcasts do not target the dead socket.
+            //       A spectator is not a session seat, so it rebinds through
+            //       the viewer registry.
             if (lobby->session) {
-                lobby->session->BindSocket(sd->username, ws);
+                if (member.is_spectator) {
+                    lobby->session->BindViewer(sd->username, ws);
+                } else {
+                    lobby->session->BindSocket(sd->username, ws);
+                }
             }
 
             broadcaster_.Subscribe(ws, "lobby_" + lobby->invite_code);
@@ -434,6 +440,18 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
             member.is_connected    = false;
             member.socket          = nullptr;
             member.disconnected_at = steady_clock::now();
+            // INFO: Nulling the member socket is not enough: the
+            //       live session still holds the freed `AppWebSocket*` and
+            //       would send through it (a disconnected seat is bot-driven
+            //       within seconds). Unbind it from the session; a spectator
+            //       drops its viewer stream instead.
+            if (lobby.session) {
+                if (member.is_spectator) {
+                    lobby.session->UnbindViewer(sd->username);
+                } else {
+                    lobby.session->BindSocket(sd->username, nullptr);
+                }
+            }
             BroadcastUpdate(lobby);
             return;
         }
@@ -577,6 +595,12 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
     BroadcastUpdate(lobby);
 
     if (lobby.session) {
+        // INFO: A mid-match spectator becomes a session viewer
+        //       so it keeps receiving live events after the join snapshot;
+        //       seated joiners rebind through the normal socket path.
+        if (result.outcome == JoinOutcome::kJoinedAsSpectator) {
+            lobby.session->BindViewer(username, ctx.socket);
+        }
         SendMatchStateToSocket(lobby, ctx.socket, username, ctx.op_code);
     }
 }
@@ -647,6 +671,17 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
         std::string topic = "lobby_" + lobby.invite_code;
         broadcaster_.Subscribe(ctx.socket, topic);
+
+        // INFO: Re-register the reconnecting socket with the
+        //       live session (spectator viewer vs seated recipient).
+        if (lobby.session) {
+            const LobbyMember* member = lobby.FindMember(username);
+            if (member != nullptr && member->is_spectator) {
+                lobby.session->BindViewer(username, ctx.socket);
+            } else {
+                lobby.session->BindSocket(username, ctx.socket);
+            }
+        }
 
         auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
         resp["lobby"] = json({

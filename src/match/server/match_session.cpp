@@ -158,6 +158,22 @@ bool MatchSession::BindSocket(const std::string& username,
     return true;
 }
 
+void MatchSession::BindViewer(const std::string& username,
+                              AppWebSocket* socket) {
+    if (username.empty()) return;
+    viewers_[username] = socket;
+    // INFO: a fresh spectator stream starts at seq 0 (it never received the
+    //       earlier `match_event` packets); re-binding the same spectator on
+    //       reconnect keeps its existing watermark.
+    viewer_sinks_.try_emplace(username);
+}
+
+bool MatchSession::UnbindViewer(const std::string& username) {
+    if (viewers_.erase(username) == 0) return false;
+    viewer_sinks_.erase(username);
+    return true;
+}
+
 void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 const std::string& username,
                                 bool is_spectator) const {
@@ -189,6 +205,17 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
             std::optional<json> packet = builder_.Wrap(
                 events[cursor_], match::view::Viewer::Player(username),
                 sinks_.at(username));
+            if (!packet.has_value()) continue;
+            (*packet)["action"] = "match_event";
+            broadcaster.SendJson(socket, *packet);
+        }
+        // INFO: Spectators get the same event stream through
+        //       the omniscient spectator view on their own persistent sink.
+        for (const auto& [username, socket] : viewers_) {
+            if (socket == nullptr) continue;
+            std::optional<json> packet = builder_.Wrap(
+                events[cursor_], match::view::Viewer::Spectator(),
+                viewer_sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
             broadcaster.SendJson(socket, *packet);
@@ -275,6 +302,14 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
             match::view::Viewer::Player(username), sinks_.at(username));
         broadcaster.SendJson(socket, snapshot);
     }
+    // INFO: Spectators keep receiving snapshots after their
+    //       initial join snapshot (omniscient view, own seq watermark).
+    for (const auto& [username, socket] : viewers_) {
+        if (socket == nullptr) continue;
+        const json snapshot = builder_.BuildSnapshot(
+            match::view::Viewer::Spectator(), viewer_sinks_.at(username));
+        broadcaster.SendJson(socket, snapshot);
+    }
     BroadcastMatchOver(broadcaster);
 }
 
@@ -286,6 +321,10 @@ bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
                          {"winner", engine_->GetWinner()},
                          {"placements", engine_->GetPlacements()}};
     for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        broadcaster.SendJson(socket, packet);
+    }
+    for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
         broadcaster.SendJson(socket, packet);
     }

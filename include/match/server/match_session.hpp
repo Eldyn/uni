@@ -147,6 +147,27 @@ public:
      */
     bool BindSocket(const std::string& username, AppWebSocket* socket);
 
+    /**
+     * @brief Register (or rebind) a spectator viewer socket.
+     *
+     * Spectators are not engine seats: they receive a persistent per-viewer
+     * event stream built with the omniscient spectator view, so a mid-match
+     * joiner keeps receiving `match_event` / `match_state_updated` /
+     * `match_over` after their initial snapshot. Additive: seated behaviour
+     * is untouched.
+     *
+     * @param username Spectator username.
+     * @param socket   Spectator socket; nullptr keeps the entry unbound.
+     */
+    void BindViewer(const std::string& username, AppWebSocket* socket);
+
+    /**
+     * @brief Remove a spectator viewer's socket and per-viewer stream.
+     * @param username Spectator username.
+     * @return true when a spectator entry existed and was removed.
+     */
+    bool UnbindViewer(const std::string& username);
+
     // --- wire output --------------------------------------------------------
 
     /**
@@ -216,6 +237,8 @@ public:
     bool MatchOverNotified() const { return over_sent_; }
     /** @brief Recipient socket map as supplied at construction. */
     const SocketMap& Sockets() const { return sockets_; }
+    /** @brief Spectator viewer socket map. */
+    const SocketMap& Viewers() const { return viewers_; }
 
 private:
     /** @brief Look up a prompt kind's `response_schema`, or nullptr. */
@@ -259,7 +282,11 @@ private:
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
     SocketMap sockets_;
+    /** Spectator viewer sockets (no engine seat);. */
+    SocketMap viewers_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
+    /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
+    std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;
     /** Last pending-prompt signature emitted per recipient (dedupe). */
     std::unordered_map<std::string, std::string> prompt_signature_;
     /** Outcome for the pending prompt's close per recipient. */
