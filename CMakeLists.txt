@@ -212,7 +212,6 @@ if(UNI_BUILD_TESTS)
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp
-        src/match/match_instance.cpp
         src/match/modload/mod_loader.cpp
         src/match/modload/semantic_validator.cpp
         src/match/modload/play_conditions.cpp
@@ -248,16 +247,6 @@ if(UNI_BUILD_TESTS)
         src/match/ops/restriction_ops.cpp
         src/match/ops/win_ops.cpp
         src/match/ops/meta_ops.cpp
-        src/match/rules/standard.cpp
-        src/match/rules/70.cpp
-        src/match/rules/draw_stacking.cpp
-        src/match/rules/force_play.cpp
-        src/match/rules/jump_in.cpp
-        src/match/rules/no_bluffing.cpp
-        src/match/rules/progressive.cpp
-        src/match/effects/standard.cpp
-        src/match/effects/decide_swap_target.cpp
-        src/match/effects/pass_hands.cpp
         src/controllers/lobby_controller.cpp
         src/controllers/match_controller.cpp
         src/controllers/auth_controller.cpp

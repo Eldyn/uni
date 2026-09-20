@@ -7,9 +7,9 @@
  * @file compact_card.hpp
  * @brief Wire identity for a card instance — additive V2 header.
  *
- * This is the ECS rewrite's card identity and intentionally does NOT replace
- * `include/common/match/card_types.hpp`; the old engine keeps that file until
- * the swap. Layout is frozen:
+ * This is the ECS rewrite's card identity and intentionally does not reuse the
+ * legacy `common/match/card_types.hpp` enums. Layout is
+ * frozen:
  *
  *   bits 31..24 : mod_index   (position in the frozen match mod list)
  *   bits 23..12 : kind_index  (position in that mod's card kind list)
