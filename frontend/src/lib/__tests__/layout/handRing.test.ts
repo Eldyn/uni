@@ -3,6 +3,8 @@ import { describe, it, expect } from "vitest";
 import {
 	computeHandRingSlots,
 	ringSlotWorldPose,
+	ringRadialScale,
+	opponentRingRadiusWorld,
 	RING_RADIUS_EM
 } from "$components/game/layout/handRing";
 
@@ -87,5 +89,30 @@ describe("ringSlotWorldPose", () => {
 		// local (lx=0, lz=1) rotated by +90deg: worldX = 0*cos90 + 1*sin90 = 1, worldZ = -0*sin90 + 1*cos90 = 0
 		expect(x).toBeCloseTo(5 + 1);
 		expect(z).toBeCloseTo(-5 + 0);
+	});
+});
+
+describe("ringRadialScale", () => {
+	const seat = { x: 0, z: 4, rotationY: 0 };
+
+	it("is the required world ring radius in RING_RADIUS_EM units", () => {
+		expect(ringRadialScale(seat, 0.78, 0.55)).toBeCloseTo(
+			opponentRingRadiusWorld(0.78, 0.55) / RING_RADIUS_EM,
+			10
+		);
+	});
+
+	it("grows with card scale and avatar size", () => {
+		expect(ringRadialScale(seat, 0.78, 0.8)).toBeGreaterThan(ringRadialScale(seat, 0.78, 0.55));
+		expect(ringRadialScale(seat, 1, 0.55)).toBeGreaterThan(ringRadialScale(seat, 0.78, 0.55));
+	});
+
+	// The scale is a property of the avatar/card sizes alone — the seat only
+	// places the already-scaled ring. `seat` is accepted for call-site symmetry
+	// with ringSlotWorldPose, not read.
+	it("does not depend on the seat's position or rotation", () => {
+		const near = { x: 0, z: 4, rotationY: 0 };
+		const far = { x: 0, z: 8, rotationY: Math.PI / 2 };
+		expect(ringRadialScale(far, 0.78, 0.55)).toBe(ringRadialScale(near, 0.78, 0.55));
 	});
 });

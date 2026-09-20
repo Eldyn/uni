@@ -28,8 +28,7 @@
 	import {
 		computeHandRingSlots,
 		ringSlotWorldPose,
-		opponentRingRadiusWorld,
-		RING_RADIUS_EM,
+		ringRadialScale,
 		RING_STACK_STEP
 	} from "../layout/handRing";
 	import { useCardBus } from "../card-bus.svelte";
@@ -108,13 +107,11 @@
 	let ringSlots = $derived(computeHandRingSlots(cardCount));
 	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
 
-	// Shared with the board's own center-clearance math (Scene3D), so the pile
-	// at the mat's center is sized against the exact radius drawn here.
-	let ringRadiusWorld = $derived(opponentRingRadiusWorld(avatarWorld, cardScale));
-	// handRing.ts's slots are unit directions scaled by its own fixed
-	// RING_RADIUS_EM; dividing that back out and reapplying ringRadiusWorld
-	// repoints them at the radius the avatar actually needs.
-	let radialScale = $derived(ringRadiusWorld / RING_RADIUS_EM);
+	// handRing.ts's slots are unit directions authored at its own fixed
+	// RING_RADIUS_EM; ringRadialScale repoints them at the world radius the
+	// avatar actually needs. Shared with GameBoard's morph source poses, so
+	// they land on exactly the ring drawn here.
+	let radialScale = $derived(ringRadialScale(seat, avatarWorld, cardScale));
 
 	// Names are shown on demand, not always. At a full table a permanent label
 	// per seat is a wall of text that nothing on the board can outrank, and the
