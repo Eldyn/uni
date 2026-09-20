@@ -218,6 +218,17 @@ if(UNI_BUILD_TESTS)
         src/match/ecs/entity_store.cpp
         src/match/ecs/component_catalog.cpp
         src/match/ecs/event_bus.cpp
+        src/match/ops/default_ops.cpp
+        src/match/ops/card_pile_ops.cpp
+        src/match/ops/condition_ops.cpp
+        src/match/ops/turn_flow_ops.cpp
+        src/match/ops/status_ops.cpp
+        src/match/ops/prompt_ops.cpp
+        src/match/ops/random_ops.cpp
+        src/match/ops/visibility_ops.cpp
+        src/match/ops/restriction_ops.cpp
+        src/match/ops/win_ops.cpp
+        src/match/ops/meta_ops.cpp
         src/match/rules/standard.cpp
         src/match/rules/70.cpp
         src/match/rules/draw_stacking.cpp
