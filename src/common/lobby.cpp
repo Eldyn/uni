@@ -8,6 +8,7 @@
 #include <common/bot_names.hpp>
 #include <match/match_instance.hpp>
 #include <match/rule_registry.hpp>
+#include <match/server/match_session.hpp>
 #include <openssl/rand.h>
 #include <algorithm>
 #include <stdexcept>
@@ -20,6 +21,16 @@ constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 constexpr int  kCodeLen        = 6;
 constexpr int  kAlphabetLen    = 36;
 }  // namespace
+
+// INFO: The move operations and destructor are defined here, where the
+//       incomplete `unique_ptr` member types (`match::MatchInstance` and
+//       `match::server::MatchSession`) are both complete. Declaring them in
+//       the header suppresses the implicit special members, so all four are
+//       written out explicitly.
+Lobby::Lobby() = default;
+Lobby::Lobby(Lobby&&) noexcept = default;
+Lobby& Lobby::operator=(Lobby&&) noexcept = default;
+Lobby::~Lobby() = default;
 
 void LobbySettings::Sanitize(int max_players_ceiling) {
     turn_time_limit_ms = std::clamp(turn_time_limit_ms,

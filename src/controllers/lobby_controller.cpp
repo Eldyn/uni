@@ -12,6 +12,8 @@
 #include <common/payloads.hpp>
 #include <match/rule_registry.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/engine/match_assembler.hpp>
+#include <match/server/match_session.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
@@ -19,6 +21,105 @@
 #include <string>
 
 using namespace std::chrono;
+
+namespace {
+
+/**
+ * @brief True when a deck snapshot declares a non-empty card multiset.
+ * @param deck Snapshot in the `LobbySettings.deck` shape.
+ */
+bool DeckSnapshotHasCards(const json& deck) {
+    const auto it = deck.find("cards");
+    return it != deck.end() && it->is_object() && !it->empty();
+}
+
+/**
+ * @brief Converts a `LobbySettings.deck` snapshot into a `DeckDef`.
+ *
+ * The snapshot is written by `ApplyDeckSnapshot` and mirrors the
+ * `decks/*.json` shape (`id`, `name`, `namespace`, `mods`, `cards`,
+ * `settings`). Full ids are rebuilt as `namespace:id` so assembly can match
+ * the kinds declared by the loaded mods.
+ *
+ * @param deck Snapshot in the `LobbySettings.deck` shape.
+ * @return DeckDef The equivalent deck definition.
+ */
+match::modload::DeckDef DeckDefFromSnapshot(const json& deck) {
+    match::modload::DeckDef def;
+    def.raw = deck;
+    def.id = deck.value("id", "");
+    def.name = deck.value("name", "");
+    def.namespace_id = deck.value("namespace", "");
+    def.deck_id = def.namespace_id.empty()
+                      ? def.id
+                      : def.namespace_id + ":" + def.id;
+
+    const auto mods = deck.find("mods");
+    if (mods != deck.end() && mods->is_array()) {
+        for (const auto& mod : *mods) {
+            if (mod.is_string()) def.mods.push_back(mod.get<std::string>());
+        }
+    }
+
+    const auto cards = deck.find("cards");
+    if (cards != deck.end() && cards->is_object()) {
+        for (auto card = cards->begin(); card != cards->end(); ++card) {
+            if (card.value().is_number_integer()) {
+                def.cards.emplace_back(card.key(),
+                                       card.value().get<int>());
+            }
+        }
+    }
+
+    const auto settings = deck.find("settings");
+    if (settings != deck.end() && settings->is_object()) {
+        def.settings = *settings;
+    }
+    return def;
+}
+
+/**
+ * @brief Synthesizes the classic-shaped `DeckDef` for a freestyle lobby.
+ *
+ * Freestyle lobbies carry no deck snapshot, so the pool is rebuilt from the
+ * legacy scalar `count_*` fields (mirroring `MatchInstance::GenerateDeck`)
+ * with the kind ids of `mods/vanilla/decks/classic.json`. Any `active_mods`
+ * rule selection is appended after `vanilla` so the base cards stay present.
+ *
+ * @param settings Lobby settings holding the `count_*` tuning.
+ * @return DeckDef The synthesized freestyle deck.
+ */
+match::modload::DeckDef SynthesizeFreestyleDeck(
+    const LobbySettings& settings) {
+    match::modload::DeckDef def;
+    def.id = "classic";
+    def.name = "Classic";
+    def.namespace_id = "vanilla";
+    def.deck_id = "vanilla:classic";
+    def.mods.push_back("vanilla");
+    for (const std::string& mod : settings.active_mods) {
+        if (mod == "vanilla") continue;
+        def.mods.push_back(mod);
+    }
+
+    for (const char* color : {"red", "blue", "green", "yellow"}) {
+        const std::string prefix = std::string("vanilla:") + color + "_";
+        def.cards.emplace_back(prefix + "0", settings.count_zeros);
+        for (int number = 1; number <= 9; ++number) {
+            def.cards.emplace_back(prefix + std::to_string(number),
+                                   settings.count_numbered);
+        }
+        def.cards.emplace_back(prefix + "skip", settings.count_skips);
+        def.cards.emplace_back(prefix + "reverse", settings.count_reverses);
+        def.cards.emplace_back(prefix + "draw2", settings.count_draw_two);
+    }
+    def.cards.emplace_back("vanilla:wild", settings.count_wild);
+    def.cards.emplace_back("vanilla:wild_draw4",
+                           settings.count_wild_draw_four);
+    return def;
+}
+
+}  // namespace
 
 /**
  * @brief Constructs the LobbyController instance and establishes central inbound routing maps.
@@ -993,6 +1094,71 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
     lobby.match->SetMatchId("match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode());
     lobby.match->Start();
+
+    // INFO: Additive scaffold. Assemble a new-engine
+    //       `match::server::MatchSession` from the same seated players and
+    //       stage it on the lobby. Nothing drives it yet; the legacy `match`
+    //       above stays authoritative. Assembly failures are logged and
+    //       leave `session` null without aborting the legacy start.
+    lobby.session.reset();
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Warn("[Lobby] New-engine scaffold: mod scan failed for '",
+                     mods_root_, "' (", loaded.errors.size(), " error(s))");
+    } else {
+        match::modload::DeckDef deck_def =
+            DeckSnapshotHasCards(lobby.settings.deck)
+                ? DeckDefFromSnapshot(lobby.settings.deck)
+                : SynthesizeFreestyleDeck(lobby.settings);
+        if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+
+        std::vector<match::modload::LoadedMod> active_mods;
+        for (const auto& mod : loaded.mods) {
+            if (std::ranges::find(deck_def.mods, mod.manifest.id)
+                != deck_def.mods.end()) {
+                active_mods.push_back(mod);
+            }
+        }
+
+        match::engine::MatchAssemblyOptions options;
+        options.starting_cards = lobby.settings.starting_cards;
+
+        std::vector<const LobbyMember*> seated;
+        for (const auto& member : lobby.members) {
+            if (member.seat_index >= 0) seated.push_back(&member);
+        }
+        std::ranges::sort(seated, {}, &LobbyMember::seat_index);
+        for (const LobbyMember* member : seated) {
+            options.players.push_back({member->username, member->is_bot,
+                                       member->is_connected,
+                                       member->is_ready});
+        }
+
+        match::engine::AssemblyResult assembly =
+            match::engine::MatchAssembler::Assemble(active_mods, deck_def,
+                                                    options);
+        if (!assembly.ok()) {
+            Logger::Warn("[Lobby] New-engine scaffold: assembly failed (",
+                         assembly.error->check, "): ",
+                         assembly.error->message);
+        } else {
+            auto engine = std::make_unique<match::engine::MatchInstance>(
+                std::move(assembly.assembly));
+
+            match::server::MatchSession::SocketMap sockets;
+            for (const LobbyMember* member : seated) {
+                if (!member->is_connected || member->socket == nullptr) {
+                    continue;
+                }
+                sockets[member->username] = member->socket;
+            }
+
+            lobby.session = std::make_unique<match::server::MatchSession>(
+                std::move(engine), std::move(active_mods),
+                std::move(sockets));
+        }
+    }
 
     for (auto& cb : on_game_started_) cb(&lobby);
 

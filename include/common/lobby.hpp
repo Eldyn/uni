@@ -16,6 +16,10 @@
 
 namespace match {
     class MatchInstance;
+
+    namespace server {
+        class MatchSession;
+    }
 }
 
 /**
@@ -216,6 +220,27 @@ struct Lobby {
      * If nullptr, the lobby is in the waiting phase. If populated, a match is currently in progress.
      */
     std::unique_ptr<match::MatchInstance> match;
+
+    /**
+     * @brief Additive new-engine session.
+     * Holds a `match::server::MatchSession` assembled from the same seated
+     * players as `match` above. The legacy `match` stays authoritative; this
+     * member is only staged here so the swap can flip ownership without
+     * another structural change. Null while waiting or when assembly failed.
+     */
+    std::unique_ptr<match::server::MatchSession> session;
+
+    /** @brief Default-constructs an empty, waiting lobby (out-of-line). */
+    Lobby();
+    Lobby(Lobby&&) noexcept;
+    Lobby& operator=(Lobby&&) noexcept;
+    /**
+     * @brief Out-of-line destructor.
+     * The `unique_ptr` members above hold incomplete types in this header, so
+     * destruction is instantiated in src/common/lobby.cpp where both
+     * `match::MatchInstance` and `match::server::MatchSession` are complete.
+     */
+    ~Lobby();
 
     /**
      * @brief Re-evaluates settings.bot_count, adding or purging bot members
