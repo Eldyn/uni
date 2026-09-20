@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -11,7 +12,7 @@
 
 /**
  * @file view_builder.hpp
- * @brief Per-recipient view filtering.
+ * @brief the view layer/c per-recipient view filtering and reconnect snapshots
  *
  * Builds the payload a single viewer may see for each engine event descriptor
  * and wraps it through the `EventSink`. The `all`-visibility rows are
@@ -32,10 +33,9 @@
  * ADDITIVE: new namespace `match::view`, engine
  * untouched. Payload JSON is built directly against.
  *
- * Spectator omniscience and per-player `privacy_from_spectators` are the view
- * layer; The view layer treats a spectator conservatively (no hidden status, no
- * owner identity) so the no-leak property holds. Snapshots are the view layer's
- * too.
+ * The view layer adds `BuildSnapshot` over the same builder: base
+ * visibility, `VisibilityGrant` aspects, spectator omniscience with
+ * per-player `privacy_from_spectators`, and the own-hand playability flag.
  */
 
 namespace match::engine {
@@ -76,6 +76,25 @@ struct Viewer {
         return viewer;
     }
 };
+
+/**
+ * @struct SnapshotOptions
+ * @brief Per-match snapshot inputs the engine does not own.
+ *
+ * The lobby owns the phase-1 per-player `privacy_from_spectators` toggle, so
+ * the flag is supplied here rather than stored on the engine.
+ * A listed player's hidden aspects (hand identity/colour/value/position and
+ * hidden statuses) are stripped from spectator views; every other
+ * player stays fully visible to a spectator (spectators default omniscient).
+ */
+struct SnapshotOptions {
+    /** Usernames whose hidden aspects are hidden from spectators. */
+    std::vector<std::string> privacy_from_spectators;
+
+    /** @brief True when `username` opted into spectator privacy. */
+    bool PrivacyOn(const std::string& username) const;
+};
+
 
 /**
  * @class ViewBuilder
@@ -141,6 +160,41 @@ public:
      */
     std::optional<nlohmann::json> BuildPendingPrompt(
         const Viewer& viewer, EventSink& sink) const;
+
+    /**
+     * @brief Reconnect snapshot for `viewer`.
+     *
+     * The `match_state_updated` reconnect truth, built through the same view
+     * builder as the event stream: match state (piles, turn/direction/active
+     * type, placements/winner), window state, per-player statuses, the
+     * viewer's open prompts and the `seq` watermark. Base visibility follows
+     * without grants (own hand full identity, others count only, draw
+     * pile count only, discard top identity + count, played/public info);
+     * `VisibilityGrant` entries reveal the granted aspects of another hand or
+     * a pile. A spectator is omniscient except for players opted into
+     * `privacy_from_spectators`. Own-hand entries carry a `can_play` flag
+     *
+     * The watermark is `sink.NextSeq()`, so a caller builds the viewer's
+     * packets into `sink` first and then the snapshot reconciles exactly the
+     * stream it has sent.
+     *
+     * @param viewer Recipient to build for.
+     * @param sink   The viewer's stream, read for the seq watermark.
+     * @return The `match_state_updated` envelope.
+     */
+    nlohmann::json BuildSnapshot(const Viewer& viewer,
+                                 const EventSink& sink) const;
+
+    /**
+     * @brief Reconnect snapshot with per-player spectator privacy.
+     *
+     * @param viewer  Recipient to build for.
+     * @param sink    The viewer's stream, read for the seq watermark.
+     * @param options Lobby-owned snapshot options (`privacy_from_spectators`).
+     * @return The `match_state_updated` envelope.
+     */
+    nlohmann::json BuildSnapshot(const Viewer& viewer, const EventSink& sink,
+                                 const SnapshotOptions& options) const;
 
     /**
      * @brief True when `status_id` is declared `hidden` by any loaded mod.

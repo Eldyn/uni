@@ -4,6 +4,9 @@
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/artifacts.hpp>
+#include <match/modload/play_conditions.hpp>
+#include <match/modload/restriction.hpp>
+#include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -14,7 +17,7 @@
 
 /**
  * @file view_builder.cpp
- * @brief Per-recipient filtering.
+ * @brief the view layer/c per-recipient filtering + snapshot.
  */
 
 namespace match::view {
@@ -282,6 +285,372 @@ std::optional<json> ProjectFiltered(const ViewBuilder& builder,
     return std::nullopt;
 }
 
+// --- the view layer snapshot visibility helpers ---------------
+
+/** @brief Aspect bits from the frozen `ecs::Aspect` enum. */
+constexpr uint32_t kAspectCount = static_cast<uint32_t>(ecs::Aspect::kCount);
+constexpr uint32_t kAspectColor = static_cast<uint32_t>(ecs::Aspect::kColor);
+constexpr uint32_t kAspectValue = static_cast<uint32_t>(ecs::Aspect::kValue);
+constexpr uint32_t kAspectIdentity =
+    static_cast<uint32_t>(ecs::Aspect::kIdentity);
+constexpr uint32_t kAspectPosition =
+    static_cast<uint32_t>(ecs::Aspect::kPosition);
+/** Every aspect a grant can expose. */
+constexpr uint32_t kAllAspects =
+    kAspectCount | kAspectColor | kAspectValue | kAspectIdentity
+    | kAspectPosition;
+/** Aspects that turn a count-only view into an entry list. */
+constexpr uint32_t kCardAspects =
+    kAspectColor | kAspectValue | kAspectIdentity | kAspectPosition;
+
+/** @brief True when any bit of `bits` is set in `mask`. */
+bool HasAspect(uint32_t mask, uint32_t bits) {
+    return (mask & bits) != 0u;
+}
+
+/** @brief duration unit token for a status instance. */
+const char* DurationUnitToken(ecs::DurationUnit unit) {
+    switch (unit) {
+        case ecs::DurationUnit::kMs:
+            return "ms";
+        case ecs::DurationUnit::kTurns:
+            return "turns";
+        case ecs::DurationUnit::kRounds:
+            return "rounds";
+        case ecs::DurationUnit::kCardsPlayed:
+            return "cards_played";
+    }
+    return "turns";
+}
+
+/** @brief The viewer's player entity, or nullopt for a spectator. */
+std::optional<ecs::Entity> ViewerPlayer(
+    const match::engine::MatchInstance& match, const Viewer& viewer) {
+    if (viewer.is_spectator || viewer.username.empty()) return std::nullopt;
+    return match.FindPlayer(viewer.username);
+}
+
+/**
+ * @brief OR of every `visibility_grant` aspect `viewer` holds on `target`.
+ *
+ * INFO: `expires_ms` is not read: no body in the engine interprets it yet
+ *  and the view builder has no clock, so
+ *       every recorded grant is treated as live. Recorded as a concern.
+ */
+uint32_t GrantMask(const match::engine::MatchInstance& match,
+                   ecs::Entity target, ecs::Entity viewer) {
+    const ecs::VisibilityGrant* grant =
+        match.Store().Get<ecs::VisibilityGrant>(target);
+    if (grant == nullptr) return 0u;
+    uint32_t mask = 0u;
+    for (const ecs::VisibilityGrant::Entry& entry : grant->entries) {
+        if (entry.viewer == viewer) mask |= entry.aspect_mask;
+    }
+    return mask;
+}
+
+/**
+ * @brief One card entry carrying exactly the aspects `mask` exposes.
+ *
+ * `identity` adds the compact wire id and the frozen kind id; `color` /
+ * `value` add the content facts; `position` adds the in-zone ordinal.
+ * `can_play` is only ever set for the viewer's own hand.
+ */
+json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
+               uint32_t mask, bool can_play, bool with_playable) {
+    const ecs::EntityStore& store = match.Store();
+    json out = json::object();
+    if (HasAspect(mask, kAspectPosition)) {
+        const ecs::InZone* zone = store.Get<ecs::InZone>(card);
+        out["slot"] = zone == nullptr ? 0u : zone->ordinal;
+    }
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
+    const std::string kind =
+        identity == nullptr ? std::string() : identity->kind_id;
+    if (HasAspect(mask, kAspectIdentity)) {
+        const std::optional<ecs::CompactCardV2> id =
+            match.Registries().CardId(card);
+        if (id.has_value()) out["card"] = id->bits;
+        if (identity != nullptr) out["kind"] = kind;
+    }
+    if (HasAspect(mask, kAspectColor) || HasAspect(mask, kAspectValue)) {
+        const auto facts = match.Assembly().card_facts.find(kind);
+        if (facts != match.Assembly().card_facts.end()) {
+            if (HasAspect(mask, kAspectColor)) {
+                out["color"] = facts->second.color;
+            }
+            if (HasAspect(mask, kAspectValue)) {
+                out["value"] = facts->second.value;
+            }
+        }
+    }
+    if (with_playable) out["can_play"] = can_play;
+    return out;
+}
+
+/**
+ * @brief True when `card` is legally playable by `player` right now.
+ *
+ * Mirrors the engine's restriction pipeline (`BuildPlayAttempt` +
+ * `CheckPlayRestrictions`) through public accessors only, because that path
+ * is private and the view layer must not modify the engine. Out-of-turn is
+ * `false` (the legacy `SerializeHandFor` behaviour). Reuses the engine's frozen
+ * `PlayRestriction` entries, `PlayConditionMatcher` and `card_facts`; it adds
+ * no second state model.
+ */
+bool CanPlay(const match::engine::MatchInstance& match, ecs::Entity player,
+             ecs::Entity card) {
+    const ecs::EntityStore& store = match.Store();
+    const match::engine::MatchRegistries& registries = match.Registries();
+    const std::optional<ecs::Entity> current = match.GetCurrentPlayer();
+    const bool in_turn = current.has_value() && *current == player;
+    if (!in_turn) return false;
+
+    modload::PlayAttempt attempt;
+    const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(player);
+    attempt.player = info == nullptr ? std::string() : info->username;
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
+    attempt.card_kind = identity == nullptr ? std::string() : identity->kind_id;
+    attempt.in_turn = in_turn;
+
+    json context = json::object();
+    const ecs::PileContents* discard =
+        store.Get<ecs::PileContents>(registries.discard_pile);
+    if (discard != nullptr && !discard->cards.empty()) {
+        const ecs::CardIdentity* top =
+            store.Get<ecs::CardIdentity>(discard->cards.back());
+        if (top != nullptr) context["top_kind"] = top->kind_id;
+    }
+    const ecs::ActiveTypeReq* active =
+        store.Get<ecs::ActiveTypeReq>(registries.match);
+    context["active_type"] = (active != nullptr && active->type.has_value())
+                                 ? json(*active->type)
+                                 : json(std::string());
+    json hand_kinds = json::array();
+    if (const ecs::Hand* hand = store.Get<ecs::Hand>(player)) {
+        for (ecs::Entity held : hand->cards) {
+            const ecs::CardIdentity* held_id =
+                store.Get<ecs::CardIdentity>(held);
+            if (held_id != nullptr) hand_kinds.push_back(held_id->kind_id);
+        }
+    }
+    context["hand"] = std::move(hand_kinds);
+    attempt.context = std::move(context);
+
+    std::vector<modload::RestrictionEntry> entries;
+    if (const ecs::PlayRestriction* pipeline =
+            store.Get<ecs::PlayRestriction>(registries.match)) {
+        entries.reserve(pipeline->entries.size());
+        for (const ecs::RestrictionEntry& entry : pipeline->entries) {
+            modload::RestrictionEntry converted;
+            converted.id = entry.id;
+            converted.phase =
+                entry.phase == ecs::RestrictionPhase::kAllow ? "allow" : "deny";
+            converted.condition = entry.condition;
+            entries.push_back(std::move(converted));
+        }
+    }
+    const modload::PlayConditionMatcher* matcher =
+        match.Assembly().play_matcher.get();
+    modload::ConditionMatcher condition =
+        [matcher](const json& value, const modload::PlayAttempt& a) {
+            return matcher != nullptr && matcher->Matches(value, a);
+        };
+    return modload::EvaluatePlayRestrictions(entries, attempt, condition)
+        .allowed;
+}
+
+/**
+ * @brief Visible hand entries, or nullopt when only the count is visible.
+ *
+ * A spectator sees every aspect unless the owner opted into
+ * `privacy_from_spectators`; a player sees their own hand in full and any
+ * other hand through `VisibilityGrant` aspects (the hand entity's grants OR
+ * each card's own grants, so a `choose_card` reveal survives the snapshot).
+ */
+std::optional<json> BuildHand(const match::engine::MatchInstance& match,
+                              const Viewer& viewer,
+                              const SnapshotOptions& options,
+                              ecs::Entity player,
+                              std::optional<ecs::Entity> viewer_entity) {
+    const ecs::Hand* hand = match.Store().Get<ecs::Hand>(player);
+    if (hand == nullptr) return std::nullopt;
+
+    const bool own =
+        viewer_entity.has_value() && *viewer_entity == player;
+    uint32_t hand_mask = 0u;
+    if (viewer.is_spectator) {
+        const ecs::PlayerInfo* info =
+            match.Store().Get<ecs::PlayerInfo>(player);
+        const std::string owner =
+            info == nullptr ? std::string() : info->username;
+        hand_mask = options.PrivacyOn(owner) ? 0u : kAllAspects;
+    } else if (own) {
+        hand_mask = kAllAspects;
+    } else if (viewer_entity.has_value()) {
+        hand_mask = GrantMask(match, player, *viewer_entity);
+    }
+
+    json out = json::array();
+    for (ecs::Entity card : hand->cards) {
+        uint32_t mask = hand_mask;
+        if (!viewer.is_spectator && viewer_entity.has_value() && !own) {
+            mask |= GrantMask(match, card, *viewer_entity);
+        }
+        if (!HasAspect(mask, kCardAspects)) continue;
+        const bool playable = own && CanPlay(match, player, card);
+        out.push_back(CardEntry(match, card, mask, playable, own));
+    }
+    if (own || !out.empty()) return out;
+    return std::nullopt;
+}
+
+/** @brief Statuses on `player` visible to `viewer`. */
+json BuildStatuses(const ViewBuilder& builder,
+                   const match::engine::MatchInstance& match,
+                   const Viewer& viewer, const SnapshotOptions& options,
+                   ecs::Entity player,
+                   std::optional<ecs::Entity> viewer_entity) {
+    const ecs::PlayerInfo* info = match.Store().Get<ecs::PlayerInfo>(player);
+    const std::string owner =
+        info == nullptr ? std::string() : info->username;
+
+    json out = json::array();
+    for (const ecs::Status& status :
+         match::status::List(match.Store(), player)) {
+        const bool hidden =
+            builder.StatusHidden(status.status_id) || status.hidden;
+        bool visible = !hidden;
+        if (hidden && viewer.is_spectator) {
+            visible = !options.PrivacyOn(owner);
+        } else if (hidden && viewer_entity.has_value()) {
+            visible = *viewer_entity == player;
+        }
+        if (!visible) continue;
+        out.push_back(
+            json{{"status_kind", status.status_id},
+                 {"magnitude", status.magnitude},
+                 {"duration_unit", DurationUnitToken(status.duration.unit)},
+                 {"instance_id", status.instance_id}});
+    }
+    return out;
+}
+
+/** @brief One player row: identity, public counters, hand + statuses. */
+json BuildPlayer(const ViewBuilder& builder,
+                 const match::engine::MatchInstance& match,
+                 const Viewer& viewer, const SnapshotOptions& options,
+                 ecs::Entity player,
+                 std::optional<ecs::Entity> viewer_entity) {
+    const ecs::PlayerInfo* info = match.Store().Get<ecs::PlayerInfo>(player);
+    const ecs::Hand* hand = match.Store().Get<ecs::Hand>(player);
+    const ecs::TurnState* turn = match.Store().Get<ecs::TurnState>(player);
+
+    json entry = json::object();
+    entry["username"] = info == nullptr ? std::string() : info->username;
+    entry["seat"] = info == nullptr ? 0u : info->seat;
+    entry["is_bot"] = info != nullptr && info->is_bot;
+    entry["is_current"] = turn != nullptr && turn->is_current;
+    entry["card_count"] = hand == nullptr ? 0 : hand->cards.size();
+    const std::optional<json> hand_json =
+        BuildHand(match, viewer, options, player, viewer_entity);
+    if (hand_json.has_value()) entry["hand"] = *hand_json;
+    entry["statuses"] =
+        BuildStatuses(builder, match, viewer, options, player, viewer_entity);
+    return entry;
+}
+
+/**
+ * @brief One pile: count always, top for discard, cards when granted.
+ *
+ * Base visibility: draw pile count only, discard top identity + count.
+ * A `VisibilityGrant` on the pile entity (or spectator omniscience) exposes
+ * the listed cards with the granted aspects.
+ */
+json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
+               ecs::Entity pile, std::optional<ecs::Entity> viewer_entity,
+               bool is_discard) {
+    const ecs::PileContents* contents =
+        match.Store().Get<ecs::PileContents>(pile);
+    json out = json::object();
+    const std::size_t count =
+        contents == nullptr ? 0 : contents->cards.size();
+    out["count"] = count;
+
+    if (is_discard && contents != nullptr && !contents->cards.empty()) {
+        out["top"] = CardEntry(match, contents->cards.back(),
+                               kAspectIdentity | kAspectColor | kAspectValue,
+                               false, false);
+    }
+
+    uint32_t mask = 0u;
+    if (viewer.is_spectator) {
+        mask = kAllAspects;
+    } else if (viewer_entity.has_value()) {
+        mask = GrantMask(match, pile, *viewer_entity);
+    }
+    if (HasAspect(mask, kCardAspects) && contents != nullptr) {
+        json cards = json::array();
+        for (ecs::Entity card : contents->cards) {
+            cards.push_back(CardEntry(match, card, mask, false, false));
+        }
+        out["cards"] = std::move(cards);
+    }
+    return out;
+}
+
+/** @brief The open response window in its uniform wire shape, or null. */
+json BuildWindow(const match::engine::MatchInstance& match) {
+    if (!match.WindowOpen()) return json(nullptr);
+    const json window = match.ExportWindow();
+    if (!window.is_object()) return json(nullptr);
+
+    json responses = json::array();
+    if (window.contains("responses") && window["responses"].is_array()) {
+        for (const json& response : window["responses"]) {
+            json entry = json::object();
+            entry["player"] = response.value("player", std::string());
+            if (response.value("pass", false)) {
+                entry["passed"] = true;
+            } else if (response.contains("card")) {
+                entry["card"] = CardBitsFor(match, response["card"]);
+            }
+            entry["outcome"] = response.value("outcome", std::string());
+            responses.push_back(std::move(entry));
+        }
+    }
+    return json{{"window_id", std::to_string(window.value("id", 0))},
+                {"deadline_ms", window.value("deadline_ms", 0)},
+                {"responders", window.value("responders", json::array())},
+                {"eligible_filter_digest",
+                 window.value("filter_digest", std::string())},
+                {"responses", std::move(responses)}};
+}
+
+/** @brief The viewer's own open op-input prompt, if any (target only). */
+json BuildPrompts(const match::engine::MatchInstance& match,
+                  const Viewer& viewer) {
+    json out = json::array();
+    const std::optional<json> pending = match.PendingInput();
+    if (!pending.has_value() || !pending->is_object()) return out;
+    const std::string target =
+        ResolvePlayer(match, pending->value("target", json()));
+    if (!ViewerIs(viewer, target)) return out;
+
+    const json body = pending->value("payload", json::object());
+    json prompt = json::object();
+    prompt["prompt_id"] = pending->value("kind", std::string("prompt"));
+    prompt["kind"] = pending->value("kind", std::string());
+    prompt["payload"] = body.is_object() ? body : json::object();
+    prompt["response_schema"] =
+        body.is_object() && body.contains("response_schema")
+            ? body["response_schema"]
+            : json::object();
+    prompt["deadline_ms"] = body.is_object() ? body.value("timeout_ms", 0) : 0;
+    out.push_back(std::move(prompt));
+    return out;
+}
+
 }  // namespace
 
 ViewBuilder::ViewBuilder(
@@ -355,6 +724,66 @@ std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
     out["deadline_ms"] =
         body.is_object() ? body.value("timeout_ms", 0) : 0;
     return sink.Wrap("prompt_open", out);
+}
+
+bool SnapshotOptions::PrivacyOn(const std::string& username) const {
+    for (const std::string& private_user : privacy_from_spectators) {
+        if (private_user == username) return true;
+    }
+    return false;
+}
+
+nlohmann::json ViewBuilder::BuildSnapshot(const Viewer& viewer,
+                                          const EventSink& sink) const {
+    return BuildSnapshot(viewer, sink, SnapshotOptions{});
+}
+
+nlohmann::json ViewBuilder::BuildSnapshot(
+    const Viewer& viewer, const EventSink& sink,
+    const SnapshotOptions& options) const {
+    const match::engine::MatchInstance& match = match_;
+    const match::engine::MatchRegistries& registries = match.Registries();
+    const ecs::EntityStore& store = match.Store();
+    const std::optional<ecs::Entity> viewer_entity =
+        ViewerPlayer(match, viewer);
+
+    json state = json::object();
+    state["status"] = match.IsMatchOver() ? "finished" : "playing";
+    if (const ecs::MatchMeta* meta =
+            store.Get<ecs::MatchMeta>(registries.match)) {
+        state["round"] = meta->round;
+        state["direction"] = static_cast<int>(meta->direction);
+    } else {
+        state["round"] = 0u;
+        state["direction"] = 1;
+    }
+    if (const ecs::ActiveTypeReq* active =
+            store.Get<ecs::ActiveTypeReq>(registries.match);
+        active != nullptr && active->type.has_value()) {
+        state["active_type"] = *active->type;
+    } else {
+        state["active_type"] = nullptr;
+    }
+    state["current_player"] = match.GetCurrentPlayerUsername();
+    state["winner"] = match.GetWinner();
+    state["placements"] = match.GetPlacements();
+
+    json players = json::array();
+    for (ecs::Entity player : registries.players) {
+        players.push_back(BuildPlayer(*this, match, viewer, options, player,
+                                      viewer_entity));
+    }
+    state["players"] = std::move(players);
+    state["draw_pile"] =
+        BuildPile(match, viewer, registries.draw_pile, viewer_entity, false);
+    state["discard_pile"] =
+        BuildPile(match, viewer, registries.discard_pile, viewer_entity, true);
+    state["window"] = BuildWindow(match);
+    state["prompts"] = BuildPrompts(match, viewer);
+    state["seq_watermark"] = sink.NextSeq();
+
+    return json{{"action", "match_state_updated"},
+                {"match_state", std::move(state)}};
 }
 
 bool ViewBuilder::StatusHidden(const std::string& status_id) const {
