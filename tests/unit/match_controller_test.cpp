@@ -617,6 +617,7 @@ TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already ove
     ForceHand(f.Engine(), alice, {wilds[0]});
 
     REQUIRE(f.store.match_over_notifications == 0);
+    const uint32_t before = f.store.match_over_notifications;
 
     PerSocketData sd;
     sd.username = "Alice";
@@ -634,13 +635,10 @@ TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already ove
     });
     REQUIRE(f.Engine().IsMatchOver());
 
-    // INFO: a subsequent turn-start on the finished engine must notify again
-    //       rather than returning silently (idempotent at the store level).
-    const uint32_t before = f.store.match_over_notifications;
-    Lobby* lobby = f.store.GetLobbyById(1);
-    REQUIRE(lobby != nullptr);
-    f.store.FireGameStarted();
-    CHECK_GE(f.store.match_over_notifications, before);
+    // INFO: The winning human action routed through
+    //       BroadcastMatchState must notify the lobby store. Reverting to a
+    //       raw BroadcastSnapshot leaves this at `before` (0).
+    CHECK_GT(f.store.match_over_notifications, before);
 }
 }
 
