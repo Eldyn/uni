@@ -63,7 +63,9 @@ ecs::Status MakeInstance(const ApplyRequest& request, uint32_t instance_id) {
     instance.cap = request.cap;
     instance.duration = request.duration;
     instance.instance_id = instance_id;
-    instance.hidden = request.hidden;
+    // INFO: a request without an explicit def value leaves a new instance
+    //       public; an existing instance's flag is preserved by the caller.
+    instance.hidden = request.has_hidden && request.hidden;
     return instance;
 }
 
@@ -193,7 +195,9 @@ ApplyResult Apply(ecs::EntityStore& store, ecs::Entity entity,
         created.duration = request.duration;
         created.stack_policy = policy;
         created.cap = cap;
-        created.hidden = request.hidden;
+        // INFO: `created` copied `existing`; only an explicit def value
+        //       overrides the preserved flag.
+        if (request.has_hidden) created.hidden = request.hidden;
         created.instance_id = MintInstanceId(*list);
         list->instances.push_back(std::move(created));
         return ToResult(list->instances.back(), true);
@@ -217,7 +221,9 @@ ApplyResult Apply(ecs::EntityStore& store, ecs::Entity entity,
     }
     existing->stack_policy = policy;
     existing->cap = cap;
-    existing->hidden = request.hidden;
+    // INFO: preserve the hidden flag set by the op when the request carries no
+    //       explicit def value; only an explicit value may clear it.
+    if (request.has_hidden) existing->hidden = request.hidden;
     return ToResult(*existing, false);
 }
 

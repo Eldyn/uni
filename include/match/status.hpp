@@ -43,7 +43,9 @@ namespace match::status {
  * that a present `stack_policy` arg is authoritative.
  *
  * `hidden` is the status definition's privacy flag, resolved by the
- * caller; it is written to whichever instance the apply touches.
+ * caller. `has_hidden` gates it: when false (the op path, which cannot
+ * see the definition) an existing instance's stored flag is preserved and a
+ * new instance defaults to public; when true `hidden` is authoritative.
  */
 struct ApplyRequest {
     std::string status_id;
@@ -53,6 +55,7 @@ struct ApplyRequest {
     uint32_t cap = 0;  /**< `cap:N` ceiling; 0 = no ceiling. */
     ecs::DurationSpec duration{ecs::DurationUnit::kTurns, 0};
     bool hidden = false;
+    bool has_hidden = false;  /**< true = `hidden` came from the def. */
 };
 
 /**

@@ -229,12 +229,50 @@ TEST_CASE("status: hidden flag is stored and reported") {
 
     ApplyRequest hidden = Request("space:shielded", 1);
     hidden.hidden = true;
+    hidden.has_hidden = true;
     match::status::Apply(store, target, hidden);
     CHECK(match::status::IsHidden(store, target, "space:shielded"));
 
     match::status::Apply(store, target, Request("vanilla:draw_debt", 1));
     CHECK_FALSE(match::status::IsHidden(store, target, "vanilla:draw_debt"));
     CHECK_FALSE(match::status::IsHidden(store, target, "space:missing"));
+}
+
+TEST_CASE("status: re-apply without an explicit def preserves hidden") {
+    EntityStore store;
+    Entity target = store.Create();
+
+    ApplyRequest seed = Request("space:shielded", 1);
+    seed.hidden = true;
+    seed.has_hidden = true;
+    match::status::Apply(store, target, seed);
+
+    // INFO: The op path carries no def value, so it must not clear the
+    //       hidden flag the def-level apply set.
+    const ApplyResult result =
+        match::status::Apply(store, target, Request("space:shielded", 2));
+    CHECK(result.applied);
+    CHECK_FALSE(result.created);
+    CHECK(result.hidden);
+    CHECK(match::status::IsHidden(store, target, "space:shielded"));
+}
+
+TEST_CASE("status: an explicit def value can clear hidden") {
+    EntityStore store;
+    Entity target = store.Create();
+
+    ApplyRequest seed = Request("space:shielded", 1);
+    seed.hidden = true;
+    seed.has_hidden = true;
+    match::status::Apply(store, target, seed);
+
+    ApplyRequest clear = Request("space:shielded", 2);
+    clear.has_hidden = true;
+    clear.hidden = false;
+    const ApplyResult result = match::status::Apply(store, target, clear);
+    CHECK(result.applied);
+    CHECK_FALSE(result.hidden);
+    CHECK_FALSE(match::status::IsHidden(store, target, "space:shielded"));
 }
 
 TEST_CASE("status: mint instance id is max plus one and saturates") {

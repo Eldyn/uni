@@ -223,6 +223,7 @@ TEST_CASE("status_expiry: hidden status is preserved on expiry") {
 
     ApplyRequest hidden = Request("space:spy", DurationUnit::kTurns, 1);
     hidden.hidden = true;
+    hidden.has_hidden = true;
     match::status::Apply(store, owner, hidden);
     CHECK(system.Tick(store, 0).empty());
     std::vector<StatusExpiry> expired = system.OnTurnEnd(store, owner);
