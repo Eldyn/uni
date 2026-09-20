@@ -514,3 +514,112 @@ TEST_CASE("resolver: config reads guards from the environment") {
     CHECK(config.event_budget == 13);
     CHECK(config.must_apply_cap == 4);
 }
+
+TEST_CASE("resolver: fork keeps later branches across an input pause") {
+    EntityStore store;
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    runtime.Register("synthetic_log", &LogOp);
+    runtime.Register("synthetic_need", &NeedInput);
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    ResolutionFrame frame;
+    SelectorContext context;
+
+    BehaviorGraph graph = MakeGraph(json::array({
+        {{"id", "n0"}, {"branches", {"A", "B"}}, {"next", "N"}},
+        {{"id", "A"}, {"op", "synthetic_need"}, {"args", json::object()},
+         {"next", "A2"}},
+        {{"id", "A2"}, {"op", "synthetic_log"}, {"args", {{"tag", "A2"}}}},
+        {{"id", "B"}, {"op", "synthetic_log"}, {"args", {{"tag", "B"}}}},
+        {{"id", "N"}, {"op", "synthetic_log"}, {"args", {{"tag", "N"}}}},
+    }));
+
+    ResolveResult paused = resolver.Resolve(graph, "m", context, frame);
+    REQUIRE(paused.status == ResolveStatus::kNeedsInput);
+    REQUIRE(paused.resume.has_value());
+    CHECK(paused.resume->prompt == "A");
+    CHECK(paused.resume->node == "A2");
+    REQUIRE(paused.resume->pending.size() == 2);
+    CHECK(paused.resume->pending[0] == "N");
+    CHECK(paused.resume->pending[1] == "B");
+
+    ResolveResult resumed =
+        resolver.ResumeInput(graph, "m", context, frame, paused, "red");
+    CHECK(resumed.status == ResolveStatus::kComplete);
+    CHECK(TagString(resumed) == "A2,B,N");
+}
+
+TEST_CASE("resolver: fork keeps later branches across a window pause") {
+    EntityStore store;
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    runtime.Register("synthetic_log", &LogOp);
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    ResolutionFrame frame;
+    SelectorContext context;
+
+    BehaviorGraph graph = MakeGraph(json::array({
+        {{"id", "n0"}, {"branches", {"A", "B"}}, {"next", "N"}},
+        {{"id", "A"}, {"window", {{"responders", "@all_players"}}},
+         {"default", "A2"}},
+        {{"id", "A2"}, {"op", "synthetic_log"}, {"args", {{"tag", "A2"}}}},
+        {{"id", "B"}, {"op", "synthetic_log"}, {"args", {{"tag", "B"}}}},
+        {{"id", "N"}, {"op", "synthetic_log"}, {"args", {{"tag", "N"}}}},
+    }));
+
+    ResolveResult paused = resolver.Resolve(graph, "m", context, frame);
+    REQUIRE(paused.status == ResolveStatus::kWindow);
+    REQUIRE(paused.resume.has_value());
+    REQUIRE(paused.resume->pending.size() == 2);
+    CHECK(paused.resume->pending[0] == "N");
+    CHECK(paused.resume->pending[1] == "B");
+
+    ResolveResult resumed =
+        resolver.ResumeWindow(graph, "m", context, frame, paused, "A2");
+    CHECK(resumed.status == ResolveStatus::kComplete);
+    CHECK(TagString(resumed) == "A2,B,N");
+}
+
+TEST_CASE("resolver: fork keeps later branches across a schedule pause") {
+    EntityStore store;
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    runtime.Register("synthetic_log", &LogOp);
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    ResolutionFrame frame;
+    SelectorContext context;
+
+    BehaviorGraph graph = MakeGraph(json::array({
+        {{"id", "n0"}, {"branches", {"A", "B"}}, {"next", "N"}},
+        {{"id", "A"}, {"schedule", true}, {"next", "A2"},
+         {"duration", {{"unit", "turns"}, {"value", 1}}}},
+        {{"id", "A2"}, {"op", "synthetic_log"}, {"args", {{"tag", "A2"}}}},
+        {{"id", "B"}, {"op", "synthetic_log"}, {"args", {{"tag", "B"}}}},
+        {{"id", "N"}, {"op", "synthetic_log"}, {"args", {{"tag", "N"}}}},
+    }));
+
+    ResolveResult paused = resolver.Resolve(graph, "m", context, frame);
+    REQUIRE(paused.status == ResolveStatus::kSchedule);
+    REQUIRE(paused.schedule.has_value());
+    CHECK(paused.schedule->resume_node == "A2");
+    REQUIRE(paused.schedule->pending.size() == 2);
+    CHECK(paused.schedule->pending[0] == "N");
+    CHECK(paused.schedule->pending[1] == "B");
+
+    // INFO: Fires the deferred subgraph with the preserved continuation.
+    ResolveResult fired =
+        resolver.Resolve(graph, "m", context, frame,
+                         paused.schedule->resume_node, false,
+                         paused.schedule->pending);
+    CHECK(fired.status == ResolveStatus::kComplete);
+    CHECK(TagString(fired) == "A2,B,N");
+}

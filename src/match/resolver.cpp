@@ -99,7 +99,8 @@ ResolveResult Resolver::Resolve(const modload::BehaviorGraph& graph,
                                 const SelectorContext& context,
                                 ops::ResolutionFrame& frame,
                                 const std::string& entry_node,
-                                bool must_apply) {
+                                bool must_apply,
+                                std::vector<std::string> pending) {
     ResolveResult result;
     if (!mod_id.empty() && event_bus_.IsDisarmed(mod_id)) {
         result.skipped_disarmed = true;
@@ -114,7 +115,9 @@ ResolveResult Resolver::Resolve(const modload::BehaviorGraph& graph,
     // INFO: no early return after this point, so a manual release is safe.
     const bool applied = ApplyMustApply(result, must_apply);
     WalkState state = MakeState(graph, mod_id, context, frame, result);
-    result.status = Walk(state, entry_node);
+    std::vector<std::string> stack =
+        InitialStack(graph, entry_node, pending);
+    result.status = Walk(state, std::move(stack));
     ReleaseMustApply(applied);
     return result;
 }
@@ -131,17 +134,17 @@ ResolveResult Resolver::ResumeWindow(const modload::BehaviorGraph& graph,
         result.disarmed = true;
         return result;
     }
-    (void)pause;
 
     SelectorContext window_context = context;
     window_context.in_window = true;
     WalkState state =
         MakeState(graph, mod_id, window_context, frame, result);
-    if (route_node.empty()) {
-        result.status = ResolveStatus::kComplete;
-        return result;
-    }
-    result.status = Walk(state, route_node);
+    // INFO: preserve the fork continuation captured at the pause, then run the
+    //       caller-chosen route on top of it.
+    std::vector<std::string> stack;
+    if (pause.resume.has_value()) stack = pause.resume->pending;
+    if (!route_node.empty()) stack.push_back(route_node);
+    result.status = Walk(state, std::move(stack));
     return result;
 }
 
@@ -167,12 +170,23 @@ ResolveResult Resolver::ResumeInput(const modload::BehaviorGraph& graph,
     if (!pause.resume->prompt.empty()) {
         frame.BindPromptValue(pause.resume->prompt, std::move(value));
     }
-    if (pause.resume->node.empty()) {
-        result.status = ResolveStatus::kComplete;
-        return result;
-    }
-    result.status = Walk(state, pause.resume->node);
+    std::vector<std::string> stack = pause.resume->pending;
+    if (!pause.resume->node.empty()) stack.push_back(pause.resume->node);
+    result.status = Walk(state, std::move(stack));
     return result;
+}
+
+std::vector<std::string> Resolver::InitialStack(
+    const modload::BehaviorGraph& graph, const std::string& entry,
+    const std::vector<std::string>& pending) const {
+    std::vector<std::string> stack = pending;
+    std::string start = entry;
+    if (start.empty() && graph.nodes.is_array() && !graph.nodes.empty()) {
+        const nlohmann::json& first = graph.nodes.front();
+        if (first.is_object()) start = first.value("id", std::string());
+    }
+    if (!start.empty()) stack.push_back(std::move(start));
+    return stack;
 }
 
 // --- state helpers ---------------------------------------------------------
@@ -367,22 +381,15 @@ void Resolver::Guard(WalkState& state, const std::string& token,
 
 // --- walking ---------------------------------------------------------------
 
-ResolveStatus Resolver::Walk(WalkState& state, const std::string& entry) {
-    std::string current = entry;
-    if (current.empty()) {
-        if (!state.graph->nodes.is_array() || state.graph->nodes.empty()) {
-            return ResolveStatus::kComplete;
-        }
-        const nlohmann::json& first = state.graph->nodes.front();
-        if (!first.is_object()) {
-            state.result->error = "graph first node is not an object";
-            Logger::Error("[Resolver] ", state.result->error);
-            return ResolveStatus::kError;
-        }
-        current = first.value("id", std::string());
-    }
+ResolveStatus Resolver::Walk(WalkState& state,
+                             std::vector<std::string> stack) {
+    // INFO: LIFO work stack; `back()` is the next node. `next` routes and fork
+    //       branches are pushed rather than recursed, so a pause can capture
+    //       the whole remaining continuation (including fork branches).
+    while (!stack.empty()) {
+        const std::string current = stack.back();
+        stack.pop_back();
 
-    while (!current.empty()) {
         if (budgets_.chain_steps >= config_.chain_budget) {
             return Abort(state, current);
         }
@@ -399,15 +406,15 @@ ResolveStatus Resolver::Walk(WalkState& state, const std::string& entry) {
 
         WalkCode code;
         if (node.contains("op")) {
-            code = StepOp(state, node, current);
+            code = StepOp(state, node, stack);
         } else if (node.contains("cases")) {
-            code = StepBranch(state, node, current);
+            code = StepBranch(state, node, stack);
         } else if (node.contains("branches")) {
-            code = StepFork(state, node, current);
+            code = StepFork(state, node, stack);
         } else if (node.contains("window")) {
-            code = StepWindow(state, node);
+            code = StepWindow(state, node, stack);
         } else if (node.contains("schedule")) {
-            code = StepSchedule(state, node);
+            code = StepSchedule(state, node, stack);
         } else {
             state.result->error = "unknown node kind at: " + current;
             Logger::Error("[Resolver] ", state.result->error);
@@ -417,8 +424,6 @@ ResolveStatus Resolver::Walk(WalkState& state, const std::string& entry) {
         switch (code) {
             case WalkCode::kContinue:
                 break;
-            case WalkCode::kStop:
-                return ResolveStatus::kComplete;
             case WalkCode::kPause:
                 return state.result->status;
             case WalkCode::kAbort:
@@ -432,7 +437,7 @@ ResolveStatus Resolver::Walk(WalkState& state, const std::string& entry) {
 
 Resolver::WalkCode Resolver::StepOp(WalkState& state,
                                     const nlohmann::json& node,
-                                    std::string& current) {
+                                    std::vector<std::string>& stack) {
     const std::string op_name = node.value("op", std::string());
     const nlohmann::json raw =
         node.value("args", nlohmann::json::object());
@@ -473,18 +478,20 @@ Resolver::WalkCode Resolver::StepOp(WalkState& state,
         ResumeToken token;
         token.prompt = node.value("id", std::string());
         token.node = node.value("next", std::string());
+        token.pending = stack;
         state.result->resume = std::move(token);
         state.result->status = ResolveStatus::kNeedsInput;
         return WalkCode::kPause;
     }
 
-    current = node.value("next", std::string());
-    return current.empty() ? WalkCode::kStop : WalkCode::kContinue;
+    const std::string next = node.value("next", std::string());
+    if (!next.empty()) stack.push_back(next);
+    return WalkCode::kContinue;
 }
 
 Resolver::WalkCode Resolver::StepBranch(WalkState& state,
                                         const nlohmann::json& node,
-                                        std::string& current) {
+                                        std::vector<std::string>& stack) {
     bool matched = false;
     std::string chosen;
     if (node.contains("cases") && node["cases"].is_array()) {
@@ -502,40 +509,35 @@ Resolver::WalkCode Resolver::StepBranch(WalkState& state,
         }
     }
     if (!matched) chosen = node.value("else", std::string());
-    current = chosen;
-    return current.empty() ? WalkCode::kStop : WalkCode::kContinue;
+    if (!chosen.empty()) stack.push_back(chosen);
+    return WalkCode::kContinue;
 }
 
 Resolver::WalkCode Resolver::StepFork(WalkState& state,
                                       const nlohmann::json& node,
-                                      std::string& current) {
+                                      std::vector<std::string>& stack) {
+    (void)state;
+    // INFO: deterministic sequential fork. Push the fork's `next`
+    //       first (bottom), then the branches in reverse so branch[0] runs
+    //       first and the fork's `next` runs after all branches. Because the
+    //       continuations live on the shared stack, pausing inside a branch
+    //       preserves the remaining branches and the fork's `next`.
+    const std::string next = node.value("next", std::string());
+    if (!next.empty()) stack.push_back(next);
     if (node.contains("branches") && node["branches"].is_array()) {
-        for (const nlohmann::json& branch : node["branches"]) {
-            if (!branch.is_string()) continue;
-            const std::string branch_id = branch.get<std::string>();
-            if (branch_id.empty()) continue;
-            ResolveStatus nested = Walk(state, branch_id);
-            if (nested == ResolveStatus::kComplete) continue;
-            switch (nested) {
-                case ResolveStatus::kNeedsInput:
-                case ResolveStatus::kWindow:
-                case ResolveStatus::kSchedule:
-                    return WalkCode::kPause;
-                case ResolveStatus::kAborted:
-                    return WalkCode::kAbort;
-                case ResolveStatus::kError:
-                    return WalkCode::kError;
-                case ResolveStatus::kComplete:
-                    break;
-            }
+        const nlohmann::json& branches = node["branches"];
+        for (auto it = branches.rbegin(); it != branches.rend(); ++it) {
+            if (!it->is_string()) continue;
+            const std::string branch_id = it->get<std::string>();
+            if (!branch_id.empty()) stack.push_back(branch_id);
         }
     }
-    current = node.value("next", std::string());
-    return current.empty() ? WalkCode::kStop : WalkCode::kContinue;
+    return WalkCode::kContinue;
 }
 
 Resolver::WalkCode Resolver::StepWindow(WalkState& state,
-                                        const nlohmann::json& node) {
+                                        const nlohmann::json& node,
+                                        std::vector<std::string>& stack) {
     const nlohmann::json* window = nullptr;
     if (node.contains("window") && node["window"].is_object()) {
         window = &node["window"];
@@ -591,6 +593,7 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
 
     ResumeToken token;
     token.node = request.default_route;
+    token.pending = stack;
     state.result->resume = std::move(token);
     state.result->window = std::move(request);
     state.result->status = ResolveStatus::kWindow;
@@ -598,16 +601,19 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
 }
 
 Resolver::WalkCode Resolver::StepSchedule(WalkState& state,
-                                          const nlohmann::json& node) {
+                                          const nlohmann::json& node,
+                                          std::vector<std::string>& stack) {
     ScheduleRequest request;
     request.node_id = node.value("id", std::string());
     request.duration = node.contains("duration")
                            ? node["duration"]
                            : nlohmann::json::object();
     request.resume_node = node.value("next", std::string());
+    request.pending = stack;
 
     ResumeToken token;
     token.node = request.resume_node;
+    token.pending = stack;
     state.result->resume = std::move(token);
     state.result->schedule = std::move(request);
     state.result->status = ResolveStatus::kSchedule;

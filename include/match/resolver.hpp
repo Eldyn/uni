@@ -88,8 +88,14 @@ enum class ResolveStatus {
  * `node` starts a fresh chain when its duration elapses.
  */
 struct ResumeToken {
-    std::string node;    /**< node id to continue at. */
+    std::string node;    /**< immediate node id to continue at. */
     std::string prompt;  /**< bind injected input to this op node id. */
+    /**
+     * Work stack remaining after `node` drains (back = next to run). This
+     * preserves a fork's not-yet-run branches and its `next` across a pause
+     * .
+     */
+    std::vector<std::string> pending;
 };
 
 /**
@@ -121,6 +127,12 @@ struct ScheduleRequest {
     std::string node_id;       /**< schedule node id. */
     nlohmann::json duration;   /**< duration spec object/array. */
     std::string resume_node;   /**< node id to run once elapsed. */
+    /**
+     * Work stack remaining after the deferred subgraph (back = next). Pass it
+     * back to `Resolve` so a pause inside a fork does not drop the fork's
+     * remaining branches or its `next`.
+     */
+    std::vector<std::string> pending;
 };
 
 /**
@@ -208,24 +220,30 @@ public:
      *
      * Resets `budgets.chain_steps` (a new chain) and binds the standard
      * selectors into `frame`. `entry_node` empty means the graph's first node.
-     * A schedule resume re-enters here with the schedule's `resume_node`.
+     * A schedule resume re-enters here with `entry_node = resume_node` and
+     * `pending = schedule.pending`.
      *
      * @param must_apply request must-apply semantics; when the
      *        re-trigger depth cap is hit the call proceeds as non-must-apply
      *        and logs a WARN.
+     * @param pending work stack to run after `entry_node` (back = next); use
+     *        the schedule request's `pending` when resuming a deferred fork.
      */
     ResolveResult Resolve(const modload::BehaviorGraph& graph,
                           const std::string& mod_id,
                           const SelectorContext& context,
                           ops::ResolutionFrame& frame,
                           const std::string& entry_node = std::string(),
-                          bool must_apply = false);
+                          bool must_apply = false,
+                          std::vector<std::string> pending = {});
 
     /**
      * @brief Resume a `kWindow` pause at the caller-chosen route node.
      *
      * Does NOT reset the chain budget: a window chain shares one ledger. The
-     * context is treated as a window route (`@responder` legal).
+     * context is treated as a window route (`@responder` legal). Resumes with
+     * the pause's `pending` work stack, so a fork's remaining branches and its
+     * `next` still run after the chosen route.
      */
     ResolveResult ResumeWindow(const modload::BehaviorGraph& graph,
                                const std::string& mod_id,
@@ -238,7 +256,8 @@ public:
      * @brief Resume a `kNeedsInput` pause with an injected value.
      *
      * Binds `value` to the paused op node id in `frame.prompt_values` so a
-     * later `from_prompt` arg can read it, then continues at the op's `next`.
+     * later `from_prompt` arg can read it, then continues at the op's `next`
+     * followed by the pause's `pending` work stack.
      */
     ResolveResult ResumeInput(const modload::BehaviorGraph& graph,
                               const std::string& mod_id,
@@ -252,8 +271,7 @@ public:
 
 private:
     enum class WalkCode {
-        kContinue,  /**< `current` advanced; keep walking. */
-        kStop,      /**< chain drained. */
+        kContinue,  /**< continuations pushed; keep walking. */
         kPause,     /**< result already carries a pause. */
         kAbort,     /**< chain budget breached. */
         kError,     /**< structural or op error. */
@@ -273,16 +291,23 @@ private:
                         const SelectorContext& context,
                         ops::ResolutionFrame& frame, ResolveResult& result);
 
-    ResolveStatus Walk(WalkState& state, const std::string& entry);
+    /** @brief Build the initial work stack (pending then `entry`). */
+    std::vector<std::string> InitialStack(
+        const modload::BehaviorGraph& graph, const std::string& entry,
+        const std::vector<std::string>& pending) const;
+
+    ResolveStatus Walk(WalkState& state, std::vector<std::string> stack);
 
     WalkCode StepOp(WalkState& state, const nlohmann::json& node,
-                    std::string& current);
+                    std::vector<std::string>& stack);
     WalkCode StepBranch(WalkState& state, const nlohmann::json& node,
-                        std::string& current);
+                        std::vector<std::string>& stack);
     WalkCode StepFork(WalkState& state, const nlohmann::json& node,
-                      std::string& current);
-    WalkCode StepWindow(WalkState& state, const nlohmann::json& node);
-    WalkCode StepSchedule(WalkState& state, const nlohmann::json& node);
+                      std::vector<std::string>& stack);
+    WalkCode StepWindow(WalkState& state, const nlohmann::json& node,
+                        std::vector<std::string>& stack);
+    WalkCode StepSchedule(WalkState& state, const nlohmann::json& node,
+                          std::vector<std::string>& stack);
 
     ResolveStatus Abort(WalkState& state, const std::string& node);
 
