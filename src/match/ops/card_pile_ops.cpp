@@ -1,6 +1,7 @@
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -28,7 +29,9 @@
  * `card_left_zone` / `card_entered_zone` for single-card relocations, and
  * `visibility_granted` for reveals. `filter` on `draw_cards` is a
  * condition evaluated per
- * candidate card; an unevaluable filter rejects every candidate.
+ * candidate card; an unevaluable filter rejects every candidate. The optional
+ * `n_from_debt` arg draws each target's accumulated
+ * `vanilla:draw_debt` status magnitude instead of a static `n`.
  */
 
 namespace match::ops::detail {
@@ -369,8 +372,18 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
     const std::vector<ecs::Entity> targets = args.EntitiesOrEmpty("target");
     if (targets.empty()) return OpResult::Resolved();
 
+    // INFO: `n_from_debt` replaces the static `n` with each
+    //       target's accumulated `vanilla:draw_debt` status magnitude. The
+    //       vocabulary enforces exactly one of `n` / `n_from_debt`.
+    bool from_debt = false;
+    if (args.Has("n_from_debt") && !args.GetBool("n_from_debt", from_debt)) {
+        return OpResult::Resolved();
+    }
+
     int64_t n = 0;
-    if (!BoundedInt(args, "n", 0, 1000, n)) return OpResult::Resolved();
+    if (!from_debt && !BoundedInt(args, "n", 0, 1000, n)) {
+        return OpResult::Resolved();
+    }
 
     std::string from_token = "draw";
     if (args.Has("from") && !args.GetString("from", from_token)) {
@@ -394,8 +407,19 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
     for (ecs::Entity target : targets) {
         if (!store.IsAlive(target) || !store.Has<ecs::Hand>(target)) continue;
 
+        // INFO: a missing debt status is a fail-safe 0 draws; the magnitude is
+        //       clamped into the declared `n` bounds.
+        int64_t target_n = n;
+        if (from_debt) {
+            const ecs::Status* debt =
+                status::Find(store, target, kDrawDebtStatusId);
+            target_n = debt == nullptr ? 0 : debt->magnitude;
+            if (target_n < 0) target_n = 0;
+            if (target_n > 1000) target_n = 1000;
+        }
+
         int64_t drawn = 0;
-        for (int64_t i = 0; i < n; ++i) {
+        for (int64_t i = 0; i < target_n; ++i) {
             if (!EnsureDrawSource(store, source_kind, ctx, events)) break;
             const std::optional<ecs::Entity> candidate =
                 PickCandidate(store, *source, filter, ctx);

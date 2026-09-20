@@ -29,7 +29,10 @@ namespace match::modload {
  *
  * - `op` node: `{ "op": <catalog name>, "args": { ... }, "next"?: <node id> }`.
  * - `window` node: `{ "window": { ... }, "default": <node id>,
- *   "on_response"?: { <filter key>: <node id> } }`.
+ *   "on_response"?: { <filter key>: <node id> }, "reopen"?: <bool> }`.
+ *   `reopen` opts the window into engine-owned chaining: after a
+ *   winning response route drains, the engine re-opens the same window for
+ *   the next responder on the same budget ledger.
  * - `branch` node: `{ "cases": [ { "when": <condition>, "next": <node id> } ],
  *   "else": <node id> }`.
  * - `fork` node: `{ "branches": [ <node id>, ... ] }` (sequential in ).
@@ -167,12 +170,17 @@ inline const std::vector<OpSignature>& OpCatalog() {
 
         // Card and pile ops.
         {
+            // INFO: exactly one of `n` / `n_from_debt`.
+            //       `n_from_debt` draws the target's accumulated
+            //       `vanilla:draw_debt` status magnitude (0 when absent).
             OpSignature s;
             s.name = "draw_cards";
             s.args = {Arg("target", ArgType::kSelector),
-                      IntArg("n", 0, 1000),
+                      IntArg("n", 0, 1000, false),
                       Arg("from", ArgType::kPileRef, false),
-                      Arg("filter", ArgType::kCondition, false)};
+                      Arg("filter", ArgType::kCondition, false),
+                      Arg("n_from_debt", ArgType::kBool, false)};
+            s.either_of = {{"n", "n_from_debt"}};
             add(std::move(s));
         }
         {

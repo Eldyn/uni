@@ -2,6 +2,7 @@
 
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -29,6 +30,7 @@ using match::ecs::PileContents;
 using match::ecs::PileKind;
 using match::ecs::PlayerInfo;
 using match::ecs::RngState;
+using match::ecs::StackPolicy;
 using match::ecs::VisibilityGrant;
 using match::ecs::ZoneKind;
 using match::ecs::ZoneRef;
@@ -216,6 +218,74 @@ TEST_CASE("card_pile_ops: draw_cards bounds n=0 and n over 1000") {
     CHECK(HandOf(h.store, player).size() == 3);
     REQUIRE(at_max.events.size() == 1);
     CHECK(at_max.events[0]["payload"]["count"] == 3);
+}
+
+/* INFO: apply an accumulated `vanilla:draw_debt` status for n_from_debt. */
+void ApplyDebt(EntityStore& store, Entity target, int32_t magnitude) {
+    match::status::ApplyRequest request;
+    request.status_id = std::string(match::ops::kDrawDebtStatusId);
+    request.magnitude = magnitude;
+    request.has_stack_policy = true;
+    request.stack_policy = StackPolicy::kAccumulate;
+    REQUIRE(match::status::Apply(store, target, request).applied);
+}
+
+TEST_CASE("card_pile_ops: draw_cards n_from_debt draws the debt magnitude") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity c2 = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity c3 = MakeCard(h.store, "vanilla:red_3", "red");
+    PutInPile(h.store, draw, c1);
+    PutInPile(h.store, draw, c2);
+    PutInPile(h.store, draw, c3);
+    ApplyDebt(h.store, player, 3);
+
+    const OpResult result = h.Invoke(
+        "draw_cards", json{{"n_from_debt", true}}, {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player).size() == 3);
+    CHECK(result.value["drawn"] == 3);
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["count"] == 3);
+}
+
+TEST_CASE("card_pile_ops: draw_cards n_from_debt with no debt is a no-op") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    PutInPile(h.store, draw, c1);
+
+    const OpResult result = h.Invoke(
+        "draw_cards", json{{"n_from_debt", true}}, {{"target", {player}}});
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player).empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["count"] == 0);
+}
+
+TEST_CASE("card_pile_ops: draw_cards n_from_debt fail-safe cases") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity draw = AddPile(h.store, PileKind::kDraw);
+    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    PutInPile(h.store, draw, c1);
+
+    /* INFO: a negative stored magnitude clamps to zero, never underflows. */
+    ApplyDebt(h.store, player, -5);
+    const OpResult negative = h.Invoke(
+        "draw_cards", json{{"n_from_debt", true}}, {{"target", {player}}});
+    CHECK(negative.status == OpStatus::kResolved);
+    CHECK(HandOf(h.store, player).empty());
+
+    /* INFO: a malformed (non-bool) arg is a fail-safe no-op. */
+    const OpResult malformed = h.Invoke(
+        "draw_cards", json{{"n_from_debt", "yes"}}, {{"target", {player}}});
+    CHECK(malformed.status == OpStatus::kResolved);
+    CHECK(malformed.events.empty());
+    CHECK(HandOf(h.store, player).empty());
 }
 
 TEST_CASE("card_pile_ops: draw_cards iterates a set selector in order") {
