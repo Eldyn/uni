@@ -76,9 +76,12 @@ UNI_GOLDEN_CAPTURE=1 ./build/Release/uni_tests -tc="golden*"
 ```
 
 Then commit `tests/fixtures/golden/*.json`. Verify mode (the default, i.e. what
-CI and `ctest` run) executes no match: it asserts every registered scenario has
-a fixture, that each fixture parses and matches its declared `may_differ`, and
-that no orphan fixtures remain.
+CI and `ctest` run) re-executes every scenario on the old engine and
+deep-compares the produced `ExportState()` step sequence against the committed
+fixture, so a corrupted or hand-edited fixture fails. For `may_differ`
+scenarios the per-step state values are skipped; shape, step count and action
+labels are still compared. It also asserts every fixture parses, matches its
+declared `may_differ`, and that no orphan fixtures remain.
 
 > WARNING: this harness is deleted or replaced at the WP13 engine swap. It
 > exists only to freeze the old engine before its code is removed.

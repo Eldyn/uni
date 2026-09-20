@@ -578,7 +578,10 @@ void write_transcript(const fs::path& dir, const json& transcript) {
 
 /**
  * @brief Capture mode (env UNI_GOLDEN_CAPTURE=1) regenerates every fixture;
- *        otherwise this asserts the committed fixtures exist and parse.
+ *        otherwise this re-executes each scenario on the old engine and
+ *        deep-compares the produced `ExportState()` step sequence against the
+ *        committed fixture (may_differ scenarios skip state-value comparison
+ *        but keep shape, step-count and action-label checks).
  */
 TEST_CASE("golden: legacy-engine transcripts (capture or verify)") {
     const char* capture_env = std::getenv("UNI_GOLDEN_CAPTURE");
@@ -617,18 +620,49 @@ TEST_CASE("golden: legacy-engine transcripts (capture or verify)") {
         std::ifstream in(path);
         REQUIRE(in.good());
 
-        json parsed;
-        REQUIRE_NOTHROW(parsed = json::parse(in));
+        json committed;
+        REQUIRE_NOTHROW(committed = json::parse(in));
 
-        CHECK_EQ(parsed.value("scenario", ""), scenario.name);
-        CHECK_EQ(parsed.value("engine", ""), "old");
-        CHECK_EQ(parsed.value("may_differ", false), scenario.may_differ);
-        REQUIRE(parsed.contains("steps"));
-        CHECK(parsed["steps"].is_array());
-        CHECK_FALSE(parsed["steps"].empty());
-        for (const auto& step : parsed["steps"]) {
+        /* INFO: shape checks always apply, even for may_differ scenarios. */
+        CHECK_EQ(committed.value("scenario", ""), scenario.name);
+        CHECK_EQ(committed.value("engine", ""), "old");
+        CHECK_EQ(committed.value("may_differ", false), scenario.may_differ);
+        REQUIRE(committed.contains("steps"));
+        CHECK(committed["steps"].is_array());
+        CHECK_FALSE(committed["steps"].empty());
+        for (const auto& step : committed["steps"]) {
             CHECK(step.contains("action"));
             CHECK(step.contains("state"));
+        }
+
+        /* INFO: verify mode RE-EXECUTES the scenario on the old engine so a
+         *       corrupted or hand-edited fixture cannot pass CI. The produced
+         *       transcript is deep-compared against the committed one; for
+         *       may_differ scenarios the per-step state values are skipped
+         *       (only shape, step count and action labels are compared). */
+        const json produced = scenario.run();
+        CHECK_EQ(produced.value("scenario", ""), scenario.name);
+        CHECK_EQ(produced.value("engine", ""), "old");
+        CHECK_EQ(produced.value("may_differ", false), scenario.may_differ);
+        REQUIRE(produced.contains("steps"));
+        CHECK(produced["steps"].is_array());
+
+        const std::size_t committed_steps = committed["steps"].size();
+        const std::size_t produced_steps = produced["steps"].size();
+        CHECK_EQ(committed_steps, produced_steps);
+
+        const std::size_t common = std::min(committed_steps, produced_steps);
+        for (std::size_t i = 0; i < common; ++i) {
+            INFO("step ", i);
+            CHECK_EQ(committed["steps"][i].value("action", ""),
+                     produced["steps"][i].value("action", ""));
+            if (scenario.may_differ) {
+                CHECK(committed["steps"][i]["state"].is_object());
+                CHECK(produced["steps"][i]["state"].is_object());
+            } else {
+                CHECK(committed["steps"][i]["state"]
+                      == produced["steps"][i]["state"]);
+            }
         }
     }
 
