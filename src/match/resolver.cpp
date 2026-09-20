@@ -112,6 +112,16 @@ ResolveResult Resolver::Resolve(const modload::BehaviorGraph& graph,
     //       this counter, schedule resumes re-enter here and reset it.
     budgets_.chain_steps = 0;
 
+    // INFO: a malformed graph (non-object first node) is a structural error,
+    //       not an empty no-op; keep the runtime guard the brief requires.
+    if (entry_node.empty() && graph.nodes.is_array()
+        && !graph.nodes.empty() && !graph.nodes.front().is_object()) {
+        result.error = "graph first node is not an object";
+        Logger::Error("[Resolver] ", result.error);
+        result.status = ResolveStatus::kError;
+        return result;
+    }
+
     // INFO: no early return after this point, so a manual release is safe.
     const bool applied = ApplyMustApply(result, must_apply);
     WalkState state = MakeState(graph, mod_id, context, frame, result);

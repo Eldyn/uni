@@ -623,3 +623,34 @@ TEST_CASE("resolver: fork keeps later branches across a schedule pause") {
     CHECK(fired.status == ResolveStatus::kComplete);
     CHECK(TagString(fired) == "A2,B,N");
 }
+
+TEST_CASE("resolver: non-object first node is a structural error") {
+    EntityStore store;
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    runtime.Register("synthetic_log", &LogOp);
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    ResolutionFrame frame;
+    SelectorContext context;
+
+    // INFO: the first node is an array, not a node object.
+    BehaviorGraph malformed;
+    malformed.nodes = json::array();
+    malformed.nodes.push_back(json::array());
+    malformed.raw = json{{"nodes", malformed.nodes}};
+
+    ResolveResult result = resolver.Resolve(malformed, "m", context, frame);
+    CHECK(result.status == ResolveStatus::kError);
+    CHECK(result.error.find("not an object") != std::string::npos);
+
+    // INFO: the resolver stays usable after a structural error.
+    BehaviorGraph ok = MakeGraph(json::array({
+        {{"id", "s0"}, {"op", "synthetic_log"}, {"args", {{"tag", "S"}}}},
+    }));
+    ResolveResult second = resolver.Resolve(ok, "m", context, frame);
+    CHECK(second.status == ResolveStatus::kComplete);
+    CHECK(TagString(second) == "S");
+}
