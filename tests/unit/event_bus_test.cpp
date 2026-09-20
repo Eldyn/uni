@@ -199,3 +199,66 @@ TEST_CASE("event_bus: mod is disarmed at the abort threshold") {
     CHECK(result.ran == 1);
     CHECK(good_invocations == good_before + 1);
 }
+
+TEST_CASE("hooks: IsVetoCapable matches the veto column") {
+    const HookPhase before = HookPhase::kBefore;
+    const HookPhase after = HookPhase::kAfter;
+
+    CHECK(match::ecs::IsVetoCapable(HookId{"turn_end", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"play", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"draw_attempt", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"draw", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"pile_empty", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"hand_empty", before}));
+    CHECK(match::ecs::IsVetoCapable(HookId{"win_check", before}));
+
+    // INFO: an after variant never vetoes, and non-listed hooks never do.
+    CHECK_FALSE(match::ecs::IsVetoCapable(HookId{"play", after}));
+    CHECK_FALSE(match::ecs::IsVetoCapable(HookId{"match_start", before}));
+    CHECK_FALSE(match::ecs::IsVetoCapable(HookId{"shuffle", before}));
+    CHECK_FALSE(match::ecs::IsVetoCapable(HookId{"status_applied", before}));
+    CHECK_FALSE(match::ecs::IsVetoCapable(HookId{"not_a_hook", before}));
+}
+
+TEST_CASE("event_bus: veto only surfaces for a veto-capable hook") {
+    EventBus bus({"m"});
+    HookPayload payload;
+
+    const HookId play{"play", HookPhase::kBefore};
+    bus.Subscribe("m", 0, play, [](HookPayload& p) { p.veto = true; });
+    HookDispatchResult vetoed = bus.DispatchBefore(play, payload);
+    CHECK(vetoed.ran == 1);
+    CHECK(vetoed.vetoed);
+
+    // INFO: match_start is not veto-capable; the flag is ignored.
+    const HookId start{"match_start", HookPhase::kBefore};
+    bus.Subscribe("m", 0, start, [](HookPayload& p) { p.veto = true; });
+    HookPayload start_payload;
+    HookDispatchResult not_vetoed = bus.DispatchBefore(start, start_payload);
+    CHECK(not_vetoed.ran == 1);
+    CHECK_FALSE(not_vetoed.vetoed);
+}
+
+TEST_CASE("event_bus: dispatch clears a stale veto on a reused payload") {
+    EventBus bus({"m"});
+    const HookId play{"play", HookPhase::kBefore};
+    bus.Subscribe("m", 0, play, [](HookPayload&) {});
+
+    HookPayload payload;
+    payload.veto = true;  // stale from a previous dispatch
+    HookDispatchResult result = bus.DispatchBefore(play, payload);
+    CHECK(result.ran == 1);
+    CHECK_FALSE(result.vetoed);
+    CHECK_FALSE(payload.veto);
+}
+
+TEST_CASE("event_bus: Subscribe rejects an unknown hook") {
+    EventBus bus({"m"});
+    const HookId play{"play", HookPhase::kBefore};
+    CHECK(bus.Subscribe("m", 0, play, [](HookPayload&) {}));
+    CHECK_FALSE(bus.Subscribe(
+        "m", 1, HookId{"not_a_hook", HookPhase::kBefore},
+        [](HookPayload&) {}));
+    CHECK_FALSE(bus.Subscribe("", 0, play, [](HookPayload&) {}));
+    CHECK_FALSE(bus.Subscribe("m", 0, play, match::ecs::HookCallback()));
+}

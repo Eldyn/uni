@@ -44,11 +44,11 @@ using HookCallback = std::function<void(HookPayload&)>;
  * @brief Outcome of one `DispatchBefore` / `DispatchAfter` call.
  */
 struct HookDispatchResult {
-    uint32_t ran = 0;           /**< callbacks invoked (disarmed mods skipped). */
-    bool vetoed = false;        /**< before only: payload.veto after all ran. */
-    bool aborted = false;       /**< re-entry cap breached; no hooks ran. */
-    std::string aborted_mod;    /**< mod the abort is attributed to (may be empty). */
-    std::string disarmed_mod;   /**< set on the dispatch that disarmed a mod. */
+    uint32_t ran = 0;      /**< callbacks invoked (skips disarmed mods). */
+    bool vetoed = false;   /**< before: veto on a veto-capable hook. */
+    bool aborted = false;  /**< re-entry cap breached; no hooks ran. */
+    std::string aborted_mod;  /**< mod attributed the abort (may be empty). */
+    std::string disarmed_mod; /**< set on the dispatch that disarmed a mod. */
 };
 
 /**
@@ -92,10 +92,11 @@ public:
      *
      * The method's phase is authoritative: only `kBefore` subscriptions whose
      * name matches `hook.name` run, and `payload.hook` is normalized to the
-     * resolved identity. Every before-hook runs even when one sets `veto`; the
-     * flag is read after all have run. Returns `vetoed = true` when the engine
-     * default must be cancelled. On re-entry-cap breach no hook runs and
-     * `aborted` is set.
+     * resolved identity. `payload.veto` is cleared before the hooks run. Every
+     * before-hook runs even when one sets `veto`; the flag is read after all
+     * have run. `vetoed = true` only when `IsVetoCapable(hook)` and the final
+     * flag is set — a veto on a non-vetoable hook never cancels the default.
+     * On re-entry-cap breach no hook runs and `aborted` is set.
      */
     HookDispatchResult DispatchBefore(const HookId& hook, HookPayload& payload);
 

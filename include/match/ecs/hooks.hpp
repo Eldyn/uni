@@ -92,9 +92,9 @@ struct HookId {
  * default only — it does not stop sibling hooks.
  */
 struct HookPayload {
-    HookId hook;                                 /**< identity being dispatched. */
-    nlohmann::json data = nlohmann::json::object();  /**< mutable event body. */
-    bool veto = false;                           /**< before only: cancel default. */
+    HookId hook;            /**< identity being dispatched. */
+    nlohmann::json data = nlohmann::json::object();  /**< mutable body. */
+    bool veto = false;      /**< before only: cancel the engine default. */
 };
 
 /**
@@ -110,6 +110,28 @@ inline bool IsKnownHook(const HookId& hook) {
     if (!match::modload::ResolveHook(hook.name, name, phase)) return false;
     if (phase.empty()) return true;
     return phase == HookPhaseToken(hook.phase);
+}
+
+/**
+ * @brief True when a before-hook may veto the engine default.
+ *
+ * The Veto column marks exactly these hooks veto-capable at their
+ * `before` variant: `turn_end`, `play`, `draw_attempt`, `draw`, `pile_empty`,
+ * `hand_empty`, `win_check`. No other hook may cancel the engine default; a
+ * `veto` flag set on a non-vetoable hook is ignored by the EventBus.
+ *
+ * @return false for an unknown hook or an `after` phase.
+ */
+inline bool IsVetoCapable(const HookId& hook) {
+    if (hook.phase != HookPhase::kBefore) return false;
+    if (!match::modload::IsKnownHookName(hook.name)) return false;
+    static const char* const kVetoCapable[] = {
+        "turn_end", "play",      "draw_attempt", "draw",
+        "pile_empty", "hand_empty", "win_check"};
+    for (const char* name : kVetoCapable) {
+        if (hook.name == name) return true;
+    }
+    return false;
 }
 
 /**

@@ -44,6 +44,8 @@ bool EventBus::Subscribe(const std::string& mod_id,
                          const HookId& hook,
                          HookCallback callback) {
     if (mod_id.empty() || !callback) return false;
+    // INFO: reject an unknown hook so a typo cannot silently never fire.
+    if (!IsKnownHook(hook)) return false;
     Subscription sub;
     sub.mod_id = mod_id;
     sub.registration_index = registration_index;
@@ -91,6 +93,8 @@ HookDispatchResult EventBus::Dispatch(const HookId& hook, HookPhase phase,
     //       name + this phase and the payload carries the resolved identity.
     const HookId key{hook.name, phase};
     payload.hook = key;
+    // INFO: clear any stale veto on a reused payload before before-hooks run.
+    if (phase == HookPhase::kBefore) payload.veto = false;
 
     // WARN: the re-entry guard runs before any callback; breaching it aborts
     //       the chain through the budget path without invoking a hook.
@@ -100,8 +104,9 @@ HookDispatchResult EventBus::Dispatch(const HookId& hook, HookPhase phase,
         std::string mod = CurrentMod();
         if (mod.empty()) mod = FirstSubscriberFor(key);
         if (!mod.empty()) AttributeAbort(mod, result);
-        Logger::Error("[EventBus] re-entry cap ", reentry_cap_, " exceeded for ",
-                      HookPhaseToken(phase), ":", key.name);
+        Logger::Error("[EventBus] re-entry cap ", reentry_cap_,
+                      " exceeded for ", HookPhaseToken(phase), ":",
+                      key.name);
         return result;
     }
 
@@ -138,7 +143,9 @@ HookDispatchResult EventBus::Dispatch(const HookId& hook, HookPhase phase,
         ++result.ran;
     }
 
-    if (phase == HookPhase::kBefore) result.vetoed = payload.veto;
+    if (phase == HookPhase::kBefore) {
+        result.vetoed = IsVetoCapable(key) && payload.veto;
+    }
     return result;
 }
 
