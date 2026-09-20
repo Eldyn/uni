@@ -59,9 +59,14 @@
  * `Resolver::ResumeWindow`, emitting `window_open` / `window_response` /
  * `window_close`.
  *
- * Explicitly NOT in this slice: the debt-magnitude draw / draw
- * stacking, the gap vocabulary additions, and WS/view
- * building.
+ * Draw stacking, built on top of the
+ * window flow. `draw_cards` gains an optional `n_from_debt` arg that draws a
+ * target's accumulated `vanilla:draw_debt` status magnitude; a window node may
+ * declare `reopen: true` so a winning response appends its own draw penalty to
+ * the debt and re-opens the window on the same budget ledger; and a window that
+ * arrives while an op input is parked is deferred rather than dropped, then
+ * opened once the input resolves (the wild_draw4 prompt + draw_stacking window
+ * case).
  */
 
 namespace match::engine {
@@ -381,9 +386,16 @@ private:
      *
      * Ensures a `WindowState`, fills responders / routes / filter, arms the
      * The timer layer window timer (suspending the turn clock), emits
-     * `window_open` and parks the pause in `pending_window_`.
+     * `window_open` and parks the pause in `pending_window_`. When
+     * `fresh_situation` is true and the last play was a `draw_penalty` card,
+     * the engine records that card's N as `vanilla:draw_debt` on the current
+     * target; a re-open passes false so the response, not the situation, is
+     * counted.
+     *
+     * @param pause           Parked resolver continuation.
+     * @param fresh_situation True for a window opened by the triggering play.
      */
-    void OpenWindow(WindowPause pause);
+    void OpenWindow(WindowPause pause, bool fresh_situation = true);
 
     /**
      * @brief Build the `PlayAttempt` for `card` by `player`.
@@ -417,10 +429,27 @@ private:
     /**
      * @brief Commit the winning response card: move to discard + zone events.
      *
-     * TODO: the debt-magnitude draw / draw-stacking rebuild hooks in
-     * at this point; this slice only commits the winning card.
+     * when the response card is itself a `draw_penalty` card its own
+     * N is appended to the current target's accumulated `vanilla:draw_debt`
+     * status. The window's `on_response` route remains the resolution
+     * continuation; re-opening the window is `CloseWindowRoute`'s.
      */
     void CommitWinningPlay(ecs::Entity player, ecs::Entity card);
+
+    /** @brief True when the window node declares engine-owned chaining. */
+    bool WindowReopens(const resolver::WindowRequest& request) const;
+
+    /** @brief The draw penalty N encoded by a card's face label, else 0. */
+    int32_t DrawPenaltyMagnitude(ecs::Entity card) const;
+
+    /**
+     * @brief Append `card`'s draw penalty to `target`'s `vanilla:draw_debt`.
+     *
+     * Fail-safe no-op when the card is dead / not a `draw_penalty` card or its
+     * magnitude is 0. Uses `status::Apply` with `accumulate`; emits and bridges
+     * a `status_applied` event.
+     */
+    void RecordDrawPenalty(ecs::Entity card, ecs::Entity target);
 
     /**
      * @brief Close the open window, emit `window_close` and resume the route.
@@ -498,6 +527,20 @@ private:
                       const ops::ResolutionFrame& frame, bool settle_play,
                       ecs::Entity actor);
 
+    /** @brief Append a resolved result's events (no pause / settle work). */
+    void AppendEvents(const resolver::ResolveResult& result);
+
+    /**
+     * @brief Open the oldest window deferred behind a parked op input.
+     *
+     * The engine two-pause fix: a window that resolves in the same dispatch as
+     * a `kNeedsInput` pause is queued instead of dropped; this opens it once
+     * the input resolves. Inherits the interrupted play's settle intent.
+     *
+     * @return true when a deferred window was opened.
+     */
+    bool OpenDeferredWindow(bool settle_play, ecs::Entity actor);
+
     /** @brief Bind the selectors a condition may read (mirrors assembly). */
     void BindConditionSelectors(const resolver::SelectorContext& context,
                                 ops::ResolutionFrame& frame);
@@ -515,6 +558,7 @@ private:
     bool must_apply_active_ = false;   /**< RunMustApply re-entry guard. */
     std::optional<InputPause> pending_input_;
     std::optional<WindowPause> pending_window_;
+    std::vector<WindowPause> deferred_windows_;  /**< queued. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
     uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };

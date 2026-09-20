@@ -251,18 +251,27 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     CHECK_MESSAGE(seven_zero_swaps,
                   "seven_zero 7-card hook does not swap with @choose_player");
 
-    /* INFO: draw_stacking is authored as a response-window rule
-     *       not as a pending_draws ValidatePlay hook. Assert the window fields
-     *       and that its routes are the expressible debt half (append on the
-     *       response route, clear on the default route). */
+    /* INFO: draw_stacking is authored as a response-window rule.
+     *       Assert the window fields, the `reopen` chaining declaration, the
+     *       response marker route, and the default route's debt draw + clear
+     *       (the engine owns the response's N append and the re-open). */
     const LoadedMod* stacking = find_mod("draw_stacking");
     REQUIRE(stacking != nullptr);
     bool stacking_window = false;
-    bool stacking_response_applies = false;
+    bool stacking_reopens = false;
+    bool stacking_response_signal = false;
+    bool stacking_default_draws_debt = false;
     bool stacking_default_clears = false;
     for (const auto& rule : stacking->rules) {
         for (const auto& hook : rule.hooks) {
             if (hook.hook != "after:play") continue;
+            std::map<std::string, const nlohmann::json*> by_id;
+            for (const auto& node : hook.graph.nodes) {
+                if (node.is_object() && node.contains("id")
+                    && node["id"].is_string()) {
+                    by_id[node["id"].get<std::string>()] = &node;
+                }
+            }
             for (const auto& node : hook.graph.nodes) {
                 if (!node.is_object() || !node.contains("window")) continue;
                 const auto& window = node["window"];
@@ -271,48 +280,52 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                     && window.value("duration", "") == "env") {
                     stacking_window = true;
                 }
+                if (node.value("reopen", false)) stacking_reopens = true;
                 const auto on_response = node.find("on_response");
-                if (on_response == node.end() || !on_response->is_object()) {
-                    continue;
-                }
-                for (auto it = on_response->begin();
-                     it != on_response->end(); ++it) {
-                    if (!it.value().is_string()) continue;
-                    for (const auto& target : hook.graph.nodes) {
-                        if (!target.is_object()) continue;
-                        if (target.value("id", "")
-                            != it.value().get<std::string>()) {
-                            continue;
-                        }
-                        if (target.value("op", "") == "apply_status") {
-                            const auto args = target.find("args");
-                            if (args != target.end() && args->is_object()
-                                && args->value("status_kind", "")
-                                       == "vanilla:draw_debt") {
-                                stacking_response_applies = true;
-                            }
+                if (on_response != node.end() && on_response->is_object()) {
+                    for (auto it = on_response->begin();
+                         it != on_response->end(); ++it) {
+                        if (!it.value().is_string()) continue;
+                        const auto found =
+                            by_id.find(it.value().get<std::string>());
+                        if (found != by_id.end()
+                            && found->second->value("op", "")
+                                   == "emit_signal") {
+                            stacking_response_signal = true;
                         }
                     }
                 }
-                const std::string def = node.value("default", "");
-                for (const auto& target : hook.graph.nodes) {
-                    if (!target.is_object()) continue;
-                    if (target.value("id", "") != def) continue;
-                    if (target.value("op", "") != "remove_status") continue;
-                    const auto args = target.find("args");
-                    if (args != target.end() && args->is_object()
+                std::string cursor = node.value("default", "");
+                int guard = 0;
+                while (!cursor.empty() && by_id.count(cursor) != 0
+                       && guard++ < 8) {
+                    const nlohmann::json& cur = *by_id[cursor];
+                    const std::string op = cur.value("op", "");
+                    const auto args = cur.find("args");
+                    if (op == "draw_cards" && args != cur.end()
+                        && args->is_object()
+                        && args->value("n_from_debt", false)) {
+                        stacking_default_draws_debt = true;
+                    }
+                    if (op == "remove_status" && args != cur.end()
+                        && args->is_object()
                         && args->value("status_kind", "")
                                == "vanilla:draw_debt") {
                         stacking_default_clears = true;
                     }
+                    cursor = cur.value("next", "");
                 }
             }
         }
     }
     CHECK_MESSAGE(stacking_window,
                   "draw_stacking window missing @others/env fields");
-    CHECK_MESSAGE(stacking_response_applies,
-                  "draw_stacking response route does not append draw_debt");
+    CHECK_MESSAGE(stacking_reopens,
+                  "draw_stacking window does not declare reopen");
+    CHECK_MESSAGE(stacking_response_signal,
+                  "draw_stacking response route is not the stack marker");
+    CHECK_MESSAGE(stacking_default_draws_debt,
+                  "draw_stacking default route does not draw the debt");
     CHECK_MESSAGE(stacking_default_clears,
                   "draw_stacking default route does not clear draw_debt");
 

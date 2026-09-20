@@ -4,6 +4,7 @@
 #include "match/modload/restriction.hpp"
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
+#include "match/status.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -830,7 +831,7 @@ std::string MatchInstance::WinningRoute(
     return window.default_route;
 }
 
-void MatchInstance::OpenWindow(WindowPause pause) {
+void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     ecs::EntityStore& store = assembly_->store;
     const ecs::Entity match = assembly_->registries.match;
 
@@ -867,6 +868,14 @@ void MatchInstance::OpenWindow(WindowPause pause) {
     // INFO: park before dispatching `window_open` so a hook that pauses cannot
     //       recursively open a second window from the same pause.
     pending_window_ = std::move(pause);
+
+    // INFO: A window opened by a draw-penalty play records that
+    //       play's N as debt on the current target; a re-opened window counts
+    //       its response instead (CommitWinningPlay), so it passes false.
+    if (fresh_situation && last_play_.has_value()
+        && current.has_value()) {
+        RecordDrawPenalty(last_play_->card, *current);
+    }
 
     json hook_data = json{{"window", body}};
     Before("window_open", hook_data);
@@ -912,8 +921,78 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card) {
               {"from_ordinal", ordinal.value_or(0)}});
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
+
+    // INFO: Each response appends its own N to the debt on the
+    //       then-target. The target is the current turn owner (the player who
+    //       will draw when the chain ends).
+    if (const std::optional<ecs::Entity> target = CurrentPlayer();
+        target.has_value()) {
+        RecordDrawPenalty(card, *target);
+    }
     // INFO: the winning response's own behavior graph is not re-drained; the
     //       window's `on_response` route is the resolution continuation.
+}
+
+bool MatchInstance::WindowReopens(
+    const resolver::WindowRequest& request) const {
+    if (!request.raw.is_object()) return false;
+    if (request.raw.value("reopen", false)) return true;
+    const auto window = request.raw.find("window");
+    if (window != request.raw.end() && window->is_object()) {
+        return window->value("reopen", false);
+    }
+    return false;
+}
+
+int32_t MatchInstance::DrawPenaltyMagnitude(ecs::Entity card) const {
+    ecs::EntityStore& store = assembly_->store;
+    const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
+    if (face == nullptr) return 0;
+    // INFO: legacy labels are `+2` and `jolly_draw4`; take the last digit run
+    //       so both forms yield their N. An unlabelled card yields 0.
+    int32_t magnitude = 0;
+    bool digit = false;
+    int32_t run = 0;
+    for (char c : face->label) {
+        if (c >= '0' && c <= '9') {
+            run = run * 10 + (c - '0');
+            if (run > 1000) run = 1000;
+            digit = true;
+        } else if (digit) {
+            magnitude = run;
+            run = 0;
+            digit = false;
+        }
+    }
+    if (digit) magnitude = run;
+    return magnitude;
+}
+
+void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity target) {
+    ecs::EntityStore& store = assembly_->store;
+    if (!store.IsAlive(card) || !store.IsAlive(target)) return;
+
+    const std::string kind = ops::CardKindId(store, card);
+    if (kind.empty() || !ops::CardHasTag(kind, "draw_penalty")) return;
+
+    const int32_t magnitude = DrawPenaltyMagnitude(card);
+    if (magnitude <= 0) return;
+
+    status::ApplyRequest request;
+    request.status_id = std::string(ops::kDrawDebtStatusId);
+    request.magnitude = magnitude;
+    request.has_stack_policy = true;
+    request.stack_policy = ecs::StackPolicy::kAccumulate;
+    const status::ApplyResult applied =
+        status::Apply(store, target, request);
+    if (!applied.applied) return;
+
+    json payload = json{{"target", EntityJson(target)},
+                        {"status_kind", applied.status_id},
+                        {"magnitude", applied.magnitude},
+                        {"instance", applied.instance_id}};
+    events_.push_back(ops::MakeEvent("status_applied", payload));
+    BridgeRunEvent(events_.back());
 }
 
 void MatchInstance::CloseWindowRoute(const std::string& route,
@@ -964,6 +1043,47 @@ void MatchInstance::CloseWindowRoute(const std::string& route,
     ops::ResolutionFrame frame;
     const resolver::ResolveResult result = assembly_->resolver->ResumeWindow(
         graph, pause.mod_id, context, frame, pause.pause, route);
+
+    // INFO: Window chaining. A window that declares `reopen` and
+    //       collected a winning response re-opens after that response's route
+    //       drains, so the next responder may stack. The re-open resumes
+    //       through `ResumeWindow`, so the chain keeps one budget ledger.
+    if (pause.has_winner && WindowReopens(pause.request)
+        && result.status == resolver::ResolveStatus::kComplete
+        && !result.aborted && !result.disarmed) {
+        AppendEvents(result);
+        if (!Paused() && !finished_) {
+            resolver::SelectorContext reopen_context = pause.context;
+            reopen_context.responder = pause.winner;
+            reopen_context.self = pause.winner;
+            reopen_context.target = pause.winner;
+            reopen_context.in_window = true;
+            ops::ResolutionFrame reopen_frame;
+            const resolver::ResolveResult reopened =
+                assembly_->resolver->ResumeWindow(
+                    graph, pause.mod_id, reopen_context, reopen_frame,
+                    pause.pause, pause.request.node_id);
+            if (reopened.status == resolver::ResolveStatus::kWindow
+                && reopened.window.has_value()) {
+                WindowPause next;
+                next.request = *reopened.window;
+                next.pause = reopened;
+                next.context = reopen_context;
+                next.system_index = pause.system_index;
+                next.mod_id = pause.mod_id;
+                next.settle_play = pause.settle_play;
+                next.actor = pause.actor;
+                OpenWindow(std::move(next), /*fresh_situation=*/false);
+                return;
+            }
+            AppendResult(reopened, pause.system_index, pause.mod_id,
+                         reopen_context, reopen_frame, pause.settle_play,
+                         pause.actor);
+            return;
+        }
+        return;
+    }
+
     AppendResult(result, pause.system_index, pause.mod_id, context, frame,
                  pause.settle_play, pause.actor);
 }
@@ -1204,16 +1324,21 @@ void MatchInstance::CollectRuns() {
             // INFO: Must-apply auto cards fire before a window
             //       opens; the engine then opens and times the window.
             RunMustApply("window");
+            WindowPause window;
+            window.request = *run.window;
+            window.pause.status = run.status;
+            window.pause.resume = run.resume;
+            window.context = run.context;
+            window.system_index = run.system_index;
+            window.mod_id = run.mod_id;
             if (!pending_window_.has_value()
                 && !pending_input_.has_value()) {
-                WindowPause window;
-                window.request = *run.window;
-                window.pause.status = run.status;
-                window.pause.resume = run.resume;
-                window.context = run.context;
-                window.system_index = run.system_index;
-                window.mod_id = run.mod_id;
                 OpenWindow(std::move(window));
+            } else {
+                // INFO: Two-pause fix - a window resolving in the same
+                //       dispatch as a parked op input is queued, not dropped;
+                //       AppendResult opens it once the input resolves.
+                deferred_windows_.push_back(std::move(window));
             }
         }
 
@@ -1388,17 +1513,21 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
     return true;
 }
 
+void MatchInstance::AppendEvents(const resolver::ResolveResult& result) {
+    for (const json& event : result.events) {
+        events_.push_back(event);
+        BridgeRunEvent(event);
+    }
+    CollectRuns();
+}
+
 void MatchInstance::AppendResult(const resolver::ResolveResult& result,
                                  std::size_t system_index,
                                  const std::string& mod_id,
                                  const resolver::SelectorContext& context,
                                  const ops::ResolutionFrame& frame,
                                  bool settle_play, ecs::Entity actor) {
-    for (const json& event : result.events) {
-        events_.push_back(event);
-        BridgeRunEvent(event);
-    }
-    CollectRuns();
+    AppendEvents(result);
 
     if (result.status == resolver::ResolveStatus::kNeedsInput
         && result.input_request.has_value()) {
@@ -1427,11 +1556,24 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.mod_id = mod_id;
         next.settle_play = settle_play;
         next.actor = actor;
-        OpenWindow(std::move(next));
+        OpenWindow(std::move(next), /*fresh_situation=*/false);
         return;
     }
 
+    // INFO: a deferred window owns the flow from here; do not settle past it.
+    if (Paused()) return;
+    if (OpenDeferredWindow(settle_play, actor)) return;
     if (settle_play) SettleAfterPlay(actor);
+}
+
+bool MatchInstance::OpenDeferredWindow(bool settle_play, ecs::Entity actor) {
+    if (Paused() || finished_ || deferred_windows_.empty()) return false;
+    WindowPause next = std::move(deferred_windows_.front());
+    deferred_windows_.erase(deferred_windows_.begin());
+    next.settle_play = settle_play;
+    next.actor = actor;
+    OpenWindow(std::move(next), /*fresh_situation=*/true);
+    return true;
 }
 
 void MatchInstance::BindConditionSelectors(
