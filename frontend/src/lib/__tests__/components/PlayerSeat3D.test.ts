@@ -41,6 +41,7 @@ import {
 	ringSlotWorldPose,
 	RING_RADIUS_EM
 } from "$components/game/layout/handRing";
+import { storeAnimation } from "$stores/animation.svelte";
 
 describe("PlayerSeat3D CardRegistry integration", () => {
 	afterEach(() => {
@@ -236,6 +237,38 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 
 		expect(flight.pose.x).not.toBe(999);
 		expect(flight.pose.x).toBeCloseTo(2);
+	});
+
+	it("releases its ring cards from transit when the morph ends", () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+		const player = { username: "alice", card_count: 2, is_bot: false };
+		const morph = {
+			username: "alice",
+			poses: [
+				[9, 0, 9],
+				[8, 0, 8]
+			] as [number, number, number][],
+			open: false
+		};
+
+		const { rerender } = render(PlayerSeat3D, {
+			props: { player, seat, color: "#00ff00", ringMorph: morph, inheritProgress: 0 },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		expect(registry.isInTransit("ring:alice:0")).toBe(true);
+		expect(registry.isInTransit("ring:alice:1")).toBe(true);
+
+		// Animation off so the post-release idle re-sync clears the flag
+		// synchronously rather than handing off to a displacement tween.
+		const wasEnabled = storeAnimation.enabled;
+		storeAnimation.enabled = false;
+		rerender({ player, seat, color: "#00ff00", ringMorph: null, inheritProgress: 1 });
+		storeAnimation.enabled = wasEnabled;
+
+		expect(registry.isInTransit("ring:alice:0")).toBe(false);
+		expect(registry.isInTransit("ring:alice:1")).toBe(false);
 	});
 
 	it("renders avatar and name label as scene objects with no DOM overlay", () => {

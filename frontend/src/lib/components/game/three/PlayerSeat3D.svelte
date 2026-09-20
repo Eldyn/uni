@@ -228,6 +228,9 @@
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let registeredKeys = new Set<string>();
+	// Which player's morph (if any) the previous effect run saw. Used to detect
+	// the morph ending (or switching player) and release the transit flags.
+	let prevMorphUsername: string | null = null;
 
 	$effect(() => {
 		if (!cardRegistry) return;
@@ -244,6 +247,26 @@
 		// (an outgoing hand is now an opponent's), so the cards stay backs.
 		const morph = ringMorph !== null && ringMorph.username === player.username ? ringMorph : null;
 		const morphProgress = morph ? inheritProgress : 1;
+
+		// Deterministic morph-end release. The controller sets inheritProgress
+		// to 1 and clears `transition` (whence ringMorph is derived) in the same
+		// synchronous update, so no flush ever observes progress 1 with a
+		// non-null morph — the release-at-progress-1 inside the loop below never
+		// fires. Releasing here, the moment the morph goes inactive, is what
+		// actually clears `inTransit`: otherwise the card is still in-transit
+		// with no displacement tween (morph killed it), making
+		// `isFlightTransit` true and permanently skipping the idle re-sync.
+		const morphUsername = morph?.username ?? null;
+		if (prevMorphUsername !== null && prevMorphUsername !== morphUsername) {
+			for (const key of registeredKeys) {
+				if (!key.startsWith(`ring:${prevMorphUsername}:`)) continue;
+				// The morph killed any displacement tween, so there's normally
+				// none to clobber; guard anyway so a live tween keeps ownership
+				// of the pose and clears the flag itself on completion.
+				if (!displacementTweens.has(key)) cardRegistry.markInTransit(key, false);
+			}
+		}
+		prevMorphUsername = morphUsername;
 
 		for (const [i, slot] of ringSlots.entries()) {
 			const key = `ring:${username}:${i}`;
