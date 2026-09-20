@@ -50,6 +50,9 @@ MatchSession::MatchSession(std::unique_ptr<match::engine::MatchInstance> engine,
         (void)socket;
         sinks_.try_emplace(username);
         prompt_signature_.try_emplace(username);
+        // INFO: a prompt that never reaches `SubmitInput` closes as cancelled
+        //       (timeout / abort); an accepted answer overwrites this.
+        prompt_outcome_.try_emplace(username, "cancelled");
     }
     BuildPromptSchemas();
 }
@@ -83,7 +86,11 @@ bool MatchSession::SubmitInput(const std::string& username,
     const json* schema = FindPromptSchema(kind);
     if (schema != nullptr && !MatchesSchema(value, *schema)) return false;
 
-    return engine_->SubmitInput(username, value);
+    if (!engine_->SubmitInput(username, value)) return false;
+    // INFO: the target answered, so its parked prompt now closes `answered`;
+    //       EmitPendingPrompt turns this into the prompt_close.
+    prompt_outcome_[username] = "answered";
+    return true;
 }
 
 bool MatchSession::RespondWindow(const std::string& username,
@@ -129,7 +136,12 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         if (socket == nullptr) continue;
         std::string& last = prompt_signature_[username];
         if (!pending.has_value()) {
-            last.clear();
+            // INFO: the parked prompt cleared (answer / timeout / cancel);
+            //       close it for the recipient that was shown prompt_open.
+            if (!last.empty()) {
+                EmitPromptClose(broadcaster, username, socket, last);
+                last.clear();
+            }
             continue;
         }
         // INFO: dedupe by pending signature so a repeated EmitEvents between
@@ -153,7 +165,33 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         (*packet)["action"] = "match_event";
         broadcaster.SendJson(socket, *packet);
         last = signature;
+        // INFO: a fresh prompt starts from the default outcome; a stale
+        //       answer from a replaced prompt must not leak forward.
+        prompt_outcome_[username] = "cancelled";
     }
+}
+
+void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
+                                   const std::string& username,
+                                   AppWebSocket* socket,
+                                   const std::string& signature) {
+    // INFO: `prompt_id` is the prompt kind (the view layer's `prompt_open`
+    //       uses the kind as the id); recover it from the stored signature.
+    std::string prompt_id;
+    try {
+        prompt_id = json::parse(signature).value("kind", std::string());
+    } catch (const json::exception&) {
+        prompt_id.clear();
+    }
+    if (prompt_id.empty()) prompt_id = "prompt";
+
+    std::string& outcome = prompt_outcome_[username];
+    if (outcome.empty()) outcome = "cancelled";
+    json payload = {{"prompt_id", prompt_id}, {"outcome", outcome}};
+    json packet = sinks_.at(username).Wrap("prompt_close", std::move(payload));
+    packet["action"] = "match_event";
+    broadcaster.SendJson(socket, packet);
+    outcome = "cancelled";
 }
 
 void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {

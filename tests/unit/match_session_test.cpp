@@ -309,6 +309,54 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK(FindPacket(PacketsFor(fake, s1), "match_over") == nullptr);
 }
 
+TEST_CASE("match session: answer closes the prompt for the target only") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    REQUIRE(wilds.size() >= 4);
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player0, {wilds[0], wilds[1]});
+    ForceHand(*engine, player1, {wilds[2], wilds[3]});
+    const uint32_t wild0 = BitsOf(*engine, wilds[0]);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    // INFO: emit the prompt_open first so the session records it per
+    //       recipient before the answer arrives (the dedupe signature).
+    REQUIRE(session.PlayCard("player0", wild0));
+    fake.Clear();
+    session.EmitEvents(fake);
+    REQUIRE(FindEvent(PacketsFor(fake, s0), "prompt_open") != nullptr);
+
+    // --- answer -> the target gets a matching prompt_close ---------------
+    REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
+    CHECK_FALSE(session.Engine().PendingInput().has_value());
+    fake.Clear();
+    session.EmitEvents(fake);
+    const std::vector<json> s0_after = PacketsFor(fake, s0);
+    const std::vector<json> s1_after = PacketsFor(fake, s1);
+
+    const json* close0 = FindEvent(s0_after, "prompt_close");
+    REQUIRE(close0 != nullptr);
+    CHECK(close0->value("action", std::string()) == "match_event");
+    CHECK((*close0)["payload"]["prompt_id"] == "choose_color");
+    CHECK((*close0)["payload"]["outcome"] == "answered");
+    CHECK(close0->contains("seq"));
+
+    // INFO: prompt_close is target-only - the opponent never receives it.
+    CHECK(FindEvent(s1_after, "prompt_close") == nullptr);
+    // INFO: a cleared prompt never re-sends prompt_open either.
+    CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+}
+
 TEST_CASE("match session: per-recipient seq persists across batches") {
     Content content;
     REQUIRE(LoadContent(content));

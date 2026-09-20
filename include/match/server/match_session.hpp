@@ -194,6 +194,23 @@ private:
     /** @brief Emit a parked op-input as the target's `prompt_open`. */
     void EmitPendingPrompt(IBroadcaster& broadcaster);
 
+    /**
+     * @brief Emit the target's `prompt_close` when its prompt is gone.
+     *
+     * Synthesizes `{prompt_id, outcome}` through the recipient's persistent
+     * `EventSink` (so the close consumes a `seq`), sends it as a
+     * `match_event`, then resets the pending outcome. `prompt_id` is the
+     * parked prompt kind recovered from the stored signature; the view layer
+     * uses the kind as the prompt id.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @param username    Recipient whose prompt just closed.
+     * @param socket      Recipient socket (non-null, caller-checked).
+     * @param signature   Last emitted pending-prompt signature.
+     */
+    void EmitPromptClose(IBroadcaster& broadcaster, const std::string& username,
+                         AppWebSocket* socket, const std::string& signature);
+
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
@@ -201,6 +218,8 @@ private:
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Last pending-prompt signature emitted per recipient (dedupe). */
     std::unordered_map<std::string, std::string> prompt_signature_;
+    /** Outcome for the pending prompt's close per recipient. */
+    std::unordered_map<std::string, std::string> prompt_outcome_;
     /** Prompt kind -> validated `response_schema` (mods + built-ins). */
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
     std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
