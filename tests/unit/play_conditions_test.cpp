@@ -293,6 +293,11 @@ TEST_CASE("play_conditions: plays_bluffing mirrors no_bluffing") {
     CHECK_FALSE(matcher(Cond("plays_bluffing"),
                         Attempt("vanilla:white_wild4", true, "red", "",
                                 {"vanilla:red_5"})));
+    // legacy no_bluffing.cpp:10 returns early for out-of-turn attempts, so an
+    // otherwise-bluffing +4 is not flagged when it is a jump-in response.
+    CHECK_FALSE(matcher(condition,
+                        Attempt("vanilla:white_wild4", false, "red", "",
+                                {"vanilla:red_5"})));
 }
 
 // --- fail-safe -------------------------------------------------------------

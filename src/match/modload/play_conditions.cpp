@@ -216,6 +216,9 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         return !matches_active && !matches_top;
     }
     if (keyword == "plays_bluffing") {
+        // no_bluffing.cpp:10: out-of-turn attempts are never a bluff (the
+        // legacy ValidatePlay returns early before the +4 check).
+        if (!attempt->in_turn) return false;
         // no_bluffing.cpp:12-30: value is the +4 AND the player holds a card
         // whose type equals the active type.
         const std::optional<std::string> value = ArgString(args, "value");
