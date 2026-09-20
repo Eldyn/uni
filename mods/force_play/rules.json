@@ -1,0 +1,11 @@
+{
+  "statuses": [],
+  "rules": [
+    {
+      "id": "force_play",
+      "title": "Force Play",
+      "description": "INEXPRESSIBLE AS PHASE-1 CONTENT (reported in task-WP8b3-report.md). Legacy force_play.cpp sets CardDrawnEvent::force_play, which makes the engine auto-play a drawn playable card (src/match/match_instance.cpp:699-727). Phase 1 has (a) no op that plays a card (the op catalog is effect-only; play enters through the input pipeline), (b) no condition that tests the just-drawn card's playability, and (c) no selector for the drawn card outside card-behavior context. Declared for identity/activation only; no hook approximates the behavior.",
+      "hooks": []
+    }
+  ]
+}

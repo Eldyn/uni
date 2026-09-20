@@ -1,0 +1,28 @@
+{
+  "statuses": [],
+  "rules": [
+    {
+      "id": "jump_in",
+      "title": "Jump In",
+      "description": "Transcribed from src/match/rules/jump_in.cpp as spec 13.3 prescribes: a deny on out-of-turn plays (shipped by vanilla as vanilla:turn_order) plus this allow entry rescuing an identical card. The play predicates come from WP7e (plays_identical_to_top = same colour AND value as the discard top). The legacy OnCardPlayed turn steal (setting current_player_index to the jumper) is engine-side: the phase-1 condition vocabulary cannot guard an after:play graph on 'out of turn and identical', so no graph is authored here.",
+      "hooks": [
+        {
+          "on": "after:match_start",
+          "nodes": [
+            {
+              "id": "n1",
+              "op": "add_restriction",
+              "args": {
+                "entry_def": {
+                  "id": "jump_in:identical_out_of_turn",
+                  "phase": "allow",
+                  "condition": { "plays_identical_to_top": {} }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

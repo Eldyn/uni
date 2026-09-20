@@ -1,0 +1,11 @@
+{
+  "statuses": [],
+  "rules": [
+    {
+      "id": "progressive",
+      "title": "Progressive",
+      "description": "INEXPRESSIBLE AS PHASE-1 CONTENT (reported in task-WP8b3-report.md). Legacy progressive.cpp sets CardDrawnEvent::keep_drawing, which drives the engine draw loop (src/match/match_instance.cpp:699-723) to keep drawing until a playable card appears. Phase 1 has (a) no condition that tests the just-drawn card's playability, (b) no selector for the drawn card outside card-behavior context (@card is card-behavior only), and (c) DAG-only graphs, so the self-repeating draw cannot be expressed. Declared for identity/activation only; no hook approximates the behavior.",
+      "hooks": []
+    }
+  ]
+}

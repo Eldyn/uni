@@ -1,0 +1,9 @@
+{
+  "id": "draw_stacking",
+  "name": "Draw Stacking",
+  "version": "1.0.0",
+  "api": "1",
+  "description": "Rule-only mod: +2/+4 stack through a response window; each response appends draw debt and re-opens the window.",
+  "author": "eldyn",
+  "provides_rules": "rules.json"
+}
