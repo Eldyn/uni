@@ -316,7 +316,7 @@ TEST_CASE("turn_flow_ops: redirect_turn jumps the turn to the target") {
     CHECK(h.store.Get<TurnState>(p2)->is_current);
 }
 
-TEST_CASE("turn_flow_ops: set_turn_timer stores the duration value") {
+TEST_CASE("turn_flow_ops: set_turn_timer stores ms and rejects other units") {
     Harness h;
     AddMatch(h.store);
     Entity p0 = AddPlayer(h.store, "p0", 0);
@@ -329,20 +329,35 @@ TEST_CASE("turn_flow_ops: set_turn_timer stores the duration value") {
     CHECK(ms.value["unit"] == "ms");
     CHECK(Deadline(h.store, p0) == 30000);
 
+    // INFO: a relative non-ms leg has no absolute-ms slot; fail loud and leave
+    //       the stored deadline untouched.
     const OpResult turns = h.Invoke(
         "set_turn_timer", json{{"duration", {{"unit", "turns"}, {"value", 2}}}},
         {{"target", {p0}}});
-    CHECK(turns.value["unit"] == "turns");
-    CHECK(Deadline(h.store, p0) == 2);
+    CHECK(turns.status == OpStatus::kError);
+    CHECK_FALSE(turns.error.empty());
+    CHECK(Deadline(h.store, p0) == 30000);
 
-    // INFO: a compound duration prefers the shortest ms leg.
+    // INFO: a compound duration keeps its ms leg (the shortest ms leg) and is
+    //       accepted.
     const OpResult compound = h.Invoke(
         "set_turn_timer",
         json{{"duration",
               json::array({{{"unit", "turns"}, {"value", 5}},
                            {{"unit", "ms"}, {"value", 12000}}})}},
         {{"target", {p0}}});
+    CHECK(compound.status == OpStatus::kResolved);
     CHECK(compound.value["unit"] == "ms");
+    CHECK(Deadline(h.store, p0) == 12000);
+
+    // INFO: a compound with no ms leg is rejected like a single non-ms leg.
+    const OpResult no_ms = h.Invoke(
+        "set_turn_timer",
+        json{{"duration",
+              json::array({{{"unit", "turns"}, {"value", 1}},
+                           {{"unit", "rounds"}, {"value", 9}}})}},
+        {{"target", {p0}}});
+    CHECK(no_ms.status == OpStatus::kError);
     CHECK(Deadline(h.store, p0) == 12000);
 }
 

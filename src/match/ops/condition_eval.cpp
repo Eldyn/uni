@@ -185,7 +185,9 @@ bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args, OpContext&) {
     const std::optional<std::string> kind = ArgString(args, "kind");
     const std::optional<std::string> tag = ArgString(args, "tag");
     const std::optional<std::string> type = ArgString(args, "type");
-    if (!kind.has_value() && !tag.has_value() && !type.has_value()) return false;
+    if (!kind.has_value() && !tag.has_value() && !type.has_value()) {
+        return false;
+    }
 
     const std::optional<ecs::Entity> pile =
         FindPile(store, ecs::PileKind::kDiscard);

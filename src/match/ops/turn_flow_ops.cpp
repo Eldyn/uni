@@ -398,13 +398,21 @@ OpResult OpSetTurnTimer(ecs::EntityStore& store, const OpArgs& args,
     if (duration == nullptr) return OpResult::Resolved();
     ecs::DurationSpec spec{};
     if (!ParseDuration(*duration, spec)) return OpResult::Resolved();
+    // ERROR: Documents `turn_deadline_ms` as an absolute epoch-ms value; a
+    //        relative non-ms leg has no slot there. Fail loud instead of
+    //        storing a mislabelled number.
+    if (spec.unit != ecs::DurationUnit::kMs) {
+        const std::string unit(UnitToken(spec.unit));
+        return OpResult::Error(
+            "set_turn_timer: turn timers must be in milliseconds "
+            "(got unit '" + unit + "')");
+    }
 
     ecs::TurnState* turn = EnsureTurnState(store, *target);
     if (turn == nullptr) return OpResult::Resolved();
-    // INFO: the op records the duration value in `turn_deadline_ms` only; it
-    //       never reads a clock or expires anything. The
-    //       unit is validated but has no the store slot, so it is reported in
-    //       the result value for the timer layer rather than persisted.
+    // TODO: The timer subsystem converts this ms duration into an
+    //            absolute deadline and owns expiry; the op layer records the ms
+    //            value only and never reads a clock.
     turn->turn_deadline_ms = spec.value;
     return OpResult::Resolved(
         json{{"target", EntityJson(*target)},

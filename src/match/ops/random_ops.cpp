@@ -41,19 +41,6 @@ constexpr int64_t kMinCount = 1;
 constexpr int64_t kMaxCount = 1000;
 
 /**
- * @brief One splitmix64 stream step; advances `state`.
- *
- * The canonical splitmix64 constants.
- */
-uint64_t SplitMix64(uint64_t& state) {
-    state += 0x9E3779B97F4A7C15ULL;
-    uint64_t z = state;
-    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-    return z ^ (z >> 31);
-}
-
-/**
  * @brief Read an integer spec field; false on a present non-integer value.
  *
  * A `required` field that is absent also fails. Absence of an optional field
@@ -102,17 +89,15 @@ OpResult OpRoll(ecs::EntityStore& store, const OpArgs& args, OpContext& ctx) {
     json spec = json::object();
     if (!ParseSpec(*raw_spec, spec)) return OpResult::Resolved();
 
-    const std::optional<ecs::Entity> match = FindMatch(store);
-    if (!match.has_value()) return OpResult::Resolved();
-    ecs::RngState* rng = store.Get<ecs::RngState>(*match);
-    if (rng == nullptr) return OpResult::Resolved();
+    const std::optional<RngDraw> rng = AdvanceRng(store);
+    if (!rng.has_value()) return OpResult::Resolved();
 
-    // INFO: / counter increments before the draw, and the stream
-    //       is seeded from seed + the (new) counter so identical seed/counter
-    //       pairs replay identically and each roll consumes a fresh stream.
-    rng->op_counter += 1;
-    const uint64_t counter = rng->op_counter;
-    uint64_t state = rng->seed + counter;
+    // INFO: / the shared helper increments the counter before the
+    //       draw and seeds the stream from seed + the (new) counter, so
+    //       identical seed/counter pairs replay identically and each roll
+    //       consumes a fresh stream.
+    const uint64_t counter = rng->counter;
+    uint64_t state = rng->state;
 
     const int64_t sides = spec.at("sides").get<int64_t>();
     const int64_t count = spec.at("count").get<int64_t>();

@@ -508,10 +508,15 @@ OpResult OpTransferCard(ecs::EntityStore& store, const OpArgs& args,
 
     std::vector<ecs::Entity> matches;
     if (selector == "random") {
-        // INFO: deterministic-first selection; the RNG stream is the timer
-        //       layer and the op layer's subsystem and is out of this slice's
-        //       scope.
-        matches = candidates;
+        // INFO: Draw a uniform index from the same splitmix64 stream the
+        //       `roll` op uses, so the steal is deterministic given the same
+        //       RngState and varies as the counter advances.
+        const std::optional<RngDraw> rng = AdvanceRng(store);
+        if (!rng.has_value()) return OpResult::Resolved();
+        uint64_t state = rng->state;
+        const uint64_t draw = SplitMix64(state);
+        matches.push_back(
+            candidates[static_cast<std::size_t>(draw % candidates.size())]);
     } else if (selector.rfind("tag:", 0) == 0) {
         const std::string tag = selector.substr(4);
         for (ecs::Entity card : candidates) {

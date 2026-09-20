@@ -260,14 +260,16 @@ OpResult OpApplyStatus(ecs::EntityStore& store, const OpArgs& args,
         return OpResult::Resolved();
     }
 
-    // INFO: stack_policy is optional (default "replace"); absent or a wrong
-    //       JSON kind falls back to the default, a present-but-invalid token
-    //       is a fail-safe no-op.
+    // INFO: stack_policy is optional; absent or a wrong JSON kind falls back to
+    //       the existing instance's policy (then "replace"), a
+    //       present-but-invalid token is a fail-safe no-op.
     ecs::StackPolicy incoming = ecs::StackPolicy::kReplace;
     uint32_t incoming_cap = 0;
+    bool has_policy_arg = true;
     std::string policy_token;
     if (!args.GetString("stack_policy", policy_token)) {
         if (args.Has("stack_policy")) return OpResult::Resolved();
+        has_policy_arg = false;
         policy_token = "replace";
     }
     if (!ParseStackPolicy(policy_token, incoming, incoming_cap)) {
@@ -276,16 +278,20 @@ OpResult OpApplyStatus(ecs::EntityStore& store, const OpArgs& args,
 
     const int32_t magnitude = MagnitudeFrom(args.GetObject("params"));
 
-    // INFO: Seam. The store stores one `Status` per entity; the existing
-    //       instance (same kind) supplies the effective stack policy on
-    //       re-apply, so a status applied as `accumulate` keeps accumulating
-    //       even when the re-apply passes the default `replace`. A different
-    //       kind overwrites the single slot using the incoming policy.
+    // INFO: The `stack_policy` arg is authoritative when present; an
+    //       absent arg falls back to the existing instance's policy (then
+    //       "replace"). `independent` still mints a fresh instance id: The
+    //       store stores one `Status` per entity, so the previous instance is
+    //       not retained until the timer layer adds multi-instance storage.
     const ecs::Status* existing = store.Get<ecs::Status>(*target);
     ecs::Status value;
     if (existing != nullptr && existing->status_id == kind) {
         value = *existing;
-        switch (existing->stack_policy) {
+        const ecs::StackPolicy policy =
+            has_policy_arg ? incoming : existing->stack_policy;
+        value.stack_policy = policy;
+        value.cap = has_policy_arg ? incoming_cap : existing->cap;
+        switch (policy) {
             case ecs::StackPolicy::kReplace:
                 value.magnitude = magnitude;
                 value.duration = duration;

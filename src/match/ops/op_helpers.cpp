@@ -41,7 +41,8 @@ void DetachCard(ecs::EntityStore& store, ecs::Entity card,
                     : ecs::PileKind::kDiscard;
             std::optional<ecs::Entity> pile = FindPile(store, kind);
             if (pile.has_value()) {
-                ecs::PileContents* contents = store.Get<ecs::PileContents>(*pile);
+                ecs::PileContents* contents =
+                    store.Get<ecs::PileContents>(*pile);
                 if (contents != nullptr) EraseCard(contents->cards, card);
             }
             break;
@@ -86,6 +87,26 @@ std::optional<ecs::Entity> FindMatch(ecs::EntityStore& store) {
         store.EntitiesWith<ecs::MatchMeta>();
     if (matches.empty()) return std::nullopt;
     return matches.front();
+}
+
+uint64_t SplitMix64(uint64_t& state) {
+    state += 0x9E3779B97F4A7C15ULL;
+    uint64_t z = state;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
+
+std::optional<RngDraw> AdvanceRng(ecs::EntityStore& store) {
+    const std::optional<ecs::Entity> match = FindMatch(store);
+    if (!match.has_value()) return std::nullopt;
+    ecs::RngState* rng = store.Get<ecs::RngState>(*match);
+    if (rng == nullptr) return std::nullopt;
+    rng->op_counter += 1;
+    RngDraw draw;
+    draw.counter = rng->op_counter;
+    draw.state = rng->seed + rng->op_counter;
+    return draw;
 }
 
 std::vector<ecs::Entity> PlayersBySeat(ecs::EntityStore& store) {

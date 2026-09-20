@@ -76,7 +76,8 @@ std::optional<ecs::Entity> FindCurrentPlayer(ecs::EntityStore& store);
 /**
  * @brief The pile entity carrying `pile_contents.kind == kind`, or nullopt.
  */
-std::optional<ecs::Entity> FindPile(ecs::EntityStore& store, ecs::PileKind kind);
+std::optional<ecs::Entity> FindPile(ecs::EntityStore& store,
+                                    ecs::PileKind kind);
 
 /**
  * @brief Copy of `player`'s hand card refs; empty when not a hand carrier.
@@ -176,6 +177,30 @@ bool SetHandOrder(ecs::EntityStore& store, ecs::Entity player,
 nlohmann::json MakeEvent(std::string_view type,
                          nlohmann::json payload = nlohmann::json::object());
 
+// --- rng stream -------------------------------------------------------
+
+/**
+ * @brief One splitmix64 stream step; advances `state`.
+ *
+ * The canonical splitmix64 constants. Shared by the `roll` op and
+ * any op that draws a deterministic random index, so there is exactly one RNG.
+ */
+uint64_t SplitMix64(uint64_t& state);
+
+/**
+ * @brief Advance the match `RngState` and seed its splitmix64 stream.
+ *
+ * Increments `RngState.op_counter` and returns the new counter plus the
+ * splitmix64 state seeded from `seed + counter`, so a random
+ * draw shares the `roll` op's exact stream. Nullopt when the store has no
+ * match or no `rng_state`.
+ */
+struct RngDraw {
+    uint64_t counter = 0;  /**< post-increment op counter. */
+    uint64_t state = 0;    /**< splitmix64 state (seed + counter). */
+};
+std::optional<RngDraw> AdvanceRng(ecs::EntityStore& store);
+
 // --- `rolled` / `turns_elapsed` seams --------------------------------------
 
 /**
@@ -215,7 +240,8 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame);
  * and never mutated during resolution. Not thread-safe for concurrent
  * registration; reads after load are safe to share.
  */
-using CardTagTable = std::map<std::string, std::vector<std::string>, std::less<>>;
+using CardTagTable =
+    std::map<std::string, std::vector<std::string>, std::less<>>;
 
 /** @brief Replace the whole tag table (content load). */
 void SetCardTagTable(CardTagTable table);

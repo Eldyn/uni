@@ -122,7 +122,7 @@ TEST_CASE("status_ops: apply_status defaults magnitude 1 and policy replace") {
     CHECK(status->instance_id == 1);
 }
 
-TEST_CASE("status_ops: apply_status respects the existing instance policy") {
+TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
 
@@ -131,20 +131,33 @@ TEST_CASE("status_ops: apply_status respects the existing instance policy") {
                   {"stack_policy", "accumulate"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
-    // INFO: the re-apply omits stack_policy (arg default "replace"), but the
-    //       stored instance is `accumulate`, so magnitudes still add.
-    const OpResult result = h.Invoke(
+
+    // INFO: an omitted arg falls back to the existing instance's policy, so
+    //       magnitudes still add.
+    const OpResult fallback = h.Invoke(
         "apply_status",
         json{{"status_kind", "vanilla:draw_debt"},
              {"params", {{"magnitude", 3}}}},
         {{"target", {target}}});
+    CHECK(fallback.status == OpStatus::kResolved);
+    const Status* accumulated = GetStatus(h.store, target);
+    REQUIRE(accumulated != nullptr);
+    CHECK(accumulated->magnitude == 5);
+    CHECK(accumulated->stack_policy == StackPolicy::kAccumulate);
 
+    // INFO: a present arg is authoritative and overrides the stored policy.
+    const OpResult result = h.Invoke(
+        "apply_status",
+        json{{"status_kind", "vanilla:draw_debt"},
+             {"stack_policy", "replace"},
+             {"params", {{"magnitude", 4}}}},
+        {{"target", {target}}});
     CHECK(result.status == OpStatus::kResolved);
-    const Status* status = GetStatus(h.store, target);
-    REQUIRE(status != nullptr);
-    CHECK(status->magnitude == 5);
-    CHECK(status->stack_policy == StackPolicy::kAccumulate);
-    CHECK(status->instance_id == 1);
+    const Status* replaced = GetStatus(h.store, target);
+    REQUIRE(replaced != nullptr);
+    CHECK(replaced->magnitude == 4);
+    CHECK(replaced->stack_policy == StackPolicy::kReplace);
+    CHECK(replaced->instance_id == 1);
 }
 
 TEST_CASE("status_ops: apply_status replace resets magnitude and duration") {

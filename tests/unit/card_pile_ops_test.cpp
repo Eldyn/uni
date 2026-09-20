@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,9 +24,11 @@ using match::ecs::HookId;
 using match::ecs::HookPayload;
 using match::ecs::HookPhase;
 using match::ecs::InZone;
+using match::ecs::MatchMeta;
 using match::ecs::PileContents;
 using match::ecs::PileKind;
 using match::ecs::PlayerInfo;
+using match::ecs::RngState;
 using match::ecs::VisibilityGrant;
 using match::ecs::ZoneKind;
 using match::ecs::ZoneRef;
@@ -62,6 +65,16 @@ Entity AddPile(EntityStore& store, PileKind kind) {
     PileContents contents;
     contents.kind = kind;
     store.Add(entity, contents);
+    return entity;
+}
+
+Entity AddMatch(EntityStore& store, uint64_t seed, uint64_t counter = 0) {
+    Entity entity = store.Create();
+    store.Add(entity, MatchMeta{});
+    RngState rng;
+    rng.seed = seed;
+    rng.op_counter = counter;
+    store.Add(entity, rng);
     return entity;
 }
 
@@ -375,6 +388,7 @@ TEST_CASE("card_pile_ops: move_card to hand uses the acting player") {
 
 TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     Harness h;
+    AddMatch(h.store, 0x5EED1234ULL);
     Entity from = AddPlayer(h.store, "from", 0);
     Entity to = AddPlayer(h.store, "to", 1);
     Entity red = MakeCard(h.store, "vanilla:red_5", "red");
@@ -409,6 +423,39 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     CHECK(HandOf(h.store, from).empty());
 
     ClearCardTags();
+}
+
+TEST_CASE("card_pile_ops: transfer_card random draws from the shared stream") {
+    const std::vector<std::string> kinds = {
+        "vanilla:red_1", "vanilla:red_2", "vanilla:red_3", "vanilla:red_4"};
+    // INFO: seed/counter chosen so counters 1 and 2 draw different indices.
+    const uint64_t seed = 0x5EED1234ULL;
+
+    auto pick_with_counter = [&](uint64_t counter) -> std::string {
+        Harness h;
+        AddMatch(h.store, seed, counter);
+        Entity from = AddPlayer(h.store, "from", 0);
+        Entity to = AddPlayer(h.store, "to", 1);
+        for (const std::string& kind : kinds) {
+            PutInHand(h.store, from, MakeCard(h.store, kind, "red"));
+        }
+        const OpResult result = h.Invoke(
+            "transfer_card", json{{"selector", "random"}},
+            {{"from_player", {from}}, {"to_player", {to}}});
+        REQUIRE(result.status == OpStatus::kResolved);
+        const std::vector<Entity> moved = HandOf(h.store, to);
+        REQUIRE(moved.size() == 1);
+        CHECK(CardInZone(h.store, moved[0], ZoneKind::kHand));
+        const std::string moved_kind = CardKindId(h.store, moved[0]);
+        // INFO: the draw stays in-bounds: one of the candidate kinds.
+        CHECK(std::find(kinds.begin(), kinds.end(), moved_kind) != kinds.end());
+        return moved_kind;
+    };
+
+    // INFO: identical seed + counter replay the identical selection...
+    CHECK(pick_with_counter(0) == pick_with_counter(0));
+    // INFO: ...and a different counter (fresh stream) can select differently.
+    CHECK(pick_with_counter(0) != pick_with_counter(1));
 }
 
 TEST_CASE("card_pile_ops: transfer_card chosen opens a choose_card prompt") {
