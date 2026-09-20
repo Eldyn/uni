@@ -49,6 +49,20 @@ export function opponentRingRadiusWorld(avatarWorldSize: number, cardScale: numb
 }
 
 /**
+ * The uniform scale PlayerSeat3D multiplies `computeHandRingSlots`' unit
+ * directions by so a seat's ring lands at `opponentRingRadiusWorld` for the
+ * avatar and card size it is drawn with. Slots are authored at RING_RADIUS_EM,
+ * so dividing the required world radius back out by that constant repoints
+ * them at the radius the avatar actually needs.
+ *
+ * The scale depends only on the avatar and card sizes — a seat's position and
+ * rotation place an already-scaled ring, they don't resize it.
+ */
+export function ringRadialScale(avatarWorld: number, cardScale: number): number {
+	return opponentRingRadiusWorld(avatarWorld, cardScale) / RING_RADIUS_EM;
+}
+
+/**
  * How far a seat's drawn cards reach from the seat's own position — the ring
  * radius plus the card sitting on it, measured to its CORNER rather than its
  * edge. Ring cards are spun to stay radial (PlayerSeat3D), and a wide fan turns

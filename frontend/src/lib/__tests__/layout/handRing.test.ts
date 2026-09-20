@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
 	computeHandRingSlots,
 	ringSlotWorldPose,
+	ringRadialScale,
 	RING_RADIUS_EM
 } from "$components/game/layout/handRing";
 
@@ -87,5 +88,15 @@ describe("ringSlotWorldPose", () => {
 		// local (lx=0, lz=1) rotated by +90deg: worldX = 0*cos90 + 1*sin90 = 1, worldZ = -0*sin90 + 1*cos90 = 0
 		expect(x).toBeCloseTo(5 + 1);
 		expect(z).toBeCloseTo(-5 + 0);
+	});
+});
+
+describe("ringRadialScale", () => {
+	it("grows with card scale", () => {
+		expect(ringRadialScale(0.78, 0.8)).toBeGreaterThan(ringRadialScale(0.78, 0.55));
+	});
+
+	it("grows with the avatar's world size", () => {
+		expect(ringRadialScale(1, 0.55)).toBeGreaterThan(ringRadialScale(0.78, 0.55));
 	});
 });
