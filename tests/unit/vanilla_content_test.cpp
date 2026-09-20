@@ -369,16 +369,207 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     CHECK_MESSAGE(jump_redirects,
                   "jump_in response route does not redirect_turn(@responder)");
 
-    /* INFO: KNOWN GAPS. progressive and
-     *       force_play are declared for identity/activation only and ship no
-     *       graph. If a future fix authors hooks for them, this assertion
-     *       fails loudly so the known-gap list is updated. */
-    for (const char* id : {"progressive", "force_play"}) {
-        const LoadedMod* gap = find_mod(id);
-        REQUIRE_MESSAGE(gap != nullptr, "known-gap mod '" << id << "' missing");
-        REQUIRE(gap->rules.size() == 1);
-        CHECK_MESSAGE(gap->rules.front().hooks.empty(),
-                      "known gap '" << id << "' now has hooks; update the "
-                      "known-gap list and add content assertions");
+    /* INFO: force_play is real content now: an after:draw rule
+     *       branches on the drawn_card_playable predicate and, when the
+     *       drawn card is playable, runs the play_card op on
+     *       @drawn_card (legacy force_play.cpp /
+     *       match_instance.cpp:699-727). */
+    const LoadedMod* force = find_mod("force_play");
+    REQUIRE(force != nullptr);
+    REQUIRE(force->rules.size() == 1);
+    REQUIRE(force->rules.front().hooks.size() == 1);
+    {
+        const auto& hook = force->rules.front().hooks.front();
+        CHECK(hook.hook == "after:draw");
+        std::map<std::string, const nlohmann::json*> by_id;
+        for (const auto& node : hook.graph.nodes) {
+            if (node.is_object() && node.contains("id")
+                && node["id"].is_string()) {
+                by_id[node["id"].get<std::string>()] = &node;
+            }
+        }
+        bool force_branch = false;
+        bool force_plays = false;
+        for (const auto& node : hook.graph.nodes) {
+            if (!node.is_object() || !node.contains("cases")) continue;
+            const auto& cases = node["cases"];
+            if (!cases.is_array()) continue;
+            for (const auto& c : cases) {
+                if (!c.is_object()) continue;
+                const auto when = c.find("when");
+                if (when == c.end() || !when->is_object()) continue;
+                if (!when->contains("drawn_card_playable")) continue;
+                force_branch = true;
+                const auto next = c.find("next");
+                if (next == c.end() || !next->is_string()) continue;
+                const auto found = by_id.find(next->get<std::string>());
+                if (found == by_id.end()) continue;
+                const nlohmann::json& target = *found->second;
+                if (target.value("op", "") != "play_card") continue;
+                const auto args = target.find("args");
+                if (args != target.end() && args->is_object()
+                    && args->value("card", "") == "@drawn_card"
+                    && args->value("player", "") == "@self") {
+                    force_plays = true;
+                }
+            }
+        }
+        CHECK_MESSAGE(force_branch,
+                      "force_play does not branch on drawn_card_playable");
+        CHECK_MESSAGE(force_plays,
+                      "force_play playable route does not play_card "
+                      "@drawn_card");
     }
+
+    /* INFO: Progressive is real content now: an after:draw rule
+     *       stops when the drawn card is playable and otherwise runs the
+     *       The engine draw_until_playable op for @self (legacy progressive.cpp
+     *       / match_instance.cpp:699-723). */
+    const LoadedMod* progressive = find_mod("progressive");
+    REQUIRE(progressive != nullptr);
+    REQUIRE(progressive->rules.size() == 1);
+    REQUIRE(progressive->rules.front().hooks.size() == 1);
+    {
+        const auto& hook = progressive->rules.front().hooks.front();
+        CHECK(hook.hook == "after:draw");
+        std::map<std::string, const nlohmann::json*> by_id;
+        for (const auto& node : hook.graph.nodes) {
+            if (node.is_object() && node.contains("id")
+                && node["id"].is_string()) {
+                by_id[node["id"].get<std::string>()] = &node;
+            }
+        }
+        bool progressive_branch = false;
+        bool progressive_keeps_drawing = false;
+        for (const auto& node : hook.graph.nodes) {
+            if (!node.is_object() || !node.contains("cases")) continue;
+            const auto& cases = node["cases"];
+            if (!cases.is_array()) continue;
+            for (const auto& c : cases) {
+                if (!c.is_object()) continue;
+                const auto when = c.find("when");
+                if (when == c.end() || !when->is_object()) continue;
+                if (when->contains("drawn_card_playable")) {
+                    progressive_branch = true;
+                }
+            }
+            const auto else_route = node.find("else");
+            if (else_route == node.end() || !else_route->is_string()) continue;
+            const auto found = by_id.find(else_route->get<std::string>());
+            if (found == by_id.end()) continue;
+            const nlohmann::json& target = *found->second;
+            if (target.value("op", "") != "draw_until_playable") continue;
+            const auto args = target.find("args");
+            if (args != target.end() && args->is_object()
+                && args->value("target", "") == "@self") {
+                progressive_keeps_drawing = true;
+            }
+        }
+        CHECK_MESSAGE(progressive_branch,
+                      "progressive does not branch on drawn_card_playable");
+        CHECK_MESSAGE(progressive_keeps_drawing,
+                      "progressive else route is not draw_until_playable "
+                      "@self");
+    }
+}
+
+TEST_CASE("vanilla content: reverse expresses the two-player extra advance") {
+    const fs::path root = ProjectRoot();
+    REQUIRE_MESSAGE(!root.empty(), "could not locate the project root");
+
+    LoadResult load = ScanModsDirectory((root / "mods").string());
+    REQUIRE_MESSAGE(load.ok(), "mod load failed: " << JoinErrors(load.errors));
+
+    const LoadedMod* vanilla = nullptr;
+    for (const auto& mod : load.mods) {
+        if (mod.manifest.id == "vanilla") vanilla = &mod;
+    }
+    REQUIRE(vanilla != nullptr);
+
+    /* INFO: Legacy ReverseEffect flips direction and, with exactly
+     *       two players, pushes an extra advance (standard.cpp:43-49). The
+     *       vanilla reverse cards express that as a player_count==2 branch:
+     *       reverse_direction -> advance_turn, with the classic else route a
+     *       plain reverse_direction so the 3/4-player case is unchanged. */
+    int reverse_cards = 0;
+    for (const auto& card : vanilla->cards) {
+        bool is_reverse = false;
+        for (const auto& tag : card.tags) {
+            if (tag == "reverse") is_reverse = true;
+        }
+        if (!is_reverse) continue;
+        ++reverse_cards;
+
+        const BehaviorEntry* on_play = nullptr;
+        for (const auto& be : card.behaviors) {
+            if (be.hook == "on_play") on_play = &be;
+        }
+        REQUIRE_MESSAGE(on_play != nullptr,
+                        "reverse card '" << card.id << "' has no on_play");
+
+        std::map<std::string, const nlohmann::json*> by_id;
+        for (const auto& node : on_play->graph.nodes) {
+            if (node.is_object() && node.contains("id")
+                && node["id"].is_string()) {
+                by_id[node["id"].get<std::string>()] = &node;
+            }
+        }
+
+        bool branch_2p = false;
+        bool else_reverses = false;
+        bool two_player_extra = false;
+        for (const auto& node : on_play->graph.nodes) {
+            if (!node.is_object() || !node.contains("cases")) continue;
+            const auto& cases = node["cases"];
+            if (!cases.is_array()) continue;
+            for (const auto& c : cases) {
+                if (!c.is_object()) continue;
+                const auto when = c.find("when");
+                if (when == c.end() || !when->is_object()) continue;
+                const auto count = when->find("player_count");
+                if (count == when->end() || !count->is_object()) continue;
+                if (count->value("cmp", "") != "eq"
+                    || count->value("n", 0) != 2) {
+                    continue;
+                }
+                branch_2p = true;
+                const auto next = c.find("next");
+                if (next == c.end() || !next->is_string()) continue;
+                const auto first = by_id.find(next->get<std::string>());
+                if (first == by_id.end()) continue;
+                if (first->second->value("op", "") != "reverse_direction") {
+                    continue;
+                }
+                const auto second_route = first->second->find("next");
+                if (second_route == first->second->end()
+                    || !second_route->is_string()) {
+                    continue;
+                }
+                const auto second =
+                    by_id.find(second_route->get<std::string>());
+                if (second != by_id.end()
+                    && second->second->value("op", "") == "advance_turn") {
+                    two_player_extra = true;
+                }
+            }
+            const auto else_route = node.find("else");
+            if (else_route == node.end() || !else_route->is_string()) continue;
+            const auto found = by_id.find(else_route->get<std::string>());
+            if (found != by_id.end()
+                && found->second->value("op", "") == "reverse_direction"
+                && !found->second->contains("next")) {
+                else_reverses = true;
+            }
+        }
+        CHECK_MESSAGE(branch_2p,
+                      "reverse card '" << card.id
+                                       << "' has no player_count==2 branch");
+        CHECK_MESSAGE(else_reverses,
+                      "reverse card '" << card.id
+                                       << "' else route is not plain reverse");
+        CHECK_MESSAGE(two_player_extra,
+                      "reverse card '" << card.id
+                                       << "' has no extra advance");
+    }
+    CHECK_MESSAGE(reverse_cards == 4, "expected four vanilla reverse cards");
 }

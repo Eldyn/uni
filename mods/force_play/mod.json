@@ -3,7 +3,7 @@
   "name": "Force Play",
   "version": "1.0.0",
   "api": "1",
-  "description": "Rule-only mod: if the card you draw is playable, you must play it immediately. Declaration only; the behavior is not expressible in the phase-1 content vocabulary (see rules.json).",
+  "description": "Rule-only mod: if the card you draw is playable, you must play it immediately (see rules.json).",
   "author": "eldyn",
   "provides_rules": "rules.json"
 }

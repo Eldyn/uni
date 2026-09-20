@@ -3,7 +3,7 @@
   "name": "Progressive",
   "version": "1.0.0",
   "api": "1",
-  "description": "Rule-only mod: keep drawing until you draw a playable card. Declaration only; the behavior is not expressible in the phase-1 content vocabulary (see rules.json).",
+  "description": "Rule-only mod: keep drawing until you draw a playable card (see rules.json).",
   "author": "eldyn",
   "provides_rules": "rules.json"
 }

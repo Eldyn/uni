@@ -4,8 +4,34 @@
     {
       "id": "force_play",
       "title": "Force Play",
-      "description": "INEXPRESSIBLE AS PHASE-1 CONTENT (reported in task-WP8b3-report.md). Legacy force_play.cpp sets CardDrawnEvent::force_play, which makes the engine auto-play a drawn playable card (src/match/match_instance.cpp:699-727). Phase 1 has (a) no op that plays a card (the op catalog is effect-only; play enters through the input pipeline), (b) no condition that tests the just-drawn card's playability, and (c) no selector for the drawn card outside card-behavior context. Declared for identity/activation only; no hook approximates the behavior.",
-      "hooks": []
+      "description": "Transcribed from src/match/rules/force_play.cpp. Legacy OnCardDrawn sets CardDrawnEvent::force_play, so the draw flow auto-plays a just-drawn playable card instead of prompting DecideDrawnCardEffect (src/match/match_instance.cpp:699-727). Phase-1 equivalent: an after:draw hook branches on the WP9d drawn_card_playable predicate; when the drawn card is playable the WP9d play_card op submits the frame-bound @drawn_card as @self, and the engine routes that through the normal play pipeline (restriction -> before:play -> move -> after:play). When it is not playable the card stays in hand.",
+      "hooks": [
+        {
+          "on": "after:draw",
+          "nodes": [
+            {
+              "id": "n1",
+              "cases": [
+                {
+                  "when": { "drawn_card_playable": {} },
+                  "next": "forced_play"
+                }
+              ],
+              "else": "not_playable"
+            },
+            {
+              "id": "forced_play",
+              "op": "play_card",
+              "args": { "card": "@drawn_card", "player": "@self" }
+            },
+            {
+              "id": "not_playable",
+              "op": "emit_signal",
+              "args": { "name": "force_play:not_playable" }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

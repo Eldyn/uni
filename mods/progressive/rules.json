@@ -4,8 +4,34 @@
     {
       "id": "progressive",
       "title": "Progressive",
-      "description": "INEXPRESSIBLE AS PHASE-1 CONTENT (reported in task-WP8b3-report.md). Legacy progressive.cpp sets CardDrawnEvent::keep_drawing, which drives the engine draw loop (src/match/match_instance.cpp:699-723) to keep drawing until a playable card appears. Phase 1 has (a) no condition that tests the just-drawn card's playability, (b) no selector for the drawn card outside card-behavior context (@card is card-behavior only), and (c) DAG-only graphs, so the self-repeating draw cannot be expressed. Declared for identity/activation only; no hook approximates the behavior.",
-      "hooks": []
+      "description": "Transcribed from src/match/rules/progressive.cpp. Legacy OnCardDrawn sets CardDrawnEvent::keep_drawing, which drives the draw loop (src/match/match_instance.cpp:699-723) to keep drawing until a playable card appears. Phase-1 equivalent: an after:draw hook branches on the WP9d drawn_card_playable predicate; when the just-drawn card is already playable the loop stops, otherwise the WP9d-1b draw_until_playable op keeps drawing from the draw pile for @self until the freshly drawn card is playable (or the source is exhausted, reshuffling the discard when it can).",
+      "hooks": [
+        {
+          "on": "after:draw",
+          "nodes": [
+            {
+              "id": "n1",
+              "cases": [
+                {
+                  "when": { "drawn_card_playable": {} },
+                  "next": "stop"
+                }
+              ],
+              "else": "keep_drawing"
+            },
+            {
+              "id": "stop",
+              "op": "emit_signal",
+              "args": { "name": "progressive:playable_drawn" }
+            },
+            {
+              "id": "keep_drawing",
+              "op": "draw_until_playable",
+              "args": { "target": "@self" }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
