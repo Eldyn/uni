@@ -224,6 +224,7 @@ if(UNI_BUILD_TESTS)
         src/match/view/event_sink.cpp
         src/match/view/defs_builder.cpp
         src/match/view/view_builder.cpp
+        src/match/view/view_util.cpp
         src/match/resolver.cpp
         src/match/rng.cpp
         src/match/scheduler.cpp

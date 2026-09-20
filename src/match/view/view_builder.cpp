@@ -7,6 +7,7 @@
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
 #include <match/status.hpp>
+#include <match/view/view_util.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -25,52 +26,6 @@ namespace match::view {
 namespace {
 
 using nlohmann::json;
-
-/** @brief Parse the engine's `{index, generation}` entity handle shape. */
-bool EntityFromJson(const json& value, ecs::Entity& out) {
-    if (!value.is_object()) return false;
-    const auto index = value.find("index");
-    if (index == value.end() || !index->is_number_unsigned()) return false;
-    out.index = index->get<uint32_t>();
-    const auto generation = value.find("generation");
-    out.generation =
-        (generation != value.end() && generation->is_number_unsigned())
-            ? generation->get<uint32_t>()
-            : 0u;
-    return true;
-}
-
-/** @brief Username behind an entity descriptor, or empty when unknown. */
-std::string UsernameFor(const match::engine::MatchInstance& match,
-                        const json& value) {
-    if (!value.is_object()) return std::string();
-    ecs::Entity entity{};
-    if (!EntityFromJson(value, entity)) return std::string();
-    const ecs::PlayerInfo* info = match.Store().Get<ecs::PlayerInfo>(entity);
-    return info == nullptr ? std::string() : info->username;
-}
-
-/**
- * @brief A player key from either descriptor shape the engine emits.
- *
- * Engine `Emit` sites pass a username string; op sites pass an entity handle.
- * A string is returned verbatim, an entity is resolved through `PlayerInfo`.
- */
-std::string ResolvePlayer(const match::engine::MatchInstance& match,
-                          const json& value) {
-    if (value.is_string()) return value.get<std::string>();
-    return UsernameFor(match, value);
-}
-
-/** @brief Packed `CompactCardV2` int behind a card descriptor, else 0. */
-uint32_t CardBitsFor(const match::engine::MatchInstance& match,
-                     const json& value) {
-    ecs::Entity entity{};
-    if (!EntityFromJson(value, entity)) return 0u;
-    const std::optional<ecs::CompactCardV2> id =
-        match.Registries().CardId(entity);
-    return id.has_value() ? id->bits : 0u;
-}
 
 /** @brief True when `viewer` is the player named `username`. */
 bool ViewerIs(const Viewer& viewer, const std::string& username) {
@@ -609,7 +564,9 @@ json BuildWindow(const match::engine::MatchInstance& match) {
     if (window.contains("responses") && window["responses"].is_array()) {
         for (const json& response : window["responses"]) {
             json entry = json::object();
-            entry["player"] = response.value("player", std::string());
+            // INFO: `player` is dual-shape, same as the event projection.
+            entry["player"] =
+                ResolvePlayer(match, response.value("player", json()));
             if (response.value("pass", false)) {
                 entry["passed"] = true;
             } else if (response.contains("card")) {

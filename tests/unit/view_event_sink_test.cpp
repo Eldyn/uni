@@ -7,14 +7,17 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/view/event_sink.hpp>
+#include <match/view/view_builder.hpp>
 
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 /**
@@ -123,6 +126,45 @@ void ForceHand(MatchInstance& engine, ecs::Entity player,
     }
 }
 
+/**
+ * @brief `n` numbered cards matching the match's active colour.
+ *
+ * A numbered card has no prompt-opening trigger, so it is a legal play and
+ * never parks input (mirrors the engine-hooks test helper).
+ */
+std::vector<ecs::Entity> LegalNumbered(MatchInstance& engine, std::size_t n) {
+    std::vector<ecs::Entity> out;
+    const json active = engine.ExportState()["active_type"];
+    if (!active.is_string()) return out;
+    const std::string color = active.get<std::string>();
+    for (ecs::Entity card : engine.Registries().cards) {
+        if (out.size() == n) break;
+        const ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card);
+        if (face == nullptr || face->color != color) continue;
+        if (face->label.size() != 1) continue;
+        if (std::isdigit(static_cast<unsigned char>(face->label[0])) == 0) {
+            continue;
+        }
+        const ecs::CardBehavior* behavior =
+            engine.Store().Get<ecs::CardBehavior>(card);
+        if (behavior != nullptr && !behavior->triggers.empty()) continue;
+        out.push_back(card);
+    }
+    return out;
+}
+
+/** @brief A loaded-mod stub declaring signal audiences. */
+LoadedMod SignalMod() {
+    LoadedMod mod;
+    mod.manifest.id = "signals";
+    mod.manifest.version = "1.0.0";
+    mod.manifest.signals = json::array(
+        {json{{"name", "anim_all"}},
+         json{{"name", "anim_players"}, {"audience", "players"}},
+         json{{"name", "anim_spec"}, {"audience", "spectators"}}});
+    return mod;
+}
+
 }  // namespace
 
 TEST_CASE("view event sink: seq is monotonic and never reused") {
@@ -209,12 +251,14 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*roll)["outcomes"].size() == 2);
     CHECK((*roll)["roll_counter"] == 7);
 
-    const std::optional<json> signal = match::view::ProjectPublicEvent(
-        "signal", json{{"name", "explosion"}, {"payload", json{{"x", 1}}}},
-        *engine);
-    REQUIRE(signal.has_value());
-    CHECK((*signal)["name"] == "explosion");
-    CHECK((*signal)["payload"]["x"] == 1);
+    // INFO: `signal` is NOT an `all`-visibility row: its audience is
+    //       declared per mod manifest and resolved by `ViewBuilder` per
+    //       recipient, so the public projector must drop it (review fix 2).
+    CHECK_FALSE(match::view::ProjectPublicEvent(
+                    "signal",
+                    json{{"name", "explosion"}, {"payload", json{{"x", 1}}}},
+                    *engine)
+                    .has_value());
 
     // INFO: unknown / the view layer types are dropped without consuming a seq.
     CHECK_FALSE(match::view::ProjectPublicEvent(
@@ -317,4 +361,85 @@ TEST_CASE("view event sink: match_end carries winner and placements") {
     CHECK((*end)["placements"][0]["player"] == "player0");
     CHECK((*end)["placements"][0]["place"] == 1);
     CHECK((*end)["final_digest"].get<std::string>().size() == 16);
+}
+
+TEST_CASE("view event sink: signal audience routes through the view builder") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+
+    std::vector<LoadedMod> mods = content.mods;
+    mods.push_back(SignalMod());
+    match::view::ViewBuilder builder(*engine, mods);
+
+    auto signal = [](const std::string& name) {
+        return json{{"type", "signal"},
+                    {"payload", json{{"name", name},
+                                     {"payload", json{{"x", 1}}}}}};
+    };
+    auto visible = [&](const match::view::Viewer& viewer,
+                       const std::string& name) {
+        match::view::EventSink sink;
+        return builder.Wrap(signal(name), viewer, sink).has_value();
+    };
+
+    // INFO: an undeclared audience defaults to `all`.
+    CHECK(builder.SignalAudience("undeclared") == "all");
+    CHECK(visible(match::view::Viewer::Player("player1"), "undeclared"));
+    CHECK(visible(match::view::Viewer::Spectator(), "undeclared"));
+    // INFO: audience `players` excludes spectators.
+    CHECK(visible(match::view::Viewer::Player("player1"), "anim_players"));
+    CHECK_FALSE(visible(match::view::Viewer::Spectator(), "anim_players"));
+    // INFO: audience `spectators` excludes seated players.
+    CHECK(visible(match::view::Viewer::Spectator(), "anim_spec"));
+    CHECK_FALSE(visible(match::view::Viewer::Player("player1"), "anim_spec"));
+    // INFO: audience `all` reaches both.
+    CHECK(visible(match::view::Viewer::Player("player1"), "anim_all"));
+    CHECK(visible(match::view::Viewer::Spectator(), "anim_all"));
+}
+
+TEST_CASE("view event sink: real auto-play card_played resolves its player") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 3);
+    REQUIRE(cards.size() == 3);
+    ForceHand(*engine, player0, cards);
+
+    ecs::AutoTrigger trigger;
+    trigger.condition = json(true);
+    trigger.graph = json{{"nodes", json::array()}};
+    trigger.must_apply = true;
+    REQUIRE(engine->Store().Add(cards[2], std::move(trigger)) != nullptr);
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+
+    // INFO: `AutoPlayCard` emits `player` as an entity object, unlike
+    //       `PlayCard`'s username string; gather those real descriptors.
+    std::optional<json> auto_card_event;
+    std::optional<json> auto_played_event;
+    for (const json& event : engine->Events()) {
+        if (!event.is_object() || !event.contains("payload")) continue;
+        const json& payload = event["payload"];
+        if (!payload.is_object() || !payload.contains("player")) continue;
+        if (!payload["player"].is_object()) continue;
+        const std::string type = event.value("type", std::string());
+        if (type == "card_played") auto_card_event = event;
+        if (type == "auto_played") auto_played_event = event;
+    }
+    REQUIRE(auto_card_event.has_value());
+    REQUIRE(auto_played_event.has_value());
+
+    match::view::EventSink sink;
+    std::optional<json> card_played;
+    CHECK_NOTHROW(card_played = sink.WrapPublic(*auto_card_event, *engine));
+    REQUIRE(card_played.has_value());
+    CHECK((*card_played)["payload"]["player"] == "player0");
+
+    std::optional<json> auto_played;
+    CHECK_NOTHROW(auto_played = sink.WrapPublic(*auto_played_event, *engine));
+    REQUIRE(auto_played.has_value());
+    CHECK((*auto_played)["payload"]["player"] == "player0");
 }

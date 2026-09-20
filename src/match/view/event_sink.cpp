@@ -4,6 +4,7 @@
 #include <match/ecs/components.hpp>
 #include <match/ecs/entity_store.hpp>
 #include <match/engine/match_instance.hpp>
+#include <match/view/view_util.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -24,47 +25,12 @@ namespace {
 
 using nlohmann::json;
 
-/**
- * @brief Parse the engine's `{index, generation}` entity handle shape.
- * @return true when `value` carried a usable index.
- */
-bool EntityFromJson(const json& value, ecs::Entity& out) {
-    if (!value.is_object()) return false;
-    const auto index = value.find("index");
-    if (index == value.end() || !index->is_number_unsigned()) return false;
-    out.index = index->get<uint32_t>();
-    const auto generation = value.find("generation");
-    out.generation =
-        (generation != value.end() && generation->is_number_unsigned())
-            ? generation->get<uint32_t>()
-            : 0u;
-    return true;
-}
-
-/** @brief Username behind an entity descriptor, or empty when unknown. */
-std::string UsernameFor(const match::engine::MatchInstance& match,
-                        const json& entity_json) {
-    if (!entity_json.is_object()) return std::string();
-    ecs::Entity entity{};
-    if (!EntityFromJson(entity_json, entity)) return std::string();
-    const ecs::PlayerInfo* info = match.Store().Get<ecs::PlayerInfo>(entity);
-    return info == nullptr ? std::string() : info->username;
-}
-
-/** @brief Packed `CompactCardV2` int behind a card descriptor, else 0. */
-uint32_t CardBitsFor(const match::engine::MatchInstance& match,
-                     const json& entity_json) {
-    ecs::Entity entity{};
-    if (!EntityFromJson(entity_json, entity)) return 0u;
-    const std::optional<ecs::CompactCardV2> id =
-        match.Registries().CardId(entity);
-    return id.has_value() ? id->bits : 0u;
-}
-
 json ProjectCardPlayed(const match::engine::MatchInstance& match,
                        const json& payload) {
     json out = json::object();
-    out["player"] = payload.value("player", std::string());
+    // INFO: `player` is dual-shape - `PlayCard` emits a username string while
+    //       `AutoPlayCard` emits an entity object (review fix 1).
+    out["player"] = ResolvePlayer(match, payload.value("player", json()));
     out["card"] = payload.contains("card")
                       ? CardBitsFor(match, payload["card"])
                       : 0u;
@@ -113,14 +79,6 @@ json ProjectRollResult(const json& payload) {
     return out;
 }
 
-json ProjectSignal(const json& payload) {
-    json out = json::object();
-    out["name"] = payload.value("name", std::string());
-    out["payload"] = payload.contains("payload") ? payload["payload"]
-                                                 : json::object();
-    return out;
-}
-
 json ProjectChainAborted(const json& payload) {
     // INFO: the resolver emits a flat `{type, mod, node}` descriptor; the
     //       packet adds `reason` (unset at the abort site today).
@@ -153,7 +111,8 @@ json ProjectWindowOpen(const json& payload) {
 json ProjectWindowResponse(const match::engine::MatchInstance& match,
                            const json& payload) {
     json out = json::object();
-    out["player"] = payload.value("player", std::string());
+    // INFO: `player` is dual-shape (review fix 3).
+    out["player"] = ResolvePlayer(match, payload.value("player", json()));
     if (payload.value("pass", false)) {
         out["passed"] = true;
     } else if (payload.contains("card")) {
@@ -269,7 +228,9 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "auto_played") return ProjectAutoPlayed(match, body);
     if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "roll_result") return ProjectRollResult(body);
-    if (type == "signal") return ProjectSignal(body);
+    // INFO: `signal` is NOT `all`-visibility: its audience is
+    //       declared per mod manifest and resolved by `ViewBuilder`. It must
+    //       not be broadcast from the public projector (review fix 2).
     if (type == "chain_aborted") return ProjectChainAborted(body);
     if (type == "mod_disarmed") return ProjectModDisarmed(body);
     return std::nullopt;

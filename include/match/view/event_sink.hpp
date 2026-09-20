@@ -98,10 +98,12 @@ private:
  * Handles the `all`-visibility rows of the table: `card_played`,
  * `reshuffle`, `turn_advance`, `round_advance`, `placement`, `window_open`,
  * `window_response`, `window_close`, `auto_played`, `match_end`,
- * `roll_result`, `signal`, `chain_aborted` and `mod_disarmed`. `match_start`
- * is content-derived and built by `DefsBuilder::BuildMatchStart`. All other
- * types return `nullopt`; the per-recipient (filtered) rows are built by
- * `ViewBuilder` in `view_builder.hpp`.
+ * `roll_result`, `chain_aborted` and `mod_disarmed`. `match_start` is
+ * content-derived and built by `DefsBuilder::BuildMatchStart`. `signal` is
+ * not handled here: its audience is declared per mod manifest and resolved
+ * per recipient by `ViewBuilder`. All other types return `nullopt`
+ * the per-recipient (filtered) rows are built by `ViewBuilder` in
+ * `view_builder.hpp`.
  *
  * @param type    Engine event type token.
  * @param payload Descriptor body (or the flat descriptor minus `type`).
