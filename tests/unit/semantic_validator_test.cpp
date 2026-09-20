@@ -935,6 +935,47 @@ TEST_CASE("validator: @card in card behavior is allowed") {
     CHECK(errors.empty());
 }
 
+TEST_CASE("validator: drawn-card vocabulary validates clean") {
+    LoadedMod mod = ValidMod();
+    AddRule(mod, "force", "after:draw", "after", json(),
+            {json{{"id", "n1"},
+                  {"cases",
+                   json::array(
+                       {json{{"when",
+                              json{{"drawn_card_playable", json::object()}}},
+                             {"next", "n2"}},
+                        json{{"when",
+                              json{{"player_count",
+                                    {{"cmp", "eq"}, {"n", 2}}}}},
+                             {"next", "n3"}}})},
+                  {"else", "n3"}},
+             json{{"id", "n2"},
+                  {"op", "play_card"},
+                  {"args",
+                   json{{"card", "@drawn_card"}, {"player", "@self"}}}},
+             json{{"id", "n3"}, {"op", "advance_turn"}}});
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
+TEST_CASE("validator: player_count n is bounds-checked") {
+    LoadedMod mod = ValidMod();
+    AddRule(mod, "count", "after:draw", "after", json(),
+            {json{{"id", "n1"},
+                  {"cases",
+                   json::array({json{
+                       {"when",
+                        json{{"player_count",
+                              {{"cmp", "eq"}, {"n", 1001}}}}},
+                       {"next", "n2"}}})},
+                  {"else", "n2"}},
+             json{{"id", "n2"}, {"op", "advance_turn"}}});
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.bounds"));
+}
+
 // --- restriction pipeline
 
 namespace {

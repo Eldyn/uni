@@ -151,6 +151,7 @@ struct HookRun {
     ecs::HookId hook;
     resolver::ResolveStatus status = resolver::ResolveStatus::kComplete;
     std::vector<nlohmann::json> events;
+    std::vector<nlohmann::json> effects;  /**< op effect descriptors. */
     std::string error;
 
     // INFO: Additive pause continuation. When a walk pauses

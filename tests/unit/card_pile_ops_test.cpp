@@ -752,3 +752,62 @@ TEST_CASE("card_pile_ops: fail-safe no-ops never crash") {
     CHECK(PileOf(h.store, draw) == std::vector<Entity>{card});
     CHECK(HandOf(h.store, player).empty());
 }
+
+TEST_CASE("card_pile_ops: play_card emits a play effect for the hand owner") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity other = AddPlayer(h.store, "o", 1);
+    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    PutInHand(h.store, player, card);
+
+    // INFO: no explicit player -> the card's hand owner is the actor.
+    const OpResult result =
+        h.Invoke("play_card", json::object(), {{"card", {card}}});
+    CHECK(result.status == OpStatus::kResolved);
+    REQUIRE(result.effects.size() == 1);
+    CHECK(result.effects[0]["type"] == "play_card");
+    CHECK(result.effects[0]["payload"]["card"]["index"] == card.index);
+    CHECK(result.effects[0]["payload"]["player"]["index"] == player.index);
+    // INFO: the op never mutates the store itself; the engine routes the play.
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{card});
+
+    // INFO: an explicit player selector overrides the hand owner.
+    const OpResult explicit_player =
+        h.Invoke("play_card", json::object(),
+                 {{"card", {card}}, {"player", {other}}});
+    REQUIRE(explicit_player.effects.size() == 1);
+    CHECK(explicit_player.effects[0]["payload"]["player"]["index"]
+          == other.index);
+}
+
+TEST_CASE("card_pile_ops: play_card fail-safe paths emit no effect") {
+    Harness h;
+    Entity player = AddPlayer(h.store, "p", 0);
+    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    PutInHand(h.store, player, card);
+
+    // INFO: unbound card.
+    CHECK(h.Invoke("play_card", json::object()).effects.empty());
+
+    // INFO: dead card.
+    Entity dead = h.store.Create();
+    h.store.Destroy(dead);
+    CHECK(h.Invoke("play_card", json::object(), {{"card", {dead}}})
+              .effects.empty());
+
+    // INFO: a card with no in_zone is refused.
+    Entity orphan = h.store.Create();
+    CardIdentity identity;
+    identity.kind_id = "vanilla:red_5";
+    h.store.Add(orphan, identity);
+    CHECK(h.Invoke("play_card", json::object(), {{"card", {orphan}}})
+              .effects.empty());
+
+    // INFO: an explicit non-player actor is refused.
+    Entity not_player = h.store.Create();
+    CHECK(h.Invoke("play_card", json::object(),
+                   {{"card", {card}}, {"player", {not_player}}})
+              .effects.empty());
+
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{card});
+}

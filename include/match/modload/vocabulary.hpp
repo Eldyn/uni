@@ -190,6 +190,18 @@ inline const std::vector<OpSignature>& OpCatalog() {
             add(std::move(s));
         }
         {
+            // INFO: Force-play capability. The op emits a `play_card`
+            //       effect; the engine routes it through the normal play
+            //       pipeline (restriction -> before:play -> move -> after:play)
+            //       rather than mutating the store directly. `player` defaults
+            //       to the card's hand owner / `@self` / the current player.
+            OpSignature s;
+            s.name = "play_card";
+            s.args = {Arg("card", ArgType::kSelector),
+                      Arg("player", ArgType::kSelector, false)};
+            add(std::move(s));
+        }
+        {
             OpSignature s;
             s.name = "transfer_card";
             s.args = {Arg("from_player", ArgType::kSelector),
@@ -455,6 +467,15 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
             add(std::move(c));
         }
         {
+            // INFO: Seated (live) player count compared with `cmp`/`n`.
+            //       Vanilla reverse uses it to add the 2-player extra advance
+            //       (legacy ReverseEffect::Resolve).
+            ConditionSignature c;
+            c.keyword = "player_count";
+            c.args = {Arg("cmp", ArgType::kComparison), IntArg("n", 0, 1000)};
+            add(std::move(c));
+        }
+        {
             ConditionSignature c;
             c.keyword = "active_type_is";
             c.args = {Arg("type", ArgType::kString)};
@@ -467,6 +488,16 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
                       Arg("tag", ArgType::kTagRef, false),
                       Arg("type", ArgType::kString, false)};
             c.either_of = {{"kind", "tag", "type"}};
+            add(std::move(c));
+        }
+        {
+            // INFO: True when the just-drawn card (frame selector
+            //       `@drawn_card`, bound by the engine on a draw hook) is
+            //       playable under the vanilla colour/value rules: wild, or
+            //       colour == active type, or value == discard-top value.
+            //       Fail-safe false when no card is bound or facts are unknown.
+            ConditionSignature c;
+            c.keyword = "drawn_card_playable";
             add(std::move(c));
         }
         {
@@ -640,7 +671,7 @@ inline const std::vector<std::string>& ContextSelectors() {
         "@current_player", "@next_player", "@prev_player",
         "@all_players",  "@others",       "@choose_player",
         "@draw_pile",    "@discard_pile", "@match",
-        "@card",
+        "@card",         "@drawn_card",
     };
     return kSelectors;
 }

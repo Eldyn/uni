@@ -340,6 +340,12 @@ private:
         ecs::Entity actor{};       /**< play actor to settle. */
     };
 
+    /** @brief A `play_card` effect request queued from a drained op graph. */
+    struct ForcedPlay {
+        ecs::Entity player{};  /**< acting player. */
+        ecs::Entity card{};    /**< card to play through the normal pipeline. */
+    };
+
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
 
@@ -545,6 +551,26 @@ private:
     void BindConditionSelectors(const resolver::SelectorContext& context,
                                 ops::ResolutionFrame& frame);
 
+    // --- the engine forced-play routing
+    // ------------------------------------------
+
+    /**
+     * @brief Queue `play_card` effect descriptors from a drained op graph.
+     *
+     * A `play_card` op cannot run the engine play pipeline itself; it emits an
+     * effect and the engine executes it via `PlayCard` at a flow-safe point.
+     * Malformed descriptors are ignored (fail-safe).
+     */
+    void QueueForcedPlays(const std::vector<nlohmann::json>& effects);
+
+    /**
+     * @brief Run queued forced plays through the normal play pipeline.
+     *
+     * Bounded cascade (a forced play's own graphs may queue further requests).
+     * @return true when at least one play was accepted.
+     */
+    bool ExecuteForcedPlays();
+
     std::unique_ptr<MatchAssembly> assembly_;
     std::vector<nlohmann::json> events_;
     std::optional<LastPlay> last_play_;
@@ -559,6 +585,7 @@ private:
     std::optional<InputPause> pending_input_;
     std::optional<WindowPause> pending_window_;
     std::vector<WindowPause> deferred_windows_;  /**< queued. */
+    std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
     uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };

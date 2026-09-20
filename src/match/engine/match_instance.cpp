@@ -333,9 +333,11 @@ bool MatchInstance::DrawCard(const std::string& username) {
                              {"count", 1},
                              {"source", "draw_pile"}});
 
-    // INFO: the drawn-card play decision (legacy DecideDrawnCard /
-    //       progressive / force_play) is a seam; this slice always
-    //       passes the turn after the draw.
+    // INFO: An `after:draw` graph may request a forced play of the
+    //       drawn card (legacy force_play); route it through the normal play
+    //       pipeline instead of passing the turn. A paused flow is left for
+    //       SubmitInput / the window; otherwise the turn passes.
+    if (!Paused() && ExecuteForcedPlays()) return true;
     if (!Paused()) AdvanceTurn();
     return true;
 }
@@ -1342,6 +1344,10 @@ void MatchInstance::CollectRuns() {
             }
         }
 
+        // INFO: A `play_card` op emits its play request as an effect
+        //       descriptor; queue it for the flow-safe point that executes it.
+        QueueForcedPlays(run.effects);
+
         // INFO: `effect_applied` observes a resolved op graph. The engine
         //       reports the run's source as the op summary; per-op node
         //       granularity would need the Resolver to surface it.
@@ -1613,6 +1619,49 @@ void MatchInstance::BindConditionSelectors(
         current.has_value()) {
         frame.BindSelector("@current_player", {*current});
     }
+}
+
+// --- the engine forced-play routing
+// ----------------------------------------------
+
+void MatchInstance::QueueForcedPlays(const std::vector<json>& effects) {
+    for (const json& effect : effects) {
+        if (!effect.is_object()) continue;
+        if (effect.value("type", std::string()) != "play_card") continue;
+        const json payload =
+            effect.contains("payload") && effect["payload"].is_object()
+                ? effect["payload"]
+                : json::object();
+        const std::optional<ecs::Entity> player =
+            EntityFromJson(payload.contains("player") ? payload["player"]
+                                                      : json());
+        const std::optional<ecs::Entity> card =
+            EntityFromJson(payload.contains("card") ? payload["card"]
+                                                    : json());
+        if (!player.has_value() || !card.has_value()) continue;
+        forced_plays_.push_back(ForcedPlay{*player, *card});
+    }
+}
+
+bool MatchInstance::ExecuteForcedPlays() {
+    bool executed = false;
+    // INFO: a forced play's own graphs may queue further requests; drain in
+    //       bounded passes so a mis-authored loop cannot hang the engine.
+    constexpr int kForcedPlayCap = 16;
+    for (int pass = 0; pass < kForcedPlayCap && !forced_plays_.empty();
+         ++pass) {
+        std::vector<ForcedPlay> queued = std::move(forced_plays_);
+        forced_plays_.clear();
+        for (const ForcedPlay& play : queued) {
+            if (finished_ || assembly_ == nullptr || Paused()) break;
+            const std::string username =
+                PlayerUsername(assembly_->store, play.player);
+            if (username.empty()) continue;
+            if (PlayCard(username, play.card)) executed = true;
+        }
+        if (finished_ || Paused()) break;
+    }
+    return executed;
 }
 
 // --- read-only accessors ---------------------------------------------------

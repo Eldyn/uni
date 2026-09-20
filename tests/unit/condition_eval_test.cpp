@@ -186,9 +186,9 @@ TEST_CASE("condition_eval: every catalog keyword is registered") {
             ++store_conditions;
         }
     }
-    CHECK(store_conditions == 13);
+    CHECK(store_conditions == 15);
     CHECK(play_conditions == 13);
-    CHECK(ConditionCatalog().size() == 26);
+    CHECK(ConditionCatalog().size() == 28);
     CHECK_FALSE(fixture.conditions.Has("no_such_condition"));
 }
 
@@ -252,6 +252,58 @@ TEST_CASE("condition_eval: hand_size comparisons and fail-safe paths") {
                              {"n", 2}})));
     CHECK_FALSE(f.Eval(Cond("hand_size",
                             {{"target", "@self"}, {"cmp", "eq"}})));
+}
+
+TEST_CASE("condition_eval: player_count comparisons and fail-safe paths") {
+    Fixture f;
+    CHECK(f.Eval(Cond("player_count", {{"cmp", "eq"}, {"n", 2}})));
+    CHECK(f.Eval(Cond("player_count", {{"cmp", "gte"}, {"n", 2}})));
+    CHECK(f.Eval(Cond("player_count", {{"cmp", "lt"}, {"n", 3}})));
+    CHECK_FALSE(f.Eval(Cond("player_count", {{"cmp", "gt"}, {"n", 2}})));
+    CHECK_FALSE(f.Eval(Cond("player_count", {{"cmp", "ne"}, {"n", 2}})));
+    // INFO: missing / malformed args are a fail-safe false.
+    CHECK_FALSE(f.Eval(Cond("player_count", {{"cmp", "eq"}})));
+    CHECK_FALSE(f.Eval(Cond("player_count", json::object())));
+
+    Harness bare;
+    CHECK_FALSE(bare.Eval(Cond("player_count", {{"cmp", "eq"}, {"n", 2}})));
+    CHECK(bare.Eval(Cond("player_count", {{"cmp", "eq"}, {"n", 0}})));
+}
+
+TEST_CASE("condition_eval: drawn_card_playable") {
+    Fixture f;
+    // INFO: the Fixture's active type is red and its discard top is red_7.
+    f.store.Get<FaceSpec>(f.discard_top)->label = "7";
+
+    // No `@drawn_card` bound -> fail-safe false.
+    CHECK_FALSE(f.Eval(Cond("drawn_card_playable", json::object())));
+
+    // Colour matches the active type.
+    Entity red = MakeCard(f.store, "vanilla:red_3", "red");
+    f.frame.BindSelector("@drawn_card", {red});
+    CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
+
+    // Value matches the discard top (blue_7 vs red_7), colour does not.
+    Entity blue_seven = MakeCard(f.store, "vanilla:blue_7", "blue");
+    f.store.Get<FaceSpec>(blue_seven)->label = "7";
+    f.frame.BindSelector("@drawn_card", {blue_seven});
+    CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
+
+    // Neither colour nor value matches -> not playable.
+    Entity blue_two = MakeCard(f.store, "vanilla:blue_2", "blue");
+    f.store.Get<FaceSpec>(blue_two)->label = "2";
+    f.frame.BindSelector("@drawn_card", {blue_two});
+    CHECK_FALSE(f.Eval(Cond("drawn_card_playable", json::object())));
+
+    // Wild (white face) is always playable.
+    Entity wild = MakeCard(f.store, "vanilla:wild", "white");
+    f.frame.BindSelector("@drawn_card", {wild});
+    CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
+
+    // A dead drawn card is false.
+    Entity dead = f.store.Create();
+    f.frame.BindSelector("@drawn_card", {dead});
+    CHECK_FALSE(f.Eval(Cond("drawn_card_playable", json::object())));
 }
 
 TEST_CASE("condition_eval: active_type_is") {

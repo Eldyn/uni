@@ -508,6 +508,55 @@ OpResult OpMoveCard(ecs::EntityStore& store, const OpArgs& args,
     return OpResult::Resolved(json{{"card", EntityJson(*card)}});
 }
 
+OpResult OpPlayCard(ecs::EntityStore& store, const OpArgs& args,
+                    OpContext& ctx) {
+    // INFO: Force-play capability. An op cannot run the engine's play
+    //       pipeline itself (restriction -> before:play -> move -> after:play),
+    //       so it emits a `play_card` effect descriptor; the engine
+    //       (`match::engine::MatchInstance`) routes it through `PlayCard`.
+    //       A dead card / unbound selector / non-player actor is a fail-safe
+    //       `kResolved` no-op with no effect.
+    const std::optional<ecs::Entity> card = args.FirstEntity("card");
+    if (!card.has_value() || !store.IsAlive(*card)) return OpResult::Resolved();
+    if (!store.Has<ecs::CardIdentity>(*card)) return OpResult::Resolved();
+    const std::optional<ecs::ZoneRef> zone = FindCardZone(store, *card);
+    if (!zone.has_value()) return OpResult::Resolved();
+
+    std::optional<ecs::Entity> player = args.FirstEntity("player");
+    if (player.has_value()) {
+        // INFO: an explicitly addressed actor must be a live hand carrier;
+        //       refuse rather than silently redirecting to the card's owner.
+        if (!store.IsAlive(*player) || !store.Has<ecs::Hand>(*player)) {
+            return OpResult::Resolved();
+        }
+    } else {
+        // INFO: default the actor to the card's hand owner, then `@self`, then
+        //       the turn owner; only a hand carrier can be played through.
+        if (zone->kind == ecs::ZoneKind::kHand && store.IsAlive(zone->owner)
+            && store.Has<ecs::Hand>(zone->owner)) {
+            player = zone->owner;
+        } else if (const std::optional<ecs::Entity> self =
+                       ctx.frame.FirstSelector("@self");
+                   self.has_value() && store.Has<ecs::Hand>(*self)) {
+            player = *self;
+        } else {
+            player = FindCurrentPlayer(store);
+        }
+    }
+    if (!player.has_value() || !store.IsAlive(*player)
+        || !store.Has<ecs::Hand>(*player)) {
+        return OpResult::Resolved();
+    }
+
+    OpResult result = OpResult::Resolved(
+        json{{"card", EntityJson(*card)}, {"player", EntityJson(*player)}});
+    result.effects.push_back(
+        json{{"type", "play_card"},
+             {"payload", json{{"player", EntityJson(*player)},
+                              {"card", EntityJson(*card)}}}});
+    return result;
+}
+
 OpResult OpTransferCard(ecs::EntityStore& store, const OpArgs& args,
                         OpContext& ctx) {
     const std::optional<ecs::Entity> from = args.FirstEntity("from_player");

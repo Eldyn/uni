@@ -310,18 +310,33 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
 
     const resolver::SelectorContext context = ContextFromPayload(payload);
 
+    // INFO: A `draw` dispatch carries the just-drawn card under the
+    //       `card` key; bind it as `@drawn_card` so a rule graph (or its
+    //       `where`) can test playability and force-play it. The engine's
+    //       `play_card` effect routing is what actually plays it.
+    std::optional<ecs::Entity> drawn_card;
+    if (payload.hook.name == "draw" || payload.hook.name == "draw_attempt") {
+        drawn_card = PayloadEntity(payload.data, "card");
+    }
+
     // INFO: a rule hook's `where` filter decides whether its graph runs
     // Selectors the condition may address are bound first.
     if (system.where.has_value() && !system.where->is_null()) {
         ops::ResolutionFrame where_frame;
         ops::OpContext where_ctx(bus, budget, where_frame);
         BindWhereSelectors(store, context, where_frame);
+        if (drawn_card.has_value()) {
+            where_frame.BindSelector("@drawn_card", {*drawn_card});
+        }
         if (!conditions.Evaluate(store, *system.where, where_ctx)) return;
     }
 
     if (resolver == nullptr) return;
 
     ops::ResolutionFrame frame;
+    if (drawn_card.has_value()) {
+        frame.BindSelector("@drawn_card", {*drawn_card});
+    }
     const resolver::ResolveResult result =
         resolver->Resolve(system.graph, system.mod_id, context, frame);
 
@@ -331,6 +346,7 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
     run.hook = system.hook;
     run.status = result.status;
     run.events = result.events;
+    run.effects = result.effects;
     run.error = result.error;
 
     // INFO: Additive pause continuation captured for the engine.

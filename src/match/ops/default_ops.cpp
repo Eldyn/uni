@@ -33,6 +33,7 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         // card and pile ops.
         {"draw_cards", &detail::OpDrawCards},
         {"move_card", &detail::OpMoveCard},
+        {"play_card", &detail::OpPlayCard},
         {"transfer_card", &detail::OpTransferCard},
         {"pass_hands", &detail::OpPassHands},
         {"swap_hands", &detail::OpSwapHands},

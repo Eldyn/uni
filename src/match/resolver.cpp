@@ -376,6 +376,15 @@ std::vector<ecs::Entity> Resolver::ResolveSelector(WalkState& state,
         return one(FindPile(ecs::PileKind::kDiscard));
     }
     if (token == "@match") return one(FindMatch());
+    if (token == "@drawn_card") {
+        // INFO: The engine pre-binds `@drawn_card` into the frame for a
+        //       draw dispatch (the just-drawn card entity). Unlike `@card` this
+        //       is not a guarded card-behavior selector: absent binding simply
+        //       yields no entity (fail-safe), with no guard violation.
+        const std::vector<ecs::Entity>* bound =
+            state.frame->FindSelector("@drawn_card");
+        return bound == nullptr ? std::vector<ecs::Entity>() : *bound;
+    }
     if (!token.empty() && token[0] == '@') {
         Guard(state, token, "unknown selector");
     }

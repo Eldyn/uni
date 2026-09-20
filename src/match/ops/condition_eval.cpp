@@ -166,6 +166,13 @@ bool EvalHandSize(ecs::EntityStore& store, const json& args, OpContext& ctx) {
     return CompareArg(args, static_cast<int64_t>(hand->cards.size()));
 }
 
+/** @brief The live seated-player count compared with `cmp`/`n`. */
+bool EvalPlayerCount(ecs::EntityStore& store, const json& args, OpContext&) {
+    const int64_t count =
+        static_cast<int64_t>(store.EntitiesWith<ecs::PlayerInfo>().size());
+    return CompareArg(args, count);
+}
+
 /** @brief The match's required active type equals `type`. */
 bool EvalActiveTypeIs(ecs::EntityStore& store, const json& args, OpContext&) {
     const std::optional<std::string> type = ArgString(args, "type");
@@ -202,6 +209,47 @@ bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args, OpContext&) {
     if (tag.has_value()) return CardMatchesTag(store, top, *tag);
     const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(top);
     return face != nullptr && face->color == *type;
+}
+
+/**
+ * @brief The just-drawn card is playable under the vanilla colour/value rules.
+ *
+ * Reads the frame selector `@drawn_card` (bound by the engine on a `draw` /
+ * `draw_attempt` dispatch). Playable means the legacy
+ * `StandardRule::ValidatePlay` outcome for an in-turn attempt: a wild card, or
+ * colour == active type, or value == the discard top's value. Fail-safe false
+ * when no drawn card is bound, it is dead, or its face facts are unknown.
+ */
+bool EvalDrawnCardPlayable(ecs::EntityStore& store, const json&,
+                           OpContext& ctx) {
+    const std::vector<ecs::Entity>* drawn =
+        ctx.frame.FindSelector("@drawn_card");
+    if (drawn == nullptr || drawn->empty()) return false;
+    const ecs::Entity card = drawn->front();
+    if (!store.IsAlive(card)) return false;
+
+    const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
+    if (face == nullptr) return false;
+    // INFO: legacy Type::kWhite is the wild face colour; wild is always legal.
+    if (face->color == "white") return true;
+
+    if (const std::optional<ecs::Entity> match = FindMatch(store);
+        match.has_value()) {
+        const ecs::ActiveTypeReq* req = store.Get<ecs::ActiveTypeReq>(*match);
+        if (req != nullptr && req->type.has_value()
+            && *req->type == face->color) {
+            return true;
+        }
+    }
+
+    const std::optional<ecs::Entity> pile =
+        FindPile(store, ecs::PileKind::kDiscard);
+    if (!pile.has_value()) return false;
+    const ecs::PileContents* contents = store.Get<ecs::PileContents>(*pile);
+    if (contents == nullptr || contents->cards.empty()) return false;
+    const ecs::FaceSpec* top =
+        store.Get<ecs::FaceSpec>(contents->cards.back());
+    return top != nullptr && !face->label.empty() && face->label == top->label;
 }
 
 /**
@@ -295,8 +343,10 @@ void RegisterDefaultConditions(resolver::ConditionRegistry& registry) {
     registry.Register("has_card_kind", &EvalHasCardKind);
     registry.Register("has_card_tag", &EvalHasCardTag);
     registry.Register("hand_size", &EvalHandSize);
+    registry.Register("player_count", &EvalPlayerCount);
     registry.Register("active_type_is", &EvalActiveTypeIs);
     registry.Register("top_of_discard", &EvalTopOfDiscard);
+    registry.Register("drawn_card_playable", &EvalDrawnCardPlayable);
     registry.Register("status_active", &EvalStatusActive);
     registry.Register("draw_debt", &EvalDrawDebt);
     registry.Register("rolled", &EvalRolled);
