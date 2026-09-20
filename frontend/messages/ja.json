@@ -295,7 +295,6 @@
 	"game_privacy_mode": "配信者 / プライバシーモード",
 	"game_privacy_mode_desc": "観戦者から手札を隠します",
 	"glossary_title": "用語集",
-	"glossary_close": "閉じる",
 	"glossary_draw_title": "ドロー",
 	"glossary_draw_desc": "[k=draw_pile]山札[/k]からカードを1枚以上手札に引きます。",
 	"glossary_skip_title": "スキップ",

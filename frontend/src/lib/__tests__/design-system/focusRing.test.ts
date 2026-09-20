@@ -16,7 +16,9 @@ describe("focus ring on clipped buttons", () => {
 		expect(match, "expected a button:not(.pixel-bordered):focus-visible rule").toBeTruthy();
 		const body = match![1];
 		expect(body).toMatch(/box-shadow:\s*inset/);
-		expect(body).not.toMatch(/outline:\s*(?!none)/);
+		// Normalise whitespace so `outline:none` and `outline: none` behave the
+		// same — the naive `\s*(?!none)` wrongly matches the spaced form.
+		expect(body.replace(/\s+/g, "")).not.toMatch(/outline:(?!none)/);
 	});
 
 	it("suppresses the default outline on clipped buttons so it cannot double up with the inset ring", () => {

@@ -295,7 +295,6 @@
 	"game_privacy_mode": "Modo streamer / privacidad",
 	"game_privacy_mode_desc": "Oculta tu mano a los espectadores",
 	"glossary_title": "Glosario",
-	"glossary_close": "Cerrar",
 	"glossary_draw_title": "Robar",
 	"glossary_draw_desc": "Toma una o más cartas del [k=draw_pile]mazo de robo[/k] y añádelas a tu mano.",
 	"glossary_skip_title": "Salto",

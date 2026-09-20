@@ -30,6 +30,7 @@ import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { PILE_BASE_HEIGHT, PILE_PEEK_Z } from "$components/game/layout/drawPile";
+import { CARD_WIDTH, CARD_HEIGHT } from "$components/game/three/units";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 describe("DrawPile3D", () => {
@@ -74,7 +75,7 @@ describe("DrawPile3D", () => {
 		storeGame.state = null;
 	});
 
-	it("renders invisible full-pile hitbox at visual top and removes onclick from card meshes", () => {
+	it("renders an invisible hitbox spanning the whole pile and removes onclick from card meshes", () => {
 		const registry = new CardRegistry();
 
 		render(DrawPile3D, {
@@ -95,15 +96,23 @@ describe("DrawPile3D", () => {
 		);
 		expect(hitbox).toBeDefined();
 
-		const expectedTopY = PILE_BASE_HEIGHT + (6 - 1) * 0.02 + 0.005;
-		const expectedTopZ =
-			defaultPlacement.drawPileZ - (6 - 1) * PILE_PEEK_Z * defaultPlacement.drawPileScale;
+		// The hitbox is a box, not a flat plane on the top card: it centres on
+		// the stack's mid-height and spans the card depth PLUS the peek run the
+		// deeper backs step out along -Z, so the whole pile is tappable.
+		const renderedCount = 6;
+		const stackHeight = (renderedCount - 1) * 0.02;
+		const peekRun = (renderedCount - 1) * PILE_PEEK_Z * defaultPlacement.drawPileScale;
 
 		expect(hitbox!.position![0]).toBeCloseTo(defaultPlacement.drawPileX);
-		expect(hitbox!.position![1]).toBeCloseTo(expectedTopY);
-		expect(hitbox!.position![2]).toBeCloseTo(expectedTopZ);
-		expect(hitbox!["rotation.x"]).toBeCloseTo(-Math.PI / 2);
-		expect(hitbox!.scale).toBe(defaultPlacement.drawPileScale);
+		expect(hitbox!.position![1]).toBeCloseTo(PILE_BASE_HEIGHT + stackHeight / 2);
+		expect(hitbox!.position![2]).toBeCloseTo(defaultPlacement.drawPileZ - peekRun / 2);
+
+		const box = meshInstances.find((m) => Array.isArray(m.args) && m.args.length === 3);
+		expect(box).toBeDefined();
+		const [boxW, boxH, boxD] = box!.args as number[];
+		expect(boxW).toBeCloseTo(CARD_WIDTH * defaultPlacement.drawPileScale);
+		expect(boxH).toBeCloseTo(stackHeight);
+		expect(boxD).toBeCloseTo(CARD_HEIGHT * defaultPlacement.drawPileScale + peekRun);
 
 		// Trigger click
 		const drawSpy = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});

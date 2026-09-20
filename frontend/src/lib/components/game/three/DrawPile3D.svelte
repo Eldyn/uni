@@ -15,6 +15,7 @@
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import {
 		computeDrawPileCountAndStep,
+		DRAW_PILE_STACK_STEP,
 		PILE_BASE_HEIGHT,
 		PILE_PEEK_Z
 	} from "../layout/drawPile";
@@ -97,12 +98,16 @@
 		return PILE_BASE_HEIGHT + fraction * animatedStackHeight - punchOffset;
 	}
 
-	let visualTopY = $derived(
-		PILE_BASE_HEIGHT + animatedStackHeight + 0.005 - punchOffset
-	);
-	let visualTopZ = $derived(
-		placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale
-	);
+	// The pile's hit volume has to cover EVERY peeking card, not just the top
+	// one: deeper backs step toward -Z by PILE_PEEK_Z, so in "full" mode the
+	// stack is a long footprint along Z while a single plane over the top card
+	// only covers its own slice. A box spanning the whole footprint (card depth
+	// plus the peek run) keeps the entire pile tappable.
+	let peekRunZ = $derived((renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
+	let clickDepthZ = $derived(CARD_HEIGHT * placement.drawPileScale + peekRunZ);
+	let clickCenterZ = $derived(placement.drawPileZ - peekRunZ / 2);
+	let clickHeightY = $derived(Math.max(animatedStackHeight, DRAW_PILE_STACK_STEP));
+	let clickCenterY = $derived(PILE_BASE_HEIGHT + clickHeightY / 2 - punchOffset);
 
 	const cardRegistry = useCardRegistry();
 	let registeredKeys = new Set<string>();
@@ -227,12 +232,10 @@
 
 {#if renderedCount > 0}
 	<T.Mesh
-		position={[placement.drawPileX, visualTopY, visualTopZ]}
-		rotation.x={-Math.PI / 2}
-		scale={placement.drawPileScale}
+		position={[placement.drawPileX, clickCenterY, clickCenterZ]}
 		onclick={handleDraw}
 	>
-		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+		<T.BoxGeometry args={[CARD_WIDTH * placement.drawPileScale, clickHeightY, clickDepthZ]} />
 		<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
 	</T.Mesh>
 {/if}

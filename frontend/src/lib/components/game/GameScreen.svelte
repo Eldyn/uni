@@ -5,6 +5,7 @@
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
 	import GameActions from "./GameActions.svelte";
+	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -39,6 +40,8 @@
 
 		<EliminationOutcomeBanner />
 
+		<CardDetailPopover />
+
 		<div class="game-board-container">
 			<GameBoard />
 		</div>
@@ -53,7 +56,10 @@
 	   light canvas they lose the contrast they're read by. */
 	.game-screen {
 		width: 100%;
+		/* dvh, not vh: on mobile 100vh is the large viewport, which puts the
+		   bottom HUD row below the visible fold until the URL bar retracts. */
 		height: 100vh;
+		height: 100dvh;
 		background: var(--table);
 		position: relative;
 		overflow: hidden;

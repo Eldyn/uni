@@ -96,8 +96,20 @@
 		storeGame.submitInput(username);
 	}
 
+	// A click on an opponent is two things depending on who's watching: a
+	// spectator switches the POV to that player (they then render in the local
+	// seat), while a player in a ChooseTarget prompt confirms them as the card
+	// effect's target. Same click, same seats — only the intent differs.
+	function selectOpponent(username: string) {
+		if (storeGame.isSpectator) {
+			storeSpectator.setViewedUsername(username);
+		} else {
+			confirmTarget(username);
+		}
+	}
+
 	// Whose POV the board shows: yourself normally, or — for a spectator — the
-	// player being viewed (TurnOrderStrip chips / SpectatorBanner's fallback).
+	// player being viewed (SpectatorBanner's fallback).
 	// Their seat and hand render in the local slots, so the board reads as
 	// "you are this player". Read-only is enforced on the hand itself. The same
 	// resolver drives the animation layer (baseBeats), so the flight anchors and
@@ -158,7 +170,8 @@
 				Array.isArray(storeGame.actionContext) &&
 				storeGame.actionContext.includes(player.username)}
 			color={colorFor(player.username)}
-			onSelect={() => confirmTarget(player.username)}
+			isViewable={storeGame.isSpectator}
+			onSelect={() => selectOpponent(player.username)}
 			cardScale={opponentCardScale}
 			avatarPx={opponentAvatarPx}
 			avatarWorld={opponentAvatarWorld}

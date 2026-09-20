@@ -3,6 +3,7 @@
 	import RichText from "$components/common/RichText.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { glossaryTag } from "$lib/glossary/glossary";
 
 	export interface RuleDef {
 		id: string;
@@ -29,13 +30,7 @@
 			<Tooltip
 				interactive={true}
 				title={rule.label}
-				tags={[
-					{
-						label: m.glossary_tag_rule({}, { locale: storeI18n.locale }),
-						bg: "#2563eb",
-						shadowColor: "#1d4ed8"
-					}
-				]}
+				tags={[glossaryTag("rule", m.glossary_tag_rule({}, { locale: storeI18n.locale }))]}
 			>
 				{#snippet tooltipContent()}
 					<RichText text={rule.description} allowKeywords={true} />

@@ -75,12 +75,12 @@
 			<!-- Fast exit while the player is elsewhere in the app (the lobby
 			     screen itself has its own red leave button in the header). -->
 			<button
-				class="btn-danger pixel-corners flex h-11 w-11 items-center justify-center p-0"
+				class="shell-topbar-exit"
 				onclick={() => storeLobby.leave()}
 				title={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
 				aria-label={m.lobby_exit_tooltip({}, { locale: storeI18n.locale })}
 			>
-				<i class="pia pixelart-icons-font-logout text-lg"></i>
+				<i class="pia pixelart-icons-font-logout text-sm" aria-hidden="true"></i>
 			</button>
 		{/if}
 		<button

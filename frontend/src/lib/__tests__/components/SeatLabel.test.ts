@@ -29,29 +29,30 @@ describe("estimateTextUnits", () => {
 describe("computeSeatLabelLayout", () => {
 	const overheadRadius = 52;
 
-	it("uses the base em font for short names", () => {
+	it("uses the (halved) base em font for short names", () => {
 		const layout = computeSeatLabelLayout("bob", overheadRadius, 1.15);
-		expect(layout.baseFontSize).toBe(21);
-		expect(layout.fontSize).toBe(21);
-		expect(layout.dy).toBe(-9);
+		expect(layout.baseFontSize).toBe(10);
+		expect(layout.fontSize).toBe(10);
+		expect(layout.dy).toBe(-4);
 		expect(layout.needsCompression).toBe(false);
 	});
 
 	it("shrinks the font as names get longer", () => {
-		const short = computeSeatLabelLayout("bob", overheadRadius, 1.15);
-		const medium = computeSeatLabelLayout("scriptxcorso", overheadRadius, 1.15);
-		const long = computeSeatLabelLayout("superlongplayer", overheadRadius, 1.15);
+		const tightRadius = 22;
+		const short = computeSeatLabelLayout("bob", tightRadius, 1.15);
+		const medium = computeSeatLabelLayout("scriptxcorso", tightRadius, 1.15);
+		const long = computeSeatLabelLayout("superlongplayer", tightRadius, 1.15);
 
 		expect(medium.fontSize).toBeLessThan(short.fontSize);
-		expect(medium.fontSize).toBeGreaterThanOrEqual(14);
+		expect(medium.fontSize).toBeGreaterThanOrEqual(5);
 		expect(long.fontSize).toBeLessThan(medium.fontSize);
-		expect(long.fontSize).toBeGreaterThanOrEqual(10);
-		expect(long.dy).toBeLessThanOrEqual(-6);
+		expect(long.fontSize).toBeGreaterThanOrEqual(5);
+		expect(long.dy).toBeLessThanOrEqual(-2);
 	});
 
 	it("falls back to the minimum size and flags compression for wide scripts", () => {
-		const layout = computeSeatLabelLayout("日本語日本語日本語日本語日本語日本語", 40, 1.15);
-		expect(layout.fontSize).toBe(9);
+		const layout = computeSeatLabelLayout("日本語日本語日本語日本語日本語日本語", 20, 1.15);
+		expect(layout.fontSize).toBe(5);
 		expect(layout.needsCompression).toBe(true);
 	});
 });

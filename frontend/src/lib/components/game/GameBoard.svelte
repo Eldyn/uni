@@ -14,7 +14,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
-	import { resolveViewedPlayer } from "./layout/spectatorPov";
+	import { resolveViewedPlayer, rotatedOpponentsFor } from "./layout/spectatorPov";
 	import {
 		opponentRingRadiusWorld,
 		RING_RADIUS_EM,
@@ -79,35 +79,20 @@
 	}
 
 	// Rotate the player list so opponents read in turn order starting right
-	// after the local player, then hand that list + the current viewport to
-	// the Threlte scene's own seat solver (layout/seatLayout3D.ts).
+	// after the POV player (yourself normally, or the viewed player as a
+	// spectator), then hand that list + the current viewport to the Threlte
+	// scene's own seat solver (layout/seatLayout3D.ts). Anchoring the spectator
+	// ring on the viewed player is what makes their POV read as a rotation: the
+	// viewed player occupies the local seat, and their true neighbours stay to
+	// either side, instead of the ring keeping the server's raw order (which
+	// looks like the viewed and previously-viewed players simply swapped).
 	let mappedOpponents = $derived.by(() => {
 		const players = storeGame.state?.players ?? [];
-		if (storeGame.isSpectator) {
-			// A spectator "becomes" the viewed player: that player renders in the
-			// local seat/hand, so they must NOT also appear in the opponent ring.
-			const viewed = resolveViewedPlayer(
-				players,
-				storeSpectator.viewedUsername,
-				storeGame.state?.current_turn
-			);
-			return players
-				.filter((player) => player.username !== viewed?.username)
-				.map((player) => ({ player }));
-		}
-
-		const myUsername = storeGame.localPlayer?.username;
-		if (!myUsername) {
-			return players.map((player) => ({ player }));
-		}
-		if (players.length <= 1) return [];
-
-		const rawOpponents = players.filter((p) => p.username !== myUsername);
-		const myIdx = players.findIndex((p) => p.username === myUsername);
-		const rotated =
-			myIdx === -1 ? rawOpponents : [...players.slice(myIdx + 1), ...players.slice(0, myIdx)];
-
-		return rotated.map((player) => ({ player }));
+		const povUsername = storeGame.isSpectator
+			? resolveViewedPlayer(players, storeSpectator.viewedUsername, storeGame.state?.current_turn)
+					?.username
+			: storeGame.localPlayer?.username;
+		return rotatedOpponentsFor(players, povUsername).map((player) => ({ player }));
 	});
 
 	// Single source of truth for the scene's camera/seat/pile geometry — Scene3D
@@ -235,11 +220,13 @@
 {/if}
 
 <div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="scene-layer"
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
 		onpointerdown={() => cardRegistry.skipCurrent()}
+		oncontextmenu={(event) => event.preventDefault()}
 	>
 		<Canvas>
 			<Scene3D

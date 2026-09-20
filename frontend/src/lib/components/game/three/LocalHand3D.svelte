@@ -46,6 +46,7 @@
 	import { devFixturePreset } from "../../../dev/devFixturePreset.svelte";
 	import { ValueMap } from "$lib/generated/schemas";
 	import { hiddenBackCountFor, hiddenBackCard } from "../layout/spectatorPov";
+	import { storeCardDetail } from "$stores/cardDetail.svelte";
 
 	let {
 		rig,
@@ -218,6 +219,26 @@
 			if (!currentIds.includes(id)) cardRegistry.removeEntry(String(id));
 		}
 		prevHiddenIds = currentIds;
+	});
+
+	// Real hand cards normally re-own the moment they leave the row: a play
+	// hands the card to DiscardPile3D. But when a spectator switches the viewed
+	// player, the outgoing player's cards leave this row with no new owner and
+	// would strand as ghost faces at the bottom of the board. Retire ids that
+	// left the row, aren't mid-flight (an animation/discard handoff owns those),
+	// and never reached the discard (a played card is in transit first, then in
+	// history). Synthetic backs are covered by the effect above.
+	let prevRealIds: string[] = [];
+	$effect(() => {
+		const liveIds = new Set(hiddenBackCount > 0 ? [] : cards.map((c) => String(c.id)));
+		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
+		for (const id of prevRealIds) {
+			if (liveIds.has(id)) continue;
+			if (cardRegistry.isInTransit(id)) continue;
+			if (discardIds.has(id)) continue;
+			cardRegistry.removeEntry(id);
+		}
+		prevRealIds = [...liveIds];
 	});
 
 	// Reconciled, not replaced: new card ids append at the end, missing ones
@@ -558,6 +579,11 @@
 		e.preventDefault?.();
 	}
 
+	function buttonOf(event: unknown): number {
+		const e = event as { button?: number; nativeEvent?: { button?: number } };
+		return e.nativeEvent?.button ?? e.button ?? 0;
+	}
+
 	let settleTween: gsap.core.Tween | null = null;
 
 	// With a mouse, dragging always reorders — the wheel already pans, and the
@@ -566,7 +592,11 @@
 	// you already picked does.
 	function startGesture(cardId: number, index: number, event: unknown) {
 		if (readOnly) return;
+		// Right-click is inspection, not a gesture — starting one would let the
+		// matching pointerup select or play the card under the context menu.
+		if (buttonOf(event) !== 0) return;
 		preventDefaultOf(event);
+		storeCardDetail.resetLongPress();
 		settleTween?.kill();
 		settleTween = null;
 		dragLiftTween?.kill();
@@ -674,6 +704,9 @@
 		window.removeEventListener("pointermove", handleGestureMove);
 		const releasedId = gestureCardId;
 		const hadMoved = gestureMoved;
+		// A touch long-press opened the card detail popover on this same press;
+		// releasing must not also select/play the card it inspected.
+		const longPressed = storeCardDetail.consumeLongPress();
 
 		gestureCardId = null;
 		gestureIsReorder = false;
@@ -687,6 +720,7 @@
 			draggingId = null;
 			movementDelta = 0;
 			dragTiltDeg = 0;
+			if (longPressed) return;
 			if (storeRenderSettings.clickToPlay) {
 				onPlay(releasedId);
 			} else {

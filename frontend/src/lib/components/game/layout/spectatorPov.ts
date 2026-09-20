@@ -18,7 +18,7 @@ export const HIDDEN_BACK_ID_BASE = -2_000_000;
 
 /**
  * Resolves which player's POV a spectator is viewing. `viewedUsername` (set by
- * the TurnOrderStrip chips) wins; otherwise the current turn's player — the
+ * the spectator UI) wins; otherwise the current turn's player — the
  * same fallback SpectatorBanner uses — and finally the first player, so the
  * board never renders seatless. Returns null only when there are no players.
  */
@@ -30,6 +30,28 @@ export function resolveViewedPlayer(
 	if (players.length === 0) return null;
 	const name = viewedUsername ?? currentTurn;
 	return players.find((p) => p.username === name) ?? players[0] ?? null;
+}
+
+/**
+ * The opponent ring, ordered in turn order starting from the seat *after* the
+ * POV player and wrapping around, excluding the POV player themselves. This is
+ * what makes "watching from X's POV" mean X sits at the bottom with X's real
+ * neighbours to either side: the ring rotates with the POV instead of keeping
+ * the server's raw seat order (which reads as a straight swap of two players).
+ *
+ * Shared by the local-player and spectator paths so a spectator's view and a
+ * player's own view can never order the ring differently. An unknown or absent
+ * POV player (a non-seated local, say) leaves the roster in its raw order, and
+ * an empty roster yields no opponents.
+ */
+export function rotatedOpponentsFor(
+	players: readonly GamePlayer[],
+	povUsername: string | null | undefined
+): GamePlayer[] {
+	if (players.length === 0) return [];
+	const povIndex = povUsername ? players.findIndex((p) => p.username === povUsername) : -1;
+	if (povIndex === -1) return [...players];
+	return [...players.slice(povIndex + 1), ...players.slice(0, povIndex)];
 }
 
 /**

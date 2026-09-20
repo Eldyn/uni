@@ -66,6 +66,7 @@ uniform vec4 uUvRectBack;
 		scale = 1,
 		onclick,
 		onpointerdown,
+		oncontextmenu,
 		hovered = false,
 		instant = false,
 		hoverPush = [0, 0],
@@ -97,6 +98,9 @@ uniform vec4 uUvRectBack;
 		/** Bubbles up from any of this card's meshes via @threlte/extras interactivity. */
 		onclick?: (event: unknown) => void;
 		onpointerdown?: (event: unknown) => void;
+		/** Right-click (and touch long-press pointerdown, handled by the owner) —
+		 *  opens the card detail popover. */
+		oncontextmenu?: (event: unknown) => void;
 		/** Lifts and nudges the card clear of its overlapping neighbors. Driven by
 		 *  the owner (LocalHand3D picks the hovered card from its own tiled hit
 		 *  zones) rather than by this card's own geometry, whose visible sliver is
@@ -348,7 +352,14 @@ uniform vec4 uUvRectBack;
 	});
 </script>
 
-<T.Group position={animatedPosition} scale={animatedScale} {renderOrder} {onclick} {onpointerdown}>
+<T.Group
+	position={animatedPosition}
+	scale={animatedScale}
+	{renderOrder}
+	{onclick}
+	{onpointerdown}
+	{oncontextmenu}
+>
 	<T.Group rotation.x={-Math.PI / 2}>
 		{#if shadow}
 			<T.Group rotation.z={spinRad}>
