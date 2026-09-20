@@ -218,6 +218,7 @@ if(UNI_BUILD_TESTS)
         src/match/ecs/entity_store.cpp
         src/match/ecs/component_catalog.cpp
         src/match/ecs/event_bus.cpp
+        src/match/resolver.cpp
         src/match/ops/default_ops.cpp
         src/match/ops/card_pile_ops.cpp
         src/match/ops/condition_ops.cpp
