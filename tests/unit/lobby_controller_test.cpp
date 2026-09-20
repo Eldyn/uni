@@ -362,6 +362,37 @@ TEST_CASE("start: clears is_spectator left over from a prior elimination for sea
     CHECK(carol_spectator);
 }
 
+TEST_CASE("start: broadcasts the cleared is_spectator so clients drop the stale spectator view") {
+    LobbyFixture f;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    for (auto& m : lp->members) {
+        if (m.username == "bob") m.is_spectator = true;
+    }
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    bool bob_broadcast_seated = false;
+    for (const auto& [topic, payload] : f.bus.published) {
+        if (topic != "lobby_" + code) continue;
+        auto frame = json::parse(payload);
+        if (frame.value("action", "") != "lobby_updated") continue;
+        for (const auto& m : frame["lobby"]["members"]) {
+            if (m.value("username", "") == "bob") {
+                bob_broadcast_seated = !m.value("is_spectator", true);
+            }
+        }
+    }
+    CHECK(bob_broadcast_seated);
+}
+
 TEST_CASE("kick: host can kick bob") {
     LobbyFixture f;
     std::string code = f.alice_creates();

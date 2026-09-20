@@ -62,6 +62,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Fixed
 
+- **A player knocked out in an elimination match no longer stays a spectator into the next one**: `HandleStartGame` cleared the lobby's stale `is_spectator` flag but only broadcast match state, so each client kept the `true` cached on its copied member list and `storeGame.isSpectator` OR-ed that stale flag into the result — pinning a returning, now-seated player in spectator view (and blocking their actions). The start handler now broadcasts the refreshed lobby roster so every client drops the flag it no longer holds.
 - **The discard pile's scatter and shadow scale with the cards**: the jitter offsets and drop shadow were sized for a full-size desktop card, so a smaller phone pile threw a detached black smear. Each now scales with the pile's own card size.
 - **The discard pile sits at the center of the felt, and the draw pile stays beside your hand on phones**: portrait used to drop both piles into a centered cluster and push the draw pile away from the hand. The discard is now anchored to the felt's true midpoint and the draw pile stays beside the hand, as a smaller tap target.
 - **Bigger cards in your hand on a phone**: portrait used to keep seven cards visible before the row started scrolling, which capped the card size on a narrow screen. It now keeps five, so cards render larger and you scroll sooner.

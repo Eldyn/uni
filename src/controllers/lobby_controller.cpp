@@ -878,6 +878,12 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         }
     }
 
+    // Tell clients the flags changed. The match-state broadcast alone cannot,
+    // since is_spectator lives only on the lobby member; without this a client
+    // caches is_spectator=true from the previous match and stays pinned in
+    // spectator view even after being seated in the new one.
+    BroadcastUpdate(lobby);
+
     std::vector<std::tuple<std::string, bool, int>> players_info;
     for (const auto& lobby_member : lobby.members) {
         players_info.push_back(
