@@ -2,7 +2,11 @@
 #include <action_router.hpp>
 #include <controllers/lobby_controller.hpp>
 #include <common/ws.hpp>
+#include <match/modload/mod_loader.hpp>
 #include <nlohmann/json.hpp>
+#include <filesystem>
+#include <string>
+#include <vector>
 #include "support/fake_broadcaster.hpp"
 #include "support/fake_timer_service.hpp"
 
@@ -11,6 +15,30 @@ using json = nlohmann::json;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/* INFO: locate the project root from this file so deck tests can scan the
+ *       shipped `mods/` tree regardless of the test's working directory
+ *       (mirrors engine_core_test.cpp). */
+static std::string ProjectModsRoot() {
+    std::filesystem::path p(__FILE__);
+    while (!p.empty()) {
+        std::error_code ec;
+        if (std::filesystem::is_directory(p / "contract" / "schemas", ec)) {
+            return (p / "mods").string();
+        }
+        std::filesystem::path parent = p.parent_path();
+        if (parent == p) break;
+        p = parent;
+    }
+    return "mods";
+}
+
+/* INFO: every loaded mod of the shipped tree, or empty when unavailable. */
+static std::vector<match::modload::LoadedMod> ShippedMods() {
+    auto loaded = match::modload::ScanModsDirectory(ProjectModsRoot());
+    if (!loaded.ok()) return {};
+    return std::move(loaded.mods);
+}
 
 // AppWebSocket* as an opaque test key, FakeBroadcaster stores but never
 // dereferences it. Cast from PerSocketData address to avoid null checks.
@@ -74,13 +102,16 @@ struct LobbyFixture {
     FakeBroadcaster  bus;
     FakeTimerService timers;
     PresenceRegistry presence;
-    LobbyController  lobby{router, bus, timers, presence};
+    std::string      mods_root;
+    LobbyController  lobby;
 
     PerSocketData alice_sd, bob_sd;
     AppWebSocket* alice_sock;
     AppWebSocket* bob_sock;
 
-    LobbyFixture() {
+    explicit LobbyFixture(std::string root = "")
+        : mods_root(std::move(root)),
+          lobby(router, bus, timers, presence, nullptr, mods_root) {
         alice_sd.username = "alice";
         bob_sd.username   = "bob";
         alice_sock        = fake_sock(alice_sd);
@@ -596,6 +627,138 @@ TEST_CASE("join: hijacks an available bot slot instead of adding a new member") 
     }
     CHECK(charlie_present);
     CHECK_FALSE(bot_present);
+}
+
+// ---------------------------------------------------------------------------
+// Deck catalog (GET /api/decks) + deck-snapshot selection.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("deck catalog: lists the classic deck with namespace and mods") {
+    auto mods = ShippedMods();
+    REQUIRE(!mods.empty());
+
+    json catalog = LobbyController::DeckCatalogJson(mods);
+    REQUIRE(catalog.contains("decks"));
+    REQUIRE(catalog["decks"].is_array());
+
+    const json* classic = nullptr;
+    for (const auto& deck : catalog["decks"]) {
+        if (deck.value("id", "") == "classic" &&
+            deck.value("namespace", "") == "vanilla") {
+            classic = &deck;
+        }
+    }
+    REQUIRE(classic != nullptr);
+    CHECK(classic->value("name", "") == "Classic");
+    CHECK((*classic)["mods"] == json::array({"vanilla"}));
+
+    // Every entry carries exactly the endpoint's four documented fields.
+    for (const auto& deck : catalog["decks"]) {
+        CHECK(deck.contains("id"));
+        CHECK(deck.contains("name"));
+        CHECK(deck.contains("namespace"));
+        CHECK(deck.contains("mods"));
+        CHECK(deck["mods"].is_array());
+    }
+}
+
+TEST_CASE("deck snapshot: selection loads mods, cards and settings at once") {
+    auto mods = ShippedMods();
+    REQUIRE(!mods.empty());
+
+    LobbySettings settings;
+    settings.active_mods = {"seven_zero"};
+    REQUIRE(LobbyController::ApplyDeckSnapshot(
+        settings, mods, "vanilla:classic"));
+
+    CHECK(settings.deck.value("id", "") == "classic");
+    CHECK(settings.deck.value("name", "") == "Classic");
+    CHECK(settings.deck.value("namespace", "") == "vanilla");
+    CHECK(settings.deck["mods"] == json::array({"vanilla"}));
+    CHECK(settings.deck["cards"]["vanilla:wild"] == 4);
+    CHECK(settings.deck["cards"]["vanilla:red_0"] == 1);
+    CHECK(settings.deck["settings"]["count_zeros"] == 1);
+
+    // Additive: the legacy scalar settings are untouched by deck selection.
+    CHECK(settings.active_mods == std::vector<std::string>{"seven_zero"});
+}
+
+TEST_CASE("deck snapshot: unknown deck id leaves settings untouched") {
+    auto mods = ShippedMods();
+    REQUIRE(!mods.empty());
+
+    LobbySettings settings;
+    CHECK_FALSE(LobbyController::ApplyDeckSnapshot(
+        settings, mods, "ghost:missing"));
+    CHECK(settings.deck.empty());
+    CHECK(settings.active_mods.empty());
+}
+
+TEST_CASE("settings: host selecting a deck loads the whole snapshot") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bus.Clear();
+
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-deck"},
+             {"deck_id", "vanilla:classic"}});
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->settings.deck.value("id", "") == "classic");
+    CHECK(lp->settings.deck["mods"] == json::array({"vanilla"}));
+    CHECK(lp->settings.deck["cards"]["vanilla:blue_3"] == 2);
+    CHECK(lp->settings.deck["settings"]["count_zeros"] == 1);
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") != "error");
+}
+
+TEST_CASE("settings: unknown deck id returns an error and keeps freestyle") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bus.Clear();
+
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-deck-bad"},
+             {"deck_id", "ghost:missing"}});
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "invalid_payload");
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->settings.deck.empty());
+}
+
+TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-deck"},
+             {"deck_id", "vanilla:classic"}});
+    f.bus.Clear();
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-free"},
+             {"starting_cards", 5},
+             {"ranked", false}});
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->settings.starting_cards == 5);
+    CHECK_FALSE(lp->settings.ranked);
+    // The loaded snapshot survives later freestyle scalar edits.
+    CHECK(lp->settings.deck.value("id", "") == "classic");
 }
 
 } // TEST_SUITE

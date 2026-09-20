@@ -11,6 +11,7 @@
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
 #include <match/rule_registry.hpp>
+#include <match/modload/mod_loader.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
@@ -26,13 +27,27 @@ using namespace std::chrono;
  * @param timers    Timer service for the eviction clock.
  */
 LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
-                                  ITimerService& timers, PresenceRegistry& presence)
+                                  ITimerService& timers,
+                                  PresenceRegistry& presence,
+                                  HttpRouter* http_router,
+                                  std::string mods_root)
     : action_router_(router), broadcaster_(broadcast), timer_service_(timers),
-      presence_(presence) {
+      presence_(presence),
+      mods_root_(mods_root.empty() ? Env::Get("UNI_MODS_DIR", "mods")
+                                   : std::move(mods_root)) {
     reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 120'000));
     absolute_max_lobby_members_ = std::clamp(
         Env::GetInt("ABSOLUTE_MAX_LOBBY_MEMBERS", contract::kMaxLobbyMembers),
         2, contract::kMaxLobbyMembers);
+
+    if (http_router != nullptr) {
+        // INFO: Public catalog endpoint: deck files are content, not user
+        //       data, so no auth token is required (mirrors the public
+        //       leaderboard endpoint).
+        http_router->Get("/api/decks", [this](AppResponse* res, AppRequest*) {
+            HandleListDecks(res);
+        });
+    }
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
         HandleCreate(ctx, msg);
@@ -636,6 +651,70 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 
+json LobbyController::DeckCatalogJson(
+    const std::vector<match::modload::LoadedMod>& mods) {
+    json decks = json::array();
+    for (const auto& mod : mods) {
+        for (const auto& deck : mod.decks) {
+            decks.push_back({
+                {"id",        deck.id},
+                {"name",      deck.name},
+                {"namespace", deck.namespace_id},
+                {"mods",      deck.mods}
+            });
+        }
+    }
+    return json{{"decks", decks}};
+}
+
+bool LobbyController::ApplyDeckSnapshot(
+    LobbySettings& settings,
+    const std::vector<match::modload::LoadedMod>& mods,
+    const std::string& deck_id) {
+    const match::modload::DeckDef* found = nullptr;
+    for (const auto& mod : mods) {
+        for (const auto& deck : mod.decks) {
+            // INFO: accept both the full `namespace:id` form and the bare
+            //       local id that GET /api/decks returns.
+            if (deck.deck_id == deck_id || deck.id == deck_id) {
+                found = &deck;
+                break;
+            }
+        }
+        if (found != nullptr) break;
+    }
+    if (found == nullptr) return false;
+
+    json snapshot = json::object();
+    snapshot["id"]        = found->id;
+    snapshot["name"]      = found->name;
+    snapshot["namespace"] = found->namespace_id;
+    snapshot["mods"]      = found->mods;
+    snapshot["cards"]     = json::object();
+    for (const auto& [kind, count] : found->cards) {
+        snapshot["cards"][kind] = count;
+    }
+    snapshot["settings"] = found->settings;
+    settings.deck = std::move(snapshot);
+    return true;
+}
+
+void LobbyController::HandleListDecks(AppResponse* res) {
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Error("[Deck] Mods scan failed for '", mods_root_, "' (",
+                      loaded.errors.size(), " error(s))");
+        res->writeStatus("500 Internal Server Error")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json{{"error", "mods scan failed"}}.dump());
+        return;
+    }
+
+    res->writeHeader("Content-Type", "application/json")
+       ->end(DeckCatalogJson(loaded.mods).dump());
+}
+
 /**
  * @brief Transfers room ownership permissions to another human user in the lobby.
  * @param ctx Payload context wrapping request sockets and raw buffers.
@@ -769,6 +848,32 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         return;
     }
 
+    // INFO: A `deck_id` selects a whole snapshot at once (mods + cards +
+    //       settings). Resolve it against the mods folder before the
+    //       generic merge; an empty string clears the selection (freestyle).
+    if (message.contains("deck_id")) {
+        const std::string deck_id = message.value("deck_id", "");
+        if (deck_id.empty()) {
+            lobby.settings.deck = json::object();
+        } else {
+            match::modload::LoadResult loaded =
+                match::modload::ScanModsDirectory(mods_root_);
+            if (!loaded.ok()) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInternalError, request_id);
+                return;
+            }
+            if (!ApplyDeckSnapshot(lobby.settings, loaded.mods, deck_id)) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInvalidPayload, request_id,
+                    "unknown deck: " + deck_id);
+                return;
+            }
+        }
+    }
+
     int old_bot_count = lobby.settings.bot_count;
 
     // INFO: Strip envelope fields then apply the patch. Fields not present
@@ -778,6 +883,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     json patch = message;
     patch.erase("action");
     patch.erase("request_id");
+    patch.erase("deck_id");
 
     if (patch.contains("name")) {
         lobby.name = patch.value("name", lobby.name);

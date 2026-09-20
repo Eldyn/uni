@@ -50,7 +50,8 @@ int main() {
         AuthController   auth(server.GetHTTPRouter(), email_queue);
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
-                               server.GetTimerService(), presence);
+                               server.GetTimerService(), presence,
+                               &server.GetHTTPRouter());
         ChatController   chat(server.GetActionRouter(), server.GetBroadcaster(), presence, -1,
                               ChatController::kUnsetHistoryLimit, &lobby);
 

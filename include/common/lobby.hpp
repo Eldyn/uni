@@ -85,6 +85,14 @@ struct LobbySettings {
     /**< Number of survivors remaining when elimination match ends (default 1). */
     int survivor_count = 1;
 
+    /**< Selected deck snapshot: the mod list, card multiset and
+     * typed settings bag as one object, matching the `decks/*.json` shape
+     * (`id`, `name`, `namespace`, `mods`, `cards`, `settings`). An empty
+     * object means the lobby is freestyle (no deck selected). Selecting a
+     * deck loads all three atomically; the scalar fields above stay
+     * editable so freestyle tuning keeps working additively. */
+    nlohmann::json deck = nlohmann::json::object();
+
     /**
      * @brief Clamps numeric fields into contract bounds and strips unknown or
      * duplicate entries from active_mods in place.
@@ -99,7 +107,7 @@ struct LobbySettings {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
     allow_bot_takeover, allow_bot_replacement, quit_deletes_match, is_public,
-    max_players, ranked, mode, survivor_count
+    max_players, ranked, mode, survivor_count, deck
 )
 
 /**
