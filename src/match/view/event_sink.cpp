@@ -134,6 +134,67 @@ json ProjectModDisarmed(const json& payload) {
                 {"reason", payload.value("reason", std::string())}};
 }
 
+json ProjectWindowOpen(const json& payload) {
+    json out = json::object();
+    // INFO: The packet carries `deadline` as ms REMAINING. The engine
+    //       arms an absolute `deadline_ms` and also reports the chosen
+    //       `duration_ms`, so the opening remainder is `duration_ms` when
+    //       present; an absolute value only ever appears on a replay.
+    out["deadline_ms"] =
+        payload.value("duration_ms", payload.value("deadline_ms", 0));
+    out["responders"] = payload.contains("responders")
+                            ? payload["responders"]
+                            : json::array();
+    out["eligible_filter_digest"] = payload.value("filter_digest", "");
+    out["window_id"] = std::to_string(payload.value("id", 0));
+    return out;
+}
+
+json ProjectWindowResponse(const match::engine::MatchInstance& match,
+                           const json& payload) {
+    json out = json::object();
+    out["player"] = payload.value("player", std::string());
+    if (payload.value("pass", false)) {
+        out["passed"] = true;
+    } else if (payload.contains("card")) {
+        out["card"] = CardBitsFor(match, payload["card"]);
+    }
+    return out;
+}
+
+json ProjectWindowClose(const match::engine::MatchInstance& match,
+                        const json& payload) {
+    // INFO: the engine outcome is `response` / `all_pass` / `timeout`; the
+    //       packet enum is only `winner` / `default`. A collected
+    //       response maps to `winner`, everything else to `default`.
+    const std::string outcome = payload.value("outcome", std::string());
+    const bool has_winner = payload.contains("winner")
+                            && payload["winner"].is_string()
+                            && !payload["winner"].get<std::string>().empty();
+    json out = json::object();
+    out["outcome"] =
+        (outcome == "response" || has_winner) ? "winner" : "default";
+    if (has_winner) out["winner"] = payload["winner"];
+    if (payload.contains("card") && payload["card"].is_object()) {
+        out["card"] = CardBitsFor(match, payload["card"]);
+    }
+    return out;
+}
+
+json ProjectAutoPlayed(const match::engine::MatchInstance& match,
+                       const json& payload) {
+    json out = json::object();
+    out["player"] = payload.contains("player")
+                        ? UsernameFor(match, payload["player"])
+                        : std::string();
+    out["card"] =
+        payload.contains("card") ? CardBitsFor(match, payload["card"]) : 0u;
+    // INFO: the engine descriptor key is `trigger`; the packet key is
+    //       `trigger_summary`.
+    out["trigger_summary"] = payload.value("trigger", std::string());
+    return out;
+}
+
 }  // namespace
 
 std::string StableDigest(std::string_view data) {
@@ -202,6 +263,10 @@ std::optional<nlohmann::json> ProjectPublicEvent(
         return nlohmann::json{{"player", body.value("player", "")},
                               {"place", body.value("place", 0)}};
     }
+    if (type == "window_open") return ProjectWindowOpen(body);
+    if (type == "window_response") return ProjectWindowResponse(match, body);
+    if (type == "window_close") return ProjectWindowClose(match, body);
+    if (type == "auto_played") return ProjectAutoPlayed(match, body);
     if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "roll_result") return ProjectRollResult(body);
     if (type == "signal") return ProjectSignal(body);

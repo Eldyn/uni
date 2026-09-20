@@ -223,6 +223,7 @@ if(UNI_BUILD_TESTS)
         src/match/engine/match_instance.cpp
         src/match/view/event_sink.cpp
         src/match/view/defs_builder.cpp
+        src/match/view/view_builder.cpp
         src/match/resolver.cpp
         src/match/rng.cpp
         src/match/scheduler.cpp

@@ -13,13 +13,14 @@
  *
  * The server-side seam between the engine event log (`MatchInstance::Events()`,
  * `{type, payload}` descriptors) and the wire envelope (
- * `{seq, type, payload}`). The view layer owns the monotonic `seq`, the ten
- * public event projections, and the `defs` packet (see `defs_builder.hpp`).
+ * `{seq, type, payload}`). The view layer owns the monotonic `seq`, the
+ * `all`-visibility public projections and the `defs` packet (see
+ * `defs_builder.hpp`); the view layer adds the `window_*` / `auto_played`
+ * public rows here plus per-recipient filtering in `view_builder.hpp`.
  *
- * The view layer will add per-recipient filtering on top of `Wrap` /
- * `ProjectPublicEvent` without changing this module's contract. A filtered-out
- * event is simply never wrapped, so the stream stays gap-free and numbers are
- * never reused.
+ * Per-recipient filtering sits on top of `Wrap` / `ProjectPublicEvent`
+ * without changing this module's contract. A filtered-out event is simply
+ * never wrapped, so the stream stays gap-free and numbers are never reused.
  *
  * ADDITIVE: new `match::view` namespace; the engine is
  * untouched. Payload JSON is built directly against the table
@@ -94,11 +95,13 @@ private:
 /**
  * @brief Project one `all`-visibility public event to its payload.
  *
- * Handles `card_played`, `reshuffle`, `turn_advance`, `round_advance`,
- * `placement`, `match_end`, `roll_result`, `signal`, `chain_aborted` and
- * `mod_disarmed`. `match_start` is content-derived and built by
- * `DefsBuilder::BuildMatchStart`. All other types return `nullopt` (deferred
- * to the view layer/c).
+ * Handles the `all`-visibility rows of the table: `card_played`,
+ * `reshuffle`, `turn_advance`, `round_advance`, `placement`, `window_open`,
+ * `window_response`, `window_close`, `auto_played`, `match_end`,
+ * `roll_result`, `signal`, `chain_aborted` and `mod_disarmed`. `match_start`
+ * is content-derived and built by `DefsBuilder::BuildMatchStart`. All other
+ * types return `nullopt`; the per-recipient (filtered) rows are built by
+ * `ViewBuilder` in `view_builder.hpp`.
  *
  * @param type    Engine event type token.
  * @param payload Descriptor body (or the flat descriptor minus `type`).
