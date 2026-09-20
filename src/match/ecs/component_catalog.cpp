@@ -27,8 +27,8 @@ struct Registration {
  * INFO: The full phase-1 catalog. Order here
  *       is the catalog's registration order and is stable.
  */
-const std::array<Registration, 20>& Registrations() {
-    static const std::array<Registration, 20> kRegistrations = {{
+const std::array<Registration, 21>& Registrations() {
+    static const std::array<Registration, 21> kRegistrations = {{
         {"card_identity", std::type_index(typeid(CardIdentity)),
          &AcquirePool<CardIdentity>},
         {"in_zone", std::type_index(typeid(InZone)), &AcquirePool<InZone>},
@@ -46,6 +46,8 @@ const std::array<Registration, 20>& Registrations() {
         {"turn_state", std::type_index(typeid(TurnState)),
          &AcquirePool<TurnState>},
         {"status", std::type_index(typeid(Status)), &AcquirePool<Status>},
+        {"status_list", std::type_index(typeid(StatusList)),
+         &AcquirePool<StatusList>},
         {"visibility_grant", std::type_index(typeid(VisibilityGrant)),
          &AcquirePool<VisibilityGrant>},
         {"draw_debt", std::type_index(typeid(DrawDebt)),

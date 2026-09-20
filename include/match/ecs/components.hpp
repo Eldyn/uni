@@ -220,6 +220,20 @@ struct Status {
     bool hidden = false;       /**< private status. */
 };
 
+/**
+ * @struct StatusList
+ * @brief Multi-instance status container on an entity.
+ *
+ * The timer layer additive component. The store `status` pool stays one
+ * instance per entity for compatibility, but the `independent` policy
+ * needs separate instances, each with its own duration and `instance_id`. This
+ * container holds them; all access goes through the `match::status` helper API,
+ * never through the raw pool.
+ */
+struct StatusList {
+    std::vector<Status> instances;
+};
+
 // --- visibility_grant ------------------------------------------------------
 
 /**

@@ -210,6 +210,7 @@ TEST_CASE("entity_store: catalog registers every phase-1 component id") {
         {"hand", std::type_index(typeid(Hand))},
         {"turn_state", std::type_index(typeid(TurnState))},
         {"status", std::type_index(typeid(Status))},
+        {"status_list", std::type_index(typeid(StatusList))},
         {"visibility_grant", std::type_index(typeid(VisibilityGrant))},
         {"draw_debt", std::type_index(typeid(DrawDebt))},
         {"play_restriction", std::type_index(typeid(PlayRestriction))},
@@ -229,7 +230,7 @@ TEST_CASE("entity_store: catalog registers every phase-1 component id") {
         CHECK(type->type == entry.type);
         CHECK(catalog.Contains(entry.id));
     }
-    CHECK(catalog.Types().size() == 20);
+    CHECK(catalog.Types().size() == 21);
 
     CHECK(catalog.Find("no_such_component") == nullptr);
     CHECK_FALSE(catalog.Contains("no_such_component"));

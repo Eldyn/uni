@@ -24,6 +24,7 @@ using match::ecs::PileContents;
 using match::ecs::PileKind;
 using match::ecs::PlayerInfo;
 using match::ecs::Status;
+using match::ecs::StatusList;
 using match::ecs::ZoneKind;
 using match::ecs::ZoneRef;
 using match::modload::ConditionCatalog;
@@ -156,7 +157,9 @@ struct Fixture : Harness {
         store.Add(self, debt);
         Status status;
         status.status_id = "vanilla:draw_debt";
-        store.Add(self, status);
+        StatusList statuses;
+        statuses.instances.push_back(status);
+        store.Add(self, statuses);
 
         frame.BindSelector("@self", {self});
         frame.BindSelector("@target", {target});
@@ -272,6 +275,20 @@ TEST_CASE("condition_eval: status_active") {
         "status_active",
         {{"target", "@nowhere"}, {"status_kind", "vanilla:draw_debt"}})));
     CHECK_FALSE(f.Eval(Cond("status_active", {{"target", "@self"}})));
+
+    // INFO: a second, independent instance of another kind also satisfies the
+    //       condition (the multi-instance status_list container).
+    StatusList* statuses = f.store.Get<StatusList>(f.self);
+    REQUIRE(statuses != nullptr);
+    Status shielded;
+    shielded.status_id = "vanilla:shielded";
+    statuses->instances.push_back(shielded);
+    CHECK(f.Eval(Cond(
+        "status_active",
+        {{"target", "@self"}, {"status_kind", "vanilla:shielded"}})));
+    CHECK(f.Eval(Cond(
+        "status_active",
+        {{"target", "@self"}, {"status_kind", "vanilla:draw_debt"}})));
 }
 
 TEST_CASE("condition_eval: draw_debt comparisons") {

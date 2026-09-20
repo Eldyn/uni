@@ -221,6 +221,7 @@ if(UNI_BUILD_TESTS)
         src/match/resolver.cpp
         src/match/rng.cpp
         src/match/scheduler.cpp
+        src/match/status.cpp
         src/match/ops/default_ops.cpp
         src/match/ops/op_helpers.cpp
         src/match/ops/card_pile_ops.cpp

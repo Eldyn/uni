@@ -1,4 +1,5 @@
 #include <match/ops/op_helpers.hpp>
+#include <match/status.hpp>
 
 #include <match/resolver.hpp>
 
@@ -205,10 +206,8 @@ bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args, OpContext&) {
 /**
  * @brief Target carries a status of the given kind.
  *
- * INFO: `status` component holds one instance per entity, so this checks
- *       that single instance. Multiple independent statuses per entity are a
- *       The timer layer concern (it may layer extra instances on child
- * entities).
+ * Addresses the multi-instance `status_list` container through
+ * `match::status`; any instance of the kind satisfies the condition.
  */
 bool EvalStatusActive(ecs::EntityStore& store, const json& args,
                       OpContext& ctx) {
@@ -217,8 +216,7 @@ bool EvalStatusActive(ecs::EntityStore& store, const json& args,
         ArgString(args, "status_kind");
     if (!token.has_value() || !status_kind.has_value()) return false;
     for (ecs::Entity entity : SelectorEntities(ctx, *token)) {
-        const ecs::Status* status = store.Get<ecs::Status>(entity);
-        if (status != nullptr && status->status_id == *status_kind) return true;
+        if (status::Has(store, entity, *status_kind)) return true;
     }
     return false;
 }

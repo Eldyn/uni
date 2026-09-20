@@ -1,5 +1,6 @@
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -7,27 +8,23 @@
 #include <limits>
 #include <string>
 #include <string_view>
-#include <utility>
+#include <vector>
 
 /**
  * @file status_ops.cpp
  * @brief Status op bodies.
  *
  * Every body is a total, bounded function over the store: it reads its
- * declared args through the fail-safe `OpArgs` getters, mutates the store
- * `Status` component through the checked typed API, and emits event
- * descriptors via `MakeEvent`. A missing/unbound selector, a dead entity, a
- * malformed duration or an unknown stack policy is a fail-safe `kResolved`
- * no-op, never a crash.
+ * declared args through the fail-safe `OpArgs` getters, addresses statuses
+ * through the `match::status` helper API (the additive `status_list`
+ * component), and emits event descriptors via `MakeEvent`. A missing or
+ * unbound selector, a dead entity, a malformed duration or an unknown stack
+ * policy is a fail-safe `kResolved` no-op, never a crash.
  *
- * Ruling The op layer manipulates the frozen the store `Status` component
- * directly and stores exactly what the args give it. Applying a status
- * definition's own defaults (`hidden`, its declared `stack_policy`,
- * `on_expire`) and retaining multiple `independent` instances are the timer
- * layer's status subsystem; the seams are documented in the report. The store's
- * `status` pool holds one instance per entity, so `independent` is honoured by
- * minting a fresh `instance_id` for the incoming instance (the previous
- * instance is not retained until the timer layer adds multi-instance storage).
+ * The op layer fix-round-1 rule preserved: a present `stack_policy` arg is
+ * authoritative; an absent arg falls back to the stored policy (then
+ * `replace`). `independent` now appends a real second instance with its own
+ * duration, instead of overwriting the one the store slot.
  */
 
 namespace match::ops::detail {
@@ -167,33 +164,6 @@ bool ParseStackPolicy(const std::string& token, ecs::StackPolicy& policy,
     return true;
 }
 
-/** @brief Saturating 32-bit add (magnitudes are `int32_t`). */
-int32_t SaturateAdd(int32_t a, int32_t b) {
-    const int64_t sum = static_cast<int64_t>(a) + static_cast<int64_t>(b);
-    if (sum > std::numeric_limits<int32_t>::max()) {
-        return std::numeric_limits<int32_t>::max();
-    }
-    if (sum < std::numeric_limits<int32_t>::min()) {
-        return std::numeric_limits<int32_t>::min();
-    }
-    return static_cast<int32_t>(sum);
-}
-
-/**
- * @brief Mint the instance id for an incoming status instance.
- *
- * Deterministic and order-independent (no process-wide counter): the first
- * instance is `1`, a re-apply increments the existing id. The timer layer owns
- * real per-match instance allocation; deriving here keeps tests reproducible.
- */
-uint32_t NextInstanceId(const ecs::Status* existing) {
-    if (existing == nullptr) return 1;
-    if (existing->instance_id == std::numeric_limits<uint32_t>::max()) {
-        return existing->instance_id;
-    }
-    return existing->instance_id + 1;
-}
-
 /**
  * @brief Applied magnitude from `params` (`params.magnitude`), default 1.
  *
@@ -213,17 +183,6 @@ int32_t MagnitudeFrom(const json* params) {
         return std::numeric_limits<int32_t>::min();
     }
     return static_cast<int32_t>(value);
-}
-
-/** @brief Accumulate toward `cap` (`cap == 0` = no ceiling). */
-int32_t CapAccumulate(int32_t current, int32_t add, uint32_t cap) {
-    const int32_t summed = SaturateAdd(current, add);
-    if (cap == 0) return summed;
-    if (cap > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-        return summed;
-    }
-    const int32_t ceiling = static_cast<int32_t>(cap);
-    return summed > ceiling ? ceiling : summed;
 }
 
 /** @brief Clamp `value` into the declared bounds of `spec` (fail-safe). */
@@ -260,72 +219,34 @@ OpResult OpApplyStatus(ecs::EntityStore& store, const OpArgs& args,
         return OpResult::Resolved();
     }
 
-    // INFO: stack_policy is optional; absent or a wrong JSON kind falls back to
-    //       the existing instance's policy (then "replace"), a
-    //       present-but-invalid token is a fail-safe no-op.
-    ecs::StackPolicy incoming = ecs::StackPolicy::kReplace;
-    uint32_t incoming_cap = 0;
-    bool has_policy_arg = true;
+    status::ApplyRequest request;
+    request.status_id = kind;
+    request.magnitude = MagnitudeFrom(args.GetObject("params"));
+    request.duration = duration;
+
+    // INFO: stack_policy is optional; absent falls back to the stored policy
+    //       (then "replace") inside `status::Apply`, a present-but-invalid
+    //       token is a fail-safe no-op. A present arg is authoritative.
     std::string policy_token;
     if (!args.GetString("stack_policy", policy_token)) {
         if (args.Has("stack_policy")) return OpResult::Resolved();
-        has_policy_arg = false;
-        policy_token = "replace";
-    }
-    if (!ParseStackPolicy(policy_token, incoming, incoming_cap)) {
-        return OpResult::Resolved();
-    }
-
-    const int32_t magnitude = MagnitudeFrom(args.GetObject("params"));
-
-    // INFO: The `stack_policy` arg is authoritative when present; an
-    //       absent arg falls back to the existing instance's policy (then
-    //       "replace"). `independent` still mints a fresh instance id: The
-    //       store stores one `Status` per entity, so the previous instance is
-    //       not retained until the timer layer adds multi-instance storage.
-    const ecs::Status* existing = store.Get<ecs::Status>(*target);
-    ecs::Status value;
-    if (existing != nullptr && existing->status_id == kind) {
-        value = *existing;
-        const ecs::StackPolicy policy =
-            has_policy_arg ? incoming : existing->stack_policy;
-        value.stack_policy = policy;
-        value.cap = has_policy_arg ? incoming_cap : existing->cap;
-        switch (policy) {
-            case ecs::StackPolicy::kReplace:
-                value.magnitude = magnitude;
-                value.duration = duration;
-                break;
-            case ecs::StackPolicy::kAccumulate:
-                value.magnitude = SaturateAdd(existing->magnitude, magnitude);
-                break;
-            case ecs::StackPolicy::kIndependent:
-                value.instance_id = NextInstanceId(existing);
-                value.magnitude = magnitude;
-                value.duration = duration;
-                break;
-            case ecs::StackPolicy::kCap:
-                value.magnitude =
-                    CapAccumulate(existing->magnitude, magnitude, value.cap);
-                break;
-        }
     } else {
-        value.status_id = kind;
-        value.magnitude = magnitude;
-        value.stack_policy = incoming;
-        value.cap = incoming_cap;
-        value.duration = duration;
-        value.instance_id = NextInstanceId(existing);
+        if (!ParseStackPolicy(policy_token, request.stack_policy,
+                              request.cap)) {
+            return OpResult::Resolved();
+        }
+        request.has_stack_policy = true;
     }
 
-    if (store.Add(*target, value) == nullptr) return OpResult::Resolved();
+    const status::ApplyResult applied = status::Apply(store, *target, request);
+    if (!applied.applied) return OpResult::Resolved();
 
-    const std::string duration_unit(UnitToken(value.duration.unit));
+    const std::string duration_unit(UnitToken(applied.duration.unit));
     json payload = {{"target", EntityJson(*target)},
-                    {"status_kind", value.status_id},
-                    {"magnitude", value.magnitude},
+                    {"status_kind", applied.status_id},
+                    {"magnitude", applied.magnitude},
                     {"duration_unit", duration_unit},
-                    {"instance", value.instance_id}};
+                    {"instance", applied.instance_id}};
     OpResult result = OpResult::Resolved(payload);
     result.events.push_back(MakeEvent("status_applied", payload));
     return result;
@@ -338,12 +259,12 @@ OpResult OpRemoveStatus(ecs::EntityStore& store, const OpArgs& args,
     if (!target.has_value() || !store.IsAlive(*target)) {
         return OpResult::Resolved();
     }
-    const ecs::Status* existing = store.Get<ecs::Status>(*target);
-    if (existing == nullptr) return OpResult::Resolved();
 
     // INFO: catalog `either_of` {status_kind, instance}; `status_kind` wins
     //       when both are present. Negative / out-of-range instance ids are a
-    //       fail-safe miss.
+    //       fail-safe miss. A kind removes every instance of that kind (the
+    //       cleanse semantics under true multi-instance storage); an instance
+    //       removes exactly one.
     std::string kind;
     const bool has_kind = args.GetString("status_kind", kind) && !kind.empty();
     int64_t instance = 0;
@@ -352,23 +273,35 @@ OpResult OpRemoveStatus(ecs::EntityStore& store, const OpArgs& args,
         && instance <= static_cast<int64_t>(
                std::numeric_limits<uint32_t>::max());
 
-    bool match = false;
     if (has_kind) {
-        match = existing->status_id == kind;
-    } else if (has_instance) {
-        match = existing->instance_id == static_cast<uint32_t>(instance);
-    } else {
-        return OpResult::Resolved();
+        const std::vector<ecs::Status> removed =
+            status::Remove(store, *target, kind);
+        if (removed.empty()) return OpResult::Resolved();
+        OpResult result = OpResult::Resolved(
+            json{{"target", EntityJson(*target)},
+                 {"status_kind", removed.front().status_id},
+                 {"instance", removed.front().instance_id}});
+        for (const ecs::Status& entry : removed) {
+            json payload = {{"target", EntityJson(*target)},
+                            {"status_kind", entry.status_id},
+                            {"instance", entry.instance_id}};
+            result.events.push_back(MakeEvent("status_removed", payload));
+        }
+        return result;
     }
-    if (!match) return OpResult::Resolved();
-
-    json payload = {{"target", EntityJson(*target)},
-                    {"status_kind", existing->status_id},
-                    {"instance", existing->instance_id}};
-    store.Remove<ecs::Status>(*target);
-    OpResult result = OpResult::Resolved(payload);
-    result.events.push_back(MakeEvent("status_removed", payload));
-    return result;
+    if (has_instance) {
+        const std::optional<ecs::Status> removed =
+            status::RemoveByInstance(store, *target,
+                                     static_cast<uint32_t>(instance));
+        if (!removed.has_value()) return OpResult::Resolved();
+        json payload = {{"target", EntityJson(*target)},
+                        {"status_kind", removed->status_id},
+                        {"instance", removed->instance_id}};
+        OpResult result = OpResult::Resolved(payload);
+        result.events.push_back(MakeEvent("status_removed", payload));
+        return result;
+    }
+    return OpResult::Resolved();
 }
 
 OpResult OpModifyStatus(ecs::EntityStore& store, const OpArgs& args,
@@ -392,32 +325,21 @@ OpResult OpModifyStatus(ecs::EntityStore& store, const OpArgs& args,
     const int64_t delta =
         ClampToDeclaredBounds(args.Spec("delta"), raw_delta);
 
-    ecs::Status* status = store.Get<ecs::Status>(*target);
-    if (status == nullptr || status->status_id != kind) {
+    // INFO: every instance of `kind` is adjusted (cap-clamped); the reported
+    //       magnitude and instance id are the first adjusted instance's.
+    const std::optional<status::ModifyResult> modified =
+        status::Modify(store, *target, kind, delta);
+    if (!modified.has_value() || modified->adjusted.empty()) {
         return OpResult::Resolved();
     }
-
-    int64_t next = static_cast<int64_t>(status->magnitude) + delta;
-    if (status->stack_policy == ecs::StackPolicy::kCap && status->cap > 0
-        && status->cap <= static_cast<uint32_t>(
-               std::numeric_limits<int32_t>::max())
-        && next > static_cast<int64_t>(status->cap)) {
-        next = static_cast<int64_t>(status->cap);
-    }
-    if (next > std::numeric_limits<int32_t>::max()) {
-        next = std::numeric_limits<int32_t>::max();
-    }
-    if (next < std::numeric_limits<int32_t>::min()) {
-        next = std::numeric_limits<int32_t>::min();
-    }
-    status->magnitude = static_cast<int32_t>(next);
+    const ecs::Status& first = modified->adjusted.front();
 
     return OpResult::Resolved(
         json{{"target", EntityJson(*target)},
-             {"status_kind", status->status_id},
-             {"magnitude", status->magnitude},
+             {"status_kind", first.status_id},
+             {"magnitude", first.magnitude},
              {"delta", delta},
-             {"instance", status->instance_id}});
+             {"instance", first.instance_id}});
 }
 
 }  // namespace match::ops::detail

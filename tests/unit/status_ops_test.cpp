@@ -2,9 +2,11 @@
 
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -68,8 +70,13 @@ const json* FindEvent(const OpResult& result, const std::string& type) {
     return nullptr;
 }
 
-const Status* GetStatus(EntityStore& store, Entity entity) {
-    return store.Get<Status>(entity);
+const Status* FindStatus(EntityStore& store, Entity entity,
+                         const std::string& kind) {
+    return match::status::Find(store, entity, kind);
+}
+
+std::size_t StatusCount(EntityStore& store, Entity entity) {
+    return match::status::List(store, entity).size();
 }
 
 }  // namespace
@@ -86,7 +93,7 @@ TEST_CASE("status_ops: apply_status stores a replace instance and emits") {
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    const Status* status = GetStatus(h.store, target);
+    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
     REQUIRE(status != nullptr);
     CHECK(status->status_id == "vanilla:draw_debt");
     CHECK(status->magnitude == 2);
@@ -94,6 +101,7 @@ TEST_CASE("status_ops: apply_status stores a replace instance and emits") {
     CHECK(status->duration.unit == DurationUnit::kTurns);
     CHECK(status->duration.value == 3);
     CHECK(status->instance_id == 1);
+    CHECK(StatusCount(h.store, target) == 1);
 
     const json* event = FindEvent(result, "status_applied");
     REQUIRE(event != nullptr);
@@ -113,7 +121,7 @@ TEST_CASE("status_ops: apply_status defaults magnitude 1 and policy replace") {
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    const Status* status = GetStatus(h.store, target);
+    const Status* status = FindStatus(h.store, target, "space:shielded");
     REQUIRE(status != nullptr);
     CHECK(status->magnitude == 1);
     CHECK(status->stack_policy == StackPolicy::kReplace);
@@ -140,7 +148,8 @@ TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
              {"params", {{"magnitude", 3}}}},
         {{"target", {target}}});
     CHECK(fallback.status == OpStatus::kResolved);
-    const Status* accumulated = GetStatus(h.store, target);
+    const Status* accumulated =
+        FindStatus(h.store, target, "vanilla:draw_debt");
     REQUIRE(accumulated != nullptr);
     CHECK(accumulated->magnitude == 5);
     CHECK(accumulated->stack_policy == StackPolicy::kAccumulate);
@@ -153,7 +162,7 @@ TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
              {"params", {{"magnitude", 4}}}},
         {{"target", {target}}});
     CHECK(result.status == OpStatus::kResolved);
-    const Status* replaced = GetStatus(h.store, target);
+    const Status* replaced = FindStatus(h.store, target, "vanilla:draw_debt");
     REQUIRE(replaced != nullptr);
     CHECK(replaced->magnitude == 4);
     CHECK(replaced->stack_policy == StackPolicy::kReplace);
@@ -176,7 +185,7 @@ TEST_CASE("status_ops: apply_status replace resets magnitude and duration") {
                   {"duration", {{"unit", "rounds"}, {"value", 7}}}},
              {{"target", {target}}});
 
-    const Status* status = GetStatus(h.store, target);
+    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
     REQUIRE(status != nullptr);
     CHECK(status->magnitude == 2);
     CHECK(status->duration.unit == DurationUnit::kRounds);
@@ -184,29 +193,45 @@ TEST_CASE("status_ops: apply_status replace resets magnitude and duration") {
     CHECK(status->instance_id == 1);
 }
 
-TEST_CASE("status_ops: apply_status independent mints a fresh instance id") {
+TEST_CASE("status_ops: apply_status independent keeps separate instances") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
 
     h.Invoke("apply_status",
              json{{"status_kind", "space:shielded"},
                   {"stack_policy", "independent"},
-                  {"params", {{"magnitude", 2}}}},
+                  {"params", {{"magnitude", 2}}},
+                  {"duration", {{"unit", "turns"}, {"value", 2}}}},
              {{"target", {target}}});
-    const Status* first = GetStatus(h.store, target);
+    const Status* first = FindStatus(h.store, target, "space:shielded");
     REQUIRE(first != nullptr);
     const uint32_t first_id = first->instance_id;
+    CHECK(first_id == 1);
 
     h.Invoke("apply_status",
              json{{"status_kind", "space:shielded"},
                   {"stack_policy", "independent"},
-                  {"params", {{"magnitude", 3}}}},
+                  {"params", {{"magnitude", 3}}},
+                  {"duration", {{"unit", "rounds"}, {"value", 5}}}},
              {{"target", {target}}});
 
-    const Status* second = GetStatus(h.store, target);
+    // INFO: true multi-instance — the first instance is retained alongside the
+    //       second, each with its own magnitude, duration and instance id.
+    CHECK(StatusCount(h.store, target) == 2);
+    const Status* retained = match::status::FindByInstance(
+        h.store, target, first_id);
+    REQUIRE(retained != nullptr);
+    CHECK(retained->magnitude == 2);
+    CHECK(retained->duration.unit == DurationUnit::kTurns);
+    CHECK(retained->duration.value == 2);
+
+    const Status* second = match::status::FindByInstance(
+        h.store, target, first_id + 1);
     REQUIRE(second != nullptr);
     CHECK(second->instance_id == first_id + 1);
     CHECK(second->magnitude == 3);
+    CHECK(second->duration.unit == DurationUnit::kRounds);
+    CHECK(second->duration.value == 5);
     CHECK(second->stack_policy == StackPolicy::kIndependent);
 }
 
@@ -219,7 +244,7 @@ TEST_CASE("status_ops: apply_status cap:N accumulates up to the cap") {
                   {"stack_policy", "cap:5"},
                   {"params", {{"magnitude", 3}}}},
              {{"target", {target}}});
-    const Status* status = GetStatus(h.store, target);
+    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
     REQUIRE(status != nullptr);
     CHECK(status->stack_policy == StackPolicy::kCap);
     CHECK(status->cap == 5);
@@ -229,16 +254,16 @@ TEST_CASE("status_ops: apply_status cap:N accumulates up to the cap") {
              json{{"status_kind", "vanilla:draw_debt"},
                   {"params", {{"magnitude", 4}}}},
              {{"target", {target}}});
-    CHECK(GetStatus(h.store, target)->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
 
     h.Invoke("apply_status",
              json{{"status_kind", "vanilla:draw_debt"},
                   {"params", {{"magnitude", 1}}}},
              {{"target", {target}}});
-    CHECK(GetStatus(h.store, target)->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
 }
 
-TEST_CASE("status_ops: apply_status a different kind overwrites the slot") {
+TEST_CASE("status_ops: apply_status a different kind coexists") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
 
@@ -251,11 +276,15 @@ TEST_CASE("status_ops: apply_status a different kind overwrites the slot") {
                   {"params", {{"magnitude", 4}}}},
              {{"target", {target}}});
 
-    const Status* status = GetStatus(h.store, target);
-    REQUIRE(status != nullptr);
-    CHECK(status->status_id == "space:shielded");
-    CHECK(status->magnitude == 4);
-    CHECK(status->instance_id == 2);
+    CHECK(StatusCount(h.store, target) == 2);
+    const Status* debt = FindStatus(h.store, target, "vanilla:draw_debt");
+    REQUIRE(debt != nullptr);
+    CHECK(debt->magnitude == 2);
+    CHECK(debt->instance_id == 1);
+    const Status* shield = FindStatus(h.store, target, "space:shielded");
+    REQUIRE(shield != nullptr);
+    CHECK(shield->magnitude == 4);
+    CHECK(shield->instance_id == 2);
 }
 
 TEST_CASE("status_ops: apply_status compound duration keeps the ms leg") {
@@ -270,7 +299,7 @@ TEST_CASE("status_ops: apply_status compound duration keeps the ms leg") {
                         json{{"unit", "ms"}, {"value", 30000}}})}},
              {{"target", {target}}});
 
-    const Status* status = GetStatus(h.store, target);
+    const Status* status = FindStatus(h.store, target, "space:shielded");
     REQUIRE(status != nullptr);
     CHECK(status->duration.unit == DurationUnit::kMs);
     CHECK(status->duration.value == 30000);
@@ -287,7 +316,7 @@ TEST_CASE("status_ops: apply_status fail-safe paths leave state untouched") {
             h.Invoke("apply_status", json{{"status_kind", "space:shielded"}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) == nullptr);
+        CHECK(FindStatus(h.store, target, "space:shielded") == nullptr);
     }
     SUBCASE("dead entity") {
         const OpResult result = h.Invoke(
@@ -315,7 +344,7 @@ TEST_CASE("status_ops: apply_status fail-safe paths leave state untouched") {
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) == nullptr);
+        CHECK(FindStatus(h.store, target, "space:shielded") == nullptr);
     }
     SUBCASE("malformed duration") {
         const OpResult result = h.Invoke(
@@ -325,7 +354,7 @@ TEST_CASE("status_ops: apply_status fail-safe paths leave state untouched") {
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) == nullptr);
+        CHECK(FindStatus(h.store, target, "space:shielded") == nullptr);
     }
 }
 
@@ -342,12 +371,36 @@ TEST_CASE("status_ops: remove_status removes by kind and emits") {
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(GetStatus(h.store, target) == nullptr);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt") == nullptr);
+    CHECK(StatusCount(h.store, target) == 0);
     const json* event = FindEvent(result, "status_removed");
     REQUIRE(event != nullptr);
     CHECK((*event)["payload"]["status_kind"] == "vanilla:draw_debt");
     CHECK((*event)["payload"]["instance"] == 1);
     CHECK((*event)["payload"]["target"]["index"] == target.index);
+}
+
+TEST_CASE("status_ops: remove_status by kind clears every instance") {
+    Harness h;
+    Entity target = AddPlayer(h.store, "p0", 0);
+    h.Invoke("apply_status",
+             json{{"status_kind", "space:shielded"},
+                  {"stack_policy", "independent"}},
+             {{"target", {target}}});
+    h.Invoke("apply_status",
+             json{{"status_kind", "space:shielded"},
+                  {"stack_policy", "independent"}},
+             {{"target", {target}}});
+    REQUIRE(StatusCount(h.store, target) == 2);
+
+    const OpResult result = h.Invoke(
+        "remove_status", json{{"status_kind", "space:shielded"}},
+        {{"target", {target}}});
+
+    CHECK(result.status == OpStatus::kResolved);
+    CHECK(StatusCount(h.store, target) == 0);
+    CHECK(result.events.size() == 2);
+    CHECK(FindEvent(result, "status_removed") != nullptr);
 }
 
 TEST_CASE("status_ops: remove_status removes by instance id") {
@@ -362,7 +415,7 @@ TEST_CASE("status_ops: remove_status removes by instance id") {
         const OpResult result = h.Invoke(
             "remove_status", json{{"instance", 1}}, {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(GetStatus(h.store, target) == nullptr);
+        CHECK(StatusCount(h.store, target) == 0);
         CHECK(FindEvent(result, "status_removed") != nullptr);
     }
     SUBCASE("non-matching instance is a no-op") {
@@ -370,7 +423,7 @@ TEST_CASE("status_ops: remove_status removes by instance id") {
             "remove_status", json{{"instance", 99}}, {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) != nullptr);
+        CHECK(StatusCount(h.store, target) == 1);
     }
 }
 
@@ -386,14 +439,14 @@ TEST_CASE("status_ops: remove_status either_of contract") {
             json{{"status_kind", "vanilla:draw_debt"}, {"instance", 99}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(GetStatus(h.store, target) == nullptr);
+        CHECK(StatusCount(h.store, target) == 0);
     }
     SUBCASE("neither arg is a no-op") {
         const OpResult result =
             h.Invoke("remove_status", json::object(), {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) != nullptr);
+        CHECK(StatusCount(h.store, target) == 1);
     }
     SUBCASE("mismatched kind is a no-op") {
         const OpResult result = h.Invoke(
@@ -401,7 +454,7 @@ TEST_CASE("status_ops: remove_status either_of contract") {
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.events.empty());
-        CHECK(GetStatus(h.store, target) != nullptr);
+        CHECK(StatusCount(h.store, target) == 1);
     }
 }
 
@@ -454,7 +507,7 @@ TEST_CASE("status_ops: modify_status adjusts and reports the magnitude") {
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(GetStatus(h.store, target)->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
     CHECK(result.value["magnitude"] == 5);
     CHECK(result.value["delta"] == 3);
     CHECK(result.events.empty());
@@ -471,12 +524,12 @@ TEST_CASE("status_ops: modify_status clamps delta to declared bounds") {
     h.Invoke("modify_status",
              json{{"kind", "vanilla:draw_debt"}, {"delta", 5000}},
              {{"target", {target}}});
-    CHECK(GetStatus(h.store, target)->magnitude == 1001);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 1001);
 
     h.Invoke("modify_status",
              json{{"kind", "vanilla:draw_debt"}, {"delta", -5000}},
              {{"target", {target}}});
-    CHECK(GetStatus(h.store, target)->magnitude == 1);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 1);
 }
 
 TEST_CASE("status_ops: modify_status respects the cap ceiling") {
@@ -491,7 +544,7 @@ TEST_CASE("status_ops: modify_status respects the cap ceiling") {
     h.Invoke("modify_status",
              json{{"kind", "vanilla:draw_debt"}, {"delta", 10}},
              {{"target", {target}}});
-    CHECK(GetStatus(h.store, target)->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
 }
 
 TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
@@ -523,7 +576,7 @@ TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
         const OpResult result = h.Invoke(
             "modify_status", json{{"delta", 1}}, {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(GetStatus(h.store, target)->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
     }
     SUBCASE("mismatched kind") {
         const OpResult result = h.Invoke(
@@ -531,13 +584,13 @@ TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
             json{{"kind", "space:shielded"}, {"delta", 1}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(GetStatus(h.store, target)->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
     }
     SUBCASE("missing delta") {
         const OpResult result = h.Invoke(
             "modify_status", json{{"kind", "vanilla:draw_debt"}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(GetStatus(h.store, target)->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
     }
 }
