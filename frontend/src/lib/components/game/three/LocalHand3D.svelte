@@ -547,6 +547,15 @@
 		return e.nativeEvent?.clientY ?? e.clientY ?? 0;
 	}
 
+	function preventDefaultOf(event: unknown): void {
+		const e = event as {
+			preventDefault?: () => void;
+			nativeEvent?: { preventDefault?: () => void };
+		};
+		e.nativeEvent?.preventDefault?.();
+		e.preventDefault?.();
+	}
+
 	let settleTween: gsap.core.Tween | null = null;
 
 	// With a mouse, dragging always reorders — the wheel already pans, and the
@@ -555,6 +564,7 @@
 	// you already picked does.
 	function startGesture(cardId: number, index: number, event: unknown) {
 		if (readOnly) return;
+		preventDefaultOf(event);
 		settleTween?.kill();
 		settleTween = null;
 		dragLiftTween?.kill();

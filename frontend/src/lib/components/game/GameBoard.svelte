@@ -285,12 +285,14 @@
 	.scene-layer {
 		position: absolute;
 		inset: 0;
+		touch-action: none;
 	}
 
 	.scene-layer :global(canvas) {
 		width: 100%;
 		height: 100%;
 		display: block;
+		touch-action: none;
 	}
 
 	.screen-vignette {
