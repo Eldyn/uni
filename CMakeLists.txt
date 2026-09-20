@@ -226,6 +226,7 @@ if(UNI_BUILD_TESTS)
         src/match/view/view_builder.cpp
         src/match/view/view_util.cpp
         src/match/server/match_session.cpp
+        src/match/server/bot_policy.cpp
         src/match/resolver.cpp
         src/match/rng.cpp
         src/match/scheduler.cpp
