@@ -47,6 +47,7 @@
 	import { ValueMap } from "$lib/generated/schemas";
 	import { hiddenBackCountFor, hiddenBackCard } from "../layout/spectatorPov";
 	import { storeCardDetail } from "$stores/cardDetail.svelte";
+	import type { HandMorph } from "$stores/tableSpin.svelte";
 
 	let {
 		rig,
@@ -59,7 +60,9 @@
 		focusedId = null,
 		onPointerHover,
 		player = null,
-		readOnly = false
+		readOnly = false,
+		handMorph = null,
+		inheritProgress = 1
 	}: {
 		rig: CameraRig;
 		viewport: ViewportInfo;
@@ -88,6 +91,13 @@
 		 *  wheel pan and sort button are all inert — a spectator can never play,
 		 *  drag or reorder the viewed player's cards. */
 		readOnly?: boolean;
+		/** Spectator POV spin, inherit phase: the incoming viewed player's hand
+		 *  snapshot to morph into this row. Set only when this row's `player` is
+		 *  the incoming POV; null otherwise. Mirrors PlayerSeat3D's `ringMorph`. */
+		handMorph?: HandMorph | null;
+		/** Inherit-phase progress, 0 → 1. Blends a morphed card from its
+		 *  `handMorph` arc source to its normal hand-row pose. */
+		inheritProgress?: number;
 	} = $props();
 
 	// The prop is authoritative (Scene3D always passes it); the fallback keeps
@@ -267,6 +277,12 @@
 	const displacementTweens = new Map<string, gsap.core.Tween>();
 	let prevOrderIds: number[] = [];
 	let dragLiftTween: gsap.core.Tween | null = null;
+	// Which player's incoming morph the previous effect run saw, and the card
+	// keys that morph put in-transit. Together they detect the morph ending (or
+	// switching player) and release exactly this hand's keys — mirroring
+	// PlayerSeat3D's `prevMorphUsername` / `registeredKeys` release effect.
+	let prevMorphUsername: string | null = null;
+	const morphRegisteredKeys = new Set<string>();
 
 	$effect(() => {
 		return () => {
@@ -292,6 +308,36 @@
 			prevOrderIds.length === orderIds.length &&
 			prevOrderIds.some((id, idx) => id !== orderIds[idx]);
 
+		// Spectator POV spin, inherit phase. When this row is the incoming POV
+		// player's hand, its cards seed at handMorph's arc source poses (the old
+		// ring arrangement) and blend to the normal hand-row pose over
+		// inheritProgress. handMorph.open (faces known) flips a card back → face
+		// across the blend; hidden hands and bots arrive open:false and stay
+		// backs — faces are never inferred.
+		const morph = morphing ? handMorph : null;
+		const morphProgress = morph ? inheritProgress : 1;
+		const opening = morph !== null && morph.open;
+
+		// Deterministic morph-end release, mirroring PlayerSeat3D. The controller
+		// nulls `transition` (whence handMorph is derived) in the same synchronous
+		// update that sets inheritProgress = 1, so no flush ever observes progress
+		// 1 with a live morph — the in-loop release would never fire. Releasing
+		// the instant the morph goes inactive is what clears `inTransit`;
+		// otherwise the card stays in-transit with no displacement tween (the
+		// morph killed it), making `isFlightTransit` true forever and permanently
+		// skipping the idle re-sync.
+		const morphUsername = morph?.username ?? null;
+		if (prevMorphUsername !== null && prevMorphUsername !== morphUsername) {
+			for (const key of morphRegisteredKeys) {
+				// The morph killed any displacement tween, so there's normally
+				// none to clobber; guard anyway so a live tween keeps ownership
+				// of the pose and clears the flag itself on completion.
+				if (!displacementTweens.has(key)) cardRegistry.markInTransit(key, false);
+			}
+			morphRegisteredKeys.clear();
+		}
+		prevMorphUsername = morphUsername;
+
 		const currentCardIdSet = new Set(orderedCards.map((c) => String(c.id)));
 		for (const [id, tween] of displacementTweens.entries()) {
 			if (!currentCardIdSet.has(id)) {
@@ -310,6 +356,10 @@
 			const [slotX, slotY, slotZ] = handSlotPose(i, orderedCards.length, snapshot, placement, {
 				dragging: isDragging
 			});
+			// This card's arc source for the incoming morph. Out-of-range falls
+			// back to the normal hand pose (source === target → the blend is a
+			// no-op for that card rather than a snap to the world origin).
+			const morphSource: [number, number, number] | null = morph ? (morph.poses[i] ?? null) : null;
 
 			const entryPose = cardRegistry.ensureEntry(
 				idString,
@@ -320,7 +370,7 @@
 					spinDeg: 0,
 					flipDeg: 0,
 					scale: placement.handScale,
-					turned: hiddenBackCount > 0,
+					turned: morph ? (opening ? morphProgress < 0.5 : true) : hiddenBackCount > 0,
 					opacity: 1,
 					dragT: isDragging ? 1 : 0
 				},
@@ -331,74 +381,100 @@
 				const [x, y, z] = handSlotPose(i, orderedCards.length, snapshot, placement, {
 					dragging: isDragging
 				});
+				const targetX = isDragging ? dragWorldX : x;
+				const targetY = isDragging ? DRAG_LIFT : y;
+				const targetZ = isDragging ? dragWorldZ : z;
+				if (!morphSource) return [targetX, targetY, targetZ];
+				const [sx, sy, sz] = morphSource;
 				return [
-					isDragging ? dragWorldX : x,
-					isDragging ? DRAG_LIFT : y,
-					isDragging ? dragWorldZ : z
+					sx + (targetX - sx) * morphProgress,
+					sy + (targetY - sy) * morphProgress,
+					sz + (targetZ - sz) * morphProgress
 				];
 			});
 
-			// ensureEntry is idempotent, so a card created before a resize keeps
-			// its draw-time scale forever unless the apply path re-syncs it —
-			// mirror PlayerSeat3D's own `if (!isInTransit) pose.scale = ...`.
-			// This is the base scale only; drag/lift scale lives in dragT/liftT
-			// (CardMesh3D), so it never fights an in-flight gesture.
-			if (!cardRegistry.isInTransit(idString)) {
+			if (morph) {
+				// Drive the blend straight off morphProgress every run. The
+				// displacement tween would otherwise fight it (both write
+				// pose.x/y/z from a different target), so kill it once and stay
+				// in-transit until the blend lands — that also stops the idle
+				// re-sync from snapping the card to its hand pose before the arc
+				// has actually arrived.
+				displacementTweens.get(idString)?.kill();
+				displacementTweens.delete(idString);
+
+				const [sx, sy, sz] = morphSource ?? [slotX, slotY, slotZ];
+				entryPose.x = sx + (slotX - sx) * morphProgress;
+				entryPose.y = sy + (slotY - sy) * morphProgress;
+				entryPose.z = sz + (slotZ - sz) * morphProgress;
 				entryPose.scale = placement.handScale;
-			}
-
-			if (isDragging) {
-				const pose = cardRegistry.getPose(idString);
-				if (pose) {
-					pose.x = dragWorldX;
-					pose.y = DRAG_LIFT;
-					pose.z = dragWorldZ;
-				}
+				entryPose.turned = opening ? morphProgress < 0.5 : true;
+				cardRegistry.markInTransit(idString, true);
+				morphRegisteredKeys.add(idString);
 			} else {
-				const pose = cardRegistry.getPose(idString);
-				if (pose) {
-					// X alone misses a resolution change that moves the row in
-					// depth without changing any slot's X: a height-only resize
-					// (the mobile URL bar appearing, an orientation flip to a
-					// same-width frame) leaves every slotX identical while
-					// localSeatZ shifts by ~1.8 world units. Keying off X alone
-					// started no tween and let applyIdlePoseIfNotInTransit write
-					// the new Z in one frame — the card teleported. Measure the
-					// full horizontal displacement, exactly as PlayerSeat3D does.
-					const moved = Math.hypot(pose.x - slotX, pose.z - slotZ);
-					const isFlightTransit =
-						cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
+				// ensureEntry is idempotent, so a card created before a resize
+				// keeps its draw-time scale forever unless the apply path
+				// re-syncs it — mirror PlayerSeat3D's own
+				// `if (!isInTransit) pose.scale = ...`. This is the base scale
+				// only; drag/lift scale lives in dragT/liftT (CardMesh3D), so it
+				// never fights an in-flight gesture.
+				if (!cardRegistry.isInTransit(idString)) {
+					entryPose.scale = placement.handScale;
+				}
 
-					if (!isFlightTransit) {
-						if (moved > 0.01) {
-							displacementTweens.get(idString)?.kill();
-							const duration = storeAnimation.enabled
-								? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)
-								: 0;
-							if (duration === 0) {
-								pose.x = slotX;
-								pose.y = slotY;
-								pose.z = slotZ;
-								cardRegistry.markInTransit(idString, false);
-								displacementTweens.delete(idString);
-							} else {
-								cardRegistry.markInTransit(idString, true);
-								const tween = gsap.to(pose, {
-									x: slotX,
-									y: slotY,
-									z: slotZ,
-									duration,
-									ease: "power2.out",
-									onComplete: () => {
-										displacementTweens.delete(idString);
-										cardRegistry.markInTransit(idString, false);
-										cardRegistry.applyIdlePoseIfNotInTransit(idString);
-									}
-								});
-								displacementTweens.set(idString, tween);
+				if (isDragging) {
+					const pose = cardRegistry.getPose(idString);
+					if (pose) {
+						pose.x = dragWorldX;
+						pose.y = DRAG_LIFT;
+						pose.z = dragWorldZ;
+					}
+				} else {
+					const pose = cardRegistry.getPose(idString);
+					if (pose) {
+						// X alone misses a resolution change that moves the row in
+						// depth without changing any slot's X: a height-only resize
+						// (the mobile URL bar appearing, an orientation flip to a
+						// same-width frame) leaves every slotX identical while
+						// localSeatZ shifts by ~1.8 world units. Keying off X alone
+						// started no tween and let applyIdlePoseIfNotInTransit write
+						// the new Z in one frame — the card teleported. Measure the
+						// full horizontal displacement, exactly as PlayerSeat3D does.
+						const moved = Math.hypot(pose.x - slotX, pose.z - slotZ);
+						const isFlightTransit =
+							cardRegistry.isInTransit(idString) && !displacementTweens.has(idString);
+
+						if (!isFlightTransit) {
+							if (moved > 0.01) {
+								displacementTweens.get(idString)?.kill();
+								const duration = storeAnimation.enabled
+									? 0.22 / Math.max(0.1, storeAnimation.speedMultiplier)
+									: 0;
+								if (duration === 0) {
+									pose.x = slotX;
+									pose.y = slotY;
+									pose.z = slotZ;
+									cardRegistry.markInTransit(idString, false);
+									displacementTweens.delete(idString);
+								} else {
+									cardRegistry.markInTransit(idString, true);
+									const tween = gsap.to(pose, {
+										x: slotX,
+										y: slotY,
+										z: slotZ,
+										duration,
+										ease: "power2.out",
+										onComplete: () => {
+											displacementTweens.delete(idString);
+											cardRegistry.markInTransit(idString, false);
+											cardRegistry.applyIdlePoseIfNotInTransit(idString);
+										}
+									});
+									displacementTweens.set(idString, tween);
+								}
+							} else if (!cardRegistry.isInTransit(idString)) {
+								cardRegistry.applyIdlePoseIfNotInTransit(idString);
 							}
-						} else if (!cardRegistry.isInTransit(idString)) {
-							cardRegistry.applyIdlePoseIfNotInTransit(idString);
 						}
 					}
 				}
@@ -446,6 +522,13 @@
 
 	let orderedCards = $derived(
 		orderIds.map((id) => cards.find((c) => c.id === id)).filter((c): c is Card => c !== undefined)
+	);
+
+	// True while this row is the incoming POV player's hand and there are cards
+	// to blend. `handMorph` is only ever non-null for the matching player (see
+	// Scene3D), but the username check keeps the component self-contained.
+	let morphing = $derived(
+		handMorph !== null && handMorph.username === handPlayer?.username && orderedCards.length > 0
 	);
 
 	function sortByRgby() {
