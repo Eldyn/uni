@@ -53,20 +53,17 @@ TEST_CASE("ops: default stubs report not implemented") {
     EntityStore store;
     OpContext ctx(bus, ledger, frame);
 
-    OpArgs args("draw_cards", nlohmann::json::object());
-    OpResult result = runtime.Invoke("draw_cards", store, args, ctx);
-    CHECK(result.status == OpStatus::kError);
-    CHECK(result.error == "not implemented");
-    CHECK_FALSE(result.ok());
-
-    // INFO: call_original is special (wrap marker) but still a catalog row.
+    // INFO: call_original is special (wrap marker) but still a catalog row;
+    //       The op layer keeps it a stub, unlike the bodies.
     OpArgs call_original("call_original", nlohmann::json::object());
     OpResult special =
         runtime.Invoke("call_original", store, call_original, ctx);
     CHECK(special.status == OpStatus::kError);
     CHECK(special.error == "not implemented");
+    CHECK_FALSE(special.ok());
 
-    OpResult unknown = runtime.Invoke("no_such_op", store, args, ctx);
+    OpResult unknown =
+        runtime.Invoke("no_such_op", store, call_original, ctx);
     CHECK(unknown.status == OpStatus::kError);
     CHECK(unknown.error.find("unknown op") != std::string::npos);
 }
