@@ -1,0 +1,244 @@
+#include <match/server/match_session.hpp>
+
+#include <match/ecs/compact_card.hpp>
+#include <match/ecs/components.hpp>
+#include <match/view/view_util.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+/**
+ * @file match_session.cpp
+ * @brief `match::server::MatchSession` implementation.
+ *
+ * Additive server seam: engine ownership, per-recipient `EventSink` streams,
+ * wire `CompactCardV2.bits` -> entity resolution, prompt-response schema
+ * validation and the `match_event` / `match_state_updated` / `match_over`
+ * packets. No controller or lobby wiring lives here.
+ */
+
+namespace match::server {
+
+namespace {
+
+using nlohmann::json;
+
+/** @brief Resolve a wire `CompactCardV2.bits` to an assembled card entity. */
+std::optional<match::ecs::Entity> CardForBits(
+    const match::engine::MatchInstance& engine, uint32_t card_bits) {
+    match::ecs::CompactCardV2 id;
+    id.bits = card_bits;
+    return engine.Registries().CardEntity(id);
+}
+
+}  // namespace
+
+MatchSession::MatchSession(std::unique_ptr<match::engine::MatchInstance> engine,
+                           std::vector<match::modload::LoadedMod> mods,
+                           SocketMap sockets)
+    : engine_(std::move(engine)),
+      mods_(std::move(mods)),
+      builder_(*engine_, mods_),
+      sockets_(std::move(sockets)) {
+    // INFO: pre-create one sink (and prompt-dedupe) entry per recipient so the
+    //       emit loops never insert into the maps while iterating them.
+    for (const auto& [username, socket] : sockets_) {
+        (void)socket;
+        sinks_.try_emplace(username);
+        prompt_signature_.try_emplace(username);
+    }
+    BuildPromptSchemas();
+}
+
+bool MatchSession::PlayCard(const std::string& username, uint32_t card_bits) {
+    const std::optional<match::ecs::Entity> card =
+        CardForBits(*engine_, card_bits);
+    if (!card.has_value()) return false;
+    return engine_->PlayCard(username, *card);
+}
+
+bool MatchSession::DrawCard(const std::string& username) {
+    return engine_->DrawCard(username);
+}
+
+bool MatchSession::SubmitInput(const std::string& username,
+                               const std::string& prompt_id,
+                               const nlohmann::json& value) {
+    const std::optional<json> pending = engine_->PendingInput();
+    if (!pending.has_value() || !pending->is_object()) return false;
+
+    const std::string kind = pending->value("kind", std::string());
+    if (kind.empty() || prompt_id != kind) return false;
+
+    // INFO: the prompt is addressed to its target only; refuse an actor that
+    //       is not that player before any schema work.
+    const std::string target =
+        match::view::ResolvePlayer(*engine_, pending->value("target", json()));
+    if (!target.empty() && target != username) return false;
+
+    const json* schema = FindPromptSchema(kind);
+    if (schema != nullptr && !MatchesSchema(value, *schema)) return false;
+
+    return engine_->SubmitInput(username, value);
+}
+
+bool MatchSession::RespondWindow(const std::string& username,
+                                 uint32_t card_bits) {
+    const std::optional<match::ecs::Entity> card =
+        CardForBits(*engine_, card_bits);
+    if (!card.has_value()) return false;
+    return engine_->RespondWindow(username, *card);
+}
+
+bool MatchSession::PassWindow(const std::string& username) {
+    return engine_->PassWindow(username);
+}
+
+void MatchSession::Tick() { engine_->Tick(); }
+
+void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
+    const std::vector<json>& events = engine_->Events();
+    for (; cursor_ < events.size(); ++cursor_) {
+        for (const auto& [username, socket] : sockets_) {
+            if (socket == nullptr) continue;
+            std::optional<json> packet = builder_.Wrap(
+                events[cursor_], match::view::Viewer::Player(username),
+                sinks_.at(username));
+            if (!packet.has_value()) continue;
+            (*packet)["action"] = "match_event";
+            broadcaster.SendJson(socket, *packet);
+        }
+    }
+    EmitPendingPrompt(broadcaster);
+}
+
+void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
+    const std::optional<json> pending = engine_->PendingInput();
+    const std::string signature =
+        pending.has_value() ? pending->dump() : std::string();
+    const std::string kind =
+        pending.has_value() ? pending->value("kind", std::string())
+                            : std::string();
+    const json* schema = kind.empty() ? nullptr : FindPromptSchema(kind);
+
+    for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        std::string& last = prompt_signature_[username];
+        if (!pending.has_value()) {
+            last.clear();
+            continue;
+        }
+        // INFO: dedupe by pending signature so a repeated EmitEvents between
+        //       the play and the answer cannot re-send the same prompt_open.
+        if (last == signature) continue;
+        std::optional<json> packet = builder_.BuildPendingPrompt(
+            match::view::Viewer::Player(username), sinks_.at(username));
+        if (!packet.has_value()) continue;
+        // INFO: The engine op leaves `response_schema` to the session layer;
+        //       attach the resolved kind schema so `prompt_open` satisfies
+        //       and the client sees exactly what `SubmitInput` validates.
+        if (schema != nullptr && packet->contains("payload") &&
+            (*packet)["payload"].is_object()) {
+            json& payload = (*packet)["payload"];
+            const bool empty_schema =
+                !payload.contains("response_schema") ||
+                !payload["response_schema"].is_object() ||
+                payload["response_schema"].empty();
+            if (empty_schema) payload["response_schema"] = *schema;
+        }
+        (*packet)["action"] = "match_event";
+        broadcaster.SendJson(socket, *packet);
+        last = signature;
+    }
+}
+
+void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
+    for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        const json snapshot = builder_.BuildSnapshot(
+            match::view::Viewer::Player(username), sinks_.at(username));
+        broadcaster.SendJson(socket, snapshot);
+    }
+    BroadcastMatchOver(broadcaster);
+}
+
+bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
+    if (!engine_->IsMatchOver()) return false;
+    if (over_sent_) return true;
+
+    const json packet = {{"action", "match_over"},
+                         {"winner", engine_->GetWinner()},
+                         {"placements", engine_->GetPlacements()}};
+    for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        broadcaster.SendJson(socket, packet);
+    }
+    over_sent_ = true;
+    return true;
+}
+
+const nlohmann::json* MatchSession::FindPromptSchema(
+    const std::string& kind) const {
+    const auto it = prompt_schemas_.find(kind);
+    if (it == prompt_schemas_.end()) return nullptr;
+    return &it->second;
+}
+
+bool MatchSession::MatchesSchema(const nlohmann::json& value,
+                                 const nlohmann::json& schema) {
+    if (!schema.is_object() || schema.empty()) return true;
+
+    const std::string type = schema.value("type", std::string());
+    if (type == "string" && !value.is_string()) return false;
+    if (type == "boolean" && !value.is_boolean()) return false;
+    if (type == "integer" && !value.is_number_integer()) return false;
+    if (type == "number" && !value.is_number()) return false;
+    if (type == "object" && !value.is_object()) return false;
+    if (type == "array" && !value.is_array()) return false;
+
+    if (value.is_number() && schema.contains("minimum") &&
+        schema["minimum"].is_number()) {
+        if (value.get<double>() < schema["minimum"].get<double>()) return false;
+    }
+    if (value.is_number() && schema.contains("maximum") &&
+        schema["maximum"].is_number()) {
+        if (value.get<double>() > schema["maximum"].get<double>()) return false;
+    }
+
+    if (schema.contains("enum") && schema["enum"].is_array()) {
+        bool found = false;
+        for (const json& candidate : schema["enum"]) {
+            if (candidate == value) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+void MatchSession::BuildPromptSchemas() {
+    // INFO: built-in phase-1 kinds. A mod manifest declaration
+    //       overwrites a built-in; an undeclared kind stays permissive.
+    prompt_schemas_["choose_color"] = {
+        {"type", "string"}, {"enum", {"red", "blue", "green", "yellow"}}};
+    prompt_schemas_["choose_yes_no"] = {{"type", "boolean"}};
+
+    for (const match::modload::LoadedMod& mod : mods_) {
+        if (!mod.manifest.prompts.is_array()) continue;
+        for (const json& decl : mod.manifest.prompts) {
+            if (!decl.is_object()) continue;
+            const std::string kind = decl.value("kind", std::string());
+            if (kind.empty() || !decl.contains("response_schema")) continue;
+            if (!decl["response_schema"].is_object()) continue;
+            prompt_schemas_[kind] = decl["response_schema"];
+        }
+    }
+}
+
+}  // namespace match::server

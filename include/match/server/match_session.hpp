@@ -1,0 +1,210 @@
+#pragma once
+
+#include <match/engine/match_instance.hpp>
+#include <match/modload/artifacts.hpp>
+#include <match/view/view_builder.hpp>
+#include <transport/ibroadcaster.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+/**
+ * @file match_session.hpp
+ * @brief Additive server-side match session.
+ *
+ * `MatchSession` is the transport-facing owner of one new-engine match. It
+ * binds the `match::engine::MatchInstance` to the view layer and
+ * exposes both directions of the match protocol:
+ *
+ * - input: `PlayCard` / `DrawCard` / `SubmitInput` / `RespondWindow` /
+ *   `PassWindow` / `Tick`, mapping wire `CompactCardV2.bits` to an entity
+ *   through the frozen `MatchRegistries`;
+ * - output: `EmitEvents` (per-recipient filtered `match_event` envelopes),
+ *   `BroadcastSnapshot` (per-recipient `match_state_updated`) and
+ *   `BroadcastMatchOver` (the terminal `match_over` packet).
+ *
+ * One `EventSink` is kept PER RECIPIENT for the session's life so the
+ * per-viewer `seq` stream never resets and never renumbers.
+ * The session owns the engine and the loaded mod vector: `ViewBuilder` caches
+ * content tables at construction and holds them for the session's life, so
+ * the mod vector must outlive the builder (declared before it).
+ *
+ * ADDITIVE: this slice does not flip `Lobby`'s
+ * ownership of the legacy `match::MatchInstance`, and does not register
+ * WebSocket handlers; the session layer wires the controller, the controller
+ * deletes the old path.
+ */
+
+namespace match::server {
+
+/**
+ * @class MatchSession
+ * @brief Owns a new-engine match and drives its per-recipient wire output.
+ */
+class MatchSession {
+public:
+    /** @brief Recipient username -> transport socket (opaque in tests). */
+    using SocketMap = std::unordered_map<std::string, AppWebSocket*>;
+
+    /**
+     * @brief Bind an assembled match to its recipients.
+     *
+     * The engine must be a live, started `MatchInstance`; the mod vector must
+     * be the same one the engine was assembled from (the view layer reads
+     * faces, tags, hidden statuses and signal audiences from it).
+     *
+     * @param engine  Live engine, ownership taken.
+     * @param mods    Loaded mods backing the match (kept for the session).
+     * @param sockets Recipient username -> socket map.
+     */
+    MatchSession(std::unique_ptr<match::engine::MatchInstance> engine,
+                 std::vector<match::modload::LoadedMod> mods,
+                 SocketMap sockets);
+
+    MatchSession(const MatchSession&) = delete;
+    MatchSession& operator=(const MatchSession&) = delete;
+    MatchSession(MatchSession&&) = delete;
+    MatchSession& operator=(MatchSession&&) = delete;
+    ~MatchSession() = default;
+
+    // --- input --------------------------------------------------------------
+
+    /**
+     * @brief Play a wire-addressed card for `username`.
+     *
+     * @param username Acting player.
+     * @param card_bits Packed `CompactCardV2.bits`.
+     * @return false when `card_bits` maps to no assembled card or the engine
+     *         rejected the play.
+     */
+    bool PlayCard(const std::string& username, uint32_t card_bits);
+
+    /**
+     * @brief Draw one card for `username`.
+     */
+    bool DrawCard(const std::string& username);
+
+    /**
+     * @brief Answer the parked op-input prompt.
+     *
+     * Validates the `{prompt_id, value}` pair against the pending input before
+     * calling `MatchInstance::SubmitInput`: `prompt_id` must equal the parked
+     * prompt's kind, the caller must be its target, and `value` must satisfy
+     * the kind's `response_schema` when a schema is known. A rejected pair
+     * leaves the prompt parked (`false`, no engine call).
+     *
+     * @param username  Answering player.
+     * @param prompt_id Wire prompt id (the prompt kind, see `prompt_open`).
+     * @param value     JSON answer to validate against `response_schema`.
+     * @return true when the answer was validated and accepted by the engine.
+     */
+    bool SubmitInput(const std::string& username, const std::string& prompt_id,
+                     const nlohmann::json& value);
+
+    /**
+     * @brief Answer an open response window with a wire-addressed card.
+     */
+    bool RespondWindow(const std::string& username, uint32_t card_bits);
+
+    /**
+     * @brief Declare a pass in an open response window.
+     */
+    bool PassWindow(const std::string& username);
+
+    /** @brief Advance engine timers / round bookkeeping. */
+    void Tick();
+
+    // --- wire output --------------------------------------------------------
+
+    /**
+     * @brief Drain new engine events as per-recipient `match_event` packets.
+     *
+     * Each recipient's persistent `EventSink` filters and stamps the events
+     * it may see; the cursor advances once over the shared engine log. A
+     * parked op-input is additionally surfaced as the target's `prompt_open`
+     * (once per distinct prompt; spectators and other players never receive
+     * it).
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     */
+    void EmitEvents(IBroadcaster& broadcaster);
+
+    /**
+     * @brief Send each recipient their `match_state_updated` snapshot.
+     *
+     * The snapshot reconciles exactly the packets already emitted into that
+     * recipient's sink (its `seq` watermark is `EventSink::NextSeq()`). When
+     * the match is finished this also sends `match_over` once per recipient
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     */
+    void BroadcastSnapshot(IBroadcaster& broadcaster);
+
+    /**
+     * @brief Send the terminal `match_over` packet once, if finished.
+     *
+     * Idempotent: later calls after the first send are no-ops. Called by
+     * `BroadcastSnapshot`, exposed for controllers that finish a match
+     * without a snapshot.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @return true when the match is over (packet sent at least once).
+     */
+    bool BroadcastMatchOver(IBroadcaster& broadcaster);
+
+    // --- introspection (tests / controllers) --------------------------------
+
+    /** @brief The owned engine. */
+    match::engine::MatchInstance& Engine() { return *engine_; }
+    /** @brief The owned engine (const). */
+    const match::engine::MatchInstance& Engine() const { return *engine_; }
+    /** @brief The bound view builder. */
+    const match::view::ViewBuilder& View() const { return builder_; }
+    /** @brief Index into `Engine().Events()` already emitted. */
+    std::size_t EventCursor() const { return cursor_; }
+    /** @brief True once a `match_over` packet has been sent. */
+    bool MatchOverNotified() const { return over_sent_; }
+    /** @brief Recipient socket map as supplied at construction. */
+    const SocketMap& Sockets() const { return sockets_; }
+
+private:
+    /** @brief Look up a prompt kind's `response_schema`, or nullptr. */
+    const nlohmann::json* FindPromptSchema(const std::string& kind) const;
+
+    /**
+     * @brief True when `value` satisfies the supported schema subset.
+     *
+     * Supports the rendering vocabulary: `type` in string / boolean
+     * / integer / number / object / array, `enum`, and numeric `minimum` /
+     * `maximum`. An absent/empty schema or an unknown `type` token is
+     * permissive (a mod kind with no declared schema is not blocked).
+     */
+    static bool MatchesSchema(const nlohmann::json& value,
+                              const nlohmann::json& schema);
+
+    /** @brief Fill the kind -> `response_schema` table from the mods. */
+    void BuildPromptSchemas();
+
+    /** @brief Emit a parked op-input as the target's `prompt_open`. */
+    void EmitPendingPrompt(IBroadcaster& broadcaster);
+
+    std::unique_ptr<match::engine::MatchInstance> engine_;
+    std::vector<match::modload::LoadedMod> mods_;
+    match::view::ViewBuilder builder_;
+    SocketMap sockets_;
+    std::unordered_map<std::string, match::view::EventSink> sinks_;
+    /** Last pending-prompt signature emitted per recipient (dedupe). */
+    std::unordered_map<std::string, std::string> prompt_signature_;
+    /** Prompt kind -> validated `response_schema` (mods + built-ins). */
+    std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
+    std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
+    bool over_sent_ = false;   /**< `match_over` already broadcast. */
+};
+
+}  // namespace match::server
