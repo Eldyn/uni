@@ -217,6 +217,7 @@ if(UNI_BUILD_TESTS)
         src/match/modload/semantic_validator.cpp
         src/match/ecs/entity_store.cpp
         src/match/ecs/component_catalog.cpp
+        src/match/ecs/event_bus.cpp
         src/match/rules/standard.cpp
         src/match/rules/70.cpp
         src/match/rules/draw_stacking.cpp
