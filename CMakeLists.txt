@@ -220,8 +220,10 @@ if(UNI_BUILD_TESTS)
         src/match/ecs/event_bus.cpp
         src/match/resolver.cpp
         src/match/ops/default_ops.cpp
+        src/match/ops/op_helpers.cpp
         src/match/ops/card_pile_ops.cpp
         src/match/ops/condition_ops.cpp
+        src/match/ops/condition_eval.cpp
         src/match/ops/turn_flow_ops.cpp
         src/match/ops/status_ops.cpp
         src/match/ops/prompt_ops.cpp
