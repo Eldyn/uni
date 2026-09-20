@@ -34,6 +34,7 @@
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import type { HandMorph } from "$stores/tableSpin.svelte";
 	import { gsap } from "gsap";
 	import { loadSilhouette, loadTexture } from "./textures";
 	import {
@@ -56,7 +57,9 @@
 		avatarPx = 56,
 		avatarWorld = 0.78,
 		labelEm = 1.15,
-		hasHoldingCard = false
+		hasHoldingCard = false,
+		ringMorph = null,
+		inheritProgress = 1
 	}: {
 		player: GamePlayer;
 		seat: SeatPosition3D;
@@ -81,6 +84,13 @@
 		labelEm?: number;
 		/** If true, the player has 1 drawn card in front awaiting play decision. */
 		hasHoldingCard?: boolean;
+		/** Spectator POV spin, inherit phase: the outgoing POV player's hand
+		 *  snapshot to morph into this seat's ring. Set only for the seat whose
+		 *  username matches the outgoing POV; null in every other case. */
+		ringMorph?: HandMorph | null;
+		/** Inherit-phase progress, 0 → 1. Blends a morphed card from its
+		 *  `ringMorph` seed pose to its normal ring pose. */
+		inheritProgress?: number;
 	} = $props();
 	// CardMesh3D's own layered planes sit up to 0.004 world units apart; a
 	// per-card step smaller than that lets one card's layers interleave with
@@ -227,6 +237,14 @@
 		const rotY = seat.rotationY;
 		const baseSpinDeg = (rotY * 180) / Math.PI + 180;
 
+		// Spectator POV spin, inherit phase. When this seat is the outgoing POV
+		// player, its cards seed at ringMorph's snapshot poses (the old local
+		// hand row) and blend to the ring pose over inheritProgress. ringMorph
+		// is only ever non-null for the matching seat, and always `open: false`
+		// (an outgoing hand is now an opponent's), so the cards stay backs.
+		const morph = ringMorph !== null && ringMorph.username === player.username ? ringMorph : null;
+		const morphProgress = morph ? inheritProgress : 1;
+
 		for (const [i, slot] of ringSlots.entries()) {
 			const key = `ring:${username}:${i}`;
 			currentKeys.add(key);
@@ -239,6 +257,7 @@
 				RING_STACK_STEP
 			);
 			const spinDeg = baseSpinDeg + slot.rotateDeg;
+			const morphSource: [number, number, number] | null = morph ? (morph.poses[i] ?? null) : null;
 
 			const pose = cardRegistry.ensureEntry(
 				key,
@@ -255,9 +274,36 @@
 				null
 			);
 
-			cardRegistry.setPoseProvider(key, () =>
-				ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP)
-			);
+			cardRegistry.setPoseProvider(key, () => {
+				const [tx, ty, tz] = ringSlotWorldPose(seat, slot, i, radialScale, RING_STACK_STEP);
+				if (!morphSource) return [tx, ty, tz];
+				return [
+					morphSource[0] + (tx - morphSource[0]) * morphProgress,
+					morphSource[1] + (ty - morphSource[1]) * morphProgress,
+					morphSource[2] + (tz - morphSource[2]) * morphProgress
+				];
+			});
+
+			if (morph) {
+				// Drive the blend straight off the provider's progress every
+				// frame. The displacement tween would otherwise fight it (both
+				// write pose.x/y/z from a different target), so kill it once and
+				// stay in-transit until the blend lands — that also stops the
+				// idle re-sync from snapping the card to its ring pose early.
+				displacementTweens.get(key)?.kill();
+				displacementTweens.delete(key);
+
+				const [sx, sy, sz] = morphSource ?? [worldX, worldY, worldZ];
+				pose.x = sx + (worldX - sx) * morphProgress;
+				pose.y = sy + (worldY - sy) * morphProgress;
+				pose.z = sz + (worldZ - sz) * morphProgress;
+				pose.spinDeg = spinDeg;
+				pose.scale = cardScale;
+				pose.turned = true;
+				cardRegistry.markInTransit(key, morphProgress < 1);
+				cardRegistry.setDecoration(key, { dimmed });
+				continue;
+			}
 
 			if (!cardRegistry.isInTransit(key)) {
 				pose.scale = cardScale;
