@@ -51,13 +51,7 @@ uint64_t Rng::SeedValue() const { return state_->seed; }
 
 uint64_t Rng::Counter() const { return state_->op_counter; }
 
-Rng::Roll Rng::NextRoll() {
-    state_->op_counter += 1;
-    Roll roll;
-    roll.counter = state_->op_counter;
-    roll.state = state_->seed + state_->op_counter;
-    return roll;
-}
+Rng::Roll Rng::NextRoll() { return AdvanceRngState(*state_); }
 
 uint64_t Rng::NextDraw() {
     const Roll roll = NextRoll();

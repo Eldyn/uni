@@ -32,9 +32,9 @@ namespace match {
  *
  * The op layer seam: the `roll` op path already reads/writes this same
  * `RngState` through `ops::AdvanceRng` and draws through `ops::SplitMix64`, so
- * it is on the same stream by construction. Making it call `Rng::NextRoll`
- * directly is a one-line delegation of `AdvanceRng` once that file is in scope;
- * the timer layer does not rebuild the op.
+ * it is on the same stream by construction. `Rng::NextRoll` and
+ * `ops::AdvanceRng` both delegate to `AdvanceRngState` so the counter
+ * arithmetic exists once.
  */
 
 /**
@@ -107,6 +107,22 @@ public:
 private:
     ecs::RngState* state_;
 };
+
+/**
+ * @brief The single counter-math step.
+ *
+ * Increments `op_counter` and returns the post-increment counter plus the
+ * splitmix64 stream state `seed + counter`. `Rng::NextRoll` and the op layer's
+ * `ops::AdvanceRng` both delegate here, so the `(seed, counter)` stream is
+ * defined in exactly one place.
+ */
+inline Rng::Roll AdvanceRngState(ecs::RngState& state) {
+    state.op_counter += 1;
+    Rng::Roll roll;
+    roll.counter = state.op_counter;
+    roll.state = state.seed + state.op_counter;
+    return roll;
+}
 
 /**
  * @brief An `Rng` over `match`'s `rng_state`, or `nullopt` when absent.

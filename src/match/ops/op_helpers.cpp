@@ -1,5 +1,7 @@
 #include <match/ops/op_helpers.hpp>
 
+#include <match/rng.hpp>
+
 #include <algorithm>
 #include <map>
 #include <string>
@@ -102,10 +104,10 @@ std::optional<RngDraw> AdvanceRng(ecs::EntityStore& store) {
     if (!match.has_value()) return std::nullopt;
     ecs::RngState* rng = store.Get<ecs::RngState>(*match);
     if (rng == nullptr) return std::nullopt;
-    rng->op_counter += 1;
+    const Rng::Roll roll = AdvanceRngState(*rng);
     RngDraw draw;
-    draw.counter = rng->op_counter;
-    draw.state = rng->seed + rng->op_counter;
+    draw.counter = roll.counter;
+    draw.state = roll.state;
     return draw;
 }
 
