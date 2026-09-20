@@ -85,6 +85,13 @@ private:
     void OnTurnStarted(Lobby* active_lobby);
 
     /**
+     * @brief New-engine turn driver: drives bots/disconnected seats through
+     * `BotStep` and arms the AFK/prompt timer for connected humans.
+     * @param active_lobby Pointer to the lobby whose session must advance.
+     */
+    void OnTurnStartedSession(Lobby* active_lobby);
+
+    /**
      * @brief Sends the censored match state to all connected members.
      * Iterating over each user, it uses `MatchInstance::SerializePlayerState` to
      * hide opponents' hands and forwards the WS message.

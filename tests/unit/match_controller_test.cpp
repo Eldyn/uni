@@ -2,9 +2,14 @@
 #include <action_router.hpp>
 #include <controllers/match_controller.hpp>
 #include <controllers/ilobby_store.hpp>
-#include <match/match_instance.hpp>
+#include <match/engine/match_assembler.hpp>
+#include <match/engine/match_instance.hpp>
+#include <match/modload/mod_loader.hpp>
+#include <match/server/match_session.hpp>
 #include <common/lobby.hpp>
 #include <nlohmann/json.hpp>
+#include <algorithm>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -19,7 +24,7 @@ using json = nlohmann::json;
 // ---------------------------------------------------------------------------
 
 // Single-lobby test double for ILobbyStore. Gives tests full control over the
-// Lobby/MatchInstance being driven, without the overhead of LobbyController's
+// Lobby/MatchSession being driven, without the overhead of LobbyController's
 // invite-code/join machinery.
 class FakeLobbyStore : public ILobbyStore {
 public:
@@ -75,18 +80,69 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// New-engine content: the mods folder + the vanilla classic deck, loaded once.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+namespace fs = std::filesystem;
+
+// INFO: locate the project root from this file so the test is cwd-independent
+//       (mirrors bot_policy_test.cpp).
+fs::path ProjectRoot() {
+    fs::path p(__FILE__);
+    while (!p.empty()) {
+        std::error_code ec;
+        if (fs::is_directory(p / "contract" / "schemas", ec)) return p;
+        fs::path parent = p.parent_path();
+        if (parent == p) break;
+        p = parent;
+    }
+    return {};
+}
+
+struct Content {
+    std::vector<match::modload::LoadedMod> mods;
+    match::modload::DeckDef classic;
+};
+
+bool LoadContent(Content& out) {
+    const fs::path root = ProjectRoot();
+    if (root.empty()) return false;
+    match::modload::LoadResult load =
+        match::modload::ScanModsDirectory((root / "mods").string());
+    if (!load.ok()) return false;
+    out.mods = std::move(load.mods);
+    for (const match::modload::LoadedMod& mod : out.mods) {
+        for (const match::modload::DeckDef& deck : mod.decks) {
+            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+        }
+    }
+    return !out.classic.deck_id.empty();
+}
+
+const Content& ContentCache() {
+    static Content content;
+    static const bool loaded = LoadContent(content);
+    REQUIRE_MESSAGE(loaded, "failed to load mods/classic deck");
+    return content;
+}
+
+}  // namespace
+
+// ---------------------------------------------------------------------------
 // Fixture: fresh router/bus/timers/lobby-store/controller per test case.
 // ---------------------------------------------------------------------------
 struct MatchFixture {
     ActionRouter     router;
     FakeBroadcaster  bus;
-    FakeTimerService timers;
+    RecordingTimerService timers;
     FakeLobbyStore   store;
     MatchController  match_ctrl{router, bus, timers, store};
 
-    // Builds and starts a match for the given players, wiring it into the
-    // fake lobby store, then fires the OnGameStarted hook (as LobbyController
-    // would after a real match start).
+    // Builds and starts a new-engine match for the given players, wiring it
+    // into the fake lobby store, then fires the OnGameStarted hook (as
+    // LobbyController would after a real match start).
     void SetupMatch(const std::vector<std::pair<std::string, bool>>& players_info,
                      const LobbySettings& settings) {
         store.lobby.id = 1;
@@ -94,13 +150,60 @@ struct MatchFixture {
         store.lobby.host = players_info.front().first;
         store.lobby.settings = settings;
         store.lobby.members.clear();
+        store.lobby.session.reset();
+
+        int seat = 0;
         for (const auto& [username, is_bot] : players_info) {
-            store.lobby.members.emplace_back(username, nullptr, !is_bot, is_bot);
+            store.lobby.members.emplace_back(username, nullptr, !is_bot,
+                                             is_bot, seat++);
         }
-        store.lobby.match = std::make_unique<match::MatchInstance>(players_info, settings);
-        store.lobby.match->Start();
+
+        const Content& content = ContentCache();
+        match::modload::DeckDef deck = content.classic;
+        for (const std::string& mod : settings.active_mods) {
+            if (std::find(deck.mods.begin(), deck.mods.end(), mod)
+                == deck.mods.end()) {
+                deck.mods.push_back(mod);
+            }
+        }
+
+        std::vector<match::modload::LoadedMod> active_mods;
+        for (const auto& mod : content.mods) {
+            if (std::find(deck.mods.begin(), deck.mods.end(), mod.manifest.id)
+                != deck.mods.end()) {
+                active_mods.push_back(mod);
+            }
+        }
+
+        match::engine::MatchAssemblyOptions options;
+        options.starting_cards = settings.starting_cards;
+        options.seed = 12345;
+        for (const auto& member : store.lobby.members) {
+            options.players.push_back({member.username, member.is_bot,
+                                       member.is_connected, member.is_ready});
+        }
+
+        match::engine::AssemblyResult result =
+            match::engine::MatchAssembler::Assemble(active_mods, deck, options);
+        std::string assembly_error =
+            result.error.has_value() ? result.error->message
+                                     : std::string("assembly failed");
+        REQUIRE_MESSAGE(result.ok(), assembly_error);
+        auto engine = std::make_unique<match::engine::MatchInstance>(
+            std::move(result.assembly));
+
+        match::server::MatchSession::SocketMap sockets;
+        for (const auto& member : store.lobby.members) {
+            sockets[member.username] = nullptr;
+        }
+        store.lobby.session = std::make_unique<match::server::MatchSession>(
+            std::move(engine), std::move(active_mods), std::move(sockets));
 
         store.FireGameStarted();
+    }
+
+    match::engine::MatchInstance& Engine() {
+        return store.lobby.session->Engine();
     }
 
     // Drains the single-shot "turn_1" timer chain until the match ends or the
@@ -111,7 +214,7 @@ struct MatchFixture {
     // armed (e.g. the engine is waiting on a human who never responds).
     int DrainTurnTimer(int max_fires) {
         int fired = 0;
-        while (!store.lobby.match->IsMatchOver() && fired < max_fires) {
+        while (!Engine().IsMatchOver() && fired < max_fires) {
             if (!timers.Has("turn_1")) break;
             timers.Fire("turn_1");
             ++fired;
@@ -172,7 +275,7 @@ TEST_CASE("Bot-autoplay chain: firing the bot turn timer eventually reaches matc
     int fired = f.DrainTurnTimer(kMaxFires);
 
     CHECK(fired < kMaxFires);
-    CHECK(f.store.lobby.match->IsMatchOver());
+    CHECK(f.Engine().IsMatchOver());
 }
 
 TEST_CASE("Bot-autoplay chain: kPlayInstantly mode still arms one turn timer per bot move "
@@ -181,8 +284,7 @@ TEST_CASE("Bot-autoplay chain: kPlayInstantly mode still arms one turn timer per
     f.SetupMatch(all_bots(4), settings_with_mode(BotTakeoverMode::kPlayInstantly));
 
     // Real bot players (regardless of bot_mode) always go through the
-    // timer-armed branch of OnTurnStarted; only a *disconnected human* uses
-    // the synchronous instant-play loop. kPlayInstantly only shortens the
+    // timer-armed branch of OnTurnStarted; kPlayInstantly only shortens the
     // bot-thinking delay, it does not bypass the timer chain.
     REQUIRE(f.timers.Has("turn_1"));
 
@@ -190,7 +292,7 @@ TEST_CASE("Bot-autoplay chain: kPlayInstantly mode still arms one turn timer per
     int fired = f.DrainTurnTimer(kMaxFires);
 
     CHECK(fired < kMaxFires);
-    CHECK(f.store.lobby.match->IsMatchOver());
+    CHECK(f.Engine().IsMatchOver());
 }
 
 TEST_CASE("Bot-autoplay chain: a connected human's turn ends the automatic chain, leaving "
@@ -216,14 +318,36 @@ TEST_CASE("SetTurnTimer: bot turn uses the bot-thinking delay, not the full turn
     store.lobby.id = 1;
     store.lobby.host = players.front().first;
     store.lobby.settings = settings;
+    int seat = 0;
     for (const auto& [username, is_bot] : players) {
-        store.lobby.members.emplace_back(username, nullptr, !is_bot, is_bot);
+        store.lobby.members.emplace_back(username, nullptr, !is_bot,
+                                         is_bot, seat++);
     }
-    store.lobby.match = std::make_unique<match::MatchInstance>(players, settings);
-    store.lobby.match->Start();
+    const Content& content = ContentCache();
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = settings.starting_cards;
+    options.seed = 12345;
+    for (const auto& member : store.lobby.members) {
+        options.players.push_back({member.username, member.is_bot,
+                                   member.is_connected, member.is_ready});
+    }
+    match::engine::AssemblyResult result =
+        match::engine::MatchAssembler::Assemble(content.mods, content.classic,
+                                                options);
+    REQUIRE_MESSAGE(result.ok(), "assembly failed");
+    auto engine = std::make_unique<match::engine::MatchInstance>(
+        std::move(result.assembly));
+    match::server::MatchSession::SocketMap sockets;
+    for (const auto& member : store.lobby.members) {
+        sockets[member.username] = nullptr;
+    }
+    store.lobby.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), content.mods, std::move(sockets));
     store.FireGameStarted();
 
-    REQUIRE(store.lobby.match->GetPlayer("BotBob")->is_bot);
+    REQUIRE(store.lobby.session->Engine().GetCurrentPlayerUsername()
+            == "BotBob");
+    REQUIRE(store.lobby.FindMember("BotBob")->is_bot);
     REQUIRE(timers.last_timeout_ms.count("turn_1") == 1);
 
     // The default bot "thinking" jitter is bounded well below the 15s human
@@ -232,28 +356,15 @@ TEST_CASE("SetTurnTimer: bot turn uses the bot-thinking delay, not the full turn
 }
 
 TEST_CASE("SetTurnTimer: human turn uses the full turn-time-limit as the AFK timeout") {
-    ActionRouter router;
-    FakeBroadcaster bus;
-    RecordingTimerService timers;
-    FakeLobbyStore store;
-    MatchController ctrl(router, bus, timers, store);
-
+    MatchFixture f;
     LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000);
-    auto players = human_vs_bot();  // Alice goes first (players[0]).
-    store.lobby.id = 1;
-    store.lobby.host = players.front().first;
-    store.lobby.settings = settings;
-    for (const auto& [username, is_bot] : players) {
-        store.lobby.members.emplace_back(username, nullptr, !is_bot, is_bot);
-    }
-    store.lobby.match = std::make_unique<match::MatchInstance>(players, settings);
-    store.lobby.match->Start();
-    store.FireGameStarted();
+    f.SetupMatch(human_vs_bot(), settings);  // Alice goes first (players[0]).
 
-    REQUIRE_FALSE(store.lobby.match->GetPlayer("Alice")->is_bot);
-    REQUIRE(timers.last_timeout_ms.count("turn_1") == 1);
+    REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
+    REQUIRE_FALSE(f.store.lobby.FindMember("Alice")->is_bot);
+    REQUIRE(f.timers.last_timeout_ms.count("turn_1") == 1);
 
-    CHECK(timers.last_timeout_ms["turn_1"] == settings.turn_time_limit_ms);
+    CHECK(f.timers.last_timeout_ms["turn_1"] == settings.turn_time_limit_ms);
 }
 
 TEST_CASE("SetTurnTimer: firing the human AFK timer under kWaitUntilTurnEnd hands the turn to "
@@ -279,7 +390,7 @@ TEST_CASE("ClearTurnTimer: the match reaching a terminal state stops the timer c
     int fired = f.DrainTurnTimer(kMaxFires);
 
     CHECK(fired < kMaxFires);
-    CHECK(f.store.lobby.match->IsMatchOver());
+    CHECK(f.Engine().IsMatchOver());
 }
 }  // TEST_SUITE("MatchController")
 
@@ -300,9 +411,9 @@ TEST_CASE("Full match: 4 bots with every mod enabled reaches a terminal state "
     int fired = f.DrainTurnTimer(kMaxFires);
 
     REQUIRE(fired < kMaxFires);
-    REQUIRE(f.store.lobby.match->IsMatchOver());
+    REQUIRE(f.Engine().IsMatchOver());
 
-    std::string winner = f.store.lobby.match->GetWinner();
+    std::string winner = f.Engine().GetWinner();
     CHECK_FALSE(winner.empty());
 
     // The winner must be one of the participating bots.
@@ -333,8 +444,8 @@ TEST_CASE("Full match: kPlayInstantly mode with all bots and every mod enabled r
     int fired = f.DrainTurnTimer(kMaxFires);
 
     CHECK(fired < kMaxFires);
-    CHECK(f.store.lobby.match->IsMatchOver());
-    CHECK_FALSE(f.store.lobby.match->GetWinner().empty());
+    CHECK(f.Engine().IsMatchOver());
+    CHECK_FALSE(f.Engine().GetWinner().empty());
 }
 
 TEST_CASE("Full match: mixed bot count (2 to 4 players) with every mod enabled always "
@@ -353,7 +464,7 @@ TEST_CASE("Full match: mixed bot count (2 to 4 players) with every mod enabled a
 
         CAPTURE(player_count);
         CHECK(fired < kMaxFires);
-        CHECK(f.store.lobby.match->IsMatchOver());
+        CHECK(f.Engine().IsMatchOver());
     }
 }
 }  // TEST_SUITE("MatchController::FullGameSimulation")
