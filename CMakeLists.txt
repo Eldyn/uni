@@ -220,6 +220,7 @@ if(UNI_BUILD_TESTS)
         src/match/ecs/component_catalog.cpp
         src/match/ecs/event_bus.cpp
         src/match/engine/match_assembler.cpp
+        src/match/engine/match_instance.cpp
         src/match/resolver.cpp
         src/match/rng.cpp
         src/match/scheduler.cpp
