@@ -54,6 +54,8 @@
 		{/snippet}
 		{@render selectorControl()}
 	</Tooltip>
+{:else}
+	{@render selectorControl()}
 {/if}
 
 <style>

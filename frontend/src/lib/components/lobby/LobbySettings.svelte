@@ -2,10 +2,12 @@
 	import Toggle from "./settings/Toggle.svelte";
 	import Slider from "./settings/Slider.svelte";
 	import EnumSelector from "./settings/EnumSelector.svelte";
+	import DeckSelector from "./settings/DeckSelector.svelte";
 	import RulesGrid from "./settings/RulesGrid.svelte";
 	import type { RuleDef } from "./settings/RulesGrid.svelte";
 	import { onMount } from "svelte";
 	import { BotTakeoverMode, type LobbySettings, storeLobby } from "$stores/lobby.svelte";
+	import { storeDeckCatalog } from "$stores/deckCatalog.svelte";
 	import { storeCatalog, type RuleDefinition } from "$stores/catalog.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -52,11 +54,14 @@
 		bot_count: storeLobby.current?.settings.bot_count ?? 0,
 
 		mode: storeLobby.current?.settings.mode ?? "standard",
-		survivor_count: storeLobby.current?.settings.survivor_count ?? 1
+		survivor_count: storeLobby.current?.settings.survivor_count ?? 1,
+
+		deck: storeLobby.current?.settings.deck
 	} as LobbySettings);
 
 	onMount(() => {
 		storeCatalog.ensureLoaded();
+		storeDeckCatalog.fetchDecks();
 	});
 
 	let rules = $derived<RuleDef[]>(
@@ -126,6 +131,22 @@
 		</div>
 	</section>
 
+	<!-- Deck Section -->
+	<section class="settings-section pixel-bordered">
+		<h4 class="section-title">
+			{m.lobby_settings_section_deck({}, { locale: storeI18n.locale })}
+		</h4>
+		<div class="section-content">
+			<DeckSelector
+				value={settings.deck?.id ?? ""}
+				disabled={!isHost}
+				oncommit={(id) => {
+					if (isHost) storeLobby.updateSettings({ deck_id: id });
+				}}
+			/>
+		</div>
+	</section>
+
 	<!-- Game Rules Section -->
 	<section class="settings-section pixel-bordered">
 		<h4 class="section-title">
@@ -139,7 +160,10 @@
 				disabled={!isHost}
 				options={[
 					{ value: "standard", label: m.lobby_mode_standard({}, { locale: storeI18n.locale }) },
-					{ value: "elimination", label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }) }
+					{
+						value: "elimination",
+						label: m.lobby_mode_elimination({}, { locale: storeI18n.locale })
+					}
 				]}
 				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
 			/>
