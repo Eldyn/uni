@@ -485,7 +485,20 @@ export class CardRegistry {
 					const usedLater = batch.beats
 						.slice(beatIndex + 1)
 						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
-					if (usedLater) continue;
+					// A card can also be needed by a batch enqueued separately (e.g.
+					// checkLocalKeptDrawn's move-to-hand batch queued right after a
+					// flip batch for the same drawn card) — that batch sits in
+					// #pending behind this one, not inside `batch.beats`. Missing
+					// this let finishBeat retire the pose/meta the queued batch was
+					// about to animate, producing a pop/teleport when it finally ran.
+					const usedInLaterPending = this.#pending
+						.slice(1)
+						.some((pendingBatch) =>
+							pendingBatch.beats.some((laterBeat) =>
+								laterBeat.some((laterStep) => laterStep.target === step.target)
+							)
+						);
+					if (usedLater || usedInLaterPending) continue;
 					this.#inTransitIds.delete(step.target);
 					const provider = this.#poseProviders.get(step.target);
 					if (provider) {
