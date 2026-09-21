@@ -11,7 +11,7 @@
  * itself — it is fed through `subscribeBeats`.
  */
 
-import { storeGame, type CardType } from "$stores/game.svelte";
+import { storeGame, Action, type CardType } from "$stores/game.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { CardBus } from "../card-bus.svelte";
@@ -27,6 +27,8 @@ import {
 	buildPlayBeat,
 	DRAW_HOVER_LIFT,
 	localHandSlotAnchor,
+	opponentSeatAnchor,
+	opponentSlotAnchorKey,
 	type MatchEventBeat
 } from "./baseBeats.svelte";
 import type { AnimationBeat } from "./types";
@@ -54,12 +56,18 @@ export function createMatchEventBeatController(deps: {
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
 }): { dispose: () => void; syncState: () => void } {
 	let lastLandingBaseDeg = 0;
-	// Reserved for A3 (opponent slot anchor cache).
+	// Monotonic id source for synthetic opponent-draw cards. The wire packet
+	// only carries ids for the owner, so non-owner viewers get a
+	// client-local id and never learn the real card.
+	let drawIdCounter = 0;
 	const pendingLocalHandSlots = new Map<string, [number, number, number]>();
 	const pendingOpponentSlots = new Map<string, [number, number, number]>();
 	// Ids of local-hand cards currently mid-flight in a multi-card draw, used
 	// to live-refresh their `dimmed` decoration as the turn changes.
 	const localDrawFlightIds = new Set<string>();
+	// Synthetic opponent-draw card id -> owning username, refreshed live by
+	// syncState so a turn/prompt change mid-flight re-dims correctly.
+	const opponentDrawFlightOwners = new Map<string, string>();
 
 	/** The POV player's username. "local" means the player whose POV is
 	 *  rendered (the viewed player while spectating), matching Scene3D and the
@@ -225,13 +233,19 @@ export function createMatchEventBeatController(deps: {
 		});
 	}
 
-	/** Ports the watcher's local-draw branch (baseBeats.svelte.ts:795-934):
-	 *  the owner receives real card ids, so the ids come straight
-	 *  from the beat rather than a hand diff. Opponent draws are handled separately. */
+	/** Ports the watcher's draw branch (baseBeats.svelte.ts:795-1077). The
+	 *  owner receives real card ids, so the local branch reads them
+	 *  straight from the beat; every other viewer gets a count only and the
+	 *  opponent branch synthesizes ids. */
 	function handleDraw(beat: Extract<MatchEventBeat, { kind: "draw" }>): void {
 		const state = storeGame.state;
 		if (!state) return;
-		if (beat.player !== resolveLocalUsername(state)) return;
+
+		if (beat.player !== resolveLocalUsername(state)) {
+			handleOpponentDraw(beat, state);
+			return;
+		}
+
 		const newIds = beat.cardIds;
 		if (newIds.length === 0) return;
 
@@ -326,6 +340,117 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
+	/** Ports the watcher's plain multi-draw opponent branch
+	 *  (baseBeats.svelte.ts:988-1077). Non-owner viewers get `count` only, so
+	 *  each card is seeded at the draw-pile top under a synthetic
+	 *  `draw:<player>:<n>` id and flies into its own slot of the opponent's
+	 *  card arc. The `isOpponentPlayableDraw` branch is intentionally dropped
+	 *  (PlayDrawn legacy, same ruling as A1/A2). */
+	function handleOpponentDraw(
+		beat: Extract<MatchEventBeat, { kind: "draw" }>,
+		state: NonNullable<typeof storeGame.state>
+	): void {
+		const drawnCount = beat.count;
+		if (drawnCount <= 0) return;
+		const player = state.players?.find((p) => p.username === beat.player);
+		if (!player) return;
+
+		const placement = deps.getPlacement();
+		const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
+		// INFO: the snapshot is post-draw, so the drawn count is added back for
+		// the PRE-draw hand layout and pile height the cards visually left from.
+		const preCount = Math.max(0, player.card_count - drawnCount);
+		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
+
+		const isTurn = state.current_turn === beat.player;
+		const isValidTarget =
+			storeGame.actionRequired === Action.ChooseTarget &&
+			Array.isArray(storeGame.actionContext) &&
+			storeGame.actionContext.includes(beat.player);
+		const isDimmed = !isTurn && !isValidTarget;
+
+		const cardIds: string[] = [];
+		const slotAnchorKeys: string[] = [];
+		const slotSpinDegs: number[] = [];
+		for (let i = 0; i < drawnCount; i++) {
+			const cardId = `draw:${beat.player}:${drawIdCounter++}`;
+			cardIds.push(cardId);
+			opponentDrawFlightOwners.set(cardId, beat.player);
+			const targetSlotIndex = preCount + i;
+			const currentStepCardCount = preCount + i + 1;
+			const slotKey = opponentSlotAnchorKey(beat.player, targetSlotIndex, drawIdCounter);
+			const targetPose = deps.getOpponentCardPose?.(
+				beat.player,
+				currentStepCardCount,
+				targetSlotIndex
+			);
+
+			if (targetPose) {
+				pendingOpponentSlots.set(slotKey, targetPose.position);
+				slotAnchorKeys.push(slotKey);
+				slotSpinDegs.push(targetPose.spinDeg);
+			} else {
+				slotAnchorKeys.push(opponentSeatAnchor(beat.player));
+				slotSpinDegs.push(deps.getOpponentSeatRotationDeg?.(beat.player) ?? 0);
+			}
+
+			const [px, py, pz] = drawPileTopPose(
+				placement,
+				preDrawSize,
+				storeRenderSettings.drawPileThickness
+			);
+			deps.cardRegistry.clearDecoration(cardId);
+			deps.cardRegistry.seedPose(cardId, {
+				x: px,
+				y: py + DRAW_HOVER_LIFT,
+				z: pz,
+				spinDeg: 0,
+				flipDeg: 0,
+				scale: placement.drawPileScale,
+				turned: true,
+				opacity: 1
+			});
+			deps.cardRegistry.setDecoration(cardId, { dimmed: isDimmed });
+		}
+
+		deps.bus.addInFlightDraw(beat.player, drawnCount);
+		let remainingOpponentDraws = drawnCount;
+		deps.cardRegistry
+			.enqueue(
+				buildDrawBeats({
+					cardIds,
+					forLocalPlayer: false,
+					opponentUsername: beat.player,
+					placement,
+					opponentCardScale,
+					slotAnchorKeys,
+					slotSpinDegs,
+					onCardComplete: (index) => {
+						if (remainingOpponentDraws > 0) {
+							remainingOpponentDraws--;
+							deps.bus.removeInFlightDraw(beat.player, 1);
+						}
+						const cardId = cardIds[index];
+						if (cardId) {
+							deps.cardRegistry.removeEntry(cardId);
+							opponentDrawFlightOwners.delete(cardId);
+						}
+					}
+				}),
+				resolveCardTarget
+			)
+			.finally(() => {
+				if (remainingOpponentDraws > 0) {
+					deps.bus.removeInFlightDraw(beat.player, remainingOpponentDraws);
+					remainingOpponentDraws = 0;
+				}
+				for (const cardId of cardIds) {
+					deps.cardRegistry.removeEntry(cardId);
+					opponentDrawFlightOwners.delete(cardId);
+				}
+			});
+	}
+
 	function handle(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
@@ -346,13 +471,24 @@ export function createMatchEventBeatController(deps: {
 	}
 
 	/** Called by GameBoard on each `storeGame.state` change (a plain $effect,
-	 *  NOT a diff source). Also live-refreshes every in-flight local draw
-	 *  card's dimmed state, since a turn can change mid-flight during a
-	 *  staggered multi-card draw. */
+	 *  NOT a diff source). Also live-refreshes every in-flight draw card's
+	 *  dimmed state, since a turn or a target prompt can change mid-flight
+	 *  during a staggered multi-card draw. */
 	function syncState(): void {
 		const state = storeGame.state;
 		if (!state) return;
 		deps.bus.setActiveType(state.active_type as CardType);
+
+		for (const [flightCardId, flightUsername] of opponentDrawFlightOwners) {
+			const flightIsTurn = state.current_turn === flightUsername;
+			const flightIsValidTarget =
+				storeGame.actionRequired === Action.ChooseTarget &&
+				Array.isArray(storeGame.actionContext) &&
+				storeGame.actionContext.includes(flightUsername);
+			deps.cardRegistry.setDecoration(flightCardId, {
+				dimmed: !flightIsTurn && !flightIsValidTarget
+			});
+		}
 
 		const isLocalTurn = state.current_turn === resolveLocalUsername(state);
 		for (const flightCardId of localDrawFlightIds) {

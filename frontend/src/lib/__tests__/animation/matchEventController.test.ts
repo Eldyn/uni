@@ -36,6 +36,8 @@ function fakeBus() {
 		setDiscardTop: vi.fn(),
 		addInFlightPlay: vi.fn(),
 		removeInFlightPlay: vi.fn(),
+		addInFlightDraw: vi.fn(),
+		removeInFlightDraw: vi.fn(),
 		addPendingLocalDraw: vi.fn(),
 		removePendingLocalDraw: vi.fn()
 	} as unknown as CardBus;
@@ -48,6 +50,7 @@ function fakeRegistry() {
 		setDecoration: vi.fn(),
 		seedPose: vi.fn(),
 		registerCardMeta: vi.fn(),
+		removeEntry: vi.fn(),
 		enqueue: vi.fn().mockResolvedValue(undefined)
 	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
 }
@@ -87,6 +90,20 @@ function localDrawState() {
 				]
 			},
 			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+		]
+	} as never;
+}
+
+/** Post-draw state for an opponent draw: bob holds one more card than the
+ *  pre-draw count of 3, and the draw pile has already shrunk by `count`. */
+function opponentDrawState(count: number, currentTurn = "bob") {
+	return {
+		...baseState(),
+		current_turn: currentTurn,
+		draw_pile_size: 10 - count,
+		players: [
+			{ username: "me", card_count: 4, is_bot: false, hand: [] },
+			{ username: "bob", card_count: 3 + count, is_bot: false, hand: [] }
 		]
 	} as never;
 }
@@ -345,22 +362,123 @@ describe("createMatchEventBeatController", () => {
 		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("9", { dimmed: true });
 	});
 
-	it("ignores an opponent draw (A3 handles it)", () => {
+	it("enqueues synthetic staggered moves for an opponent draw", () => {
 		storeAuth.username = "me";
-		storeGame.state = { ...localDrawState(), current_turn: "bob" } as never;
+		storeGame.state = opponentDrawState(2, "bob");
 		const h = harness();
 
-		h.fire({
-			seq: 23,
-			kind: "draw",
-			player: "bob",
-			count: 2,
-			sourcePile: "draw",
-			cardIds: [50, 51]
-		});
+		h.fire({ seq: 23, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
 
-		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
+		const [beats, resolveAnchor] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+			.calls[0] as [AnimationBeat[], (name: string) => [number, number, number]];
+		expect(beats).toHaveLength(1);
+		const steps = beats[0]!;
+		expect(steps.map((s) => s.op)).toEqual(["move", "move"]);
+
+		const firstTarget = steps[0]!.target as string;
+		const secondTarget = steps[1]!.target as string;
+		expect(firstTarget).toMatch(/^draw:bob:\d+$/);
+		expect(secondTarget).toMatch(/^draw:bob:\d+$/);
+		expect(firstTarget).not.toBe(secondTarget);
+		// No getOpponentCardPose provided, so both fall back to the seat anchor.
+		expect(steps[0]!.payload?.to).toBe("seat:bob");
+		expect(steps[1]!.payload?.to).toBe("seat:bob");
+		// drawStaggerFor(2) === 0.1 — one step per card, offset.
+		expect(steps[0]!.atS).toBe(0);
+		expect(steps[1]!.atS).toBe(0.1);
+
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+			firstTarget,
+			expect.objectContaining({ turned: true, flipDeg: 0 })
+		);
+		expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 2);
 		expect(h.bus.addPendingLocalDraw).not.toHaveBeenCalled();
+		expect(resolveAnchor("seat:bob")).toHaveLength(3);
+	});
+
+	it("uses per-slot anchors and spin from getOpponentCardPose", () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(2, "bob");
+		const getOpponentCardPose = vi.fn((_username: string, _count: number, slot: number) => ({
+			position: [slot, slot, slot] as [number, number, number],
+			spinDeg: slot * 10
+		}));
+		const h = harness({ getOpponentCardPose });
+
+		h.fire({ seq: 24, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
+
+		// bob's post-draw count is 5, drawn 2 -> pre-draw arc held 3.
+		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 3);
+		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 5, 4);
+
+		const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+			AnimationBeat[]
+		];
+		const steps = beats[0]!;
+		expect(steps[0]!.payload?.to).toMatch(/^opponent-slot:bob:/);
+		expect(steps[0]!.payload?.toSpinDeg).toBe(30);
+		expect(steps[1]!.payload?.toSpinDeg).toBe(40);
+
+		const resolver = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0]![1] as (
+			name: string
+		) => [number, number, number];
+		expect(resolver(steps[0]!.payload?.to as string)).toEqual([3, 3, 3]);
+	});
+
+	it("dims opponent-draw cards when the opponent is not the current turn", () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(1, "me");
+		const h = harness();
+
+		h.fire({ seq: 25, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+
+		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
+			.calls[0]![0] as string;
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith(cardId, { dimmed: true });
+	});
+
+	it("does not dim opponent-draw cards on the opponent's own turn", () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(1, "bob");
+		const h = harness();
+
+		h.fire({ seq: 26, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+
+		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
+			.calls[0]![0] as string;
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith(cardId, { dimmed: false });
+	});
+
+	it("releases the in-flight opponent draw and synthetic entry in the finally", async () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(2, "bob");
+		const h = harness();
+
+		h.fire({ seq: 27, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
+		const firstTarget = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
+			.calls[0]![0] as string;
+
+		await vi.waitFor(() => {
+			expect(h.bus.removeInFlightDraw).toHaveBeenCalledWith("bob", 2);
+			expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith(firstTarget);
+		});
+	});
+
+	it("refreshes in-flight opponent draw dimming on syncState when the turn moves away", () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(1, "bob");
+		const h = harness();
+
+		h.fire({ seq: 28, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
+			.calls[0]![0] as string;
+		(h.cardRegistry.setDecoration as ReturnType<typeof vi.fn>).mockClear();
+
+		storeGame.state = { ...opponentDrawState(1, "bob"), current_turn: "me" } as never;
+		h.controller.syncState();
+
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith(cardId, { dimmed: true });
 	});
 
 	it("no-ops an empty-id draw and reshuffle/turn/toast beats", () => {
