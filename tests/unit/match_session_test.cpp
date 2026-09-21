@@ -7,6 +7,7 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/server/match_session.hpp>
+#include <match/view/defs_builder.hpp>
 
 #include "support/fake_broadcaster.hpp"
 
@@ -497,5 +498,231 @@ TEST_CASE("match session: an armed turn deadline reaches the snapshot") {
         (*snapshot)["match_state"].value("turn_deadline_ms", int64_t{0});
     CHECK(deadline > now);
     CHECK(deadline <= now + 15'000);
+}
+
+// ---------------------------------------------------------------------------
+// The tests `defs` + `match_start` are published once, before any other
+// packet, through each seated recipient's persistent stream.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("match session: defs and match_start precede the first snapshot") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    session.EmitMatchStart(fake);
+    session.EmitEvents(fake);
+    session.BroadcastSnapshot(fake);
+
+    for (AppWebSocket* sock : {s0, s1}) {
+        const std::vector<json> packets = PacketsFor(fake, sock);
+        const std::size_t npos = packets.size();
+        std::size_t defs_idx = npos;
+        std::size_t start_idx = npos;
+        std::size_t snap_idx = npos;
+        int defs_count = 0;
+        int start_count = 0;
+        std::size_t match_events = 0;
+        for (std::size_t i = 0; i < packets.size(); ++i) {
+            const json& packet = packets[i];
+            const std::string action =
+                packet.value("action", std::string());
+            if (action == "match_event") {
+                ++match_events;
+                const std::string type = packet.value("type", std::string());
+                if (type == "defs") {
+                    ++defs_count;
+                    if (defs_idx == npos) defs_idx = i;
+                } else if (type == "match_start") {
+                    ++start_count;
+                    if (start_idx == npos) start_idx = i;
+                }
+            } else if (action == "match_state_updated") {
+                if (snap_idx == npos) snap_idx = i;
+            }
+        }
+
+        REQUIRE(defs_count == 1);
+        REQUIRE(start_count == 1);
+        REQUIRE(snap_idx != npos);
+        CHECK(defs_idx < start_idx);
+        CHECK(start_idx < snap_idx);
+        // INFO: the persistent stream starts at seq 0 and never renumbers.
+        CHECK(packets[defs_idx].value("seq", 0u) == 0u);
+        CHECK(packets[start_idx].value("seq", 0u) == 1u);
+        // INFO: the snapshot watermark reconciles with the packets already
+        //       emitted into this recipient's sink.
+        CHECK(packets[snap_idx]["match_state"].value("seq_watermark", 0u)
+              == match_events);
+    }
+}
+
+TEST_CASE("match session: defs carries the frozen mods and kind table") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    session.EmitMatchStart(fake);
+
+    // INFO: `defs` is all-visibility, so both recipients see the same payload.
+    const std::vector<json> p0 = PacketsFor(fake, s0);
+    const std::vector<json> p1 = PacketsFor(fake, s1);
+    const json* defs0 = FindEvent(p0, "defs");
+    const json* defs1 = FindEvent(p1, "defs");
+    REQUIRE(defs0 != nullptr);
+    REQUIRE(defs1 != nullptr);
+    CHECK((*defs0)["payload"] == (*defs1)["payload"]);
+
+    const json& defs = (*defs0)["payload"];
+    const match::engine::MatchRegistries& regs = session.Engine().Registries();
+
+    REQUIRE(defs["mods"].is_array());
+    REQUIRE(defs["mods"].size() == regs.mods.size());
+    for (std::size_t i = 0; i < regs.mods.size(); ++i) {
+        CHECK(defs["mods"][i]["id"] == regs.mods[i].id);
+        CHECK(defs["mods"][i]["index"] == static_cast<int>(i));
+    }
+
+    // INFO: kinds are grouped by mod in frozen order; `index` is the kind's
+    //       `kind_index` within its owning mod.
+    REQUIRE(defs["kinds"].is_array());
+    std::size_t cursor = 0;
+    for (std::size_t mi = 0; mi < regs.kinds_by_mod.size(); ++mi) {
+        for (std::size_t ki = 0; ki < regs.kinds_by_mod[mi].size(); ++ki) {
+            const json& kind = defs["kinds"][cursor];
+            CHECK(kind["index"] == static_cast<int>(ki));
+            CHECK(kind["string_id"] == regs.kinds_by_mod[mi][ki]);
+            CHECK(kind["face"].is_object());
+            CHECK(kind["tags"].is_array());
+            ++cursor;
+        }
+    }
+    CHECK(cursor == defs["kinds"].size());
+
+    // INFO: a vanilla kind appears with the face authored in
+    //       `mods/vanilla/cards.json`, not a blank placeholder.
+    const json* wild = nullptr;
+    for (const json& kind : defs["kinds"]) {
+        if (kind.value("string_id", std::string()) == "vanilla:wild") {
+            wild = &kind;
+        }
+    }
+    REQUIRE(wild != nullptr);
+    CHECK((*wild)["face"]["kind"] == "text");
+    CHECK((*wild)["face"]["color"] == "white");
+    CHECK((*wild)["face"]["label"] == "jolly");
+
+    CHECK(defs["defs_digest"] == match::view::DefsBuilder::Digest(defs));
+    CHECK(defs["defs_digest"].get<std::string>().size() == 16);
+}
+
+TEST_CASE("match session: match_start carries the retained deck snapshot") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods), {{"player0", s0}});
+    FakeBroadcaster fake;
+
+    session.EmitMatchStart(fake);
+
+    const std::vector<json> packets = PacketsFor(fake, s0);
+    const json* defs = FindEvent(packets, "defs");
+    const json* start = FindEvent(packets, "match_start");
+    REQUIRE(defs != nullptr);
+    REQUIRE(start != nullptr);
+
+    const json& start_payload = (*start)["payload"];
+    CHECK(start_payload["deck_id"] == "vanilla:classic");
+    CHECK(start_payload["deck_name"] == "Classic");
+    REQUIRE(start_payload["settings"].is_object());
+    CHECK_FALSE(start_payload["settings"].empty());
+    // INFO: both packets advertise the same content digest.
+    CHECK(start_payload["defs_digest"]
+          == (*defs)["payload"]["defs_digest"]);
+    CHECK(start_payload["mods"] == (*defs)["payload"]["mods"]);
+}
+
+TEST_CASE("match session: a second EmitMatchStart does not re-send") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods), {{"player0", s0}});
+    FakeBroadcaster fake;
+
+    session.EmitMatchStart(fake);
+    session.EmitMatchStart(fake);
+
+    int defs_count = 0;
+    int start_count = 0;
+    for (const json& packet : PacketsFor(fake, s0)) {
+        if (packet.value("action", std::string()) != "match_event") continue;
+        const std::string type = packet.value("type", std::string());
+        if (type == "defs") ++defs_count;
+        if (type == "match_start") ++start_count;
+    }
+    CHECK(defs_count == 1);
+    CHECK(start_count == 1);
+}
+
+TEST_CASE("match session: a spectator bound after start receives defs") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods), {{"player0", s0}});
+    FakeBroadcaster fake;
+    session.EmitMatchStart(fake);
+
+    AppWebSocket* spectator = PlayerSocket(9);
+    session.BindViewer("watcher", spectator);
+    // INFO: the real spectator join path binds then snapshots the socket.
+    session.SendSnapshot(fake, spectator, "watcher", /*is_spectator=*/true);
+    session.EmitEvents(fake);
+    session.BroadcastSnapshot(fake);
+
+    const std::vector<json> packets = PacketsFor(fake, spectator);
+    const json* defs = FindEvent(packets, "defs");
+    REQUIRE(defs != nullptr);
+    // INFO: a mid-match spectator gets the kind table exactly once, before
+    //       any event; it does not need `match_start` (no deck UI).
+    CHECK(packets.front().value("type", std::string()) == "defs");
+    int defs_count = 0;
+    for (const json& packet : packets) {
+        if (packet.value("action", std::string()) == "match_event"
+            && packet.value("type", std::string()) == "defs") {
+            ++defs_count;
+        }
+    }
+    CHECK(defs_count == 1);
+    CHECK(FindEvent(packets, "match_start") == nullptr);
+
+    // INFO: the digest matches the seated copy, so the face cache key agrees.
+    const std::vector<json> seated_packets = PacketsFor(fake, s0);
+    const json* seated_defs = FindEvent(seated_packets, "defs");
+    REQUIRE(seated_defs != nullptr);
+    CHECK((*defs)["payload"]["defs_digest"]
+          == (*seated_defs)["payload"]["defs_digest"]);
 }
 

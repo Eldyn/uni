@@ -184,6 +184,25 @@ public:
     // --- wire output --------------------------------------------------------
 
     /**
+     * @brief Emit `defs` then `match_start` once, before any other packet.
+     *
+     * For every seated recipient with a live socket this pushes the
+     * content-derived `defs` kind table ( needed to decode
+     * `CompactCardV2.bits`) and then `match_start` through that recipient's
+     * PERSISTENT `EventSink`, exactly like `EmitEvents` (`action` =
+     * `match_event`), so `seq` stays monotonic and the following snapshot's
+     * watermark reconciles. Both packets are `all`-visibility, so the payload
+     * is identical for everyone. Idempotent: a second call in one session is
+     * a no-op.
+     *
+     * The controller calls this once at match creation, before the first
+     * `EmitEvents` / `BroadcastSnapshot`.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     */
+    void EmitMatchStart(IBroadcaster& broadcaster);
+
+    /**
      * @brief Drain new engine events as per-recipient `match_event` packets.
      *
      * Each recipient's persistent `EventSink` filters and stamps the events
@@ -213,8 +232,10 @@ public:
      * Unlike `BroadcastSnapshot`, this targets a single socket so a joiner /
      * reconnect can be served without re-broadcasting to everyone. A seated
      * recipient is built against its persistent sink (correct `seq`
-     * watermark); a spectator (or unknown recipient) gets the omniscient
-     * spectator view on a fresh stream.
+     * watermark); a spectator bound mid-match gets the omniscient spectator
+     * view on its persistent viewer stream, with `defs` emitted first when the
+     * stream has not seen it (the session, so late joiners can decode card
+     * bits). An unbound/unknown recipient keeps the old fresh-stream view.
      *
      * @param broadcaster Transport sink for `SendJson`.
      * @param socket      Recipient socket (nullptr is a no-op).
@@ -222,7 +243,7 @@ public:
      * @param is_spectator True to force the spectator view.
      */
     void SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
-                      const std::string& username, bool is_spectator) const;
+                      const std::string& username, bool is_spectator);
 
     /**
      * @brief Send the terminal `match_over` packet once, if finished.
@@ -275,6 +296,23 @@ private:
     void EmitPendingPrompt(IBroadcaster& broadcaster);
 
     /**
+     * @brief Emit `defs` into a recipient stream that has not seen it yet.
+     *
+     * Late joiners (a spectator bound after start, or a seat that was
+     * unreachable when `EmitMatchStart` ran) need the kind table to decode
+     * card bits. When the match has started and `sink` is still at seq 0, this
+     * wraps `defs` into that recipient's persistent sink and sends it, so the
+     * stream stays monotonic and the next packet's watermark is consistent.
+     * A no-op before start, on a null socket, or on a sink already advanced.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @param socket      Recipient socket (non-null checked by the caller too).
+     * @param sink        The recipient's persistent stream.
+     */
+    void EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
+                    match::view::EventSink& sink);
+
+    /**
      * @brief Emit the target's `prompt_close` when its prompt is gone.
      *
      * Synthesizes `{prompt_id, outcome}` through the recipient's persistent
@@ -308,6 +346,8 @@ private:
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
     std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
+    /** `defs` + `match_start` already emitted for the seated recipients. */
+    bool match_start_sent_ = false;
 };
 
 }  // namespace match::server

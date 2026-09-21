@@ -2,6 +2,7 @@
 
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
+#include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
 
 #include <nlohmann/json.hpp>
@@ -180,12 +181,15 @@ bool MatchSession::UnbindViewer(const std::string& username) {
 
 void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 const std::string& username,
-                                bool is_spectator) const {
+                                bool is_spectator) {
     if (socket == nullptr) return;
 
     if (!is_spectator) {
         const auto it = sinks_.find(username);
         if (it != sinks_.end()) {
+            // INFO: a seat that missed `defs` (disconnected at start) still
+            //       gets it before its first snapshot so card bits decode.
+            EnsureDefs(broadcaster, socket, it->second);
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
                             match::view::Viewer::Player(username), it->second));
@@ -193,15 +197,72 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
         }
     }
 
-    // INFO: a spectator (or an unknown recipient) gets the omniscient
-    //       spectator view on a fresh stream; it never receives match_event
-    //       packets, so a seq-0 watermark is consistent.
+    // INFO: a bound spectator keeps its persistent stream so `defs` is only
+    //       sent once and `seq` stays monotonic across later live updates; an
+    //       unknown recipient still gets a one-off omniscient view.
+    const auto viewer = viewer_sinks_.find(username);
+    if (viewer != viewer_sinks_.end()) {
+        EnsureDefs(broadcaster, socket, viewer->second);
+        broadcaster.SendJson(socket,
+                             builder_.BuildSnapshot(match::view::Viewer::Spectator(),
+                                                    viewer->second));
+        return;
+    }
     match::view::EventSink sink;
     broadcaster.SendJson(socket, builder_.BuildSnapshot(
                                      match::view::Viewer::Spectator(), sink));
 }
 
+void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
+    if (match_start_sent_) return;
+
+    // INFO: `defs` is content-derived and identical for every recipient; the
+    //       digest doubles as the `match_start` correlation id.
+    const json defs =
+        match::view::DefsBuilder::Build(engine_->Registries(), mods_);
+    const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
+    const json start = match::view::DefsBuilder::BuildMatchStart(
+        engine_->Registries(), mods_, deck.deck_id, deck.name, deck.settings);
+
+    for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        match::view::EventSink& sink = sinks_.at(username);
+        json defs_packet = sink.Wrap("defs", defs);
+        defs_packet["action"] = "match_event";
+        broadcaster.SendJson(socket, defs_packet);
+        json start_packet = sink.Wrap("match_start", start);
+        start_packet["action"] = "match_event";
+        broadcaster.SendJson(socket, start_packet);
+    }
+    match_start_sent_ = true;
+}
+
+void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
+                              match::view::EventSink& sink) {
+    if (!match_start_sent_ || socket == nullptr) return;
+    // INFO: seq 0 means this stream has no earlier packet to stay monotonic
+    //       with; a non-zero sink already carries the `defs`/`match_start`
+    //       prefix (or later events), so re-sending would renumber.
+    if (sink.NextSeq() != 0) return;
+    json packet = sink.Wrap(
+        "defs", match::view::DefsBuilder::Build(engine_->Registries(), mods_));
+    packet["action"] = "match_event";
+    broadcaster.SendJson(socket, packet);
+}
+
 void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
+    // INFO: a seat or spectator that missed `defs` (unreachable at start, or
+    //       bound later) must receive it before the first event wrapped into
+    //       its stream; the sink guard makes this a no-op
+    //       once the stream carries a packet.
+    for (const auto& [username, socket] : sockets_) {
+        if (socket == nullptr) continue;
+        EnsureDefs(broadcaster, socket, sinks_.at(username));
+    }
+    for (const auto& [username, socket] : viewers_) {
+        if (socket == nullptr) continue;
+        EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
+    }
     const std::vector<json>& events = engine_->Events();
     for (; cursor_ < events.size(); ++cursor_) {
         for (const auto& [username, socket] : sockets_) {
@@ -302,6 +363,9 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
 void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
+        // INFO: a seat that was unreachable at start gets `defs` before its
+        //       first snapshot after reconnecting.
+        EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
             match::view::Viewer::Player(username), sinks_.at(username));
         broadcaster.SendJson(socket, snapshot);
@@ -310,6 +374,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
     //       initial join snapshot (omniscient view, own seq watermark).
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
+        EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
             match::view::Viewer::Spectator(), viewer_sinks_.at(username));
         broadcaster.SendJson(socket, snapshot);
