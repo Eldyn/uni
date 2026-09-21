@@ -62,9 +62,9 @@ public:
      *
      * Shape: `{defs_digest, mods, deck_id, deck_name, settings}`. Mods and the
      * digest are reused verbatim from `Build` so a client can correlate the
-     * two packets. `deck_id` / `deck_name` / `settings` are caller-supplied
-     * because the assembly does not retain the deck snapshot yet (see the
-     * `FIXME` in `match_instance.cpp`).
+     * two packets. `deck_id` / `deck_name` / `settings` are caller-supplied;
+     * the session reads them from the `MatchAssembly` deck snapshot retained
+     * by the assembler (`MatchAssembly::Deck()`).
      *
      * @param registries Frozen match registries.
      * @param mods       Loaded mods (for the shared kind table digest).

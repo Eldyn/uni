@@ -676,10 +676,10 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
     Emit("placement",
          json{{"player", PlayerUsername(store, player)}, {"place", place}});
 
-    // INFO: `match_end` closes the match. The settings snapshot is not
-    //       retained by the engine assembly yet (TODO: carry `deck.settings` on
-    //       the assembly), so the payload is an empty object for now.
-    json end_data = json{{"settings", json::object()}};
+    // INFO: `match_end` closes the match. The settings snapshot is the
+    //       deck settings retained at assembly (the session; was an empty
+    //       object until the assembly carried it).
+    json end_data = json{{"settings", assembly_->Deck().settings}};
     Before("match_end", end_data);
     After("match_end", end_data);
     Emit("match_end", end_data);

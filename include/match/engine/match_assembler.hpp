@@ -178,6 +178,22 @@ struct AssemblyError {
 class MatchAssembler;
 
 /**
+ * @struct MatchDeckSnapshot
+ * @brief Retained deck identity + settings for the wire `match_start`.
+ *
+ * The engine freezes only the deck's mod list and card multiset; the view layer
+ * also needs the deck id / name and the lobby settings bag to build
+ * `match_start` and to carry real settings into `match_end`. Retained
+ * additively at assembly time (this resolves the former `match_instance.cpp`
+ * TODO).
+ */
+struct MatchDeckSnapshot {
+    std::string deck_id;    /**< Full `namespace:id`, or empty. */
+    std::string name;       /**< Human-readable deck name, or empty. */
+    nlohmann::json settings = nlohmann::json::object(); /**< Settings bag. */
+};
+
+/**
  * @class MatchAssembly
  * @brief The frozen per-match state: store, bus and registries.
  *
@@ -216,6 +232,17 @@ public:
     std::vector<ModSystem> systems;
     /** @brief Log of every system invocation (assembly and later hooks). */
     std::vector<HookRun> runs;
+
+    /**
+     * @brief Deck identity + settings retained from the assembly input.
+     *
+     * Populated by `MatchAssembler::Assemble`; the view layer reads it through
+     * `Deck()` to build `match_start` and `match_end` settings.
+     */
+    MatchDeckSnapshot deck;
+
+    /** @brief Retained deck identity + settings snapshot. */
+    const MatchDeckSnapshot& Deck() const { return deck; }
 
     /** @brief Every subscribed system, in frozen dispatch order. */
     const std::vector<ModSystem>& Systems() const { return systems; }
