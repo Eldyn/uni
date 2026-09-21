@@ -1,11 +1,13 @@
 #include "match/engine/match_assembler.hpp"
 
 #include "match/content_wiring.hpp"
+#include "match/engine/mutation_compiler.hpp"
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 
 #include <algorithm>
 #include <cstddef>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -83,18 +85,56 @@ ecs::AutoTrigger ToEcsAutoTrigger(const modload::AutoTriggerDef& def) {
  * @brief Build the `card_behavior` trigger map from a card's defs.
  *
  * The resolver consumes `BehaviorGraph`, so the verbatim graph object is
- * stored; a graph with no raw object is wrapped from its node list.
+ * stored; a graph with no raw object is wrapped from its node list. When the
+ * card kind is a mutation target, each trigger graph is compiled first, so
+ * the component carries the effective graph.
  */
-ecs::CardBehavior ToEcsBehavior(const modload::CardDef& card) {
+ecs::CardBehavior ToEcsBehavior(
+    const modload::CardDef& card,
+    const std::map<std::string, std::vector<const modload::MutationDef*>>&
+        mutations_by_target,
+    const MutationCompileOptions& compile_options) {
     ecs::CardBehavior out;
+    const auto target = mutations_by_target.find(card.kind_id);
+    const bool mutated = target != mutations_by_target.end();
     for (const modload::BehaviorEntry& entry : card.behaviors) {
-        if (entry.graph.raw.is_object()) {
+        if (mutated) {
+            const modload::BehaviorGraph compiled = CompileMutations(
+                entry.graph, target->second, compile_options);
+            out.triggers[entry.hook] = compiled.raw;
+        } else if (entry.graph.raw.is_object()) {
             out.triggers[entry.hook] = entry.graph.raw;
         } else {
             out.triggers[entry.hook] = json{{"nodes", entry.graph.nodes}};
         }
     }
     return out;
+}
+
+/**
+ * @brief Insert every `add_restriction` entry id declared in `graph`.
+ *
+ * Mirrors the semantic validator's `CollectGraphDecls`: a mutation
+ * `target` that names one of these entries is not a behavior kind and must be
+ * WARN-no-opped by the compiler rather than folded
+ * into a colliding kind/rule graph. The set is the declaration set the
+ * `match_start` dispatch below installs as play restrictions.
+ */
+void CollectRestrictionEntryIds(
+    const modload::BehaviorGraph& graph,
+    std::set<std::string, std::less<>>& out) {
+    for (const json& node : graph.nodes) {
+        if (!node.is_object()) continue;
+        if (node.value("op", std::string()) != "add_restriction") continue;
+        const auto args = node.find("args");
+        if (args == node.end() || !args->is_object()) continue;
+        const auto entry = args->find("entry_def");
+        if (entry == args->end() || !entry->is_object()) continue;
+        const auto id = entry->find("id");
+        if (id != entry->end() && id->is_string()) {
+            out.insert(id->get<std::string>());
+        }
+    }
 }
 
 /** @brief Parse a `{index, generation}` entity handle from JSON. */
@@ -496,6 +536,27 @@ AssemblyResult MatchAssembler::Assemble(
         }
     }
 
+    // INFO: mutations are applied at assembly, not walk time.
+    //       Collect them per target in the frozen mod-list order (priority),
+    //       and classify restriction-entry targets so the compiler WARN-no-ops
+    //       them instead of folding them into a colliding behavior kind.
+    std::map<std::string, std::vector<const modload::MutationDef*>>
+        mutations_by_target;
+    for (const modload::LoadedMod* mod : active) {
+        for (const modload::MutationDef& mutation : mod->mutations) {
+            mutations_by_target[mutation.target].push_back(&mutation);
+        }
+    }
+    MutationCompileOptions compile_options;
+    for (const modload::LoadedMod* mod : active) {
+        for (const modload::RuleDef& rule : mod->rules) {
+            for (const modload::BehaviorEntry& entry : rule.hooks) {
+                CollectRestrictionEntryIds(entry.graph,
+                                           compile_options.restriction_targets);
+            }
+        }
+    }
+
     auto assembly = std::make_unique<MatchAssembly>();
     assembly->registries = registries;
     assembly->card_facts = card_facts;
@@ -590,7 +651,8 @@ AssemblyResult MatchAssembler::Assemble(
 
                 if (def != nullptr) {
                     store.Add(entity, ToEcsFace(def->face));
-                    store.Add(entity, ToEcsBehavior(*def));
+                    store.Add(entity, ToEcsBehavior(*def, mutations_by_target,
+                                                    compile_options));
                     if (def->window.has_value()) {
                         store.Add(entity, ToEcsWindow(*def->window));
                     }
@@ -667,6 +729,13 @@ AssemblyResult MatchAssembler::Assemble(
                 system.source_id = rule.rule_id;
                 system.where = entry.where;
                 system.graph = entry.graph;
+                if (const auto mutated = mutations_by_target.find(rule.rule_id);
+                    mutated != mutations_by_target.end()) {
+                    // INFO: compiled here so the Resolver walks the effective
+                    //       graph; `call_original` never reaches it.
+                    system.graph = CompileMutations(entry.graph, mutated->second,
+                                                    compile_options);
+                }
                 assembly->systems.push_back(std::move(system));
             }
         }
@@ -682,6 +751,13 @@ AssemblyResult MatchAssembler::Assemble(
                 system.source_id = card.kind_id;
                 system.card_kind = card.kind_id;
                 system.graph = entry.graph;
+                if (const auto mutated = mutations_by_target.find(card.kind_id);
+                    mutated != mutations_by_target.end()) {
+                    // INFO: the subscribed card behavior graph is what the bus
+                    //       walks; compile it exactly like the component above.
+                    system.graph = CompileMutations(entry.graph, mutated->second,
+                                                    compile_options);
+                }
                 assembly->systems.push_back(std::move(system));
             }
         }
