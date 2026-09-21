@@ -150,6 +150,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     });
 
     lobby_store.OnGameStarted([this](Lobby* active_lobby) {
+        // INFO: Publish the content-derived `defs` kind table and
+        //       `match_start` once, before the first engine events / snapshot
+        //       (the lobby fires this hook right after session creation).
+        if (active_lobby != nullptr && active_lobby->session) {
+            active_lobby->session->EmitMatchStart(broadcaster_);
+        }
         OnTurnStarted(active_lobby);
     });
 

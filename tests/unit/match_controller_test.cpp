@@ -315,6 +315,53 @@ TEST_CASE("OnTurnStarted: arms a turn timer as soon as a match starts") {
     CHECK(f.timers.Has("turn_1"));
 }
 
+// INFO: The controller must publish `defs` + `match_start` on the
+//       OnGameStarted hook, before its first engine-event / snapshot flush.
+TEST_CASE("OnGameStarted publishes defs and match_start before the first snapshot") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(),
+                 settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    // INFO: mimic LobbyController::HandleStartGame's post-hook flush.
+    f.store.lobby.session->EmitEvents(f.bus);
+    f.store.lobby.session->BroadcastSnapshot(f.bus);
+
+    const std::uintptr_t alice_socket =
+        reinterpret_cast<std::uintptr_t>(MatchFixture::SeatSocket(0));
+    std::vector<json> packets;
+    for (const SentFrame& frame : f.bus.sent) {
+        if (reinterpret_cast<std::uintptr_t>(frame.to) != alice_socket) continue;
+        packets.push_back(json::parse(frame.payload));
+    }
+
+    const std::size_t npos = packets.size();
+    std::size_t defs_i = npos;
+    std::size_t start_i = npos;
+    std::size_t snapshot_i = npos;
+    int defs_count = 0;
+    int start_count = 0;
+    for (std::size_t i = 0; i < packets.size(); ++i) {
+        const std::string action = packets[i].value("action", std::string());
+        if (action == "match_event") {
+            const std::string type = packets[i].value("type", std::string());
+            if (type == "defs") {
+                ++defs_count;
+                if (defs_i == npos) defs_i = i;
+            } else if (type == "match_start") {
+                ++start_count;
+                if (start_i == npos) start_i = i;
+            }
+        } else if (action == "match_state_updated" && snapshot_i == npos) {
+            snapshot_i = i;
+        }
+    }
+
+    CHECK(defs_count == 1);
+    CHECK(start_count == 1);
+    REQUIRE(snapshot_i != npos);
+    CHECK(defs_i < start_i);
+    CHECK(start_i < snapshot_i);
+}
+
 TEST_CASE("Bot-autoplay chain: firing the bot turn timer eventually reaches match end, "
           "without an infinite loop") {
     MatchFixture f;
