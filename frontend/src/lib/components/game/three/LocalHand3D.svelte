@@ -319,6 +319,15 @@
 	// PlayerSeat3D's `prevMorphUsername` / `registeredKeys` release effect.
 	let prevMorphUsername: string | null = null;
 	const morphRegisteredKeys = new Set<string>();
+	// Ids this row registered a poseProvider for on the previous run — diffed
+	// below against the current hand so a played/removed card's stale
+	// hand-slot closure gets cleared instead of staying registered forever.
+	// Without this, CardRegistry.finishBeat (which reapplies whatever
+	// provider is still registered the instant a play's flight beat ends)
+	// keeps reading this row's old slot position and snaps the just-landed
+	// card back to its hand for a frame before DiscardPile3D's own provider
+	// takes over — the reported "jitters toward discard, snaps back" bug.
+	let prevProviderIds = new Set<string>();
 
 	$effect(() => {
 		return () => {
@@ -381,6 +390,11 @@
 				displacementTweens.delete(id);
 			}
 		}
+
+		for (const id of prevProviderIds) {
+			if (!currentCardIdSet.has(id)) cardRegistry.setPoseProvider(id, null);
+		}
+		prevProviderIds = currentCardIdSet;
 
 		for (const [i, card] of orderedCards.entries()) {
 			const idString = String(card.id);
