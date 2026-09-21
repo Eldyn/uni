@@ -290,6 +290,102 @@ TEST_CASE("modloader: referenced-but-absent file is a structured error") {
     CHECK(result.errors[0].path.find("cards.json") != std::string::npos);
 }
 
+TEST_CASE("modloader: path traversal in provides_cards is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("evil", "mod.json", R"({
+      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
+      "provides_cards": "../../../../etc/passwd"
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: absolute provides_rules path is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("evil", "mod.json", R"({
+      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
+      "provides_rules": "/etc/passwd"
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: leading-dot provides_mutations is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("evil", "mod.json", R"({
+      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
+      "provides_mutations": ".hidden.json"
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: backslash in provides_cards is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("evil", "mod.json", R"({
+      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
+      "provides_cards": "..\\..\\cards.json"
+    })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: symlinked provides target escaping the folder is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("linkmod", "mod.json", R"({
+      "id": "linkmod", "name": "L", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write(".", "outside.json", "[]");
+    fs::create_symlink("../outside.json", tmp.root / "linkmod" / "cards.json");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: oversized mod.json is rejected before parsing") {
+    TempModsRoot tmp;
+    fs::path dir = tmp.root / "huge";
+    fs::create_directories(dir);
+    /* INFO: sparse file just over the loader's 16 MiB ceiling; seek then write
+     *       one byte so the logical size is 16 MiB + 1. */
+    std::ofstream out(dir / "mod.json", std::ios::binary);
+    out.seekp(16 * 1024 * 1024);
+    out << 'x';
+    out.close();
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "file.too_large"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: deeply nested JSON is rejected") {
+    TempModsRoot tmp;
+    std::string nested(200, '[');
+    nested += std::string(200, ']');
+    tmp.Write("deep", "mod.json", nested);
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "json.depth"));
+    CHECK(result.mods.empty());
+}
+
 TEST_CASE("modloader: duplicate card ids within a mod are rejected") {
     TempModsRoot tmp;
     tmp.Write("dup", "mod.json", R"({

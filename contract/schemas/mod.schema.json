@@ -34,15 +34,18 @@
     },
     "provides_cards": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
+      "description": "Bare filename of the cards artifact inside the mod folder (no path separators, no parent segments)."
     },
     "provides_rules": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
+      "description": "Bare filename of the rules artifact inside the mod folder (no path separators, no parent segments)."
     },
     "provides_mutations": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
+      "description": "Bare filename of the mutations artifact inside the mod folder (no path separators, no parent segments)."
     },
     "settings": {
       "type": "array",

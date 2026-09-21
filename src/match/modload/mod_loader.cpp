@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -22,12 +24,58 @@ namespace {
 constexpr int kLocalIdMaxLength = 32;
 constexpr const char* kModsDefaultDir = "mods/";
 
+/* INFO: resource ceilings for untrusted mod content. Both are enforced before
+ *       the data can reach the semantic validator (which runs later, on lobby
+ *       requests, and only after the whole file has already been parsed). */
+constexpr std::uintmax_t kMaxJsonFileBytes = 16ULL * 1024ULL * 1024ULL;
+constexpr int kMaxJsonDepth = 64;
+
 bool HasValidIdChars(const std::string& id) {
     if (id.empty()) return false;
     for (unsigned char c : id) {
         if (!(std::islower(c) || std::isdigit(c) || c == '_')) return false;
     }
     return true;
+}
+
+/** Thrown by the parse-depth callback to abort an over-nested document. */
+struct JsonDepthExceeded : std::exception {
+    const char* what() const noexcept override {
+        return "JSON nesting depth exceeded";
+    }
+};
+
+/** INFO: nlohmann's parser invokes this per nesting level; throwing here stops
+ *       the recursive descent before it can exhaust the stack. */
+bool DepthGuardCallback(int depth, nlohmann::json::parse_event_t,
+                        nlohmann::json&) {
+    if (depth > kMaxJsonDepth) throw JsonDepthExceeded{};
+    return true;
+}
+
+/** INFO: `provides_*` is an untrusted bare filename. Mirrors IsValidLocalId's
+ *       strictness and additionally forbids path syntax: separators, parent
+ *       segments, absolute markers and a leading dot. */
+bool IsSafeProvidesValue(const std::string& value) {
+    if (value.empty()) return false;
+    if (value.front() == '.') return false;
+    if (value.find('/') != std::string::npos) return false;
+    if (value.find('\\') != std::string::npos) return false;
+    if (value.find("..") != std::string::npos) return false;
+    if (value.find(':') != std::string::npos) return false;
+    return true;
+}
+
+/** INFO: component-wise prefix test; true when `candidate` is `root` or below
+ *       it. Both paths must already be canonical. */
+bool IsPathWithin(const fs::path& root, const fs::path& candidate) {
+    auto root_it = root.begin();
+    auto cand_it = candidate.begin();
+    for (; root_it != root.end() && cand_it != candidate.end();
+         ++root_it, ++cand_it) {
+        if (*root_it != *cand_it) return false;
+    }
+    return root_it == root.end();
 }
 
 /* INFO: loader errors are collected, never thrown, so a bad folder yields a
@@ -40,10 +88,60 @@ void AddError(std::vector<LoadError>& errors,
     errors.push_back(LoadError{check, artifact, path, message});
 }
 
+/** INFO: resolves a `provides_*` value under `canonical_root` and rejects both
+ *       lexical escapes and symlinks that point outside the mod folder. */
+bool ResolveProvidesPath(const fs::path& canonical_root,
+                         const std::string& value,
+                         const std::string& artifact,
+                         std::vector<LoadError>& errors,
+                         fs::path& out) {
+    if (!IsSafeProvidesValue(value)) {
+        AddError(errors, "provides.invalid", artifact, value,
+                 "provides_* must be a bare filename without '/', '\\', '..', "
+                 "a leading '.' or ':'");
+        return false;
+    }
+    std::error_code ec;
+    fs::path resolved = fs::weakly_canonical(canonical_root / value, ec);
+    if (ec) {
+        AddError(errors, "provides.invalid", artifact, value,
+                 "provides_* path could not be resolved");
+        return false;
+    }
+    if (!IsPathWithin(canonical_root, resolved)) {
+        AddError(errors, "provides.invalid", artifact, value,
+                 "provides_* resolves outside the mod folder");
+        return false;
+    }
+    out = std::move(resolved);
+    return true;
+}
+
 bool ReadJsonFile(const fs::path& path,
                   nlohmann::json& out,
                   std::vector<LoadError>& errors,
                   const std::string& artifact) {
+    /* INFO: reject non-regular targets (directories, FIFOs, devices) before
+     *       opening, so an attacker cannot hang the scanning thread on a
+     *       blocking read. */
+    std::error_code ec;
+    if (!fs::is_regular_file(path, ec)) {
+        AddError(errors, "file.read", artifact, path.string(),
+                 "cannot open or read file");
+        return false;
+    }
+    std::uintmax_t size = fs::file_size(path, ec);
+    if (ec) {
+        AddError(errors, "file.read", artifact, path.string(),
+                 "cannot open or read file");
+        return false;
+    }
+    if (size > kMaxJsonFileBytes) {
+        AddError(errors, "file.too_large", artifact, path.string(),
+                 "file is " + std::to_string(size) + " bytes, exceeding the "
+                     + std::to_string(kMaxJsonFileBytes) + "-byte limit");
+        return false;
+    }
     std::ifstream file(path);
     if (!file.is_open()) {
         AddError(errors, "file.read", artifact, path.string(),
@@ -51,7 +149,12 @@ bool ReadJsonFile(const fs::path& path,
         return false;
     }
     try {
-        out = nlohmann::json::parse(file);
+        out = nlohmann::json::parse(file, DepthGuardCallback);
+    } catch (const JsonDepthExceeded&) {
+        AddError(errors, "json.depth", artifact, path.string(),
+                 "JSON nesting exceeds " + std::to_string(kMaxJsonDepth)
+                     + " levels");
+        return false;
     } catch (const nlohmann::json::parse_error& e) {
         AddError(errors, "json.parse", artifact, path.string(),
                  std::string("malformed JSON: ") + e.what());
@@ -748,10 +851,19 @@ bool ParseModFolder(const std::string& folder_path,
     loaded.path = folder_path;
     loaded.manifest = std::move(manifest);
 
+    /* INFO: canonical mod root; every `provides_*` target must resolve inside
+     *       it, so a symlink cannot smuggle a path out of the folder. */
+    std::error_code root_ec;
+    fs::path canonical_root = fs::weakly_canonical(root, root_ec);
+    if (root_ec) canonical_root = root;
+
     bool ok = true;
     if (loaded.manifest.provides_cards) {
-        fs::path cards_path = root / *loaded.manifest.provides_cards;
-        if (!fs::exists(cards_path)) {
+        fs::path cards_path;
+        if (!ResolveProvidesPath(canonical_root, *loaded.manifest.provides_cards,
+                                 "cards", errors, cards_path)) {
+            ok = false;
+        } else if (!fs::exists(cards_path)) {
             AddError(errors, "provides.missing", "cards", cards_path.string(),
                      "manifest declares provides_cards but the file is absent");
             ok = false;
@@ -761,8 +873,11 @@ bool ParseModFolder(const std::string& folder_path,
         }
     }
     if (loaded.manifest.provides_rules) {
-        fs::path rules_path = root / *loaded.manifest.provides_rules;
-        if (!fs::exists(rules_path)) {
+        fs::path rules_path;
+        if (!ResolveProvidesPath(canonical_root, *loaded.manifest.provides_rules,
+                                 "rules", errors, rules_path)) {
+            ok = false;
+        } else if (!fs::exists(rules_path)) {
             AddError(errors, "provides.missing", "rules", rules_path.string(),
                      "manifest declares provides_rules but the file is absent");
             ok = false;
@@ -772,8 +887,12 @@ bool ParseModFolder(const std::string& folder_path,
         }
     }
     if (loaded.manifest.provides_mutations) {
-        fs::path mut_path = root / *loaded.manifest.provides_mutations;
-        if (!fs::exists(mut_path)) {
+        fs::path mut_path;
+        if (!ResolveProvidesPath(canonical_root,
+                                 *loaded.manifest.provides_mutations,
+                                 "mutations", errors, mut_path)) {
+            ok = false;
+        } else if (!fs::exists(mut_path)) {
             AddError(errors, "provides.missing", "mutations", mut_path.string(),
                      "manifest declares provides_mutations but the file is absent");
             ok = false;
