@@ -591,12 +591,38 @@ private:
     /**
      * @brief Run every elapsed scheduled subgraph as a fresh Resolver chain.
      *
-     * Rebuilds the `SelectorContext` from the envelope, resolves from
-     * `resume_node` with a fresh frame and no reused budget, then feeds the
-     * result through `AppendResult` so a further pause parks correctly. A
-     * `system_index` out of range logs a WARN and drops the entry.
+     * When a pause is already parked (`Paused()`) the envelopes are queued in
+     * `deferred_scheduled_` instead and run once that pause resolves, so an
+     * elapsed schedule is never dropped (mirrors `deferred_windows_`).
+     * Otherwise it drains them via `RunScheduled`.
      */
     void ExecuteScheduled(const std::vector<nlohmann::json>& envelopes);
+
+    /**
+     * @brief Run a batch of elapsed envelopes in arm order.
+     *
+     * Stops and defers the remaining envelopes if one parks a pause, and
+     * drains any forced `play_card` effects the subgraphs queued once the
+     * batch completes. Callers must have checked `Paused()` first.
+     */
+    void RunScheduled(const std::vector<nlohmann::json>& envelopes);
+
+    /**
+     * @brief Run one elapsed envelope: rebuild context, resolve, append.
+     *
+     * A `system_index` out of range logs a WARN and drops the entry; the
+     * resolved result feeds the shared `AppendResult` pause path and its
+     * effects are queued exactly like `CollectRuns` does.
+     */
+    void RunScheduledEnvelope(const nlohmann::json& envelope);
+
+    /**
+     * @brief Run any elapsed schedules deferred behind a now-resolved pause.
+     *
+     * No-op while a pause is still parked. Moves the queue out before running
+     * so a nested resolve cannot re-enter it.
+     */
+    void DrainDeferredScheduled();
 
     /** @brief Current time from the clock the timers were built with. */
     int64_t Now() const;
@@ -635,6 +661,8 @@ private:
     std::optional<InputPause> pending_input_;
     std::optional<WindowPause> pending_window_;
     std::vector<WindowPause> deferred_windows_;  /**< queued. */
+    /** Elapsed schedules parked behind a pause. */
+    std::vector<nlohmann::json> deferred_scheduled_;
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
     match::Scheduler scheduler_;      /**< deferred-graph arm/expiry. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */

@@ -209,7 +209,6 @@ if(UNI_BUILD_TESTS)
     file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/unit/*.cpp")
     add_executable(uni_tests
         ${TEST_SOURCES}
-        tests/unit/engine_schedule_test.cpp
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp

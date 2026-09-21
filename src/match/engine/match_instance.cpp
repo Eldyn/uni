@@ -1630,6 +1630,10 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
     if (Paused()) return;
     if (OpenDeferredWindow(settle_play, actor)) return;
     if (settle_play) SettleAfterPlay(actor);
+
+    // INFO: the parked pause is resolved by now; run any elapsed schedule that
+    //       was deferred behind it so it is never lost.
+    if (!Paused()) DrainDeferredScheduled();
 }
 
 bool MatchInstance::OpenDeferredWindow(bool settle_play, ecs::Entity actor) {
@@ -1685,45 +1689,83 @@ void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
 
 void MatchInstance::ExecuteScheduled(
     const std::vector<nlohmann::json>& envelopes) {
-    if (assembly_ == nullptr) return;
+    if (assembly_ == nullptr || envelopes.empty()) return;
 
-    for (const json& envelope : envelopes) {
-        if (!envelope.is_object()) continue;
-        const std::size_t system_index =
-            envelope.value("system_index", std::size_t{0});
-        if (system_index >= assembly_->systems.size()) {
-            Logger::Warn("[MatchInstance] scheduled graph for unknown system ",
-                         system_index, "; dropped");
-            continue;
-        }
-        const ModSystem& system = assembly_->systems[system_index];
-        const std::string mod_id = envelope.value("mod_id", system.mod_id);
-        const std::string resume_node =
-            envelope.value("resume_node", std::string());
-
-        std::vector<std::string> pending;
-        if (const auto it = envelope.find("pending");
-            it != envelope.end() && it->is_array()) {
-            pending = it->get<std::vector<std::string>>();
-        }
-
-        resolver::SelectorContext context;
-        context.self = EnvelopeEntity(envelope, "self");
-        context.target = EnvelopeEntity(envelope, "target");
-        context.responder = EnvelopeEntity(envelope, "responder");
-        context.card = EnvelopeEntity(envelope, "card");
-        context.in_window = envelope.value("in_window", false);
-        context.in_card_context = envelope.value("in_card_context", false);
-
-        // INFO: a schedule resumes as a FRESH chain (ResumeToken doc), so no
-        //       chain budget is reused; the result feeds the same pause path.
-        ops::ResolutionFrame frame;
-        const resolver::ResolveResult result = assembly_->resolver->Resolve(
-            system.graph, mod_id, context, frame, resume_node,
-            /*must_apply=*/false, pending);
-        AppendResult(result, system_index, mod_id, context, frame,
-                     /*settle_play=*/false, ecs::Entity{});
+    // INFO: an elapsed schedule must never be dropped. If a pause is already
+    //       parked, queue the envelopes and run them once it resolves
+    //       (mirrors `deferred_windows_`); otherwise run them now.
+    if (Paused()) {
+        deferred_scheduled_.insert(deferred_scheduled_.end(),
+                                   envelopes.begin(), envelopes.end());
+        return;
     }
+    RunScheduled(envelopes);
+}
+
+void MatchInstance::RunScheduled(
+    const std::vector<nlohmann::json>& envelopes) {
+    for (std::size_t i = 0; i < envelopes.size(); ++i) {
+        if (Paused()) {
+            // INFO: a parked pause owns the flow; keep the remaining
+            //       envelopes in arm order and run them after it resolves.
+            deferred_scheduled_.insert(deferred_scheduled_.end(),
+                                       envelopes.begin() + i, envelopes.end());
+            return;
+        }
+        RunScheduledEnvelope(envelopes[i]);
+    }
+    // INFO: A scheduled subgraph may emit `play_card`; run the queue
+    //       from a flow-safe point, exactly like the `after:draw` driver.
+    if (!Paused()) ExecuteForcedPlays();
+}
+
+void MatchInstance::RunScheduledEnvelope(const nlohmann::json& envelope) {
+    if (!envelope.is_object()) return;
+    const std::size_t system_index =
+        envelope.value("system_index", std::size_t{0});
+    if (system_index >= assembly_->systems.size()) {
+        Logger::Warn("[MatchInstance] scheduled graph for unknown system ",
+                     system_index, "; dropped");
+        return;
+    }
+    const ModSystem& system = assembly_->systems[system_index];
+    const std::string mod_id = envelope.value("mod_id", system.mod_id);
+    const std::string resume_node =
+        envelope.value("resume_node", std::string());
+
+    std::vector<std::string> pending;
+    if (const auto it = envelope.find("pending");
+        it != envelope.end() && it->is_array()) {
+        pending = it->get<std::vector<std::string>>();
+    }
+
+    resolver::SelectorContext context;
+    context.self = EnvelopeEntity(envelope, "self");
+    context.target = EnvelopeEntity(envelope, "target");
+    context.responder = EnvelopeEntity(envelope, "responder");
+    context.card = EnvelopeEntity(envelope, "card");
+    context.in_window = envelope.value("in_window", false);
+    context.in_card_context = envelope.value("in_card_context", false);
+
+    // INFO: a schedule resumes as a FRESH chain (ResumeToken doc), so no
+    //       chain budget is reused; the result feeds the same pause path.
+    ops::ResolutionFrame frame;
+    const resolver::ResolveResult result = assembly_->resolver->Resolve(
+        system.graph, mod_id, context, frame, resume_node,
+        /*must_apply=*/false, pending);
+    AppendResult(result, system_index, mod_id, context, frame,
+                 /*settle_play=*/false, ecs::Entity{});
+
+    // INFO: `AppendResult`/`AppendEvents` only carry `result.events`; queue
+    //       the effects here so a scheduled `play_card` is not lost.
+    QueueForcedPlays(result.effects);
+}
+
+void MatchInstance::DrainDeferredScheduled() {
+    if (Paused() || deferred_scheduled_.empty()) return;
+    std::vector<nlohmann::json> queued = std::move(deferred_scheduled_);
+    deferred_scheduled_.clear();
+    RunScheduled(queued);
 }
 
 int64_t MatchInstance::Now() const { return timers_.Turn().Now(); }

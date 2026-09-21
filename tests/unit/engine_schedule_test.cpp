@@ -187,6 +187,75 @@ bool HasSignal(const MatchInstance& engine, const std::string& name) {
     return CountSignals(engine, name) > 0;
 }
 
+/** @brief True when `type` carries a payload referencing `card`. */
+bool HasCardEvent(const MatchInstance& engine, const std::string& type,
+                  ecs::Entity card) {
+    for (const json& event : engine.Events()) {
+        if (event.value("type", std::string()) != type) continue;
+        if (!event.contains("payload") || !event["payload"].is_object()) {
+            continue;
+        }
+        const json& payload = event["payload"];
+        if (payload.contains("card") && payload["card"].is_object()
+            && payload["card"].value("index", 0u) == card.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+ecs::PileContents* Pile(MatchInstance& engine, ecs::PileKind kind) {
+    for (ecs::Entity entity :
+         engine.Store().EntitiesWith<ecs::PileContents>()) {
+        ecs::PileContents* contents =
+            engine.Store().Get<ecs::PileContents>(entity);
+        if (contents != nullptr && contents->kind == kind) return contents;
+    }
+    return nullptr;
+}
+
+/** @brief Move a numeric, non-wild card to the top of the draw pile. */
+std::optional<ecs::Entity> NumericTopCard(MatchInstance& engine) {
+    ecs::PileContents* draw = Pile(engine, ecs::PileKind::kDraw);
+    if (draw == nullptr) return std::nullopt;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const ecs::FaceSpec* face =
+            engine.Store().Get<ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color == "white") continue;
+        if (face->label.size() != 1) continue;
+        if (!std::isdigit(static_cast<unsigned char>(face->label[0]))) {
+            continue;
+        }
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (ecs::InZone* in =
+                    engine.Store().Get<ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        return draw->cards.back();
+    }
+    return std::nullopt;
+}
+
+void SetActiveType(MatchInstance& engine, const std::string& type) {
+    ecs::ActiveTypeReq* req = engine.Store().Get<ecs::ActiveTypeReq>(
+        engine.Registries().match);
+    REQUIRE(req != nullptr);
+    req->type = type;
+}
+
+/** @brief Force the turn owner (test setup; bypasses `advance_turn`). */
+void SetCurrentPlayer(MatchInstance& engine, const std::string& username) {
+    for (ecs::Entity player : engine.Registries().players) {
+        ecs::TurnState* turn = engine.Store().Get<ecs::TurnState>(player);
+        if (turn == nullptr) continue;
+        const ecs::PlayerInfo* info =
+            engine.Store().Get<ecs::PlayerInfo>(player);
+        turn->is_current = info != nullptr && info->username == username;
+    }
+}
+
 /**
  * @brief Attach a synthetic mod system to the live bus (test setup).
  *
@@ -223,6 +292,33 @@ BehaviorGraph ScheduleGraph(const json& duration, const std::string& signal) {
          json{{"id", "n2"},
               {"op", "emit_signal"},
               {"args", json{{"name", signal}}}}});
+    graph.raw = json{{"nodes", graph.nodes}};
+    return graph;
+}
+
+/** @brief Graph: a bare `prompt` op that parks on `kNeedsInput`. */
+BehaviorGraph PromptGraph() {
+    BehaviorGraph graph;
+    graph.nodes = json::array(
+        {json{{"id", "n1"},
+              {"op", "prompt"},
+              {"args", json{{"kind", "test_choice"},
+                            {"target", "@current_player"}}}}});
+    graph.raw = json{{"nodes", graph.nodes}};
+    return graph;
+}
+
+/** @brief Graph: `schedule` node `n1`, then `play_card @card @self` at `n2`. */
+BehaviorGraph SchedulePlayCardGraph(const json& duration) {
+    BehaviorGraph graph;
+    graph.nodes = json::array(
+        {json{{"id", "n1"},
+              {"schedule", true},
+              {"next", "n2"},
+              {"duration", duration}},
+         json{{"id", "n2"},
+              {"op", "play_card"},
+              {"args", json{{"card", "@card"}, {"player", "@self"}}}}});
     graph.raw = json{{"nodes", graph.nodes}};
     return graph;
 }
@@ -354,4 +450,71 @@ TEST_CASE("engine schedule: a malformed duration is not armed") {
     engine->Tick();
     CHECK_FALSE(HasSignal(*engine, "bad:done"));
     CHECK_FALSE(engine->PendingInput().has_value());
+}
+
+TEST_CASE("engine schedule: an elapsed schedule is not lost behind a pause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    AttachSystem(*engine, ecs::HookId{"play", ecs::HookPhase::kAfter},
+                 "test:schedule-deferred",
+                 ScheduleGraph(json{{"unit", "ms"}, {"value", 1000}},
+                               "deferred:done"));
+    AttachSystem(*engine, ecs::HookId{"play", ecs::HookPhase::kAfter},
+                 "test:prompt", PromptGraph());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+
+    // The play parked a prompt and armed the ms schedule.
+    REQUIRE(engine->PendingInput().has_value());
+    CHECK_FALSE(HasSignal(*engine, "deferred:done"));
+
+    // The schedule elapses, but must wait behind the parked prompt.
+    clock.now = 2000;
+    engine->Tick();
+    CHECK_FALSE(HasSignal(*engine, "deferred:done"));
+
+    // Resolving the prompt runs the deferred schedule, not drops it.
+    REQUIRE(engine->SubmitInput("player0", json{{"choice", 1}}));
+    CHECK_FALSE(engine->PendingInput().has_value());
+    CHECK(CountSignals(*engine, "deferred:done") == 1);
+}
+
+TEST_CASE("engine schedule: a scheduled graph force-plays its play_card") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, 2, 5, 7, FixedWindow(1000), clock.Fn());
+    AttachSystem(*engine, ecs::HookId{"draw", ecs::HookPhase::kAfter},
+                 "test:schedule-play",
+                 SchedulePlayCardGraph(json{{"unit", "ms"}, {"value", 1000}}));
+
+    const std::optional<ecs::Entity> drawn = NumericTopCard(*engine);
+    REQUIRE(drawn.has_value());
+    const ecs::FaceSpec* face = engine->Store().Get<ecs::FaceSpec>(*drawn);
+    REQUIRE(face != nullptr);
+    SetActiveType(*engine, face->color);
+
+    REQUIRE(engine->DrawCard("player0"));
+    // The schedule is armed but not yet elapsed: no forced play.
+    CHECK_FALSE(HasCardEvent(*engine, "card_played", *drawn));
+
+    // INFO: the draw advanced the turn; the deferred play targets the drawer,
+    //       so restore the turn to make the forced play legal (test setup).
+    SetCurrentPlayer(*engine, "player0");
+    clock.now = 2000;
+    engine->Tick();
+
+    // The elapsed subgraph's `play_card` effect ran the normal play pipeline.
+    CHECK(HasCardEvent(*engine, "card_played", *drawn));
+    const ecs::InZone* zone = engine->Store().Get<ecs::InZone>(*drawn);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == ecs::ZoneKind::kDiscardPile);
 }
