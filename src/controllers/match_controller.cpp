@@ -221,6 +221,7 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    ScheduleWindowTick(active_lobby);
 }
 
 /**
@@ -259,6 +260,7 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    ScheduleWindowTick(active_lobby);
 }
 
 /**
@@ -305,6 +307,7 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    ScheduleWindowTick(active_lobby);
 }
 
 /**
@@ -364,6 +367,7 @@ void MatchController::HandleWindowResponse(WsContext context, const json& messag
     BroadcastMatchState(active_lobby);
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    ScheduleWindowTick(active_lobby);
 }
 
 /**
@@ -488,6 +492,7 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         OnTurnStarted(verified_lobby);
         BroadcastMatchState(verified_lobby);
     });
+    ScheduleWindowTick(active_lobby);
 }
 
 /**
@@ -508,4 +513,44 @@ void MatchController::SetTurnTimer(uint32_t lobby_id, int timeout_ms,
  */
 void MatchController::ClearTurnTimer(uint32_t lobby_id) {
     timer_service_.Cancel("turn_" + std::to_string(lobby_id));
+}
+
+/**
+ * @brief Arms (or cancels) the response-window timeout tick.
+ * @param lobby Target lobby whose open window should be watched.
+ */
+void MatchController::ScheduleWindowTick(Lobby* lobby) {
+    if (lobby == nullptr) return;
+
+    const std::string key = "window_" + std::to_string(lobby->id);
+    if (!lobby->session || !lobby->session->Engine().WindowOpen()) {
+        timer_service_.Cancel(key);
+        return;
+    }
+
+    // INFO: the engine window deadline is absolute epoch ms on the engine's own
+    //       clock (seam); derive the remaining lifetime from that same clock
+    //       so an injected test clock stays consistent.
+    match::server::MatchSession& session = *lobby->session;
+
+    const int64_t upper     = std::max<int64_t>(
+        100, static_cast<int64_t>(lobby->settings.turn_time_limit_ms));
+    const int64_t now       = session.Engine().Timers().Turn().Now();
+    const int64_t deadline  =
+        session.Engine().ExportWindow().value("deadline_ms", int64_t{0});
+    const int64_t remaining =
+        std::clamp<int64_t>(deadline > 0 ? deadline - now : 0, 100, upper);
+
+    const uint32_t id = lobby->id;
+    timer_service_.Schedule(key, static_cast<int>(remaining), false,
+                            [this, id]() {
+        Lobby* current = lobby_store_.GetLobbyById(id);
+        if (current == nullptr || !current->session) return;
+        if (current->session->Engine().IsMatchOver()) return;
+        current->session->Tick();
+        current->session->EmitEvents(broadcaster_);
+        BroadcastMatchState(current);
+        // INFO: reschedule while the window is still open; otherwise cancels.
+        ScheduleWindowTick(current);
+    });
 }

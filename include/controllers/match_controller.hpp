@@ -119,4 +119,16 @@ private:
      * @param lobby_id ID of the lobby whose timer to cancel.
      */
     void ClearTurnTimer(uint32_t lobby_id);
+
+    /**
+     * @brief (Re)arm the window-timeout tick for `lobby`, or cancel it.
+     *
+     * When a response window is open, schedules a one-shot timer at its
+     * remaining lifetime (clamped to `[100, settings.turn_time_limit_ms]`) that
+     * calls `Tick` and re-evaluates; otherwise cancels any pending tick. This
+     * is what closes an open window at its own deadline while no player input
+     * arrives.
+     * @param lobby Target lobby whose session window should be watched.
+     */
+    void ScheduleWindowTick(Lobby* lobby);
 };

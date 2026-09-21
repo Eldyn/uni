@@ -850,8 +850,9 @@ TEST_CASE("match_window_response: neither pass nor card_id is an invalid payload
 }
 
 // ---------------------------------------------------------------------------
-// Final-review fix wave: the engine turn deadline is armed into the
-// snapshot on every turn start.
+// Final-review fix wave (C1/C2): the engine turn deadline is armed into the
+// snapshot on every turn start, and an open response window arms its own
+// controller timeout tick so it closes at its deadline without player input.
 // ---------------------------------------------------------------------------
 TEST_SUITE("MatchController::TurnDeadline") {
 TEST_CASE("OnTurnStartedSession arms the current player's engine turn deadline") {
@@ -883,4 +884,87 @@ TEST_CASE("OnTurnStartedSession arms the current player's engine turn deadline")
 }
 }
 
+TEST_SUITE("MatchController::WindowTick") {
+TEST_CASE("ScheduleWindowTick arms a timeout while a window is open") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+
+    engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
+    const std::vector<match::ecs::Entity> red2 =
+        CardsByKind(engine, "vanilla:red_draw2");
+    REQUIRE(red2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+
+    PerSocketData sd;
+    sd.username = current;
+    sd.lobby_id = f.store.lobby.id;
+    WsContext ctx{f.store.lobby.FindMember(current)->socket, &sd, uWS::OpCode::TEXT};
+    REQUIRE(f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}}));
+    REQUIRE(engine.WindowOpen());
+
+    // INFO: C1 - the open window must have its own armed timeout, clamped to
+    //       [100, turn_time_limit_ms].
+    CHECK(f.timers.Has("window_1"));
+    REQUIRE(f.timers.last_timeout_ms.count("window_1") == 1);
+    CHECK(f.timers.last_timeout_ms["window_1"] >= 100);
+    CHECK(f.timers.last_timeout_ms["window_1"] <= settings.turn_time_limit_ms);
+}
+
+TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+
+    engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
+    const std::vector<match::ecs::Entity> red2 =
+        CardsByKind(engine, "vanilla:red_draw2");
+    REQUIRE(red2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+
+    std::map<std::string, PerSocketData> data;
+    auto context_for = [&](const std::string& username) {
+        PerSocketData& sd = data[username];
+        sd.username = username;
+        sd.lobby_id = f.store.lobby.id;
+        return WsContext{f.store.lobby.FindMember(username)->socket, &sd,
+                         uWS::OpCode::TEXT};
+    };
+
+    REQUIRE(f.router.Dispatch(context_for(current), json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}}));
+    REQUIRE(engine.WindowOpen());
+    REQUIRE(f.timers.Has("window_1"));
+
+    std::vector<std::string> responders;
+    for (const json& name : engine.ExportWindow()["responders"]) {
+        const std::string candidate = name.get<std::string>();
+        if (candidate != current) responders.push_back(candidate);
+    }
+    REQUIRE(responders.size() == 2);
+
+    for (const std::string& responder : responders) {
+        REQUIRE(f.router.Dispatch(
+            context_for(responder),
+            json{{"action", ws::ClientAction::kMatchWindowResponse},
+                 {"pass", true}}));
+    }
+
+    CHECK_FALSE(engine.WindowOpen());
+    CHECK_FALSE(f.timers.Has("window_1"));
+}
+}
 
