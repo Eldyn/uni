@@ -833,6 +833,11 @@ components:
           type: array
           items:
             type: string
+        deck_id:
+          type: string
+          description: >-
+            Deck catalog id (namespace:id or bare id); empty string clears to
+            freestyle.
 
     ChatSendPayload:
       type: object
