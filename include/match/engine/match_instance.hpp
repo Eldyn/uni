@@ -376,6 +376,16 @@ private:
     std::optional<ecs::Entity> CurrentPlayer() const;
 
     /**
+     * @brief True when `bits` is one of the parked prompt's offered options.
+     *
+     * S-4: `choose_card` answers are restricted to the revealed subset the
+     * prompt advertised (`pending_input_->payload["options"]`), not the whole
+     * frozen index map, so a player cannot name an unoffered card. False when
+     * no prompt is parked or the payload carries no option array.
+     */
+    bool OfferedChoice(int64_t bits) const;
+
+    /**
      * @brief Advance the turn through the `advance_turn` op body.
      *
      * Wrapped in the `turn_end` (before-veto = extra turn) and

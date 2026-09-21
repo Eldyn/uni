@@ -1,6 +1,7 @@
 #pragma once
 
 #include <match/modload/artifacts.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
 
@@ -13,9 +14,10 @@
  *
  * The op layer review found `RegisterDefaultConditions` and
  * `BindTurnsElapsed` had no production caller, and the review found the
- * content-static `CardTagTable` was never populated. The engine owns the full
- * match wiring; this header is the small, explicit seam it (and tests) call so
- * the conditions are installed and card tags are loaded from content.
+ * `CardTagTable` was never populated. The engine owns the full match wiring;
+ * this header is the small, explicit seam it (and tests) call so the
+ * conditions are installed and card tags are loaded into the per-match
+ * registries.
  */
 
 namespace match::wiring {
@@ -37,13 +39,16 @@ void InstallDefaultConditions(resolver::ConditionRegistry& registry);
 void BindTurnsElapsed(ops::ResolutionFrame& frame, int64_t turns);
 
 /**
- * @brief Populate the content-static `CardTagTable` from loaded card defs.
+ * @brief Build `kind_id -> tags` for loaded card defs into `out`.
  *
- * Replaces any previous table with `kind_id -> tags` for every loaded card
- * so `has_card_tag` works at runtime. Called once at content
+ * Replaces `out` with an entry for every loaded card, so
+ * `has_card_tag` works at runtime. the table is written to the
+ * caller-owned per-match `MatchRegistries::card_tags`, never a process global,
+ * so concurrent matches cannot clobber each other. Called once at content
  * load, before resolution starts.
  */
-void LoadCardTags(const std::vector<modload::CardDef>& cards);
+void LoadCardTags(const std::vector<modload::CardDef>& cards,
+                  ops::CardTagTable& out);
 
 /**
  * @brief Install the default conditions and load card tags in one call.
@@ -52,6 +57,7 @@ void LoadCardTags(const std::vector<modload::CardDef>& cards);
  * `InstallDefaultConditions` and `LoadCardTags` in sequence.
  */
 void WireContent(resolver::ConditionRegistry& registry,
-                 const std::vector<modload::CardDef>& cards);
+                 const std::vector<modload::CardDef>& cards,
+                 ops::CardTagTable& out_tags);
 
 }  // namespace match::wiring

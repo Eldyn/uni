@@ -386,6 +386,13 @@ bool MatchInstance::SubmitInput(const std::string& username,
     //       BEFORE extracting the pause so a malformed answer leaves the parked
     //       prompt untouched and still answerable with a valid integer; an
     //       overridden prompt schema can never soft-lock the chooser.
+
+    //       S-4: the answer must ALSO be one of the bits the prompt offered.
+    //       Mapping against the whole frozen index map is not enough - a player
+    //       could name an opponent's card, a discard card or a face-down card
+    //       and have the consuming mod graph move/destroy/reveal it, defeating
+    //       the revealed-subset/visibility model. The offered set is parked in
+    //       the prompt payload's `options`.
     std::optional<ecs::Entity> prompt_card;
     if (pending_input_->kind == "choose_card") {
         if (!value.is_number_integer()) return false;
@@ -395,6 +402,7 @@ bool MatchInstance::SubmitInput(const std::string& username,
         id.bits = static_cast<uint32_t>(raw);
         prompt_card = assembly_->registries.CardEntity(id);
         if (!prompt_card.has_value()) return false;
+        if (!OfferedChoice(raw)) return false;
     }
 
     InputPause pending = std::move(*pending_input_);
@@ -1043,7 +1051,10 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity target) {
     if (!store.IsAlive(card) || !store.IsAlive(target)) return;
 
     const std::string kind = ops::CardKindId(store, card);
-    if (kind.empty() || !ops::CardHasTag(kind, "draw_penalty")) return;
+    if (kind.empty()
+        || !ops::CardHasTag(&assembly_->registries, kind, "draw_penalty")) {
+        return;
+    }
 
     const int32_t magnitude = DrawPenaltyMagnitude(card);
     if (magnitude <= 0) return;
@@ -1524,6 +1535,7 @@ bool MatchInstance::AutoConditionMatches(ecs::Entity card) {
     ops::ResolutionFrame frame;
     BindConditionSelectors(context, frame);
     ops::OpContext ctx(assembly_->bus, assembly_->budget, frame);
+    ctx.registries = &assembly_->registries;
     return assembly_->conditions.Evaluate(store, trigger->condition, ctx);
 }
 
@@ -2032,6 +2044,20 @@ json MatchInstance::ExportState() const {
     }
     out["players"] = std::move(players);
     return out;
+}
+
+bool MatchInstance::OfferedChoice(int64_t bits) const {
+    if (!pending_input_.has_value()) return false;
+    const json& payload = pending_input_->payload;
+    if (!payload.is_object()) return false;
+    const auto it = payload.find("options");
+    if (it == payload.end() || !it->is_array()) return false;
+    for (const json& option : *it) {
+        if (option.is_number_integer() && option.get<int64_t>() == bits) {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::optional<nlohmann::json> MatchInstance::PendingInput() const {

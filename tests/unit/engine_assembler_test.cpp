@@ -106,6 +106,39 @@ std::size_t PileSize(const MatchAssembly& assembly, ecs::PileKind kind) {
     return 0;
 }
 
+ModManifest SynthManifest(const std::string& id) {
+    ModManifest manifest;
+    manifest.id = id;
+    manifest.name = id;
+    manifest.version = "1.0.0";
+    manifest.api = "1";
+    return manifest;
+}
+
+CardDef SynthCard(const std::string& ns, std::vector<std::string> tags) {
+    CardDef card;
+    card.id = "card";
+    card.namespace_id = ns;
+    card.kind_id = ns + ":card";
+    card.title = ns;
+    card.face.kind = match::modload::FaceKind::kText;
+    card.face.color = std::string("red");
+    card.face.label = ns;
+    card.tags = std::move(tags);
+    return card;
+}
+
+DeckDef SynthDeck(const std::string& mod_id) {
+    DeckDef deck;
+    deck.id = mod_id;
+    deck.namespace_id = mod_id;
+    deck.deck_id = mod_id + ":deck";
+    deck.name = mod_id;
+    deck.mods = {mod_id};
+    deck.cards = {{mod_id + ":card", 10}};
+    return deck;
+}
+
 }  // namespace
 
 TEST_CASE("engine assembler: classic deck builds entities and hands") {
@@ -272,10 +305,43 @@ TEST_CASE("engine assembler: installs vanilla restriction entries") {
         nlohmann::json{{"plays_out_of_turn", nlohmann::json::object()}},
         out_of_turn));
 
-    CHECK(match::ops::CardHasTag("vanilla:red_5", "red"));
-    CHECK(match::ops::CardHasTag("vanilla:wild_draw4", "stackable"));
-    CHECK_FALSE(match::ops::CardHasTag("vanilla:red_5", "stackable"));
-    match::ops::ClearCardTags();
+    // INFO: The tag table is per-assembly, read through the
+    //       assembly's own registries, not a process-global static.
+    CHECK(match::ops::CardHasTag(&result.assembly->registries, "vanilla:red_5",
+                                 "red"));
+    CHECK(match::ops::CardHasTag(&result.assembly->registries,
+                                 "vanilla:wild_draw4", "stackable"));
+    CHECK_FALSE(match::ops::CardHasTag(&result.assembly->registries,
+                                       "vanilla:red_5", "stackable"));
+}
+
+TEST_CASE("engine assembler: per-match card tags are isolated") {
+    // INFO: Regression - assembling a second match used to REPLACE a
+    //       process-global tag table, changing the first match's `has_card_tag`
+    //       / `draw_penalty` / `tag:` results. With the table on each match's
+    //       registries the two assemblies stay isolated.
+    LoadedMod mod_a;
+    mod_a.manifest = SynthManifest("mod_a");
+    mod_a.cards.push_back(SynthCard("mod_a", {"alpha"}));
+    LoadedMod mod_b;
+    mod_b.manifest = SynthManifest("mod_b");
+    mod_b.cards.push_back(SynthCard("mod_b", {"beta"}));
+
+    AssemblyResult a = MatchAssembler::Assemble({mod_a}, SynthDeck("mod_a"),
+                                                Players(2, 3, 1));
+    REQUIRE_MESSAGE(a.ok(), AssemblyMessage(a));
+    AssemblyResult b = MatchAssembler::Assemble({mod_b}, SynthDeck("mod_b"),
+                                                Players(2, 3, 2));
+    REQUIRE_MESSAGE(b.ok(), AssemblyMessage(b));
+
+    CHECK(match::ops::CardHasTag(&a.assembly->registries, "mod_a:card",
+                                 "alpha"));
+    CHECK_FALSE(match::ops::CardHasTag(&a.assembly->registries, "mod_b:card",
+                                       "beta"));
+    CHECK(match::ops::CardHasTag(&b.assembly->registries, "mod_b:card",
+                                 "beta"));
+    CHECK_FALSE(match::ops::CardHasTag(&b.assembly->registries, "mod_a:card",
+                                       "alpha"));
 }
 
 TEST_CASE("engine assembler: all active mods subscribe restrictions") {

@@ -1,5 +1,6 @@
 #include <match/ops/op_helpers.hpp>
 
+#include <match/engine/match_assembler.hpp>
 #include <match/rng.hpp>
 
 #include <algorithm>
@@ -14,12 +15,6 @@
 
 namespace match::ops {
 namespace {
-
-/** @brief Process-wide card tag table (content-static, see header). */
-CardTagTable& CardTagsMutable() {
-    static CardTagTable kTable;
-    return kTable;
-}
 
 /** @brief Erase `card` from `hand.cards`. */
 void EraseCard(std::vector<ecs::Entity>& cards, ecs::Entity card) {
@@ -306,20 +301,13 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame) {
     return value->get<int64_t>();
 }
 
-void SetCardTagTable(CardTagTable table) {
-    // INFO: content is frozen before play; a reload replaces the whole table.
-    CardTagsMutable() = std::move(table);
-}
-
-void RegisterCardTags(std::string_view kind_id,
-                      std::vector<std::string> tags) {
-    CardTagsMutable()[std::string(kind_id)] = std::move(tags);
-}
-
-void ClearCardTags() { CardTagsMutable().clear(); }
-
-bool CardHasTag(std::string_view kind_id, std::string_view tag) {
-    const CardTagTable& table = CardTagsMutable();
+bool CardHasTag(const engine::MatchRegistries* registries,
+                std::string_view kind_id, std::string_view tag) {
+    // INFO: The table is per-match (`MatchRegistries::card_tags`),
+    //       never a process global, so a concurrent match cannot change this
+    //       result. A null handle means no assembled match (bare-op tests).
+    if (registries == nullptr) return false;
+    const CardTagTable& table = registries->card_tags;
     auto it = table.find(std::string(kind_id));
     if (it == table.end()) return false;
     for (const std::string& declared : it->second) {
@@ -327,7 +315,5 @@ bool CardHasTag(std::string_view kind_id, std::string_view tag) {
     }
     return false;
 }
-
-const CardTagTable& CardTags() { return CardTagsMutable(); }
 
 }  // namespace match::ops

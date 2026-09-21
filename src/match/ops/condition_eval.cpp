@@ -112,11 +112,13 @@ bool CardMatchesKind(const ecs::EntityStore& store, ecs::Entity card,
     return identity != nullptr && KindRefMatches(identity->kind_id, ref);
 }
 
-/** @brief True when `card`'s kind declares `tag` in the tag table. */
+/** @brief True when `card`'s kind declares `tag` in the per-match table. */
 bool CardMatchesTag(const ecs::EntityStore& store, ecs::Entity card,
-                    const std::string& tag) {
+                    const std::string& tag,
+                    const engine::MatchRegistries* registries) {
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
-    return identity != nullptr && CardHasTag(identity->kind_id, tag);
+    return identity != nullptr
+        && CardHasTag(registries, identity->kind_id, tag);
 }
 
 /** @brief `cmp`/`n` args -> compare `value`; false on missing/bad args. */
@@ -151,7 +153,7 @@ bool EvalHasCardTag(ecs::EntityStore& store, const json& args,
     if (!token.has_value() || !tag.has_value()) return false;
     for (ecs::Entity owner : SelectorEntities(ctx, *token)) {
         for (ecs::Entity card : CardsHeldBy(store, owner)) {
-            if (CardMatchesTag(store, card, *tag)) return true;
+            if (CardMatchesTag(store, card, *tag, ctx.registries)) return true;
         }
     }
     return false;
@@ -190,7 +192,8 @@ bool EvalActiveTypeIs(ecs::EntityStore& store, const json& args, OpContext&) {
  * `type` is the card's colour (UNI's card type): the phase-1 face carries it
  * in `face_spec.color`, matching the token `set_active_type` uses.
  */
-bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args, OpContext&) {
+bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args,
+                      OpContext& ctx) {
     const std::optional<std::string> kind = ArgString(args, "kind");
     const std::optional<std::string> tag = ArgString(args, "tag");
     const std::optional<std::string> type = ArgString(args, "type");
@@ -206,7 +209,9 @@ bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args, OpContext&) {
     const ecs::Entity top = contents->cards.back();
 
     if (kind.has_value()) return CardMatchesKind(store, top, *kind);
-    if (tag.has_value()) return CardMatchesTag(store, top, *tag);
+    if (tag.has_value()) {
+        return CardMatchesTag(store, top, *tag, ctx.registries);
+    }
     const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(top);
     return face != nullptr && face->color == *type;
 }

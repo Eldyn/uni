@@ -21,19 +21,21 @@ void BindTurnsElapsed(ops::ResolutionFrame& frame, int64_t turns) {
     ops::BindTurnsElapsed(frame, turns);
 }
 
-void LoadCardTags(const std::vector<modload::CardDef>& cards) {
+void LoadCardTags(const std::vector<modload::CardDef>& cards,
+                  ops::CardTagTable& out) {
     ops::CardTagTable table;
     for (const modload::CardDef& card : cards) {
         if (card.kind_id.empty()) continue;
         table[card.kind_id] = card.tags;
     }
-    ops::SetCardTagTable(std::move(table));
+    out = std::move(table);
 }
 
 void WireContent(resolver::ConditionRegistry& registry,
-                 const std::vector<modload::CardDef>& cards) {
+                 const std::vector<modload::CardDef>& cards,
+                 ops::CardTagTable& out_tags) {
     InstallDefaultConditions(registry);
-    LoadCardTags(cards);
+    LoadCardTags(cards, out_tags);
 }
 
 }  // namespace match::wiring

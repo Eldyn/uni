@@ -29,8 +29,8 @@
  * - the `rolled` / `turns_elapsed` condition seams (reserved `ResolutionFrame`
  *   prompt keys) so the op layer's `roll` op and the engine's turn tracking can
  *   bind them;
- * - the content-static card tag table `has_card_tag` reads (the timer layer
- *   populates it from loaded `CardDef`s);
+ * - the per-match card tag table `has_card_tag` reads (assembly
+ *   populates `MatchRegistries::card_tags` from loaded `CardDef`s);
  * - `RegisterDefaultConditions`, the one place the evaluators are bound
  *   to the `ConditionRegistry` (the condition analogue of
  *   `RegisterDefaultOps`).
@@ -242,32 +242,28 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame);
 // --- card tag table (`has_card_tag`) ---------------------------------------
 
 /**
- * @brief Content-static map of card kind id -> declared tags.
+ * @brief Map of card kind id -> declared tags.
  *
  * Tags live in a card's definition and are not part of any the store
- * component, so the runtime keeps one process-wide table. The timer layer and
- * the engine populate it once per loaded match set; it is not per-match state
- * and never mutated during resolution. Not thread-safe for concurrent
- * registration; reads after load are safe to share.
+ * component. moved the table off a process-global static and onto the
+ * per-match `MatchRegistries` (`card_tags`), so two concurrent matches with
+ * different content can no longer clobber each other's tag semantics. Assembly
+ * fills it once before resolution starts; it is never mutated during play and
+ * is read-only thereafter.
  */
 using CardTagTable =
     std::map<std::string, std::vector<std::string>, std::less<>>;
 
-/** @brief Replace the whole tag table (content load). */
-void SetCardTagTable(CardTagTable table);
-
-/** @brief Insert/overwrite one kind's tags. */
-void RegisterCardTags(std::string_view kind_id,
-                      std::vector<std::string> tags);
-
-/** @brief Drop every registered tag (tests / reload). */
-void ClearCardTags();
-
-/** @brief True when `kind_id` declares `tag`. */
-bool CardHasTag(std::string_view kind_id, std::string_view tag);
-
-/** @brief The whole tag table (read-only). */
-const CardTagTable& CardTags();
+/**
+ * @brief True when `kind_id` declares `tag` in `registries.card_tags`.
+ *
+ * There is no process-global fallback: the caller must pass the
+ * match's frozen registries, threaded through `OpContext::registries`. A null
+ * handle (bare-op tests that assembled no match) yields false, so a tag lookup
+ * can never read another match's table.
+ */
+bool CardHasTag(const engine::MatchRegistries* registries,
+                std::string_view kind_id, std::string_view tag);
 
 // --- condition registration -----------------------------------------
 

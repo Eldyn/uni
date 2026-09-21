@@ -38,7 +38,6 @@ using match::ecs::ZoneKind;
 using match::ecs::ZoneRef;
 using match::ops::CardInZone;
 using match::ops::CardKindId;
-using match::ops::ClearCardTags;
 using match::ops::HandOf;
 using match::ops::MakeDefaultRuntime;
 using match::ops::OpArgs;
@@ -47,7 +46,6 @@ using match::ops::OpResult;
 using match::ops::OpRuntime;
 using match::ops::OpStatus;
 using match::ops::PileOf;
-using match::ops::RegisterCardTags;
 using match::ops::ResolutionFrame;
 
 using nlohmann::json;
@@ -477,8 +475,7 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     PutInHand(h.store, from, red);
     PutInHand(h.store, from, blue);
 
-    ClearCardTags();
-    RegisterCardTags("vanilla:red_5", {"stackable"});
+    h.registries.card_tags["vanilla:red_5"] = {"stackable"};
 
     const OpResult by_tag = h.Invoke(
         "transfer_card", json{{"selector", "tag:stackable"}},
@@ -502,8 +499,6 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     CHECK(by_random.status == OpStatus::kResolved);
     CHECK(HandOf(h.store, to) == std::vector<Entity>{red, blue, c3});
     CHECK(HandOf(h.store, from).empty());
-
-    ClearCardTags();
 }
 
 TEST_CASE("card_pile_ops: transfer_card random draws from the shared stream") {

@@ -26,7 +26,7 @@
  * kind, assembles through the real `MatchAssembler`, opens a `transfer_card`
  * `chosen` prompt through a real hook, then asserts:
  * - each option is an integer equal to that candidate's `CompactCardV2.bits`;
- * - the envelope carries `response_schema {"type":"integer"}`;
+ * - the envelope carries `response_schema {"type":"integer","enum":[bits]}`;
  * - submitting a chosen candidate's bits resumes the graph with that exact
  *   card entity bound as the `from_prompt` value (server maps what it emits).
  *
@@ -338,6 +338,63 @@ TEST_CASE("choose_card: unknown bits are rejected and the prompt stays open") {
     REQUIRE(!options.empty());
     REQUIRE(engine->SubmitInput("player1", options[0].get<uint32_t>()));
     CHECK_FALSE(engine->PendingInput().has_value());
+}
+
+TEST_CASE("choose_card: a live card that was not offered is rejected") {
+    // INFO: S-4 - the answer must be one of the offered candidates, not merely
+    //       any card in the frozen index map. Otherwise a player could name an
+    //       opponent's card, a discard card or a face-down card and have the
+    //       consuming graph move/destroy/reveal it.
+    Fixture fixture = MakeFixture();
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(fixture.mods, fixture.deck);
+
+    BehaviorGraph graph;
+    graph.nodes = json::array(
+        {ChooseCardNode("n1", "n2"),
+         json{{"id", "n2"}, {"op", "emit_signal"}, {"args", {{"name", "x"}}}}});
+    graph.raw = json{{"nodes", graph.nodes}};
+    AttachChooseCardSystem(*engine, std::move(graph));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> probe =
+        FindKindCard(*engine, "modx:probe");
+    REQUIRE(probe.has_value());
+    ForceHand(*engine, player0, {*probe});
+
+    REQUIRE(engine->DrawCard("player0"));
+    const json pending = *engine->PendingInput();
+    REQUIRE(pending["payload"]["options"].is_array());
+    const json options = pending["payload"]["options"];
+
+    // INFO: pick a live assembled card whose bits the prompt did NOT offer.
+    std::optional<uint32_t> unoffered;
+    for (ecs::Entity card : engine->Registries().cards) {
+        const std::optional<ecs::CompactCardV2> id =
+            engine->Registries().CardId(card);
+        if (!id.has_value()) continue;
+        bool offered = false;
+        for (const json& option : options) {
+            if (option.is_number_integer()
+                && option.get<uint32_t>() == id->bits) {
+                offered = true;
+                break;
+            }
+        }
+        if (!offered) {
+            unoffered = id->bits;
+            break;
+        }
+    }
+    REQUIRE(unoffered.has_value());
+    // INFO: the unoffered card is genuinely live and mappable.
+    REQUIRE(engine->Registries()
+                .CardEntity(ecs::CompactCardV2{*unoffered})
+                .has_value());
+
+    CHECK_FALSE(engine->SubmitInput("player1", *unoffered));
+    REQUIRE(engine->PendingInput().has_value());
+    CHECK((*engine->PendingInput())["kind"] == "choose_card");
 }
 
 TEST_CASE("choose_card: a mod cannot override the built-in prompt schema") {

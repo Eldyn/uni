@@ -89,6 +89,19 @@ bool MatchSession::SubmitInput(const std::string& username,
     const json* schema = FindPromptSchema(kind);
     if (schema != nullptr && !MatchesSchema(value, *schema)) return false;
 
+    // INFO: S-4 - the parked prompt may carry a more specific engine-authored
+    //       schema (e.g. `choose_card`'s `enum` of the offered bits). Enforce
+    //       it too, so the session validator is self-describing and rejects an
+    //       answer outside the offered subset before the engine is consulted.
+    if (pending->contains("payload") && (*pending)["payload"].is_object()) {
+        const json& payload = (*pending)["payload"];
+        const auto it = payload.find("response_schema");
+        if (it != payload.end() && it->is_object() && !it->empty()
+            && !MatchesSchema(value, *it)) {
+            return false;
+        }
+    }
+
     if (!engine_->SubmitInput(username, value)) return false;
     // INFO: the target answered, so its parked prompt now closes `answered`;
     //       EmitPendingPrompt turns this into the prompt_close.

@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <match/engine/match_assembler.hpp>
 #include <match/ops/op_helpers.hpp>
 
 #include <nlohmann/json.hpp>
@@ -28,7 +29,6 @@ using match::ops::CardInZone;
 using match::ops::CardOrdinal;
 using match::ops::CardKindId;
 using match::ops::CardsHeldBy;
-using match::ops::ClearCardTags;
 using match::ops::DrawTop;
 using match::ops::FindCardZone;
 using match::ops::FindCurrentPlayer;
@@ -42,7 +42,6 @@ using match::ops::MoveCardToZone;
 using match::ops::PileComponent;
 using match::ops::PileOf;
 using match::ops::PlayersBySeat;
-using match::ops::RegisterCardTags;
 using match::ops::ResolutionFrame;
 using match::ops::SetHandOrder;
 using match::ops::TurnsElapsed;
@@ -300,22 +299,24 @@ TEST_CASE("op_helpers: last-roll and turns-elapsed frame seams") {
     CHECK(*TurnsElapsed(frame) == 5);
 }
 
-TEST_CASE("op_helpers: card tag table register and clear") {
-    ClearCardTags();
-    CHECK_FALSE(CardHasTag("vanilla:red_5", "stackable"));
+TEST_CASE("op_helpers: card tag table is per-match") {
+    // INFO: Tags live on the per-match registries, not a process
+    //       global, so two matches with different content stay isolated.
+    match::engine::MatchRegistries registries;
+    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "stackable"));
 
-    RegisterCardTags("vanilla:red_5", {"stackable", "draw_penalty"});
-    CHECK(CardHasTag("vanilla:red_5", "stackable"));
-    CHECK(CardHasTag("vanilla:red_5", "draw_penalty"));
-    CHECK_FALSE(CardHasTag("vanilla:red_5", "ghost"));
-    CHECK_FALSE(CardHasTag("vanilla:blue_2", "stackable"));
+    registries.card_tags["vanilla:red_5"] = {"stackable", "draw_penalty"};
+    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "vanilla:red_5", "draw_penalty"));
+    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "ghost"));
+    CHECK_FALSE(CardHasTag(&registries, "vanilla:blue_2", "stackable"));
 
-    match::ops::SetCardTagTable({{"vanilla:blue_2", {"stackable"}}});
-    CHECK_FALSE(CardHasTag("vanilla:red_5", "stackable"));
-    CHECK(CardHasTag("vanilla:blue_2", "stackable"));
-    CHECK(match::ops::CardTags().size() == 1);
+    // INFO: a null handle (no assembled match) never reads any table.
+    CHECK_FALSE(CardHasTag(nullptr, "vanilla:red_5", "stackable"));
 
-    ClearCardTags();
-    CHECK(match::ops::CardTags().empty());
-    CHECK_FALSE(CardHasTag("vanilla:blue_2", "stackable"));
+    match::engine::MatchRegistries other;
+    other.card_tags["vanilla:blue_2"] = {"stackable"};
+    CHECK_FALSE(CardHasTag(&other, "vanilla:red_5", "stackable"));
+    CHECK(CardHasTag(&other, "vanilla:blue_2", "stackable"));
+    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
 }

@@ -7,6 +7,7 @@
 #include <match/ecs/hooks.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
 
@@ -46,8 +47,9 @@
  *   `EventBus` in frozen order (mod list order, then registration order) and
  *   dispatches `match_start`, which is what installs the vanilla restriction
  *   entries shipped as `after:match_start` data
- * - installs the `PlayConditionMatcher` and populates the op layer
- *   `CardTagTable` from the loaded card defs.
+ * - installs the `PlayConditionMatcher` and populates the per-match the op
+ *   layer `CardTagTable` (`MatchRegistries::card_tags`) from the loaded card
+ *   defs.
  *
  * ADDITIVE: the legacy `match::MatchInstance` keeps its own
  * files until the swap. Everything here lives in `match::engine`.
@@ -108,6 +110,17 @@ struct MatchRegistries {
     ecs::Entity match{};
     ecs::Entity draw_pile{};
     ecs::Entity discard_pile{};
+
+    /**
+     * @brief Frozen `kind_id -> declared tags` for this match's content.
+     *
+     * the card tag table lives here, per match, instead of a
+     * process-global static. `has_card_tag` / `draw_penalty` / `tag:` routing
+     * read it through `OpContext::registries`, so two concurrent matches with
+     * different content cannot clobber each other. Assembly fills it once
+     * (before `match_start`) and it is read-only during play.
+     */
+    ops::CardTagTable card_tags;
 
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;

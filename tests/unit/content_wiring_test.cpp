@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <match/content_wiring.hpp>
+#include <match/engine/match_assembler.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/resolver.hpp>
 
@@ -12,10 +13,9 @@
 using match::ecs::BudgetLedger;
 using match::ecs::EntityStore;
 using match::ecs::EventBus;
+using match::engine::MatchRegistries;
 using match::modload::CardDef;
 using match::ops::CardHasTag;
-using match::ops::CardTags;
-using match::ops::ClearCardTags;
 using match::ops::OpContext;
 using match::ops::ResolutionFrame;
 using match::resolver::ConditionRegistry;
@@ -69,9 +69,7 @@ TEST_CASE("content_wiring: binds turns_elapsed for the caller") {
     CHECK_FALSE(harness.Eval(Cond("turns_elapsed", {{"cmp", "lt"}, {"n", 4}})));
 }
 
-TEST_CASE("content_wiring: loads card tags from card defs") {
-    ClearCardTags();
-
+TEST_CASE("content_wiring: loads card tags into the per-match table") {
     CardDef red;
     red.kind_id = "vanilla:red_5";
     red.tags = {"stackable", "red"};
@@ -81,36 +79,33 @@ TEST_CASE("content_wiring: loads card tags from card defs") {
     CardDef unnamed;  // INFO: empty kind id is ignored.
     unnamed.tags = {"ignored"};
 
-    match::wiring::LoadCardTags({red, blue, unnamed});
+    MatchRegistries registries;
+    match::wiring::LoadCardTags({red, blue, unnamed}, registries.card_tags);
 
-    CHECK(CardHasTag("vanilla:red_5", "stackable"));
-    CHECK(CardHasTag("vanilla:red_5", "red"));
-    CHECK(CardHasTag("vanilla:blue_2", "cold"));
-    CHECK_FALSE(CardHasTag("vanilla:red_5", "cold"));
-    CHECK_FALSE(CardHasTag("", "ignored"));
-    CHECK(CardTags().size() == 2);
+    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "vanilla:red_5", "red"));
+    CHECK(CardHasTag(&registries, "vanilla:blue_2", "cold"));
+    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "cold"));
+    CHECK_FALSE(CardHasTag(&registries, "", "ignored"));
+    CHECK(registries.card_tags.size() == 2);
 
     // INFO: a later load replaces the previous table entirely.
-    match::wiring::LoadCardTags({blue});
-    CHECK_FALSE(CardHasTag("vanilla:red_5", "stackable"));
-    CHECK(CardHasTag("vanilla:blue_2", "cold"));
-    CHECK(CardTags().size() == 1);
-
-    ClearCardTags();
+    match::wiring::LoadCardTags({blue}, registries.card_tags);
+    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "vanilla:blue_2", "cold"));
+    CHECK(registries.card_tags.size() == 1);
 }
 
 TEST_CASE("content_wiring: WireContent installs conditions and tags") {
-    ClearCardTags();
-
     Harness harness;
     CardDef card;
     card.kind_id = "vanilla:red_7";
     card.tags = {"stackable"};
 
-    match::wiring::WireContent(harness.conditions, {card});
+    MatchRegistries registries;
+    match::wiring::WireContent(harness.conditions, {card},
+                               registries.card_tags);
 
     CHECK(harness.conditions.Has("turns_elapsed"));
-    CHECK(CardHasTag("vanilla:red_7", "stackable"));
-
-    ClearCardTags();
+    CHECK(CardHasTag(&registries, "vanilla:red_7", "stackable"));
 }

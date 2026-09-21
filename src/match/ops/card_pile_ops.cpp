@@ -164,7 +164,7 @@ bool CardMatchesFilter(ecs::EntityStore& store, ecs::Entity card,
                                   it.value().get<std::string>());
         }
         if (it.key() == "tag" && it.value().is_string()) {
-            return CardHasTag(CardKindId(store, card),
+            return CardHasTag(ctx.registries, CardKindId(store, card),
                               it.value().get<std::string>());
         }
     }
@@ -412,8 +412,9 @@ bool DrawnCardPlayable(ecs::EntityStore& store, ecs::Entity card,
  *       handle. A candidate the map cannot resolve (a runtime-created card) is
  *       dropped so the engine never emits an identity it cannot map back; when
  *       nothing resolves the prompt is declined. The envelope carries
- *       `response_schema {"type":"integer"}` so the generic renderer is
- *       self-describing.
+ *       `response_schema {"type":"integer","enum":[offered bits]}` so the
+ *       generic renderer is self-describing and the answer is constrained to
+ *       the offered subset (S-4).
  */
 OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
                         ecs::Entity chooser,
@@ -449,7 +450,11 @@ OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
         }
     }
 
-    const json response_schema = json{{"type", "integer"}};
+    // INFO: S-4 - the schema enumerates exactly the offered `bits`, so the
+    //       wire validator is self-describing (a value outside the offered
+    //       subset is schema-invalid, not merely unmappable).
+    const json response_schema =
+        json{{"type", "integer"}, {"enum", options}};
     const json payload = json{{"from", EntityJson(from)},
                               {"options", options},
                               {"response_schema", response_schema}};
@@ -727,7 +732,7 @@ OpResult OpTransferCard(ecs::EntityStore& store, const OpArgs& args,
     } else if (selector.rfind("tag:", 0) == 0) {
         const std::string tag = selector.substr(4);
         for (ecs::Entity card : candidates) {
-            if (CardHasTag(CardKindId(store, card), tag)) {
+            if (CardHasTag(ctx.registries, CardKindId(store, card), tag)) {
                 matches.push_back(card);
             }
         }

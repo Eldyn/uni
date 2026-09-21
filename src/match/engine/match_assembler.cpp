@@ -391,6 +391,7 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
     if (system.where.has_value() && !system.where->is_null()) {
         ops::ResolutionFrame where_frame;
         ops::OpContext where_ctx(bus, budget, where_frame);
+        where_ctx.registries = &registries;
         BindWhereSelectors(store, context, where_frame);
         if (drawn_card.has_value()) {
             where_frame.BindSelector("@drawn_card", {*drawn_card});
@@ -752,7 +753,10 @@ AssemblyResult MatchAssembler::Assemble(
             out = it->second;
             return true;
         });
-    wiring::LoadCardTags(active_cards);
+    // INFO: The tag table is per-match (`registries.card_tags`),
+    //       never a process global, so concurrent assemblies cannot clobber
+    //       each other's `has_card_tag` / `draw_penalty` / `tag:` semantics.
+    wiring::LoadCardTags(active_cards, assembly->registries.card_tags);
 
     // --- systems: rules then card behaviors, frozen order
     for (const modload::LoadedMod* mod : active) {

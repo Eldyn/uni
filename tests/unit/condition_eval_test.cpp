@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <match/engine/match_assembler.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/resolver.hpp>
 
@@ -28,12 +29,11 @@ using match::ecs::Status;
 using match::ecs::StatusList;
 using match::ecs::ZoneKind;
 using match::ecs::ZoneRef;
+using match::engine::MatchRegistries;
 using match::modload::ConditionCatalog;
 using match::ops::BindLastRoll;
 using match::ops::BindTurnsElapsed;
-using match::ops::ClearCardTags;
 using match::ops::OpContext;
-using match::ops::RegisterCardTags;
 using match::ops::RegisterDefaultConditions;
 using match::ops::ResolutionFrame;
 using match::resolver::ConditionRegistry;
@@ -99,9 +99,11 @@ struct Harness {
     EventBus bus;
     ResolutionFrame frame;
     ConditionRegistry conditions;
+    MatchRegistries registries;
     OpContext ctx;
 
     Harness() : ctx(bus, ledger, frame) {
+        ctx.registries = &registries;
         RegisterDefaultConditions(conditions);
     }
 
@@ -166,9 +168,8 @@ struct Fixture : Harness {
         frame.BindSelector("@target", {target});
         frame.BindSelector("@all_players", {self, target});
 
-        ClearCardTags();
-        RegisterCardTags("vanilla:red_5", {"stackable"});
-        RegisterCardTags("vanilla:red_7", {"stackable"});
+        registries.card_tags = {{"vanilla:red_5", {"stackable"}},
+                                {"vanilla:red_7", {"stackable"}}};
     }
 };
 
@@ -227,6 +228,20 @@ TEST_CASE("condition_eval: has_card_tag") {
     CHECK_FALSE(f.Eval(
         Cond("has_card_tag", {{"target", "@nowhere"}, {"tag", "stackable"}})));
     CHECK_FALSE(f.Eval(Cond("has_card_tag", {{"target", "@self"}})));
+
+    // INFO: Another match's registries must not change this
+    //       match's tag semantics (the old global table was clobbered by the
+    //       most recent assembly).
+    MatchRegistries other;
+    other.card_tags["vanilla:red_5"] = {"ghost"};
+    f.ctx.registries = &other;
+    CHECK_FALSE(f.Eval(
+        Cond("has_card_tag", {{"target", "@self"}, {"tag", "stackable"}})));
+    CHECK(f.Eval(
+        Cond("has_card_tag", {{"target", "@self"}, {"tag", "ghost"}})));
+    f.ctx.registries = &f.registries;
+    CHECK(f.Eval(
+        Cond("has_card_tag", {{"target", "@self"}, {"tag", "stackable"}})));
 }
 
 TEST_CASE("condition_eval: hand_size comparisons and fail-safe paths") {
