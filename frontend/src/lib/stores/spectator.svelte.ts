@@ -43,6 +43,32 @@ class StoreSpectator {
 
 	#fadeTl: gsap.core.Timeline | null = null;
 
+	constructor() {
+		// resolveViewedPlayer silently falls back to players[0]
+		// when viewedUsername no longer matches anyone in the roster (the viewed
+		// player disconnected), but it's a pure function — it has no way to
+		// correct the stored choice that caused the fallback. Left uncorrected,
+		// a later reconnect of that same player snaps the spectator's POV back
+		// to them with no action on their part, since viewedUsername never
+		// stopped pointing at that username. Reconciling it here, the one place
+		// that owns the field, keeps the fallback and the stored choice in sync.
+
+		// storeSpectator is an app-lifetime singleton (see audio.svelte.ts for
+		// the same pattern), so this effect is meant to run for the whole
+		// session — the dispose function $effect.root returns is intentionally
+		// left unused.
+		$effect.root(() => {
+			$effect(() => {
+				if (this.viewedUsername === null || this.transitioning) return;
+				const players = storeGame.state?.players ?? [];
+				if (players.length === 0) return;
+				if (!players.some((p) => p.username === this.viewedUsername)) {
+					this.viewedUsername = null;
+				}
+			});
+		});
+	}
+
 	/** Tells the server which player this spectator is watching, so the
 	 *  per-player spectator counts in the match state stay accurate. An empty
 	 *  username means "no explicit choice" (the server attributes the
