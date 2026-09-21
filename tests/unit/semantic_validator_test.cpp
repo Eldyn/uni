@@ -515,6 +515,52 @@ TEST_CASE("validator: condition with unknown keyword is op.unknown") {
     CHECK(HasCheck(errors, "op.unknown"));
 }
 
+// --- check 4b: auto_trigger
+
+/* INFO: attach an auto_trigger to the mod's only card, mirroring it into raw
+ *       so the schema pass sees the same declaration as the model. */
+void AddAutoTrigger(LoadedMod& mod, json condition, json graph,
+                    bool must_apply) {
+    AutoTriggerDef at;
+    at.condition = std::move(condition);
+    at.graph = std::move(graph);
+    at.must_apply = must_apply;
+    mod.cards[0].raw["auto_trigger"] = json{{"condition", at.condition},
+                                            {"graph", at.graph},
+                                            {"must_apply", must_apply}};
+    mod.cards[0].auto_trigger = std::move(at);
+}
+
+TEST_CASE("validator: a valid auto_trigger passes") {
+    LoadedMod mod = ValidMod();
+    AddAutoTrigger(mod, json{{"hand_size",
+                              {{"target", "@self"}, {"cmp", "gte"}, {"n", 1}}}},
+                   GraphJson({Op("n1", "advance_turn", json::object())}),
+                   /*must_apply=*/true);
+    SemanticValidator v(SchemaDir());
+    CHECK(v.ValidateMod(mod).empty());
+}
+
+TEST_CASE("validator: auto_trigger graph with unknown op is op.unknown") {
+    LoadedMod mod = ValidMod();
+    AddAutoTrigger(mod, json{{"always", nullptr}},
+                   GraphJson({Op("n1", "teleport", json::object())}),
+                   /*must_apply=*/true);
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.unknown"));
+}
+
+TEST_CASE("validator: auto_trigger condition with unknown keyword is op.unknown") {
+    LoadedMod mod = ValidMod();
+    AddAutoTrigger(mod, json{{"mystery", {{"target", "@self"}}}},
+                   GraphJson({Op("n1", "advance_turn", json::object())}),
+                   /*must_apply=*/false);
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(HasCheck(errors, "op.unknown"));
+}
+
 // --- check 5: graph structure ----------------------------------------------
 
 TEST_CASE("validator: cyclic edges are graph.cycle") {

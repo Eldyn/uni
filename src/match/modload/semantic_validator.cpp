@@ -668,6 +668,21 @@ class Checker {
                 if (card.window) {
                     CheckCardWindow(*card.window, card, ns, mod->path);
                 }
+                if (card.auto_trigger) {
+                    /* INFO: must-apply auto_trigger reuses the
+                     *       card-behavior context: same namespace, artifact
+                     *       and card-context flags. */
+                    GraphCtx ctx{ns, "cards", mod->path + "/cards.json",
+                                 true, false, false, nullptr};
+                    CheckCondition(card.auto_trigger->condition, ctx);
+                    BehaviorGraph graph;
+                    graph.raw = card.auto_trigger->graph;
+                    auto nodes = graph.raw.find("nodes");
+                    if (nodes != graph.raw.end() && nodes->is_array()) {
+                        graph.nodes = *nodes;
+                    }
+                    WalkGraph(graph, ctx);
+                }
             }
             for (const auto& rule : mod->rules) {
                 for (const auto& hook : rule.hooks) {

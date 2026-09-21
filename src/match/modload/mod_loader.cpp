@@ -169,6 +169,47 @@ bool ParseWindow(const nlohmann::json& value,
     return true;
 }
 
+bool ParseAutoTrigger(const nlohmann::json& value,
+                      AutoTriggerDef& out,
+                      std::vector<LoadError>& errors,
+                      const std::string& path) {
+    if (!value.is_object()) {
+        AddError(errors, "card.auto_trigger", "cards", path,
+                 "card auto_trigger must be an object");
+        return false;
+    }
+    auto condition = value.find("condition");
+    if (condition == value.end() || !condition->is_object()) {
+        AddError(errors, "card.auto_trigger", "cards", path,
+                 "card auto_trigger requires a 'condition' object");
+        return false;
+    }
+    out.condition = *condition;
+    auto graph = value.find("graph");
+    if (graph == value.end() || !graph->is_object()) {
+        AddError(errors, "card.auto_trigger", "cards", path,
+                 "card auto_trigger requires a 'graph' object");
+        return false;
+    }
+    auto nodes = graph->find("nodes");
+    if (nodes == graph->end() || !nodes->is_array()) {
+        AddError(errors, "card.auto_trigger", "cards", path,
+                 "card auto_trigger graph requires a 'nodes' array");
+        return false;
+    }
+    out.graph = *graph;
+    auto must = value.find("must_apply");
+    if (must != value.end()) {
+        if (!must->is_boolean()) {
+            AddError(errors, "card.auto_trigger", "cards", path,
+                     "card auto_trigger 'must_apply' must be a boolean");
+            return false;
+        }
+        out.must_apply = must->get<bool>();
+    }
+    return true;
+}
+
 void ParseSettingsDecls(const nlohmann::json& manifest,
                         ModManifest& out) {
     auto it = manifest.find("settings");
@@ -291,6 +332,15 @@ bool ParseCardsFile(const fs::path& path,
             WindowSpec spec;
             if (ParseWindow(*window, spec, errors, path.string())) {
                 card.window = std::move(spec);
+            } else {
+                ok = false;
+            }
+        }
+        auto auto_trigger = entry.find("auto_trigger");
+        if (auto_trigger != entry.end()) {
+            AutoTriggerDef spec;
+            if (ParseAutoTrigger(*auto_trigger, spec, errors, path.string())) {
+                card.auto_trigger = std::move(spec);
             } else {
                 ok = false;
             }

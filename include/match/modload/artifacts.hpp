@@ -100,6 +100,21 @@ struct WindowSpec {
 };
 
 /**
+ * @struct AutoTriggerDef
+ * @brief A card's `auto_trigger` declaration.
+ *
+ * Mirrors the ECS `ecs::AutoTrigger` component: a condition plus the graph
+ * to run when it matches. `must_apply: true` fires the graph without player
+ * agency. Kept as raw JSON like the other graph carriers; `graph`
+ * holds the whole object (its `nodes` array is validator-read).
+ */
+struct AutoTriggerDef {
+    nlohmann::json condition;  /**< Condition object. */
+    nlohmann::json graph;      /**< Behavior graph object. */
+    bool must_apply = false;   /**< true = fires without player agency. */
+};
+
+/**
  * @struct CardDef
  * @brief One entry of a mod's `cards.json`.
  */
@@ -112,6 +127,7 @@ struct CardDef {
     std::vector<std::string> tags;
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;
+    std::optional<AutoTriggerDef> auto_trigger; /**< Must-apply. */
     nlohmann::json raw;                 /**< Verbatim definition. */
 };
 

@@ -43,6 +43,13 @@ namespace match::modload {
  */
 
 /**
+ * @note `auto_trigger` is a card-level field, not an op or
+ *       node type: it carries `{condition, graph, must_apply}` and the loader
+ *       parses it into `modload::AutoTriggerDef`. It is absent from the op
+ *       catalog below by design.
+ */
+
+/**
  * @enum ArgType
  * @brief Declared type of an op/condition argument.
  */

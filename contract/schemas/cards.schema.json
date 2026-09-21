@@ -109,6 +109,24 @@
         }
       }
     },
+    "autoTrigger": {
+      "type": "object",
+      "required": ["condition", "graph"],
+      "additionalProperties": true,
+      "properties": {
+        "condition": {
+          "type": "object"
+        },
+        "graph": {
+          "$ref": "#/$defs/graph"
+        },
+        "must_apply": {
+          "type": "boolean",
+          "default": false,
+          "description": "true = fires without player agency."
+        }
+      }
+    },
     "card": {
       "type": "object",
       "required": ["id"],
@@ -135,6 +153,9 @@
         },
         "window": {
           "$ref": "#/$defs/window"
+        },
+        "auto_trigger": {
+          "$ref": "#/$defs/autoTrigger"
         }
       }
     }

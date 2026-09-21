@@ -320,6 +320,112 @@ TEST_CASE("modloader: unknown face kind is rejected") {
     CHECK(HasCheck(result.errors, "card.face"));
 }
 
+TEST_CASE("modloader: card auto_trigger loads with must_apply") {
+    TempModsRoot tmp;
+    tmp.Write("totem", "mod.json", R"({
+      "id": "totem", "name": "Totem", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("totem", "cards.json", R"([
+      { "id": "totem", "face": { "kind": "blank" },
+        "auto_trigger": {
+          "condition": { "always": null },
+          "graph": { "nodes": [
+            { "id": "n1", "op": "declare_winner",
+              "args": { "player": "@self", "kind": "special" } }
+          ] },
+          "must_apply": true
+        } }
+    ])");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    REQUIRE(result.mods.size() == 1);
+    REQUIRE(result.mods[0].cards.size() == 1);
+    const CardDef& card = result.mods[0].cards[0];
+    REQUIRE(card.auto_trigger.has_value());
+    CHECK(card.auto_trigger->must_apply);
+    CHECK(card.auto_trigger->condition.contains("always"));
+    REQUIRE(card.auto_trigger->graph.contains("nodes"));
+    CHECK(card.auto_trigger->graph["nodes"].size() == 1);
+}
+
+TEST_CASE("modloader: auto_trigger must_apply defaults to false") {
+    TempModsRoot tmp;
+    tmp.Write("opt", "mod.json", R"({
+      "id": "opt", "name": "Opt", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("opt", "cards.json", R"([
+      { "id": "c1", "face": { "kind": "blank" },
+        "auto_trigger": {
+          "condition": { "always": null },
+          "graph": { "nodes": [
+            { "id": "n1", "op": "advance_turn", "args": {} }
+          ] }
+        } }
+    ])");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    REQUIRE(result.mods[0].cards[0].auto_trigger.has_value());
+    CHECK_FALSE(result.mods[0].cards[0].auto_trigger->must_apply);
+}
+
+TEST_CASE("modloader: non-object auto_trigger condition is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("bad", "mod.json", R"({
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("bad", "cards.json", R"([
+      { "id": "c1", "face": { "kind": "blank" },
+        "auto_trigger": { "condition": 7, "graph": { "nodes": [] } } }
+    ])");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "card.auto_trigger"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: auto_trigger graph without nodes is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("bad", "mod.json", R"({
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("bad", "cards.json", R"([
+      { "id": "c1", "face": { "kind": "blank" },
+        "auto_trigger": { "condition": { "always": null },
+                          "graph": { "foo": 1 } } }
+    ])");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "card.auto_trigger"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: non-bool auto_trigger must_apply is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("bad", "mod.json", R"({
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
+      "provides_cards": "cards.json"
+    })");
+    tmp.Write("bad", "cards.json", R"([
+      { "id": "c1", "face": { "kind": "blank" },
+        "auto_trigger": { "condition": { "always": null },
+                          "graph": { "nodes": [] },
+                          "must_apply": "yes" } }
+    ])");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK_FALSE(result.ok());
+    CHECK(HasCheck(result.errors, "card.auto_trigger"));
+    CHECK(result.mods.empty());
+}
+
 TEST_CASE("modloader: rules.json accepts bare-array and object forms") {
     TempModsRoot tmp;
     tmp.Write("arr", "mod.json", R"({
