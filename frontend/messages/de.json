@@ -276,6 +276,8 @@
 	"game_hud_expand": "HUD ausklappen",
 	"game_hud_collapse": "HUD einklappen",
 	"game_hud_ranked_badge": "Rangliste",
+	"game_window_time_left": "{seconds} Sekunden zum Antworten",
+	"game_window_pass": "Passen",
 	"lobby_settings_game_mode": "Spielmodus",
 	"lobby_settings_game_mode_desc": "Standard endet, wenn ein Spieler alle Handkarten ablegt. Elimination läuft weiter, bis die Überlebendenanzahl erreicht ist.",
 	"lobby_mode_standard": "Standard",

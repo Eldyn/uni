@@ -276,6 +276,8 @@
 	"game_hud_expand": "Expand HUD",
 	"game_hud_collapse": "Collapse HUD",
 	"game_hud_ranked_badge": "Ranked",
+	"game_window_time_left": "{seconds} seconds to respond",
+	"game_window_pass": "Pass",
 	"lobby_settings_game_mode": "Game Mode",
 	"lobby_settings_game_mode_desc": "Standard ends when a player empties their hand. Elimination continues until survivor count remains.",
 	"lobby_mode_standard": "Standard",

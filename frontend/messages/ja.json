@@ -276,6 +276,8 @@
 	"game_hud_expand": "HUDを展開",
 	"game_hud_collapse": "HUDを折りたたむ",
 	"game_hud_ranked_badge": "ランク",
+	"game_window_time_left": "応答まで{seconds}秒",
+	"game_window_pass": "パス",
 	"lobby_settings_game_mode": "ゲームモード",
 	"lobby_settings_game_mode_desc": "スタンダードは1人が手札を使い切ると終了します。エリミネーションは目標生存者数になるまで継続します。",
 	"lobby_mode_standard": "スタンダード",

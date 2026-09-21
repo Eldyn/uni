@@ -276,6 +276,8 @@
 	"game_hud_expand": "[Éxpånd HÜD ]",
 	"game_hud_collapse": "[Cöllåpsé HÜD ~]",
 	"game_hud_ranked_badge": "[Råñkéd ~]",
+	"game_window_time_left": "[{seconds} séçõñds tỏ réspõñd ~~~~~~~~~~]",
+	"game_window_pass": "[Pàss ~]",
 	"lobby_settings_game_mode": "[Gåmé Mõdé ~~~]",
 	"lobby_settings_game_mode_desc": "[Ståndård éñds whéñ å plåýér émptíés théír håñd. Éłímíñátíõñ cõñtíñüés üñtíł sürvívõr cõüñt rémáíñs. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~]",
 	"lobby_mode_standard": "[Ståndård ~~~]",

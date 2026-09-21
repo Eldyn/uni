@@ -696,6 +696,20 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Declares a pass on the currently open response window.
+	 *
+	 * No-op unless a window is open and the local player is one of its
+	 * responders; all other players (spectators included) can only watch.
+	 */
+	passWindow(): void {
+		const window = this.activeWindow;
+		if (!window) return;
+		const username = this.localPlayer?.username;
+		if (!username || !window.responders.includes(username)) return;
+		ws.emit(ClientAction.MatchWindowResponse, { window_id: window.windowId, pass: true });
+	}
+
+	/**
 	 * @brief Clears session-scoped match state.
 	 *
 	 * `turnTimeRemaining` returns to its constructed default rather than zero, so

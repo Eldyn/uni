@@ -276,6 +276,8 @@
 	"game_hud_expand": "展开 HUD",
 	"game_hud_collapse": "折叠 HUD",
 	"game_hud_ranked_badge": "排位",
+	"game_window_time_left": "{seconds} 秒内响应",
+	"game_window_pass": "过牌",
 	"lobby_settings_game_mode": "游戏模式",
 	"lobby_settings_game_mode_desc": "标准模式在一名玩家出完手牌时结束。淘汰模式持续进行直到达到目标幸存人数。",
 	"lobby_mode_standard": "标准",

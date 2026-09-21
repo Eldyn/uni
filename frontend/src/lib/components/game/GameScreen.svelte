@@ -5,6 +5,7 @@
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
+	import WindowTimerChip from "./WindowTimerChip.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -27,6 +28,7 @@
 
 		<div class="game-controls">
 			<GameHud />
+			<WindowTimerChip />
 			<PromptRenderer />
 		</div>
 
