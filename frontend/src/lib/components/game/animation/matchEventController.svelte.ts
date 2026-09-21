@@ -13,15 +13,22 @@
 
 import { storeGame, type CardType } from "$stores/game.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
+import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
-import { PILE_BASE_HEIGHT } from "../layout/drawPile";
+import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import { DISCARD_CAP, previewDiscardLanding } from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
-import { buildPlayBeat, type MatchEventBeat } from "./baseBeats.svelte";
+import {
+	buildDrawBeats,
+	buildPlayBeat,
+	DRAW_HOVER_LIFT,
+	localHandSlotAnchor,
+	type MatchEventBeat
+} from "./baseBeats.svelte";
 import type { AnimationBeat } from "./types";
 
 type HandSnapshot = { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number };
@@ -47,9 +54,25 @@ export function createMatchEventBeatController(deps: {
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
 }): { dispose: () => void; syncState: () => void } {
 	let lastLandingBaseDeg = 0;
-	// Reserved for A2/A3 (local draw slot + opponent slot anchor caches).
+	// Reserved for A3 (opponent slot anchor cache).
 	const pendingLocalHandSlots = new Map<string, [number, number, number]>();
 	const pendingOpponentSlots = new Map<string, [number, number, number]>();
+	// Ids of local-hand cards currently mid-flight in a multi-card draw, used
+	// to live-refresh their `dimmed` decoration as the turn changes.
+	const localDrawFlightIds = new Set<string>();
+
+	/** The POV player's username. "local" means the player whose POV is
+	 *  rendered (the viewed player while spectating), matching Scene3D and the
+	 *  watcher. */
+	function resolveLocalUsername(state: NonNullable<typeof storeGame.state>): string | undefined {
+		return resolvePovPlayer(
+			storeGame.localPlayer,
+			storeGame.isSpectator,
+			state.players ?? [],
+			storeSpectator.viewedUsername,
+			state.current_turn
+		)?.username;
+	}
 
 	/** One live resolver per beat, shared by every enqueue() call — a function
 	 *  evaluated when each step renderer asks for the anchor, not a value
@@ -112,13 +135,7 @@ export function createMatchEventBeatController(deps: {
 		if (String(top.id) !== String(beat.cardId)) return;
 
 		const placement = deps.getPlacement();
-		const localUsername = resolvePovPlayer(
-			storeGame.localPlayer,
-			storeGame.isSpectator,
-			state.players ?? [],
-			storeSpectator.viewedUsername,
-			state.current_turn
-		)?.username;
+		const localUsername = resolveLocalUsername(state);
 
 		const playedByMe = beat.player === localUsername;
 		const landingBaseDeg = playedByMe
@@ -208,14 +225,117 @@ export function createMatchEventBeatController(deps: {
 		});
 	}
 
+	/** Ports the watcher's local-draw branch (baseBeats.svelte.ts:795-934):
+	 *  the owner receives real card ids, so the ids come straight
+	 *  from the beat rather than a hand diff. Opponent draws are handled separately. */
+	function handleDraw(beat: Extract<MatchEventBeat, { kind: "draw" }>): void {
+		const state = storeGame.state;
+		if (!state) return;
+		if (beat.player !== resolveLocalUsername(state)) return;
+		const newIds = beat.cardIds;
+		if (newIds.length === 0) return;
+
+		const placement = deps.getPlacement();
+		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
+
+		// One anchor PER new card, at its own eventual slot in the final
+		// (post-draw) hand — new ids always append at the end, so the Nth new
+		// card belongs at the Nth-from-last slot. Every card sharing the single
+		// old "rightmost" anchor was the bug: every card in a multi-card draw
+		// converged on the exact same hand slot instead of fanning out.
+		pendingLocalHandSlots.clear();
+		const prevHandCount = localHand.length - newIds.length;
+		const slotAnchorKeys: string[] = [];
+		for (let i = 0; i < newIds.length; i++) {
+			const cardId = newIds[i];
+			const targetSlotIndex = prevHandCount + i;
+			const currentStepHandCount = prevHandCount + i + 1;
+			const slotKey = `local-draw-slot:${cardId}`;
+			slotAnchorKeys.push(slotKey);
+			const targetAnchor = localHandSlotAnchor(
+				currentStepHandCount,
+				targetSlotIndex,
+				placement,
+				deps.bus.localHandSnapshot
+			);
+			pendingLocalHandSlots.set(slotKey, targetAnchor);
+			pendingLocalHandSlots.set(String(i), targetAnchor);
+		}
+
+		const isLocalTurn = state.current_turn === beat.player;
+		// INFO: the snapshot is post-draw, so add the drawn count back for the
+		// PRE-draw pile height the card visually left from. A same-batch
+		// reshuffle can make this approximate.
+		const preDrawSize = (state.draw_pile_size ?? 0) + beat.count;
+		for (const cardId of newIds) {
+			const card = localHand.find((c) => c.id === cardId);
+			if (!card) continue;
+			const idString = String(cardId);
+			localDrawFlightIds.add(idString);
+			deps.cardRegistry.registerCardMeta(idString, {
+				type: card.type,
+				value: card.value
+			});
+			const [px, py, pz] = drawPileTopPose(
+				placement,
+				preDrawSize,
+				storeRenderSettings.drawPileThickness
+			);
+			deps.cardRegistry.clearDecoration(idString);
+			deps.cardRegistry.seedPose(idString, {
+				x: px,
+				y: py + DRAW_HOVER_LIFT,
+				z: pz,
+				spinDeg: 0,
+				flipDeg: 0,
+				scale: placement.drawPileScale,
+				turned: true,
+				opacity: 1
+			});
+			deps.cardRegistry.setDecoration(idString, {
+				dimmed: !isLocalTurn
+			});
+		}
+		for (const id of newIds) deps.bus.addPendingLocalDraw(id);
+		const cardIds = newIds.map(String);
+		const remainingLocalDraws = new Set(newIds);
+		deps.cardRegistry
+			.enqueue(
+				buildDrawBeats({
+					cardIds,
+					forLocalPlayer: true,
+					placement,
+					slotAnchorKeys,
+					onCardComplete: (index) => {
+						const id = newIds[index];
+						if (id !== undefined && remainingLocalDraws.has(id)) {
+							remainingLocalDraws.delete(id);
+							deps.bus.removePendingLocalDraw(id);
+							localDrawFlightIds.delete(String(id));
+						}
+					}
+				}),
+				resolveCardTarget
+			)
+			.finally(() => {
+				for (const id of remainingLocalDraws) {
+					deps.bus.removePendingLocalDraw(id);
+					localDrawFlightIds.delete(String(id));
+				}
+				remainingLocalDraws.clear();
+			});
+	}
+
 	function handle(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
 				handlePlay(beat);
 				return;
 			case "draw":
+				handleDraw(beat);
+				return;
 			case "reshuffle":
-				// TODO: A2 (draw) / A3 (reshuffle) port these onto the packet.
+				// TODO: A3 ports reshuffle onto the packet.
 				return;
 			case "turn":
 			case "toast":
@@ -226,11 +346,20 @@ export function createMatchEventBeatController(deps: {
 	}
 
 	/** Called by GameBoard on each `storeGame.state` change (a plain $effect,
-	 *  NOT a diff source). A2 adds in-flight decoration refresh here. */
+	 *  NOT a diff source). Also live-refreshes every in-flight local draw
+	 *  card's dimmed state, since a turn can change mid-flight during a
+	 *  staggered multi-card draw. */
 	function syncState(): void {
 		const state = storeGame.state;
 		if (!state) return;
 		deps.bus.setActiveType(state.active_type as CardType);
+
+		const isLocalTurn = state.current_turn === resolveLocalUsername(state);
+		for (const flightCardId of localDrawFlightIds) {
+			deps.cardRegistry.setDecoration(flightCardId, {
+				dimmed: !isLocalTurn
+			});
+		}
 	}
 
 	const dispose = deps.subscribeBeats(handle);

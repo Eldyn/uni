@@ -35,7 +35,9 @@ function fakeBus() {
 		setActiveType: vi.fn(),
 		setDiscardTop: vi.fn(),
 		addInFlightPlay: vi.fn(),
-		removeInFlightPlay: vi.fn()
+		removeInFlightPlay: vi.fn(),
+		addPendingLocalDraw: vi.fn(),
+		removePendingLocalDraw: vi.fn()
 	} as unknown as CardBus;
 }
 
@@ -43,6 +45,7 @@ function fakeBus() {
 function fakeRegistry() {
 	return {
 		clearDecoration: vi.fn(),
+		setDecoration: vi.fn(),
 		seedPose: vi.fn(),
 		registerCardMeta: vi.fn(),
 		enqueue: vi.fn().mockResolvedValue(undefined)
@@ -61,6 +64,30 @@ function baseState() {
 		],
 		pending_draws: 0,
 		draw_pile_size: 10
+	} as never;
+}
+
+/** Post-draw state: "me" holds [2,5,7,9] and the draw pile already shrank to 8
+ *  (so the pre-draw pile the flight seeds from was 10). */
+function localDrawState() {
+	return {
+		...baseState(),
+		current_turn: "me",
+		draw_pile_size: 8,
+		players: [
+			{
+				username: "me",
+				card_count: 4,
+				is_bot: false,
+				hand: [
+					{ id: 2, type: "red", value: "7" },
+					{ id: 5, type: "blue", value: "1" },
+					{ id: 7, type: "green", value: "3" },
+					{ id: 9, type: "yellow", value: "5" }
+				]
+			},
+			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+		]
 	} as never;
 }
 
@@ -236,7 +263,107 @@ describe("createMatchEventBeatController", () => {
 		);
 	});
 
-	it("no-ops draw/reshuffle/turn/toast beats this slice", () => {
+	it("enqueues staggered flip+move beats and seeds each id for a local draw", () => {
+		storeAuth.username = "me";
+		storeGame.state = localDrawState();
+		const h = harness();
+
+		h.fire({ seq: 20, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+
+		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
+		const [beats, resolveAnchor] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+			.calls[0] as [AnimationBeat[], (name: string) => [number, number, number]];
+		expect(beats).toHaveLength(1);
+		const steps = beats[0]!;
+		expect(steps.map((s) => s.op)).toEqual(["flip", "move", "flip", "move"]);
+		expect(steps[0]!.target).toBe("7");
+		expect(steps[0]!.payload?.turned).toBe(false);
+		expect(steps[1]!.target).toBe("7");
+		expect(steps[1]!.payload?.to).toBe("local-draw-slot:7");
+		expect(steps[3]!.target).toBe("9");
+		expect(steps[3]!.payload?.to).toBe("local-draw-slot:9");
+
+		// Each new id is seeded face-down at the draw pile and registered.
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+			"7",
+			expect.objectContaining({ turned: true, flipDeg: 0 })
+		);
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+			"9",
+			expect.objectContaining({ turned: true, flipDeg: 0 })
+		);
+		expect(h.cardRegistry.registerCardMeta).toHaveBeenCalledWith("7", {
+			type: "green",
+			value: "3"
+		});
+		expect(h.cardRegistry.registerCardMeta).toHaveBeenCalledWith("9", {
+			type: "yellow",
+			value: "5"
+		});
+
+		// Both cards are hidden from LocalHand3D by pendingLocalDrawIds.
+		expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(7);
+		expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(9);
+
+		// A per-card slot anchor exists for every slot key, and the shared
+		// resolver returns a world-space tuple for each.
+		expect(resolveAnchor("local-draw-slot:7")).toHaveLength(3);
+		expect(resolveAnchor("local-draw-slot:9")).toHaveLength(3);
+
+		// It is the local player's turn, so the flight is not dimmed.
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("7", { dimmed: false });
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("9", { dimmed: false });
+	});
+
+	it("clears every pending local draw in the enqueue finally", async () => {
+		storeAuth.username = "me";
+		storeGame.state = localDrawState();
+		const h = harness();
+
+		h.fire({ seq: 21, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+
+		// No step renderer runs against the fake registry, so no onCardComplete
+		// fires and the finally block is the one that releases both cards.
+		await vi.waitFor(() => {
+			expect(h.bus.removePendingLocalDraw).toHaveBeenCalledWith(7);
+			expect(h.bus.removePendingLocalDraw).toHaveBeenCalledWith(9);
+		});
+	});
+
+	it("refreshes in-flight local draw dimming on syncState when the turn moves away", () => {
+		storeAuth.username = "me";
+		storeGame.state = localDrawState();
+		const h = harness();
+
+		h.fire({ seq: 22, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+		(h.cardRegistry.setDecoration as ReturnType<typeof vi.fn>).mockClear();
+
+		storeGame.state = { ...localDrawState(), current_turn: "bob" } as never;
+		h.controller.syncState();
+
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("7", { dimmed: true });
+		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("9", { dimmed: true });
+	});
+
+	it("ignores an opponent draw (A3 handles it)", () => {
+		storeAuth.username = "me";
+		storeGame.state = { ...localDrawState(), current_turn: "bob" } as never;
+		const h = harness();
+
+		h.fire({
+			seq: 23,
+			kind: "draw",
+			player: "bob",
+			count: 2,
+			sourcePile: "draw",
+			cardIds: [50, 51]
+		});
+
+		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+		expect(h.bus.addPendingLocalDraw).not.toHaveBeenCalled();
+	});
+
+	it("no-ops an empty-id draw and reshuffle/turn/toast beats", () => {
 		storeAuth.username = "me";
 		storeGame.state = baseState();
 		const h = harness();
