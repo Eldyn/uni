@@ -52,10 +52,12 @@ struct MutationCompileOptions {
  * @return A graph whose `nodes` is the compiled node list and whose `raw` is
  *         `{"nodes": <nodes>}`. The entry node is `nodes.front()`.
  *
- * Ordering: `replace`/`wrap` fold so the earliest mod in `mutations` is the
- * outermost wrap; every `veto`
- * is applied after that fold, so it guards the effective graph whichever side
- * of a `replace`/`wrap` it appears on.
+ * Ordering: execution order equals mod-list order in both directions
+ * Before-wraps and `replace` fold so the earliest mod is
+ * outermost (`[A,B]` before -> `A_pre, B_pre, core`); after-wraps fold so the
+ * earliest mod runs first after the core (`[A,B]` after -> `core, A_post,
+ * B_post`). Every `veto` is applied after that fold, so it guards the
+ * effective graph whichever side of a `replace`/`wrap` it appears on.
  */
 modload::BehaviorGraph CompileMutations(
     const modload::BehaviorGraph& original,

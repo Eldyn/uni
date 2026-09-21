@@ -353,6 +353,40 @@ TEST_CASE("mutation assembly: two wraps from two mods fold in mod-list order") {
     CHECK(signals[2] == "base");
 }
 
+TEST_CASE("mutation assembly: two after-wraps from two mods keep mod order") {
+    LoadedMod base;
+    base.manifest = Manifest("base");
+    base.cards.push_back(SignalCard("base", "wild", "base"));
+
+    LoadedMod alpha;
+    alpha.manifest = Manifest("alpha");
+    MutationDef alpha_wrap = Mutation(
+        "alpha", "wrap", "base:wild", "wrap",
+        json::array({SignalNode("a1", "alpha")}));
+    alpha_wrap.position = std::string("after");
+    alpha.mutations.push_back(std::move(alpha_wrap));
+
+    LoadedMod beta;
+    beta.manifest = Manifest("beta");
+    MutationDef beta_wrap = Mutation(
+        "beta", "wrap", "base:wild", "wrap",
+        json::array({SignalNode("b1", "beta")}));
+    beta_wrap.position = std::string("after");
+    beta.mutations.push_back(std::move(beta_wrap));
+
+    std::unique_ptr<MatchInstance> engine =
+        Assemble({base, alpha, beta}, FixtureDeck({"base", "alpha", "beta"},
+                                                  "base:wild", 8));
+
+    // INFO: after-wraps run after the base in mod order: base, alpha, beta.
+    const std::vector<std::string> signals =
+        PlaySignals(*engine, "player0", "base:wild");
+    REQUIRE(signals.size() == 3);
+    CHECK(signals[0] == "base");
+    CHECK(signals[1] == "alpha");
+    CHECK(signals[2] == "beta");
+}
+
 TEST_CASE("mutation assembly: kind target wins over a colliding restriction") {
     LoadedMod fix;
     fix.manifest = Manifest("fix");

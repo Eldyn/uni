@@ -189,6 +189,37 @@ TEST_CASE("mutation compiler: wraps fold in mod-list order") {
     CHECK(RunTags(out) == "A,B,O");
 }
 
+TEST_CASE("mutation compiler: after-wraps fold in mod-list order") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef first =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("a1", "A")})));
+    first.position = std::string("after");
+    MutationDef second =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("b1", "B")})));
+    second.position = std::string("after");
+
+    BehaviorGraph out = CompileMutations(original, {&first, &second});
+
+    // INFO: after-wraps run after the base in mod order: base, then A, then B.
+    CHECK(RunTags(out) == "O,A,B");
+}
+
+TEST_CASE("mutation compiler: mixed before and after wraps keep mod order") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef before =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("a1", "A")})));
+    MutationDef after =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("b1", "B")})));
+    after.position = std::string("after");
+
+    // INFO: mod order [before, after]: the before graph runs first, then the
+    //       base, then the after graph.
+    CHECK(RunTags(CompileMutations(original, {&before, &after})) == "A,O,B");
+    // INFO: list order does not move a wrap across the base: the before graph
+    //       still precedes the core and the after graph still follows it.
+    CHECK(RunTags(CompileMutations(original, {&after, &before})) == "A,O,B");
+}
+
 TEST_CASE("mutation compiler: veto guards a replace in either order") {
     BehaviorGraph original = OneLogGraph();
     ConditionRegistry conditions;
@@ -215,6 +246,33 @@ TEST_CASE("mutation compiler: veto guards a replace in either order") {
           == "R");
     CHECK(RunTags(CompileMutations(original, {&replace, &veto}), &conditions)
           == "R");
+}
+
+TEST_CASE("mutation compiler: veto composes with a wrap in either order") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "yes", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "no", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef veto = MakeMutation("veto", BehaviorGraph{});
+    veto.where = json{{"yes", json::object()}};
+    MutationDef wrap =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("w1", "W")})));
+
+    // INFO: a matching veto suppresses the wrapped graph in either order.
+    CHECK(RunTags(CompileMutations(original, {&veto, &wrap}), &conditions)
+          == "");
+    CHECK(RunTags(CompileMutations(original, {&wrap, &veto}), &conditions)
+          == "");
+
+    // INFO: a non-matching veto leaves the wrap's output untouched.
+    veto.where = json{{"no", json::object()}};
+    CHECK(RunTags(CompileMutations(original, {&veto, &wrap}), &conditions)
+          == "W,O");
+    CHECK(RunTags(CompileMutations(original, {&wrap, &veto}), &conditions)
+          == "W,O");
 }
 
 TEST_CASE("mutation compiler: wrap rewrites window on_response routes") {

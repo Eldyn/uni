@@ -324,10 +324,12 @@ modload::BehaviorGraph CompileMutations(
     json current = NodesOf(original);
     if (!current.is_array()) current = json::array();
 
-    // INFO: alterations fold in REVERSE list order so the earliest mod's wrap
-    //       ends up outermost: [A, B] runs A's injected graph, then B's, then
-    //       the base. `veto` is
-    //       deferred to the second pass so it always guards the final graph.
+    // INFO: alterations fold so execution order equals mod order in BOTH
+    //       directions. `replace` and before-wraps fold in
+    //       REVERSE so the earliest mod is outermost ([A,B] -> A_pre, B_pre,
+    //       core); after-wraps fold FORWARD so the earliest mod runs first
+    //       after the core ([A,B] -> core, A_post, B_post). `veto` is deferred
+    //       to a final pass so it always guards the effective graph.
     for (std::size_t k = mutations.size(); k-- > 0;) {
         const modload::MutationDef* mutation = mutations[k];
         if (mutation == nullptr) {
@@ -335,6 +337,10 @@ modload::BehaviorGraph CompileMutations(
             continue;
         }
         if (mutation->mode == "veto") continue;
+        if (mutation->mode == "wrap"
+            && mutation->position.value_or("before") == "after") {
+            continue;  // INFO: handled by the forward after-wrap pass below.
+        }
         if (options.restriction_targets.count(mutation->target) != 0) {
             Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
                          "' targets restriction entry '", mutation->target,
@@ -361,6 +367,21 @@ modload::BehaviorGraph CompileMutations(
             Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
                          "' has unknown mode '", mode, "'; inert");
         }
+    }
+
+    // INFO: after-wraps fold forward over the before/replace result so their
+    //       injected graphs run in mod order after the core.
+    for (std::size_t k = 0; k < mutations.size(); ++k) {
+        const modload::MutationDef* mutation = mutations[k];
+        if (mutation == nullptr || mutation->mode != "wrap") continue;
+        if (mutation->position.value_or("before") != "after") continue;
+        if (options.restriction_targets.count(mutation->target) != 0) {
+            Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
+                         "' targets restriction entry '", mutation->target,
+                         "'; inert");
+            continue;
+        }
+        current = ApplyWrap(current, *mutation, k);
     }
 
     // INFO: vetoes are conditions, not alterations; they guard the
