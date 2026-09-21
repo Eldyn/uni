@@ -555,6 +555,7 @@ class Checker {
                 status_ids_.insert(status.status_id);
             }
             for (const auto& rule : mod->rules) {
+                rule_ids_.insert(rule.rule_id);
                 for (const auto& hook : rule.hooks) {
                     CollectGraphDecls(hook.graph, ns, "rules");
                 }
@@ -717,6 +718,9 @@ class Checker {
             return;
         }
         if (kind_ids_.count(target)) return;
+        // INFO: a mutation may also target a rule hook graph; the
+        //       assembler compiles that rule's graphs at assembly.
+        if (rule_ids_.count(target)) return;
         if (restriction_ids_.count(target)) return;
         if (!match_set_ && RefNamespace(target) != ns) return;
         buckets_.refs.push_back(Err("ref.kind", "mutations", path,
@@ -1955,6 +1959,7 @@ class Checker {
 
     Buckets buckets_;
     std::set<std::string> kind_ids_;
+    std::set<std::string> rule_ids_;
     std::set<std::string> status_ids_;
     std::set<std::string> tags_;
     std::set<std::string> restriction_ids_;

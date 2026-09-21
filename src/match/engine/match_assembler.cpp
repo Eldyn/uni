@@ -5,6 +5,8 @@
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 
+#include <logger.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <map>
@@ -115,10 +117,10 @@ ecs::CardBehavior ToEcsBehavior(
  * @brief Insert every `add_restriction` entry id declared in `graph`.
  *
  * Mirrors the semantic validator's `CollectGraphDecls`: a mutation
- * `target` that names one of these entries is not a behavior kind and must be
- * WARN-no-opped by the compiler rather than folded
- * into a colliding kind/rule graph. The set is the declaration set the
- * `match_start` dispatch below installs as play restrictions.
+ * `target` that names one of these entries and no behavior kind/rule is a
+ * restriction-only mutation and must be WARN-no-opped
+ * rather than folded into a colliding graph. Callers scan the same sources the
+ * validator scans: card behaviors, rule hooks and mutation replacements.
  */
 void CollectRestrictionEntryIds(
     const modload::BehaviorGraph& graph,
@@ -537,9 +539,7 @@ AssemblyResult MatchAssembler::Assemble(
     }
 
     // INFO: mutations are applied at assembly, not walk time.
-    //       Collect them per target in the frozen mod-list order (priority),
-    //       and classify restriction-entry targets so the compiler WARN-no-ops
-    //       them instead of folding them into a colliding behavior kind.
+    //       Collect them per target in the frozen mod-list order (priority).
     std::map<std::string, std::vector<const modload::MutationDef*>>
         mutations_by_target;
     for (const modload::LoadedMod* mod : active) {
@@ -547,13 +547,51 @@ AssemblyResult MatchAssembler::Assemble(
             mutations_by_target[mutation.target].push_back(&mutation);
         }
     }
-    MutationCompileOptions compile_options;
+
+    // INFO: classify targets. A target naming a card kind or a rule hook is a
+    //       graph mutation and is compiled; one naming only a restriction entry
+    //       is a WARN-no-op. Restriction entries are declared in
+    //       card behaviors, rule hooks and mutation replacements (the same
+    //       sources the validator scans); a kind/rule id always wins so a
+    //       colliding target is never mis-filed as a restriction.
+    std::set<std::string> kind_ids;
+    std::set<std::string> rule_ids;
+    std::set<std::string, std::less<>> declared_restrictions;
     for (const modload::LoadedMod* mod : active) {
-        for (const modload::RuleDef& rule : mod->rules) {
-            for (const modload::BehaviorEntry& entry : rule.hooks) {
-                CollectRestrictionEntryIds(entry.graph,
-                                           compile_options.restriction_targets);
+        for (const modload::CardDef& card : mod->cards) {
+            kind_ids.insert(card.kind_id);
+            for (const modload::BehaviorEntry& entry : card.behaviors) {
+                CollectRestrictionEntryIds(entry.graph, declared_restrictions);
             }
+        }
+        for (const modload::RuleDef& rule : mod->rules) {
+            rule_ids.insert(rule.rule_id);
+            for (const modload::BehaviorEntry& entry : rule.hooks) {
+                CollectRestrictionEntryIds(entry.graph, declared_restrictions);
+            }
+        }
+        for (const modload::MutationDef& mutation : mod->mutations) {
+            CollectRestrictionEntryIds(mutation.replacement,
+                                       declared_restrictions);
+        }
+    }
+    MutationCompileOptions compile_options;
+    for (const std::string& entry : declared_restrictions) {
+        if (kind_ids.count(entry) != 0) continue;
+        if (rule_ids.count(entry) != 0) continue;
+        compile_options.restriction_targets.insert(entry);
+    }
+    // INFO: a restriction-only target has no graph to compile, so the compiler
+    //       never sees it; warn here so the mutation is not silently dropped.
+    for (const modload::LoadedMod* mod : active) {
+        for (const modload::MutationDef& mutation : mod->mutations) {
+            if (compile_options.restriction_targets.count(mutation.target)
+                == 0) {
+                continue;
+            }
+            Logger::Warn("[MutationCompiler] mutation '", mutation.mutation_id,
+                         "' targets restriction entry '", mutation.target,
+                         "'; inert");
         }
     }
 

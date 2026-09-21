@@ -105,6 +105,40 @@ CardDef SignalCard(const std::string& ns, const std::string& local,
     return card;
 }
 
+/** @brief A numbered text card with no behaviors (rule-hook tests). */
+CardDef PlainCard(const std::string& ns, const std::string& local) {
+    CardDef card;
+    card.id = local;
+    card.namespace_id = ns;
+    card.kind_id = ns + ":" + local;
+    card.title = local;
+    card.face.kind = match::modload::FaceKind::kText;
+    card.face.color = std::string("red");
+    card.face.label = std::string("1");
+    card.tags = {"numbered"};
+    return card;
+}
+
+/** @brief `SignalCard` plus a second behavior declaring a restriction entry. */
+CardDef SignalCardWithRestriction(const std::string& ns,
+                                  const std::string& local,
+                                  const std::string& signal,
+                                  const std::string& entry_id) {
+    CardDef card = SignalCard(ns, local, signal);
+    BehaviorEntry entry;
+    entry.hook = "draw";
+    entry.graph = MakeGraph(json::array({json{
+        {"id", "d1"},
+        {"op", "add_restriction"},
+        {"args",
+         {{"entry_def",
+           {{"id", entry_id},
+            {"phase", "deny"},
+            {"condition", {{"never", json::object()}}}}}}}}}));
+    card.behaviors.push_back(std::move(entry));
+    return card;
+}
+
 MutationDef Mutation(const std::string& ns, const std::string& local,
                      const std::string& target, const std::string& mode,
                      json nodes) {
@@ -309,17 +343,17 @@ TEST_CASE("mutation assembly: two wraps from two mods fold in mod-list order") {
         Assemble({base, alpha, beta}, FixtureDeck({"base", "alpha", "beta"},
                                                   "base:wild", 8));
 
-    // INFO: later mod-list entries wrap outermost (15-3a semantics): the
-    //       ordered list [alpha, beta] yields beta, then alpha, then the base.
+    // INFO: mod-list order is execution order: the first mod wraps outermost,
+    //       so alpha's injected graph runs, then beta's, then the base.
     const std::vector<std::string> signals =
         PlaySignals(*engine, "player0", "base:wild");
     REQUIRE(signals.size() == 3);
-    CHECK(signals[0] == "beta");
-    CHECK(signals[1] == "alpha");
+    CHECK(signals[0] == "alpha");
+    CHECK(signals[1] == "beta");
     CHECK(signals[2] == "base");
 }
 
-TEST_CASE("mutation assembly: restriction-target mutation is inert and warns") {
+TEST_CASE("mutation assembly: kind target wins over a colliding restriction") {
     LoadedMod fix;
     fix.manifest = Manifest("fix");
     fix.cards.push_back(SignalCard("fix", "guard", "original"));
@@ -342,9 +376,8 @@ TEST_CASE("mutation assembly: restriction-target mutation is inert and warns") {
     rule.hooks.push_back(std::move(hook));
     fix.rules.push_back(std::move(rule));
 
-    // INFO: the mutation target string collides with both a card kind and the
-    //       restriction entry the rule installs; the restriction classification
-    //       must win (WARN-no-op), not fold into the kind's behavior graph.
+    // INFO: the target string is both a card kind and a restriction entry; a
+    //       kind target always applies to the kind graph.
     fix.mutations.push_back(Mutation(
         "fix", "hijack", "fix:guard", "replace",
         json::array({SignalNode("h1", "mutated")})));
@@ -357,13 +390,132 @@ TEST_CASE("mutation assembly: restriction-target mutation is inert and warns") {
         log = capture.Text();
     }
 
-    CHECK(log.find("targets restriction entry") != std::string::npos);
+    CHECK(log.find("targets restriction entry") == std::string::npos);
     REQUIRE(FindRestriction(*engine, "fix:guard") != nullptr);
 
     const std::vector<std::string> signals =
         PlaySignals(*engine, "player0", "fix:guard");
     REQUIRE(signals.size() == 1);
+    CHECK(signals[0] == "mutated");
+}
+
+TEST_CASE("mutation assembly: restriction-only target warns and stays inert") {
+    LoadedMod fix;
+    fix.manifest = Manifest("fix");
+    // INFO: the restriction entry is declared in a card behavior (not a rule),
+    //       so the assembler must scan that source to classify it (I-3).
+    fix.cards.push_back(
+        SignalCardWithRestriction("fix", "wild", "original", "fix:ward"));
+    fix.mutations.push_back(Mutation(
+        "fix", "orphan", "fix:ward", "replace",
+        json::array({SignalNode("o1", "mutated")})));
+
+    std::unique_ptr<MatchInstance> engine;
+    std::string log;
+    {
+        CaptureStdout capture;
+        engine = Assemble({fix}, FixtureDeck({"fix"}, "fix:wild", 8));
+        log = capture.Text();
+    }
+
+    CHECK(log.find("targets restriction entry") != std::string::npos);
+
+    const std::vector<std::string> signals =
+        PlaySignals(*engine, "player0", "fix:wild");
+    REQUIRE(signals.size() == 1);
     CHECK(signals[0] == "original");
+}
+
+TEST_CASE("mutation assembly: replace retargets a rule hook graph") {
+    LoadedMod base;
+    base.manifest = Manifest("base");
+    base.cards.push_back(PlainCard("base", "wild"));
+
+    RuleDef rule;
+    rule.id = "on_any_play";
+    rule.namespace_id = "base";
+    rule.rule_id = "base:on_any_play";
+    rule.title = "on any play";
+    BehaviorEntry hook;
+    hook.hook = "after:play";
+    hook.graph = MakeGraph(json::array({SignalNode("r1", "rule_original")}));
+    rule.hooks.push_back(std::move(hook));
+    base.rules.push_back(std::move(rule));
+
+    LoadedMod replacer;
+    replacer.manifest = Manifest("replacer");
+    replacer.mutations.push_back(Mutation(
+        "replacer", "swap", "base:on_any_play", "replace",
+        json::array({SignalNode("r2", "rule_replaced")})));
+
+    std::unique_ptr<MatchInstance> engine =
+        Assemble({base, replacer}, FixtureDeck({"base", "replacer"},
+                                               "base:wild", 8));
+
+    const std::vector<std::string> signals =
+        PlaySignals(*engine, "player0", "base:wild");
+    REQUIRE(signals.size() == 1);
+    CHECK(signals[0] == "rule_replaced");
+}
+
+TEST_CASE("mutation assembly: veto guards a replacement in either order") {
+    LoadedMod base;
+    base.manifest = Manifest("base");
+    base.cards.push_back(SignalCard("base", "wild", "original"));
+
+    auto guard_mod = [](bool veto_first, bool veto_matches) {
+        LoadedMod guard;
+        guard.manifest = Manifest("guard");
+        MutationDef veto =
+            Mutation("guard", "stop", "base:wild", "veto", json::array());
+        veto.where =
+            json{{veto_matches ? "always" : "never", json::object()}};
+        MutationDef replace =
+            Mutation("guard", "swap", "base:wild", "replace",
+                     json::array({SignalNode("g1", "replaced")}));
+        if (veto_first) {
+            guard.mutations.push_back(std::move(veto));
+            guard.mutations.push_back(std::move(replace));
+        } else {
+            guard.mutations.push_back(std::move(replace));
+            guard.mutations.push_back(std::move(veto));
+        }
+        return guard;
+    };
+
+    SUBCASE("[veto, replace]: a matching veto suppresses the replacement") {
+        std::unique_ptr<MatchInstance> engine =
+            Assemble({base, guard_mod(true, true)},
+                     FixtureDeck({"base", "guard"}, "base:wild", 8));
+        CHECK(PlaySignals(*engine, "player0", "base:wild").empty());
+    }
+
+    SUBCASE("[replace, veto]: a matching veto suppresses the replacement") {
+        std::unique_ptr<MatchInstance> engine =
+            Assemble({base, guard_mod(false, true)},
+                     FixtureDeck({"base", "guard"}, "base:wild", 8));
+        CHECK(PlaySignals(*engine, "player0", "base:wild").empty());
+    }
+
+    SUBCASE("[veto, replace]: a non-matching veto lets the replacement run") {
+        std::unique_ptr<MatchInstance> engine =
+            Assemble({base, guard_mod(true, false)},
+                     FixtureDeck({"base", "guard"}, "base:wild", 8));
+        const std::vector<std::string> signals =
+            PlaySignals(*engine, "player0", "base:wild");
+        REQUIRE(signals.size() == 1);
+        CHECK(signals[0] == "replaced");
+    }
+
+    SUBCASE("[replace, veto]: a non-matching veto lets the replacement run") {
+        std::unique_ptr<MatchInstance> engine =
+            Assemble({base, guard_mod(false, false)},
+                     FixtureDeck({"base", "guard"}, "base:wild", 8));
+        const std::vector<std::string> signals =
+            PlaySignals(*engine, "player0", "base:wild");
+        REQUIRE(signals.size() == 1);
+        CHECK(signals[0] == "replaced");
+    }
 }
 
 TEST_CASE("mutation assembly: filter mutation is inert and warns") {

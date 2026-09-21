@@ -329,6 +329,18 @@ TEST_CASE("validator: known mutation target kind passes") {
     CHECK(errors.empty());
 }
 
+TEST_CASE("validator: known mutation target rule hook id passes") {
+    LoadedMod mod = ValidMod();
+    AddRule(mod, "r1", "after:play", "", json(),
+            {Op("n1", "advance_turn", json::object())});
+    mod.mutations.push_back(MakeMutation(
+        "alpha", "m1", "alpha:r1", "replace",
+        {Op("n1", "advance_turn", json::object())}));
+    SemanticValidator v(SchemaDir());
+    auto errors = v.ValidateMod(mod);
+    CHECK(errors.empty());
+}
+
 TEST_CASE("validator: unknown status ref is ref.status") {
     LoadedMod mod = ValidMod();
     mod.cards[0].behaviors[0].graph = MakeGraph(
