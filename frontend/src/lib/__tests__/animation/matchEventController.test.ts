@@ -39,8 +39,19 @@ function fakeBus() {
 		addInFlightDraw: vi.fn(),
 		removeInFlightDraw: vi.fn(),
 		addPendingLocalDraw: vi.fn(),
-		removePendingLocalDraw: vi.fn()
+		removePendingLocalDraw: vi.fn(),
+		retainTopDiscard: vi.fn()
 	} as unknown as CardBus;
+}
+
+/** Discard-history fixture — only the ids/type/value matter to the reshuffle path. */
+function discardHistory(ids: number[]) {
+	return ids.map((id, i) => ({
+		card: { id, type: "red", value: String(id) },
+		seq: i + 1,
+		jitter: [0, 0] as [number, number],
+		rotationDeg: 0
+	}));
 }
 
 /** Minimal fake registry recording the seeding + enqueue calls the play path makes. */
@@ -479,6 +490,101 @@ describe("createMatchEventBeatController", () => {
 		h.controller.syncState();
 
 		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith(cardId, { dimmed: true });
+	});
+
+	it("enqueues move+flip for the discard history and retains the top discard on reshuffle", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		const h = harness();
+		(h.bus as { discardHistory: unknown[] }).discardHistory = discardHistory([1, 2, 3]);
+
+		// Seed the pre-reshuffle pile size the packet diff is computed against.
+		h.controller.syncState();
+		h.fire({ seq: 30, kind: "reshuffle", drawSize: 12, discardSize: 3 });
+
+		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
+		const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+			AnimationBeat[]
+		];
+		expect(beats).toHaveLength(1);
+		expect(beats[0]!.map((s) => s.op)).toEqual(["move", "flip", "move", "flip"]);
+		// Only the two cards below the retained top fly back.
+		expect(beats[0]!.filter((s) => s.op === "move").map((s) => s.target)).toEqual(["1", "2"]);
+
+		expect(h.cardRegistry.registerCardMeta).toHaveBeenCalledWith("1", expect.objectContaining({}));
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+			"1",
+			expect.objectContaining({ turned: false, scale: 1 })
+		);
+
+		await vi.waitFor(() => {
+			expect(h.bus.retainTopDiscard).toHaveBeenCalledWith(2);
+		});
+		await vi.waitFor(() => {
+			expect((h.bus as { reshuffleDrawPileSize: number | null }).reshuffleDrawPileSize).toBeNull();
+		});
+		expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith("1");
+		expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith("2");
+	});
+
+	it("is a no-op when the draw pile does not grow", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		const h = harness();
+
+		h.controller.syncState();
+		h.fire({ seq: 31, kind: "reshuffle", drawSize: 10, discardSize: 3 });
+		h.fire({ seq: 32, kind: "reshuffle", drawSize: 9, discardSize: 3 });
+
+		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+		expect(h.bus.retainTopDiscard).not.toHaveBeenCalled();
+	});
+
+	it("is a no-op when the previous pile size has not been seeded", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		const h = harness();
+
+		h.fire({ seq: 33, kind: "reshuffle", drawSize: 12, discardSize: 3 });
+
+		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+		expect(h.bus.retainTopDiscard).not.toHaveBeenCalled();
+	});
+
+	it("synthesizes the backfill when discard history is shorter than the amount reshuffled", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		const h = harness();
+		// Only the top discard exists client-side (e.g. after a refresh).
+		(h.bus as { discardHistory: unknown[] }).discardHistory = discardHistory([3]);
+
+		h.controller.syncState();
+		h.fire({ seq: 34, kind: "reshuffle", drawSize: 12, discardSize: 1 });
+
+		const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+			AnimationBeat[]
+		];
+		const moveSteps = beats[0]!.filter((s) => s.op === "move");
+		expect(moveSteps.map((s) => s.target)).toEqual(["-1000", "-1001"]);
+		expect(h.cardRegistry.registerCardMeta).toHaveBeenCalledWith("-1000", {
+			id: -1000,
+			type: "wild",
+			value: "0"
+		});
+
+		// Landing callbacks drive the live draw-pile size + landing ping off the
+		// pre-reshuffle base.
+		(moveSteps[0]!.payload?.onComplete as () => void)();
+		expect((h.bus as { reshuffleDrawPileSize: number | null }).reshuffleDrawPileSize).toBe(11);
+		expect(
+			(h.bus as { onReshuffleCardLanding: { index: number; total: number } | null })
+				.onReshuffleCardLanding
+		).toMatchObject({ index: 0, total: 2 });
+
+		await vi.waitFor(() => {
+			expect(h.bus.retainTopDiscard).toHaveBeenCalledWith(0);
+			expect((h.bus as { onReshuffleCardLanding: unknown }).onReshuffleCardLanding).toBeNull();
+		});
 	});
 
 	it("no-ops an empty-id draw and reshuffle/turn/toast beats", () => {

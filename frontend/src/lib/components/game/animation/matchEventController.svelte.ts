@@ -20,11 +20,17 @@ import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
 import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
-import { DISCARD_CAP, previewDiscardLanding } from "../layout/discardPile";
+import {
+	DISCARD_CAP,
+	discardStackZ,
+	previewDiscardLanding,
+	type DiscardEntry
+} from "../layout/discardPile";
 import { EM_TO_WORLD } from "../three/units";
 import {
 	buildDrawBeats,
 	buildPlayBeat,
+	buildReshuffleBeat,
 	DRAW_HOVER_LIFT,
 	localHandSlotAnchor,
 	opponentSeatAnchor,
@@ -68,6 +74,11 @@ export function createMatchEventBeatController(deps: {
 	// Synthetic opponent-draw card id -> owning username, refreshed live by
 	// syncState so a turn/prompt change mid-flight re-dims correctly.
 	const opponentDrawFlightOwners = new Map<string, string>();
+	// Previous snapshot's draw-pile size. The reshuffle packet carries only the
+	// new size, so the amount swept back is derived from this. syncState
+	// updates it AFTER the store drains the current snapshot's beats
+	//so `handle` still sees the pre-reshuffle value.
+	let prevDrawPileSize: number | null = null;
 
 	/** The POV player's username. "local" means the player whose POV is
 	 *  rendered (the viewed player while spectating), matching Scene3D and the
@@ -451,6 +462,91 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
+	/** Ports the watcher's `processReshuffle` (baseBeats.svelte.ts:1083-1160).
+	 *  The watcher derived the amount from a draw-pile diff; the packet gives
+	 *  `drawSize`, so the pre-reshuffle size is tracked from the previous
+	 *  snapshot. `discardSize` is unused — the synthetic backfill below covers
+	 *  any client-side discard-history shortfall. */
+	function handleReshuffle(beat: Extract<MatchEventBeat, { kind: "reshuffle" }>): void {
+		if (prevDrawPileSize === null) return;
+		const amountToReshuffle = beat.drawSize - prevDrawPileSize;
+		if (amountToReshuffle <= 0) return;
+
+		const placement = deps.getPlacement();
+		const preSize = prevDrawPileSize;
+		deps.bus.reshuffleDrawPileSize = preSize;
+
+		const existingToReshuffle = deps.bus.discardHistory.slice(0, -1);
+		// If client-side discardHistory has fewer cards than amountToReshuffle
+		// (e.g. after a page refresh, where only the top card exists client-side),
+		// synthesize the missing cards so the animation and height progression reflect
+		// the actual amount reshuffled rather than client-side discard state.
+		const missingCount = Math.max(0, amountToReshuffle - existingToReshuffle.length);
+		const syntheticEntries: DiscardEntry[] = [];
+		for (let i = 0; i < missingCount; i++) {
+			const angle = ((i * 37) % 70) - 35;
+			const jx = (((i * 17) % 20) - 10) * 0.05;
+			const jy = (((i * 23) % 20) - 10) * 0.05;
+			syntheticEntries.push({
+				card: { id: -1000 - i, type: "wild", value: "0" },
+				seq: -1000 - i,
+				jitter: [jx, jy],
+				rotationDeg: angle
+			});
+		}
+		const slicedExisting = existingToReshuffle.slice(
+			0,
+			amountToReshuffle - syntheticEntries.length
+		);
+		const toReshuffle = [...syntheticEntries, ...slicedExisting];
+
+		for (const [i, entry] of toReshuffle.entries()) {
+			const idString = String(entry.card.id);
+			deps.cardRegistry.registerCardMeta(idString, entry.card);
+			deps.cardRegistry.clearDecoration(idString);
+			deps.cardRegistry.seedPose(idString, {
+				x: placement.discardX + entry.jitter[0] * EM_TO_WORLD,
+				y: discardStackZ(i, toReshuffle.length),
+				z: placement.discardZ + entry.jitter[1] * EM_TO_WORLD,
+				spinDeg: entry.rotationDeg,
+				flipDeg: 0,
+				scale: placement.centerScale,
+				turned: false,
+				opacity: 1
+			});
+		}
+		const beats = buildReshuffleBeat(toReshuffle, {
+			placement,
+			isAlreadySliced: true,
+			onCardArrive: (cardIndex, totalCards) => {
+				const newSize = preSize + cardIndex + 1;
+				deps.bus.reshuffleDrawPileSize = newSize;
+				deps.bus.onReshuffleCardLanding = {
+					index: cardIndex,
+					total: totalCards,
+					timestamp: Date.now()
+				};
+			}
+		});
+		if (beats.length > 0) {
+			deps.cardRegistry
+				.enqueue(beats, resolveCardTarget)
+				.then(() => {
+					deps.bus.retainTopDiscard(slicedExisting.length);
+					for (const entry of toReshuffle) {
+						deps.cardRegistry.removeEntry(String(entry.card.id));
+					}
+				})
+				.finally(() => {
+					deps.bus.reshuffleDrawPileSize = null;
+					deps.bus.onReshuffleCardLanding = null;
+				});
+		} else {
+			deps.bus.reshuffleDrawPileSize = null;
+			deps.bus.onReshuffleCardLanding = null;
+		}
+	}
+
 	function handle(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
@@ -460,7 +556,7 @@ export function createMatchEventBeatController(deps: {
 				handleDraw(beat);
 				return;
 			case "reshuffle":
-				// TODO: A3 ports reshuffle onto the packet.
+				handleReshuffle(beat);
 				return;
 			case "turn":
 			case "toast":
@@ -496,6 +592,11 @@ export function createMatchEventBeatController(deps: {
 				dimmed: !isLocalTurn
 			});
 		}
+
+		// INFO: last so it holds the previous snapshot's value while the store
+		// drains this snapshot's beats — handleReshuffle needs the
+		// pre-reshuffle size to derive the swept amount.
+		prevDrawPileSize = state.draw_pile_size;
 	}
 
 	const dispose = deps.subscribeBeats(handle);
