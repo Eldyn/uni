@@ -479,8 +479,21 @@ TEST_CASE("engine window: turn clock pauses while open and resumes on close") {
     clock.now = 1000;
     engine->Tick();
     CHECK_FALSE(engine->WindowOpen());
-    // INFO: the remaining 5000ms resume from the close time, not wall time.
-    CHECK(turn->turn_deadline_ms == 6000);
+    // INFO: Close resumes the turn clock from the close time, but the
+    //       timed-out window settles the interrupted play and the turn then
+    //       advances. A deadline is only valid for the turn that armed it, so
+    //       the outgoing player's resumed deadline is cleared and the incoming
+    //       player is unarmed until the controller arms it (fix round 2).
+    ecs::TurnState* outgoing_turn =
+        engine->Store().Get<ecs::TurnState>(player0);
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ecs::TurnState* incoming_turn =
+        engine->Store().Get<ecs::TurnState>(player1);
+    REQUIRE(outgoing_turn != nullptr);
+    REQUIRE(incoming_turn != nullptr);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(outgoing_turn->turn_deadline_ms == 0);
+    CHECK(incoming_turn->turn_deadline_ms == 0);
 }
 
 TEST_CASE("engine window: responses pass through the restriction pipeline") {
@@ -514,4 +527,57 @@ TEST_CASE("engine window: responses pass through the restriction pipeline") {
     AllowAllPlays(*engine);
     CHECK(engine->RespondWindow("player1", others[0]));
     CHECK(CountEvents(*engine, "window_response") == 1);
+}
+
+// ---------------------------------------------------------------------------
+// Final-review fix round 2 (C2 regression): a deadline is only valid for the
+// turn that armed it. Advancing clears the outgoing and incoming deadlines, so
+// a returning player's stale past deadline can never expire their fresh turn.
+// ---------------------------------------------------------------------------
+TEST_CASE("engine turn deadline: a returning player's stale deadline never skips them") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 2, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+
+    ecs::TurnState* turn0 = engine->Store().Get<ecs::TurnState>(player0);
+    ecs::TurnState* turn1 = engine->Store().Get<ecs::TurnState>(player1);
+    REQUIRE(turn0 != nullptr);
+    REQUIRE(turn1 != nullptr);
+    REQUIRE(engine->Timers().Turn().Arm(*turn0, 5000));
+    CHECK(turn0->turn_deadline_ms == 5000);
+
+    // INFO: plant a STALE past deadline on player1 as if it survived from an
+    //       earlier turn, then let the clock pass beyond it.
+    turn1->turn_deadline_ms = 50;
+    clock.now = 100;
+
+    const std::size_t advances_before = CountEvents(*engine, "turn_advance");
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player1");
+
+    // INFO: the advance carries the unarmed incoming turn (0), not player1's
+    //       stale past deadline.
+    const json* advance = FindEvent(*engine, "turn_advance");
+    REQUIRE(advance != nullptr);
+    CHECK((*advance)["payload"]["deadline"] == 0);
+    CHECK(CountEvents(*engine, "turn_advance") == advances_before + 1);
+
+    ecs::TurnState* turn0_after = engine->Store().Get<ecs::TurnState>(player0);
+    ecs::TurnState* turn1_after = engine->Store().Get<ecs::TurnState>(player1);
+    REQUIRE(turn0_after != nullptr);
+    REQUIRE(turn1_after != nullptr);
+    CHECK(turn0_after->turn_deadline_ms == 0);
+    CHECK(turn1_after->turn_deadline_ms == 0);
+
+    // INFO: player1 is current and unarmed; Tick must NOT see an expiry and
+    //       skip them back to player0.
+    engine->Tick();
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(CountEvents(*engine, "turn_advance") == advances_before + 1);
 }

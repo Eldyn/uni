@@ -289,11 +289,18 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     if (from.has_value() && *from != incoming) {
         if (ecs::TurnState* outgoing = store.Get<ecs::TurnState>(*from)) {
             outgoing->is_current = false;
+            // INFO: a stored deadline is only valid for the turn that armed it;
+            //       clear it as the player leaves so a later return is unarmed.
+            outgoing->turn_deadline_ms = 0;
         }
     }
     ecs::TurnState* incoming_turn = EnsureTurnState(store, incoming);
     if (incoming_turn == nullptr) return OpResult::Resolved();
     incoming_turn->is_current = true;
+    // INFO: the incoming turn is unarmed until the controller arms it
+    //       (`MatchInstance::ArmCurrentTurnDeadline`); emitting 0 prevents a
+    //       stale past deadline from expiring the incoming player in `Tick`.
+    incoming_turn->turn_deadline_ms = 0;
 
     const json payload = TurnAdvancePayload(from, incoming, step,
                                             incoming_turn->turn_deadline_ms);

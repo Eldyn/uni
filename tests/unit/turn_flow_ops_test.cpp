@@ -130,6 +130,26 @@ TEST_CASE("turn_flow_ops: advance_turn steps forward and emits turn_advance") {
     CHECK((*event)["payload"]["deadline"] == 0);
 }
 
+TEST_CASE("turn_flow_ops: advance_turn clears stale incoming/outgoing deadlines") {
+    Harness h;
+    AddMatch(h.store);
+    Entity p0 = AddPlayer(h.store, "p0", 0);
+    Entity p1 = AddPlayer(h.store, "p1", 1);
+    MakeCurrent(h.store, p0);
+    // INFO: p0's live deadline and a STALE past deadline planted on p1 (as if
+    //       it survived from an earlier turn).
+    h.store.Get<TurnState>(p0)->turn_deadline_ms = 5000;
+    h.store.Get<TurnState>(p1)->turn_deadline_ms = 50;
+
+    const OpResult result = h.Invoke("advance_turn", json::object());
+    CHECK(Deadline(h.store, p0) == 0);
+    CHECK(Deadline(h.store, p1) == 0);
+
+    const json* event = FindEvent(result, "turn_advance");
+    REQUIRE(event != nullptr);
+    CHECK((*event)["payload"]["deadline"] == 0);
+}
+
 TEST_CASE("turn_flow_ops: advance_turn wraps from the last seat to the first") {
     Harness h;
     AddMatch(h.store);

@@ -111,6 +111,16 @@ describe("storeGame turn deadline", () => {
 		expect(storeGame.turnTimeRemaining).toBe(before);
 	});
 
+	it("an unarmed snapshot (turn_deadline_ms 0) does not clobber a live countdown", () => {
+		const deadline = Date.now() + 10_000;
+		handler("match_state_updated")(snapshot({ turn_deadline_ms: deadline }));
+		const before = storeGame.turnTimeRemaining;
+
+		handler("match_state_updated")(snapshot({ turn_deadline_ms: 0 }));
+
+		expect(storeGame.turnTimeRemaining).toBe(before);
+	});
+
 	it("a turn_advance with a positive deadline refreshes the countdown", () => {
 		handler("match_state_updated")(snapshot());
 

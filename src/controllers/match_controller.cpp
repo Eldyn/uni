@@ -218,9 +218,11 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     // INFO: Route the post-input broadcast through
     //       BroadcastMatchState so a human action that ends the match also
     //       notifies the lobby store (teardown + rematch allowed).
-    BroadcastMatchState(active_lobby);
+    // INFO: arm the incoming turn before the snapshot so `turn_deadline_ms`
+    //       carries the fresh value (the advance emits it unarmed as 0).
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
 
@@ -257,9 +259,11 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    BroadcastMatchState(active_lobby);
+    // INFO: arm the incoming turn before the snapshot so `turn_deadline_ms`
+    //       carries the fresh value (the advance emits it unarmed as 0).
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
 
@@ -304,9 +308,11 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    BroadcastMatchState(active_lobby);
+    // INFO: arm the incoming turn before the snapshot so `turn_deadline_ms`
+    //       carries the fresh value (the advance emits it unarmed as 0).
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
 
@@ -364,9 +370,11 @@ void MatchController::HandleWindowResponse(WsContext context, const json& messag
     }
 
     active_lobby->session->EmitEvents(broadcaster_);
-    BroadcastMatchState(active_lobby);
+    // INFO: arm the incoming turn before the snapshot so `turn_deadline_ms`
+    //       carries the fresh value (the advance emits it unarmed as 0).
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
 
