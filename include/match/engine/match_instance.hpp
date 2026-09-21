@@ -6,6 +6,7 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/scheduler.hpp>
 #include <match/timers.hpp>
 
 #include <nlohmann/json.hpp>
@@ -42,8 +43,8 @@
  *   `assembly.systems` order via the bus / `Resolver::Resolve`; op-emitted
  *   `ResolveResult` events are appended to the ordered per-match event list.
  *   A `kNeedsInput` pause is held and resumed through `SubmitInput` ->
- *   `Resolver::ResumeInput`; a `kWindow` pause opens a response window
- * a `kSchedule` pause remains a later-slice seam.
+ *   `Resolver::ResumeInput`; a `kWindow` pause opens a response window; a
+ *   `kSchedule` pause arms its deferred subgraph on the `Scheduler`.
  * - Runs must-apply auto cards (`AutoTrigger.must_apply`) before a
  *   window would open, one per triggering event, emitting `auto_played`; the
  *   Resolver's `must_apply` depth cap bounds re-triggering.
@@ -67,6 +68,15 @@
  * arrives while an op input is parked is deferred rather than dropped, then
  * opened once the input resolves (the wild_draw4 prompt + draw_stacking window
  * case).
+ *
+ * Scheduled graphs: a
+ * `kSchedule` pause arms its `next` subgraph on the owned `Scheduler` with
+ * a self-describing envelope (owning system, mod, resume node, pending stack
+ * and `SelectorContext`); `Tick` runs the `ms` legs whose duration elapsed and
+ * the `turns`/`rounds`/`cards_played` legs run from the turn-end, round-end and
+ * `after:play` points respectively. Each elapsed subgraph resolves as a FRESH
+ * chain and feeds the same `AppendResult` pause path, so one that pauses on
+ * input/window/another schedule parks correctly.
  */
 
 namespace match::engine {
@@ -235,8 +245,8 @@ public:
      * event, wrapped in the `round_end` / `round_start` hook dispatch.
      * Then advances the `MatchTimers`: an open window times out (default
      * route) or early-closes (winning/default route), otherwise the turn
-     * deadline is checked. Real-time statuses and scheduled graphs remain the
-     * The engine and the engine seam.
+     * deadline is checked. Finally it runs every scheduled graph whose
+     * duration elapsed; real-time statuses remain the seam.
      */
     void Tick();
 
@@ -564,6 +574,33 @@ private:
     void BindConditionSelectors(const resolver::SelectorContext& context,
                                 ops::ResolutionFrame& frame);
 
+    // --- the engine scheduled graphs ---------------------------
+
+    /**
+     * @brief Arm a `schedule` node's deferred subgraph on the Scheduler.
+     *
+     * Parses the duration (fail-safe WARN on a malformed spec, never arms)
+     * and stores a self-describing envelope the Scheduler hands back on
+     * expiry: the owning system index, mod, resume node, pending work stack
+     * and the serialized `SelectorContext`.
+     */
+    void ArmSchedule(const resolver::ScheduleRequest& schedule,
+                     std::size_t system_index, const std::string& mod_id,
+                     const resolver::SelectorContext& context);
+
+    /**
+     * @brief Run every elapsed scheduled subgraph as a fresh Resolver chain.
+     *
+     * Rebuilds the `SelectorContext` from the envelope, resolves from
+     * `resume_node` with a fresh frame and no reused budget, then feeds the
+     * result through `AppendResult` so a further pause parks correctly. A
+     * `system_index` out of range logs a WARN and drops the entry.
+     */
+    void ExecuteScheduled(const std::vector<nlohmann::json>& envelopes);
+
+    /** @brief Current time from the clock the timers were built with. */
+    int64_t Now() const;
+
     // --- the engine forced-play routing
     // ------------------------------------------
 
@@ -599,6 +636,7 @@ private:
     std::optional<WindowPause> pending_window_;
     std::vector<WindowPause> deferred_windows_;  /**< queued. */
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
+    match::Scheduler scheduler_;      /**< deferred-graph arm/expiry. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
     uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };

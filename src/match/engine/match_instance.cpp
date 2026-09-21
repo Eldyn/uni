@@ -6,6 +6,8 @@
 #include "match/rng.hpp"
 #include "match/status.hpp"
 
+#include <logger.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -65,6 +67,11 @@ std::string PlayerUsername(const ecs::EntityStore& store,
     return info == nullptr ? std::string() : info->username;
 }
 
+/** @brief An optional entity as `{index, generation}` or JSON null. */
+json EntityOrNull(const std::optional<ecs::Entity>& entity) {
+    return entity.has_value() ? EntityJson(*entity) : json(nullptr);
+}
+
 /** @brief Parse a `{index, generation}` entity handle from JSON. */
 std::optional<ecs::Entity> EntityFromJson(const json& value) {
     if (value.is_number_unsigned()) {
@@ -86,6 +93,14 @@ std::optional<ecs::Entity> EntityFromJson(const json& value) {
     return entity;
 }
 
+/** @brief Read an optional entity field from a schedule envelope. */
+std::optional<ecs::Entity> EnvelopeEntity(const json& envelope,
+                                          const char* key) {
+    const auto it = envelope.find(key);
+    if (it == envelope.end()) return std::nullopt;
+    return EntityFromJson(*it);
+}
+
 }  // namespace
 
 // --- construction / start --------------------------------------------------
@@ -103,6 +118,7 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
                              match::WindowConfig window_config,
                              match::NowMs clock)
     : assembly_(std::move(assembly)),
+      scheduler_(clock),
       timers_(window_config, std::move(clock)) {
     if (assembly_ == nullptr) {
         // ERROR: a null assembly cannot run; treat it as a finished match so
@@ -261,6 +277,10 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
     // INFO: `after:play` is the resolver drain point for the played card's
     //       behavior graph. A pause stops the flow for SubmitInput.
     After("play", play_data);
+
+    // INFO: `cards_played` legs advance on every `after:play`.
+    ExecuteScheduled(scheduler_.OnCardPlayed(store, registries.match));
+
     if (Paused()) {
         if (pending_input_.has_value()) {
             pending_input_->settle_play = true;
@@ -415,6 +435,9 @@ void MatchInstance::Tick() {
         Before("round_end", end_data);
         After("round_end", end_data);
 
+        // INFO: `rounds` legs advance once per completed round.
+        ExecuteScheduled(scheduler_.OnRoundEnd(store, registries.match));
+
         meta->round = round;
 
         json start_data = json{{"round", round}};
@@ -447,6 +470,10 @@ void MatchInstance::Tick() {
         //       the AFK/bot takeover policy.
         AdvanceTurn();
     }
+
+    // INFO: Scheduled graphs whose duration elapsed run here,
+    //       through the same fresh-chain path the event drivers use.
+    ExecuteScheduled(scheduler_.Tick(store, registries.match, Now()));
 }
 
 // --- turn advance ----------------------------------------------------------
@@ -476,6 +503,11 @@ void MatchInstance::AdvanceTurn() {
     if (before.has_value()) {
         json end_data = json{{"player", EntityJson(*before)}};
         After("turn_end", end_data);
+
+        // INFO: `turns` legs advance once per ended turn, after
+        //       the `after:turn_end` dispatch (the turn-end point).
+        ExecuteScheduled(scheduler_.OnTurnEnd(
+            assembly_->store, assembly_->registries.match, *before));
     }
 
     // INFO: only a real seat change counts toward a round; an extra turn
@@ -1356,6 +1388,13 @@ void MatchInstance::CollectRuns() {
                 //       AppendResult opens it once the input resolves.
                 deferred_windows_.push_back(std::move(window));
             }
+        } else if (run.status == resolver::ResolveStatus::kSchedule
+                   && run.schedule.has_value()) {
+            // INFO: A schedule node defers its `next` subgraph;
+            //       The timer layer arms it and Tick / the event drivers run it
+            //       once the duration elapses.
+            ArmSchedule(*run.schedule, run.system_index, run.mod_id,
+                        run.context);
         }
 
         // INFO: A `play_card` op emits its play request as an effect
@@ -1579,6 +1618,13 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         OpenWindow(std::move(next), /*fresh_situation=*/false);
         return;
     }
+    if (result.status == resolver::ResolveStatus::kSchedule
+        && result.schedule.has_value()) {
+        // INFO: a resumed graph that hits another schedule arms it rather than
+        //       dropping the continuation.
+        ArmSchedule(*result.schedule, system_index, mod_id, context);
+        return;
+    }
 
     // INFO: a deferred window owns the flow from here; do not settle past it.
     if (Paused()) return;
@@ -1595,6 +1641,92 @@ bool MatchInstance::OpenDeferredWindow(bool settle_play, ecs::Entity actor) {
     OpenWindow(std::move(next), /*fresh_situation=*/true);
     return true;
 }
+
+// --- the engine scheduled graphs
+// -------------------------------------------------
+
+void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
+                                std::size_t system_index,
+                                const std::string& mod_id,
+                                const resolver::SelectorContext& context) {
+    if (assembly_ == nullptr) return;
+
+    const std::optional<match::Duration> duration =
+        match::ParseDuration(schedule.duration);
+    if (!duration.has_value()) {
+        // INFO: fail-safe - a malformed duration must never crash or silently
+        //       leave a dangling continuation.
+        Logger::Warn("[MatchInstance] schedule node '", schedule.node_id,
+                     "' has an unparsable duration; not armed");
+        return;
+    }
+
+    // INFO: the envelope is the JSON the Scheduler stores and returns on
+    //       expiry; it carries everything a fresh Resolve chain needs.
+    const json envelope =
+        json{{"system_index", system_index},
+             {"mod_id", mod_id},
+             {"resume_node", schedule.resume_node},
+             {"pending", schedule.pending},
+             {"self", EntityOrNull(context.self)},
+             {"target", EntityOrNull(context.target)},
+             {"responder", EntityOrNull(context.responder)},
+             {"card", EntityOrNull(context.card)},
+             {"in_window", context.in_window},
+             {"in_card_context", context.in_card_context}};
+
+    const std::optional<uint32_t> id = scheduler_.Arm(
+        assembly_->store, assembly_->registries.match, envelope, *duration);
+    if (!id.has_value()) {
+        Logger::Warn("[MatchInstance] schedule node '", schedule.node_id,
+                     "' could not be armed");
+    }
+}
+
+void MatchInstance::ExecuteScheduled(
+    const std::vector<nlohmann::json>& envelopes) {
+    if (assembly_ == nullptr) return;
+
+    for (const json& envelope : envelopes) {
+        if (!envelope.is_object()) continue;
+        const std::size_t system_index =
+            envelope.value("system_index", std::size_t{0});
+        if (system_index >= assembly_->systems.size()) {
+            Logger::Warn("[MatchInstance] scheduled graph for unknown system ",
+                         system_index, "; dropped");
+            continue;
+        }
+        const ModSystem& system = assembly_->systems[system_index];
+        const std::string mod_id = envelope.value("mod_id", system.mod_id);
+        const std::string resume_node =
+            envelope.value("resume_node", std::string());
+
+        std::vector<std::string> pending;
+        if (const auto it = envelope.find("pending");
+            it != envelope.end() && it->is_array()) {
+            pending = it->get<std::vector<std::string>>();
+        }
+
+        resolver::SelectorContext context;
+        context.self = EnvelopeEntity(envelope, "self");
+        context.target = EnvelopeEntity(envelope, "target");
+        context.responder = EnvelopeEntity(envelope, "responder");
+        context.card = EnvelopeEntity(envelope, "card");
+        context.in_window = envelope.value("in_window", false);
+        context.in_card_context = envelope.value("in_card_context", false);
+
+        // INFO: a schedule resumes as a FRESH chain (ResumeToken doc), so no
+        //       chain budget is reused; the result feeds the same pause path.
+        ops::ResolutionFrame frame;
+        const resolver::ResolveResult result = assembly_->resolver->Resolve(
+            system.graph, mod_id, context, frame, resume_node,
+            /*must_apply=*/false, pending);
+        AppendResult(result, system_index, mod_id, context, frame,
+                     /*settle_play=*/false, ecs::Entity{});
+    }
+}
+
+int64_t MatchInstance::Now() const { return timers_.Turn().Now(); }
 
 void MatchInstance::BindConditionSelectors(
     const resolver::SelectorContext& context, ops::ResolutionFrame& frame) {
