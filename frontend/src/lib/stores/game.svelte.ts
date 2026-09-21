@@ -16,38 +16,45 @@ import { storeSpectator } from "./spectator.svelte";
 import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
 
 export const TYPE_MAP = TypeMap;
-const VALUE_MAP = ValueMap;
 
 export type CardType = (typeof TypeMap)[number];
 export type CardValue = (typeof ValueMap)[number];
 
+// INFO: wire shape emitted by ViewBuilder::BuildSnapshot. Cards carry only the
+// aspects the viewer's mask allows, so every card field stays optional.
 const RawCardSchema = z.object({
-	id: z.number().int(),
-	type: z.number().int().min(0).max(4),
-	value: z.number().int().min(0).max(14),
+	slot: z.number().int().optional(),
+	card: z.number().int().optional(),
+	kind: z.string().optional(),
+	color: z.string().optional(),
+	value: z.string().optional(),
 	can_play: z.boolean().optional()
 });
 
 const RawPlayerSchema = z.object({
 	username: z.string(),
+	seat: z.number().int().optional(),
+	is_current: z.boolean().optional(),
 	card_count: z.number().int(),
+	is_bot: z.boolean(),
 	hand: z.array(RawCardSchema).optional(),
-	is_bot: z.boolean()
+	statuses: z.array(z.unknown()).optional()
 });
 
 const RawGameStateSchema = z.object({
-	active_type: z.number().int().min(0).max(4),
-	current_turn: z.string(),
-	play_direction: z.number(),
-	top_card: RawCardSchema.optional(),
+	status: z.string().optional(),
+	round: z.number().int().optional(),
+	direction: z.number().int().optional(),
+	active_type: z.string().nullable().optional(),
+	current_player: z.string(),
+	winner: z.string().nullable().optional(),
+	placements: z.array(z.string()).optional(),
 	players: z.array(RawPlayerSchema),
-	pending_draws: z.number().int().default(0),
-	draw_pile_size: z.number().int().default(0),
-	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
-	turn_time_remaining_ms: z.number().optional(),
-	mode: z.string().optional(),
-	spectator_count: z.number().int().optional(),
-	placements: z.array(z.string()).optional()
+	draw_pile: z.object({ count: z.number().int() }).optional(),
+	discard_pile: z.object({ count: z.number().int(), top: RawCardSchema.optional() }).optional(),
+	window: z.unknown().optional(),
+	prompts: z.array(z.unknown()).optional(),
+	seq_watermark: z.number().int().optional()
 });
 
 /**
@@ -112,6 +119,12 @@ export interface GameState {
 	is_over?: boolean;
 	/** Username of the winning player, if the match has ended. */
 	winner?: string;
+	/** Server sequence watermark of the snapshot that produced this state. */
+	seq_watermark?: number;
+	/** Raw open response window from the snapshot, consumed by slice A4. */
+	window?: unknown;
+	/** Raw pending op-input prompts from the snapshot, consumed by slice A4. */
+	prompts?: unknown[];
 }
 
 /**
@@ -308,35 +321,36 @@ class StoreGame implements SessionStore {
 			}
 			const stateJson = parsed.data;
 
+			const currentTurn = stateJson.current_player;
 			const previousTurn = this.state?.current_turn;
 			const previousPlayers = this.state?.players;
-			if (previousTurn && previousTurn !== stateJson.current_turn) {
+			if (previousTurn && previousTurn !== currentTurn) {
 				const previousPlayer = previousPlayers?.find((p) => p.username === previousTurn);
 				if (previousPlayer && !previousPlayer.is_bot && this.#turnStartedAt !== null) {
 					this.#humanTurnDurations.push(Date.now() - this.#turnStartedAt);
 				}
 			}
-			if (previousTurn !== stateJson.current_turn) {
+			if (previousTurn !== currentTurn) {
 				this.#turnStartedAt = Date.now();
 			}
 
 			this.state = {
-				active_type: TYPE_MAP[stateJson.active_type],
-				current_turn: stateJson.current_turn,
-				play_direction: stateJson.play_direction,
-				top_card: stateJson.top_card ? this.#parseCard(stateJson.top_card) : undefined,
+				active_type: stateJson.active_type ?? "white",
+				current_turn: currentTurn,
+				play_direction: stateJson.direction ?? 1,
+				top_card: stateJson.discard_pile?.top
+					? this.#parseCard(stateJson.discard_pile.top)
+					: undefined,
 				players: stateJson.players.map((p) => ({
 					...p,
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
-				pending_draws: stateJson.pending_draws,
-				draw_pile_size: stateJson.draw_pile_size,
-				last_play: stateJson.last_play,
-				mode: stateJson.mode,
-				spectator_count: stateJson.spectator_count,
+				pending_draws: 0,
+				draw_pile_size: stateJson.draw_pile?.count ?? 0,
 				placements: stateJson.placements,
-				is_over: undefined,
-				winner: undefined
+				seq_watermark: stateJson.seq_watermark,
+				window: stateJson.window,
+				prompts: stateJson.prompts
 			};
 
 			this.actionRequired = data.action_required ?? null;
@@ -351,8 +365,8 @@ class StoreGame implements SessionStore {
 			}
 			this.actionContext = parsedContext;
 
-			const remainingMs = stateJson.turn_time_remaining_ms ?? 15000;
-			this.#syncTurnTimer(remainingMs);
+			// INFO: the snapshot carries no turn clock; the timer becomes
+			// packet-driven from `turn_advance` in slice A4.
 
 			if (storeNavigation.current === "lobby" || storeNavigation.initialScreen === "game") {
 				this.#matchStartedAt = Date.now();
@@ -404,9 +418,9 @@ class StoreGame implements SessionStore {
 	 */
 	#parseCard(rawCard: z.infer<typeof RawCardSchema>): Card {
 		return {
-			id: rawCard.id,
-			type: TYPE_MAP[rawCard.type],
-			value: VALUE_MAP[rawCard.value],
+			id: rawCard.card ?? 0,
+			type: (rawCard.color ?? "white") as CardType,
+			value: (rawCard.value ?? "0") as CardValue,
 			can_play: rawCard.can_play
 		};
 	}

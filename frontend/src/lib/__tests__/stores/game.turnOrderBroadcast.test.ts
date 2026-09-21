@@ -67,15 +67,15 @@ function broadcast(usernames: string[], currentTurn: string, playDirection = 1) 
 	if (!handler) throw new Error("MatchStateUpdated handler not registered");
 	handler({
 		match_state: {
-			active_type: 0,
-			current_turn: currentTurn,
-			play_direction: playDirection,
+			active_type: "red",
+			current_player: currentTurn,
+			direction: playDirection,
 			players: usernames.map((username, i) => ({
 				username,
 				card_count: 5,
 				is_bot: i % 2 === 1
 			})),
-			draw_pile_size: 40
+			draw_pile: { count: 40 }
 		},
 		action_required: null
 	});
