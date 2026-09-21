@@ -13,6 +13,7 @@ import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeSpectator } from "./spectator.svelte";
+import { storeCardDefs, type KindFace } from "./cardDefs.svelte";
 import {
 	MatchEventPayloadSchema,
 	PromptClosePayloadSchema,
@@ -82,6 +83,11 @@ export interface Card {
 	value: CardValue;
 	/** Whether this card is currently playable (set by the server, only present in the local player's hand). */
 	can_play?: boolean;
+	/** Frozen kind id from the snapshot, e.g. `vanilla:red_5` (present when the
+	 *  viewer's aspect mask exposes identity). */
+	kind?: string;
+	/** Declarative face resolved from the `defs` kind table via `kind`. */
+	face?: KindFace;
 }
 
 /**
@@ -321,6 +327,7 @@ class StoreGame implements SessionStore {
 		this.desynced = false;
 		this.#pendingBeats = [];
 		storeSpectator.reset();
+		storeCardDefs.reset();
 		storeNavigation.goto("lobby");
 	}
 
@@ -516,6 +523,16 @@ class StoreGame implements SessionStore {
 		this.lastSeq = seq;
 
 		switch (env.data.type) {
+			case "defs": {
+				// INFO: the full kind table arrives ahead of the first snapshot;
+				// held unconfirmed until match_start proves the digest.
+				storeCardDefs.ingestDefs(env.data.payload);
+				break;
+			}
+			case "match_start": {
+				storeCardDefs.confirmMatchStart(env.data.payload);
+				break;
+			}
 			case "turn_advance": {
 				const parsed = TurnAdvancePayloadSchema.safeParse(env.data.payload);
 				// INFO: turn_advance.deadline_ms is an ABSOLUTE epoch-ms value
@@ -659,12 +676,17 @@ class StoreGame implements SessionStore {
 	 * @returns A formatted object of type Card.
 	 */
 	#parseCard(rawCard: z.infer<typeof RawCardSchema>): Card {
-		return {
+		const card: Card = {
 			id: rawCard.card ?? 0,
 			type: (rawCard.color ?? "white") as CardType,
 			value: (rawCard.value ?? "0") as CardValue,
 			can_play: rawCard.can_play
 		};
+		if (rawCard.kind) {
+			card.kind = rawCard.kind;
+			card.face = storeCardDefs.lookupByStringId(rawCard.kind)?.face;
+		}
+		return card;
 	}
 
 	/**
@@ -740,6 +762,7 @@ class StoreGame implements SessionStore {
 		this.desynced = false;
 		this.#pendingBeats = [];
 		storeSpectator.reset();
+		storeCardDefs.reset();
 	}
 }
 

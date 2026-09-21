@@ -28,7 +28,7 @@
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
 	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
-	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { useCardRegistry, cardMetaFrom } from "../animation/cardRegistry.svelte";
 	import { neighborPushEm as falloffPushEm } from "../layout/handHoverFalloff";
 	import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "./units";
 	import { loadTexture } from "./textures";
@@ -303,7 +303,7 @@
 					opacity: 1,
 					dragT: isDragging ? 1 : 0
 				},
-				hiddenBackCount > 0 ? null : { type: card.type, value: card.value }
+				hiddenBackCount > 0 ? null : cardMetaFrom(card)
 			);
 
 			cardRegistry.setPoseProvider(idString, () => {

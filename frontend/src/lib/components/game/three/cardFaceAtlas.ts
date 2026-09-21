@@ -9,6 +9,7 @@
 
 import { CanvasTexture, NearestFilter, SRGBColorSpace, type Texture } from "three";
 import { CARD_COLOR_MAP } from "$lib/palette";
+import type { Card } from "$stores/game.svelte";
 
 export interface AtlasEntry {
 	page: number;
@@ -59,6 +60,46 @@ const STANDARD_ART_NAMES = [
 	"jolly",
 	"jolly_draw4"
 ] as const;
+
+/**
+ * @brief True when `name` is one of the pre-baked vanilla art assets.
+ *
+ * Only a `text` face whose label matches a standard asset can be rendered from
+ * the existing atlas; modded `art_ref`/`emoji`/`blank` faces have no baked
+ * texture yet and must fall back to the card's own color/value.
+ */
+export function hasStandardFaceArt(name: string | undefined): name is string {
+	return name !== undefined && (STANDARD_ART_NAMES as readonly string[]).includes(name);
+}
+
+/**
+ * @brief Maps a card (plus its resolved defs face) onto an atlas face key.
+ *
+ * A `text` face supplies the color/label pair and the `art_version` that feeds
+ * the face hash. Faces with no baked art — and cards with no defs entry at all
+ * — fall back to the card's own `type`/`value`, which is exactly how vanilla
+ * cards rendered before the defs table existed.
+ */
+export function cardFaceKeyFor(
+	card: Pick<Card, "type" | "value" | "face">,
+	wildColor: string | undefined,
+	turned: boolean
+): CardFaceKey {
+	if (turned) {
+		return { type: "wild", value: "0", turned: true };
+	}
+	const face = card.face;
+	if (face && hasStandardFaceArt(face.label)) {
+		return {
+			type: face.color ?? card.type,
+			value: face.label,
+			wildColor,
+			turned: false,
+			artVersion: face.art_version !== undefined ? String(face.art_version) : undefined
+		};
+	}
+	return { type: card.type, value: card.value, wildColor, turned: false };
+}
 
 interface AtlasPage {
 	canvas: HTMLCanvasElement;

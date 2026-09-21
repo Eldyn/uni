@@ -53,7 +53,13 @@ uniform vec4 uUvRectBack;
 		computeValueFlipRad
 	} from "./units";
 	import { storeAnimation } from "$stores/animation.svelte";
-	import { getFaceTexture, getAtlasPage, ATLAS_PAGE_VERSION } from "./cardFaceAtlas";
+	import { storeCardDefs } from "$stores/cardDefs.svelte";
+	import {
+		getFaceTexture,
+		getAtlasPage,
+		ATLAS_PAGE_VERSION,
+		cardFaceKeyFor
+	} from "./cardFaceAtlas";
 	import { isDragged } from "./renderOrder";
 
 	let {
@@ -176,21 +182,19 @@ uniform vec4 uUvRectBack;
 	// edges shows.
 	const HIGHLIGHT_DROP_Z = -0.006;
 
+	// Resolve `kind -> face` through the defs table when the card was parsed
+	// before the table arrived (defs can lag a reconnect snapshot). `digest` is
+	// read so a late table populates the face reactively.
+	let resolvedFace = $derived.by(() => {
+		void storeCardDefs.digest;
+		if (card.face) return card.face;
+		return card.kind ? storeCardDefs.lookupByStringId(card.kind)?.face : undefined;
+	});
+
 	let frontEntry = $derived(
-		getFaceTexture({
-			type: card.type,
-			value: card.value,
-			wildColor,
-			turned: false
-		})
+		getFaceTexture(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false))
 	);
-	let backEntry = $derived(
-		getFaceTexture({
-			type: "wild",
-			value: "0",
-			turned: true
-		})
-	);
+	let backEntry = $derived(getFaceTexture(cardFaceKeyFor(card, wildColor, true)));
 
 	let activeFront = $derived(turned ? backEntry : frontEntry);
 	let activeBack = $derived(turned ? frontEntry : backEntry);

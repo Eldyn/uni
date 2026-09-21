@@ -9,7 +9,7 @@
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import { DISCARD_STACK_STEP, discardStackZ, type DiscardEntry } from "../layout/discardPile";
-	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { useCardRegistry, cardMetaFrom } from "../animation/cardRegistry.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT, EM_TO_WORLD } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
@@ -71,7 +71,7 @@
 					turned: false,
 					opacity: 1
 				},
-				{ type: entry.card.type, value: entry.card.value, wildColor: entry.wildColor }
+				{ ...cardMetaFrom(entry.card), wildColor: entry.wildColor }
 			);
 			cardRegistry.setPoseProvider(idString, () => [
 				placement.discardX + entry.jitter[0] * EM_TO_WORLD,

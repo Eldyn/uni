@@ -15,7 +15,7 @@ import { storeGame, type CardType } from "$stores/game.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { CardBus } from "../card-bus.svelte";
-import type { CardRegistry } from "./cardRegistry.svelte";
+import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
@@ -170,8 +170,7 @@ export function createMatchEventBeatController(deps: {
 		);
 
 		deps.cardRegistry.registerCardMeta(String(top.id), {
-			type: top.type,
-			value: top.value,
+			...cardMetaFrom(top),
 			wildColor: (state.active_type && state.active_type !== "white"
 				? state.active_type
 				: undefined) as CardType | undefined
@@ -298,10 +297,7 @@ export function createMatchEventBeatController(deps: {
 			if (!card) continue;
 			const idString = String(cardId);
 			localDrawFlightIds.add(idString);
-			deps.cardRegistry.registerCardMeta(idString, {
-				type: card.type,
-				value: card.value
-			});
+			deps.cardRegistry.registerCardMeta(idString, cardMetaFrom(card));
 			const [px, py, pz] = drawPileTopPose(
 				placement,
 				preDrawSize,
