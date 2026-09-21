@@ -13,7 +13,8 @@ import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeSpectator } from "./spectator.svelte";
-import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
+import { Action, MatchEventPayloadSchema, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
+import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 
 export const TYPE_MAP = TypeMap;
 
@@ -150,6 +151,21 @@ class StoreGame implements SessionStore {
 	/** Contextual data attached to the input request. */
 	actionContext = $state<any>(null);
 
+	/** Highest `match_event` seq observed, or null before the first frame. */
+	lastSeq = $state<number | null>(null);
+
+	/** True after a seq gap, until the next snapshot reconciles the watermark. */
+	desynced = $state(false);
+
+	/** Beats mapped from `match_event` frames, held until the next snapshot is applied. */
+	#pendingBeats: MatchEventBeat[] = [];
+
+	/** Handlers registered via `onMatchEventBeat` (the animation controller). */
+	#beatHandlers = new Set<(beat: MatchEventBeat) => void>();
+
+	/** Handlers registered via `onDesync` (gap detection). */
+	#desyncHandlers = new Set<() => void>();
+
 	/** True while a game action is in flight, cleared on next MatchStateUpdated. */
 	isActionPending = $state(false);
 
@@ -230,6 +246,30 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Registers a callback for every mapped `match_event` beat. Beats are
+	 * buffered on arrival and drained after the next snapshot is applied, so a
+	 * handler always observes beats against the state they belong to.
+	 * @returns An unsubscribe function.
+	 */
+	onMatchEventBeat(cb: (beat: MatchEventBeat) => void): () => void {
+		this.#beatHandlers.add(cb);
+		return () => {
+			this.#beatHandlers.delete(cb);
+		};
+	}
+
+	/**
+	 * @brief Registers a callback fired when a `match_event` seq gap is detected.
+	 * @returns An unsubscribe function.
+	 */
+	onDesync(cb: () => void): () => void {
+		this.#desyncHandlers.add(cb);
+		return () => {
+			this.#desyncHandlers.delete(cb);
+		};
+	}
+
+	/**
 	 * @brief Stops the active timers and closes the match screen, returning to the lobby.
 	 */
 	returnToLobby() {
@@ -241,6 +281,9 @@ class StoreGame implements SessionStore {
 		this.actionRequired = null;
 		this.actionContext = null;
 		this.turnTimeRemaining = 0;
+		this.lastSeq = null;
+		this.desynced = false;
+		this.#pendingBeats = [];
 		storeSpectator.reset();
 		storeNavigation.goto("lobby");
 	}
@@ -353,6 +396,25 @@ class StoreGame implements SessionStore {
 				prompts: stateJson.prompts
 			};
 
+			// INFO: the snapshot reconciles the packet watermark. A snapshot at or
+			// beyond our high-water mark clears a desync; otherwise the buffered
+			// beats are still drained against this state.
+			const wm = stateJson.seq_watermark;
+			if (
+				typeof wm === "number" &&
+				(this.desynced || this.lastSeq === null || wm >= this.lastSeq)
+			) {
+				this.lastSeq = wm;
+				this.desynced = false;
+			}
+
+			// INFO: drain AFTER state is applied.
+			const beats = this.#pendingBeats;
+			this.#pendingBeats = [];
+			for (const b of beats) {
+				for (const h of this.#beatHandlers) h(b);
+			}
+
 			this.actionRequired = data.action_required ?? null;
 
 			let parsedContext = data.action_context || null;
@@ -373,6 +435,30 @@ class StoreGame implements SessionStore {
 				storeNavigation.goto("game");
 			}
 		});
+
+		// INFO: the single MatchEvent subscription — `ws.on` warns in
+		// DEV for a non-exempt action with more than one handler.
+		ws.on(ServerAction.MatchEvent, (data) => this.#onMatchEventFrame(data));
+	}
+
+	/**
+	 * @brief Handles one `match_event` frame: advances the seq watermark,
+	 * raises a desync on a gap, and buffers the mapped beat for the next
+	 * snapshot drain.
+	 */
+	#onMatchEventFrame(data: unknown) {
+		const env = MatchEventPayloadSchema.safeParse(data);
+		if (!env.success) return;
+
+		const seq = env.data.seq;
+		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
+			this.desynced = true;
+			for (const h of this.#desyncHandlers) h();
+		}
+		this.lastSeq = seq;
+
+		const beat = mapMatchEventPacket(data);
+		if (beat) this.#pendingBeats.push(beat);
 	}
 
 	#clearActionPending() {
@@ -486,6 +572,9 @@ class StoreGame implements SessionStore {
 		this.actionContext = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
+		this.lastSeq = null;
+		this.desynced = false;
+		this.#pendingBeats = [];
 		storeSpectator.reset();
 	}
 }

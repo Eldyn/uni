@@ -12,15 +12,8 @@ import { storeGame, Action, type CardType } from "$stores/game.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { ws, ServerAction } from "$stores/ws.svelte";
-import {
-	MatchEventPayloadSchema,
-	CardPlayedPayloadSchema,
-	CardsDrawnPayloadSchema,
-	ReshufflePayloadSchema,
-	StatusAppliedPayloadSchema,
-	AutoPlayedPayloadSchema,
-	TurnAdvancePayloadSchema
-} from "$lib/generated/schemas";
+import { mapMatchEventPacket } from "$stores/matchEventMap";
+import type { MatchEventBeat } from "$stores/matchEventMap";
 import type { CardBus } from "../card-bus.svelte";
 import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
@@ -37,6 +30,11 @@ import {
 import { EM_TO_WORLD } from "../three/units";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import type { AnimationBeat, AnimationStep } from "./types";
+
+// INFO: re-exported so existing importers (tests, matchEventController) keep
+// their `$components/game/animation/baseBeats.svelte` import path.
+export { mapMatchEventPacket };
+export type { MatchEventBeat };
 
 /** draw_pile_size can only ever decrease (a draw) or hold (no draw happened)
  *  under normal play — an increase is only possible when the engine just
@@ -1166,146 +1164,6 @@ export function createBaseBeatsWatcher(deps: {
 			processReshuffle();
 		});
 	});
-}
-
-/**
- * Normalized beat vocabulary produced by the `match_event` packet source
- * This is the packet-driven replacement for the
- * state-diff watcher above: one member per server packet `type` the client
- * animates, carrying only the fields the existing beat builders need. `seq`
- * is carried through so a later watermark/desync layer can order or drop
- * beats without re-parsing the envelope.
- *
- * The watcher (`createBaseBeatsWatcher`) still drives the renderer for now —
- * a later slice swaps it for this source and maps these descriptors onto
- * buildPlayBeat/buildDrawBeats/buildReshuffleBeat.
- */
-export type MatchEventBeat =
-	| {
-			seq: number;
-			kind: "play";
-			player: string;
-			cardId: number;
-			auto: boolean;
-			fromZoneOrdinal?: number;
-			triggerSummary?: string;
-	  }
-	| {
-			seq: number;
-			kind: "draw";
-			player: string;
-			count: number;
-			sourcePile: string;
-			cardIds: number[];
-	  }
-	| { seq: number; kind: "reshuffle"; drawSize: number; discardSize: number }
-	| {
-			seq: number;
-			kind: "turn";
-			from: string;
-			to: string;
-			direction: number;
-			deadlineMs: number;
-	  }
-	| {
-			seq: number;
-			kind: "toast";
-			target: string;
-			statusKind: string;
-			magnitude: number;
-			durationUnit: string;
-			instanceId: number;
-	  };
-
-/**
- * Maps one `match_event` frame (`{seq, type, payload}`, plus the transport's
- * own `action` field) onto the normalized beat vocabulary. Pure and
- * defensive: a malformed envelope, a known `type` with an invalid payload,
- * or an unknown `type` all return `null` rather than throwing.
- *
- * FORWARD-COMPAT: unknown `type` strings MUST be
- * ignored, never treated as errors — new packet types are added additively.
- */
-export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
-	const envelope = MatchEventPayloadSchema.safeParse(raw);
-	if (!envelope.success) return null;
-	const { seq, type, payload } = envelope.data;
-
-	switch (type) {
-		case "card_played": {
-			const parsed = CardPlayedPayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "play",
-				player: parsed.data.player,
-				cardId: parsed.data.card,
-				fromZoneOrdinal: parsed.data.from_zone_ordinal,
-				auto: false
-			};
-		}
-		case "auto_played": {
-			const parsed = AutoPlayedPayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "play",
-				player: parsed.data.player,
-				cardId: parsed.data.card,
-				auto: true,
-				triggerSummary: parsed.data.trigger_summary
-			};
-		}
-		case "cards_drawn": {
-			const parsed = CardsDrawnPayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "draw",
-				player: parsed.data.player,
-				count: parsed.data.count,
-				sourcePile: parsed.data.source_pile,
-				cardIds: parsed.data.cards ?? []
-			};
-		}
-		case "reshuffle": {
-			const parsed = ReshufflePayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "reshuffle",
-				drawSize: parsed.data.draw_size,
-				discardSize: parsed.data.discard_size
-			};
-		}
-		case "turn_advance": {
-			const parsed = TurnAdvancePayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "turn",
-				from: parsed.data.from,
-				to: parsed.data.to,
-				direction: parsed.data.direction,
-				deadlineMs: parsed.data.deadline_ms
-			};
-		}
-		case "status_applied": {
-			const parsed = StatusAppliedPayloadSchema.safeParse(payload);
-			if (!parsed.success) return null;
-			return {
-				seq,
-				kind: "toast",
-				target: parsed.data.target,
-				statusKind: parsed.data.status_kind,
-				magnitude: parsed.data.magnitude,
-				durationUnit: parsed.data.duration_unit,
-				instanceId: parsed.data.instance_id
-			};
-		}
-		default:
-			return null;
-	}
 }
 
 /**
