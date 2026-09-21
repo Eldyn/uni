@@ -61,6 +61,25 @@ ecs::WindowSpec ToEcsWindow(const modload::WindowSpec& window) {
 }
 
 /**
+ * @brief Convert a modload `auto_trigger` declaration into the component.
+ *
+ * The graph is stored as the object the engine's `AutoPlayCard` expects: a
+ * graph carrying `nodes` is kept verbatim, otherwise its node list is wrapped
+ * in `{"nodes": ...}` (mirrors `ToEcsBehavior`).
+ */
+ecs::AutoTrigger ToEcsAutoTrigger(const modload::AutoTriggerDef& def) {
+    ecs::AutoTrigger out;
+    out.condition = def.condition;
+    if (def.graph.is_object() && def.graph.contains("nodes")) {
+        out.graph = def.graph;
+    } else {
+        out.graph = json{{"nodes", def.graph}};
+    }
+    out.must_apply = def.must_apply;
+    return out;
+}
+
+/**
  * @brief Build the `card_behavior` trigger map from a card's defs.
  *
  * The resolver consumes `BehaviorGraph`, so the verbatim graph object is
@@ -574,6 +593,10 @@ AssemblyResult MatchAssembler::Assemble(
                     store.Add(entity, ToEcsBehavior(*def));
                     if (def->window.has_value()) {
                         store.Add(entity, ToEcsWindow(*def->window));
+                    }
+                    if (def->auto_trigger.has_value()) {
+                        store.Add(entity,
+                                  ToEcsAutoTrigger(*def->auto_trigger));
                     }
                 }
 
