@@ -414,6 +414,12 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         return;
     }
 
+    // INFO: arm the engine turn deadline on every turn start (and on the
+    //       first turn, since OnGameStarted fires this). The AFK/bot policy
+    //       stays the controller's single-shot `turn_` timer; the engine
+    //       deadline is display/reconnect truth.
+    session.ArmTurnTimer(active_lobby->settings.turn_time_limit_ms);
+
     const std::vector<std::string> actors = PendingActors(session);
     std::string auto_actor;
     std::string human_actor;

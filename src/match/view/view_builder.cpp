@@ -725,6 +725,17 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     state["winner"] = match.GetWinner();
     state["placements"] = match.GetPlacements();
 
+    // INFO: absolute epoch-ms turn deadline for the current player (0 = none);
+    //       the reconnect-safe source for the client turn countdown.
+    int64_t turn_deadline_ms = 0;
+    if (const std::optional<ecs::Entity> current = match.GetCurrentPlayer();
+        current.has_value()) {
+        if (const ecs::TurnState* turn = store.Get<ecs::TurnState>(*current)) {
+            turn_deadline_ms = turn->turn_deadline_ms;
+        }
+    }
+    state["turn_deadline_ms"] = turn_deadline_ms;
+
     json players = json::array();
     for (ecs::Entity player : registries.players) {
         players.push_back(BuildPlayer(*this, match, viewer, options, player,

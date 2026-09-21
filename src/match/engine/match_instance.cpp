@@ -143,6 +143,20 @@ void MatchInstance::Start() {
     After("turn_start", turn);
 }
 
+bool MatchInstance::ArmCurrentTurnDeadline(int64_t duration_ms) {
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    if (!current.has_value()) return false;
+
+    ecs::EntityStore& store = assembly_->store;
+    ecs::TurnState* turn = store.Get<ecs::TurnState>(*current);
+    if (turn == nullptr) {
+        turn = store.Add<ecs::TurnState>(*current, ecs::TurnState{});
+        if (turn == nullptr) return false;
+    }
+    return timers_.Turn().Arm(*turn, duration_ms);
+}
+
 // --- input flow ------------------------------------------------------------
 
 bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {

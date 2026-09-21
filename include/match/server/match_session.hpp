@@ -120,6 +120,19 @@ public:
     /** @brief Advance engine timers / round bookkeeping. */
     void Tick();
 
+    /**
+     * @brief Arm the current player's engine turn deadline.
+     *
+     * Thin forwarding to `MatchInstance::ArmCurrentTurnDeadline`; the
+     * controller calls it on every turn start so the snapshot / `turn_advance`
+     * carry a live absolute deadline. The AFK/bot policy stays the
+     * controller's single-shot timer.
+     *
+     * @param duration_ms Turn length in milliseconds.
+     * @return true when the current player's turn clock was armed.
+     */
+    bool ArmTurnTimer(int64_t duration_ms);
+
     // --- identity / socket rebinding ----------------------------------------
 
     /**

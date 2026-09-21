@@ -107,6 +107,10 @@ bool MatchSession::PassWindow(const std::string& username) {
 
 void MatchSession::Tick() { engine_->Tick(); }
 
+bool MatchSession::ArmTurnTimer(int64_t duration_ms) {
+    return engine_->ArmCurrentTurnDeadline(duration_ms);
+}
+
 bool MatchSession::RebindPlayer(const std::string& old_username,
                                 const std::string& new_username,
                                 AppWebSocket* socket) {

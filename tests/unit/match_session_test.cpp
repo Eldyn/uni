@@ -472,3 +472,30 @@ TEST_CASE("match session: a bound spectator keeps receiving live updates") {
           == nullptr);
 }
 
+TEST_CASE("match session: an armed turn deadline reaches the snapshot") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    // INFO: C2 - the controller arms the engine deadline on every turn start;
+    //       the snapshot must carry that absolute epoch-ms value.
+    const int64_t now = session.Engine().Timers().Turn().Now();
+    REQUIRE(session.ArmTurnTimer(15'000));
+
+    session.BroadcastSnapshot(fake);
+    const std::vector<json> packets = PacketsFor(fake, s0);
+    const json* snapshot = FindPacket(packets, "match_state_updated");
+    REQUIRE(snapshot != nullptr);
+    const int64_t deadline =
+        (*snapshot)["match_state"].value("turn_deadline_ms", int64_t{0});
+    CHECK(deadline > now);
+    CHECK(deadline <= now + 15'000);
+}
+

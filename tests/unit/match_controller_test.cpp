@@ -849,3 +849,38 @@ TEST_CASE("match_window_response: neither pass nor card_id is an invalid payload
 }
 }
 
+// ---------------------------------------------------------------------------
+// Final-review fix wave: the engine turn deadline is armed into the
+// snapshot on every turn start.
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::TurnDeadline") {
+TEST_CASE("OnTurnStartedSession arms the current player's engine turn deadline") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(),
+                 settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000));
+
+    const std::optional<match::ecs::Entity> current =
+        f.Engine().GetCurrentPlayer();
+    REQUIRE(current.has_value());
+    const match::ecs::TurnState* turn =
+        f.Engine().Store().Get<match::ecs::TurnState>(*current);
+    REQUIRE(turn != nullptr);
+    CHECK(turn->turn_deadline_ms > 0);
+
+    // INFO: C2 - the snapshot is the reconnect-safe deadline source.
+    f.bus.Clear();
+    f.store.lobby.session->BroadcastSnapshot(f.bus);
+    int64_t deadline = 0;
+    for (const SentFrame& frame : f.bus.sent) {
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) != "match_state_updated") {
+            continue;
+        }
+        deadline = packet["match_state"].value("turn_deadline_ms", int64_t{0});
+        break;
+    }
+    CHECK(deadline > 0);
+}
+}
+
+

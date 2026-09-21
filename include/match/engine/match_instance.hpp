@@ -216,6 +216,19 @@ public:
     const match::MatchTimers& Timers() const { return timers_; }
 
     /**
+     * @brief Arm the current player's turn clock for `duration_ms`.
+     *
+     * The production seam for the turn deadline: the controller calls this
+     * on every turn start so `ecs::TurnState::turn_deadline_ms` carries an
+     * absolute epoch-ms value into snapshots and `turn_advance`. Uses the
+     * engine's own clock through the `TurnTimer`.
+     *
+     * @param duration_ms Turn length in milliseconds.
+     * @return true when a current player's `TurnState` was armed.
+     */
+    bool ArmCurrentTurnDeadline(int64_t duration_ms);
+
+    /**
      * @brief Advance engine-side counters (round boundary).
      *
      * Turns elapsed seat cycles into `MatchMeta.round` plus a `round_advance`

@@ -65,6 +65,7 @@ const RawGameStateSchema = z.object({
 	discard_pile: z.object({ count: z.number().int(), top: RawCardSchema.optional() }).optional(),
 	window: z.unknown().optional(),
 	prompts: z.array(z.unknown()).optional(),
+	turn_deadline_ms: z.number().optional(),
 	seq_watermark: z.number().int().optional()
 });
 
@@ -136,6 +137,8 @@ export interface GameState {
 	window?: unknown;
 	/** Raw pending op-input prompts from the snapshot, consumed by slice A4. */
 	prompts?: unknown[];
+	/** Absolute epoch-ms deadline for the current turn (0 when none). */
+	turn_deadline_ms?: number;
 }
 
 /**
@@ -426,8 +429,16 @@ class StoreGame implements SessionStore {
 				placements: stateJson.placements,
 				seq_watermark: stateJson.seq_watermark,
 				window: stateJson.window,
-				prompts: stateJson.prompts
+				prompts: stateJson.prompts,
+				turn_deadline_ms: stateJson.turn_deadline_ms
 			};
+
+			// INFO: the snapshot deadline is absolute epoch ms and is the
+			// reconnect-safe source for the turn countdown; only clobber a
+			// live timer when the snapshot actually carries one.
+			if (typeof stateJson.turn_deadline_ms === "number" && stateJson.turn_deadline_ms > 0) {
+				this.#syncTurnTimer(Math.max(0, stateJson.turn_deadline_ms - Date.now()));
+			}
 
 			// INFO: the snapshot window/prompts are reconnect truth
 			// a packet-driven open/close may already have set them.
@@ -471,8 +482,8 @@ class StoreGame implements SessionStore {
 				for (const h of this.#beatHandlers) h(b);
 			}
 
-			// INFO: the snapshot carries no turn clock; the timer becomes
-			// packet-driven from `turn_advance` in slice A4.
+			// INFO: the snapshot now carries the engine turn deadline; the
+			// packet `turn_advance` only refreshes it when it is non-zero.
 
 			if (storeNavigation.current === "lobby" || storeNavigation.initialScreen === "game") {
 				this.#matchStartedAt = Date.now();
@@ -508,8 +519,10 @@ class StoreGame implements SessionStore {
 			case "turn_advance": {
 				const parsed = TurnAdvancePayloadSchema.safeParse(env.data.payload);
 				// INFO: turn_advance.deadline_ms is an ABSOLUTE epoch-ms value
-				// (`TurnState.turn_deadline_ms`), not a remaining duration.
-				if (parsed.success) {
+				// (`TurnState.turn_deadline_ms`), not a remaining duration. The
+				// engine emits the incoming player's not-yet-armed deadline as
+				// 0, so never clobber a good countdown with it.
+				if (parsed.success && parsed.data.deadline_ms > 0) {
 					this.#syncTurnTimer(Math.max(0, parsed.data.deadline_ms - Date.now()));
 				}
 				break;
