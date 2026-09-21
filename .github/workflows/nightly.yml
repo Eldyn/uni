@@ -1,0 +1,52 @@
+name: nightly
+
+# Heavy verification that is too slow to run on every push: the full C++ unit
+# suite plus the deterministic loader fuzz at 10k random mod folders.
+# Scheduled nightly and runnable on demand.
+#
+# The suite is invoked directly rather than through ctest so the doctest runner
+# starts from the repository root, where the job generates the self-signed
+# cert.pem/key.pem the HTTPS controller tests need; without them those tests see
+# no HTTP response. openssl is preinstalled on ubuntu-24.04.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Conan and build tools
+        run: pip install conan ninja pyyaml
+
+      - name: Detect Conan profile
+        run: conan profile detect
+
+      - name: Install backend dependencies (Conan)
+        run: conan install . -pr:a conan/release --build=missing
+
+      - name: Configure (CMake preset)
+        run: cmake --preset conan-release -DPython3_EXECUTABLE=$(which python3)
+
+      - name: Build
+        run: cmake --build --preset release -j$(nproc)
+
+      - name: Generate self-signed TLS certificate for the unit tests
+        run: |
+          openssl req -newkey rsa:2048 -nodes -x509 -days 1 \
+            -keyout key.pem -out cert.pem \
+            -subj "/C=IT/ST=Italy/L=Uniba/O=uni/CN=localhost"
+
+      - name: Unit suite
+        run: ./build/Release/uni_tests
+
+      - name: Loader fuzz (10k random mod folders)
+        run: UNI_FUZZ_ITERS=10000 ./build/Release/uni_tests --test-case="loader fuzz*"
