@@ -4,18 +4,11 @@
 	import * as m from "$lib/paraglide/messages.js";
 	import type { PromptOpenPayload } from "$lib/generated/schemas";
 	import { autofocus } from "./autofocus";
+	import { choosePlayerTargets } from "./promptTargets";
 
 	let { prompt }: { prompt: PromptOpenPayload } = $props();
 
-	let targetList = $derived.by(() => {
-		const options = (prompt.payload as Record<string, unknown>).options;
-		if (Array.isArray(options) && options.every((option) => typeof option === "string")) {
-			return options as string[];
-		}
-		return storeGame.players
-			.filter((p) => p.username !== storeGame.localPlayer?.username)
-			.map((p) => p.username);
-	});
+	let targetList = $derived(choosePlayerTargets());
 </script>
 
 <div class="inline-action-container">

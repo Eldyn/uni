@@ -14,12 +14,10 @@ import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeSpectator } from "./spectator.svelte";
 import {
-	Action,
 	MatchEventPayloadSchema,
 	PromptClosePayloadSchema,
 	PromptOpenPayloadSchema,
 	TurnAdvancePayloadSchema,
-	Type,
 	TypeMap,
 	ValueMap,
 	WindowClosePayloadSchema,
@@ -173,10 +171,6 @@ export interface ActiveWindow {
 class StoreGame implements SessionStore {
 	/** The current state of the match (players, deck, cards on the table). */
 	state = $state<GameState | null>(null);
-	/** Action the engine is waiting for (Action enum value), or null if none. */
-	actionRequired = $state<number | null>(null);
-	/** Contextual data attached to the input request. */
-	actionContext = $state<any>(null);
 
 	/** Highest `match_event` seq observed, or null before the first frame. */
 	lastSeq = $state<number | null>(null);
@@ -317,8 +311,6 @@ class StoreGame implements SessionStore {
 		this.#turnStartedAt = null;
 		this.#humanTurnDurations = [];
 		this.state = null;
-		this.actionRequired = null;
-		this.actionContext = null;
 		this.turnTimeRemaining = 0;
 		this.#clearWindowState();
 		this.activePrompt = null;
@@ -344,8 +336,6 @@ class StoreGame implements SessionStore {
 			if (data.placements) {
 				this.state.placements = data.placements as string[];
 			}
-			this.actionRequired = null;
-			this.actionContext = null;
 
 			this.#clearTimer();
 			this.#clearWindowState();
@@ -480,18 +470,6 @@ class StoreGame implements SessionStore {
 			for (const b of beats) {
 				for (const h of this.#beatHandlers) h(b);
 			}
-
-			this.actionRequired = data.action_required ?? null;
-
-			let parsedContext = data.action_context || null;
-			if (typeof parsedContext === "string") {
-				try {
-					parsedContext = JSON.parse(parsedContext);
-				} catch (e) {
-					console.error("Failed to parse action_context", e);
-				}
-			}
-			this.actionContext = parsedContext;
 
 			// INFO: the snapshot carries no turn clock; the timer becomes
 			// packet-driven from `turn_advance` in slice A4.
@@ -708,22 +686,6 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
-	 * @brief Resolves a currently suspended effect by forwarding the user input.
-	 * @param value The value chosen by the user via modal (e.g. the type index for the Wild).
-	 */
-	submitInput(value: string) {
-		if (this.isSpectator || this.isActionPending) return;
-		this.isActionPending = true;
-		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		// PLACEHOLDER-SFX: sfx.action.submit-input, optimistic click SFX only,
-		// fires on the client-side action, not confirmed by the server's state
-		// broadcast; a human may want a separate confirmed-by-server SFX later
-		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
-		storeAudio.playSfx("sfx.action.submit-input");
-		ws.emit(ClientAction.MatchSubmitInput, { value: value });
-	}
-
-	/**
 	 * @brief Answers the prompt identified by `promptId` with a raw value.
 	 *
 	 * The value is validated server-side against the prompt's response_schema,
@@ -743,8 +705,6 @@ class StoreGame implements SessionStore {
 		this.#clearTimer();
 		this.#clearActionPending();
 		this.state = null;
-		this.actionRequired = null;
-		this.actionContext = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
 		this.#clearWindowState();
@@ -757,4 +717,3 @@ class StoreGame implements SessionStore {
 }
 
 export const storeGame = new StoreGame();
-export { Action, Type };

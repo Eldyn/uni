@@ -8,13 +8,14 @@
 	import { T } from "@threlte/core";
 	import { interactivity, useInteractivity } from "@threlte/extras";
 	import type { OrthographicCamera } from "three";
-	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
+	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import type { SceneGeometry } from "../layout/sceneGeometry";
 	import type { ViewportInfo } from "../layout/seatLayout";
 	import { resolvePovPlayer } from "../layout/spectatorPov";
+	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -93,7 +94,9 @@
 	});
 
 	function confirmTarget(username: string) {
-		storeGame.submitInput(username);
+		const prompt = storeGame.activePrompt;
+		if (prompt?.kind !== "choose_player") return;
+		storeGame.respondToPrompt(prompt.prompt_id, username);
 	}
 
 	// Whose POV the board shows: yourself normally, or — for a spectator — the
@@ -154,9 +157,7 @@
 			{seat}
 			hasHoldingCard={bus.isHoldingOpponent(player.username)}
 			isTurn={storeGame.state?.current_turn === player.username}
-			isValidTarget={storeGame.actionRequired === Action.ChooseTarget &&
-				Array.isArray(storeGame.actionContext) &&
-				storeGame.actionContext.includes(player.username)}
+			isValidTarget={isChoosePlayerTarget(player.username)}
 			color={colorFor(player.username)}
 			onSelect={() => confirmTarget(player.username)}
 			cardScale={opponentCardScale}

@@ -17,7 +17,8 @@ const { mockGameState, mockAuth } = vi.hoisted(() => ({
 			mode: "standard",
 			is_over: false
 		},
-		actionRequired: false,
+		activePrompt: null as unknown,
+		activeWindow: null as unknown,
 		isSpectator: false,
 		spectatorCount: 0,
 		turnTimeRemaining: 12,
@@ -85,6 +86,30 @@ describe("GameHud top card inspection and rich tooltip", () => {
 		const openSpy = vi.spyOn(storeTooltipStack, "open");
 		await fireEvent.click(firstKeyword);
 		expect(openSpy).toHaveBeenCalled();
+	});
+});
+
+describe("GameHud prompt/window gating", () => {
+	afterEach(() => {
+		mockGameState.activePrompt = null;
+		mockGameState.activeWindow = null;
+		document.body.innerHTML = "";
+	});
+
+	it("hides the HUD while a prompt is open", () => {
+		mockGameState.activePrompt = { prompt_id: "choose_color" } as never;
+
+		render(GameHud);
+
+		expect(document.querySelector(".hud-container")).toBeNull();
+	});
+
+	it("hides the HUD while a response window is open", () => {
+		mockGameState.activeWindow = { windowId: "1" } as never;
+
+		render(GameHud);
+
+		expect(document.querySelector(".hud-container")).toBeNull();
 	});
 });
 

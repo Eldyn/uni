@@ -11,7 +11,7 @@
  * — it is fed through `subscribeBeats`.
  */
 
-import { storeGame, Action, type CardType } from "$stores/game.svelte";
+import { storeGame, type CardType } from "$stores/game.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { CardBus } from "../card-bus.svelte";
@@ -19,6 +19,7 @@ import type { CardRegistry } from "./cardRegistry.svelte";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
+import { isChoosePlayerTarget } from "../prompts/promptTargets";
 import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
@@ -374,10 +375,7 @@ export function createMatchEventBeatController(deps: {
 		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
 
 		const isTurn = state.current_turn === beat.player;
-		const isValidTarget =
-			storeGame.actionRequired === Action.ChooseTarget &&
-			Array.isArray(storeGame.actionContext) &&
-			storeGame.actionContext.includes(beat.player);
+		const isValidTarget = isChoosePlayerTarget(beat.player);
 		const isDimmed = !isTurn && !isValidTarget;
 
 		const cardIds: string[] = [];
@@ -585,10 +583,7 @@ export function createMatchEventBeatController(deps: {
 
 		for (const [flightCardId, flightUsername] of opponentDrawFlightOwners) {
 			const flightIsTurn = state.current_turn === flightUsername;
-			const flightIsValidTarget =
-				storeGame.actionRequired === Action.ChooseTarget &&
-				Array.isArray(storeGame.actionContext) &&
-				storeGame.actionContext.includes(flightUsername);
+			const flightIsValidTarget = isChoosePlayerTarget(flightUsername);
 			deps.cardRegistry.setDecoration(flightCardId, {
 				dimmed: !flightIsTurn && !flightIsValidTarget
 			});

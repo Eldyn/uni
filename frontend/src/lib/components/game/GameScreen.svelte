@@ -4,7 +4,6 @@
 	import GameHud from "./GameHud.svelte";
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
-	import GameActions from "./GameActions.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
@@ -28,7 +27,6 @@
 
 		<div class="game-controls">
 			<GameHud />
-			<GameActions />
 			<PromptRenderer />
 		</div>
 
@@ -68,7 +66,7 @@
 	/* The HUD floats on top of the board instead of stacking above it — the
 	   canvas must own the full screen or the scene's center drifts below the
 	   true screen center by half the HUD row's height. Centering keeps the
-	   HUD in the middle at every width; GameActions renders only fixed
+	   HUD in the middle at every width; PromptRenderer renders only fixed
 	   overlays, so it never shifts this row. */
 	.game-controls {
 		position: absolute;

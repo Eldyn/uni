@@ -28,7 +28,7 @@
 	}
 </script>
 
-{#if storeGame.state && !storeGame.actionRequired}
+{#if storeGame.state && !storeGame.activePrompt && !storeGame.activeWindow}
 	<div class="hud-container" class:collapsed>
 		<button
 			class="collapse-toggle"

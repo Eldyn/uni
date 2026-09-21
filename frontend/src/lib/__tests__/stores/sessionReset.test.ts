@@ -44,20 +44,20 @@ describe("storeLobby.reset", () => {
 });
 
 describe("storeGame.reset", () => {
-	it("clears match state and pending action context", async () => {
+	it("clears match state and pending prompt/window", async () => {
 		const { storeGame } = await import("$lib/stores/game.svelte");
 
 		storeGame.state = { players: [] } as never;
-		storeGame.actionRequired = 3;
-		storeGame.actionContext = { colour: "red" };
+		storeGame.activePrompt = { prompt_id: "choose_color" } as never;
+		storeGame.activeWindow = { windowId: "1" } as never;
 		storeGame.isActionPending = true;
 		storeGame.turnTimeRemaining = 2;
 
 		storeGame.reset();
 
 		expect(storeGame.state).toBeNull();
-		expect(storeGame.actionRequired).toBeNull();
-		expect(storeGame.actionContext).toBeNull();
+		expect(storeGame.activePrompt).toBeNull();
+		expect(storeGame.activeWindow).toBeNull();
 		expect(storeGame.isActionPending).toBe(false);
 		expect(storeGame.turnTimeRemaining).toBe(15);
 	});
