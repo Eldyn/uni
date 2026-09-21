@@ -4,7 +4,7 @@
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
-	import { createBaseBeatsWatcher } from "./animation/baseBeats.svelte";
+	import { createMatchEventBeatController } from "./animation/matchEventController.svelte";
 	import { createGameLayoutContext, useGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
@@ -119,7 +119,7 @@
 		layout.geometry = geometry;
 	});
 
-	const disposeBaseBeatsWatcher = createBaseBeatsWatcher({
+	const controller = createMatchEventBeatController({
 		bus,
 		cardRegistry,
 		getPlacement: () => geometry.placement,
@@ -188,10 +188,24 @@
 				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
 			}
 			return opponentFrontWorldPose(seat, geometry.opponentAvatarWorld, geometry.opponentCardScale);
-		}
+		},
+		subscribeBeats: (cb) => storeGame.onMatchEventBeat(cb)
 	});
 
-	$effect(() => disposeBaseBeatsWatcher);
+	const disposeController = controller.dispose;
+	$effect(() => disposeController);
+
+	// INFO: non-beat state sync (active type, in-flight decoration, initial
+	// discard seed) runs on every snapshot; the beats themselves are drained by
+	// the store after the snapshot is applied.
+	$effect(() => {
+		storeGame.state;
+		controller.syncState();
+	});
+
+	// INFO: a match_event seq gap means a beat was missed; flush the queue to
+	// its end state instead of animating a stale backlog.
+	$effect(() => storeGame.onDesync(() => cardRegistry.flushImmediately()));
 
 	// Escape toggles the mini settings modal from the gamescreen.
 	$effect(() => {

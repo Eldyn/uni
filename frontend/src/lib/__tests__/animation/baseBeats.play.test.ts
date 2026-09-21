@@ -1,10 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { flushSync } from "svelte";
-import { buildPlayBeat, createBaseBeatsWatcher, localCardAnchor } from "$components/game/animation/baseBeats.svelte";
-import { CardBus } from "$components/game/card-bus.svelte";
-import { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
-import { storeGame } from "$stores/game.svelte";
-import { storeAuth } from "$stores/auth.svelte";
+import { describe, it, expect, vi } from "vitest";
+import { buildPlayBeat, localCardAnchor } from "$components/game/animation/baseBeats.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {
@@ -79,7 +74,12 @@ describe("localCardAnchor", () => {
 
 	it("warns and falls back to hand-center when the card is in neither snapshot", () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const [x] = localCardAnchor(999, placement, { orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 }, null);
+		const [x] = localCardAnchor(
+			999,
+			placement,
+			{ orderIds: [], scrollEm: 0, maxHalfSpanEm: 10 },
+			null
+		);
 		expect(x).toBe(0);
 		expect(warn).toHaveBeenCalled();
 		warn.mockRestore();
@@ -91,128 +91,3 @@ describe("localCardAnchor", () => {
 		expect(y).toBeCloseTo(2 * 0.02);
 	});
 });
-
-describe("processPlay clear-before-seed", () => {
-	afterEach(() => {
-		storeGame.state = null;
-		storeGame.actionRequired = null;
-		storeGame.actionContext = null;
-		storeAuth.username = "";
-	});
-
-	it("clears stale decoration before seeding play flight pose", () => {
-		storeAuth.username = "me";
-		storeGame.state = {
-			active_type: "red",
-			current_turn: "me",
-			play_direction: 1,
-			top_card: { id: 1, type: "red", value: "5" },
-			players: [
-				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] },
-				{ username: "bob", card_count: 3, is_bot: false }
-			],
-			pending_draws: 0,
-			draw_pile_size: 10
-		} as never;
-
-		const bus = new CardBus();
-		const cardRegistry = new CardRegistry();
-		const dispose = createBaseBeatsWatcher({
-			bus,
-			cardRegistry,
-			getPlacement: () => placement,
-			getOpponentSeatAnchor: () => [0, 0, 0]
-		});
-		flushSync();
-
-		const calls: string[] = [];
-		const origClear = cardRegistry.clearDecoration.bind(cardRegistry);
-		const origSeed = cardRegistry.seedPose.bind(cardRegistry);
-		vi.spyOn(cardRegistry, "clearDecoration").mockImplementation((id) => {
-			calls.push(`clear:${id}`);
-			origClear(id);
-		});
-		vi.spyOn(cardRegistry, "seedPose").mockImplementation((id, pose) => {
-			calls.push(`seed:${id}`);
-			origSeed(id, pose);
-		});
-
-		bus.localHandSnapshot = { orderIds: [2], scrollEm: 0, maxHalfSpanEm: 10 };
-		storeGame.state = {
-			active_type: "red",
-			current_turn: "bob",
-			play_direction: 1,
-			top_card: { id: 2, type: "red", value: "7" },
-			last_play: { player: "me", hand_index: 0 },
-			players: [
-				{ username: "me", card_count: 4, is_bot: false, hand: [] },
-				{ username: "bob", card_count: 3, is_bot: false }
-			],
-			pending_draws: 0,
-			draw_pile_size: 10
-		} as never;
-		flushSync();
-
-		expect(calls).toEqual(["clear:2", "seed:2"]);
-
-		dispose();
-	});
-
-	it("clears stale decoration before seeding opponent play flight pose", () => {
-		storeAuth.username = "me";
-		storeGame.state = {
-			active_type: "red",
-			current_turn: "bob",
-			play_direction: 1,
-			top_card: { id: 1, type: "red", value: "5" },
-			players: [
-				{ username: "me", card_count: 5, is_bot: false, hand: [] },
-				{ username: "bob", card_count: 3, is_bot: false }
-			],
-			pending_draws: 0,
-			draw_pile_size: 10
-		} as never;
-
-		const bus = new CardBus();
-		const cardRegistry = new CardRegistry();
-		const dispose = createBaseBeatsWatcher({
-			bus,
-			cardRegistry,
-			getPlacement: () => placement,
-			getOpponentSeatAnchor: () => [0, 0, 0]
-		});
-		flushSync();
-
-		const calls: string[] = [];
-		const origClear = cardRegistry.clearDecoration.bind(cardRegistry);
-		const origSeed = cardRegistry.seedPose.bind(cardRegistry);
-		vi.spyOn(cardRegistry, "clearDecoration").mockImplementation((id) => {
-			calls.push(`clear:${id}`);
-			origClear(id);
-		});
-		vi.spyOn(cardRegistry, "seedPose").mockImplementation((id, pose) => {
-			calls.push(`seed:${id}`);
-			origSeed(id, pose);
-		});
-
-		storeGame.state = {
-			active_type: "red",
-			current_turn: "me",
-			play_direction: 1,
-			top_card: { id: 3, type: "blue", value: "3" },
-			last_play: { player: "bob", hand_index: 0 },
-			players: [
-				{ username: "me", card_count: 5, is_bot: false, hand: [] },
-				{ username: "bob", card_count: 2, is_bot: false }
-			],
-			pending_draws: 0,
-			draw_pile_size: 10
-		} as never;
-		flushSync();
-
-		expect(calls).toEqual(["clear:3", "seed:3"]);
-
-		dispose();
-	});
-});
-

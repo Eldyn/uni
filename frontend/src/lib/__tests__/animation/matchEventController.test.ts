@@ -170,6 +170,21 @@ describe("createMatchEventBeatController", () => {
 		expect(h.bus.setActiveType).toHaveBeenCalledWith("red");
 	});
 
+	it("syncState seeds the initial discard top when nothing is seeded yet", () => {
+		storeGame.state = baseState();
+		const h = harness();
+		h.controller.syncState();
+		expect(h.bus.setDiscardTop).toHaveBeenCalledTimes(1);
+	});
+
+	it("syncState leaves a live discard history untouched", () => {
+		storeGame.state = baseState();
+		const h = harness();
+		(h.bus as { discardHistory: unknown[] }).discardHistory = discardHistory([9]);
+		h.controller.syncState();
+		expect(h.bus.setDiscardTop).not.toHaveBeenCalled();
+	});
+
 	it("syncState is a no-op when no state is hydrated", () => {
 		const h = harness();
 		h.controller.syncState();

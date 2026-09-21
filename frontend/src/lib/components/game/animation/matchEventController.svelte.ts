@@ -573,6 +573,14 @@ export function createMatchEventBeatController(deps: {
 	function syncState(): void {
 		const state = storeGame.state;
 		if (!state) return;
+
+		// INFO: the watcher used to seed the discard pile on first observation;
+		// without it the first render shows an empty pile. Seed only when
+		// nothing is there yet so a live discard history is never clobbered.
+		if (state.top_card && deps.bus.discardHistory.length === 0) {
+			deps.bus.setDiscardTop(state.top_card);
+		}
+
 		deps.bus.setActiveType(state.active_type as CardType);
 
 		for (const [flightCardId, flightUsername] of opponentDrawFlightOwners) {
