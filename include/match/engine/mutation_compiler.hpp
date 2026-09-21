@@ -51,6 +51,11 @@ struct MutationCompileOptions {
  * @param options    Out-of-band target classification (see above).
  * @return A graph whose `nodes` is the compiled node list and whose `raw` is
  *         `{"nodes": <nodes>}`. The entry node is `nodes.front()`.
+ *
+ * Ordering: `replace`/`wrap` fold so the earliest mod in `mutations` is the
+ * outermost wrap; every `veto`
+ * is applied after that fold, so it guards the effective graph whichever side
+ * of a `replace`/`wrap` it appears on.
  */
 modload::BehaviorGraph CompileMutations(
     const modload::BehaviorGraph& original,

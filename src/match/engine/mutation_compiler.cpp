@@ -130,6 +130,15 @@ void RewriteRoutes(json& node,
             auto it = window->find(key);
             if (it != window->end()) RewriteId(*it, rename);
         }
+        // INFO: a window may carry its response routes nested under `window`
+        //       instead of at the node top level (resolver StepWindow reads
+        //       both); an un-rewritten route here dangles after splicing.
+        auto responses = window->find("on_response");
+        if (responses != window->end() && responses->is_object()) {
+            for (auto it = responses->begin(); it != responses->end(); ++it) {
+                RewriteId(it.value(), rename);
+            }
+        }
     }
 }
 
@@ -315,12 +324,17 @@ modload::BehaviorGraph CompileMutations(
     json current = NodesOf(original);
     if (!current.is_array()) current = json::array();
 
-    for (std::size_t index = 0; index < mutations.size(); ++index) {
-        const modload::MutationDef* mutation = mutations[index];
+    // INFO: alterations fold in REVERSE list order so the earliest mod's wrap
+    //       ends up outermost: [A, B] runs A's injected graph, then B's, then
+    //       the base. `veto` is
+    //       deferred to the second pass so it always guards the final graph.
+    for (std::size_t k = mutations.size(); k-- > 0;) {
+        const modload::MutationDef* mutation = mutations[k];
         if (mutation == nullptr) {
-            Logger::Warn("[MutationCompiler] null mutation at index ", index);
+            Logger::Warn("[MutationCompiler] null mutation at index ", k);
             continue;
         }
+        if (mutation->mode == "veto") continue;
         if (options.restriction_targets.count(mutation->target) != 0) {
             Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
                          "' targets restriction entry '", mutation->target,
@@ -329,9 +343,7 @@ modload::BehaviorGraph CompileMutations(
         }
 
         const std::string& mode = mutation->mode;
-        if (mode == "veto") {
-            current = ApplyVeto(current, *mutation, index);
-        } else if (mode == "replace") {
+        if (mode == "replace") {
             json replacement = NodesOf(mutation->replacement);
             if (!replacement.is_array() || replacement.empty()) {
                 Logger::Warn("[MutationCompiler] replace '",
@@ -341,7 +353,7 @@ modload::BehaviorGraph CompileMutations(
             }
             current = std::move(replacement);
         } else if (mode == "wrap") {
-            current = ApplyWrap(current, *mutation, index);
+            current = ApplyWrap(current, *mutation, k);
         } else if (mode == "filter") {
             Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
                          "' mode 'filter' is deferred; inert");
@@ -349,6 +361,20 @@ modload::BehaviorGraph CompileMutations(
             Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
                          "' has unknown mode '", mode, "'; inert");
         }
+    }
+
+    // INFO: vetoes are conditions, not alterations; they guard the
+    //       effective graph whichever side of a replace/wrap they appear on.
+    for (std::size_t k = 0; k < mutations.size(); ++k) {
+        const modload::MutationDef* mutation = mutations[k];
+        if (mutation == nullptr || mutation->mode != "veto") continue;
+        if (options.restriction_targets.count(mutation->target) != 0) {
+            Logger::Warn("[MutationCompiler] mutation '", mutation->mutation_id,
+                         "' targets restriction entry '", mutation->target,
+                         "'; inert");
+            continue;
+        }
+        current = ApplyVeto(current, *mutation, k);
     }
 
     modload::BehaviorGraph out;

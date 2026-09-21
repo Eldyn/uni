@@ -184,7 +184,71 @@ TEST_CASE("mutation compiler: wraps fold in mod-list order") {
 
     BehaviorGraph out = CompileMutations(original, {&first, &second});
 
-    CHECK(RunTags(out) == "B,A,O");
+    // INFO: mod-list order is execution order: the first mod wraps outermost,
+    //       so A's injected graph runs, then B's, then the base.
+    CHECK(RunTags(out) == "A,B,O");
+}
+
+TEST_CASE("mutation compiler: veto guards a replace in either order") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "yes", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "no", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef veto = MakeMutation("veto", BehaviorGraph{});
+    veto.where = json{{"yes", json::object()}};
+    MutationDef replace =
+        MakeMutation("replace", MakeGraph(json::array({LogNode("r1", "R")})));
+
+    // INFO: a matching veto suppresses the effective graph regardless of where
+    //       it sits relative to the replace.
+    CHECK(RunTags(CompileMutations(original, {&veto, &replace}), &conditions)
+          == "");
+    CHECK(RunTags(CompileMutations(original, {&replace, &veto}), &conditions)
+          == "");
+
+    // INFO: a non-matching veto lets the replacement run in either order.
+    veto.where = json{{"no", json::object()}};
+    CHECK(RunTags(CompileMutations(original, {&veto, &replace}), &conditions)
+          == "R");
+    CHECK(RunTags(CompileMutations(original, {&replace, &veto}), &conditions)
+          == "R");
+}
+
+TEST_CASE("mutation compiler: wrap rewrites window on_response routes") {
+    BehaviorGraph original = OneLogGraph();
+    const json injected = json::array({
+        json{{"id", "w1"},
+             {"window",
+              {{"responders", "@others"},
+               {"duration", "env"},
+               {"on_response", {{"stackable", "w2"}}}}},
+             {"default", "w3"}},
+        LogNode("w2", "W2"),
+        LogNode("w3", "W3"),
+    });
+    MutationDef mutation = MakeMutation("wrap", MakeGraph(injected));
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    std::string response_route;
+    std::string default_route;
+    for (const json& node : out.nodes) {
+        if (!node.is_object() || !node.contains("window")) continue;
+        const json& window = node["window"];
+        response_route =
+            window["on_response"].value("stackable", std::string());
+        default_route = node.value("default", std::string());
+    }
+    // INFO: both the top-level `default` and the nested `window.on_response`
+    //       must be rewritten to the spliced node ids, or the Resolver sees a
+    //       dangling route when the window resumes.
+    CHECK(default_route == "m0_w3");
+    CHECK(response_route == "m0_w2");
+    CHECK(HasNodeId(out, default_route));
+    CHECK(HasNodeId(out, response_route));
 }
 
 TEST_CASE("mutation compiler: veto guards the original on where match") {
