@@ -33,6 +33,10 @@
  * `ResolverConfig::FromEnv()`.
  */
 
+namespace match::engine {
+struct MatchRegistries;
+}  // namespace match::engine
+
 namespace match::resolver {
 
 /**
@@ -269,6 +273,18 @@ public:
     /** @brief Effective guard configuration. */
     const ResolverConfig& Config() const { return config_; }
 
+    /**
+     * @brief Provide the assembly's frozen card index map.
+     *
+     * Every `OpContext` this resolver builds carries the pointer so a
+     * card-prompt op can resolve a candidate entity to its `CompactCardV2`
+     * bits. Additive: the map stays owned by the assembly, which outlives the
+     * resolver.
+     */
+    void SetRegistries(const engine::MatchRegistries* registries) {
+        registries_ = registries;
+    }
+
 private:
     enum class WalkCode {
         kContinue,  /**< continuations pushed; keep walking. */
@@ -339,6 +355,7 @@ private:
     ecs::BudgetLedger& budgets_;
     ConditionRegistry& conditions_;
     ResolverConfig config_;
+    const engine::MatchRegistries* registries_ = nullptr;
 };
 
 }  // namespace match::resolver

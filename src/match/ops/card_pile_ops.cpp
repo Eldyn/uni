@@ -1,5 +1,6 @@
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/engine/match_assembler.hpp>
 #include <match/resolver.hpp>
 #include <match/status.hpp>
 
@@ -400,17 +401,39 @@ bool DrawnCardPlayable(ecs::EntityStore& store, ecs::Entity card,
 /**
  * @brief Open a `choose_card` prompt over `candidates`.
  *
- * Grants each candidate identity visibility to the chooser (the "revealed
- * subset"), emits `visibility_granted`, fills `ctx.input_request` and returns
- * the envelope. The move itself is driven by the response route; ops are
- * single-shot and `from_prompt` binding belongs to the Resolver.
+ * Grants each offered candidate identity visibility to the chooser (the
+ * "revealed subset"), emits `visibility_granted`, fills `ctx.input_request`
+ * and returns the envelope. The move itself is driven by the response
+ * route; ops are single-shot and `from_prompt` binding belongs to the
+ * Resolver.
+ *
+ * INFO: Every option is the card's `CompactCardV2.bits` integer
+ *       resolved through the assembly's frozen index map, never an entity
+ *       handle. A candidate the map cannot resolve (a runtime-created card) is
+ *       dropped so the engine never emits an identity it cannot map back; when
+ *       nothing resolves the prompt is declined. The envelope carries
+ *       `response_schema {"type":"integer"}` so the generic renderer is
+ *       self-describing.
  */
 OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
                         ecs::Entity chooser,
                         const std::vector<ecs::Entity>& candidates,
                         OpContext& ctx) {
     json options = json::array();
+    std::vector<ecs::Entity> offered;
     for (ecs::Entity card : candidates) {
+        if (ctx.registries == nullptr) continue;
+        const std::optional<ecs::CompactCardV2> id =
+            ctx.registries->CardId(card);
+        if (!id.has_value()) continue;
+        options.push_back(id->bits);
+        offered.push_back(card);
+    }
+    // INFO: no mappable candidate means no prompt - the engine refuses rather
+    //       than reveal a subset the graph could not resolve on resume.
+    if (options.empty()) return OpResult::Resolved();
+
+    for (ecs::Entity card : offered) {
         ecs::VisibilityGrant* grant = store.Get<ecs::VisibilityGrant>(card);
         if (grant == nullptr) {
             store.Add(card, ecs::VisibilityGrant{});
@@ -424,10 +447,12 @@ OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
             entry.expires_ms = 0;
             grant->entries.push_back(entry);
         }
-        options.push_back(EntityJson(card));
     }
 
-    const json payload = json{{"from", EntityJson(from)}, {"options", options}};
+    const json response_schema = json{{"type", "integer"}};
+    const json payload = json{{"from", EntityJson(from)},
+                              {"options", options},
+                              {"response_schema", response_schema}};
     ctx.input_request = InputRequest{};
     ctx.input_request->kind = "choose_card";
     ctx.input_request->target = chooser;
@@ -436,6 +461,7 @@ OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
     OpResult result = OpResult::NeedsInput(
         json{{"kind", "choose_card"},
              {"payload", payload},
+             {"response_schema", response_schema},
              {"timeout_ms", 0},
              {"default", nullptr}});
     result.events.push_back(MakeEvent(
@@ -443,7 +469,7 @@ OpResult OpenChooseCard(ecs::EntityStore& store, ecs::Entity from,
         json{{"viewer", EntityJson(chooser)},
              {"target", EntityJson(from)},
              {"aspects", json::array({"identity"})},
-             {"count", candidates.size()}}));
+             {"count", offered.size()}}));
     return result;
 }
 

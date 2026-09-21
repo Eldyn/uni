@@ -118,6 +118,16 @@ struct MatchRegistries {
     /** @brief Assembled card entity for a compact identity, or nullopt. */
     std::optional<ecs::Entity> CardEntity(ecs::CompactCardV2 id) const;
 
+    /**
+     * @brief Record `card` under its compact identity in both index maps.
+     *
+     * The one place `EntityKey` packing happens; assembly uses it per created
+     * card and tests use it to build a fixture map. `card_ids` is appended in
+     * call order, so `cards[i]` and `card_ids[i]` stay parallel when both are
+     * pushed together.
+     */
+    void AddCard(ecs::Entity card, ecs::CompactCardV2 id);
+
     /** @brief Internal: packed-entity lookup table for `CardId`. */
     std::unordered_map<uint64_t, uint32_t> card_by_entity;
     /** @brief Internal: reverse `CompactCardV2.bits` -> card entity. */

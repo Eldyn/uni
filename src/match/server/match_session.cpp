@@ -448,6 +448,8 @@ void MatchSession::BuildPromptSchemas() {
     prompt_schemas_["choose_color"] = {
         {"type", "string"}, {"enum", {"red", "blue", "green", "yellow"}}};
     prompt_schemas_["choose_yes_no"] = {{"type", "boolean"}};
+    // INFO: A card choice is a `CompactCardV2.bits` integer.
+    prompt_schemas_["choose_card"] = {{"type", "integer"}};
 
     for (const match::modload::LoadedMod& mod : mods_) {
         if (!mod.manifest.prompts.is_array()) continue;

@@ -404,10 +404,36 @@ bool MatchInstance::SubmitInput(const std::string& username,
     const modload::BehaviorGraph& graph =
         assembly_->systems[pending.system_index].graph;
 
+    // INFO: The wire speaks `CompactCardV2.bits`; map an answered
+    //       card prompt back to its entity handle before the graph's
+    //       `from_prompt` binding consumes it. An unmappable answer is
+    //       rejected and the parked prompt restored so the chooser may retry.
+    json answer = value;
+    if (pending.kind == "choose_card") {
+        bool mapped = false;
+        if (answer.is_number_integer()) {
+            const int64_t raw = answer.get<int64_t>();
+            if (raw >= 0 && raw <= 0xFFFFFFFFLL) {
+                ecs::CompactCardV2 id;
+                id.bits = static_cast<uint32_t>(raw);
+                const std::optional<ecs::Entity> card =
+                    assembly_->registries.CardEntity(id);
+                if (card.has_value()) {
+                    answer = EntityJson(*card);
+                    mapped = true;
+                }
+            }
+        }
+        if (!mapped) {
+            pending_input_ = std::move(pending);
+            return false;
+        }
+    }
+
     ops::ResolutionFrame frame = pending.frame;
     const resolver::ResolveResult result = assembly_->resolver->ResumeInput(
         graph, pending.mod_id, pending.context, frame, pending.pause,
-        value);
+        std::move(answer));
 
     AppendResult(result, pending.system_index, pending.mod_id,
                  pending.context, frame, pending.settle_play,

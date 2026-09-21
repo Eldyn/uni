@@ -2,6 +2,7 @@
 
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/engine/match_assembler.hpp>
 #include <match/status.hpp>
 
 #include <nlohmann/json.hpp>
@@ -124,7 +125,15 @@ struct Harness {
     EventBus bus = EventBus(std::vector<std::string>{"m"});
     ResolutionFrame frame;
     OpRuntime runtime = MakeDefaultRuntime();
+    match::engine::MatchRegistries registries;
     uint32_t next_index = 0;
+
+    /** @brief Register `card` at `bits` in the fixture index map. */
+    void RegisterCard(Entity card, uint32_t bits) {
+        match::ecs::CompactCardV2 id;
+        id.bits = bits;
+        registries.AddCard(card, id);
+    }
 
     void On(std::string name, HookPhase phase, HookCallback callback) {
         bus.Subscribe("m", next_index++, HookId{std::move(name), phase},
@@ -140,6 +149,7 @@ struct Harness {
             args.BindSelector(binding.first, binding.second);
         }
         OpContext ctx(bus, ledger, frame);
+        ctx.registries = &registries;
         return runtime.Invoke(op, store, args, ctx);
     }
 };
@@ -535,11 +545,17 @@ TEST_CASE("card_pile_ops: transfer_card chosen opens a choose_card prompt") {
     Entity to = AddPlayer(h.store, "to", 1);
     Entity card = MakeCard(h.store, "vanilla:red_5", "red");
     PutInHand(h.store, from, card);
+    // INFO: The option is the card's frozen `CompactCardV2.bits`.
+    const std::optional<match::ecs::CompactCardV2> bits =
+        match::ecs::MakeCompactCard(2, 0x101, 7);
+    REQUIRE(bits.has_value());
+    h.RegisterCard(card, bits->bits);
 
     OpArgs args("transfer_card", json{{"selector", "chosen"}});
     args.BindSelector("from_player", {from});
     args.BindSelector("to_player", {to});
     OpContext ctx(h.bus, h.ledger, h.frame);
+    ctx.registries = &h.registries;
     const OpResult result =
         h.runtime.Invoke("transfer_card", h.store, args, ctx);
 
@@ -549,6 +565,15 @@ TEST_CASE("card_pile_ops: transfer_card chosen opens a choose_card prompt") {
     REQUIRE(ctx.input_request->target.has_value());
     CHECK(*ctx.input_request->target == to);
     CHECK(result.value["kind"] == "choose_card");
+
+    // INFO: Numeric options only (no entity handles), and the
+    //       envelope is self-describing for the fallback renderer.
+    REQUIRE(ctx.input_request->payload.contains("options"));
+    REQUIRE(ctx.input_request->payload["options"].is_array());
+    REQUIRE(ctx.input_request->payload["options"].size() == 1);
+    CHECK(ctx.input_request->payload["options"][0] == bits->bits);
+    CHECK(result.value["response_schema"]["type"] == "integer");
+    CHECK(ctx.input_request->payload["response_schema"]["type"] == "integer");
 
     const VisibilityGrant* grant = h.store.Get<VisibilityGrant>(card);
     REQUIRE(grant != nullptr);

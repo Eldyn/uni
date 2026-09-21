@@ -48,6 +48,10 @@
  * body.
  */
 
+namespace match::engine {
+struct MatchRegistries;
+}  // namespace match::engine
+
 namespace match::ops {
 
 /**
@@ -387,6 +391,14 @@ struct OpContext {
     ecs::BudgetLedger& budgets;       /**< match budget ledger. */
     ResolutionFrame& frame;           /**< bound selectors + prompt results. */
     std::optional<InputRequest> input_request; /**< set when input is needed. */
+
+    /**
+     * INFO: The assembly's frozen `CompactCardV2` index map, set by
+     *       the Resolver on every invocation so a card-prompt op can resolve a
+     *       candidate entity to its wire bits. Null in bare-op tests that do
+     *       not assemble a match; an op must then decline to emit identity.
+     */
+    const engine::MatchRegistries* registries = nullptr;
 };
 
 /**

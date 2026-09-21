@@ -350,6 +350,12 @@ std::optional<ecs::Entity> MatchRegistries::CardEntity(
     return it->second;
 }
 
+void MatchRegistries::AddCard(ecs::Entity card, ecs::CompactCardV2 id) {
+    card_by_entity[EntityKey(card)] = static_cast<uint32_t>(card_ids.size());
+    entity_by_card[id.bits] = card;
+    card_ids.push_back(id);
+}
+
 // --- MatchAssembly ---------------------------------------------------------
 
 void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
@@ -700,12 +706,8 @@ AssemblyResult MatchAssembler::Assemble(
                     }
                 }
 
-                const uint32_t card_index =
-                    static_cast<uint32_t>(reg.cards.size());
-                reg.card_by_entity[EntityKey(entity)] = card_index;
-                reg.entity_by_card[compact->bits] = entity;
+                reg.AddCard(entity, *compact);
                 reg.cards.push_back(entity);
-                reg.card_ids.push_back(*compact);
 
                 ecs::PileContents* draw = store.Get<ecs::PileContents>(
                     reg.draw_pile);
@@ -812,6 +814,10 @@ AssemblyResult MatchAssembler::Assemble(
     assembly->resolver = std::make_unique<resolver::Resolver>(
         assembly->store, assembly->runtime, assembly->bus, assembly->budget,
         assembly->conditions, resolver::ResolverConfig::FromEnv());
+    // INFO: The assembly hands its frozen card index map to the
+    //       resolver, which attaches it to every op context so card-prompt
+    //       ops emit wire `CompactCardV2.bits`.
+    assembly->resolver->SetRegistries(&assembly->registries);
 
     for (std::size_t i = 0; i < assembly->systems.size(); ++i) {
         MatchAssembly* self = assembly.get();
