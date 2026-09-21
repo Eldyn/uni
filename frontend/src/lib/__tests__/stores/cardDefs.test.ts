@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { storeCardDefs } from "$lib/stores/cardDefs.svelte";
 
 function face(kind: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -175,5 +175,60 @@ describe("storeCardDefs kind table", () => {
 		expect(storeCardDefs.digest).toBeNull();
 		expect(storeCardDefs.accepted).toBe(false);
 		expect(storeCardDefs.lookupByStringId("vanilla:red_0")).toBeUndefined();
+	});
+
+	it("rejects a later defs whose digest conflicts with the confirmed one, keeping the confirmed table", () => {
+		storeCardDefs.ingestDefs(
+			defsPayload(
+				"confirmed",
+				[{ id: "vanilla", index: 0 }],
+				[{ index: 0, string_id: "vanilla:red_0", face: face("text") }]
+			)
+		);
+		expect(storeCardDefs.confirmMatchStart(matchStart("confirmed"))).toBe(true);
+		expect(storeCardDefs.accepted).toBe(true);
+
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const installed = storeCardDefs.ingestDefs(
+			defsPayload(
+				"intruder",
+				[{ id: "vanilla", index: 0 }],
+				[{ index: 0, string_id: "vanilla:blue_1", face: face("text") }]
+			)
+		);
+		const warned = warn.mock.calls.length;
+		warn.mockRestore();
+
+		expect(installed).toBe(false);
+		expect(warned).toBeGreaterThan(0);
+		// The confirmed table stays the lookup source; the conflicting one never
+		// becomes readable.
+		expect(storeCardDefs.digest).toBe("confirmed");
+		expect(storeCardDefs.accepted).toBe(true);
+		expect(storeCardDefs.lookupByStringId("vanilla:red_0")).toBeDefined();
+		expect(storeCardDefs.lookupByStringId("vanilla:blue_1")).toBeUndefined();
+		expect(storeCardDefs.lookupByIndex(0, 0)?.string_id).toBe("vanilla:red_0");
+	});
+
+	it("treats a re-ingested defs with the confirmed digest as idempotent without warning", () => {
+		const payload = defsPayload(
+			"confirmed",
+			[{ id: "vanilla", index: 0 }],
+			[{ index: 0, string_id: "vanilla:red_0", face: face("text", { color: "red", label: "0" }) }]
+		);
+		storeCardDefs.ingestDefs(payload);
+		expect(storeCardDefs.confirmMatchStart(matchStart("confirmed"))).toBe(true);
+
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const installed = storeCardDefs.ingestDefs(payload);
+		const warned = warn.mock.calls.length;
+		warn.mockRestore();
+
+		expect(installed).toBe(true);
+		expect(warned).toBe(0);
+		expect(storeCardDefs.accepted).toBe(true);
+		expect(storeCardDefs.digest).toBe("confirmed");
+		expect(storeCardDefs.lookupByIndex(0, 0)?.string_id).toBe("vanilla:red_0");
+		expect(storeCardDefs.lookupByStringId("vanilla:red_0")?.face.label).toBe("0");
 	});
 });

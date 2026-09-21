@@ -148,20 +148,38 @@ class CardDefsStore {
 	/** Digest of the active table, or null before a `defs` frame. */
 	digest = $state<string | null>(null);
 
-	/** True once a `match_start` has confirmed the active table's digest. */
+	/**
+	 * True iff the active table's digest equals the last digest a `match_start`
+	 * confirmed. Written by the validation gate, not merely by table presence:
+	 * a bare `defs` installs unconfirmed (`accepted` false) until a matching
+	 * `match_start` arrives.
+	 */
 	accepted = $state(false);
 
 	#table: DefsTable | null = null;
 
+	/**
+	 * Last digest a `match_start` confirmed. Retained across later frames (not
+	 * cleared on success) so a subsequent lone `defs` is validated against it;
+	 * a conflicting digest is rejected outright.
+	 */
+	#confirmedDigest: string | null = null;
+
 	/** Latest `match_start` digest awaiting its `defs` frame (reordered packets). */
-	#expectedDigest: string | null = null;
+	#pendingDigest: string | null = null;
 
 	/**
-	 * @brief Ingests a `defs` packet and (re)builds the kind table.
+	 * @brief Ingests a `defs` packet and, when validated, (re)builds the kind
+	 * table.
 	 *
-	 * When a `match_start` was already seen, its digest must match or the
-	 * packet is ignored; otherwise the table is held unconfirmed until
-	 * `confirmMatchStart` runs.
+	 * Validation (the table is only ever installed from a validated frame):
+	 *  - a pending `match_start` digest must equal this frame's digest (the
+	 *    reordered-packet case; a match confirms the table);
+	 *  - otherwise, when a digest was already confirmed, this frame's digest
+	 *    must equal it — a conflicting table is dropped with a WARN so it can
+	 *    never become a lookup source;
+	 *  - with no confirmation yet the first table installs unconfirmed, to be
+	 *    validated by the `match_start` that follows.
 	 * @returns True when the table was installed.
 	 */
 	ingestDefs(raw: unknown): boolean {
@@ -172,27 +190,36 @@ class CardDefsStore {
 		}
 
 		const table = buildTable(parsed.data);
-		const confirmed = this.#expectedDigest !== null && this.#expectedDigest === table.digest;
-		if (this.#expectedDigest !== null && !confirmed) {
-			this.#devWarn(
-				"defs_digest does not match the active match_start — ignoring stale defs table"
-			);
+
+		if (this.#pendingDigest !== null) {
+			if (table.digest !== this.#pendingDigest) {
+				this.#devWarn(
+					"defs_digest does not match the pending match_start — ignoring stale defs table"
+				);
+				return false;
+			}
+			this.#confirmedDigest = table.digest;
+			this.#pendingDigest = null;
+			this.#install(table);
+			return true;
+		}
+
+		if (this.#confirmedDigest !== null && table.digest !== this.#confirmedDigest) {
+			this.#devWarn("defs_digest conflicts with the confirmed digest — ignoring stale defs table");
 			return false;
 		}
 
-		this.#table = table;
-		this.digest = table.digest;
-		this.accepted = confirmed;
-		if (confirmed) this.#expectedDigest = null;
+		this.#install(table);
 		return true;
 	}
 
 	/**
 	 * @brief Correlates a `match_start` with the ingested `defs` table.
 	 *
-	 * A matching digest confirms the table; a mismatch drops it so no face can
-	 * resolve from a stale table. If `defs` has not arrived yet, the digest is
-	 * remembered and validated against the next `defs` frame.
+	 * A matching digest confirms the table (and is retained); a mismatch drops
+	 * the table so no face can resolve from a stale one, then awaits the `defs`
+	 * frame carrying the `match_start` digest. If `defs` has not arrived yet,
+	 * the digest is remembered and validated against the next `defs` frame.
 	 * @returns True when the currently held table is confirmed.
 	 */
 	confirmMatchStart(raw: unknown): boolean {
@@ -204,21 +231,22 @@ class CardDefsStore {
 		const digest = parsed.data.defs_digest;
 
 		if (this.#table === null) {
-			this.#expectedDigest = digest;
-			this.accepted = false;
+			this.#pendingDigest = digest;
+			this.#syncAccepted();
 			this.#devWarn("match_start arrived before defs — defs table not yet available");
 			return false;
 		}
 
 		if (this.#table.digest !== digest) {
 			this.#devWarn("defs_digest mismatch — dropping stale defs table");
-			this.#expectedDigest = digest;
+			this.#pendingDigest = digest;
 			this.#clearTable();
 			return false;
 		}
 
-		this.accepted = true;
-		this.#expectedDigest = null;
+		this.#confirmedDigest = digest;
+		this.#pendingDigest = null;
+		this.#syncAccepted();
 		return true;
 	}
 
@@ -232,18 +260,32 @@ class CardDefsStore {
 		return this.#table?.byStringId.get(stringId);
 	}
 
-	/** @brief Drops the table and any pending digest (match end / session reset). */
+	/** @brief Drops the table, the confirmed digest and any pending digest. */
 	reset(): void {
 		this.#table = null;
-		this.#expectedDigest = null;
+		this.#confirmedDigest = null;
+		this.#pendingDigest = null;
 		this.digest = null;
 		this.accepted = false;
+	}
+
+	#install(table: DefsTable): void {
+		this.#table = table;
+		this.digest = table.digest;
+		this.#syncAccepted();
+	}
+
+	#syncAccepted(): void {
+		this.accepted =
+			this.#confirmedDigest !== null &&
+			this.#table !== null &&
+			this.#table.digest === this.#confirmedDigest;
 	}
 
 	#clearTable(): void {
 		this.#table = null;
 		this.digest = null;
-		this.accepted = false;
+		this.#syncAccepted();
 	}
 
 	#devWarn(message: string, detail?: string): void {
