@@ -85,7 +85,7 @@ bool LoadContent(Content& out) {
  * synthetic `LoadedMod`s in memory (see engine_forced_play_test.cpp); it keeps
  * the card out of `mods/vanilla/` and therefore out of the deck + golden.
  */
-LoadedMod AutoTriggerMod() {
+LoadedMod AutoTriggerMod(bool must_apply = true) {
     const json nodes = json::array(
         {json{{"id", "n1"},
               {"op", "emit_signal"},
@@ -96,7 +96,7 @@ LoadedMod AutoTriggerMod() {
     //       it is in player0's hand, so the must-apply scanner fires it.
     auto_trigger.condition = json{{"always", json::object()}};
     auto_trigger.graph = json{{"nodes", nodes}};
-    auto_trigger.must_apply = true;
+    auto_trigger.must_apply = must_apply;
 
     CardDef card;
     card.id = "auto";
@@ -218,7 +218,8 @@ void ForceHand(MatchInstance& engine, ecs::Entity player,
 }
 
 /** @brief A numbered card matching the active colour (never opens a prompt). */
-std::optional<ecs::Entity> LegalNumbered(MatchInstance& engine) {
+std::optional<ecs::Entity> LegalNumbered(
+    MatchInstance& engine, const std::vector<ecs::Entity>& exclude = {}) {
     const json active = engine.ExportState()["active_type"];
     if (!active.is_string()) return std::nullopt;
     const std::string color = active.get<std::string>();
@@ -231,6 +232,9 @@ std::optional<ecs::Entity> LegalNumbered(MatchInstance& engine) {
             : std::optional<ecs::Entity>(discard->cards.back());
     for (ecs::Entity card : engine.Registries().cards) {
         if (top.has_value() && card == *top) continue;
+        if (std::find(exclude.begin(), exclude.end(), card) != exclude.end()) {
+            continue;
+        }
         const ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card);
         if (face == nullptr || face->color != color) continue;
         if (face->label.size() != 1) continue;
@@ -331,4 +335,105 @@ TEST_CASE("engine auto_trigger: played guard prevents a self re-trigger") {
     //       within this one trigger pass only the `played` vector stops the
     //       scanner from auto-playing it again (up to must_apply_cap).
     CHECK(CountEvents(*engine, "auto_played") == 1);
+}
+
+TEST_CASE("engine auto_trigger: discarded card is not re-selected next pass") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    content.mods.push_back(AutoTriggerMod());
+
+    std::unique_ptr<MatchInstance> engine = MakeAutoEngine(content, 5, 42);
+    const std::optional<ecs::Entity> auto_card = FindAutoCard(*engine);
+    REQUIRE(auto_card.has_value());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> numbered0 = LegalNumbered(*engine);
+    REQUIRE(numbered0.has_value());
+    // INFO: a spare keeps player0's hand non-empty after the play, so the
+    //       turn advances instead of settling into a hand-empty win check.
+    const std::optional<ecs::Entity> spare0 =
+        LegalNumbered(*engine, {*numbered0});
+    REQUIRE(spare0.has_value());
+    ForceHand(*engine, player0, {*numbered0, *auto_card, *spare0});
+
+    REQUIRE(engine->PlayCard("player0", *numbered0));
+    REQUIRE(CountEvents(*engine, "auto_played") == 1);
+
+    // INFO: player1 now triggers a second pass. The auto card is in the
+    //       discard, so the kHand zone gate keeps it out of the candidate set
+    //       even though its `always` condition is still true (the `played`
+    //       vector does not survive into this pass).
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player1");
+    const std::optional<ecs::Entity> numbered1 =
+        LegalNumbered(*engine, {*auto_card, *numbered0, *spare0});
+    REQUIRE(numbered1.has_value());
+    const std::optional<ecs::Entity> spare1 =
+        LegalNumbered(*engine, {*auto_card, *numbered0, *spare0, *numbered1});
+    REQUIRE(spare1.has_value());
+    ForceHand(*engine, player1, {*numbered1, *spare1});
+
+    REQUIRE(engine->PlayCard("player1", *numbered1));
+
+    CHECK(CountEvents(*engine, "auto_played") == 1);
+    const ecs::InZone* zone = engine->Store().Get<ecs::InZone>(*auto_card);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == ecs::ZoneKind::kDiscardPile);
+}
+
+TEST_CASE("engine auto_trigger: a card outside a hand is never selected") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    content.mods.push_back(AutoTriggerMod());
+
+    std::unique_ptr<MatchInstance> engine = MakeAutoEngine(content, 5, 42);
+    const std::optional<ecs::Entity> auto_card = FindAutoCard(*engine);
+    REQUIRE(auto_card.has_value());
+
+    // INFO: the auto card stays in the draw pile; only a hand card is forced
+    //       in. The scanner must ignore the non-hand auto card outright.
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> numbered =
+        LegalNumbered(*engine, {*auto_card});
+    REQUIRE(numbered.has_value());
+    ForceHand(*engine, player0, {*numbered});
+    ops::MoveCardToZone(engine->Store(), *auto_card,
+                        ecs::ZoneRef{ecs::ZoneKind::kDrawPile,
+                                     ecs::Entity{}});
+
+    const ecs::InZone* before = engine->Store().Get<ecs::InZone>(*auto_card);
+    REQUIRE(before != nullptr);
+    REQUIRE(before->zone.kind == ecs::ZoneKind::kDrawPile);
+
+    REQUIRE(engine->PlayCard("player0", *numbered));
+
+    CHECK(CountEvents(*engine, "auto_played") == 0);
+    const ecs::InZone* after = engine->Store().Get<ecs::InZone>(*auto_card);
+    REQUIRE(after != nullptr);
+    CHECK(after->zone.kind == ecs::ZoneKind::kDrawPile);
+}
+
+TEST_CASE("engine auto_trigger: non-must-apply trigger does not fire") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    // INFO: 9-4b ruling - the scanner only fires `must_apply: true`; the
+    //       Shield shape parses/validates but has no phase-1 firing semantics.
+    content.mods.push_back(AutoTriggerMod(/*must_apply=*/false));
+
+    std::unique_ptr<MatchInstance> engine = MakeAutoEngine(content, 5, 42);
+    const std::optional<ecs::Entity> auto_card = FindAutoCard(*engine);
+    REQUIRE(auto_card.has_value());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> numbered = LegalNumbered(*engine);
+    REQUIRE(numbered.has_value());
+    ForceHand(*engine, player0, {*numbered, *auto_card});
+
+    REQUIRE(engine->PlayCard("player0", *numbered));
+
+    CHECK(CountEvents(*engine, "auto_played") == 0);
+    CHECK_FALSE(HasSignal(*engine, "wp9x_auto_fired"));
+    const ecs::InZone* zone = engine->Store().Get<ecs::InZone>(*auto_card);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == ecs::ZoneKind::kHand);
 }
