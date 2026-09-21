@@ -18,14 +18,15 @@ import {
 
 /**
  * Normalized beat vocabulary produced by the `match_event` packet source
- * This is the packet-driven replacement for the
+ * This is the packet-driven replacement for the old
  * state-diff watcher: one member per server packet `type` the client
  * animates, carrying only the fields the existing beat builders need. `seq`
- * is carried through so a later watermark/desync layer can order or drop
+ * is carried through so the store's watermark/desync layer can order or drop
  * beats without re-parsing the envelope.
  *
- * The watcher (`createBaseBeatsWatcher`) still drives the renderer for now —
- * a later slice swaps it for this source and maps these descriptors onto
+ * `StoreGame` maps each frame, buffers the beats, and drains them after the
+ * next snapshot; the animation controller consumes them through
+ * `onMatchEventBeat` and maps these descriptors onto
  * buildPlayBeat/buildDrawBeats/buildReshuffleBeat.
  */
 export type MatchEventBeat =

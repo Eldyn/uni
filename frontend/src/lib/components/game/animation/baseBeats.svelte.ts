@@ -7,7 +7,6 @@
  * buffer.
  */
 
-import { ws, ServerAction } from "$stores/ws.svelte";
 import { mapMatchEventPacket } from "$stores/matchEventMap";
 import type { MatchEventBeat } from "$stores/matchEventMap";
 import { handSlotPose } from "../layout/handSlotPose";
@@ -289,18 +288,4 @@ export function buildDrawBeats(args: {
 		atS: i * stagger
 	}));
 	return [steps];
-}
-
-/**
- * Subscribes to the server `match_event` stream and forwards each mapped beat
- * to `onBeat`, dropping unknown/invalid packets. Returns the unsubscribe
- * function from `ws.on`. The production subscription now lives in `StoreGame`
- * which buffers beats and fans them out via `onMatchEventBeat`
- * this standalone bridge remains as the packet seam for direct consumers.
- */
-export function createMatchEventBeatSource(onBeat: (beat: MatchEventBeat) => void): () => void {
-	return ws.on(ServerAction.MatchEvent, (data) => {
-		const beat = mapMatchEventPacket(data);
-		if (beat) onBeat(beat);
-	});
 }

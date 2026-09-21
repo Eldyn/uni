@@ -105,7 +105,8 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 		expect(storeGame.desynced).toBe(false);
 		expect(beats).toHaveLength(0);
 
-		handler("match_state_updated")(snapshot(3));
+		// Wire watermark = next seq the sink will stamp = lastEventSeq + 1.
+		handler("match_state_updated")(snapshot(4));
 
 		expect(storeGame.lastSeq).toBe(3);
 		expect(beats.map((b) => b.kind)).toEqual(["turn", "draw", "reshuffle"]);
@@ -127,7 +128,7 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 		expect(storeGame.desynced).toBe(true);
 		expect(storeGame.lastSeq).toBe(3);
 
-		handler("match_state_updated")(snapshot(3));
+		handler("match_state_updated")(snapshot(4));
 		expect(storeGame.desynced).toBe(false);
 		expect(storeGame.lastSeq).toBe(3);
 	});
@@ -139,8 +140,57 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 		handler("match_event")(frame(1, "some_future_event", { anything: true }));
 		expect(storeGame.lastSeq).toBe(1);
 
-		handler("match_state_updated")(snapshot(1));
+		handler("match_state_updated")(snapshot(2));
 		expect(beats).toHaveLength(0);
+	});
+
+	it("accepts the next frame after a snapshot watermark without a desync", () => {
+		let desyncs = 0;
+		storeGame.onDesync(() => {
+			desyncs += 1;
+		});
+
+		// Snapshot after events 1..3: watermark is the next seq, 4.
+		handler("match_state_updated")(snapshot(4));
+		expect(storeGame.lastSeq).toBe(3);
+		expect(storeGame.desynced).toBe(false);
+
+		// The next event carries exactly the watermark seq — not a gap.
+		handler("match_event")(frame(4, "reshuffle", { draw_size: 10, discard_size: 2 }));
+		expect(desyncs).toBe(0);
+		expect(storeGame.desynced).toBe(false);
+		expect(storeGame.lastSeq).toBe(4);
+	});
+
+	it("accepts the first event of a fresh match after an initial snapshot", () => {
+		let desyncs = 0;
+		storeGame.onDesync(() => {
+			desyncs += 1;
+		});
+
+		// No events emitted yet: watermark is 1, the first seq to be stamped.
+		handler("match_state_updated")(snapshot(1));
+		expect(storeGame.lastSeq).toBe(0);
+
+		handler("match_event")(
+			frame(1, "turn_advance", { from: "a", to: "b", direction: 1, deadline_ms: 1000 })
+		);
+		expect(desyncs).toBe(0);
+		expect(storeGame.desynced).toBe(false);
+	});
+
+	it("drops the pre-gap backlog when a gap is detected", () => {
+		const beats: MatchEventBeat[] = [];
+		storeGame.onMatchEventBeat((b) => beats.push(b));
+
+		const onEvent = handler("match_event");
+		onEvent(frame(1, "reshuffle", { draw_size: 10, discard_size: 2 }));
+		onEvent(frame(3, "cards_drawn", { player: "alice", count: 1, source_pile: "draw" }));
+
+		handler("match_state_updated")(snapshot(4));
+
+		// The pre-gap reshuffle is discarded; only the post-gap beat drains.
+		expect(beats.map((b) => b.kind)).toEqual(["draw"]);
 	});
 
 	it("clears the watermark on reset and returnToLobby", () => {

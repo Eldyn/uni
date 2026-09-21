@@ -459,15 +459,18 @@ class StoreGame implements SessionStore {
 				this.activePrompt = null;
 			}
 
-			// INFO: the snapshot reconciles the packet watermark. A snapshot at or
-			// beyond our high-water mark clears a desync; otherwise the buffered
-			// beats are still drained against this state.
+			// INFO: the snapshot reconciles the packet watermark. The wire value is
+			// `EventSink::NextSeq()` — the seq the NEXT wrapped packet will carry,
+			// and events are emitted before the snapshot — so the last emitted seq
+			// is `wm - 1`. Storing it keeps the next frame (seq === wm) from
+			// reading as a gap. A snapshot at or beyond the next expected seq
+			// clears a desync; otherwise the buffered beats still drain.
 			const wm = stateJson.seq_watermark;
 			if (
 				typeof wm === "number" &&
-				(this.desynced || this.lastSeq === null || wm >= this.lastSeq)
+				(this.desynced || this.lastSeq === null || wm >= this.lastSeq + 1)
 			) {
-				this.lastSeq = wm;
+				this.lastSeq = wm > 0 ? wm - 1 : null;
 				this.desynced = false;
 			}
 
@@ -516,6 +519,9 @@ class StoreGame implements SessionStore {
 		const seq = env.data.seq;
 		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
 			this.desynced = true;
+			// INFO: the snapshot reconciles state; drop the pre-gap backlog rather
+			// than animating stale beats on top of it.
+			this.#pendingBeats = [];
 			for (const h of this.#desyncHandlers) h();
 		}
 		this.lastSeq = seq;

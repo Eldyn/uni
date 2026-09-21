@@ -6,9 +6,9 @@
  * The server's `match_event` stream is the animation trigger: beats are
  * buffered by the store and drained after the next snapshot is applied
  * so `handle` always reads an already-reconciled
- * `storeGame.state`. This slice ports only the play path; draw and
- * reshuffle land in later slices. The controller does not subscribe to `ws`
- * itself — it is fed through `subscribeBeats`.
+ * `storeGame.state`. The controller handles play, draw and reshuffle beats
+ * (`turn`/`toast` beats are no-ops here). It does not subscribe to `ws` itself
+ * — it is fed through `subscribeBeats`.
  */
 
 import { storeGame, Action, type CardType } from "$stores/game.svelte";

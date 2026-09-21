@@ -1,10 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-	mapMatchEventPacket,
-	createMatchEventBeatSource,
-	type MatchEventBeat
-} from "$components/game/animation/baseBeats.svelte";
-import { ws } from "$stores/ws.svelte";
+import { describe, it, expect } from "vitest";
+import { mapMatchEventPacket } from "$components/game/animation/baseBeats.svelte";
 
 /** One server frame as the ws layer delivers it: envelope fields plus the
  *  transport's own `action` discriminator. */
@@ -117,26 +112,5 @@ describe("mapMatchEventPacket", () => {
 		expect(mapMatchEventPacket({ type: "card_played", payload: {} })).toBeNull();
 		expect(mapMatchEventPacket(frame(9, "card_played", { player: "alice" }))).toBeNull();
 		expect(mapMatchEventPacket(null)).toBeNull();
-	});
-});
-
-describe("createMatchEventBeatSource", () => {
-	afterEach(() => vi.restoreAllMocks());
-
-	it("subscribes to match_event and forwards mapped beats, dropping unknown types", () => {
-		const onSpy = vi.spyOn(ws, "on").mockReturnValue(() => {});
-		const received: MatchEventBeat[] = [];
-		const dispose = createMatchEventBeatSource((beat) => received.push(beat));
-
-		expect(onSpy).toHaveBeenCalledWith("match_event", expect.any(Function));
-		const handler = onSpy.mock.calls[0]![1] as (data: Record<string, unknown>) => void;
-
-		handler(frame(1, "turn_advance", { from: "a", to: "b", direction: 1, deadline_ms: 1000 }));
-		handler(frame(2, "unknown_type", {}));
-
-		expect(received).toHaveLength(1);
-		expect(received[0]).toMatchObject({ kind: "turn", to: "b" });
-
-		dispose();
 	});
 });
