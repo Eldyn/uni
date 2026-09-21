@@ -50,6 +50,7 @@ channels:
           - $ref: "#/components/messages/MatchDrawCard"
           - $ref: "#/components/messages/MatchSubmitInput"
           - $ref: "#/components/messages/MatchPromptResponse"
+          - $ref: "#/components/messages/MatchWindowResponse"
           - $ref: "#/components/messages/MatchExit"
           - $ref: "#/components/messages/LobbyListRequest"
           - $ref: "#/components/messages/LobbyCreate"
@@ -467,6 +468,17 @@ components:
         the Action enum, which the new engine no longer uses.
       payload:
         $ref: "#/components/schemas/MatchPromptResponsePayload"
+
+    MatchWindowResponse:
+      name: match_window_response
+      title: Window Response (pass or play a card into the open window)
+      description: >
+        Client reply to a `window_open` event packet. `pass`
+        true declines the window (the Pass button); otherwise
+        `card_id` (CompactCardV2.bits) plays a response card. `window_id` is
+        informational and currently ignored by the server.
+      payload:
+        $ref: "#/components/schemas/MatchWindowResponsePayload"
 
     MatchExit:
       name: match_exit
@@ -1377,6 +1389,20 @@ components:
             $ref: "#/components/schemas/PlacementPayload"
         final_digest:
           type: string
+
+    MatchWindowResponsePayload:
+      type: object
+      x-packet-version: "1"
+      properties:
+        window_id:
+          type: string
+          description: Id of the window being answered (informational).
+        card_id:
+          type: integer
+          description: CompactCardV2.bits of the response card, when responding by play.
+        pass:
+          type: boolean
+          description: True declines the open window (the Pass button).
 
     MatchPromptResponsePayload:
       type: object

@@ -704,3 +704,148 @@ TEST_CASE("AFK takeover timer emits match_event frames") {
 }
 }
 
+// ---------------------------------------------------------------------------
+// The client B2a: the Pass button's wire route. `match_window_response`
+// carries `pass` (decline) or `card_id` (respond by play) into the session's
+// window methods; the action was previously unregistered (ground truth 3).
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::WindowResponse") {
+// INFO: open a real draw_stacking window on a 3-human match: the current
+//       player plays a +2, which leaves the other two seats as responders.
+TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window open") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+
+    std::map<std::string, PerSocketData> data;
+    auto context_for = [&](const std::string& username) {
+        PerSocketData& sd = data[username];
+        sd.username = username;
+        sd.lobby_id = f.store.lobby.id;
+        return WsContext{f.store.lobby.FindMember(username)->socket, &sd,
+                         uWS::OpCode::TEXT};
+    };
+
+    // INFO: make the +2 legal and leave the acting seat a spare card so the
+    //       play does not win outright.
+    engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
+    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "vanilla:red_draw2");
+    REQUIRE(red2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+
+    CHECK(f.router.Dispatch(context_for(current), json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}
+    }));
+    REQUIRE(engine.WindowOpen());
+
+    std::string responder;
+    for (const json& name : engine.ExportWindow()["responders"]) {
+        const std::string candidate = name.get<std::string>();
+        if (candidate != current) {
+            responder = candidate;
+            break;
+        }
+    }
+    REQUIRE_FALSE(responder.empty());
+
+    const bool handled = f.router.Dispatch(
+        context_for(responder),
+        json{{"action", ws::ClientAction::kMatchWindowResponse}, {"pass", true}});
+    CHECK(handled);
+
+    bool responder_passed = false;
+    for (const json& response : engine.ExportWindow()["responses"]) {
+        if (response.value("player", std::string()) == responder
+            && response.value("pass", false)) {
+            responder_passed = true;
+        }
+    }
+    // INFO: PassWindow recorded the pass; another responder is still pending.
+    CHECK(responder_passed);
+    CHECK(engine.WindowOpen());
+}
+
+TEST_CASE("match_window_response: card_id reaches RespondWindow") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+
+    std::vector<std::string> others;
+    for (const auto& member : f.store.lobby.members) {
+        if (member.username != current) others.push_back(member.username);
+    }
+    REQUIRE(others.size() == 2);
+
+    std::map<std::string, PerSocketData> data;
+    auto context_for = [&](const std::string& username) {
+        PerSocketData& sd = data[username];
+        sd.username = username;
+        sd.lobby_id = f.store.lobby.id;
+        return WsContext{f.store.lobby.FindMember(username)->socket, &sd,
+                         uWS::OpCode::TEXT};
+    };
+
+    engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
+    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "vanilla:red_draw2");
+    const std::vector<match::ecs::Entity> green2 = CardsByKind(engine, "vanilla:green_draw2");
+    REQUIRE(red2.size() >= 2);
+    REQUIRE(green2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+    ForceHand(engine, *engine.FindPlayer(others[1]), {green2[0], green2[1]});
+
+    CHECK(f.router.Dispatch(context_for(current), json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}
+    }));
+    REQUIRE(engine.WindowOpen());
+
+    const bool handled = f.router.Dispatch(
+        context_for(others[1]),
+        json{{"action", ws::ClientAction::kMatchWindowResponse},
+             {"card_id", BitsOf(engine, green2[0])}});
+    CHECK(handled);
+
+    bool responded = false;
+    for (const json& response : engine.ExportWindow()["responses"]) {
+        if (response.value("player", std::string()) == others[1]
+            && !response.value("pass", true)
+            && response.value("kind", std::string()) == "vanilla:green_draw2") {
+            responded = true;
+        }
+    }
+    // INFO: RespondWindow recorded the card response; the other responder is
+    //       still pending, so the window has not closed yet.
+    CHECK(responded);
+    CHECK(engine.WindowOpen());
+}
+
+TEST_CASE("match_window_response: neither pass nor card_id is an invalid payload") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), LobbySettings{});
+
+    PerSocketData sd;
+    sd.username = "Alice";
+    sd.lobby_id = f.store.lobby.id;
+    WsContext ctx{f.store.lobby.FindMember("Alice")->socket, &sd, uWS::OpCode::TEXT};
+
+    f.bus.Clear();
+    CHECK(f.router.Dispatch(
+        ctx, json{{"action", ws::ClientAction::kMatchWindowResponse}}));
+    REQUIRE_FALSE(f.bus.sent.empty());
+    const json err = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err["action"], "error");
+    CHECK_EQ(err["code"], "invalid_payload");
+}
+}
+

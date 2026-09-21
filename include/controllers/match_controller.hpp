@@ -73,6 +73,13 @@ private:
      */
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
+    /**
+     * @brief Handles a reply to an open response window (pass or respond with a card).
+     * @param context Context of the calling socket.
+     * @param message JSON payload carrying `pass` and/or `card_id`.
+     */
+    void HandleWindowResponse(WsContext context, const nlohmann::json& message);
+
     // --- Core Match Flow ---
 
     /**

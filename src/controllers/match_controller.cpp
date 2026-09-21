@@ -140,6 +140,15 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    // INFO: The Pass button's wire route. A window response is
+    //       either a pass (`pass: true`) or a card (`card_id`), both resolved
+    //       by the session's window methods.
+    action_router_.On(ws::ClientAction::kMatchWindowResponse,
+                      [this](WsContext context, const json& message) {
+        HandleWindowResponse(context, message);
+        return true;
+    });
+
     lobby_store.OnGameStarted([this](Lobby* active_lobby) {
         OnTurnStarted(active_lobby);
     });
@@ -286,6 +295,65 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
 
     if (!active_lobby->session->SubmitInput(context.socket_data->username,
                                             *prompt_id, *value_it)) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidMove,
+                               request_identifier);
+        return;
+    }
+
+    active_lobby->session->EmitEvents(broadcaster_);
+    BroadcastMatchState(active_lobby);
+    ClearTurnTimer(active_lobby->id);
+    OnTurnStarted(active_lobby);
+}
+
+/**
+ * @brief Routes an open response-window reply to the session.
+ *
+ * `pass: true` declines the window; otherwise `card_id` (CompactCardV2.bits)
+ * plays a response card. A message carrying neither is an invalid payload.
+ * @param context Signaling packet metadata tracking incoming user sockets.
+ * @param message Input document carrying `pass` and/or `card_id`.
+ */
+void MatchController::HandleWindowResponse(WsContext context, const json& message) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (!active_lobby) return;
+
+    std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
+    if (!active_lobby->session) return;
+
+    auto payload_res = ws::ParsePayload<ws::MatchWindowResponsePayload>(message);
+    if (!payload_res) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload,
+                               request_identifier,
+                               payload_res.error().message);
+        return;
+    }
+
+    const std::string& username = context.socket_data->username;
+    bool accepted = false;
+    if (payload_res->pass.value_or(false)) {
+        accepted = active_lobby->session->PassWindow(username);
+    } else if (payload_res->card_id.has_value()) {
+        accepted = active_lobby->session->RespondWindow(
+            username, static_cast<uint32_t>(*payload_res->card_id));
+    } else {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload,
+                               request_identifier);
+        return;
+    }
+
+    if (!accepted) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kInvalidMove,
                                request_identifier);
