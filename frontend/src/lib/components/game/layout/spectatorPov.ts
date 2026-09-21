@@ -50,7 +50,16 @@ export function rotatedOpponentsFor(
 ): GamePlayer[] {
 	if (players.length === 0) return [];
 	const povIndex = povUsername ? players.findIndex((p) => p.username === povUsername) : -1;
-	if (povIndex === -1) return [...players];
+	if (povIndex === -1) {
+		// povUsername can be set but transiently absent from `players` — a
+		// disconnect/reconnect race, or a roster update landing mid POV-switch —
+		// rather than genuinely unset (a non-seated local; the documented raw-
+		// order case above). Filtering it out here is a no-op for the genuine
+		// case (nothing to filter) and stops the POV player rendering twice —
+		// once via LocalHand3D/LocalSeat3D, once again as a ring seat — for the
+		// transient one, worst right at MAX_OPPONENTS in a near-full lobby.
+		return povUsername ? players.filter((p) => p.username !== povUsername) : [...players];
+	}
 	return [...players.slice(povIndex + 1), ...players.slice(0, povIndex)];
 }
 
