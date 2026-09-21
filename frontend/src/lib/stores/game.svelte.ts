@@ -724,6 +724,16 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Answers the prompt identified by `promptId` with a raw value.
+	 *
+	 * The value is validated server-side against the prompt's response_schema,
+	 * so it is forwarded as-is (string/number/boolean/object).
+	 */
+	respondToPrompt(promptId: string, value: unknown): void {
+		ws.emit(ClientAction.MatchPromptResponse, { prompt_id: promptId, value });
+	}
+
+	/**
 	 * @brief Clears session-scoped match state.
 	 *
 	 * `turnTimeRemaining` returns to its constructed default rather than zero, so

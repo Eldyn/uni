@@ -1386,8 +1386,7 @@ components:
         prompt_id:
           type: string
         value:
-          type: object
-          additionalProperties: true
+          x-any: true
           description: Validated server-side against the prompt's response_schema.
 
   # -------------------------------------------------------------------------

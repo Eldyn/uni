@@ -102,9 +102,16 @@ function resolveRef(prop) {
 	return schemas[name] ?? prop;
 }
 
-/** Map a JSON Schema property to a Zod chain string (without 'z.' prefix call). */
+/**
+ * Map a JSON Schema property to a Zod chain string (without 'z.' prefix call).
+ *
+ * A property marked `x-any: true` is a permissive pass-through: its concrete
+ * shape is validated elsewhere (e.g. server-side against a prompt's
+ * response_schema), so it must accept any JSON value → `z.unknown()`.
+ */
 function propToZod(prop) {
 	const resolved = resolveRef(prop);
+	if (resolved["x-any"] === true) return "z.unknown()";
 	const t = resolved.type ?? "string";
 
 	let chain = "";
