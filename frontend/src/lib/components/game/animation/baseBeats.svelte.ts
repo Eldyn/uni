@@ -341,6 +341,10 @@ export function createBaseBeatsWatcher(deps: {
 	let drawIdCounter = 0;
 	let lastLandingBaseDeg = 0;
 	let pendingLocalHandSlots = new Map<string, [number, number, number]>();
+	// Tracks storeGame.isActionPending across ticks to detect a play request's
+	// round-trip finishing (success OR server rejection) — see the drag-play
+	// recovery check below.
+	let prevIsActionPending = false;
 	let pendingOpponentSlots = new Map<string, [number, number, number]>();
 	let pendingOpponentPlayDrawn = new Map<string, { cardId: string }>();
 	// Which opponent a currently-flying multi-draw card id belongs to — its
@@ -888,7 +892,18 @@ export function createBaseBeatsWatcher(deps: {
 							// Every card sharing the single old "rightmost" anchor was
 							// the bug: every card in a multi-card draw converged on the
 							// exact same hand slot instead of fanning out into their own.
-							pendingLocalHandSlots.clear();
+							// NOT a blanket .clear(): CardRegistry's queue is strictly
+							// serial, so a second multi-card draw (or a draw queued
+							// behind an in-flight reshuffle, up to ~1.2s) can start this
+							// block while the first draw's batch is still #pending. Wiping
+							// the map here deleted that earlier batch's own (uniquely
+							// cardId-keyed) slot anchors before its beats ever read them —
+							// resolveCardTarget then fell through to the [0,0,localSeatZ]
+							// fallback and those cards snapped to hand-center. Only the
+							// generic by-index fallback keys collide across draws, and
+							// they're harmless: they're only consulted when a card's own
+							// unique `local-draw-slot:${cardId}` entry is missing, and are
+							// overwritten fresh below for every draw anyway.
 							const prevHandCount = localHand.length - newIds.length;
 							const slotAnchorKeys: string[] = [];
 							for (let i = 0; i < newIds.length; i++) {
@@ -1200,6 +1215,30 @@ export function createBaseBeatsWatcher(deps: {
 			}
 
 			processPlay();
+
+			// Recovers a drag-drop play the server rejected (illegal, or turned
+			// stale between the drop and the round-trip): LocalHand3D marks the
+			// card in-transit and stashes a pendingLocalDragPlay seed on drop, and
+			// normally only processPlay's playedByMe branch above clears both once
+			// top_card actually changes. A rejection never changes top_card, so
+			// that branch never runs and the card was stuck in-transit — parked
+			// near the discard pile with its idle-pose reconciliation permanently
+			// skipped — until the user happened to drag it again. isActionPending
+			// flipping back to false (success OR rejection, plus a 3s server-silence
+			// safety net in the store) is the only signal available here; if
+			// processPlay already consumed the seed this tick (a successful play),
+			// pendingLocalDragPlay is already null and this is a no-op.
+			const isActionPendingNow = storeGame.isActionPending;
+			if (prevIsActionPending && !isActionPendingNow) {
+				const stuck = deps.bus.pendingLocalDragPlay;
+				if (stuck) {
+					deps.bus.setPendingLocalDragPlay(null);
+					deps.cardRegistry.markInTransit(String(stuck.id), false);
+					deps.cardRegistry.applyIdlePoseIfNotInTransit(String(stuck.id));
+				}
+			}
+			prevIsActionPending = isActionPendingNow;
+
 			checkLocalKeptDrawn();
 			checkOpponentsKeptDrawn();
 			processDraws();
