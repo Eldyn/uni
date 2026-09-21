@@ -85,6 +85,8 @@ function snapshot(matchState: Record<string, unknown> = {}) {
 	};
 }
 
+// INFO: `window_open.deadline_ms` is a REMAINING duration; the snapshot window
+// deadline and `turn_advance.deadline_ms` are ABSOLUTE epoch-ms values.
 const WINDOW_OPEN = {
 	window_id: "42",
 	deadline_ms: 5000,
@@ -110,9 +112,10 @@ describe("storeGame turn/window/prompt state", () => {
 		vi.useRealTimers();
 	});
 
-	it("syncs the turn timer from a turn_advance deadline and ticks it down", () => {
+	it("normalizes the absolute turn_advance deadline and ticks it down", () => {
+		const now = Date.now();
 		handler("match_event")(
-			frame(1, "turn_advance", { from: "a", to: "b", direction: 1, deadline_ms: 7000 })
+			frame(1, "turn_advance", { from: "a", to: "b", direction: 1, deadline_ms: now + 7000 })
 		);
 
 		expect(storeGame.turnTimeRemaining).toBe(7);
@@ -120,12 +123,13 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.turnTimeRemaining).toBe(6);
 	});
 
-	it("opens a response window from window_open and counts it down", () => {
+	it("normalizes the remaining window_open deadline to an absolute deadline and counts down", () => {
+		const now = Date.now();
 		handler("match_event")(frame(1, "window_open", WINDOW_OPEN));
 
 		expect(storeGame.activeWindow).toEqual({
 			windowId: "42",
-			deadlineMs: 5000,
+			deadlineAt: now + 5000,
 			responders: ["alice", "bob"],
 			eligibleFilterDigest: "digest-1"
 		});
@@ -159,12 +163,13 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.activePrompt).toBeNull();
 	});
 
-	it("hydrates window and prompt from a reconnect snapshot", () => {
+	it("hydrates the absolute snapshot window deadline and prompt, then counts down", () => {
+		const now = Date.now();
 		handler("match_state_updated")(
 			snapshot({
 				window: {
 					window_id: "9",
-					deadline_ms: 3000,
+					deadline_ms: now + 3000,
 					responders: ["alice"],
 					eligible_filter_digest: "digest-9",
 					responses: []
@@ -183,11 +188,15 @@ describe("storeGame turn/window/prompt state", () => {
 
 		expect(storeGame.activeWindow).toEqual({
 			windowId: "9",
-			deadlineMs: 3000,
+			deadlineAt: now + 3000,
 			responders: ["alice"],
 			eligibleFilterDigest: "digest-9"
 		});
+		expect(storeGame.windowTimeRemaining).toBe(3);
 		expect(storeGame.activePrompt?.prompt_id).toBe("choose_player");
+
+		vi.advanceTimersByTime(1000);
+		expect(storeGame.windowTimeRemaining).toBe(2);
 	});
 
 	it("clears window and prompt when the snapshot reports none", () => {

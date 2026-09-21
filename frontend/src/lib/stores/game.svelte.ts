@@ -158,8 +158,8 @@ export interface LastPlay {
 export interface ActiveWindow {
 	/** Server-issued identifier of the open window. */
 	windowId: string;
-	/** Remaining duration in milliseconds, as sent on the wire. */
-	deadlineMs: number;
+	/** Absolute deadline on the client clock (epoch ms). */
+	deadlineAt: number;
 	/** Usernames eligible to respond. */
 	responders: string[];
 	/** Digest of the engine-side eligibility filter. */
@@ -444,7 +444,9 @@ class StoreGame implements SessionStore {
 			const snapshotWindow =
 				stateJson.window == null ? null : WindowOpenPayloadSchema.safeParse(stateJson.window);
 			if (snapshotWindow?.success) {
-				this.#setActiveWindow(snapshotWindow.data);
+				// INFO: the snapshot window deadline is already absolute epoch ms.
+				this.#setActiveWindow(snapshotWindow.data, snapshotWindow.data.deadline_ms);
+				this.#syncWindowTimer(snapshotWindow.data.deadline_ms);
 			} else {
 				this.#clearWindowState();
 			}
@@ -521,14 +523,21 @@ class StoreGame implements SessionStore {
 		switch (env.data.type) {
 			case "turn_advance": {
 				const parsed = TurnAdvancePayloadSchema.safeParse(env.data.payload);
-				if (parsed.success) this.#syncTurnTimer(parsed.data.deadline_ms);
+				// INFO: turn_advance.deadline_ms is an ABSOLUTE epoch-ms value
+				// (`TurnState.turn_deadline_ms`), not a remaining duration.
+				if (parsed.success) {
+					this.#syncTurnTimer(Math.max(0, parsed.data.deadline_ms - Date.now()));
+				}
 				break;
 			}
 			case "window_open": {
 				const parsed = WindowOpenPayloadSchema.safeParse(env.data.payload);
+				// INFO: window_open.deadline_ms is a REMAINING duration (the sink
+				// forwards `duration_ms`); normalize to an absolute client deadline.
 				if (parsed.success) {
-					this.#setActiveWindow(parsed.data);
-					this.#syncWindowTimer(parsed.data.deadline_ms);
+					const deadlineAt = Date.now() + parsed.data.deadline_ms;
+					this.#setActiveWindow(parsed.data, deadlineAt);
+					this.#syncWindowTimer(deadlineAt);
 				}
 				break;
 			}
@@ -585,11 +594,12 @@ class StoreGame implements SessionStore {
 
 	/**
 	 * @brief Mirrors an open response window from a packet or snapshot payload.
+	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
 	 */
-	#setActiveWindow(windowPayload: WindowOpenPayload) {
+	#setActiveWindow(windowPayload: WindowOpenPayload, deadlineAt: number) {
 		this.activeWindow = {
 			windowId: windowPayload.window_id,
-			deadlineMs: windowPayload.deadline_ms,
+			deadlineAt,
 			responders: windowPayload.responders,
 			eligibleFilterDigest: windowPayload.eligible_filter_digest
 		};
@@ -605,21 +615,27 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
-	 * @brief Starts the response-window countdown. `window_open.deadline_ms` is a
-	 * REMAINING duration, so this mirrors `#syncTurnTimer`'s interval-decrement pattern.
-	 * @param remainingMs Remaining window duration provided by the server (in ms).
+	 * @brief Starts the response-window countdown from an absolute deadline,
+	 * recomputing the remaining seconds each tick so the value cannot drift.
+	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
 	 */
-	#syncWindowTimer(remainingMs: number) {
+	#syncWindowTimer(deadlineAt: number) {
 		this.#clearWindowTimer();
-		this.windowTimeRemaining = Math.ceil(remainingMs / 1000);
+		this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
 
 		this.#windowTimerInterval = window.setInterval(() => {
+			this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
 			if (this.windowTimeRemaining <= 0) {
 				this.#clearWindowTimer();
-				return;
 			}
-			this.windowTimeRemaining -= 1;
 		}, 1000);
+	}
+
+	/**
+	 * @brief Whole seconds from now until `deadlineAt`, floored at zero.
+	 */
+	#remainingSeconds(deadlineAt: number): number {
+		return Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
 	}
 
 	/**
