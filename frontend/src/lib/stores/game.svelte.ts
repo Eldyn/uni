@@ -13,7 +13,19 @@ import { storeLobby } from "./lobby.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeSpectator } from "./spectator.svelte";
-import { Action, MatchEventPayloadSchema, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
+import {
+	Action,
+	MatchEventPayloadSchema,
+	PromptClosePayloadSchema,
+	PromptOpenPayloadSchema,
+	TurnAdvancePayloadSchema,
+	Type,
+	TypeMap,
+	ValueMap,
+	WindowClosePayloadSchema,
+	WindowOpenPayloadSchema
+} from "$lib/generated/schemas";
+import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schemas";
 import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 
 export const TYPE_MAP = TypeMap;
@@ -140,6 +152,21 @@ export interface LastPlay {
 }
 
 /**
+ * @interface ActiveWindow
+ * @brief Open response window mirrored from a `window_open` packet or snapshot.
+ */
+export interface ActiveWindow {
+	/** Server-issued identifier of the open window. */
+	windowId: string;
+	/** Remaining duration in milliseconds, as sent on the wire. */
+	deadlineMs: number;
+	/** Usernames eligible to respond. */
+	responders: string[];
+	/** Digest of the engine-side eligibility filter. */
+	eligibleFilterDigest: string;
+}
+
+/**
  * @class StoreGame
  * @brief Synchronizes the frontend state with the server Game Engine in real time.
  */
@@ -172,8 +199,20 @@ class StoreGame implements SessionStore {
 	/** Seconds remaining to complete the turn, computed locally. */
 	turnTimeRemaining = $state<number>(15);
 
+	/** Open response window mirrored from a `window_open` packet or snapshot. */
+	activeWindow = $state<ActiveWindow | null>(null);
+
+	/** Seconds remaining before the open response window closes, computed locally. */
+	windowTimeRemaining = $state<number>(0);
+
+	/** Open op-input prompt for the local viewer, or null when none is live. */
+	activePrompt = $state<PromptOpenPayload | null>(null);
+
 	/** Reference to the browser's native `setInterval` timer. */
 	#timerInterval: number | null = null;
+
+	/** Reference to the browser's native `setInterval` timer for the window countdown. */
+	#windowTimerInterval: number | null = null;
 
 	/** Safety timeout that releases isActionPending if the server stops responding. */
 	#pendingSafetyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -281,6 +320,8 @@ class StoreGame implements SessionStore {
 		this.actionRequired = null;
 		this.actionContext = null;
 		this.turnTimeRemaining = 0;
+		this.#clearWindowState();
+		this.activePrompt = null;
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];
@@ -307,6 +348,8 @@ class StoreGame implements SessionStore {
 			this.actionContext = null;
 
 			this.#clearTimer();
+			this.#clearWindowState();
+			this.activePrompt = null;
 
 			const duration_seconds =
 				this.#matchStartedAt !== null
@@ -396,6 +439,24 @@ class StoreGame implements SessionStore {
 				prompts: stateJson.prompts
 			};
 
+			// INFO: the snapshot window/prompts are reconnect truth
+			// a packet-driven open/close may already have set them.
+			const snapshotWindow =
+				stateJson.window == null ? null : WindowOpenPayloadSchema.safeParse(stateJson.window);
+			if (snapshotWindow?.success) {
+				this.#setActiveWindow(snapshotWindow.data);
+			} else {
+				this.#clearWindowState();
+			}
+
+			const snapshotPrompts = stateJson.prompts;
+			if (snapshotPrompts && snapshotPrompts.length > 0) {
+				const parsedPrompt = PromptOpenPayloadSchema.safeParse(snapshotPrompts[0]);
+				this.activePrompt = parsedPrompt.success ? parsedPrompt.data : null;
+			} else {
+				this.activePrompt = null;
+			}
+
 			// INFO: the snapshot reconciles the packet watermark. A snapshot at or
 			// beyond our high-water mark clears a desync; otherwise the buffered
 			// beats are still drained against this state.
@@ -457,6 +518,39 @@ class StoreGame implements SessionStore {
 		}
 		this.lastSeq = seq;
 
+		switch (env.data.type) {
+			case "turn_advance": {
+				const parsed = TurnAdvancePayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.#syncTurnTimer(parsed.data.deadline_ms);
+				break;
+			}
+			case "window_open": {
+				const parsed = WindowOpenPayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) {
+					this.#setActiveWindow(parsed.data);
+					this.#syncWindowTimer(parsed.data.deadline_ms);
+				}
+				break;
+			}
+			case "window_close": {
+				const parsed = WindowClosePayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.#clearWindowState();
+				break;
+			}
+			case "prompt_open": {
+				const parsed = PromptOpenPayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.activePrompt = parsed.data;
+				break;
+			}
+			case "prompt_close": {
+				const parsed = PromptClosePayloadSchema.safeParse(env.data.payload);
+				if (parsed.success && this.activePrompt?.prompt_id === parsed.data.prompt_id) {
+					this.activePrompt = null;
+				}
+				break;
+			}
+		}
+
 		const beat = mapMatchEventPacket(data);
 		if (beat) this.#pendingBeats.push(beat);
 	}
@@ -477,6 +571,55 @@ class StoreGame implements SessionStore {
 			clearInterval(this.#timerInterval);
 			this.#timerInterval = null;
 		}
+	}
+
+	/**
+	 * @brief Cancels and destroys the currently running response-window timer.
+	 */
+	#clearWindowTimer() {
+		if (this.#windowTimerInterval !== null) {
+			clearInterval(this.#windowTimerInterval);
+			this.#windowTimerInterval = null;
+		}
+	}
+
+	/**
+	 * @brief Mirrors an open response window from a packet or snapshot payload.
+	 */
+	#setActiveWindow(windowPayload: WindowOpenPayload) {
+		this.activeWindow = {
+			windowId: windowPayload.window_id,
+			deadlineMs: windowPayload.deadline_ms,
+			responders: windowPayload.responders,
+			eligibleFilterDigest: windowPayload.eligible_filter_digest
+		};
+	}
+
+	/**
+	 * @brief Clears the open response window and stops its countdown.
+	 */
+	#clearWindowState() {
+		this.#clearWindowTimer();
+		this.activeWindow = null;
+		this.windowTimeRemaining = 0;
+	}
+
+	/**
+	 * @brief Starts the response-window countdown. `window_open.deadline_ms` is a
+	 * REMAINING duration, so this mirrors `#syncTurnTimer`'s interval-decrement pattern.
+	 * @param remainingMs Remaining window duration provided by the server (in ms).
+	 */
+	#syncWindowTimer(remainingMs: number) {
+		this.#clearWindowTimer();
+		this.windowTimeRemaining = Math.ceil(remainingMs / 1000);
+
+		this.#windowTimerInterval = window.setInterval(() => {
+			if (this.windowTimeRemaining <= 0) {
+				this.#clearWindowTimer();
+				return;
+			}
+			this.windowTimeRemaining -= 1;
+		}, 1000);
 	}
 
 	/**
@@ -572,6 +715,8 @@ class StoreGame implements SessionStore {
 		this.actionContext = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
+		this.#clearWindowState();
+		this.activePrompt = null;
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];
