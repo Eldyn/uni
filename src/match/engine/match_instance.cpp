@@ -381,6 +381,22 @@ bool MatchInstance::SubmitInput(const std::string& username,
     if (!started_ || finished_ || assembly_ == nullptr) return false;
     if (!pending_input_.has_value()) return false;
 
+    // INFO: Defence in depth - a card prompt must be answered with a
+    //       `CompactCardV2.bits` integer that maps to a live card. Validate it
+    //       BEFORE extracting the pause so a malformed answer leaves the parked
+    //       prompt untouched and still answerable with a valid integer; an
+    //       overridden prompt schema can never soft-lock the chooser.
+    std::optional<ecs::Entity> prompt_card;
+    if (pending_input_->kind == "choose_card") {
+        if (!value.is_number_integer()) return false;
+        const int64_t raw = value.get<int64_t>();
+        if (raw < 0 || raw > 0xFFFFFFFFLL) return false;
+        ecs::CompactCardV2 id;
+        id.bits = static_cast<uint32_t>(raw);
+        prompt_card = assembly_->registries.CardEntity(id);
+        if (!prompt_card.has_value()) return false;
+    }
+
     InputPause pending = std::move(*pending_input_);
     pending_input_.reset();
 
@@ -404,31 +420,11 @@ bool MatchInstance::SubmitInput(const std::string& username,
     const modload::BehaviorGraph& graph =
         assembly_->systems[pending.system_index].graph;
 
-    // INFO: The wire speaks `CompactCardV2.bits`; map an answered
-    //       card prompt back to its entity handle before the graph's
-    //       `from_prompt` binding consumes it. An unmappable answer is
-    //       rejected and the parked prompt restored so the chooser may retry.
+    // INFO: The wire speaks `CompactCardV2.bits`; map the validated
+    //       answer back to its entity handle before the graph's `from_prompt`
+    //       binding consumes it.
     json answer = value;
-    if (pending.kind == "choose_card") {
-        bool mapped = false;
-        if (answer.is_number_integer()) {
-            const int64_t raw = answer.get<int64_t>();
-            if (raw >= 0 && raw <= 0xFFFFFFFFLL) {
-                ecs::CompactCardV2 id;
-                id.bits = static_cast<uint32_t>(raw);
-                const std::optional<ecs::Entity> card =
-                    assembly_->registries.CardEntity(id);
-                if (card.has_value()) {
-                    answer = EntityJson(*card);
-                    mapped = true;
-                }
-            }
-        }
-        if (!mapped) {
-            pending_input_ = std::move(pending);
-            return false;
-        }
-    }
+    if (prompt_card.has_value()) answer = EntityJson(*prompt_card);
 
     ops::ResolutionFrame frame = pending.frame;
     const resolver::ResolveResult result = assembly_->resolver->ResumeInput(

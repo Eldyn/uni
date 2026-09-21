@@ -350,4 +350,14 @@ private:
     bool match_start_sent_ = false;
 };
 
+/**
+ * @brief True when `kind` is an engine built-in prompt kind.
+ *
+ * Phase-1 built-ins (`choose_card`, `choose_color`, `choose_player`,
+ * `choose_yes_no`, `choose_value`) are engine-owned: a mod declaration may add
+ * a NEW kind but must never replace one of these schemas. Shared by
+ * `MatchSession` and `HeuristicBotPolicy` so both wire validators agree.
+ */
+bool IsBuiltinPromptKind(const std::string& kind);
+
 }  // namespace match::server

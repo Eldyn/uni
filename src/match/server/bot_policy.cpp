@@ -440,6 +440,10 @@ std::map<std::string, nlohmann::json> PromptSchemasFor(
             const std::string kind = decl.value("kind", std::string());
             if (kind.empty() || !decl.contains("response_schema")) continue;
             if (!decl["response_schema"].is_object()) continue;
+            // INFO: Built-ins are engine-owned; ignore a mod
+            //       declaration for one so the bot answers with the same
+            //       schema `MatchSession::SubmitInput` validates against.
+            if (IsBuiltinPromptKind(kind)) continue;
             schemas[kind] = decl["response_schema"];
         }
     }

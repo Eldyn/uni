@@ -5,9 +5,11 @@
 #include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
 
+#include <logger.hpp>
 #include <nlohmann/json.hpp>
 
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -442,9 +444,20 @@ bool MatchSession::MatchesSchema(const nlohmann::json& value,
     return true;
 }
 
+bool IsBuiltinPromptKind(const std::string& kind) {
+    // INFO: Phase-1 engine/vanilla prompt kinds. Mods
+    //       may declare NEW kinds; these five are owned by the engine and a
+    //       mod declaration for one is ignored so its validator stays fixed.
+    static const std::set<std::string, std::less<>> kBuiltins = {
+        "choose_card", "choose_color", "choose_player", "choose_yes_no",
+        "choose_value"};
+    return kBuiltins.count(kind) != 0;
+}
+
 void MatchSession::BuildPromptSchemas() {
-    // INFO: built-in phase-1 kinds. A mod manifest declaration
-    //       overwrites a built-in; an undeclared kind stays permissive.
+    // INFO: built-in phase-1 kinds. A mod declaration may add a
+    //       NEW kind; it never overwrites a built-in. An
+    //       undeclared kind stays permissive.
     prompt_schemas_["choose_color"] = {
         {"type", "string"}, {"enum", {"red", "blue", "green", "yellow"}}};
     prompt_schemas_["choose_yes_no"] = {{"type", "boolean"}};
@@ -458,6 +471,12 @@ void MatchSession::BuildPromptSchemas() {
             const std::string kind = decl.value("kind", std::string());
             if (kind.empty() || !decl.contains("response_schema")) continue;
             if (!decl["response_schema"].is_object()) continue;
+            if (IsBuiltinPromptKind(kind)) {
+                Logger::Warn("[MatchSession] mod prompt '", kind,
+                             "' collides with an engine built-in; "
+                             "declaration ignored");
+                continue;
+            }
             prompt_schemas_[kind] = decl["response_schema"];
         }
     }

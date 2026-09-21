@@ -5,6 +5,9 @@
 #include <match/engine/match_instance.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/ops/op_helpers.hpp>
+#include <match/server/match_session.hpp>
+
+#include "support/fake_broadcaster.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -210,6 +213,31 @@ Fixture MakeFixture() {
     return fixture;
 }
 
+/** @brief An opaque test socket key; never dereferenced by the fake. */
+AppWebSocket* PlayerSocket(int index) {
+    return reinterpret_cast<AppWebSocket*>(
+        static_cast<std::uintptr_t>(0x100 + index));
+}
+
+/**
+ * @brief `response_schema.type` of the first `prompt_open` sent to `socket`.
+ *
+ * Returned by value (the parsed packet is local), empty when none was sent.
+ */
+std::string SessionPromptSchemaType(const FakeBroadcaster& fake,
+                                    AppWebSocket* socket) {
+    for (const SentFrame& frame : fake.sent) {
+        if (frame.to != socket) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) != "match_event") continue;
+        if (packet.value("type", std::string()) != "prompt_open") continue;
+        const json payload = packet.value("payload", json::object());
+        const json schema = payload.value("response_schema", json::object());
+        return schema.value("type", std::string());
+    }
+    return std::string();
+}
+
 }  // namespace
 
 TEST_CASE("choose_card: options are bits and the answer maps back to a card") {
@@ -292,7 +320,79 @@ TEST_CASE("choose_card: unknown bits are rejected and the prompt stays open") {
     REQUIRE(engine->DrawCard("player0"));
     REQUIRE(engine->PendingInput().has_value());
 
-    // INFO: bits no card in this match carries cannot be mapped back.
+    // INFO: I2 defence in depth - a non-integer spoof (which a mod-overridden
+    //       schema could invite) is rejected without disturbing the pause.
+    CHECK_FALSE(engine->SubmitInput("player1", json("string-answer")));
+    REQUIRE(engine->PendingInput().has_value());
+    CHECK((*engine->PendingInput())["kind"] == "choose_card");
+
+    // INFO: negative and unknown-bit integers are unmappable and rejected too.
+    CHECK_FALSE(engine->SubmitInput("player1", -1));
     CHECK_FALSE(engine->SubmitInput("player1", 0x7FFFFFFFu));
-    CHECK(engine->PendingInput().has_value());
+    REQUIRE(engine->PendingInput().has_value());
+    CHECK((*engine->PendingInput())["kind"] == "choose_card");
+
+    // INFO: the parked prompt is still answerable with a valid integer.
+    const json options = (*engine->PendingInput())["payload"]["options"];
+    REQUIRE(options.is_array());
+    REQUIRE(!options.empty());
+    REQUIRE(engine->SubmitInput("player1", options[0].get<uint32_t>()));
+    CHECK_FALSE(engine->PendingInput().has_value());
+}
+
+TEST_CASE("choose_card: a mod cannot override the built-in prompt schema") {
+    Fixture fixture = MakeFixture();
+    // INFO: the mod tries to replace the engine's choose_card validator with a
+    //       string schema; the built-in integer schema must win.
+    fixture.mods.back().manifest.prompts = json::array(
+        {json{{"kind", "choose_card"},
+              {"response_schema", json{{"type", "string"}}}}});
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(fixture.mods, fixture.deck);
+
+    BehaviorGraph graph;
+    graph.nodes = json::array(
+        {ChooseCardNode("n1", "n2"),
+         json{{"id", "n2"}, {"op", "emit_signal"}, {"args", {{"name", "x"}}}}});
+    graph.raw = json{{"nodes", graph.nodes}};
+    AttachChooseCardSystem(*engine, std::move(graph));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> probe =
+        FindKindCard(*engine, "modx:probe");
+    REQUIRE(probe.has_value());
+    ForceHand(*engine, player0, {*probe});
+    const uint32_t probe_bits = engine->Registries().CardId(*probe)->bits;
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    std::vector<LoadedMod> mods = fixture.mods;
+    match::server::MatchSession session(
+        std::move(engine), std::move(mods),
+        match::server::MatchSession::SocketMap{
+            {"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    REQUIRE(session.DrawCard("player0"));
+    session.EmitEvents(fake);
+
+    // INFO: the emitted prompt (targeted at the chooser) advertises the
+    //       built-in integer schema.
+    CHECK(SessionPromptSchemaType(fake, s1) == "integer");
+
+    // INFO: the mod's string schema is ignored, so a string answer fails the
+    //       built-in validation and the prompt stays parked.
+    CHECK_FALSE(session.SubmitInput("player1", "choose_card", json("spoof")));
+
+    // INFO: an integer answer is accepted and resolves the prompt.
+    CHECK(session.SubmitInput("player1", "choose_card", json(probe_bits)));
+    fake.Clear();
+    session.EmitEvents(fake);
+    bool closed = false;
+    for (const SentFrame& frame : fake.sent) {
+        if (frame.to != s1) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("type", std::string()) == "prompt_close") closed = true;
+    }
+    CHECK(closed);
 }

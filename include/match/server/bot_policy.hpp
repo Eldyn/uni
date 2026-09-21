@@ -194,7 +194,8 @@ bool BotStep(MatchSession& session, IBotPolicy& policy,
  *
  * Mirrors `MatchSession`'s kind -> `response_schema` table so a bot answers an
  * unknown mod prompt with a schema-valid value. Built-ins are NOT added here;
- * `HeuristicBotPolicy` installs those itself.
+ * `HeuristicBotPolicy` installs those itself, and a mod declaration for a
+ * built-in kind is skipped so the engine schema always wins.
  *
  * @param mods Loaded mods backing the match.
  * @return kind -> `response_schema` for every valid declaration.
