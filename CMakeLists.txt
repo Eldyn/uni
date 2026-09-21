@@ -220,6 +220,7 @@ if(UNI_BUILD_TESTS)
         src/match/ecs/event_bus.cpp
         src/match/engine/match_assembler.cpp
         src/match/engine/match_instance.cpp
+        src/match/engine/mutation_compiler.cpp
         src/match/view/event_sink.cpp
         src/match/view/defs_builder.cpp
         src/match/view/view_builder.cpp
