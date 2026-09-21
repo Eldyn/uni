@@ -160,9 +160,13 @@ export function createMatchEventBeatController(deps: {
 			});
 		} else {
 			const player = state.players?.find((p) => p.username === beat.player);
-			const currentCount = Math.max(1, player?.card_count ?? 1);
+			// INFO: from_zone_ordinal is a 0-based index into the PRE-play hand
+			// (the backend computes hand_index before MoveCardToZone), so the
+			// arc must be sized for the pre-play count = post-play card_count + 1
+			// — mirroring the watcher's prevCardCounts-based preCount.
+			const prePlayCount = Math.max(1, (player?.card_count ?? 0) + 1);
 			const slotIndex = beat.fromZoneOrdinal ?? 0;
-			const opponentPose = deps.getOpponentCardPose?.(beat.player, currentCount, slotIndex);
+			const opponentPose = deps.getOpponentCardPose?.(beat.player, prePlayCount, slotIndex);
 			const [sx, sy, sz] = opponentPose
 				? opponentPose.position
 				: deps.getOpponentSeatAnchor(beat.player);

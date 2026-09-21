@@ -166,13 +166,30 @@ describe("createMatchEventBeatController", () => {
 
 		h.fire({ seq: 3, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 2 });
 
-		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 3, 2);
+		// bob's post-play card_count is 3, so the pre-play hand had 4 cards —
+		// from_zone_ordinal indexes into that PRE-play hand.
+		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 2);
 		const [, pose] = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls[0] as [
 			string,
 			{ x: number; y: number; z: number; spinDeg: number }
 		];
 		expect([pose.x, pose.y, pose.z]).toEqual([1, 2, 3]);
 		expect(pose.spinDeg).toBe(42);
+	});
+
+	it("sizes the opponent arc from the pre-play count for the last-slot case", () => {
+		storeAuth.username = "me";
+		storeGame.state = { ...baseState(), current_turn: "bob" } as never;
+		const getOpponentCardPose = vi.fn(() => ({
+			position: [0, 0, 0] as [number, number, number],
+			spinDeg: 0
+		}));
+		const h = harness({ getOpponentCardPose });
+
+		// Ordinal 3 only exists in the pre-play hand of 4, not the post-play 3.
+		h.fire({ seq: 11, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 3 });
+
+		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 3);
 	});
 
 	it("falls back to the seat anchor when no fromZoneOrdinal is present", () => {
