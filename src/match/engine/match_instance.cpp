@@ -1467,6 +1467,14 @@ std::optional<ecs::Entity> MatchInstance::FindMustApplyCard(
     ecs::EntityStore& store = assembly_->store;
     for (ecs::Entity card : store.EntitiesWith<ecs::AutoTrigger>()) {
         if (!store.IsAlive(card)) continue;
+        // INFO: A must-apply card plays itself out of a hand. A
+        //       card in any other zone is not a candidate; this also stops a
+        //       discarded card with a still-true condition from re-firing on
+        //       later trigger passes (the `played` vector is per-pass only).
+        const ecs::InZone* zone = store.Get<ecs::InZone>(card);
+        if (zone == nullptr || zone->zone.kind != ecs::ZoneKind::kHand) {
+            continue;
+        }
         if (std::find(played.begin(), played.end(), card) != played.end()) {
             continue;
         }
