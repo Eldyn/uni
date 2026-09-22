@@ -93,7 +93,6 @@ struct FaceSpec {
     FaceKind kind = FaceKind::kBlank;
     std::string color;
     std::string label;
-    std::string url;
     std::string art;        /**< image kind: asset bundle id. */
     std::string art_mode = "inset";  /**< inset | replace | overlay. */
     std::string art_fit = "contain"; /**< contain | cover | stretch. */

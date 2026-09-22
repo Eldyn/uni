@@ -194,7 +194,6 @@ bool ParseFace(const nlohmann::json& value,
     out.kind = *kind;
     (void)ParseOptionalStringField(value, "color", out.color);
     (void)ParseOptionalStringField(value, "label", out.label);
-    (void)ParseOptionalStringField(value, "url", out.url);
     (void)ParseOptionalStringField(value, "art", out.art);
     (void)ParseStringField(value, "art_mode", out.art_mode);
     (void)ParseStringField(value, "art_fit", out.art_fit);

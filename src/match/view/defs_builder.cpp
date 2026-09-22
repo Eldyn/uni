@@ -28,7 +28,6 @@ json FaceJson(const match::modload::FaceSpec& face) {
     out["kind"] = match::modload::ToString(face.kind);
     if (face.color.has_value()) out["color"] = *face.color;
     if (face.label.has_value()) out["label"] = *face.label;
-    if (face.url.has_value()) out["url"] = *face.url;
     out["art_version"] = face.art_version;
     return out;
 }

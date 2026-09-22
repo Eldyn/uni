@@ -47,7 +47,6 @@ ecs::FaceSpec ToEcsFace(const modload::FaceSpec& face) {
     out.kind = ToEcsFaceKind(face.kind);
     out.color = face.color.value_or("");
     out.label = face.label.value_or("");
-    out.url = face.url.value_or("");
     out.art = face.art.value_or("");
     out.art_mode = face.art_mode;
     out.art_fit = face.art_fit;

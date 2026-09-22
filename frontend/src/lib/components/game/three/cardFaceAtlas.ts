@@ -68,8 +68,8 @@ const STANDARD_ART_NAMES = [
  * @brief True when `name` is one of the pre-baked vanilla art assets.
  *
  * Only a `text` face whose label matches a standard asset can be rendered from
- * the existing atlas; modded `art_ref`/`emoji`/`blank` faces have no baked
- * texture yet and must fall back to the card's own color/value.
+ * the existing atlas; modded `image`/`emoji`/`blank` faces have no baked
+ * texture and are composed from their own layers.
  */
 export function hasStandardFaceArt(name: string | undefined): name is string {
 	return name !== undefined && (STANDARD_ART_NAMES as readonly string[]).includes(name);

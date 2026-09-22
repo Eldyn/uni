@@ -27,8 +27,6 @@ export interface KindFace {
 	color?: string;
 	/** `text` / `emoji` faces: the value or glyph. */
 	label?: string;
-	/** Legacy placeholder art URL. */
-	url?: string;
 	/** `image` faces: the referenced asset bundle id. */
 	art?: string;
 	/** Layer composition. */
@@ -68,7 +66,6 @@ const RawFaceSchema = z.looseObject({
 	kind: z.string().optional(),
 	color: z.string().optional(),
 	label: z.string().optional(),
-	url: z.string().optional(),
 	art: z.string().optional(),
 	art_mode: z.enum(["inset", "replace", "overlay"]).optional(),
 	art_fit: z.enum(["contain", "cover", "stretch"]).optional(),
@@ -105,7 +102,6 @@ function normalizeFace(face: z.infer<typeof RawFaceSchema> | undefined): KindFac
 		kind: face.kind ?? "blank",
 		color: face.color,
 		label: face.label,
-		url: face.url,
 		art: face.art,
 		art_mode: face.art_mode,
 		art_fit: face.art_fit,

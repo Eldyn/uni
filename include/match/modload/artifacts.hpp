@@ -59,7 +59,6 @@ struct FaceSpec {
     FaceKind kind = FaceKind::kBlank;
     std::optional<std::string> color;   /**< text kind. */
     std::optional<std::string> label;   /**< text / emoji kinds. */
-    std::optional<std::string> url;     /**< art_ref kind (placeholder). */
     std::optional<std::string> art;     /**< image kind: asset bundle id. */
     std::string art_mode = "inset";     /**< inset | replace | overlay. */
     std::string art_fit = "contain";    /**< contain | cover | stretch. */
