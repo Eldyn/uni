@@ -75,6 +75,15 @@ private:
      */
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
+    /**
+     * @brief Records which player a spectator is currently watching, so the
+     * per-player spectator counts in the next match state are accurate.
+     * No-op for anyone who isn't a spectator.
+     * @param context Context of the calling socket.
+     * @param message JSON payload containing the optional `viewed_username`.
+     */
+    void HandleSpectatorView(WsContext context, const nlohmann::json& message);
+
     // --- Core Match Flow ---
 
     /**

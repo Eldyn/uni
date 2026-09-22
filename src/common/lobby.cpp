@@ -201,6 +201,9 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
                 member.socket = socket;
                 member.is_connected = true;
                 member.is_bot = false;
+                // A bot just became a human: keep the configured bot target
+                // in sync so later SyncBots runs don't re-add a phantom bot.
+                if (settings.bot_count > 0) settings.bot_count--;
                 member.is_spectator = false;
                 member.privacy_mode = user_privacy;
 

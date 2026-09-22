@@ -730,9 +730,7 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
         return;
     }
 
-    if (target_it->is_bot && lobby.settings.bot_count > 0) {
-        lobby.settings.bot_count--;
-    }
+    const bool was_bot = target_it->is_bot;
 
     uint32_t lobby_id = lobby.id;
     bool lobby_still_exists = RemoveMember(lobby_id, username, false, request_id);
@@ -741,6 +739,15 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
     if (lobby_still_exists) {
         Lobby* remaining = GetLobbyById(lobby_id);
         if (!remaining) return;
+        // The targeted removal is authoritative: re-derive bot_count from the
+        // members that actually remain so drift (e.g. a prior bot takeover)
+        // self-heals and LIFO reconciliation can no longer drop a different bot.
+        if (was_bot) {
+            remaining->settings.bot_count = static_cast<int>(
+                std::ranges::count_if(remaining->members, [](const LobbyMember& m) {
+                    return m.is_bot;
+                }));
+        }
         remaining->SyncBots(rng_);
         broadcaster_.SendSuccess(ctx.socket, ctx.op_code, request_id);
         BroadcastUpdate(*remaining);

@@ -130,6 +130,13 @@ struct LobbyMember {
     /**< True if this member has streamer/privacy mode enabled (hand hidden from spectators). */
     bool privacy_mode = false;
 
+    /**< Username of the player this spectator is currently watching, or empty
+     *  when the spectator has made no explicit choice (the server then
+     *  attributes them to whoever's turn it is). Only meaningful while
+     *  is_spectator is true; ignored for active players. Drives the per-player
+     *  spectator count in the match state. */
+    std::string viewed_username;
+
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 

@@ -12,6 +12,8 @@
 #include "logger.hpp"
 #include <algorithm>
 #include <random>
+#include <string>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
@@ -46,6 +48,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     action_router_.On(ws::ClientAction::kMatchSubmitInput,
                       [this](WsContext context, const json& message) {
         HandleProvideInput(context, message);
+        return true;
+    });
+
+    action_router_.On(ws::ClientAction::kSpectatorView,
+                      [this](WsContext context, const json& message) {
+        HandleSpectatorView(context, message);
         return true;
     });
 
@@ -190,6 +198,34 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
 }
 
 /**
+ * @brief Records which player a spectator is watching, for the per-player
+ * spectator counts in the match state.
+ * @param context Caller's socket/session context.
+ * @param message Incoming spectator_view payload.
+ */
+void MatchController::HandleSpectatorView(WsContext context, const json& message) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (!active_lobby || !active_lobby->match) return;
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    // Only spectators have a viewed player; a seated player's own POV is
+    // implicit and must not be overwritten by a stray message.
+    if (!member || !member->is_spectator) return;
+
+    auto payload_res = ws::ParsePayload<ws::SpectatorViewPayload>(message);
+    if (!payload_res) return;
+
+    std::string viewed = payload_res->viewed_username.value_or("");
+    // Ignore a target that isn't actually in this match, so a stale or
+    // malicious username can't create a phantom count or hide the spectator
+    // from every real seat.
+    if (!viewed.empty() && !active_lobby->match->GetPlayer(viewed)) viewed.clear();
+
+    member->viewed_username = viewed;
+    BroadcastMatchState(active_lobby);
+}
+
+/**
  * @brief Serializes complete match configurations, sending unique filtered match boards down to each user.
  * @param current_lobby Target room pointer whose context needs to be synchronized.
  */
@@ -210,13 +246,23 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
     }
 
     json base_state = current_lobby->match->SerializeBaseState();
+    // Per-player spectator counts: each viewer sees how many people are
+    // watching a given player, not the whole lobby's spectator total. A
+    // spectator with no explicit POV choice is attributed to whoever's turn
+    // it is, matching the client's default "follow the current turn" view.
+    const std::string current_turn = current_lobby->match->GetCurrentPlayerUsername();
+    std::unordered_map<std::string, int> watchers;
     int spectator_count = 0;
     for (const auto& m : current_lobby->members) {
-        if (m.is_spectator && m.is_connected) {
-            spectator_count++;
-        }
+        if (!m.is_spectator || !m.is_connected) continue;
+        spectator_count++;
+        const std::string target = m.viewed_username.empty() ? current_turn : m.viewed_username;
+        watchers[target]++;
     }
     base_state["spectator_count"] = spectator_count;
+    for (auto& p_json : base_state["players"]) {
+        p_json["spectator_count"] = watchers[p_json["username"].get<std::string>()];
+    }
 
     for (const auto& lobby_member : current_lobby->members) {
         if (!lobby_member.is_connected || !lobby_member.socket) continue;

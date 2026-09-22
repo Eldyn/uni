@@ -3,6 +3,8 @@
 #include <controllers/lobby_controller.hpp>
 #include <common/ws.hpp>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 #include "support/fake_broadcaster.hpp"
 #include "support/fake_timer_service.hpp"
 
@@ -471,6 +473,44 @@ TEST_CASE("kick: unsubscribes a still-connected target from the lobby topic") {
     f.router.Dispatch(f.actx(), kick_msg("bob"));
 
     CHECK(f.bus.subscriptions.count({f.bob_sock, "lobby_" + code}) == 0);
+}
+
+TEST_CASE("kick: removes the targeted bot without LIFO-collateral when bot_count drifted") {
+    LobbyFixture f;
+    std::string code = f.alice_creates(/*is_public=*/false);
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                      {"request_id", "req-set"},
+                                      {"max_players", 4},
+                                      {"bot_count", 3}});
+    f.bus.Clear();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    std::vector<std::string> bots;
+    for (const auto& m : lp->members)
+        if (m.is_bot) bots.push_back(m.username);
+    REQUIRE_EQ(bots.size(), 3);
+
+    // Model the pre-fix client "X" path: it lowered the configured bot target
+    // without removing a member, leaving settings out of sync with reality.
+    // A later SyncBots would have LIFO-erased the last bot, not the intended one.
+    lp->settings.bot_count = 2;
+
+    const std::string target = bots[0];
+    f.router.Dispatch(f.actx(), kick_msg(target));
+
+    lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    CHECK(lp->FindMember(target) == nullptr);
+    CHECK(lp->FindMember(bots[1]) != nullptr);
+    CHECK(lp->FindMember(bots[2]) != nullptr);
+
+    int bot_members = 0;
+    for (const auto& m : lp->members)
+        if (m.is_bot) ++bot_members;
+    CHECK_EQ(bot_members, 2);
+    CHECK_EQ(lp->settings.bot_count, 2);
 }
 
 // ---------------------------------------------------------------------------

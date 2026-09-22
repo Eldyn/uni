@@ -67,6 +67,7 @@ channels:
           - $ref: "#/components/messages/FriendListRequest"
           - $ref: "#/components/messages/MetadataRequest"
           - $ref: "#/components/messages/UserUpdatePrivacy"
+          - $ref: "#/components/messages/SpectatorView"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -564,6 +565,12 @@ components:
       payload:
         $ref: "#/components/schemas/UserUpdatePrivacyPayload"
 
+    SpectatorView:
+      name: spectator_view
+      title: Report the Player a Spectator Is Watching
+      payload:
+        $ref: "#/components/schemas/SpectatorViewPayload"
+
   # -------------------------------------------------------------------------
   # Schemas
   # -------------------------------------------------------------------------
@@ -856,6 +863,16 @@ components:
         privacy_mode:
           type: boolean
           description: Whether streamer / privacy mode is enabled (hides hand from spectators).
+
+    SpectatorViewPayload:
+      type: object
+      properties:
+        viewed_username:
+          type: string
+          description: >
+            Username of the player whose POV this spectator is currently
+            viewing. An empty string means "no explicit choice" — the server
+            attributes the spectator to whoever's turn it is.
 
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)

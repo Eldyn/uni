@@ -538,6 +538,34 @@ TEST_CASE("lobby: AddOrHijack preserves seat_index when hijacking a bot slot") {
     CHECK_EQ(it->seat_index, 1);
 }
 
+TEST_CASE("lobby: AddOrHijack decrements settings.bot_count when hijacking a bot") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = true;
+    lobby.settings.bot_count = 2;
+    lobby.members.emplace_back("Alice", nullptr, true, false, 0);
+    lobby.members.emplace_back("Bot1", nullptr, true, true, 1);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
+    CHECK_EQ(lobby.settings.bot_count, 1);
+}
+
+TEST_CASE("lobby: AddOrHijack never drives settings.bot_count below zero") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_takeover = true;
+    lobby.settings.bot_count = 0;
+    lobby.members.emplace_back("Alice", nullptr, true, false, 0);
+    lobby.members.emplace_back("Bot1", nullptr, true, true, 1);
+
+    auto result = lobby.AddOrHijack("Charlie", nullptr);
+
+    CHECK_EQ(result.outcome, JoinOutcome::kHijackedBot);
+    CHECK_EQ(lobby.settings.bot_count, 0);
+}
+
 TEST_CASE("lobby: Create builds a sanitized lobby with the host as first member") {
     Lobby lobby = Lobby::Create(7, "Alice", nullptr, true, "Alice's Room",
                                  contract::kTurnTimeMinMs - 1, contract::kStartingCardsMax + 1,
