@@ -405,6 +405,25 @@ bool MatchInstance::SubmitInput(const std::string& username,
         if (!OfferedChoice(raw)) return false;
     }
 
+    // INFO: `@choose_player` sugar defence in depth - the answer is a
+    //       username and must name a live seat, so a spoofed or stale answer
+    //       can never bind a phantom player into a graph's selector.
+    if (pending_input_->kind == "choose_player") {
+        if (!value.is_string()) return false;
+        bool known = false;
+        for (ecs::Entity entity :
+             assembly_->store.EntitiesWith<ecs::PlayerInfo>()) {
+            const ecs::PlayerInfo* info =
+                assembly_->store.Get<ecs::PlayerInfo>(entity);
+            if (info != nullptr
+                && info->username == value.get<std::string>()) {
+                known = true;
+                break;
+            }
+        }
+        if (!known) return false;
+    }
+
     InputPause pending = std::move(*pending_input_);
     pending_input_.reset();
 

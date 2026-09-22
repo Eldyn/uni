@@ -177,6 +177,15 @@ ResolveResult Resolver::ResumeInput(const modload::BehaviorGraph& graph,
     }
 
     WalkState state = MakeState(graph, mod_id, context, frame, result);
+    // INFO: Sugar - bind the answered seat to `@choose_player` before
+    //       the raw answer is consumed by any `from_prompt` handler.
+    if (pause.resume->prompt_kind == "choose_player" && value.is_string()) {
+        if (const std::optional<ecs::Entity> chosen =
+                FindPlayerByUsername(value.get<std::string>());
+            chosen.has_value()) {
+            frame.BindSelector("@choose_player", {*chosen});
+        }
+    }
     if (!pause.resume->prompt.empty()) {
         frame.BindPromptValue(pause.resume->prompt, std::move(value));
     }
@@ -261,6 +270,42 @@ void Resolver::BindSelectorArgs(WalkState& state, ops::OpArgs& args) {
 }
 
 // --- selector resolution ---------------------------------------------------
+
+bool Resolver::NeedsChoosePlayerPrompt(WalkState& state,
+                                       const ops::OpArgs& args) const {
+    if (state.frame->FindSelector("@choose_player") != nullptr) return false;
+    const modload::OpSignature* signature = args.Signature();
+    if (signature == nullptr) return false;
+    for (const modload::ArgSpec& spec : signature->args) {
+        if (spec.type != modload::ArgType::kSelector) continue;
+        const nlohmann::json* value = args.Find(spec.name);
+        if (value == nullptr || !value->is_string()) continue;
+        if (value->get<std::string>() == "@choose_player") return true;
+    }
+    return false;
+}
+
+nlohmann::json Resolver::ChoosePlayerOptions(
+    const ecs::Entity& asker) const {
+    nlohmann::json options = nlohmann::json::array();
+    for (ecs::Entity player : PlayersBySeat()) {
+        if (player == asker) continue;
+        const ecs::PlayerInfo* info = store_.Get<ecs::PlayerInfo>(player);
+        if (info == nullptr || info->username.empty()) continue;
+        options.push_back(info->username);
+    }
+    return options;
+}
+
+std::optional<ecs::Entity> Resolver::FindPlayerByUsername(
+    const std::string& username) const {
+    if (username.empty()) return std::nullopt;
+    for (ecs::Entity entity : store_.EntitiesWith<ecs::PlayerInfo>()) {
+        const ecs::PlayerInfo* info = store_.Get<ecs::PlayerInfo>(entity);
+        if (info != nullptr && info->username == username) return entity;
+    }
+    return std::nullopt;
+}
 
 std::vector<ecs::Entity> Resolver::PlayersBySeat() const {
     std::vector<ecs::Entity> players = store_.EntitiesWith<ecs::PlayerInfo>();
@@ -368,6 +413,13 @@ std::vector<ecs::Entity> Resolver::ResolveSelector(WalkState& state,
         return others;
     }
     if (token == "@choose_player") {
+        // INFO: Sugar - a `choose_player` prompt binds the chosen
+        //       player to this selector; the Resolver opens that prompt
+        //       implicitly (StepOp) when an op names it unbound. Reaching here
+        //       unbound means the graph used it without a prompt.
+        const std::vector<ecs::Entity>* bound =
+            state.frame->FindSelector("@choose_player");
+        if (bound != nullptr) return *bound;
         Guard(state, token, "requires a prompt");
         return {};
     }
@@ -462,6 +514,35 @@ Resolver::WalkCode Resolver::StepOp(WalkState& state,
         node.value("args", nlohmann::json::object());
 
     ops::OpArgs args(op_name, raw);
+
+    // INFO: `@choose_player` sugar. An op that names the selector
+    //       without a pre-bound value parks a `choose_player` prompt for
+    //       `@self` and re-enters this same node on the answer, which binds
+    //       the selector so the op runs with the chosen seat. No asker falls
+    //       through to `BindSelectorArgs`, which records the guard.
+    if (NeedsChoosePlayerPrompt(state, args)) {
+        const std::optional<ecs::Entity> self =
+            state.frame->FirstSelector("@self");
+        const std::optional<ecs::Entity> asker =
+            self.has_value() ? self : FindCurrentPlayer();
+        if (asker.has_value()) {
+            ops::InputRequest request;
+            request.kind = "choose_player";
+            request.target = *asker;
+            request.payload =
+                nlohmann::json{{"options", ChoosePlayerOptions(*asker)}};
+            ResumeToken token;
+            token.prompt = node.value("id", std::string());
+            token.node = token.prompt;
+            token.prompt_kind = "choose_player";
+            token.pending = stack;
+            state.result->input_request = std::move(request);
+            state.result->resume = std::move(token);
+            state.result->status = ResolveStatus::kNeedsInput;
+            return WalkCode::kPause;
+        }
+    }
+
     BindSelectorArgs(state, args);
 
     ops::OpContext ctx(event_bus_, budgets_, *state.frame);
@@ -499,6 +580,9 @@ Resolver::WalkCode Resolver::StepOp(WalkState& state,
         token.prompt = node.value("id", std::string());
         token.node = node.value("next", std::string());
         token.pending = stack;
+        token.prompt_kind = state.result->input_request.has_value()
+                                ? state.result->input_request->kind
+                                : std::string();
         state.result->resume = std::move(token);
         state.result->status = ResolveStatus::kNeedsInput;
         return WalkCode::kPause;

@@ -95,6 +95,13 @@ struct ResumeToken {
     std::string node;    /**< immediate node id to continue at. */
     std::string prompt;  /**< bind injected input to this op node id. */
     /**
+     * Kind of the prompt that produced this pause, when known. The Resolver
+     * uses it on resume to bind the answered value to the matching context
+     * selector (a `choose_player` answer binds `@choose_player`) so an op's
+     * selector arg can consume the choice.
+     */
+    std::string prompt_kind;
+    /**
      * Work stack remaining after `node` drains (back = next to run). This
      * preserves a fork's not-yet-run branches and its `next` across a pause
      * .
@@ -331,6 +338,24 @@ private:
     void BindSelectorArgs(WalkState& state, ops::OpArgs& args);
     std::vector<ecs::Entity> ResolveSelector(WalkState& state,
                                              const std::string& token);
+
+    /**
+     * @brief True when an op's selector args name `@choose_player` unbound.
+     *
+     * The `@choose_player` sugar expands to a `choose_player`
+     * prompt; when a graph names the selector without first opening that
+     * prompt, the Resolver parks the prompt here and re-enters the same op
+     * once an answer binds the selector. Returns false once
+     * `@choose_player` is bound, including on the re-entered pass.
+     */
+    bool NeedsChoosePlayerPrompt(WalkState& state, const ops::OpArgs& args) const;
+
+    /** @brief Usernames the `@choose_player` prompt offers `asker` (others). */
+    nlohmann::json ChoosePlayerOptions(const ecs::Entity& asker) const;
+
+    /** @brief Resolve a `choose_player` answer username to a live player. */
+    std::optional<ecs::Entity> FindPlayerByUsername(
+        const std::string& username) const;
 
     std::vector<ecs::Entity> PlayersBySeat() const;
     std::optional<ecs::Entity> FindCurrentPlayer() const;

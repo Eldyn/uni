@@ -486,19 +486,12 @@ struct KnownGap {
  */
 const std::vector<KnownGap>& KnownGaps() {
     static const std::vector<KnownGap> gaps = {
-        {"seven_zero_swap", "play:Alice:red7",
-         "legacy pending_action kChooseTarget pauses with Alice current; the "
-         "new engine's @choose_player selector is a resolver guard, not a "
-         "prompt, so swap_hands no-ops and the play settles (turn -> Bob)"},
-        {"seven_zero_swap", "input:Alice:swap_with_Bob",
-         "no prompt is parked to answer; the new engine refuses the input and "
-         "the hands are never exchanged (legacy pending_action kChooseTarget)"},
         {"progressive", "draw:Alice:until_playable",
          "legacy pending_action kPlayDrawn pauses with Alice current (hand 4, "
          "discard 1); the new engine's re-entrant after:draw -> "
-         "draw_until_playable path draws the reshuffled discard top too, "
-         "ending Alice 5 / draw 0 / discard 0 and advancing to Bob, with no "
-         "play-or-keep prompt"},
+         "draw_until_playable path keeps drawing until the source is "
+         "exhausted, keeps the discard top as the active pile, and advances "
+         "to Bob, with no play-or-keep prompt"},
         {"progressive", "input:Alice:keep",
          "no new-engine analogue of the legacy kPlayDrawn keep/play input"},
         {"bot_turn", "bot:Bob",
@@ -559,38 +552,6 @@ void ReplayScenario(Content& content, const std::string& scenario,
 }
 
 /**
- * @brief seven_zero swap: assert the available outcome, record the gap.
- */
-void ReplaySevenZeroSwap(Content& content) {
-    Fixture fixture;
-    std::unique_ptr<MatchInstance> engine =
-        BuildScenario(content, "seven_zero_swap", fixture);
-    CheckFixtureState(*engine, fixture.load, fixture.usernames,
-                      "seven_zero_swap", "load");
-
-    /* INFO: step 1 - red7's after:play hook asks
-     *       swap_hands(@self, @choose_player). @choose_player is a resolver
-     *       guard, so the op no-ops and the play settles. Known gap
-     *       The engineE-GAP-001 (legacy paused on kChooseTarget with Alice
-     *       current). The hand / discard facts still match the fixture; the
-     *       turn advances to Bob. */
-    REQUIRE(PlayFace(*engine, "Alice", "red7"));
-    const json after_play = engine->ExportState();
-    CHECK(after_play["players"][0]["card_count"] == 1);
-    CHECK(after_play["players"][1]["card_count"] == 2);
-    CHECK(after_play["discard_pile_size"] == 2);
-    CHECK_FALSE(engine->PendingInput().has_value());
-    CHECK(after_play["current_player"] == "Bob");
-
-    /* INFO: step 2 - there is no parked prompt, so the swap input is refused
-     *       and the hands stay unswapped. Known gap the engineE-GAP-002. */
-    CHECK_FALSE(engine->SubmitInput("Alice", json("Bob")));
-    const json after_input = engine->ExportState();
-    CHECK(after_input["players"][0]["card_count"] == 1);
-    CHECK(after_input["players"][1]["card_count"] == 2);
-}
-
-/**
  * @brief progressive: assert the available draw outcome, record the gap.
  */
 void ReplayProgressive(Content& content) {
@@ -603,14 +564,14 @@ void ReplayProgressive(Content& content) {
     /* INFO: step 1 - draw until playable. Known gap the engineE-GAP-003: the legacy
      *       flow pauses on kPlayDrawn with Alice current (hand 4, discard 1);
      *       the new engine's re-entrant after:draw -> draw_until_playable path
-     *       keeps drawing, reshuffles the lone discard top and draws it too,
-     *       ending Alice 5 / draw 0 / discard 0 and advancing to Bob. The
-     *       available outcome is asserted below. */
+     *       keeps drawing until the draw source is exhausted, keeps the
+     *       discard top as the active pile, and advances to Bob with no
+     *       play-or-keep prompt. The available outcome is asserted below. */
     REQUIRE(engine->DrawCard("Alice"));
     const json after_draw = engine->ExportState();
-    CHECK(after_draw["players"][0]["card_count"] == 5);
+    CHECK(after_draw["players"][0]["card_count"] == 4);
     CHECK(after_draw["draw_pile_size"] == 0);
-    CHECK(after_draw["discard_pile_size"] == 0);
+    CHECK(after_draw["discard_pile_size"] == 1);
     CHECK_FALSE(engine->PendingInput().has_value());
     CHECK(after_draw["current_player"] == "Bob");
 
@@ -690,13 +651,17 @@ TEST_CASE("golden replay: jump_in matches the legacy outcome") {
 }
 
 /**
- * @brief seven_zero swap: replays the available outcome; the @choose_player
- *        prompt is a known gap.
+ * @brief seven_zero swap: the 7 prompts for a target, then the hands swap.
+ *
+ * `@choose_player` now expands to a real `choose_player` prompt
+ * so the fixture's legacy outcome is reproduced exactly: the play parks a
+ * prompt with Alice current, and answering with Bob swaps the hands and
+ * settles the turn to Bob.
  */
-TEST_CASE("golden replay: seven_zero_swap replays the available outcome") {
+TEST_CASE("golden replay: seven_zero_swap matches the legacy outcome") {
     Content content;
     REQUIRE(LoadContent(content));
-    ReplaySevenZeroSwap(content);
+    ReplayScenario(content, "seven_zero_swap");
 }
 
 /**
@@ -766,7 +731,7 @@ TEST_CASE("golden replay: bot_turn replays the available outcome") {
  */
 TEST_CASE("golden replay: known gaps are explicitly listed") {
     const std::vector<KnownGap>& gaps = KnownGaps();
-    CHECK(gaps.size() == 5);
+    CHECK(gaps.size() == 3);
     for (const KnownGap& gap : gaps) {
         MESSAGE("known gap: ", gap.scenario, " / ", gap.step, " - ",
                 gap.reason);
