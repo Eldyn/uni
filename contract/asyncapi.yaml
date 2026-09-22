@@ -729,8 +729,9 @@ components:
         card_id:
           type: integer
           minimum: 0
-          maximum: 65535
-          description: Numeric identifier of the card to play (maps to uint16_t on the wire).
+          description: >
+            CompactCardV2.bits of the card to play (uint32 identity:
+            mod/kind/instance), not a 16-bit legacy id.
 
     GameSubmitInputPayload:
       type: object
