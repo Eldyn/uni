@@ -6,7 +6,9 @@ import type { RenderContext } from "../renderContext";
  *  Resolves immediately so a sequence containing a screenEffect step
  *  doesn't stall the queue. */
 export function screenEffectRenderer(step: AnimationStep, _ctx: RenderContext): gsap.core.Timeline {
-	console.warn(`screenEffect step ("${step.payload?.effect ?? "unknown"}") not yet implemented — skipping.`);
+	console.warn(
+		`screenEffect step ("${step.payload?.effect ?? "unknown"}") not yet implemented — skipping.`
+	);
 	const timeline = gsap.timeline();
 	// Add a dummy instant animation to give the timeline a measurable duration,
 	// then complete it so progress() returns 1

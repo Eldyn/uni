@@ -26,7 +26,16 @@ function fakeCtx(anchors: Record<string, [number, number, number]>): {
 describe("moveRenderer", () => {
 	it("builds a timeline that tweens the card's pose to the target anchor", () => {
 		const { ctx, poses } = fakeCtx({ "discard-pile": [1, 0.5, 2] });
-		poses.set("card-7", { x: 0, y: 0, z: 0, spinDeg: 0, flipDeg: 0, scale: 1, turned: false, opacity: 1 });
+		poses.set("card-7", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		});
 
 		const timeline = moveRenderer(
 			{ op: "move", target: "card-7", payload: { to: "discard-pile" } },

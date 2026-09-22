@@ -7,6 +7,7 @@
 	import { gsap } from "gsap";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
@@ -38,7 +39,18 @@
 	let renderedCount = $derived(pile.renderedCount);
 	let stepY = $derived(pile.stepY);
 
-	let targetHeight = $derived(Math.max(0, renderedCount - 1) * stepY);
+	// The engine's ReshuffleDiscardIntoDraw keeps the top discard card, so a
+	// draw can only be rescued when the discard pile holds more than one card.
+	// Mirrors that condition so the client only offers a draw it can complete.
+	let reshuffleAvailable = $derived((storeGame.state?.discard_pile_size ?? 0) > 1);
+
+	// When the draw pile is exhausted but a reshuffle is still possible, keep a
+	// single (dimmed) card back on the table as the tappable "reserve" pile —
+	// otherwise the pile vanishes and there is no way to trigger the reshuffle.
+	let visualCount = $derived(renderedCount > 0 ? renderedCount : reshuffleAvailable ? 1 : 0);
+	let pileVisible = $derived(visualCount > 0);
+
+	let targetHeight = $derived(Math.max(0, visualCount - 1) * stepY);
 
 	// Animated height tweening for fresh look on reshuffle arrivals
 	let animatedStackHeight = $state(0);
@@ -86,14 +98,64 @@
 		}
 	});
 
+	// Hover "peek": with the pointer resting on the pile — and a draw actually
+	// available — the top card slides a little toward the player. In this tilted
+	// view +Z is down-screen, so it reads as "moving down", and it is exactly
+	// the gesture of taking the card. Sliding forward (rather than sinking in
+	// world-Y) also keeps the card in front of the stack's own contact-shadow
+	// planes, so it stays bright instead of being darkened by them. The bus
+	// value is read by baseBeats at seed time so the departing card's flight
+	// starts from this exact offset pose, continuing the motion instead of
+	// popping back to the pile's resting top first.
+	const HOVER_DIP_Z = 0.06;
+	const HOVER_DIP_DURATION_S = 0.15;
+
+	let drawPileHovered = $state(false);
+	let hoverDipZ = $state(0);
+	let hoverDipTween = $state<gsap.core.Tween | null>(null);
+
+	let canDraw = $derived(
+		pileVisible && storeGame.state?.current_turn === storeGame.localPlayer?.username
+	);
+	let hoverDipTarget = $derived(
+		storeAnimation.enabled && drawPileHovered && canDraw ? HOVER_DIP_Z : 0
+	);
+
+	$effect(() => {
+		const target = hoverDipTarget;
+		untrack(() => {
+			hoverDipTween?.kill();
+			// Animations off (reduced-motion / user setting), or a draw that just
+			// became unavailable: no dip to show, so snap straight to the target
+			// rather than easing a card the user has already stopped looking at.
+			if (!storeAnimation.enabled) {
+				hoverDipZ = target;
+				bus?.setDrawPileHoverDipZ(target);
+				return;
+			}
+			const tweenObj = { z: hoverDipZ };
+			hoverDipTween = gsap.to(tweenObj, {
+				z: target,
+				duration: HOVER_DIP_DURATION_S / storeAnimation.speedMultiplier,
+				ease: target === 0 ? "power2.out" : "back.out(1.6)",
+				onUpdate: () => {
+					hoverDipZ = tweenObj.z;
+					bus?.setDrawPileHoverDipZ(tweenObj.z);
+				}
+			});
+		});
+	});
+
 	onDestroy(() => {
 		heightTween?.kill();
 		punchTween?.kill();
+		hoverDipTween?.kill();
+		bus?.setDrawPileHoverDipZ(0);
 	});
 
 	function cardY(index: number): number {
-		if (renderedCount <= 1) return PILE_BASE_HEIGHT - punchOffset;
-		const fraction = index / (renderedCount - 1);
+		if (visualCount <= 1) return PILE_BASE_HEIGHT - punchOffset;
+		const fraction = index / (visualCount - 1);
 		return PILE_BASE_HEIGHT + fraction * animatedStackHeight - punchOffset;
 	}
 
@@ -102,7 +164,7 @@
 	// stack is a long footprint along Z while a single plane over the top card
 	// only covers its own slice. A box spanning the whole footprint (card depth
 	// plus the peek run) keeps the entire pile tappable.
-	let peekRunZ = $derived((renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
+	let peekRunZ = $derived((visualCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
 	let clickDepthZ = $derived(CARD_HEIGHT * placement.drawPileScale + peekRunZ);
 	let clickCenterZ = $derived(placement.drawPileZ - peekRunZ / 2);
 	let clickHeightY = $derived(Math.max(animatedStackHeight, DRAW_PILE_STACK_STEP));
@@ -115,7 +177,7 @@
 		if (!cardRegistry) return;
 
 		const currentKeys = new Set<string>();
-		for (let i = 0; i < renderedCount; i++) {
+		for (let i = 0; i < visualCount; i++) {
 			const key = `pile:draw:${i}`;
 			currentKeys.add(key);
 			cardRegistry.setPoseProvider(key, () => [
@@ -175,10 +237,14 @@
      through the one group transform. -->
 <T.Group>
 	<T.Group>
-		{#if renderedCount > 0 && silhouetteTexture}
-			<!-- Ground contact shadow on table surface anchoring the stack to the playmat -->
+		{#if pileVisible && silhouetteTexture}
+			<!-- Contact shadow, sitting at the pile's own base height rather than on
+			     the mat: the stack is deliberately lifted (PILE_BASE_HEIGHT) to clear
+			     the hand, and in the tilted view a shadow left down on the mat reads
+			     as the pile hovering above it. Keeping it under the base card
+			     grounds the stack without moving the pile's depth. -->
 			<T.Mesh
-				position={[placement.drawPileX, 0.001, placement.drawPileZ]}
+				position={[placement.drawPileX, PILE_BASE_HEIGHT - 0.002, placement.drawPileZ]}
 				rotation.x={-Math.PI / 2}
 				scale={placement.drawPileScale * 1.04}
 			>
@@ -194,9 +260,11 @@
 			</T.Mesh>
 		{/if}
 
-		{#each Array.from({ length: renderedCount }) as _, i (i)}
-			{@const depthFraction = renderedCount > 1 ? (renderedCount - 1 - i) / (renderedCount - 1) : 0}
-			{@const cardBrightness = 1 - depthFraction * 0.35}
+		{#each Array.from({ length: visualCount }) as _, i (i)}
+			{@const depthFraction = visualCount > 1 ? (visualCount - 1 - i) / (visualCount - 1) : 0}
+			{@const isPlaceholder = renderedCount === 0}
+			{@const cardBrightness = (1 - depthFraction * 0.35) * (isPlaceholder ? 0.5 : 1)}
+			{@const isTopCard = i === visualCount - 1}
 			{#if i > 0 && silhouetteTexture}
 				<T.Mesh
 					position={[
@@ -224,15 +292,22 @@
 				position={[
 					placement.drawPileX,
 					cardY(i),
-					placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
+					placement.drawPileZ -
+						i * PILE_PEEK_Z * placement.drawPileScale +
+						(isTopCard ? hoverDipZ : 0)
 				]}
 				scale={placement.drawPileScale}
 				brightness={cardBrightness}
 			/>
 		{/each}
 
-		{#if renderedCount > 0}
-			<T.Mesh position={[placement.drawPileX, clickCenterY, clickCenterZ]} onclick={handleDraw}>
+		{#if pileVisible}
+			<T.Mesh
+				position={[placement.drawPileX, clickCenterY, clickCenterZ]}
+				onclick={handleDraw}
+				onpointerenter={() => (drawPileHovered = true)}
+				onpointerleave={() => (drawPileHovered = false)}
+			>
 				<T.BoxGeometry args={[CARD_WIDTH * placement.drawPileScale, clickHeightY, clickDepthZ]} />
 				<T.MeshBasicMaterial transparent opacity={0} depthWrite={false} />
 			</T.Mesh>

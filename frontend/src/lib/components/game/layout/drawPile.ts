@@ -91,17 +91,22 @@ export function computeDrawPileCountAndStep(
  * — the departing card's flight has to start exactly where it visually was a
  * moment ago, not at the pile's base (y:0) or ignoring PILE_PEEK_Z, which is
  * what read as "z-fights the pile" and "appears from thin air".
+ *
+ * `topCardOffsetZ` is the signed world-Z displacement the top card is
+ * currently wearing on top of its resting pose — DrawPile3D's hover slide
+ * (positive = toward the player). 0 is the resting top.
  */
 export function drawPileTopPose(
 	placement: BoardPlacement,
 	preDrawVisibleStackSize: number,
-	mode: "full" | "capped" = "capped"
+	mode: "full" | "capped" = "capped",
+	topCardOffsetZ: number = 0
 ): [number, number, number] {
 	const { renderedCount, stepY } = computeDrawPileCountAndStep(preDrawVisibleStackSize, mode);
 	const topIndex = Math.max(0, renderedCount - 1);
 	return [
 		placement.drawPileX,
 		PILE_BASE_HEIGHT + topIndex * stepY,
-		placement.drawPileZ - topIndex * PILE_PEEK_Z * placement.drawPileScale
+		placement.drawPileZ - topIndex * PILE_PEEK_Z * placement.drawPileScale + topCardOffsetZ
 	];
 }

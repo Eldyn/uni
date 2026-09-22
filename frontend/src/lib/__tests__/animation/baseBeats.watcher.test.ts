@@ -282,6 +282,63 @@ describe("createBaseBeatsWatcher", () => {
 		dispose();
 	});
 
+	it("seeds a local draw's flight from the draw pile's hovered (slid) pose", () => {
+		storeAuth.username = "me";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{ username: "me", card_count: 5, is_bot: false, hand: [{ id: 1, type: "red", value: "5" }] }
+			],
+			pending_draws: 0,
+			draw_pile_size: 3
+		} as never;
+
+		const bus = new CardBus();
+		// DrawPile3D is mid-hover: the top card has slid this far toward the player.
+		bus.setDrawPileHoverDipZ(0.06);
+		const cardRegistry = new CardRegistry();
+		const dispose = createBaseBeatsWatcher({
+			bus,
+			cardRegistry,
+			getPlacement: () => placement,
+			getOpponentSeatAnchor: () => [0, 0, 0]
+		});
+		flushSync();
+
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "me",
+			play_direction: 1,
+			top_card: { id: 1, type: "red", value: "5" },
+			players: [
+				{
+					username: "me",
+					card_count: 6,
+					is_bot: false,
+					hand: [
+						{ id: 1, type: "red", value: "5" },
+						{ id: 2, type: "blue", value: "7" }
+					]
+				}
+			],
+			pending_draws: 0,
+			draw_pile_size: 2
+		} as never;
+		flushSync();
+
+		const flight = cardRegistry.activeFlights.find((f) => f.id === "2");
+		expect(flight).toBeDefined();
+		// Same resting top as the test above, slid forward by the hover offset.
+		expect(flight!.pose.z).toBeCloseTo(
+			placement.drawPileZ - 2 * 0.02 * placement.drawPileScale + 0.06
+		);
+
+		dispose();
+	});
+
 	it("resolves the discard-pile anchor live, via the shared resolver, for both a play and its landing shake", () => {
 		storeAuth.username = "me";
 		storeGame.state = {

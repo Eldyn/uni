@@ -1,23 +1,20 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
+	import { storeBoardCamera } from "$stores/boardCamera.svelte";
 	import { useGameLayoutContext } from "../game-layout-context.svelte";
 	import { worldToScreenPercent } from "../layout/screenProjection";
+	import { autofocus } from "$lib/actions/autofocus";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	const layout = useGameLayoutContext();
 	let screenPercent = $derived.by(() => {
-		if (!layout?.geometry) return null;
-		const { rig, placement } = layout.geometry;
-		return worldToScreenPercent(rig, placement.drawPileX, placement.drawPileZ);
+		const camera = storeBoardCamera.camera;
+		if (!layout?.geometry || !camera) return null;
+		const { placement } = layout.geometry;
+		return worldToScreenPercent(camera, placement.drawPileX, 0, placement.drawPileZ);
 	});
-
-	function autofocus(node: HTMLElement) {
-		requestAnimationFrame(() => {
-			node.focus();
-		});
-	}
 </script>
 
 {#if storeGame.actionRequired === Action.PlayDrawn && storeGame.actionContext}
@@ -33,7 +30,7 @@
 		<div class="action-buttons-group">
 			<button
 				type="button"
-				use:autofocus
+				use:autofocus={{ key: storeGame.actionContext?.card_id }}
 				class="btn pixel-corners sized-btn play-btn"
 				onclick={() => {
 					// PLACEHOLDER-SFX: sfx.play-drawn.confirm, confirmation blip when
@@ -84,7 +81,6 @@
 		box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
 		animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 	}
-
 
 	@keyframes popIn {
 		0% {

@@ -156,6 +156,11 @@ uniform vec4 uUvRectBack;
 			offsetX: number;
 			dropZ: number;
 			opacity: number;
+			/** Uniform scale of the shadow silhouette relative to the card.
+			 *  >1 peeks a thin rim past every edge (a contact shadow that grounds
+			 *  the card); the default 1 relies on `offsetX` alone for a
+			 *  directional drop shadow. */
+			scale?: number;
 		};
 		/** Colored rim drawn just under the card, nested in this card's own group
 		 *  so it inherits the exact same lift/push/spin/scale tween instead of a
@@ -168,7 +173,23 @@ uniform vec4 uUvRectBack;
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
-	const DIM_FACTOR = 0.45;
+	// Texture tint for a card that is not its owner's turn. Kept deliberately
+	// low so the difference between "your/their turn" and "waiting" reads at a
+	// glance — hands (local row and opponent rings alike) all dim through here.
+	const DIM_FACTOR = 0.3;
+	// Dimming eases rather than snaps. A drawn card is seeded already dimmed
+	// (the turn has usually advanced by the time the draw lands), and applying
+	// that tint on the first frame made every draw appear dark for its whole
+	// flight. It now leaves the (bright) draw pile bright and fades to its
+	// dimmed state — the same fade covers a hand dimming as the turn moves on.
+	const DIM_FADE_S = 0.22;
+	let dimT = $state(0);
+	useTask((delta) => {
+		const target = dimmed ? 1 : 0;
+		if (dimT === target) return;
+		const step = delta / DIM_FADE_S;
+		dimT = target > dimT ? Math.min(target, dimT + step) : Math.max(target, dimT - step);
+	});
 
 	// Highlight rim: how far it reaches past the card's own edge, and its
 	// breathing opacity when marking the "tap here" confirm target.
@@ -204,7 +225,9 @@ uniform vec4 uUvRectBack;
 		void atlasPageVersion;
 		return getAtlasPage(activeFront.page);
 	});
-	let meshColor = $derived(WHITE.clone().multiplyScalar((dimmed ? DIM_FACTOR : 1) * brightness));
+	let meshColor = $derived(
+		WHITE.clone().multiplyScalar((1 + (DIM_FACTOR - 1) * dimT) * brightness)
+	);
 
 	// Three.js draws opaque objects before transparent ones and only applies
 	// renderOrder within a pass, so a dragged card must join the transparent
@@ -245,7 +268,7 @@ uniform vec4 uUvRectBack;
 
 	// Perspective projection (larger and more distant shadow) ONLY applies to DnD (dragT)
 	let shadowExtraOffset = $derived(0.12 * dragT);
-	let shadowScale = $derived(1 + 0.15 * dragT);
+	let shadowScale = $derived((shadow?.scale ?? 1) * (1 + 0.15 * dragT));
 	// `offsetX` is a local offset (a fraction of the card's own width), so it is
 	// NOT divided by animatedScale: the group's scale turns it into a world
 	// offset that grows/shrinks with the card. Dividing it out pins the shadow

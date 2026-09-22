@@ -33,7 +33,8 @@ const RawPlayerSchema = z.object({
 	username: z.string(),
 	card_count: z.number().int(),
 	hand: z.array(RawCardSchema).optional(),
-	is_bot: z.boolean()
+	is_bot: z.boolean(),
+	spectator_count: z.number().int().optional()
 });
 
 const RawGameStateSchema = z.object({
@@ -44,6 +45,7 @@ const RawGameStateSchema = z.object({
 	players: z.array(RawPlayerSchema),
 	pending_draws: z.number().int().default(0),
 	draw_pile_size: z.number().int().default(0),
+	discard_pile_size: z.number().int().default(0),
 	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
 	turn_time_remaining_ms: z.number().optional(),
 	mode: z.string().optional(),
@@ -80,6 +82,9 @@ export interface GamePlayer {
 	hand?: Card[];
 	/** Indicates whether the player is a bot controlled by the server. */
 	is_bot: boolean;
+	/** How many connected spectators are watching THIS player's POV. Absent on
+	 *  older state payloads; treated as 0. */
+	spectator_count?: number;
 }
 
 /**
@@ -101,6 +106,11 @@ export interface GameState {
 	pending_draws: number;
 	/** How many cards remain in the draw pile — drives the pile's visible stack height and reshuffle detection. */
 	draw_pile_size: number;
+	/** How many cards sit in the discard pile. When the draw pile is empty this
+	 *  tells the client whether a draw can still trigger a reshuffle (the engine
+	 *  keeps the top discard card, so it needs more than one). Absent on older
+	 *  state payloads; treated as 0. */
+	discard_pile_size?: number;
 	/** Origin of the last played card, used to animate it from its source slot. */
 	last_play?: LastPlay;
 	/** Mode of the match ('standard' | 'elimination'). */
@@ -177,8 +187,22 @@ class StoreGame implements SessionStore {
 			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username))
 	);
 
-	/** Number of connected spectators. */
+	/** Number of connected spectators in the whole lobby (kept for legacy
+	 *  callers; the HUD now shows the per-player count instead). */
 	spectatorCount = $derived(this.state?.spectator_count ?? 0);
+
+	/** How many spectators are watching the player currently in view: the
+	 *  local player themselves, or — while spectating — whoever's POV is being
+	 *  watched (explicit choice, else the current turn). This is the "per-user"
+	 *  eye count, not the lobby total. */
+	povSpectatorCount = $derived.by(() => {
+		const players = this.state?.players ?? [];
+		const name = this.isSpectator
+			? (storeSpectator.viewedUsername ?? this.state?.current_turn ?? null)
+			: (this.localPlayer?.username ?? null);
+		if (!name) return 0;
+		return players.find((p) => p.username === name)?.spectator_count ?? 0;
+	});
 
 	/** Current or final placement list in elimination mode. */
 	placements = $derived(this.state?.placements ?? []);
@@ -333,6 +357,7 @@ class StoreGame implements SessionStore {
 				})),
 				pending_draws: stateJson.pending_draws,
 				draw_pile_size: stateJson.draw_pile_size,
+				discard_pile_size: stateJson.discard_pile_size,
 				last_play: stateJson.last_play,
 				mode: stateJson.mode,
 				spectator_count: stateJson.spectator_count,

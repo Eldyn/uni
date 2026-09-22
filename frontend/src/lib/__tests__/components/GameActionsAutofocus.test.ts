@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render } from "@testing-library/svelte";
+import { tick } from "svelte";
 import ActionPickColor from "$components/game/actions/ActionPickColor.svelte";
 import ActionPlayDrawn from "$components/game/actions/ActionPlayDrawn.svelte";
 import ActionChooseTarget from "$components/game/actions/ActionChooseTarget.svelte";
@@ -36,6 +37,29 @@ describe("GameActions keyboard autofocus", () => {
 		expect(playBtn).toBeDefined();
 		expect(document.activeElement).toBe(playBtn);
 		expect(playBtn?.textContent?.trim()).toBe("Play It");
+	});
+
+	it("re-focuses 'Play It' when a new playable card arrives without the prompt unmounting", async () => {
+		storeGame.actionRequired = Action.PlayDrawn;
+		storeGame.actionContext = { card_id: 42, message: "You drew a playable card!" };
+		const { container } = render(ActionPlayDrawn);
+
+		await new Promise((r) => requestAnimationFrame(r));
+		const playBtn = container.querySelector<HTMLButtonElement>(".play-btn");
+		expect(document.activeElement).toBe(playBtn);
+
+		// The player moves focus to the other choice; a second playable card
+		// then arrives. The prompt stays mounted (same action), so only the
+		// action's `update` can bring focus back to "Play It".
+		const keepBtn = container.querySelector<HTMLButtonElement>(".keep-btn");
+		keepBtn?.focus();
+		expect(document.activeElement).toBe(keepBtn);
+
+		storeGame.actionContext = { card_id: 43, message: "You drew a playable card!" };
+		await tick();
+		await new Promise((r) => requestAnimationFrame(r));
+
+		expect(document.activeElement).toBe(playBtn);
 	});
 
 	it("autofocuses first target button when ChooseTarget is required", async () => {

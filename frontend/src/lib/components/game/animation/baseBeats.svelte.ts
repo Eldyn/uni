@@ -18,7 +18,7 @@ import { anchorWithBoardRotation } from "./cardBoardPose";
 import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import { resolvePovPlayer } from "../layout/spectatorPov";
-import { drawPileTopPose, PILE_BASE_HEIGHT } from "../layout/drawPile";
+import { drawPileTopPose, MAX_DRAW_PILE_STACK, PILE_BASE_HEIGHT } from "../layout/drawPile";
 import {
 	DISCARD_CAP,
 	DISCARD_STACK_STEP,
@@ -359,6 +359,13 @@ export function createBaseBeatsWatcher(deps: {
 			const state = storeGame.state;
 			if (!state) return;
 			const placement = deps.getPlacement();
+			// The slide DrawPile3D is currently showing on its top card (0 unless
+			// the local player is hovering the pile on their turn). Read through
+			// a plain getter, NOT reactive state: this watcher is inside an
+			// $effect, so a reactive value would re-run the whole thing on every
+			// hover frame. Applied to every draw seed so a card taken off the
+			// pile lifts from the pose it was visibly in.
+			const drawPileHoverDipZ = deps.bus.getDrawPileHoverDipZ();
 			// "Local" here means the player whose POV we render, not strictly the
 			// authenticated user: while spectating that is the viewed player
 			// (Scene3D's povPlayer), so a play reads as "mine" (seed from the POV
@@ -794,7 +801,8 @@ export function createBaseBeatsWatcher(deps: {
 							const [px, py, pz] = drawPileTopPose(
 								placement,
 								pileSize,
-								storeRenderSettings.drawPileThickness
+								storeRenderSettings.drawPileThickness,
+								drawPileHoverDipZ
 							);
 							deps.cardRegistry.clearDecoration(String(cardId));
 							deps.cardRegistry.ensureEntry(
@@ -816,7 +824,8 @@ export function createBaseBeatsWatcher(deps: {
 								const [topX, topY, topZ] = drawPileTopPose(
 									currentPlacement,
 									pileSize,
-									storeRenderSettings.drawPileThickness
+									storeRenderSettings.drawPileThickness,
+									drawPileHoverDipZ
 								);
 								return [topX, topY + DRAW_HOVER_LIFT, topZ];
 							});
@@ -856,7 +865,8 @@ export function createBaseBeatsWatcher(deps: {
 								const [px, py, pz] = drawPileTopPose(
 									placement,
 									pileSize,
-									storeRenderSettings.drawPileThickness
+									storeRenderSettings.drawPileThickness,
+									drawPileHoverDipZ
 								);
 								deps.cardRegistry.clearDecoration(String(cardId));
 								deps.cardRegistry.seedPose(String(cardId), {
@@ -874,7 +884,8 @@ export function createBaseBeatsWatcher(deps: {
 									const [topX, topY, topZ] = drawPileTopPose(
 										currentPlacement,
 										pileSize,
-										storeRenderSettings.drawPileThickness
+										storeRenderSettings.drawPileThickness,
+										drawPileHoverDipZ
 									);
 									return [topX, topY + DRAW_HOVER_LIFT, topZ];
 								});
@@ -934,7 +945,8 @@ export function createBaseBeatsWatcher(deps: {
 								const [px, py, pz] = drawPileTopPose(
 									placement,
 									prevDrawPileSize ?? 0,
-									storeRenderSettings.drawPileThickness
+									storeRenderSettings.drawPileThickness,
+									drawPileHoverDipZ
 								);
 								deps.cardRegistry.clearDecoration(idString);
 								deps.cardRegistry.seedPose(idString, {
@@ -994,7 +1006,8 @@ export function createBaseBeatsWatcher(deps: {
 							const [px, py, pz] = drawPileTopPose(
 								placement,
 								prevDrawPileSize ?? 0,
-								storeRenderSettings.drawPileThickness
+								storeRenderSettings.drawPileThickness,
+								drawPileHoverDipZ
 							);
 
 							deps.cardRegistry.clearDecoration(cardId);
@@ -1070,7 +1083,8 @@ export function createBaseBeatsWatcher(deps: {
 								const [px, py, pz] = drawPileTopPose(
 									placement,
 									prevDrawPileSize ?? 0,
-									storeRenderSettings.drawPileThickness
+									storeRenderSettings.drawPileThickness,
+									drawPileHoverDipZ
 								);
 								deps.cardRegistry.clearDecoration(cardId);
 								deps.cardRegistry.seedPose(cardId, {
@@ -1133,7 +1147,11 @@ export function createBaseBeatsWatcher(deps: {
 				const currentDrawPileSize = state!.draw_pile_size;
 				if (prevDrawPileSize !== null && detectReshuffle(prevDrawPileSize, currentDrawPileSize)) {
 					const amountToReshuffle = currentDrawPileSize - prevDrawPileSize;
-					deps.bus.reshuffleDrawPileSize = prevDrawPileSize;
+					// The animated pile must never read as taller than the render
+					// cap: seed the reshuffle at the previous (already-capped) size
+					// so a jump in `draw_pile_size` cannot flash the full stack
+					// before the bus takes over the count.
+					deps.bus.reshuffleDrawPileSize = Math.min(prevDrawPileSize, MAX_DRAW_PILE_STACK);
 
 					const existingToReshuffle = deps.bus.discardHistory.slice(0, -1);
 					// If client-side discardHistory has fewer cards than amountToReshuffle
@@ -1184,7 +1202,7 @@ export function createBaseBeatsWatcher(deps: {
 						placement,
 						isAlreadySliced: true,
 						onCardArrive: (cardIndex, totalCards) => {
-							const newSize = prevDrawPileSize! + cardIndex + 1;
+							const newSize = Math.min(prevDrawPileSize! + cardIndex + 1, MAX_DRAW_PILE_STACK);
 							deps.bus.reshuffleDrawPileSize = newSize;
 							deps.bus.onReshuffleCardLanding = {
 								index: cardIndex,

@@ -23,6 +23,7 @@
 	import { storeGame, type Card, type CardValue } from "$stores/game.svelte";
 	import type { CardBus } from "./card-bus.svelte";
 	import { computeHandLine, centerSlotIndex } from "./layout/handLine";
+	import { storeModal } from "$stores/modal.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 
 	const VALUE_LABELS: Partial<Record<CardValue, string>> = {
@@ -148,13 +149,25 @@
 	$effect(() => {
 		function onWindowKeydown(event: KeyboardEvent) {
 			if (!storeGame.state || hand.length === 0) return;
+
+			// A prompt or modal owns the keyboard while it is open: it
+			// autofocuses its own control, and moving hand focus out from
+			// under it would leave Enter playing a card instead of answering
+			// the prompt ("pick a color", "play it", "select a target", ...).
+			if (storeGame.actionRequired !== null || storeModal.isAnyOpen) return;
+
 			const target = event.target as HTMLElement | null;
-			if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) {
+			if (
+				target?.tagName === "INPUT" ||
+				target?.tagName === "TEXTAREA" ||
+				target?.isContentEditable
+			) {
 				return;
 			}
 
 			const currentOriginId = focusedId ?? selectedId ?? null;
-			const currentIndex = currentOriginId === null ? -1 : hand.findIndex((c) => c.id === currentOriginId);
+			const currentIndex =
+				currentOriginId === null ? -1 : hand.findIndex((c) => c.id === currentOriginId);
 			const defaultIndex = getDefaultFocusIndex();
 
 			switch (event.key) {

@@ -32,6 +32,39 @@ describe("CardBus.setLocalHandSnapshot", () => {
 	});
 });
 
+describe("CardBus draw-pile hover slide", () => {
+	it("defaults to 0 and round-trips a set value", () => {
+		const bus = new CardBus();
+		expect(bus.getDrawPileHoverDipZ()).toBe(0);
+
+		bus.setDrawPileHoverDipZ(0.06);
+		expect(bus.getDrawPileHoverDipZ()).toBe(0.06);
+	});
+
+	it("does not re-run an effect that reads it (non-reactive by design)", () => {
+		const bus = new CardBus();
+		let runs = 0;
+
+		const dispose = $effect.root(() => {
+			$effect(() => {
+				runs++;
+				bus.getDrawPileHoverDipZ();
+			});
+		});
+
+		flushSync();
+		expect(runs).toBe(1);
+
+		// DrawPile3D writes this every GSAP frame; if it were $state the
+		// baseBeats watcher (also an $effect) would re-run on each frame.
+		bus.setDrawPileHoverDipZ(0.06);
+		flushSync();
+		expect(runs).toBe(1);
+
+		dispose();
+	});
+});
+
 describe("CardBus in-flight counters", () => {
 	it("increments and decrements in-flight draw count per user", () => {
 		const bus = new CardBus();
@@ -114,4 +147,3 @@ describe("CardBus in-flight counters", () => {
 		dispose();
 	});
 });
-

@@ -11,7 +11,16 @@ function makeCtx(pose: FlightPose): RenderContext {
 
 describe("flipRenderer", () => {
 	it("tweens flipDeg, never touches spinDeg, and survives a skip via timeline.set for `turned`", () => {
-		const pose: FlightPose = { x: 0, y: 0, z: 0, spinDeg: 42, flipDeg: 0, scale: 1, turned: false, opacity: 1 };
+		const pose: FlightPose = {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 42,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		};
 		const ctx = makeCtx(pose);
 		const timeline = flipRenderer({ op: "flip", target: "1", payload: { turned: true } }, ctx);
 

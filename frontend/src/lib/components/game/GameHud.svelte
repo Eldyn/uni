@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
-	import { storeAuth } from "$stores/auth.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import ExitConfirmModal from "./ExitConfirmModal.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -32,16 +31,16 @@
 				</span>
 			{/if}
 
-			{#if storeGame.spectatorCount > 0}
+			{#if storeGame.povSpectatorCount > 0}
 				<span
 					class="spectator-counter pixel-corners"
 					title={m.game_spectator_count(
-						{ count: storeGame.spectatorCount },
+						{ count: storeGame.povSpectatorCount },
 						{ locale: storeI18n.locale }
 					)}
 				>
 					<i class="hn hn-eye pix"></i>
-					{storeGame.spectatorCount}
+					{storeGame.povSpectatorCount}
 				</span>
 			{/if}
 
@@ -66,33 +65,6 @@
 				{/if}
 			</div>
 
-			{#if storeGame.state?.mode === "elimination" && storeGame.placements.length > 0}
-				<div
-					class="elimination-standings pixel-corners"
-					title={m.game_placement_standings({}, { locale: storeI18n.locale })}
-				>
-					{#each storeGame.placements as name, i}
-						{@const rank = i + 1}
-						{@const rankClass =
-							storeGame.state?.is_over === true
-								? rank === 1
-									? "text-gold"
-									: rank === 2
-										? "rank-silver"
-										: rank === 3
-											? "rank-bronze"
-											: "text-text/50"
-								: "text-text/50"}
-						<span
-							class="placement-chip pixel-corners {rankClass}"
-							class:is-me={name === storeAuth.username}
-						>
-							{m.game_placement_rank({ rank, name }, { locale: storeI18n.locale })}
-						</span>
-					{/each}
-				</div>
-			{/if}
-
 			{#if !storeGame.state?.is_over}
 				<button class="exit-btn pixel-corners" onclick={handleExitClick}>
 					{m.game_hud_exit({}, { locale: storeI18n.locale })}
@@ -108,7 +80,7 @@
 	.hud-container {
 		color: var(--table-text);
 		font-weight: bold;
-		font-size: 1.2rem;
+		font-size: 1rem;
 		display: flex;
 		align-items: center;
 		gap: 10px;
@@ -122,8 +94,8 @@
 	.hud-bar {
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-2) var(--space-3);
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-2);
 		--pc-fill: var(--surface-deep);
 		--pc-border: var(--border);
 		--pc-width: 2px;
@@ -139,7 +111,7 @@
 		.hud-container {
 			width: 100%;
 			gap: 6px;
-			font-size: 1rem;
+			font-size: 0.9rem;
 		}
 
 		.hud-bar {
@@ -150,7 +122,7 @@
 		.timer {
 			flex: none;
 			padding: 4px 6px;
-			font-size: 1rem;
+			font-size: 0.95rem;
 		}
 
 		.exit-btn {
@@ -184,16 +156,21 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 3px;
+		gap: 2px;
 		flex: none;
 	}
 
 	/* Pixel digits on a dark tile: the reference's chunky readout, and the
-	   only element in the bar allowed to grow. */
+	   only element in the bar allowed to grow. A fixed min-width keeps the
+	   chip from resizing as the digits change ("0:00" vs "12:34"), which made
+	   the whole HUD jitter on every tick of the timer. */
 	.timer {
-		padding: 7px 10px;
+		padding: 5px 8px;
+		min-width: 4ch;
+		text-align: center;
+		font-variant-numeric: tabular-nums;
 		font-family: var(--pixel);
-		font-size: 1.35rem;
+		font-size: 1rem;
 		line-height: 1;
 		letter-spacing: 0.02em;
 		color: var(--text-h);
@@ -204,7 +181,7 @@
 	   taller avatar row instead of running wide beside it. */
 	.gamemode-label {
 		font-family: var(--tiny);
-		font-size: 0.7rem;
+		font-size: 0.6rem;
 		line-height: 1;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -215,7 +192,7 @@
 
 	.ranked-badge {
 		font-family: var(--tiny);
-		font-size: 0.7rem;
+		font-size: 0.6rem;
 		line-height: 1;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -227,11 +204,11 @@
 	.exit-btn {
 		font-family: var(--pixel);
 		font-weight: bold;
-		font-size: 0.95rem;
+		font-size: 0.85rem;
 		color: #fff;
 		background: var(--danger);
 		border: none;
-		padding: 8px 18px;
+		padding: 6px 12px;
 		cursor: pointer;
 		flex: none;
 		filter: drop-shadow(0 3px 0 var(--pixel-shadow));
@@ -242,11 +219,11 @@
 	}
 
 	.spectating-badge {
-		padding: 4px 8px;
+		padding: 3px 6px;
 		background: var(--accent-violet);
 		color: #fff;
 		font-family: var(--tiny);
-		font-size: 0.7rem;
+		font-size: 0.62rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		display: inline-flex;
@@ -256,45 +233,13 @@
 	}
 
 	.spectator-counter {
-		padding: 4px 8px;
+		padding: 3px 6px;
 		background: var(--surface-2);
 		font-family: var(--tiny);
-		font-size: 0.8rem;
+		font-size: 0.7rem;
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
 		flex: none;
-	}
-
-	.elimination-standings {
-		display: flex;
-		gap: 4px;
-		background: var(--surface-2);
-		padding: 3px 8px;
-		font-size: 0.75rem;
-		min-width: 0;
-		overflow: hidden;
-	}
-
-	.placement-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 2px 8px;
-		background: var(--surface-2);
-		transition: background 0.1s ease;
-		white-space: nowrap;
-	}
-
-	.placement-chip.is-me {
-		box-shadow: inset 0 0 0 3px var(--accent);
-	}
-
-	.rank-silver {
-		color: #d4d4d8;
-	}
-
-	.rank-bronze {
-		color: #cd7f32;
 	}
 </style>

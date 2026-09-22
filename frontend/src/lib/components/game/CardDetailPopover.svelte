@@ -10,6 +10,7 @@
 	import RichText from "$components/common/RichText.svelte";
 	import { clickOutside } from "$components/common/actions/clickOutside";
 	import { getCardInfo } from "$lib/glossary/cardDescriptions";
+	import { CARD_COLOR_MAP } from "$lib/palette";
 	import type { CardValue } from "$stores/game.svelte";
 	import { storeCardDetail } from "$stores/cardDetail.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -81,6 +82,14 @@
 				)
 			: null
 	);
+
+	// Glossary links in the card's description take the card's own color, so a
+	// red card's tooltip reads red, a wild's reads its neutral face color.
+	let linkColor = $derived(
+		storeCardDetail.current
+			? (CARD_COLOR_MAP[storeCardDetail.current.card.type] ?? undefined)
+			: undefined
+	);
 </script>
 
 {#if storeCardDetail.current && info}
@@ -92,7 +101,7 @@
 		style:left="{pos.x}px"
 		style:top="{pos.y}px"
 	>
-		<TooltipCard title={info.title} onclose={() => storeCardDetail.close()}>
+		<TooltipCard title={info.title} {linkColor} onclose={() => storeCardDetail.close()}>
 			<RichText text={info.description} allowKeywords={true} />
 		</TooltipCard>
 	</div>

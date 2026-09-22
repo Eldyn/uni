@@ -3,8 +3,9 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 
 import AccessibleHandControls from "$components/game/AccessibleHandControls.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
-import { storeGame, type Card } from "$stores/game.svelte";
+import { storeGame, Action, type Card } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
+import { storeModal } from "$stores/modal.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 
 function card(id: number, overrides: Partial<Card> = {}): Card {
@@ -50,6 +51,7 @@ describe("AccessibleHandControls", () => {
 			draw_pile_size: 10
 		};
 		storeGame.isActionPending = false;
+		storeGame.actionRequired = null;
 		storeRenderSettings.clickToPlay = true;
 	});
 
@@ -58,6 +60,7 @@ describe("AccessibleHandControls", () => {
 		vi.restoreAllMocks();
 		storeGame.state = null;
 		storeGame.isActionPending = false;
+		storeGame.actionRequired = null;
 		storeRenderSettings.clickToPlay = true;
 	});
 
@@ -192,7 +195,11 @@ describe("AccessibleHandControls", () => {
 
 	it("respects bus.localHandSnapshot.orderIds for keyboard navigation order", async () => {
 		const bus = new CardBus();
-		storeGame.state!.players[0].hand = [card(1, { value: "1" }), card(2, { value: "2" }), card(3, { value: "3" })];
+		storeGame.state!.players[0].hand = [
+			card(1, { value: "1" }),
+			card(2, { value: "2" }),
+			card(3, { value: "3" })
+		];
 		storeGame.state!.players[0].card_count = 3;
 		bus.setLocalHandSnapshot({ orderIds: [3, 1, 2], scrollEm: 0, maxHalfSpanEm: 0 });
 
@@ -225,9 +232,7 @@ describe("AccessibleHandControls", () => {
 
 	it("defaults focus to the center slot of the viewport when focusedId is null", async () => {
 		const bus = new CardBus();
-		storeGame.state!.players[0].hand = [
-			card(1), card(2), card(3), card(4), card(5)
-		];
+		storeGame.state!.players[0].hand = [card(1), card(2), card(3), card(4), card(5)];
 		storeGame.state!.players[0].card_count = 5;
 		bus.setLocalHandSnapshot({ orderIds: [1, 2, 3, 4, 5], scrollEm: 0, maxHalfSpanEm: 20 });
 
@@ -238,9 +243,7 @@ describe("AccessibleHandControls", () => {
 	});
 
 	it("starts arrow navigation from selectedId when focusedId is null", async () => {
-		storeGame.state!.players[0].hand = [
-			card(1), card(2), card(3), card(4), card(5)
-		];
+		storeGame.state!.players[0].hand = [card(1), card(2), card(3), card(4), card(5)];
 		storeGame.state!.players[0].card_count = 5;
 
 		const { onFocusChange } = renderControls({ focusedId: null, selectedId: 2 });
@@ -295,5 +298,25 @@ describe("AccessibleHandControls", () => {
 
 		expect(onFocusChange).toHaveBeenCalledWith(9);
 		expect(setScrollSpy).not.toHaveBeenCalled();
+	});
+
+	it("leaves the keyboard to an open action prompt instead of moving hand focus", async () => {
+		const { onFocusChange } = renderControls({ focusedId: 1 });
+		storeGame.actionRequired = Action.ChooseType;
+
+		await fireEvent.keyDown(window, { key: "ArrowRight" });
+
+		expect(onFocusChange).not.toHaveBeenCalled();
+	});
+
+	it("leaves the keyboard to an open modal instead of moving hand focus", async () => {
+		const { onFocusChange } = renderControls({ focusedId: 1 });
+		storeModal.register();
+		try {
+			await fireEvent.keyDown(window, { key: "ArrowRight" });
+			expect(onFocusChange).not.toHaveBeenCalled();
+		} finally {
+			storeModal.unregister();
+		}
 	});
 });

@@ -61,6 +61,11 @@ describe("drawPileTopPose", () => {
 			placement.drawPileZ - (renderedCount - 1) * PILE_PEEK_Z * placement.drawPileScale
 		);
 	});
+
+	it("offsets the top pose by a signed hover slide along Z", () => {
+		const [, , z] = drawPileTopPose(placement, 4, "capped", 0.06);
+		expect(z).toBe(placement.drawPileZ - 3 * PILE_PEEK_Z * placement.drawPileScale + 0.06);
+	});
 });
 
 describe("drawPileStackZ", () => {

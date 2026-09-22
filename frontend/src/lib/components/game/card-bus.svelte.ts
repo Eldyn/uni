@@ -3,6 +3,21 @@ import { SvelteMap } from "svelte/reactivity";
 import type { Card, CardType } from "$stores/game.svelte";
 import { appendDiscard, DISCARD_CAP, paintTopWild, type DiscardEntry } from "./layout/discardPile";
 
+/** A local play committed by dropping a dragged card on the discard pile. The
+ *  card's live (dropped) pose travels with it so baseBeats's play flight can
+ *  start from where the card actually is, instead of localCardAnchor snapping
+ *  it back to its old hand slot for a frame before flying. */
+export interface DragPlaySeed {
+	id: number;
+	x: number;
+	y: number;
+	z: number;
+	spinDeg: number;
+	flipDeg: number;
+	scale: number;
+	turned: boolean;
+}
+
 export class CardBus {
 	/** Card currently shown on top of the discard pile. Held back during a play
 	 *  flight so the new top card only appears once the animation has landed. */
@@ -52,9 +67,17 @@ export class CardBus {
 	 *  a play lands before LocalHand3D's own effect has re-run for the same
 	 *  state update (an $effect-run-order race), rather than defaulting to
 	 *  hand-center (see baseBeats.svelte.ts's localCardAnchor). */
-	previousLocalHandSnapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number } | null = null;
+	previousLocalHandSnapshot: {
+		orderIds: number[];
+		scrollEm: number;
+		maxHalfSpanEm: number;
+	} | null = null;
 
-	setLocalHandSnapshot(snapshot: { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number }): void {
+	setLocalHandSnapshot(snapshot: {
+		orderIds: number[];
+		scrollEm: number;
+		maxHalfSpanEm: number;
+	}): void {
 		// untrack: this is called from LocalHand3D's own $effect, which always
 		// writes a brand-new localHandSnapshot object on every run (no equality
 		// guard). A plain reactive read here would register as a dependency of
@@ -111,6 +134,44 @@ export class CardBus {
 
 	isHoldingOpponent(username: string): boolean {
 		return this.holdingOpponents.has(username);
+	}
+
+	/** True while a local card is being dragged and currently sits over the
+	 *  discard pile as a valid drop. Drives the pile's own drop highlight
+	 *  (DiscardPile3D reads it directly rather than threading a prop through
+	 *  Scene3D, since the drag is owned by the hand). */
+	draggingOverDiscard = $state(false);
+
+	setDraggingOverDiscard(over: boolean) {
+		this.draggingOverDiscard = over;
+	}
+
+	/** World-space Z offset DrawPile3D currently applies to its top card while
+	 *  the local player hovers the pile (positive slides the card toward the
+	 *  player / down-screen). Deliberately a plain field, NOT `$state`:
+	 *  DrawPile3D writes it every GSAP frame, and baseBeats' watcher lives in an
+	 *  `$effect` reading `storeGame.state` — a reactive value would re-run that
+	 *  whole watcher on every animation frame. baseBeats reads it only at the
+	 *  instant it seeds a draw flight, so the departing card starts from the
+	 *  offset pose it was visibly in rather than popping back to the pile's
+	 *  resting top. */
+	#drawPileHoverDipZ = 0;
+
+	getDrawPileHoverDipZ(): number {
+		return this.#drawPileHoverDipZ;
+	}
+
+	setDrawPileHoverDipZ(value: number): void {
+		this.#drawPileHoverDipZ = value;
+	}
+
+	/** The drop-play seed described on `DragPlaySeed`. Consumed and cleared by
+	 *  baseBeats's processPlay; also cleared when a new gesture starts so a
+	 *  play the server never confirmed can't leak into a later one. */
+	pendingLocalDragPlay = $state<DragPlaySeed | null>(null);
+
+	setPendingLocalDragPlay(seed: DragPlaySeed | null) {
+		this.pendingLocalDragPlay = seed;
 	}
 
 	/** Drops exactly the `reshuffledCount` oldest entries that were swept into

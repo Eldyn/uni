@@ -252,4 +252,48 @@ describe("DrawPile3D", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		expect(cardMeshInstances.length).toBe(30);
 	});
+
+	it("keeps a tappable placeholder pile when the draw pile is empty but a reshuffle is available", () => {
+		const registry = new CardRegistry();
+
+		storeGame.state!.draw_pile_size = 0;
+		storeGame.state!.discard_pile_size = 12;
+
+		render(DrawPile3D, {
+			props: { placement: defaultPlacement },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		// A single dimmed back stands in for the exhausted draw pile so there is
+		// something to tap to trigger the reshuffle.
+		expect(cardMeshInstances.length).toBe(1);
+
+		const hitbox = meshInstances.find(
+			(m) => typeof m.onclick === "function" && Array.isArray(m.position)
+		);
+		expect(hitbox).toBeDefined();
+
+		const drawSpy = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});
+		drawSpy.mockClear();
+		hitbox!.onclick!({});
+		expect(drawSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the pile when neither the draw pile nor the discard pile can produce a draw", () => {
+		const registry = new CardRegistry();
+
+		storeGame.state!.draw_pile_size = 0;
+		storeGame.state!.discard_pile_size = 1;
+
+		render(DrawPile3D, {
+			props: { placement: defaultPlacement },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		expect(cardMeshInstances.length).toBe(0);
+		const hitbox = meshInstances.find(
+			(m) => typeof m.onclick === "function" && Array.isArray(m.position)
+		);
+		expect(hitbox).toBeUndefined();
+	});
 });

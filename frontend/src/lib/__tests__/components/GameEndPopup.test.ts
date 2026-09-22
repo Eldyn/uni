@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/svelte";
+import { tick } from "svelte";
 
 const { mockGame, mockAuth } = vi.hoisted(() => ({
 	mockGame: {
@@ -91,5 +92,15 @@ describe("GameEndPopup podium finish", () => {
 
 		expect(titleEl()).toHaveTextContent("YOU LOST!");
 		expect(titleEl()).toHaveClass("result--lose");
+	});
+
+	it("autofocuses the Back to Lobby button when the match ends", async () => {
+		mockAuth.username = "Alice";
+		setEndState({ mode: "standard", placements: ["Alice", "Bob"] });
+
+		render(GameEndPopup);
+		await tick();
+
+		expect(document.activeElement).toBe(screen.getByRole("button", { name: "Back to Lobby" }));
 	});
 });

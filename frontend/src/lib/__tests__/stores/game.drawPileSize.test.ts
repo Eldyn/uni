@@ -74,9 +74,9 @@ describe("storeGame draw_pile_size", () => {
 		console.log("Available handlers:", Object.keys(handlers));
 		if (!handler) {
 			throw new Error(
-				`MatchStateUpdated handler was not registered. Registered: ${Object.keys(
-					handlers
-				).join(", ")}`
+				`MatchStateUpdated handler was not registered. Registered: ${Object.keys(handlers).join(
+					", "
+				)}`
 			);
 		}
 
@@ -93,5 +93,24 @@ describe("storeGame draw_pile_size", () => {
 		});
 
 		expect(storeGame.state?.draw_pile_size).toBe(42);
+	});
+
+	it("parses discard_pile_size off the match_state payload", () => {
+		const handler = (globalThis as any).__wsTestHandlers?.["match_state_updated"];
+		if (!handler) throw new Error("MatchStateUpdated handler was not registered.");
+
+		handler({
+			match_state: {
+				active_type: 0,
+				current_turn: "test_player",
+				play_direction: 1,
+				players: [],
+				draw_pile_size: 0,
+				discard_pile_size: 13
+			},
+			action_required: null
+		});
+
+		expect(storeGame.state?.discard_pile_size).toBe(13);
 	});
 });

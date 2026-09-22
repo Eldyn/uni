@@ -1,16 +1,9 @@
 <script lang="ts">
 	import { storeGame, Action } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
+	import { autofocus } from "$lib/actions/autofocus";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
-
-	function autofocus(node: HTMLElement, enabled = true) {
-		if (enabled) {
-			requestAnimationFrame(() => {
-				node.focus();
-			});
-		}
-	}
 
 	const TYPE_BUTTONS = [
 		{ name: "red", typeIndex: 0 },
@@ -23,7 +16,9 @@
 {#if storeGame.actionRequired === Action.ChooseType}
 	<div class="inline-action-container">
 		<div class="cute-bubble pixel-corners">
-			<h2 class="choose-color-text">{m.game_action_choose_color({}, { locale: storeI18n.locale })}</h2>
+			<h2 class="choose-color-text">
+				{m.game_action_choose_color({}, { locale: storeI18n.locale })}
+			</h2>
 			<br />
 			<div class="color-buttons">
 				{#each TYPE_BUTTONS as { name, typeIndex }, index}

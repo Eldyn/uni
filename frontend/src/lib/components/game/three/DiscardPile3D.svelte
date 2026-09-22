@@ -45,8 +45,12 @@
 	// CardMesh3D's own `shadow` decoration (rather than a second, separately
 	// offset mesh here), so there is one shadow per card — the duplicate mesh
 	// was the visible "double shadow" — and its offset stays world-fixed as the
-	// card's seed rotation spins it.
-	const SHADOW_OFFSET = 0.09;
+	// card's seed rotation spins it. The offset is deliberately small and the
+	// silhouette scaled past the card: a wide directional offset read as the
+	// whole pile hovering above its own shadow, while a 6% rim hugs every edge
+	// as a contact shadow that still separates same-coloured neighbours.
+	const SHADOW_OFFSET = 0.03;
+	const SHADOW_SCALE = 1.06;
 	const SHADOW_OPACITY = 0.22;
 	// Half the pile's CURRENT (compressed) step, not the comfortable baseline:
 	// once a tall pile compresses its step below the baseline, a baseline-sized
@@ -123,7 +127,8 @@
 							texture: shadowTexture,
 							offsetX: SHADOW_OFFSET,
 							dropZ: shadowDropY,
-							opacity: SHADOW_OPACITY
+							opacity: SHADOW_OPACITY,
+							scale: SHADOW_SCALE
 						}
 					: undefined,
 				highlight: dropArmed && i === topIndex ? { pulse: true } : undefined

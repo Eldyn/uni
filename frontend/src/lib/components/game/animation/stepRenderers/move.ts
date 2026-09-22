@@ -21,7 +21,8 @@ export function moveRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 
 	const toScale = step.payload?.toScale;
 	const toSpinDeg = step.payload?.toSpinDeg;
-	const duration = typeof step.payload?.duration === "number" ? step.payload.duration : MOVE_DURATION_S;
+	const duration =
+		typeof step.payload?.duration === "number" ? step.payload.duration : MOVE_DURATION_S;
 	const ease = typeof step.payload?.ease === "string" ? step.payload.ease : MOVE_EASE;
 
 	const [dx, dy, dz] = ctx.resolveAnchor(to);
@@ -37,45 +38,65 @@ export function moveRenderer(step: AnimationStep, ctx: RenderContext): gsap.core
 	});
 
 	const timeline = gsap.timeline();
-	timeline.to(pose, {
-		x: dx,
-		z: dz,
-		duration,
-		ease
-	}, 0);
+	timeline.to(
+		pose,
+		{
+			x: dx,
+			z: dz,
+			duration,
+			ease
+		},
+		0
+	);
 	// Opponent plays/draws seed at their (smaller) seat card scale and grow
 	// into the discard pile's own scale mid-flight — without this the card
 	// stays pinned at whichever scale it was seeded with for the whole move.
 	if (typeof toScale === "number") {
-		timeline.to(pose, {
-			scale: toScale,
-			duration,
-			ease
-		}, 0);
+		timeline.to(
+			pose,
+			{
+				scale: toScale,
+				duration,
+				ease
+			},
+			0
+		);
 	}
 	// A landing card rotates INTO the discard pile's own random scatter angle
 	// over the flight instead of teleporting onto it the instant the flight
 	// hands off to the pile's static render — that instant snap is what read
 	// as the card "magically" flipping to a different angle.
 	if (typeof toSpinDeg === "number") {
-		timeline.to(pose, {
-			spinDeg: toSpinDeg,
-			duration,
-			ease
-		}, 0);
+		timeline.to(
+			pose,
+			{
+				spinDeg: toSpinDeg,
+				duration,
+				ease
+			},
+			0
+		);
 	}
 	// The arc: up then back down, independent of the X/Z tween above so it
 	// reads as a toss rather than a straight glide.
-	timeline.to(pose, {
-		y: dy + ARC_HEIGHT,
-		duration: duration / 2,
-		ease: "power1.out"
-	}, 0);
-	timeline.to(pose, {
-		y: dy,
-		duration: duration / 2,
-		ease: "power1.in"
-	}, duration / 2);
+	timeline.to(
+		pose,
+		{
+			y: dy + ARC_HEIGHT,
+			duration: duration / 2,
+			ease: "power1.out"
+		},
+		0
+	);
+	timeline.to(
+		pose,
+		{
+			y: dy,
+			duration: duration / 2,
+			ease: "power1.in"
+		},
+		duration / 2
+	);
 
 	if (typeof step.payload?.onComplete === "function") {
 		const cb = step.payload.onComplete;
