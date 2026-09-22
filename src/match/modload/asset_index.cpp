@@ -61,8 +61,12 @@ std::string AssetContentType(const std::string& path) {
 }
 
 AssetIndex AssetIndex::Build(const LoadResult& loaded) {
+    return BuildFromMods(loaded.mods);
+}
+
+AssetIndex AssetIndex::BuildFromMods(const std::vector<LoadedMod>& mods) {
     AssetIndex index;
-    for (const LoadedMod& mod : loaded.mods) {
+    for (const LoadedMod& mod : mods) {
         for (const AssetBundleDef& bundle : mod.assets) {
             for (const AssetSlot& slot : bundle.slots) {
                 for (const AssetVariant& variant : slot.variants) {
@@ -99,6 +103,19 @@ const AssetEntry* AssetIndex::Resolve(const std::string& mod_id,
         if (entry.mod_id == mod_id && entry.bundle_id == bundle_id
             && entry.slot == slot && ToString(entry.tier) == tier
             && entry.hash == hash) {
+            return &entry;
+        }
+    }
+    return nullptr;
+}
+
+const AssetEntry* AssetIndex::Find(const std::string& mod_id,
+                                   const std::string& bundle_id,
+                                   const std::string& slot,
+                                   AssetTier tier) const {
+    for (const AssetEntry& entry : entries_) {
+        if (entry.mod_id == mod_id && entry.bundle_id == bundle_id
+            && entry.slot == slot && entry.tier == tier) {
             return &entry;
         }
     }

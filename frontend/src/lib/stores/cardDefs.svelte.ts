@@ -17,19 +17,30 @@
 
 import { z } from "zod";
 import { DefsPayloadSchema, MatchStartPayloadSchema } from "$lib/generated/schemas";
+import type { FaceSlotVariant } from "$components/game/three/faceResolution";
 
 /** @brief Declarative face as serialized in a `defs` kind entry. */
 export interface KindFace {
-	/** Face kind token: `text` | `art_ref` | `emoji` | `blank`. */
+	/** Face kind token: `text` | `image` | `emoji` | `blank`. */
 	kind: string;
 	/** `text` faces: the card's color. */
 	color?: string;
 	/** `text` / `emoji` faces: the value or glyph. */
 	label?: string;
-	/** `art_ref` faces: the art URL (placeholder in phase 1). */
+	/** Legacy placeholder art URL. */
 	url?: string;
+	/** `image` faces: the referenced asset bundle id. */
+	art?: string;
+	/** Layer composition. */
+	art_mode?: "inset" | "replace" | "overlay";
+	/** Art fit inside the target rect. */
+	art_fit?: "contain" | "cover" | "stretch";
+	/** Layers drawn over the art. */
+	keep?: string[];
 	/** Face content version — feeds the client face hash. */
 	art_version?: number;
+	/** Resolved asset variants per slot; file variants carry url+hash. */
+	slots?: Record<string, FaceSlotVariant[]>;
 }
 
 /** @brief One row of the frozen kind table, keyed both ways. */
@@ -46,12 +57,24 @@ export interface KindDef {
 	tags: string[];
 }
 
+const RawVariantSchema = z.looseObject({
+	tier: z.enum(["high", "medium", "low"]),
+	url: z.string().optional(),
+	hash: z.string().optional(),
+	value: z.string().optional()
+});
+
 const RawFaceSchema = z.looseObject({
 	kind: z.string().optional(),
 	color: z.string().optional(),
 	label: z.string().optional(),
 	url: z.string().optional(),
-	art_version: z.number().int().optional()
+	art: z.string().optional(),
+	art_mode: z.enum(["inset", "replace", "overlay"]).optional(),
+	art_fit: z.enum(["contain", "cover", "stretch"]).optional(),
+	keep: z.array(z.string()).optional(),
+	art_version: z.number().int().optional(),
+	slots: z.record(z.string(), z.array(RawVariantSchema)).optional()
 });
 
 const RawKindSchema = z.looseObject({
@@ -83,7 +106,12 @@ function normalizeFace(face: z.infer<typeof RawFaceSchema> | undefined): KindFac
 		color: face.color,
 		label: face.label,
 		url: face.url,
-		art_version: face.art_version
+		art: face.art,
+		art_mode: face.art_mode,
+		art_fit: face.art_fit,
+		keep: face.keep,
+		art_version: face.art_version,
+		slots: face.slots
 	};
 }
 

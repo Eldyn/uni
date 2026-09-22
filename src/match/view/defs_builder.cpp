@@ -1,6 +1,7 @@
 #include <match/view/defs_builder.hpp>
 
 #include <match/engine/match_assembler.hpp>
+#include <match/modload/asset_index.hpp>
 #include <match/view/event_sink.hpp>
 
 #include <nlohmann/json.hpp>
@@ -32,6 +33,60 @@ json FaceJson(const match::modload::FaceSpec& face) {
     return out;
 }
 
+/** @brief Resolve one card's `face.slots` from its asset bundle. */
+json SlotsJson(const match::modload::LoadedMod& mod,
+               const std::string& bundle_id,
+               const match::modload::AssetIndex& index) {
+    const match::modload::AssetBundleDef* bundle = nullptr;
+    for (const auto& candidate : mod.assets) {
+        if (candidate.id == bundle_id) {
+            bundle = &candidate;
+            break;
+        }
+    }
+    if (bundle == nullptr) return json::object();
+
+    json slots = json::object();
+    for (const match::modload::AssetSlot& slot : bundle->slots) {
+        json variants = json::array();
+        for (const match::modload::AssetVariant& variant : slot.variants) {
+            if (variant.value.has_value()) {
+                variants.push_back(
+                    {{"tier", match::modload::ToString(variant.tier)},
+                     {"value", *variant.value}});
+                continue;
+            }
+            const match::modload::AssetEntry* entry = index.Find(
+                mod.manifest.id, bundle_id, slot.name, variant.tier);
+            if (entry == nullptr) continue;
+            variants.push_back(
+                {{"tier", match::modload::ToString(entry->tier)},
+                 {"url", match::modload::AssetIndex::Url(
+                             entry->mod_id, entry->bundle_id, entry->slot,
+                             entry->tier, entry->hash)},
+                 {"hash", entry->hash}});
+        }
+        if (!variants.empty()) slots[slot.name] = std::move(variants);
+    }
+    return slots;
+}
+
+/** @brief A face plus the resolved slots of its asset bundle, if any. */
+json FaceJsonWithSlots(const match::modload::FaceSpec& face,
+                       const match::modload::LoadedMod* mod,
+                       const match::modload::AssetIndex& index) {
+    json out = FaceJson(face);
+    if (face.art.has_value()) out["art"] = *face.art;
+    out["art_mode"] = face.art_mode;
+    out["art_fit"] = face.art_fit;
+    if (!face.keep.empty()) out["keep"] = face.keep;
+    if (mod != nullptr && face.art.has_value()) {
+        json slots = SlotsJson(*mod, *face.art, index);
+        if (!slots.empty()) out["slots"] = std::move(slots);
+    }
+    return out;
+}
+
 }  // namespace
 
 nlohmann::json DefsBuilder::Build(
@@ -41,11 +96,18 @@ nlohmann::json DefsBuilder::Build(
     using match::modload::LoadedMod;
 
     // INFO: faces and tags are not carried on the assembly, so the loaded mod
-    //       content is the source; index it by the full kind id.
-    std::unordered_map<std::string, const CardDef*> by_kind;
+    //       content is the source; index it by the full kind id. The owning mod
+    //       is kept so the face's asset slots can be resolved.
+    struct KindSource {
+        const LoadedMod* mod = nullptr;
+        const CardDef* card = nullptr;
+    };
+    const match::modload::AssetIndex asset_index =
+        match::modload::AssetIndex::BuildFromMods(mods);
+    std::unordered_map<std::string, KindSource> by_kind;
     for (const LoadedMod& mod : mods) {
         for (const CardDef& card : mod.cards) {
-            by_kind[card.kind_id] = &card;
+            by_kind[card.kind_id] = KindSource{&mod, &card};
         }
     }
 
@@ -68,9 +130,10 @@ nlohmann::json DefsBuilder::Build(
             json face = json::object();
             json tags = json::array();
             const auto it = by_kind.find(kind_id);
-            if (it != by_kind.end() && it->second != nullptr) {
-                face = FaceJson(it->second->face);
-                tags = it->second->tags;
+            if (it != by_kind.end() && it->second.card != nullptr) {
+                face = FaceJsonWithSlots(it->second.card->face, it->second.mod,
+                                         asset_index);
+                tags = it->second.card->tags;
             } else {
                 // WARN: a frozen kind with no loaded def is a content
                 //       inconsistency; keep the index slot with a blank face

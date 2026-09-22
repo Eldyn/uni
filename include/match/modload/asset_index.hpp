@@ -57,6 +57,9 @@ class AssetIndex {
      */
     static AssetIndex Build(const LoadResult& loaded);
 
+    /** @brief Same as `Build`, for callers holding only the mod list. */
+    static AssetIndex BuildFromMods(const std::vector<LoadedMod>& mods);
+
     /**
      * @brief Resolve a route tuple to an entry, or nullptr.
      *
@@ -68,6 +71,12 @@ class AssetIndex {
                               const std::string& slot,
                               const std::string& tier,
                               const std::string& hash) const;
+
+    /** @brief First entry for a `(mod, bundle, slot, tier)`, or nullptr. */
+    const AssetEntry* Find(const std::string& mod_id,
+                           const std::string& bundle_id,
+                           const std::string& slot,
+                           AssetTier tier) const;
 
     /**
      * @brief Entries for one `(mod, bundle, slot)`, richest tier first.
