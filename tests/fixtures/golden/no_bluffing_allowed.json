@@ -1,0 +1,187 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "no_bluffing_allowed",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663,
+          17105200,
+          17170737
+        ],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              16973835,
+              68026380
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "no_bluffing"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "play:Alice:draw4",
+      "state": {
+        "active_type": 4,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          68026380
+        ],
+        "draw_pile": [
+          16843052,
+          16908589,
+          16974126,
+          17039663,
+          17105200,
+          17170737
+        ],
+        "effect_queue": [
+          {
+            "stack_bonus": 0,
+            "target": "Alice",
+            "type": 5
+          },
+          {
+            "count": 4,
+            "target": "Bob",
+            "type": 1
+          },
+          {
+            "type": "skip"
+          },
+          {
+            "type": "advance_turn"
+          }
+        ],
+        "last_play": {
+          "card": 68026380,
+          "hand_index": 1,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "Alice",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              16973835
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "no_bluffing"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "input:Alice:yellow",
+      "state": {
+        "active_type": 3,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780,
+          68026380
+        ],
+        "draw_pile": [
+          16843052,
+          16908589
+        ],
+        "effect_queue": [],
+        "last_play": {
+          "card": 68026380,
+          "hand_index": 1,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              16973835
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259,
+              131076,
+              17170737,
+              17105200,
+              17039663,
+              16974126
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "no_bluffing"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

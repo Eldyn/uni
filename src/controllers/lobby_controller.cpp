@@ -10,14 +10,139 @@
 #include <common/env.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
-#include <match/rule_registry.hpp>
+#include <match/modload/mod_loader.hpp>
+#include <match/engine/match_assembler.hpp>
+#include <match/server/match_session.hpp>
+#include <match/server/stats_gate.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace std::chrono;
+
+namespace {
+
+/**
+ * @brief True when a deck snapshot declares a non-empty card multiset.
+ * @param deck Snapshot in the `LobbySettings.deck` shape.
+ */
+bool DeckSnapshotHasCards(const json& deck) {
+    const auto it = deck.find("cards");
+    return it != deck.end() && it->is_object() && !it->empty();
+}
+
+/**
+ * @brief Converts a `LobbySettings.deck` snapshot into a `DeckDef`.
+ *
+ * The snapshot is written by `ApplyDeckSnapshot` and mirrors the
+ * `decks/*.json` shape (`id`, `name`, `namespace`, `mods`, `cards`,
+ * `settings`). Full ids are rebuilt as `namespace:id` so assembly can match
+ * the kinds declared by the loaded mods.
+ *
+ * @param deck Snapshot in the `LobbySettings.deck` shape.
+ * @return DeckDef The equivalent deck definition.
+ */
+match::modload::DeckDef DeckDefFromSnapshot(const json& deck) {
+    match::modload::DeckDef def;
+    def.raw = deck;
+    def.id = deck.value("id", "");
+    def.name = deck.value("name", "");
+    def.namespace_id = deck.value("namespace", "");
+    def.deck_id = def.namespace_id.empty()
+                      ? def.id
+                      : def.namespace_id + ":" + def.id;
+
+    const auto mods = deck.find("mods");
+    if (mods != deck.end() && mods->is_array()) {
+        for (const auto& mod : *mods) {
+            if (mod.is_string()) def.mods.push_back(mod.get<std::string>());
+        }
+    }
+
+    const auto cards = deck.find("cards");
+    if (cards != deck.end() && cards->is_object()) {
+        for (auto card = cards->begin(); card != cards->end(); ++card) {
+            if (card.value().is_number_integer()) {
+                def.cards.emplace_back(card.key(),
+                                       card.value().get<int>());
+            }
+        }
+    }
+
+    const auto settings = deck.find("settings");
+    if (settings != deck.end() && settings->is_object()) {
+        def.settings = *settings;
+    }
+    return def;
+}
+
+/**
+ * @brief Synthesizes the classic-shaped `DeckDef` for a freestyle lobby.
+ *
+ * Freestyle lobbies carry no deck snapshot, so the pool is rebuilt from the
+ * legacy scalar `count_*` fields (mirroring `MatchInstance::GenerateDeck`)
+ * with the kind ids of `mods/vanilla/decks/classic.json`. Any `active_mods`
+ * rule selection is appended after `vanilla` so the base cards stay present.
+ *
+ * @param settings Lobby settings holding the `count_*` tuning.
+ * @return DeckDef The synthesized freestyle deck.
+ */
+match::modload::DeckDef SynthesizeFreestyleDeck(
+    const LobbySettings& settings) {
+    match::modload::DeckDef def;
+    def.id = "classic";
+    def.name = "Classic";
+    def.namespace_id = "vanilla";
+    def.deck_id = "vanilla:classic";
+    def.mods.push_back("vanilla");
+    for (const std::string& mod : settings.active_mods) {
+        if (mod == "vanilla") continue;
+        def.mods.push_back(mod);
+    }
+
+    for (const char* color : {"red", "blue", "green", "yellow"}) {
+        const std::string prefix = std::string("vanilla:") + color + "_";
+        def.cards.emplace_back(prefix + "0", settings.count_zeros);
+        for (int number = 1; number <= 9; ++number) {
+            def.cards.emplace_back(prefix + std::to_string(number),
+                                   settings.count_numbered);
+        }
+        def.cards.emplace_back(prefix + "skip", settings.count_skips);
+        def.cards.emplace_back(prefix + "reverse", settings.count_reverses);
+        def.cards.emplace_back(prefix + "draw2", settings.count_draw_two);
+    }
+    def.cards.emplace_back("vanilla:wild", settings.count_wild);
+    def.cards.emplace_back("vanilla:wild_draw4",
+                           settings.count_wild_draw_four);
+    return def;
+}
+
+/**
+ * @brief Resolves the deck definition a lobby's settings describe.
+ *
+ * Mirrors `HandleStartGame`'s selection (deck snapshot when present, else the
+ * synthesized freestyle deck) so the match-end persistence path evaluates the
+ * stats gate on the same mod set / card multiset the match was
+ * assembled from.
+ *
+ * @param settings Lobby settings to resolve.
+ * @return DeckDef The resolved deck definition, always carrying a mod list.
+ */
+match::modload::DeckDef ResolveMatchDeck(const LobbySettings& settings) {
+    match::modload::DeckDef def =
+        DeckSnapshotHasCards(settings.deck)
+            ? DeckDefFromSnapshot(settings.deck)
+            : SynthesizeFreestyleDeck(settings);
+    if (def.mods.empty()) def.mods.push_back("vanilla");
+    return def;
+}
+
+}  // namespace
 
 /**
  * @brief Constructs the LobbyController instance and establishes central inbound routing maps.
@@ -26,13 +151,27 @@ using namespace std::chrono;
  * @param timers    Timer service for the eviction clock.
  */
 LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
-                                  ITimerService& timers, PresenceRegistry& presence)
+                                  ITimerService& timers,
+                                  PresenceRegistry& presence,
+                                  HttpRouter* http_router,
+                                  std::string mods_root)
     : action_router_(router), broadcaster_(broadcast), timer_service_(timers),
-      presence_(presence) {
+      presence_(presence),
+      mods_root_(mods_root.empty() ? Env::Get("UNI_MODS_DIR", "mods")
+                                   : std::move(mods_root)) {
     reconnect_grace_ms_ = std::max(1000, Env::GetInt("RECONNECT_GRACE_MS", 120'000));
     absolute_max_lobby_members_ = std::clamp(
         Env::GetInt("ABSOLUTE_MAX_LOBBY_MEMBERS", contract::kMaxLobbyMembers),
         2, contract::kMaxLobbyMembers);
+
+    if (http_router != nullptr) {
+        // INFO: Public catalog endpoint: deck files are content, not user
+        //       data, so no auth token is required (mirrors the public
+        //       leaderboard endpoint).
+        http_router->Get("/api/decks", [this](AppResponse* res, AppRequest*) {
+            HandleListDecks(res);
+        });
+    }
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
         HandleCreate(ctx, msg);
@@ -158,7 +297,7 @@ LobbyController::~LobbyController() {}
 std::size_t LobbyController::ActiveMatchCount() const {
     return static_cast<std::size_t>(std::ranges::count_if(lobbies_, [](const auto& entry) {
         const Lobby& lobby = entry.second;
-        return lobby.match && !lobby.match->IsMatchOver();
+        return lobby.session && !lobby.session->Engine().IsMatchOver();
     }));
 }
 
@@ -167,11 +306,12 @@ std::size_t LobbyController::ActiveMatchCount() const {
  * @param lobby Reference to the target active lobby containing the current game match.
  */
 void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
-    if (!lobby.match || lobby.match->IsMatchOver()) return;
+    if (!lobby.session || lobby.session->Engine().IsMatchOver()) return;
 
-    json saved_state = lobby.match->ExportState();
+    json saved_state = lobby.session->Engine().ExportState();
     std::string json_payload = saved_state.dump();
-    std::string match_id = lobby.match->GetMatchId();
+    std::string match_id = lobby.match_id;
+    if (match_id.empty()) return;
 
     try {
         auto& db = Database::Get();
@@ -222,13 +362,192 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
 }
 
 /**
+ * @brief Persists a completed match's rows for the new engine.
+ *
+ * Restores the pre-swap `RecordMatchCompleted` SQL shape: one `matches` row
+ * (winner), one `match_participants` row per engine player, and per-human
+ * `match_history` ledger rows carrying the finish placement. The per-player
+ * `player_stats` aggregate is updated ONLY when the gate accepts the
+ * lobby's mod set / deck kind multiset; the match rows are always written.
+ *
+ * @param lobby  Lobby whose live session just finished.
+ * @param winner Winning username.
+ */
+void LobbyController::RecordMatchResult(Lobby& lobby,
+                                        const std::string& winner) {
+    if (!lobby.session) return;
+
+    auto& db = Database::Get();
+    if (!db.IsOpen()) return;
+
+    // INFO: Gate only the player_stats aggregate; match rows and
+    //       ledger placements are recorded for every match.
+    const match::modload::DeckDef deck = ResolveMatchDeck(lobby.settings);
+    const bool stats_allowed =
+        match::server::StatsGateAllows(deck.mods, deck.cards);
+
+    const json state = lobby.session->Engine().ExportState();
+    const std::vector<std::string> placements =
+        lobby.session->Engine().GetPlacements();
+
+    try {
+        TransactionGuard tx(db);
+        if (!tx.Ok()) {
+            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
+            return;
+        }
+
+        if (!lobby.match_id.empty()) {
+            (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                          {lobby.match_id});
+        }
+
+        int match_row_id = 0;
+        auto match_status =
+            db.Exec("INSERT INTO matches (winner_username) VALUES (?)",
+                    {winner});
+        if (match_status) {
+            auto row = db.QueryOne("SELECT last_insert_rowid() as id", {});
+            if (row && row->has_value()) {
+                match_row_id = row->value().Get<int>("id");
+            }
+        } else {
+            Logger::Warn("[Lobby DB Error] matches insert failed: ",
+                         match_status.error().message);
+        }
+
+        for (const auto& player : state.value("players", json::array())) {
+            const std::string username =
+                player.value("username", std::string());
+            if (username.empty()) continue;
+
+            // INFO: pre-swap inserted a participant row for every engine
+            //       player, bots included.
+            if (match_row_id > 0) {
+                (void)db.Exec(
+                    "INSERT OR IGNORE INTO match_participants "
+                    "(match_id, username) VALUES (?, ?)",
+                    {match_row_id, username});
+            }
+
+            const bool is_bot = player.value("is_bot", false);
+            if (is_bot) continue;
+
+            if (!lobby.match_id.empty()) {
+                auto placement_it =
+                    std::ranges::find(placements, username);
+                std::optional<int> placement;
+                if (placement_it != placements.end()) {
+                    placement = static_cast<int>(
+                                    std::distance(placements.begin(),
+                                                  placement_it)) +
+                                1;
+                }
+                const std::string result =
+                    (username == winner) ? "win" : "loss";
+                (void)db.Exec(
+                    "INSERT INTO match_history "
+                    "(match_id, username, mode, placement, result, "
+                    "ended_reason, ranked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    {lobby.match_id, username, lobby.settings.mode,
+                     placement ? DbValue(*placement) : DbValue(nullptr),
+                     result, "completed", stats_allowed ? 1 : 0});
+            }
+
+            if (!stats_allowed) continue;
+
+            auto account = db.QueryOne(
+                "SELECT 1 FROM users WHERE username = ?", {username});
+            if (!account || !account->has_value()) continue;
+
+            (void)db.Exec(
+                "INSERT OR IGNORE INTO player_stats (username) VALUES (?)",
+                {username});
+            const int is_winner = (username == winner) ? 1 : 0;
+            (void)db.Exec(R"(
+                UPDATE player_stats SET
+                    total_wins = total_wins + ?,
+                    total_losses = total_losses + ?
+                WHERE username = ?
+            )", {is_winner, is_winner == 1 ? 0 : 1, username});
+        }
+
+        if (auto commit_status = tx.Commit(); !commit_status) {
+            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
+        } else {
+            Logger::Info("[Lobby] Persisted match result for ", lobby.match_id);
+        }
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] ", e.what());
+    }
+}
+
+/**
+ * @brief Persists an aborted match's per-human ledger rows.
+ *
+ * Mirrors the pre-swap `RecordMatchAborted`: no `matches` row (an abort has
+ * no winner), only `match_history` rows marking each human as aborted. The
+ * stats gate never applies to an abort.
+ *
+ * @param lobby Lobby whose live session is being torn down.
+ */
+void LobbyController::RecordMatchAborted(Lobby& lobby) {
+    if (!lobby.session) return;
+
+    auto& db = Database::Get();
+    if (!db.IsOpen()) return;
+
+    const json state = lobby.session->Engine().ExportState();
+
+    try {
+        TransactionGuard tx(db);
+        if (!tx.Ok()) {
+            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
+            return;
+        }
+
+        if (!lobby.match_id.empty()) {
+            (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
+                          {lobby.match_id});
+        }
+
+        for (const auto& player : state.value("players", json::array())) {
+            const std::string username =
+                player.value("username", std::string());
+            if (username.empty()) continue;
+            if (player.value("is_bot", false)) continue;
+            if (lobby.match_id.empty()) continue;
+
+            (void)db.Exec(
+                "INSERT INTO match_history "
+                "(match_id, username, mode, placement, result, "
+                "ended_reason, ranked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                {lobby.match_id, username, lobby.settings.mode,
+                 DbValue(nullptr), "aborted", "aborted", 0});
+        }
+
+        if (auto commit_status = tx.Commit(); !commit_status) {
+            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
+        }
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] ", e.what());
+    }
+}
+
+/**
  * @brief Tears down the match for the given lobby after a normal match-over.
  * @param lobby_id ID of the lobby whose match to destroy.
  */
 void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
     Lobby* lobby = GetLobbyById(lobby_id);
     if (!lobby) return;
-    lobby->match.reset();
+    // INFO: persist before the session is released - winner / placements /
+    //       player list all live on the engine.
+    if (lobby->session) {
+        RecordMatchResult(*lobby, lobby->session->Engine().GetWinner());
+    }
+    lobby->session.reset();
+    lobby->match_id.clear();
     Logger::Info("[MATCH] destroyed after MatchOver in lobby ", lobby_id);
 }
 
@@ -237,18 +556,24 @@ void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
  * @param lobby Reference to the checked targeted room instance.
  */
 void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
-    if (lobby.match && lobby.members.size() < 2) {
+    if (lobby.session && lobby.members.size() < 2) {
         Logger::Info("[Lobby] Match aborted for lobby ", lobby.id, " due to disconnections.");
 
+        // INFO: The engine never removes a mid-game seat, so an
+        //       abort only tears the session down. A sole survivor is
+        //       persisted as a completed match (mirroring the pre-swap
+        //       `RecordMatchCompleted(winner)`); with no survivors left only
+        //       the aborted ledger rows are recorded.
         if (lobby.members.size() == 1) {
             const std::string& winner = lobby.members.front().username;
-            lobby.match->RecordMatchCompleted(winner);
+            RecordMatchResult(lobby, winner);
             for (auto& cb : on_match_aborted_) cb(&lobby, winner);
         } else {
-            lobby.match->RecordMatchAborted();
+            RecordMatchAborted(lobby);
         }
 
-        lobby.match.reset();
+        lobby.session.reset();
+        lobby.match_id.clear();
     }
 }
 
@@ -270,6 +595,18 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
             member.disconnected_at = steady_clock::time_point{};
             sd->lobby_code         = lobby->invite_code;
             sd->lobby_id           = lobby->id;
+
+            // INFO: a reconnect replaces the socket pointer; rebind the live
+            //       session so later broadcasts do not target the dead socket.
+            //       A spectator is not a session seat, so it rebinds through
+            //       the viewer registry.
+            if (lobby->session) {
+                if (member.is_spectator) {
+                    lobby->session->BindViewer(sd->username, ws);
+                } else {
+                    lobby->session->BindSocket(sd->username, ws);
+                }
+            }
 
             broadcaster_.Subscribe(ws, "lobby_" + lobby->invite_code);
 
@@ -309,6 +646,18 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
             member.is_connected    = false;
             member.socket          = nullptr;
             member.disconnected_at = steady_clock::now();
+            // INFO: Nulling the member socket is not enough: the
+            //       live session still holds the freed `AppWebSocket*` and
+            //       would send through it (a disconnected seat is bot-driven
+            //       within seconds). Unbind it from the session; a spectator
+            //       drops its viewer stream instead.
+            if (lobby.session) {
+                if (member.is_spectator) {
+                    lobby.session->UnbindViewer(sd->username);
+                } else {
+                    lobby.session->BindSocket(sd->username, nullptr);
+                }
+            }
             BroadcastUpdate(lobby);
             return;
         }
@@ -451,7 +800,13 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     BroadcastUpdate(lobby);
 
-    if (lobby.match) {
+    if (lobby.session) {
+        // INFO: A mid-match spectator becomes a session viewer
+        //       so it keeps receiving live events after the join snapshot;
+        //       seated joiners rebind through the normal socket path.
+        if (result.outcome == JoinOutcome::kJoinedAsSpectator) {
+            lobby.session->BindViewer(username, ctx.socket);
+        }
         SendMatchStateToSocket(lobby, ctx.socket, username, ctx.op_code);
     }
 }
@@ -467,7 +822,7 @@ void LobbyController::HandleQuickJoin(WsContext context, const nlohmann::json& m
     Lobby* best = nullptr;
     for (auto& [id, lobby] : lobbies_) {
         if (!lobby.settings.is_public) continue;
-        if (lobby.match != nullptr) continue;
+        if (lobby.session != nullptr) continue;
         if (static_cast<int>(lobby.members.size()) >= lobby.settings.max_players) {
             // A lobby that's full only because bots occupy every seat is
             // still joinable when bot-takeover is enabled, the same
@@ -522,6 +877,17 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
         std::string topic = "lobby_" + lobby.invite_code;
         broadcaster_.Subscribe(ctx.socket, topic);
+
+        // INFO: Re-register the reconnecting socket with the
+        //       live session (spectator viewer vs seated recipient).
+        if (lobby.session) {
+            const LobbyMember* member = lobby.FindMember(username);
+            if (member != nullptr && member->is_spectator) {
+                lobby.session->BindViewer(username, ctx.socket);
+            } else {
+                lobby.session->BindSocket(username, ctx.socket);
+            }
+        }
 
         auto resp = MakeResponse(ws::ServerAction::kLobbyJoined, request_id);
         resp["lobby"] = json({
@@ -602,7 +968,7 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 
         if (!any_connected) continue;
 
-        std::string status = lobby.match != nullptr ? "in-game"
+        std::string status = lobby.session != nullptr ? "in-game"
                        : humans >= lobby.settings.max_players ? "full"
                        : "open";
 
@@ -624,16 +990,100 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 }
 
 /**
- * @brief Returns static server metadata (currently the rule catalog).
+ * @brief Returns static server metadata (the rule catalog).
  * @param ctx Payload context wrapping request sockets and raw buffers.
  * @param message JSON message block from the client requesting metadata.
  */
 void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
 
+    // INFO: Swap: the catalog is now the mod-folder scan
+    //       rather than the legacy in-process RuleRegistry. `vanilla` is the
+    //       always-on base mod, so it is not offered as a toggleable rule.
+    json available_rules = json::array();
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Warn("[Lobby] Metadata: mods scan failed for '", mods_root_,
+                     "' (", loaded.errors.size(), " error(s))");
+    } else {
+        for (const auto& mod : loaded.mods) {
+            if (mod.manifest.id == "vanilla") continue;
+            available_rules.push_back({
+                {"id",          mod.manifest.id},
+                {"label",       mod.manifest.name},
+                {"description", mod.manifest.description}
+            });
+        }
+    }
+
     auto resp = MakeResponse(ws::ServerAction::kMetadata, request_id);
-    resp["available_rules"] = match::RuleRegistry::GetAvailableRulesJson();
+    resp["available_rules"] = std::move(available_rules);
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
+}
+
+json LobbyController::DeckCatalogJson(
+    const std::vector<match::modload::LoadedMod>& mods) {
+    json decks = json::array();
+    for (const auto& mod : mods) {
+        for (const auto& deck : mod.decks) {
+            decks.push_back({
+                {"id",        deck.id},
+                {"name",      deck.name},
+                {"namespace", deck.namespace_id},
+                {"mods",      deck.mods}
+            });
+        }
+    }
+    return json{{"decks", decks}};
+}
+
+bool LobbyController::ApplyDeckSnapshot(
+    LobbySettings& settings,
+    const std::vector<match::modload::LoadedMod>& mods,
+    const std::string& deck_id) {
+    const match::modload::DeckDef* found = nullptr;
+    for (const auto& mod : mods) {
+        for (const auto& deck : mod.decks) {
+            // INFO: accept both the full `namespace:id` form and the bare
+            //       local id that GET /api/decks returns.
+            if (deck.deck_id == deck_id || deck.id == deck_id) {
+                found = &deck;
+                break;
+            }
+        }
+        if (found != nullptr) break;
+    }
+    if (found == nullptr) return false;
+
+    json snapshot = json::object();
+    snapshot["id"]        = found->id;
+    snapshot["name"]      = found->name;
+    snapshot["namespace"] = found->namespace_id;
+    snapshot["mods"]      = found->mods;
+    snapshot["cards"]     = json::object();
+    for (const auto& [kind, count] : found->cards) {
+        snapshot["cards"][kind] = count;
+    }
+    snapshot["settings"] = found->settings;
+    settings.deck = std::move(snapshot);
+    return true;
+}
+
+void LobbyController::HandleListDecks(AppResponse* res) {
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Error("[Deck] Mods scan failed for '", mods_root_, "' (",
+                      loaded.errors.size(), " error(s))");
+        res->writeStatus("500 Internal Server Error")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json{{"error", "mods scan failed"}}.dump());
+        return;
+    }
+
+    res->writeHeader("Content-Type", "application/json")
+       ->end(DeckCatalogJson(loaded.mods).dump());
 }
 
 /**
@@ -744,8 +1194,8 @@ void LobbyController::HandleKick(WsContext ctx, const json& message) {
         // self-heals and LIFO reconciliation can no longer drop a different bot.
         if (was_bot) {
             remaining->settings.bot_count = static_cast<int>(
-                std::ranges::count_if(remaining->members, [](const LobbyMember& m) {
-                    return m.is_bot;
+                std::ranges::count_if(remaining->members, [](const LobbyMember& member) {
+                    return member.is_bot;
                 }));
         }
         remaining->SyncBots(rng_);
@@ -776,6 +1226,32 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         return;
     }
 
+    // INFO: A `deck_id` selects a whole snapshot at once (mods + cards +
+    //       settings). Resolve it against the mods folder before the
+    //       generic merge; an empty string clears the selection (freestyle).
+    if (message.contains("deck_id")) {
+        const std::string deck_id = message.value("deck_id", "");
+        if (deck_id.empty()) {
+            lobby.settings.deck = json::object();
+        } else {
+            match::modload::LoadResult loaded =
+                match::modload::ScanModsDirectory(mods_root_);
+            if (!loaded.ok()) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInternalError, request_id);
+                return;
+            }
+            if (!ApplyDeckSnapshot(lobby.settings, loaded.mods, deck_id)) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInvalidPayload, request_id,
+                    "unknown deck: " + deck_id);
+                return;
+            }
+        }
+    }
+
     int old_bot_count = lobby.settings.bot_count;
 
     // INFO: Strip envelope fields then apply the patch. Fields not present
@@ -785,6 +1261,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     json patch = message;
     patch.erase("action");
     patch.erase("request_id");
+    patch.erase("deck_id");
 
     if (patch.contains("name")) {
         lobby.name = patch.value("name", lobby.name);
@@ -855,7 +1332,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
-    if (lobby.match != nullptr) {
+    if (lobby.session != nullptr) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kMatchAlreadyStarted, request_id);
         return;
@@ -891,29 +1368,83 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     // spectator view even after being seated in the new one.
     BroadcastUpdate(lobby);
 
-    std::vector<std::tuple<std::string, bool, int>> players_info;
-    for (const auto& lobby_member : lobby.members) {
-        players_info.push_back(
-            {lobby_member.username, lobby_member.is_bot, lobby_member.seat_index});
+    // INFO: Swap: the assembled `match::server::MatchSession` is the sole
+    //       match owner. A scan or assembly failure aborts the start (there is
+    //       no legacy fallback) and is reported as an internal error.
+    lobby.session.reset();
+
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (!loaded.ok()) {
+        Logger::Error("[Lobby] Start failed: mods scan failed for '",
+                      mods_root_, "' (", loaded.errors.size(),
+                      " error(s))");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
+        return;
     }
 
-    lobby.match = std::make_unique<match::MatchInstance>(players_info, lobby.settings);
-    lobby.match->SetMatchId("match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode());
-    lobby.match->Start();
+    match::modload::DeckDef deck_def =
+        DeckSnapshotHasCards(lobby.settings.deck)
+            ? DeckDefFromSnapshot(lobby.settings.deck)
+            : SynthesizeFreestyleDeck(lobby.settings);
+    if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+
+    std::vector<match::modload::LoadedMod> active_mods;
+    for (const auto& mod : loaded.mods) {
+        if (std::ranges::find(deck_def.mods, mod.manifest.id)
+            != deck_def.mods.end()) {
+            active_mods.push_back(mod);
+        }
+    }
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = lobby.settings.starting_cards;
+
+    std::vector<const LobbyMember*> seated;
+    for (const auto& member : lobby.members) {
+        if (member.seat_index >= 0) seated.push_back(&member);
+    }
+    std::ranges::sort(seated, {}, &LobbyMember::seat_index);
+    for (const LobbyMember* member : seated) {
+        options.players.push_back({member->username, member->is_bot,
+                                   member->is_connected,
+                                   member->is_ready});
+    }
+
+    match::engine::AssemblyResult assembly =
+        match::engine::MatchAssembler::Assemble(active_mods, deck_def,
+                                                options);
+    if (!assembly.ok()) {
+        Logger::Error("[Lobby] Start failed: assembly error (",
+                      assembly.error->check, "): ", assembly.error->message);
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
+        return;
+    }
+
+    auto engine = std::make_unique<match::engine::MatchInstance>(
+        std::move(assembly.assembly));
+
+    match::server::MatchSession::SocketMap sockets;
+    for (const LobbyMember* member : seated) {
+        if (!member->is_connected || member->socket == nullptr) {
+            continue;
+        }
+        sockets[member->username] = member->socket;
+    }
+
+    lobby.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), std::move(active_mods), std::move(sockets));
+    lobby.match_id =
+        "match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode();
 
     for (auto& cb : on_game_started_) cb(&lobby);
 
     Logger::Info("[Lobby] Match started by host '", lobby.host, "' in lobby ", lobby.id);
 
-    for (const auto& lobby_member : lobby.members) {
-        if (!lobby_member.is_connected || !lobby_member.socket) {
-            continue;
-        }
-
-        nlohmann::json response_payload = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-        response_payload["match_state"] = lobby.match->SerializePlayerState(lobby_member.username);
-        broadcaster_.Send(lobby_member.socket, response_payload.dump(), uWS::OpCode::TEXT);
-    }
+    lobby.session->EmitEvents(broadcaster_);
+    lobby.session->BroadcastSnapshot(broadcaster_);
 
     broadcaster_.SendSuccess(context.socket, uWS::OpCode::TEXT, request_id);
 }
@@ -947,32 +1478,15 @@ json LobbyController::MemberListJson(const Lobby& lobby) {
 void LobbyController::SendMatchStateToSocket(const Lobby& lobby, AppWebSocket* ws,
                                               const std::string& username,
                                               uWS::OpCode op_code) const {
-    if (!lobby.match) return;
-    json resp = ws::MakeResponse(ws::ServerAction::kMatchStateUpdated);
-    const LobbyMember* m = lobby.FindMember(username);
-    if (m && m->is_spectator) {
-        json match_state = lobby.match->SerializeBaseState();
-        int spectator_count = 0;
-        for (const auto& mem : lobby.members) if (mem.is_spectator && mem.is_connected) spectator_count++;
-        match_state["spectator_count"] = spectator_count;
-        for (auto& p_json : match_state["players"]) {
-            std::string p_name = p_json["username"];
-            const LobbyMember* p_member = lobby.FindMember(p_name);
-            bool privacy = p_member ? p_member->privacy_mode : false;
-            if (!privacy) {
-                p_json["hand"] = lobby.match->SerializeHandFor(p_name);
-            }
-        }
-        resp["match_state"] = std::move(match_state);
-    } else {
-        resp["match_state"] = lobby.match->SerializePlayerState(username);
-    }
-    if (lobby.match->IsWaitingForInput() && lobby.match->GetPendingPlayer() == username) {
-        resp["action_required"] = static_cast<int>(lobby.match->GetPendingAction());
-        const std::string ctx = lobby.match->GetPendingInputContext();
-        if (!ctx.empty()) resp["action_context"] = json::parse(ctx);
-    }
-    broadcaster_.Send(ws, resp.dump(), op_code);
+    if (!lobby.session) return;
+    // INFO: the view snapshot owns per-recipient filtering and the pending
+    //       prompt; `op_code` is retained for signature parity but the
+    //       transport wrapper always emits TEXT.
+    (void)op_code;
+
+    const LobbyMember* member = lobby.FindMember(username);
+    const bool is_spectator = (member != nullptr) && member->is_spectator;
+    lobby.session->SendSnapshot(broadcaster_, ws, username, is_spectator);
 }
 
 void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
@@ -1045,7 +1559,11 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                     }
                 }
 
-                lobby.match.reset();
+                // INFO: Persist the abort before the session is
+                //       released (no winner: ledger rows only).
+                RecordMatchAborted(lobby);
+                lobby.session.reset();
+                lobby.match_id.clear();
                 break;
             }
             case MemberRemovalOutcome::kPlayerReplacedByBot:

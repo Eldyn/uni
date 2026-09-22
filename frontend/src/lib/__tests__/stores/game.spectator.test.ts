@@ -107,7 +107,7 @@ describe("game store: spectator subsystem", () => {
 		expect(storeGame.isSpectator).toBe(true);
 	});
 
-	it("guards spectator against playCard, drawCard, and submitInput", () => {
+	it("guards spectator against playCard and drawCard", () => {
 		storeLobby.current = {
 			id: 1,
 			code: "TEST1",
@@ -133,10 +133,6 @@ describe("game store: spectator subsystem", () => {
 		expect(emitSpy).not.toHaveBeenCalled();
 
 		storeGame.drawCard();
-		expect(storeGame.isActionPending).toBe(false);
-		expect(emitSpy).not.toHaveBeenCalled();
-
-		storeGame.submitInput("red");
 		expect(storeGame.isActionPending).toBe(false);
 		expect(emitSpy).not.toHaveBeenCalled();
 

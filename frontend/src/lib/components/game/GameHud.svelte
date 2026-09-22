@@ -22,7 +22,7 @@
 	}
 </script>
 
-{#if storeGame.state && !storeGame.actionRequired}
+{#if storeGame.state && !storeGame.activePrompt && !storeGame.activeWindow}
 	<div class="hud-container">
 		<div class="hud-bar pixel-bordered">
 			{#if storeGame.isSpectator}

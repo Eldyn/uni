@@ -46,8 +46,6 @@ private:
     /**< Lower bound of the randomised "thinking" delay in kWaitUntilTurnEnd mode. */
     int bot_wait_min_ms_;
     int bot_wait_max_ms_;        /**< Upper bound (exclusive) of the randomised "thinking" delay. */
-    /**< Safety cap on consecutive bot moves in a single instant-advance burst. */
-    int max_instant_bot_steps_;
 
     /**< Mersenne Twister RNG for bot delay jitter. */
     std::mt19937 rng_{std::random_device {}()};
@@ -76,6 +74,13 @@ private:
     void HandleProvideInput(WsContext context, const nlohmann::json& message);
 
     /**
+     * @brief Handles a reply to an open response window (pass or respond with a card).
+     * @param context Context of the calling socket.
+     * @param message JSON payload carrying `pass` and/or `card_id`.
+     */
+    void HandleWindowResponse(WsContext context, const nlohmann::json& message);
+
+    /**
      * @brief Records which player a spectator is currently watching, so the
      * per-player spectator counts in the next match state are accurate.
      * No-op for anyone who isn't a spectator.
@@ -88,15 +93,22 @@ private:
 
     /**
      * @brief Callback/Hook triggered at the start of each new player turn.
-     * Starts/resets the AFK timer based on the lobby settings.
+     * Drives the new-engine session turn (bot steps / AFK timers).
      * @param active_lobby Pointer to the lobby whose turn has started.
      */
     void OnTurnStarted(Lobby* active_lobby);
 
     /**
-     * @brief Sends the censored match state to all connected members.
-     * Iterating over each user, it uses `MatchInstance::SerializePlayerState` to
-     * hide opponents' hands and forwards the WS message.
+     * @brief New-engine turn driver.
+     * Drives bots/disconnected seats through `BotStep` and arms the
+     * AFK/prompt timer for connected humans.
+     * @param active_lobby Pointer to the lobby whose session must advance.
+     */
+    void OnTurnStartedSession(Lobby* active_lobby);
+
+    /**
+     * @brief Sends the filtered match snapshot to all connected members and
+     * forwards the terminal teardown once the engine is finished.
      * @param current_lobby Pointer to the lobby to update.
      */
     void BroadcastMatchState(Lobby* current_lobby);
@@ -116,4 +128,16 @@ private:
      * @param lobby_id ID of the lobby whose timer to cancel.
      */
     void ClearTurnTimer(uint32_t lobby_id);
+
+    /**
+     * @brief (Re)arm the window-timeout tick for `lobby`, or cancel it.
+     *
+     * When a response window is open, schedules a one-shot timer at its
+     * remaining lifetime (clamped to `[100, settings.turn_time_limit_ms]`) that
+     * calls `Tick` and re-evaluates; otherwise cancels any pending tick. This
+     * is what closes an open window at its own deadline while no player input
+     * arrives.
+     * @param lobby Target lobby whose session window should be watched.
+     */
+    void ScheduleWindowTick(Lobby* lobby);
 };

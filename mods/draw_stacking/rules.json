@@ -1,0 +1,69 @@
+{
+  "statuses": [],
+  "rules": [
+    {
+      "id": "draw_stacking",
+      "title": "Draw Stacking",
+      "description": "MAY-DIFFER (spec 12.4): legacy pending_draws is rebuilt on response windows. A draw-penalty (+2/+4) play opens a window for the other seats (`responders` `@others`, which includes `@next_player`, eligible via the `stackable` tag, env duration). The response route marks the stack and the ENGINE performs the two spec-12.4 halves the DAG cannot express: it appends the response card's own N to the then-target's vanilla:draw_debt status and re-opens the window (`reopen`), so the chain keeps one budget ledger. The default route draws the accumulated debt on the current target (`draw_cards` with `n_from_debt`) and clears the status. The match_start allow rescues the out-of-turn stackable response from vanilla:turn_order (the spec 13.3 deny/allow pattern). The legacy golden must be compared with may_differ honoured.",
+      "hooks": [
+        {
+          "on": "after:match_start",
+          "nodes": [
+            {
+              "id": "a1",
+              "op": "add_restriction",
+              "args": {
+                "entry_def": {
+                  "id": "draw_stacking:stackable_response",
+                  "phase": "allow",
+                  "condition": {
+                    "plays_tag": { "tag": "stackable" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "on": "after:play",
+          "where": { "top_of_discard": { "tag": "draw_penalty" } },
+          "nodes": [
+            {
+              "id": "n1",
+              "window": {
+                "responders": "@others",
+                "respond_with": { "any_tag": ["stackable"] },
+                "duration": "env"
+              },
+              "reopen": true,
+              "default": "n2",
+              "on_response": { "stackable": "n3" }
+            },
+            {
+              "id": "n2",
+              "op": "draw_cards",
+              "args": {
+                "target": "@current_player",
+                "n_from_debt": true
+              },
+              "next": "n2b"
+            },
+            {
+              "id": "n2b",
+              "op": "remove_status",
+              "args": {
+                "target": "@current_player",
+                "status_kind": "vanilla:draw_debt"
+              }
+            },
+            {
+              "id": "n3",
+              "op": "emit_signal",
+              "args": { "name": "draw_stacking:stacked" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

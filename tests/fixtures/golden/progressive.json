@@ -1,0 +1,152 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "progressive",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [
+          196910,
+          34013485,
+          17367340
+        ],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "progressive"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "draw:Alice:until_playable",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [
+          {
+            "card_id": 302,
+            "type": 4,
+            "username": "Alice"
+          }
+        ],
+        "pending_action": 1,
+        "pending_draws": 0,
+        "pending_input_context": {
+          "card_id": 302,
+          "message": "You drew a playable card!"
+        },
+        "pending_player": "Alice",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898,
+              17367340,
+              34013485,
+              196910
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "progressive"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "input:Alice:keep",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [],
+        "effect_queue": [],
+        "pending_action": 1,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898,
+              17367340,
+              34013485,
+              196910
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "progressive"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

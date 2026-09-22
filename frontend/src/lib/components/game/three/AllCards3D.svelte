@@ -129,7 +129,13 @@
 		storeTableSpin.boardRotationY
 	)}
 	<CardMesh3D
-		card={{ id: -1, type: handle.card.type as never, value: handle.card.value as never }}
+		card={{
+			id: -1,
+			type: handle.card.type as never,
+			value: handle.card.value as never,
+			kind: handle.card.kind,
+			face: handle.card.face
+		}}
 		wildColor={handle.card.wildColor}
 		turned={handle.pose.turned}
 		position={[boardPose.x, boardPose.y, boardPose.z]}

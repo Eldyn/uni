@@ -212,17 +212,42 @@ if(UNI_BUILD_TESTS)
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp
-        src/match/match_instance.cpp
-        src/match/rules/standard.cpp
-        src/match/rules/70.cpp
-        src/match/rules/draw_stacking.cpp
-        src/match/rules/force_play.cpp
-        src/match/rules/jump_in.cpp
-        src/match/rules/no_bluffing.cpp
-        src/match/rules/progressive.cpp
-        src/match/effects/standard.cpp
-        src/match/effects/decide_swap_target.cpp
-        src/match/effects/pass_hands.cpp
+        src/match/modload/mod_loader.cpp
+        src/match/modload/semantic_validator.cpp
+        src/match/modload/play_conditions.cpp
+        src/match/ecs/entity_store.cpp
+        src/match/ecs/component_catalog.cpp
+        src/match/ecs/event_bus.cpp
+        src/match/engine/match_assembler.cpp
+        src/match/engine/match_instance.cpp
+        src/match/engine/mutation_compiler.cpp
+        src/match/view/event_sink.cpp
+        src/match/view/defs_builder.cpp
+        src/match/view/view_builder.cpp
+        src/match/view/view_util.cpp
+        src/match/server/match_session.cpp
+        src/match/server/bot_policy.cpp
+        src/match/server/stats_gate.cpp
+        src/match/resolver.cpp
+        src/match/rng.cpp
+        src/match/scheduler.cpp
+        src/match/status.cpp
+        src/match/status_system.cpp
+        src/match/content_wiring.cpp
+        src/match/timers.cpp
+        src/match/ops/default_ops.cpp
+        src/match/ops/op_helpers.cpp
+        src/match/ops/card_pile_ops.cpp
+        src/match/ops/condition_ops.cpp
+        src/match/ops/condition_eval.cpp
+        src/match/ops/turn_flow_ops.cpp
+        src/match/ops/status_ops.cpp
+        src/match/ops/prompt_ops.cpp
+        src/match/ops/random_ops.cpp
+        src/match/ops/visibility_ops.cpp
+        src/match/ops/restriction_ops.cpp
+        src/match/ops/win_ops.cpp
+        src/match/ops/meta_ops.cpp
         src/controllers/lobby_controller.cpp
         src/controllers/match_controller.cpp
         src/controllers/auth_controller.cpp

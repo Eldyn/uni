@@ -71,10 +71,10 @@ function onKeydown(event: KeyboardEvent): void {
 		return;
 	}
 
-	// A game prompt ("pick a color", "play it", "select a target") owns the
-	// keyboard while it is open. Firing a screen shortcut here would yank the
-	// player out of the match mid-answer; Escape above stays available.
-	if (storeGame.actionRequired !== null) return;
+	// A game prompt or response window owns the keyboard while it is open.
+	// Firing a screen shortcut here would yank the player out of the match
+	// mid-answer; Escape above stays available.
+	if (storeGame.activePrompt !== null || storeGame.activeWindow !== null) return;
 
 	const key = event.key.toLowerCase();
 

@@ -10,7 +10,7 @@
 	import { T } from "@threlte/core";
 	import { interactivity, useInteractivity } from "@threlte/extras";
 	import type { PerspectiveCamera } from "three";
-	import { storeGame, Action, type GamePlayer } from "$stores/game.svelte";
+	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { useCardBus } from "../card-bus.svelte";
@@ -19,6 +19,7 @@
 	import { resolvePovPlayer } from "../layout/spectatorPov";
 	import { storeTableSpin } from "$stores/tableSpin.svelte";
 	import { storeBoardCamera } from "$stores/boardCamera.svelte";
+	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
@@ -111,7 +112,9 @@
 	});
 
 	function confirmTarget(username: string) {
-		storeGame.submitInput(username);
+		const prompt = storeGame.activePrompt;
+		if (prompt?.kind !== "choose_player") return;
+		storeGame.respondToPrompt(prompt.prompt_id, username);
 	}
 
 	// A click on an opponent is two things depending on who's watching: a
@@ -213,9 +216,7 @@
 				{seat}
 				hasHoldingCard={bus.isHoldingOpponent(player.username)}
 				isTurn={storeGame.state?.current_turn === player.username}
-				isValidTarget={storeGame.actionRequired === Action.ChooseTarget &&
-					Array.isArray(storeGame.actionContext) &&
-					storeGame.actionContext.includes(player.username)}
+				isValidTarget={isChoosePlayerTarget(player.username)}
 				color={colorFor(player.username)}
 				isViewable={storeGame.isSpectator}
 				onSelect={() => selectOpponent(player.username)}

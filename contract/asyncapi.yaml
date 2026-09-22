@@ -36,6 +36,7 @@ channels:
           - $ref: "#/components/messages/LobbyEvicted"
           - $ref: "#/components/messages/MatchStateUpdated"
           - $ref: "#/components/messages/MatchOver"
+          - $ref: "#/components/messages/MatchEvent"
           - $ref: "#/components/messages/ChatMessage"
           - $ref: "#/components/messages/ChatHistory"
           - $ref: "#/components/messages/FriendList"
@@ -48,6 +49,8 @@ channels:
           - $ref: "#/components/messages/MatchPlayCard"
           - $ref: "#/components/messages/MatchDrawCard"
           - $ref: "#/components/messages/MatchSubmitInput"
+          - $ref: "#/components/messages/MatchPromptResponse"
+          - $ref: "#/components/messages/MatchWindowResponse"
           - $ref: "#/components/messages/MatchExit"
           - $ref: "#/components/messages/LobbyListRequest"
           - $ref: "#/components/messages/LobbyCreate"
@@ -73,6 +76,41 @@ channels:
 # Components
 # ---------------------------------------------------------------------------
 components:
+  # -------------------------------------------------------------------------
+  # Event-stream packet type registry
+  # -------------------------------------------------------------------------
+  # The MatchEvent envelope's `type` field carries one of these EXACT wire
+  # strings; clients dispatch on the string and the server MUST emit the
+  # matching value. Key = wire `type`, value = the payload schema describing
+  # the envelope `payload` object. Add new packet types here additively.
+  # This map is documentation/registry only; the codegens ignore unknown
+  # `x-` extensions, so adding it changes no generated artifact.
+  x-packet-types:
+    match_start: MatchStartPayload
+    defs: DefsPayload
+    card_played: CardPlayedPayload
+    play_rejected: PlayRejectedPayload
+    cards_drawn: CardsDrawnPayload
+    reshuffle: ReshufflePayload
+    status_applied: StatusAppliedPayload
+    status_removed: StatusRemovedPayload
+    window_open: WindowOpenPayload
+    window_response: WindowResponsePayload
+    window_close: WindowClosePayload
+    auto_played: AutoPlayedPayload
+    prompt_open: PromptOpenPayload
+    prompt_close: PromptClosePayload
+    turn_advance: TurnAdvancePayload
+    round_advance: RoundAdvancePayload
+    roll_result: RollResultPayload
+    signal: SignalPayload
+    chain_aborted: ChainAbortedPayload
+    mod_disarmed: ModDisarmedPayload
+    visibility_granted: VisibilityGrantedPayload
+    visibility_revoked: VisibilityRevokedPayload
+    placement: PlacementPayload
+    match_end: MatchEndPayload
+
   # -------------------------------------------------------------------------
   # Messages
   # -------------------------------------------------------------------------
@@ -285,6 +323,24 @@ components:
           reason:
             type: string
 
+    # INFO: The wire action string is `match_event` (underscore), not the
+    #       prose `match.event`, because both codegens derive identifiers by
+    #       splitting on `_`; a dotted name would emit invalid C++/TS
+    #       identifiers (e.g. kMatch.event). The event family stays
+    #       `match.event` in prose; the packet discriminator is the envelope's
+    #       `type` field.
+    MatchEvent:
+      name: match_event
+      title: Match Event (ordered event-stream envelope)
+      description: >
+        Ordered per-match event packet. FORWARD-COMPAT
+        (normative): unknown packet discriminator values MUST be ignored by
+        clients, never treated as errors. Envelope fields, ordering/gap rules,
+        the packet registry, and payload versioning (x-packet-v1) are defined
+        on the MatchEventPayload schema.
+      payload:
+        $ref: "#/components/schemas/MatchEventPayload"
+
     ChatMessage:
       name: chat_message
       title: Incoming Chat Message
@@ -402,6 +458,28 @@ components:
       title: Submit Mandatory Input (e.g. colour choice)
       payload:
         $ref: "#/components/schemas/GameSubmitInputPayload"
+
+    MatchPromptResponse:
+      name: match_prompt_response
+      title: Prompt Response (generic prompt envelope reply)
+      description: >
+        Client response to a prompt opened by a prompt_open event packet.
+        `value` is an arbitrary JSON value validated server-side against the
+        prompt's response_schema. ADDITIVE: coexists with match_submit_input /
+        the Action enum, which the new engine no longer uses.
+      payload:
+        $ref: "#/components/schemas/MatchPromptResponsePayload"
+
+    MatchWindowResponse:
+      name: match_window_response
+      title: Window Response (pass or play a card into the open window)
+      description: >
+        Client reply to a `window_open` event packet. `pass`
+        true declines the window (the Pass button); otherwise
+        `card_id` (CompactCardV2.bits) plays a response card. `window_id` is
+        informational and currently ignored by the server.
+      payload:
+        $ref: "#/components/schemas/MatchWindowResponsePayload"
 
     MatchExit:
       name: match_exit
@@ -628,6 +706,17 @@ components:
         instead of this constant directly.
       x-constants: { maximum: MaxLobbyMembers }
 
+    # Mod content API version. A mod manifest's `api` field is rejected when
+    # it exceeds this value; bumping the content schema bumps this constant
+    # (frontend: MOD_API_VERSION, backend: contract::kModApiVersion).
+    ModApiVersion:
+      type: integer
+      minimum: 1
+      description: >
+        Highest mod content API version this engine accepts. Starts at 1 and
+        lives with the generated contract constants.
+      x-constants: { minimum: ModApiVersion }
+
     # --- Client → Server payload schemas (C++ structs generated from these) ---
     # Fields 'action' and 'request_id' are envelope fields handled by the router
     # and are intentionally excluded from these struct definitions.
@@ -751,6 +840,11 @@ components:
           type: array
           items:
             type: string
+        deck_id:
+          type: string
+          description: >-
+            Deck catalog id (namespace:id or bare id); empty string clears to
+            freestyle.
 
     ChatSendPayload:
       type: object
@@ -867,12 +961,486 @@ components:
     SpectatorViewPayload:
       type: object
       properties:
+        action:
+          type: string
+          enum: ["spectator_view"]
+        request_id:
+          type: string
         viewed_username:
           type: string
           description: >
             Username of the player whose POV this spectator is currently
             viewing. An empty string means "no explicit choice" — the server
             attributes the spectator to whoever's turn it is.
+
+    # --- Event-stream packet payloads -----------------------
+    # The MatchEvent envelope is {seq, type, payload}; the named *Payload
+    # schemas below describe the inner `payload` object for each packet `type`.
+    #
+    # Versioning convention (x-packet-v1): every packet payload schema carries
+    # a top-level `x-packet-version: "1"` marker. Evolve payloads additively;
+    # bump the marker only on a breaking change. Clients MUST ignore unknown
+    # `type` strings (and unknown trailing fields) without error.
+
+    # Event-stream envelope. The MatchEvent message references this
+    # schema. `seq` is a per-match monotonic uint32; per-recipient filtering may
+    # drop a packet for one viewer but never renumbers, so each recipient's
+    # stream is gap-free. The server emits in resolution order and the transport
+    # preserves per-connection order. On a seq gap > 1 the client flushes its
+    # animation queue, marks itself desynced, and reconciles from the next
+    # state snapshot. FORWARD-COMPAT (normative): unknown `type` strings MUST be
+    # ignored by clients, never treated as errors. The valid `type` values are
+    # pinned by components.x-packet-types; the inner payload shape per `type` is
+    # described by the named *Payload schemas below, versioned by name via the
+    # x-packet-v1 marker (`x-packet-version: "1"`); new packet types are added
+    # additively.
+    #
+    # WARN: `payload` (here, and the same for SignalPayload.payload and
+    #       PromptOpenPayload.payload) is intentionally opaque: the external
+    #       asyncapi_gencpp maps `additionalProperties: true` to an EMPTY C++
+    #       struct, so the generated Payload type neither serializes nor
+    #       parses its contents (toJson() -> `{}`, fromJson() discards). Do NOT
+    #       assume the C++ generated struct round-trips this field; consumers
+    #       must carry/parse raw JSON for it (the view layer and the session
+    # layer). WARN: `seq` is a uint32 on the wire but asyncapi_gencpp emits
+    #       every integer as C++ `int` (32-bit signed), so the 4294967295
+    #       maximum does not fit and the generated range check is inert. The
+    #       view layer and the controller must handle the uint32 range
+    #       explicitly (carry raw JSON or widen); no schema change is made here.
+    MatchEventPayload:
+      type: object
+      x-packet-version: "1"
+      required: [seq, type, payload]
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: >
+            Per-match monotonic sequence number (uint32); gap-free per
+            recipient. Generated C++ type is `int` (see WARN above).
+        type:
+          type: string
+          description: Packet discriminator. Unknown values MUST be ignored by clients.
+        payload:
+          type: object
+          additionalProperties: true
+          description: Type-specific payload object (see the named *Payload schemas).
+
+    # Compact wire identity: bits 31..24 mod_index, 23..12
+    # kind_index, 11..0 instance_id. Serialized as a plain integer.
+    CompactCardV2:
+      type: integer
+      minimum: 0
+      maximum: 4294967295
+
+    # Per-mod entry in the frozen match mod list.
+    ModDef:
+      type: object
+      required: [id, version, index]
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        index:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Position of this mod in the frozen match mod list (8-bit on the wire).
+
+    # Per-kind entry in the flattened card kind table (`defs` packet).
+    KindDef:
+      type: object
+      required: [index, string_id, face, tags]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          maximum: 4095
+        string_id:
+          type: string
+        face:
+          type: object
+          additionalProperties: true
+          description: Face definition (type/value/art); opaque on the wire.
+        tags:
+          type: array
+          items:
+            type: string
+
+    MatchStartPayload:
+      type: object
+      x-packet-version: "1"
+      required: [defs_digest, mods, deck_id, deck_name, settings]
+      properties:
+        defs_digest:
+          type: string
+        mods:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModDef"
+        deck_id:
+          type: string
+        deck_name:
+          type: string
+        settings:
+          type: object
+          additionalProperties: true
+
+    DefsPayload:
+      type: object
+      x-packet-version: "1"
+      required: [defs_digest, mods, kinds]
+      properties:
+        defs_digest:
+          type: string
+        mods:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModDef"
+        kinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/KindDef"
+
+    CardPlayedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [player, card, from_zone_ordinal]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        from_zone_ordinal:
+          type: integer
+          minimum: 0
+
+    PlayRejectedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [player, reason_id]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        reason_id:
+          type: string
+
+    CardsDrawnPayload:
+      type: object
+      x-packet-version: "1"
+      required: [player, count, source_pile]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        count:
+          type: integer
+          minimum: 0
+        source_pile:
+          type: string
+        cards:
+          type: array
+          description: Owner-only card identities; other viewers receive count only.
+          items:
+            $ref: "#/components/schemas/CompactCardV2"
+
+    ReshufflePayload:
+      type: object
+      x-packet-version: "1"
+      required: [draw_size, discard_size]
+      properties:
+        draw_size:
+          type: integer
+          minimum: 0
+        discard_size:
+          type: integer
+          minimum: 0
+
+    StatusAppliedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, status_kind, magnitude, duration_unit, instance_id]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        status_kind:
+          type: string
+        magnitude:
+          type: integer
+        duration_unit:
+          type: string
+          description: Duration unit (turns/rounds/cards/real_time) - never remaining ms.
+        instance_id:
+          type: integer
+
+    StatusRemovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, status_kind, instance_id]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        status_kind:
+          type: string
+        instance_id:
+          type: integer
+
+    WindowOpenPayload:
+      type: object
+      x-packet-version: "1"
+      required: [deadline_ms, responders, eligible_filter_digest, window_id]
+      properties:
+        deadline_ms:
+          type: integer
+          minimum: 0
+        responders:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+        eligible_filter_digest:
+          type: string
+          description: Identical for every viewer of a uniform window (no eligibility leak).
+        window_id:
+          type: string
+
+    WindowResponsePayload:
+      type: object
+      x-packet-version: "1"
+      required: [player]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        passed:
+          type: boolean
+
+    WindowClosePayload:
+      type: object
+      x-packet-version: "1"
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: ["default", "winner"]
+        winner:
+          $ref: "#/components/schemas/PlayerRef"
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+
+    AutoPlayedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [player, card, trigger_summary]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        trigger_summary:
+          type: string
+
+    PromptOpenPayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, kind, payload, response_schema, deadline_ms]
+      properties:
+        prompt_id:
+          type: string
+        kind:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        response_schema:
+          type: object
+          additionalProperties: true
+        deadline_ms:
+          type: integer
+          minimum: 0
+
+    # Generic prompt envelope. Mod manifests declare prompt
+    # kinds by this shape; clients render unknown kinds from `response_schema`
+    # (enum = buttons, integer range = stepper, boolean = toggle).
+    PromptEnvelope:
+      type: object
+      x-packet-version: "1"
+      required: [kind, payload, response_schema, timeout_ms]
+      properties:
+        kind:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        response_schema:
+          type: object
+          additionalProperties: true
+        timeout_ms:
+          type: integer
+          minimum: 0
+        # INFO: untyped on purpose - `default` is a C++ keyword, so the C++
+        #       codegen skips untyped properties; the value is any JSON scalar
+        #       or object matching response_schema.
+        default:
+          description: Default value bound on timeout when present.
+
+    PromptClosePayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, outcome]
+      properties:
+        prompt_id:
+          type: string
+        outcome:
+          type: string
+          enum: ["answered", "timed_out", "cancelled"]
+
+    TurnAdvancePayload:
+      type: object
+      x-packet-version: "1"
+      required: [from, to, direction, deadline_ms]
+      properties:
+        from:
+          $ref: "#/components/schemas/PlayerRef"
+        to:
+          $ref: "#/components/schemas/PlayerRef"
+        direction:
+          type: integer
+        deadline_ms:
+          type: integer
+          minimum: 0
+
+    RoundAdvancePayload:
+      type: object
+      x-packet-version: "1"
+      required: [round]
+      properties:
+        round:
+          type: integer
+          minimum: 0
+
+    RollResultPayload:
+      type: object
+      x-packet-version: "1"
+      required: [spec, outcomes, roll_counter]
+      properties:
+        spec:
+          type: string
+        outcomes:
+          type: array
+          items:
+            type: integer
+        roll_counter:
+          type: integer
+          minimum: 0
+
+    SignalPayload:
+      type: object
+      x-packet-version: "1"
+      required: [name, payload]
+      properties:
+        name:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+
+    ChainAbortedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [mod, node, reason]
+      properties:
+        mod:
+          type: string
+        node:
+          type: string
+        reason:
+          type: string
+
+    ModDisarmedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [mod_id, reason]
+      properties:
+        mod_id:
+          type: string
+        reason:
+          type: string
+
+    VisibilityGrantedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, aspects]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        aspects:
+          type: array
+          items:
+            type: string
+
+    VisibilityRevokedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, aspects]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        aspects:
+          type: array
+          items:
+            type: string
+
+    PlacementPayload:
+      type: object
+      x-packet-version: "1"
+      required: [player, place]
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        place:
+          type: integer
+          minimum: 1
+
+    MatchEndPayload:
+      type: object
+      x-packet-version: "1"
+      required: [winner, placements, final_digest]
+      properties:
+        winner:
+          $ref: "#/components/schemas/PlayerRef"
+        placements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlacementPayload"
+        final_digest:
+          type: string
+
+    MatchWindowResponsePayload:
+      type: object
+      x-packet-version: "1"
+      properties:
+        window_id:
+          type: string
+          description: Id of the window being answered (informational).
+        card_id:
+          type: integer
+          description: CompactCardV2.bits of the response card, when responding by play.
+        pass:
+          type: boolean
+          description: True declines the open window (the Pass button).
+
+    MatchPromptResponsePayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, value]
+      properties:
+        prompt_id:
+          type: string
+        value:
+          x-any: true
+          description: Validated server-side against the prompt's response_schema.
 
   # -------------------------------------------------------------------------
   # Enum definitions (shared between backend and frontend)

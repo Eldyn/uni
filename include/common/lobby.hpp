@@ -15,7 +15,9 @@
  */
 
 namespace match {
-    class MatchInstance;
+    namespace server {
+        class MatchSession;
+    }
 }
 
 /**
@@ -85,9 +87,18 @@ struct LobbySettings {
     /**< Number of survivors remaining when elimination match ends (default 1). */
     int survivor_count = 1;
 
+    /**< Selected deck snapshot: the mod list, card multiset and
+     * typed settings bag as one object, matching the `decks/*.json` shape
+     * (`id`, `name`, `namespace`, `mods`, `cards`, `settings`). An empty
+     * object means the lobby is freestyle (no deck selected). Selecting a
+     * deck loads all three atomically; the scalar fields above stay
+     * editable so freestyle tuning keeps working additively. */
+    nlohmann::json deck = nlohmann::json::object();
+
     /**
-     * @brief Clamps numeric fields into contract bounds and strips unknown or
-     * duplicate entries from active_mods in place.
+     * @brief Clamps numeric fields into contract bounds and deduplicates
+     * entries from active_mods in place (order-preserving; unknown mod names
+     * are left for the mod loader to ignore).
      * @param max_players_ceiling Absolute upper bound to clamp max_players
      * against (env-driven ABSOLUTE_MAX_LOBBY_MEMBERS at the caller), defaults
      * to the compile-time contract::kMaxLobbyMembers for callers (tests,
@@ -99,7 +110,7 @@ struct LobbySettings {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
     allow_bot_takeover, allow_bot_replacement, quit_deletes_match, is_public,
-    max_players, ranked, mode, survivor_count
+    max_players, ranked, mode, survivor_count, deck
 )
 
 /**
@@ -153,7 +164,7 @@ enum class MemberRemovalOutcome {
     kMatchUnaffected,        /**< No match in progress, or match unaffected by this removal. */
     kMatchAborted,           /**< quit_deletes_match path: match was torn down. */
     kPlayerReplacedByBot,    /**< allow_bot_replacement path. */
-    kPlayerDroppedFromEngine /**< Neither of the above: RemovePlayerMidGame path. */
+    kPlayerDroppedFromEngine /**< Neither of the above: member erased, engine seat kept. */
 };
 
 /**
@@ -211,10 +222,31 @@ struct Lobby {
     std::string              name;
     LobbySettings            settings;      /**< Current settings of the match in this lobby. */
 
-    /** * @brief Instance of the game engine.
-     * If nullptr, the lobby is in the waiting phase. If populated, a match is currently in progress.
+    /**
+     * @brief The new-engine match session.
+     * Null while the lobby is waiting or when assembly failed; a populated
+     * session means a match is in progress and is the sole match owner.
      */
-    std::unique_ptr<match::MatchInstance> match;
+    std::unique_ptr<match::server::MatchSession> session;
+
+    /**
+     * @brief Persistence id assigned when the match starts (`match_...`).
+     * The new engine carries no match id of its own, so the lobby keeps it
+     * for `SaveMatchStateToDB` / saved-match rows.
+     */
+    std::string match_id;
+
+    /** @brief Default-constructs an empty, waiting lobby (out-of-line). */
+    Lobby();
+    Lobby(Lobby&&) noexcept;
+    Lobby& operator=(Lobby&&) noexcept;
+    /**
+     * @brief Out-of-line destructor.
+     * The `unique_ptr` member above holds an incomplete type in this header,
+     * so destruction is instantiated in src/common/lobby.cpp where
+     * `match::server::MatchSession` is complete.
+     */
+    ~Lobby();
 
     /**
      * @brief Re-evaluates settings.bot_count, adding or purging bot members
@@ -263,14 +295,17 @@ struct Lobby {
 
     /**
      * @brief Removes a member from the lobby, applying departure policy: if a
-     * match is in progress, either flags it for abort, replaces the departing
-     * human with a bot, or drops them from the engine directly, per
-     * settings.quit_deletes_match / settings.allow_bot_replacement. Always
-     * erases the member from `members`. On the kMatchAborted outcome, `match`
-     * is deliberately left intact so the caller can persist its state before
-     * tearing it down, the caller must reset `match` itself after saving.
+     * match is in progress, either flags it for abort, keeps the member as a
+     * bot, or erases the member while leaving the engine seat seated, per
+     * settings.quit_deletes_match / settings.allow_bot_replacement (the engine
+     * has no mid-game removal; the turn timeout + bot policy drive a seat
+     * whose member left). Always erases the member from `members` except on
+     * kPlayerReplacedByBot. On the kMatchAborted outcome, `session` is
+     * deliberately left intact so the caller can persist its state before
+     * tearing it down, the caller must reset `session` itself after saving.
      * @param username Username of the member to remove.
-     * @param rng Shared RNG, forwarded to PickBotName for the bot-replacement path.
+     * @param rng Shared RNG (retained for API parity; unused on the
+     * match-in-progress paths).
      * @return MemberRemovalResult describing what happened, for the caller to
      * react to (broadcasting, persistence, callbacks), this method does not
      * touch sockets, the database, or controller-level callback lists.

@@ -25,7 +25,12 @@ public:
     /** @brief Fire the callback registered under `key`, if any. */
     void Fire(const std::string& key) {
         auto it = callbacks_.find(key);
-        if (it != callbacks_.end()) it->second();
+        if (it == callbacks_.end()) return;
+        // INFO: copy before invoking: a callback is allowed to re-arm its own
+        //       key (Schedule replaces the slot), which would otherwise destroy
+        //       the std::function while it is still executing.
+        std::function<void()> cb = it->second;
+        cb();
     }
 
     /** @brief Fire all registered callbacks in insertion order. */

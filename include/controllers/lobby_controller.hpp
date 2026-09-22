@@ -1,8 +1,9 @@
 #pragma once
 #include <controllers/ilobby_store.hpp>
-#include <match/match_instance.hpp>
+#include <match/modload/artifacts.hpp>
 #include <common/lobby.hpp>
 #include <common/ws.hpp>
+#include <http_router.hpp>
 #include <atomic>
 #include <random>
 #include <string>
@@ -38,9 +39,16 @@ public:
      * @param timers    Timer service for the eviction clock (DI seam).
      * @param presence  Connection registry, also indexes username -> lobby ID
      *                  (perf audit M-1, replaces the old O(N) member scan).
+     * @param http_router Optional HTTP router; when non-null, registers the
+     *                  `GET /api/decks` deck-catalog endpoint. Left null by
+     *                  unit tests that do not exercise HTTP routing.
+     * @param mods_root Optional mods folder used to resolve deck snapshots;
+     *                  defaults to the `UNI_MODS_DIR` env var (or `mods`).
      */
-    LobbyController(IActionRouter& router, IBroadcaster& broadcast, ITimerService& timers,
-                    PresenceRegistry& presence);
+    LobbyController(IActionRouter& router, IBroadcaster& broadcast,
+                    ITimerService& timers, PresenceRegistry& presence,
+                    HttpRouter* http_router = nullptr,
+                    std::string mods_root = "");
 
     /**
      * @brief Destructor. Takes care of cleaning up the associated libuv timers.
@@ -145,11 +153,68 @@ public:
     void SaveMatchStateToDB(Lobby& lobby);
 
     /**
+     * @brief Persists a completed match's rows for the new engine.
+     *
+     * Writes the `matches` row, one `match_participants` row per engine
+     * player and the per-human `match_history` ledger rows. The per-player
+     * `player_stats` aggregate is updated ONLY when
+     * `match::server::StatsGateAllows` accepts the lobby's mod set and deck
+     * kind multiset; the match rows themselves are written for every match.
+     *
+     * @param lobby  Lobby whose live session just finished. Its
+     *               `session` must still be populated (read before teardown).
+     * @param winner Winning username, or empty for a no-survivor abort.
+     */
+    void RecordMatchResult(Lobby& lobby, const std::string& winner);
+
+    /**
+     * @brief Persists an aborted match's per-human ledger rows.
+     *
+     * Aborts have no winner, so no `matches` row is written (mirrors the
+     * pre-swap `RecordMatchAborted`): only `match_history` rows with result
+     * and reason `"aborted"` are recorded. The stats gate never applies.
+     *
+     * @param lobby Lobby whose live session is being torn down.
+     */
+    void RecordMatchAborted(Lobby& lobby);
+
+    /**
      * @brief Counts the lobbies whose match is currently in progress (not finished).
      * Used by the deploy gate to avoid swapping the container mid-game.
      * @return std::size_t Number of active matches.
      */
     std::size_t ActiveMatchCount() const;
+
+    /**
+     * @brief Builds the `GET /api/decks` response body from a mods scan.
+     * * Emits `{ "decks": [ {id, name, namespace, mods}, ... ] }`, one entry
+     * per `decks/*.json` snapshot across every loaded mod. `id` is the local
+     * deck id, `namespace` the owning mod and `mods` the deck's mod
+     * requirements. Deterministic order: mods are sorted by
+     * manifest id by the loader, decks by filename.
+     * @param mods Every loaded mod, as returned by `ScanModsDirectory`.
+     * @return nlohmann::json The response body.
+     */
+    static nlohmann::json DeckCatalogJson(
+        const std::vector<match::modload::LoadedMod>& mods);
+
+    /**
+     * @brief Loads one deck snapshot (mod list + card multiset + typed
+     * settings bag) into `settings.deck` atomically.
+     * * Stores the schema-shaped object (`id`, `name`, `namespace`, `mods`,
+     * `cards`, `settings`) verbatim; the new engine consumes it at the
+     * controller. The legacy scalar settings are deliberately left alone so
+     * freestyle editing remains fully additive during the coexistence phase.
+     * @param settings Target lobby settings, mutated in place.
+     * @param mods     Every loaded mod to search for `deck_id`.
+     * @param deck_id  Full `namespace:id` (or bare local id) of the deck.
+     * @return true when a matching deck was found and applied, false otherwise
+     *         (settings left untouched).
+     */
+    static bool ApplyDeckSnapshot(
+        LobbySettings& settings,
+        const std::vector<match::modload::LoadedMod>& mods,
+        const std::string& deck_id);
 
 private:
     /**
@@ -213,6 +278,14 @@ private:
      * @param msg Associated JSON payload.
      */
     void HandleGetMetadata(WsContext ctx, const json& msg);
+
+    /**
+     * @brief HTTP handler for `GET /api/decks`.
+     * * Scans `mods_root_` and writes the deck catalog as JSON. Returns 500
+     * with an `error` object when the mods folder cannot be scanned.
+     * @param res Pointer to the HTTP response (uWS).
+     */
+    void HandleListDecks(AppResponse* res);
 
     /**
      * @brief Promotes a specific player to the Host role of the lobby.
@@ -312,6 +385,8 @@ private:
     IBroadcaster&  broadcaster_;    /**< Transport layer for all sends/publishes. */
     ITimerService& timer_service_;  /**< Timer service for the eviction clock. */
     PresenceRegistry& presence_;    /**< Connection registry; also indexes username -> lobby ID. */
+    /**< Mods folder scanned to resolve deck snapshots (env: UNI_MODS_DIR). */
+    std::string mods_root_;
 
     std::unordered_map<uint32_t, Lobby> lobbies_;        /**< Primary storage of the lobbies. */
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */

@@ -36,6 +36,27 @@ export interface CardMeta {
 	type: string;
 	value: string;
 	wildColor?: import("$stores/game.svelte").CardType;
+	/** Frozen kind id (snapshot), for the defs-table face lookup. */
+	kind?: string;
+	/** Declarative face resolved from the defs kind table. */
+	face?: import("$stores/cardDefs.svelte").KindFace;
+}
+
+/**
+ * @brief Narrows a card-shaped object to the fields a flight handle needs,
+ * omitting resolved face fields that are absent so a plain vanilla card's
+ * metadata stays byte-identical to its pre-defs form.
+ */
+export function cardMetaFrom(card: {
+	type: string;
+	value: string;
+	kind?: string;
+	face?: import("$stores/cardDefs.svelte").KindFace;
+}): CardMeta {
+	const meta: CardMeta = { type: card.type, value: card.value };
+	if (card.kind !== undefined) meta.kind = card.kind;
+	if (card.face !== undefined) meta.face = card.face;
+	return meta;
 }
 
 export interface FlightHandle {

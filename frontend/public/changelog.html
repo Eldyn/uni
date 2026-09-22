@@ -84,6 +84,18 @@
 			<h3>Unreleased</h3>
 			<ul>
 				<li>
+					A new deck picker in the lobby lets the host choose which deck a match plays with &mdash;
+					each deck brings its own cards, mods and rules.
+				</li>
+				<li>
+					Matches now run on a fully data-driven engine, so new decks, cards and house rules can be
+					added as content instead of code.
+				</li>
+				<li>
+					The table's animations are now driven by the match's own event stream, so drawn cards,
+					plays and turn changes play out in order and stay in sync with the server.
+				</li>
+				<li>
 					A player knocked out in an elimination match no longer stays a spectator in the next match
 					— the refreshed lobby state is now broadcast when a match starts, so the table drops the
 					stale spectator flag.

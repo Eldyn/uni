@@ -1,0 +1,9 @@
+{
+  "id": "seven_zero",
+  "name": "Seven-Zero",
+  "version": "1.0.0",
+  "api": "1",
+  "description": "Rule-only mod: playing a 7 swaps hands with a chosen player; playing a 0 rotates every hand one seat in the current direction of play.",
+  "author": "eldyn",
+  "provides_rules": "rules.json"
+}

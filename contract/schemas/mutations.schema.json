@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/mutations.schema.json",
+  "title": "Mutation definitions (mutations.json)",
+  "description": "A JSON array of mutations. The validator detects conflicts; this schema only constrains shape.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/mutation"
+  },
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "kindRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$"
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes"],
+      "additionalProperties": true,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "required": ["id", "target", "mode"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "target": {
+          "$ref": "#/$defs/kindRef"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["replace", "wrap", "veto", "filter"]
+        },
+        "position": {
+          "type": "string",
+          "enum": ["before", "after"]
+        },
+        "where": {
+          "type": "object"
+        },
+        "replacement": {
+          "$ref": "#/$defs/graph"
+        }
+      }
+    }
+  }
+}

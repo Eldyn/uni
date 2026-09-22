@@ -1,0 +1,65 @@
+{
+  "statuses": [
+    {
+      "id": "draw_debt",
+      "title": "Draw Debt",
+      "stack_policy": "accumulate",
+      "hidden": false
+    }
+  ],
+  "rules": [
+    {
+      "id": "standard_play_legality",
+      "title": "Standard Play Legality",
+      "description": "Vanilla play restrictions (spec 13.3). Installed once at match start as the first entries of the play_restriction pipeline; removable via remove_restriction. Order is significant: the first matching deny supplies the rejection reason.",
+      "hooks": [
+        {
+          "on": "after:match_start",
+          "nodes": [
+            {
+              "id": "n1",
+              "op": "add_restriction",
+              "args": {
+                "entry_def": {
+                  "id": "vanilla:turn_order",
+                  "phase": "deny",
+                  "condition": {
+                    "plays_out_of_turn": {}
+                  }
+                }
+              },
+              "next": "n2"
+            },
+            {
+              "id": "n2",
+              "op": "add_restriction",
+              "args": {
+                "entry_def": {
+                  "id": "vanilla:match_type_or_value",
+                  "phase": "deny",
+                  "condition": {
+                    "plays_mismatch": {}
+                  }
+                }
+              },
+              "next": "n3"
+            },
+            {
+              "id": "n3",
+              "op": "add_restriction",
+              "args": {
+                "entry_def": {
+                  "id": "vanilla:must_own_card",
+                  "phase": "deny",
+                  "condition": {
+                    "plays_unowned": {}
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

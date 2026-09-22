@@ -74,6 +74,26 @@ export interface LobbySettings {
 	mode?: "standard" | "elimination";
 	/** Survivor count for elimination mode. */
 	survivor_count?: number;
+
+	/**
+	 * Selected deck snapshot from the server, or absent/empty for
+	 * freestyle. Mirrors the `decks/*.json` shape; only the fields the client
+	 * reads are typed, the rest stays opaque until a consumer needs it.
+	 */
+	deck?: {
+		/** Deck id (`namespace:id` when namespaced, bare id otherwise). */
+		id?: string;
+		/** Human-readable deck name. */
+		name?: string;
+		/** Id of the mod that owns the deck. */
+		namespace?: string;
+		/** Ids of the mods this deck depends on and activates. */
+		mods?: string[];
+		/** Card multiset the deck defines. */
+		cards?: unknown;
+		/** Deck-level settings bag applied on selection. */
+		settings?: unknown;
+	};
 }
 
 /**
@@ -366,7 +386,9 @@ class StoreLobby implements SessionStore {
 	 * @brief Updates the lobby settings (including name and visibility).
 	 * @param settings The settings fields to modify.
 	 */
-	async updateSettings(settings: Partial<LobbySettings> & Partial<{ name: string }>) {
+	async updateSettings(
+		settings: Partial<LobbySettings> & Partial<{ name: string; deck_id: string }>
+	) {
 		try {
 			await ws.connect();
 			const response = await ws.emitAndWait(ClientAction.LobbyUpdateSettings, settings);

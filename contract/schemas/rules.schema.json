@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/rules.schema.json",
+  "title": "Rule definitions (rules.json)",
+  "description": "Rules are pure hooks + graphs with no card. Status definitions share the file under the `statuses` key. The loader accepts the object form {\"rules\": [...], \"statuses\": [...]} and a bare rule-entry object with `hooks`.",
+  "oneOf": [
+    {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rule"
+          }
+        },
+        "statuses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/status"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes"],
+      "additionalProperties": true,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "required": ["on"],
+      "additionalProperties": true,
+      "properties": {
+        "on": {
+          "type": "string"
+        },
+        "where": {
+          "type": "object"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "graph": {
+          "$ref": "#/$defs/graph"
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "hooks"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hook"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "required": ["id", "stack_policy"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "type": "string"
+        },
+        "stack_policy": {
+          "type": "string",
+          "pattern": "^(replace|accumulate|independent|cap:[0-9]+)$"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

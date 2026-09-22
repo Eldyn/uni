@@ -1,0 +1,9 @@
+{
+  "id": "jump_in",
+  "name": "Jump In",
+  "version": "1.0.0",
+  "api": "1",
+  "description": "Rule-only mod: play an identical card (same colour and value) out of turn to steal the turn.",
+  "author": "eldyn",
+  "provides_rules": "rules.json"
+}

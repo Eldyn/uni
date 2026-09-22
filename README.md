@@ -12,9 +12,11 @@ code), configure the match rules and play against other users or against bots.
 - **Authentication** with email/password, session via HttpOnly cookie and JWT token (HS256).
 - **Public/private lobbies**, member management (host, promotion, kicking),
   automatic reconnection after a disconnection.
-- **Extensible game engine** based on a queue of _effects_ and _rules_, with support
-  for optional mods: _Draw Stacking_, _Progressive_, _Force Play_, _Jump In_,
-  _No Bluffing_, _Seven-Zero_.
+- **Data-driven game engine**: cards, rules and mods are JSON data validated
+  against the shared wire contract and resolved by the ECS + op-catalog pipeline
+  (see [Game engine](#-game-engine)). Ships the classic ruleset plus optional
+  mods: _Draw Stacking_, _Progressive_, _Force Play_, _Jump In_, _No Bluffing_,
+  _Seven-Zero_.
 - **Bots** with heuristics, also used to handle turns in case of inactivity (AFK).
 - **Card animations** (flight from the deck to the hand and to the discard pile, `+N`
   counter for accumulated penalties).
@@ -122,6 +124,33 @@ The SQLite database is created automatically on first launch if it does not exis
 (default `uni.sqlite` in the working directory, override with `DB_PATH`). By default the server is
 reachable at **https://localhost:9999** (accept the browser warning about the
 self-signed certificate).
+
+---
+
+## 🧩 Game engine
+
+The backend runs a **data-driven, ECS-based engine**. The single source of truth
+is the language-neutral **`contract/`** definition: one specification drives code
+generation into the TypeScript schemas the frontend consumes and the C++ types
+the backend compiles, so the two sides of the wire cannot drift.
+
+- **Content is data.** Cards, rules, mods and decks are authored as JSON and
+  validated against the JSON Schemas in `contract/schemas/` before a match can
+  use them; a malformed mod folder is rejected with structured errors.
+- **EntityStore (ECS).** Match state lives in an entity/component store with
+  generational handles, giving cheap lookups and safe reclamation of dead
+  entities.
+- **Resolver + op catalog.** A play is resolved as an ordered pipeline of hooks
+  and operations; every effect a card or rule can express maps to a registered
+  op with a typed signature, evaluated under a per-resolution budget so a
+  malicious or accidental rule loop aborts cleanly instead of hanging.
+- **Ordered event stream.** Resolution emits a single ordered `match_event`
+  stream. A per-recipient **view builder** projects that stream — hiding hands
+  and deck contents where the rules require — so every client sees only what it
+  is entitled to and replays share one canonical transcript.
+
+The engine is the subject of the design record at
+[`docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md`](docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md).
 
 ---
 

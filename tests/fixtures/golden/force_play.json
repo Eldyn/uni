@@ -1,0 +1,102 @@
+{
+  "engine": "old",
+  "may_differ": false,
+  "scenario": "force_play",
+  "steps": [
+    {
+      "action": "load",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 0,
+        "discard_pile": [
+          327780
+        ],
+        "draw_pile": [
+          33816777,
+          197108
+        ],
+        "effect_queue": [],
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "force_play"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    },
+    {
+      "action": "draw:Alice:forced_play",
+      "state": {
+        "active_type": 0,
+        "current_player_index": 1,
+        "discard_pile": [
+          327780,
+          197108
+        ],
+        "draw_pile": [
+          33816777
+        ],
+        "effect_queue": [],
+        "last_play": {
+          "card": 197108,
+          "hand_index": 1,
+          "player": "Alice"
+        },
+        "pending_action": 0,
+        "pending_draws": 0,
+        "pending_input_context": null,
+        "pending_player": "",
+        "placements": [],
+        "play_direction": 1,
+        "players": [
+          {
+            "hand": [
+              17104898
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Alice"
+          },
+          {
+            "hand": [
+              34144259
+            ],
+            "is_bot": false,
+            "seat_index": -1,
+            "username": "Bob"
+          }
+        ],
+        "provided_input": "",
+        "rules": [
+          "force_play"
+        ],
+        "status": 1,
+        "winner": ""
+      }
+    }
+  ]
+}

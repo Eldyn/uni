@@ -14,7 +14,7 @@
 		discardStepFor,
 		type DiscardEntry
 	} from "../layout/discardPile";
-	import { useCardRegistry } from "../animation/cardRegistry.svelte";
+	import { useCardRegistry, cardMetaFrom } from "../animation/cardRegistry.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import { loadTexture } from "./textures";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
@@ -105,7 +105,7 @@
 					turned: false,
 					opacity: 1
 				},
-				{ type: entry.card.type, value: entry.card.value, wildColor: entry.wildColor }
+				{ ...cardMetaFrom(entry.card), wildColor: entry.wildColor }
 			);
 			cardRegistry.setPoseProvider(idString, () => {
 				const p = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);

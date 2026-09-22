@@ -154,7 +154,12 @@
 			// autofocuses its own control, and moving hand focus out from
 			// under it would leave Enter playing a card instead of answering
 			// the prompt ("pick a color", "play it", "select a target", ...).
-			if (storeGame.actionRequired !== null || storeModal.isAnyOpen) return;
+			if (
+				storeGame.activePrompt !== null ||
+				storeGame.activeWindow !== null ||
+				storeModal.isAnyOpen
+			)
+				return;
 
 			const target = event.target as HTMLElement | null;
 			if (

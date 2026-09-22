@@ -6,8 +6,9 @@
 	import SpectatorFade from "./SpectatorFade.svelte";
 	import EliminationStandings from "./EliminationStandings.svelte";
 	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
-	import GameActions from "./GameActions.svelte";
 	import CardDetailPopover from "./CardDetailPopover.svelte";
+	import PromptRenderer from "./prompts/PromptRenderer.svelte";
+	import WindowTimerChip from "./WindowTimerChip.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -31,7 +32,8 @@
 		<div class="top-overlay">
 			<div class="game-controls">
 				<GameHud />
-				<GameActions />
+				<WindowTimerChip />
+				<PromptRenderer />
 			</div>
 
 			<SpectatorBanner

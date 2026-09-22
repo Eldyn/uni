@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 
 import AccessibleHandControls from "$components/game/AccessibleHandControls.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
-import { storeGame, Action, type Card } from "$stores/game.svelte";
+import { storeGame, type Card } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeModal } from "$stores/modal.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -51,7 +51,7 @@ describe("AccessibleHandControls", () => {
 			draw_pile_size: 10
 		};
 		storeGame.isActionPending = false;
-		storeGame.actionRequired = null;
+		storeGame.activePrompt = null;
 		storeRenderSettings.clickToPlay = true;
 	});
 
@@ -60,7 +60,7 @@ describe("AccessibleHandControls", () => {
 		vi.restoreAllMocks();
 		storeGame.state = null;
 		storeGame.isActionPending = false;
-		storeGame.actionRequired = null;
+		storeGame.activePrompt = null;
 		storeRenderSettings.clickToPlay = true;
 	});
 
@@ -302,7 +302,14 @@ describe("AccessibleHandControls", () => {
 
 	it("leaves the keyboard to an open action prompt instead of moving hand focus", async () => {
 		const { onFocusChange } = renderControls({ focusedId: 1 });
-		storeGame.actionRequired = Action.ChooseType;
+		storeGame.activePrompt = {
+			prompt_id: "prompt-1",
+			kind: "choose_color",
+			payload: {},
+			response_schema: {},
+			timeout_ms: 0,
+			default: null
+		} as never;
 
 		await fireEvent.keyDown(window, { key: "ArrowRight" });
 

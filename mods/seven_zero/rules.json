@@ -1,0 +1,53 @@
+{
+  "statuses": [],
+  "rules": [
+    {
+      "id": "seven_zero",
+      "title": "Seven-Zero",
+      "description": "Transcribed from src/match/rules/70.cpp. Both hooks run after:play and key off the discard top (tags `zero` / `seven`); the phase-1 store condition vocabulary has no played-value predicate, so spec 10.11's `where value=7` shorthand maps to top_of_discard. The 0 rotation honours play direction with an is_direction branch, matching legacy PassHandsEffect which rotates by play_direction. The 7 swap uses @choose_player, matching legacy DecideSwapTargetEffect.",
+      "hooks": [
+        {
+          "on": "after:play",
+          "where": { "top_of_discard": { "tag": "zero" } },
+          "nodes": [
+            {
+              "id": "n1",
+              "cases": [
+                {
+                  "when": { "is_direction": { "direction": "fwd" } },
+                  "next": "forward"
+                },
+                {
+                  "when": { "is_direction": { "direction": "rev" } },
+                  "next": "backward"
+                }
+              ],
+              "else": "backward"
+            },
+            {
+              "id": "forward",
+              "op": "pass_hands",
+              "args": { "direction": "forward" }
+            },
+            {
+              "id": "backward",
+              "op": "pass_hands",
+              "args": { "direction": "backward" }
+            }
+          ]
+        },
+        {
+          "on": "after:play",
+          "where": { "top_of_discard": { "tag": "seven" } },
+          "nodes": [
+            {
+              "id": "n1",
+              "op": "swap_hands",
+              "args": { "a": "@self", "b": "@choose_player" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

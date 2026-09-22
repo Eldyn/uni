@@ -6,6 +6,8 @@ import {
 	atlasPageCount,
 	ATLAS_PAGE_VERSION,
 	preloadCardArt,
+	cardFaceKeyFor,
+	hasStandardFaceArt,
 	type CardFaceKey
 } from "$components/game/three/cardFaceAtlas";
 import { NearestFilter, SRGBColorSpace } from "three";
@@ -121,5 +123,83 @@ describe("cardFaceAtlas", () => {
 		};
 		const paintedJollyEntry = getFaceTexture(paintedJollyKey);
 		expect(paintedJollyEntry).toBeDefined();
+	});
+});
+
+describe("cardFaceKeyFor defs-face resolution", () => {
+	it("recognizes baked vanilla art labels", () => {
+		expect(hasStandardFaceArt("5")).toBe(true);
+		expect(hasStandardFaceArt("skip")).toBe(true);
+		expect(hasStandardFaceArt("jolly_draw4")).toBe(true);
+		expect(hasStandardFaceArt("banana")).toBe(false);
+		expect(hasStandardFaceArt(undefined)).toBe(false);
+	});
+
+	it("maps a vanilla text face onto the same color/value art plus art_version", () => {
+		const key = cardFaceKeyFor(
+			{
+				type: "red",
+				value: "5",
+				face: { kind: "text", color: "red", label: "5", art_version: 1 }
+			},
+			undefined,
+			false
+		);
+		expect(key).toEqual({
+			type: "red",
+			value: "5",
+			wildColor: undefined,
+			turned: false,
+			artVersion: "1"
+		});
+	});
+
+	it("carries a wildColor through while keeping the face art version", () => {
+		const key = cardFaceKeyFor(
+			{
+				type: "white",
+				value: "jolly",
+				face: { kind: "text", color: "white", label: "jolly", art_version: 2 }
+			},
+			"green",
+			false
+		);
+		expect(key.type).toBe("white");
+		expect(key.value).toBe("jolly");
+		expect(key.wildColor).toBe("green");
+		expect(key.artVersion).toBe("2");
+	});
+
+	it("falls back to the card's own type/value when a face has no baked art", () => {
+		const key = cardFaceKeyFor(
+			{
+				type: "white",
+				value: "banana",
+				face: { kind: "emoji", label: "banana", art_version: 3 }
+			},
+			undefined,
+			false
+		);
+		expect(key).toEqual({ type: "white", value: "banana", wildColor: undefined, turned: false });
+		expect(key.artVersion).toBeUndefined();
+	});
+
+	it("falls back cleanly when the card carries no face at all", () => {
+		const key = cardFaceKeyFor({ type: "blue", value: "7" }, undefined, false);
+		expect(key).toEqual({ type: "blue", value: "7", wildColor: undefined, turned: false });
+		expect(key.artVersion).toBeUndefined();
+	});
+
+	it("uses the card back for turned cards regardless of face", () => {
+		const key = cardFaceKeyFor(
+			{
+				type: "red",
+				value: "5",
+				face: { kind: "text", color: "red", label: "5", art_version: 1 }
+			},
+			"blue",
+			true
+		);
+		expect(key).toEqual({ type: "wild", value: "0", turned: true });
 	});
 });

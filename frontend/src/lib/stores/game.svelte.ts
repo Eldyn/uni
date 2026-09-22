@@ -14,34 +14,55 @@ import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeSpectator } from "./spectator.svelte";
 import { storeTableSpin } from "./tableSpin.svelte";
-import { Action, Type, TypeMap, ValueMap } from "$lib/generated/schemas";
+import { storeCardDefs, type KindFace } from "./cardDefs.svelte";
+import {
+	MatchEventPayloadSchema,
+	PromptClosePayloadSchema,
+	PromptOpenPayloadSchema,
+	TurnAdvancePayloadSchema,
+	TypeMap,
+	ValueMap,
+	WindowClosePayloadSchema,
+	WindowOpenPayloadSchema
+} from "$lib/generated/schemas";
+import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schemas";
+import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 
 export const TYPE_MAP = TypeMap;
-const VALUE_MAP = ValueMap;
 
 export type CardType = (typeof TypeMap)[number];
 export type CardValue = (typeof ValueMap)[number];
 
+// INFO: wire shape emitted by ViewBuilder::BuildSnapshot. Cards carry only the
+// aspects the viewer's mask allows, so every card field stays optional.
 const RawCardSchema = z.object({
-	id: z.number().int(),
-	type: z.number().int().min(0).max(4),
-	value: z.number().int().min(0).max(14),
+	slot: z.number().int().optional(),
+	card: z.number().int().optional(),
+	kind: z.string().optional(),
+	color: z.string().optional(),
+	value: z.string().optional(),
 	can_play: z.boolean().optional()
 });
 
 const RawPlayerSchema = z.object({
 	username: z.string(),
+	seat: z.number().int().optional(),
+	is_current: z.boolean().optional(),
 	card_count: z.number().int(),
-	hand: z.array(RawCardSchema).optional(),
 	is_bot: z.boolean(),
+	hand: z.array(RawCardSchema).optional(),
+	statuses: z.array(z.unknown()).optional(),
 	spectator_count: z.number().int().optional()
 });
 
 const RawGameStateSchema = z.object({
-	active_type: z.number().int().min(0).max(4),
-	current_turn: z.string(),
-	play_direction: z.number(),
-	top_card: RawCardSchema.optional(),
+	status: z.string().optional(),
+	round: z.number().int().optional(),
+	direction: z.number().int().optional(),
+	active_type: z.string().nullable().optional(),
+	current_player: z.string(),
+	winner: z.string().nullable().optional(),
+	placements: z.array(z.string()).optional(),
 	players: z.array(RawPlayerSchema),
 	pending_draws: z.number().int().default(0),
 	draw_pile_size: z.number().int().default(0),
@@ -50,7 +71,12 @@ const RawGameStateSchema = z.object({
 	turn_time_remaining_ms: z.number().optional(),
 	mode: z.string().optional(),
 	spectator_count: z.number().int().optional(),
-	placements: z.array(z.string()).optional()
+	draw_pile: z.object({ count: z.number().int() }).optional(),
+	discard_pile: z.object({ count: z.number().int(), top: RawCardSchema.optional() }).optional(),
+	window: z.unknown().optional(),
+	prompts: z.array(z.unknown()).optional(),
+	turn_deadline_ms: z.number().optional(),
+	seq_watermark: z.number().int().optional()
 });
 
 /**
@@ -66,6 +92,11 @@ export interface Card {
 	value: CardValue;
 	/** Whether this card is currently playable (set by the server, only present in the local player's hand). */
 	can_play?: boolean;
+	/** Frozen kind id from the snapshot, e.g. `vanilla:red_5` (present when the
+	 *  viewer's aspect mask exposes identity). */
+	kind?: string;
+	/** Declarative face resolved from the `defs` kind table via `kind`. */
+	face?: KindFace;
 }
 
 /**
@@ -123,6 +154,14 @@ export interface GameState {
 	is_over?: boolean;
 	/** Username of the winning player, if the match has ended. */
 	winner?: string;
+	/** Server sequence watermark of the snapshot that produced this state. */
+	seq_watermark?: number;
+	/** Raw open response window from the snapshot, consumed by slice A4. */
+	window?: unknown;
+	/** Raw pending op-input prompts from the snapshot, consumed by slice A4. */
+	prompts?: unknown[];
+	/** Absolute epoch-ms deadline for the current turn (0 when none). */
+	turn_deadline_ms?: number;
 }
 
 /**
@@ -137,16 +176,42 @@ export interface LastPlay {
 }
 
 /**
+ * @interface ActiveWindow
+ * @brief Open response window mirrored from a `window_open` packet or snapshot.
+ */
+export interface ActiveWindow {
+	/** Server-issued identifier of the open window. */
+	windowId: string;
+	/** Absolute deadline on the client clock (epoch ms). */
+	deadlineAt: number;
+	/** Usernames eligible to respond. */
+	responders: string[];
+	/** Digest of the engine-side eligibility filter. */
+	eligibleFilterDigest: string;
+}
+
+/**
  * @class StoreGame
  * @brief Synchronizes the frontend state with the server Game Engine in real time.
  */
 class StoreGame implements SessionStore {
 	/** The current state of the match (players, deck, cards on the table). */
 	state = $state<GameState | null>(null);
-	/** Action the engine is waiting for (Action enum value), or null if none. */
-	actionRequired = $state<number | null>(null);
-	/** Contextual data attached to the input request. */
-	actionContext = $state<any>(null);
+
+	/** Highest `match_event` seq observed, or null before the first frame. */
+	lastSeq = $state<number | null>(null);
+
+	/** True after a seq gap, until the next snapshot reconciles the watermark. */
+	desynced = $state(false);
+
+	/** Beats mapped from `match_event` frames, held until the next snapshot is applied. */
+	#pendingBeats: MatchEventBeat[] = [];
+
+	/** Handlers registered via `onMatchEventBeat` (the animation controller). */
+	#beatHandlers = new Set<(beat: MatchEventBeat) => void>();
+
+	/** Handlers registered via `onDesync` (gap detection). */
+	#desyncHandlers = new Set<() => void>();
 
 	/** True while a game action is in flight, cleared on next MatchStateUpdated. */
 	isActionPending = $state(false);
@@ -154,8 +219,20 @@ class StoreGame implements SessionStore {
 	/** Seconds remaining to complete the turn, computed locally. */
 	turnTimeRemaining = $state<number>(15);
 
+	/** Open response window mirrored from a `window_open` packet or snapshot. */
+	activeWindow = $state<ActiveWindow | null>(null);
+
+	/** Seconds remaining before the open response window closes, computed locally. */
+	windowTimeRemaining = $state<number>(0);
+
+	/** Open op-input prompt for the local viewer, or null when none is live. */
+	activePrompt = $state<PromptOpenPayload | null>(null);
+
 	/** Reference to the browser's native `setInterval` timer. */
 	#timerInterval: number | null = null;
+
+	/** Reference to the browser's native `setInterval` timer for the window countdown. */
+	#windowTimerInterval: number | null = null;
 
 	/** Safety timeout that releases isActionPending if the server stops responding. */
 	#pendingSafetyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -242,6 +319,30 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Registers a callback for every mapped `match_event` beat. Beats are
+	 * buffered on arrival and drained after the next snapshot is applied, so a
+	 * handler always observes beats against the state they belong to.
+	 * @returns An unsubscribe function.
+	 */
+	onMatchEventBeat(cb: (beat: MatchEventBeat) => void): () => void {
+		this.#beatHandlers.add(cb);
+		return () => {
+			this.#beatHandlers.delete(cb);
+		};
+	}
+
+	/**
+	 * @brief Registers a callback fired when a `match_event` seq gap is detected.
+	 * @returns An unsubscribe function.
+	 */
+	onDesync(cb: () => void): () => void {
+		this.#desyncHandlers.add(cb);
+		return () => {
+			this.#desyncHandlers.delete(cb);
+		};
+	}
+
+	/**
 	 * @brief Stops the active timers and closes the match screen, returning to the lobby.
 	 */
 	returnToLobby() {
@@ -250,11 +351,15 @@ class StoreGame implements SessionStore {
 		this.#turnStartedAt = null;
 		this.#humanTurnDurations = [];
 		this.state = null;
-		this.actionRequired = null;
-		this.actionContext = null;
 		this.turnTimeRemaining = 0;
+		this.#clearWindowState();
+		this.activePrompt = null;
+		this.lastSeq = null;
+		this.desynced = false;
+		this.#pendingBeats = [];
 		storeSpectator.reset();
 		storeTableSpin.reset();
+		storeCardDefs.reset();
 		storeNavigation.goto("lobby");
 	}
 
@@ -273,10 +378,10 @@ class StoreGame implements SessionStore {
 			if (data.placements) {
 				this.state.placements = data.placements as string[];
 			}
-			this.actionRequired = null;
-			this.actionContext = null;
 
 			this.#clearTimer();
+			this.#clearWindowState();
+			this.activePrompt = null;
 
 			const duration_seconds =
 				this.#matchStartedAt !== null
@@ -334,58 +439,178 @@ class StoreGame implements SessionStore {
 			}
 			const stateJson = parsed.data;
 
+			const currentTurn = stateJson.current_player;
 			const previousTurn = this.state?.current_turn;
 			const previousPlayers = this.state?.players;
-			if (previousTurn && previousTurn !== stateJson.current_turn) {
+			if (previousTurn && previousTurn !== currentTurn) {
 				const previousPlayer = previousPlayers?.find((p) => p.username === previousTurn);
 				if (previousPlayer && !previousPlayer.is_bot && this.#turnStartedAt !== null) {
 					this.#humanTurnDurations.push(Date.now() - this.#turnStartedAt);
 				}
 			}
-			if (previousTurn !== stateJson.current_turn) {
+			if (previousTurn !== currentTurn) {
 				this.#turnStartedAt = Date.now();
 			}
 
 			this.state = {
-				active_type: TYPE_MAP[stateJson.active_type],
-				current_turn: stateJson.current_turn,
-				play_direction: stateJson.play_direction,
-				top_card: stateJson.top_card ? this.#parseCard(stateJson.top_card) : undefined,
+				active_type: stateJson.active_type ?? "white",
+				current_turn: currentTurn,
+				play_direction: stateJson.direction ?? 1,
+				top_card: stateJson.discard_pile?.top
+					? this.#parseCard(stateJson.discard_pile.top)
+					: undefined,
 				players: stateJson.players.map((p) => ({
 					...p,
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
-				pending_draws: stateJson.pending_draws,
-				draw_pile_size: stateJson.draw_pile_size,
-				discard_pile_size: stateJson.discard_pile_size,
-				last_play: stateJson.last_play,
+				pending_draws: 0,
+				draw_pile_size: stateJson.draw_pile?.count ?? stateJson.draw_pile_size ?? 0,
+				discard_pile_size: stateJson.discard_pile?.count ?? stateJson.discard_pile_size ?? 0,
 				mode: stateJson.mode,
 				spectator_count: stateJson.spectator_count,
 				placements: stateJson.placements,
-				is_over: undefined,
-				winner: undefined
+				seq_watermark: stateJson.seq_watermark,
+				window: stateJson.window,
+				prompts: stateJson.prompts,
+				turn_deadline_ms: stateJson.turn_deadline_ms
 			};
 
-			this.actionRequired = data.action_required ?? null;
-
-			let parsedContext = data.action_context || null;
-			if (typeof parsedContext === "string") {
-				try {
-					parsedContext = JSON.parse(parsedContext);
-				} catch (e) {
-					console.error("Failed to parse action_context", e);
-				}
+			// INFO: the snapshot deadline is absolute epoch ms and is the
+			// reconnect-safe source for the turn countdown; only clobber a
+			// live timer when the snapshot actually carries one.
+			if (typeof stateJson.turn_deadline_ms === "number" && stateJson.turn_deadline_ms > 0) {
+				this.#syncTurnTimer(Math.max(0, stateJson.turn_deadline_ms - Date.now()));
 			}
-			this.actionContext = parsedContext;
 
-			const remainingMs = stateJson.turn_time_remaining_ms ?? 15000;
-			this.#syncTurnTimer(remainingMs);
+			// INFO: the snapshot window/prompts are reconnect truth
+			// a packet-driven open/close may already have set them.
+			const snapshotWindow =
+				stateJson.window == null ? null : WindowOpenPayloadSchema.safeParse(stateJson.window);
+			if (snapshotWindow?.success) {
+				// INFO: the snapshot window deadline is already absolute epoch ms.
+				this.#setActiveWindow(snapshotWindow.data, snapshotWindow.data.deadline_ms);
+				this.#syncWindowTimer(snapshotWindow.data.deadline_ms);
+			} else {
+				this.#clearWindowState();
+			}
+
+			const snapshotPrompts = stateJson.prompts;
+			if (snapshotPrompts && snapshotPrompts.length > 0) {
+				const parsedPrompt = PromptOpenPayloadSchema.safeParse(snapshotPrompts[0]);
+				this.activePrompt = parsedPrompt.success ? parsedPrompt.data : null;
+			} else {
+				this.activePrompt = null;
+			}
+
+			// INFO: the snapshot reconciles the packet watermark. The wire value is
+			// `EventSink::NextSeq()` — the seq the NEXT wrapped packet will carry,
+			// and events are emitted before the snapshot — so the last emitted seq
+			// is `wm - 1`. Storing it keeps the next frame (seq === wm) from
+			// reading as a gap. A snapshot at or beyond the next expected seq
+			// clears a desync; otherwise the buffered beats still drain.
+			const wm = stateJson.seq_watermark;
+			if (
+				typeof wm === "number" &&
+				(this.desynced || this.lastSeq === null || wm >= this.lastSeq + 1)
+			) {
+				this.lastSeq = wm > 0 ? wm - 1 : null;
+				this.desynced = false;
+			}
+
+			// INFO: drain AFTER state is applied.
+			const beats = this.#pendingBeats;
+			this.#pendingBeats = [];
+			for (const b of beats) {
+				for (const h of this.#beatHandlers) h(b);
+			}
+
+			// INFO: the snapshot now carries the engine turn deadline; the
+			// packet `turn_advance` only refreshes it when it is non-zero.
 
 			if (storeNavigation.current === "lobby" || storeNavigation.initialScreen === "game") {
 				this.#matchStartedAt = Date.now();
 				storeNavigation.goto("game");
 			}
 		});
+
+		// INFO: the single MatchEvent subscription — `ws.on` warns in
+		// DEV for a non-exempt action with more than one handler.
+		ws.on(ServerAction.MatchEvent, (data) => this.#onMatchEventFrame(data));
+	}
+
+	/**
+	 * @brief Handles one `match_event` frame: advances the seq watermark,
+	 * raises a desync on a gap, and buffers the mapped beat for the next
+	 * snapshot drain.
+	 */
+	#onMatchEventFrame(data: unknown) {
+		const env = MatchEventPayloadSchema.safeParse(data);
+		if (!env.success) return;
+
+		const seq = env.data.seq;
+		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
+			this.desynced = true;
+			// INFO: the snapshot reconciles state; drop the pre-gap backlog rather
+			// than animating stale beats on top of it.
+			this.#pendingBeats = [];
+			for (const h of this.#desyncHandlers) h();
+		}
+		this.lastSeq = seq;
+
+		switch (env.data.type) {
+			case "defs": {
+				// INFO: the full kind table arrives ahead of the first snapshot;
+				// held unconfirmed until match_start proves the digest.
+				storeCardDefs.ingestDefs(env.data.payload);
+				break;
+			}
+			case "match_start": {
+				storeCardDefs.confirmMatchStart(env.data.payload);
+				break;
+			}
+			case "turn_advance": {
+				const parsed = TurnAdvancePayloadSchema.safeParse(env.data.payload);
+				// INFO: turn_advance.deadline_ms is an ABSOLUTE epoch-ms value
+				// (`TurnState.turn_deadline_ms`), not a remaining duration. The
+				// engine emits the incoming player's not-yet-armed deadline as
+				// 0, so never clobber a good countdown with it.
+				if (parsed.success && parsed.data.deadline_ms > 0) {
+					this.#syncTurnTimer(Math.max(0, parsed.data.deadline_ms - Date.now()));
+				}
+				break;
+			}
+			case "window_open": {
+				const parsed = WindowOpenPayloadSchema.safeParse(env.data.payload);
+				// INFO: window_open.deadline_ms is a REMAINING duration (the sink
+				// forwards `duration_ms`); normalize to an absolute client deadline.
+				if (parsed.success) {
+					const deadlineAt = Date.now() + parsed.data.deadline_ms;
+					this.#setActiveWindow(parsed.data, deadlineAt);
+					this.#syncWindowTimer(deadlineAt);
+				}
+				break;
+			}
+			case "window_close": {
+				const parsed = WindowClosePayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.#clearWindowState();
+				break;
+			}
+			case "prompt_open": {
+				const parsed = PromptOpenPayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.activePrompt = parsed.data;
+				break;
+			}
+			case "prompt_close": {
+				const parsed = PromptClosePayloadSchema.safeParse(env.data.payload);
+				if (parsed.success && this.activePrompt?.prompt_id === parsed.data.prompt_id) {
+					this.activePrompt = null;
+				}
+				break;
+			}
+		}
+
+		const beat = mapMatchEventPacket(data);
+		if (beat) this.#pendingBeats.push(beat);
 	}
 
 	#clearActionPending() {
@@ -404,6 +629,62 @@ class StoreGame implements SessionStore {
 			clearInterval(this.#timerInterval);
 			this.#timerInterval = null;
 		}
+	}
+
+	/**
+	 * @brief Cancels and destroys the currently running response-window timer.
+	 */
+	#clearWindowTimer() {
+		if (this.#windowTimerInterval !== null) {
+			clearInterval(this.#windowTimerInterval);
+			this.#windowTimerInterval = null;
+		}
+	}
+
+	/**
+	 * @brief Mirrors an open response window from a packet or snapshot payload.
+	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
+	 */
+	#setActiveWindow(windowPayload: WindowOpenPayload, deadlineAt: number) {
+		this.activeWindow = {
+			windowId: windowPayload.window_id,
+			deadlineAt,
+			responders: windowPayload.responders,
+			eligibleFilterDigest: windowPayload.eligible_filter_digest
+		};
+	}
+
+	/**
+	 * @brief Clears the open response window and stops its countdown.
+	 */
+	#clearWindowState() {
+		this.#clearWindowTimer();
+		this.activeWindow = null;
+		this.windowTimeRemaining = 0;
+	}
+
+	/**
+	 * @brief Starts the response-window countdown from an absolute deadline,
+	 * recomputing the remaining seconds each tick so the value cannot drift.
+	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
+	 */
+	#syncWindowTimer(deadlineAt: number) {
+		this.#clearWindowTimer();
+		this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
+
+		this.#windowTimerInterval = window.setInterval(() => {
+			this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
+			if (this.windowTimeRemaining <= 0) {
+				this.#clearWindowTimer();
+			}
+		}, 1000);
+	}
+
+	/**
+	 * @brief Whole seconds from now until `deadlineAt`, floored at zero.
+	 */
+	#remainingSeconds(deadlineAt: number): number {
+		return Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
 	}
 
 	/**
@@ -430,12 +711,17 @@ class StoreGame implements SessionStore {
 	 * @returns A formatted object of type Card.
 	 */
 	#parseCard(rawCard: z.infer<typeof RawCardSchema>): Card {
-		return {
-			id: rawCard.id,
-			type: TYPE_MAP[rawCard.type],
-			value: VALUE_MAP[rawCard.value],
+		const card: Card = {
+			id: rawCard.card ?? 0,
+			type: (rawCard.color ?? "white") as CardType,
+			value: (rawCard.value ?? "0") as CardValue,
 			can_play: rawCard.can_play
 		};
+		if (rawCard.kind) {
+			card.kind = rawCard.kind;
+			card.face = storeCardDefs.lookupByStringId(rawCard.kind)?.face;
+		}
+		return card;
 	}
 
 	/**
@@ -470,19 +756,27 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
-	 * @brief Resolves a currently suspended effect by forwarding the user input.
-	 * @param value The value chosen by the user via modal (e.g. the type index for the Wild).
+	 * @brief Answers the prompt identified by `promptId` with a raw value.
+	 *
+	 * The value is validated server-side against the prompt's response_schema,
+	 * so it is forwarded as-is (string/number/boolean/object).
 	 */
-	submitInput(value: string) {
-		if (this.isSpectator || this.isActionPending) return;
-		this.isActionPending = true;
-		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		// PLACEHOLDER-SFX: sfx.action.submit-input, optimistic click SFX only,
-		// fires on the client-side action, not confirmed by the server's state
-		// broadcast; a human may want a separate confirmed-by-server SFX later
-		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
-		storeAudio.playSfx("sfx.action.submit-input");
-		ws.emit(ClientAction.MatchSubmitInput, { value: value });
+	respondToPrompt(promptId: string, value: unknown): void {
+		ws.emit(ClientAction.MatchPromptResponse, { prompt_id: promptId, value });
+	}
+
+	/**
+	 * @brief Declares a pass on the currently open response window.
+	 *
+	 * No-op unless a window is open and the local player is one of its
+	 * responders; all other players (spectators included) can only watch.
+	 */
+	passWindow(): void {
+		const window = this.activeWindow;
+		if (!window) return;
+		const username = this.localPlayer?.username;
+		if (!username || !window.responders.includes(username)) return;
+		ws.emit(ClientAction.MatchWindowResponse, { window_id: window.windowId, pass: true });
 	}
 
 	/**
@@ -495,14 +789,17 @@ class StoreGame implements SessionStore {
 		this.#clearTimer();
 		this.#clearActionPending();
 		this.state = null;
-		this.actionRequired = null;
-		this.actionContext = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
+		this.#clearWindowState();
+		this.activePrompt = null;
+		this.lastSeq = null;
+		this.desynced = false;
+		this.#pendingBeats = [];
 		storeSpectator.reset();
 		storeTableSpin.reset();
+		storeCardDefs.reset();
 	}
 }
 
 export const storeGame = new StoreGame();
-export { Action, Type };

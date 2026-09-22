@@ -1,0 +1,385 @@
+#include <doctest/doctest.h>
+
+#include <match/engine/mutation_compiler.hpp>
+#include <match/resolver.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <cstddef>
+#include <string>
+#include <vector>
+
+/**
+ * @file mutation_compiler_test.cpp
+ * @brief `CompileMutations` acceptance tests.
+ *
+ * Every case builds a small graph whose ops log a tag, compiles the ordered
+ * mutations, then either inspects the emitted node shape or walks the result
+ * through the real Resolver to assert execution order. The `filter`,
+ * restriction-target and malformed cases only require that compilation stays
+ * inert and does not corrupt the graph.
+ */
+
+namespace {
+
+using match::ecs::BudgetLedger;
+using match::ecs::EntityStore;
+using match::ecs::EventBus;
+using match::engine::CompileMutations;
+using match::engine::MutationCompileOptions;
+using match::modload::BehaviorGraph;
+using match::modload::MutationDef;
+using match::ops::OpArgs;
+using match::ops::OpContext;
+using match::ops::OpResult;
+using match::ops::OpRuntime;
+using match::ops::ResolutionFrame;
+using match::resolver::ConditionRegistry;
+using match::resolver::ResolveResult;
+using match::resolver::Resolver;
+using match::resolver::ResolverConfig;
+using match::resolver::SelectorContext;
+
+using nlohmann::json;
+
+BehaviorGraph MakeGraph(json nodes) {
+    BehaviorGraph graph;
+    graph.nodes = std::move(nodes);
+    graph.raw = json{{"nodes", graph.nodes}};
+    return graph;
+}
+
+MutationDef MakeMutation(const std::string& mode, BehaviorGraph replacement) {
+    MutationDef mutation;
+    mutation.id = mode;
+    mutation.mutation_id = "mod:" + mode;
+    mutation.target = "mod:kind";
+    mutation.mode = mode;
+    mutation.replacement = std::move(replacement);
+    mutation.raw = json::object();
+    return mutation;
+}
+
+json LogNode(const std::string& id, const std::string& tag,
+             const std::string& next = std::string()) {
+    json node = {{"id", id}, {"op", "synthetic_log"}, {"args", {{"tag", tag}}}};
+    if (!next.empty()) node["next"] = next;
+    return node;
+}
+
+OpResult LogOp(EntityStore&, const OpArgs& args, OpContext&) {
+    std::string tag = "?";
+    if (const json* value = args.Find("tag");
+        value != nullptr && value->is_string()) {
+        tag = value->get<std::string>();
+    }
+    OpResult result = OpResult::Resolved();
+    result.events.push_back({{"type", "synthetic"}, {"tag", tag}});
+    return result;
+}
+
+/** @brief Compile + walk `graph`, returning the comma-joined synthetic tags. */
+std::string RunTags(const BehaviorGraph& graph,
+                    ConditionRegistry* conditions = nullptr) {
+    EntityStore store;
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry local;
+    ConditionRegistry& registry = conditions != nullptr ? *conditions : local;
+    OpRuntime runtime;
+    runtime.Register("synthetic_log", &LogOp);
+    Resolver resolver(store, runtime, bus, ledger, registry, ResolverConfig{});
+    ResolutionFrame frame;
+    SelectorContext context;
+    ResolveResult result = resolver.Resolve(graph, "m", context, frame);
+
+    std::string joined;
+    for (const json& event : result.events) {
+        if (event.value("type", std::string()) != "synthetic") continue;
+        if (!joined.empty()) joined += ",";
+        joined += event.value("tag", std::string());
+    }
+    return joined;
+}
+
+bool HasNodeId(const BehaviorGraph& graph, const std::string& id) {
+    for (const json& node : graph.nodes) {
+        if (node.value("id", std::string()) == id) return true;
+    }
+    return false;
+}
+
+std::size_t CountMarkers(const BehaviorGraph& graph) {
+    std::size_t count = 0;
+    for (const json& node : graph.nodes) {
+        if (node.value("op", std::string()) == "call_original") ++count;
+    }
+    return count;
+}
+
+BehaviorGraph OneLogGraph() {
+    return MakeGraph(json::array({LogNode("o1", "O")}));
+}
+
+}  // namespace
+
+TEST_CASE("mutation compiler: replace returns the replacement verbatim") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef mutation =
+        MakeMutation("replace", MakeGraph(json::array({LogNode("r1", "R")})));
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    CHECK(out.nodes == mutation.replacement.nodes);
+    CHECK(out.nodes.front().value("id", std::string()) == "r1");
+    CHECK(out.raw.is_object());
+    CHECK(out.raw["nodes"] == out.nodes);
+    CHECK(RunTags(out) == "R");
+}
+
+TEST_CASE("mutation compiler: wrap before splices call_original in place") {
+    BehaviorGraph original = OneLogGraph();
+    const json injected = json::array({
+        LogNode("w1", "W1", "w2"),
+        json{{"id", "w2"}, {"op", "call_original"}, {"next", "w3"}},
+        LogNode("w3", "W2"),
+    });
+    MutationDef mutation = MakeMutation("wrap", MakeGraph(injected));
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    CHECK(CountMarkers(out) == 0);
+    CHECK(RunTags(out) == "W1,O,W2");
+}
+
+TEST_CASE("mutation compiler: wrap before without marker runs injected first") {
+    BehaviorGraph original = OneLogGraph();
+    const json injected =
+        json::array({LogNode("w1", "W1", "w2"), LogNode("w2", "W2")});
+    MutationDef mutation = MakeMutation("wrap", MakeGraph(injected));
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    CHECK(RunTags(out) == "W1,W2,O");
+}
+
+TEST_CASE("mutation compiler: wrap after runs the injected graph last") {
+    BehaviorGraph original = OneLogGraph();
+    const json injected =
+        json::array({LogNode("w1", "W1", "w2"), LogNode("w2", "W2")});
+    MutationDef mutation = MakeMutation("wrap", MakeGraph(injected));
+    mutation.position = std::string("after");
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    CHECK(RunTags(out) == "O,W1,W2");
+}
+
+TEST_CASE("mutation compiler: wraps fold in mod-list order") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef first =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("a1", "A")})));
+    MutationDef second =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("b1", "B")})));
+
+    BehaviorGraph out = CompileMutations(original, {&first, &second});
+
+    // INFO: mod-list order is execution order: the first mod wraps outermost,
+    //       so A's injected graph runs, then B's, then the base.
+    CHECK(RunTags(out) == "A,B,O");
+}
+
+TEST_CASE("mutation compiler: after-wraps fold in mod-list order") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef first =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("a1", "A")})));
+    first.position = std::string("after");
+    MutationDef second =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("b1", "B")})));
+    second.position = std::string("after");
+
+    BehaviorGraph out = CompileMutations(original, {&first, &second});
+
+    // INFO: after-wraps run after the base in mod order: base, then A, then B.
+    CHECK(RunTags(out) == "O,A,B");
+}
+
+TEST_CASE("mutation compiler: mixed before and after wraps keep mod order") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef before =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("a1", "A")})));
+    MutationDef after =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("b1", "B")})));
+    after.position = std::string("after");
+
+    // INFO: mod order [before, after]: the before graph runs first, then the
+    //       base, then the after graph.
+    CHECK(RunTags(CompileMutations(original, {&before, &after})) == "A,O,B");
+    // INFO: list order does not move a wrap across the base: the before graph
+    //       still precedes the core and the after graph still follows it.
+    CHECK(RunTags(CompileMutations(original, {&after, &before})) == "A,O,B");
+}
+
+TEST_CASE("mutation compiler: veto guards a replace in either order") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "yes", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "no", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef veto = MakeMutation("veto", BehaviorGraph{});
+    veto.where = json{{"yes", json::object()}};
+    MutationDef replace =
+        MakeMutation("replace", MakeGraph(json::array({LogNode("r1", "R")})));
+
+    // INFO: a matching veto suppresses the effective graph regardless of where
+    //       it sits relative to the replace.
+    CHECK(RunTags(CompileMutations(original, {&veto, &replace}), &conditions)
+          == "");
+    CHECK(RunTags(CompileMutations(original, {&replace, &veto}), &conditions)
+          == "");
+
+    // INFO: a non-matching veto lets the replacement run in either order.
+    veto.where = json{{"no", json::object()}};
+    CHECK(RunTags(CompileMutations(original, {&veto, &replace}), &conditions)
+          == "R");
+    CHECK(RunTags(CompileMutations(original, {&replace, &veto}), &conditions)
+          == "R");
+}
+
+TEST_CASE("mutation compiler: veto composes with a wrap in either order") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "yes", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "no", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef veto = MakeMutation("veto", BehaviorGraph{});
+    veto.where = json{{"yes", json::object()}};
+    MutationDef wrap =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("w1", "W")})));
+
+    // INFO: a matching veto suppresses the wrapped graph in either order.
+    CHECK(RunTags(CompileMutations(original, {&veto, &wrap}), &conditions)
+          == "");
+    CHECK(RunTags(CompileMutations(original, {&wrap, &veto}), &conditions)
+          == "");
+
+    // INFO: a non-matching veto leaves the wrap's output untouched.
+    veto.where = json{{"no", json::object()}};
+    CHECK(RunTags(CompileMutations(original, {&veto, &wrap}), &conditions)
+          == "W,O");
+    CHECK(RunTags(CompileMutations(original, {&wrap, &veto}), &conditions)
+          == "W,O");
+}
+
+TEST_CASE("mutation compiler: wrap rewrites window on_response routes") {
+    BehaviorGraph original = OneLogGraph();
+    const json injected = json::array({
+        json{{"id", "w1"},
+             {"window",
+              {{"responders", "@others"},
+               {"duration", "env"},
+               {"on_response", {{"stackable", "w2"}}}}},
+             {"default", "w3"}},
+        LogNode("w2", "W2"),
+        LogNode("w3", "W3"),
+    });
+    MutationDef mutation = MakeMutation("wrap", MakeGraph(injected));
+
+    BehaviorGraph out = CompileMutations(original, {&mutation});
+
+    std::string response_route;
+    std::string default_route;
+    for (const json& node : out.nodes) {
+        if (!node.is_object() || !node.contains("window")) continue;
+        const json& window = node["window"];
+        response_route =
+            window["on_response"].value("stackable", std::string());
+        default_route = node.value("default", std::string());
+    }
+    // INFO: both the top-level `default` and the nested `window.on_response`
+    //       must be rewritten to the spliced node ids, or the Resolver sees a
+    //       dangling route when the window resumes.
+    CHECK(default_route == "m0_w3");
+    CHECK(response_route == "m0_w2");
+    CHECK(HasNodeId(out, default_route));
+    CHECK(HasNodeId(out, response_route));
+}
+
+TEST_CASE("mutation compiler: veto guards the original on where match") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "deny", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "allow", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef veto = MakeMutation("veto", BehaviorGraph{});
+    veto.where = json{{"deny", json::object()}};
+
+    BehaviorGraph blocked = CompileMutations(original, {&veto});
+    REQUIRE(blocked.nodes.front().contains("cases"));
+    CHECK(blocked.nodes.front()["cases"].size() == 1);
+    const std::string end_id =
+        blocked.nodes.front()["cases"][0].value("next", std::string());
+    CHECK(blocked.nodes.front().value("else", std::string()) == "o1");
+    CHECK(HasNodeId(blocked, end_id));
+    CHECK(RunTags(blocked, &conditions) == "");
+
+    veto.where = json{{"allow", json::object()}};
+    BehaviorGraph allowed = CompileMutations(original, {&veto});
+    CHECK(RunTags(allowed, &conditions) == "O");
+}
+
+TEST_CASE("mutation compiler: multiple vetoes AND together") {
+    BehaviorGraph original = OneLogGraph();
+    ConditionRegistry conditions;
+    conditions.Register(
+        "yes", [](EntityStore&, const json&, OpContext&) { return true; });
+    conditions.Register(
+        "no", [](EntityStore&, const json&, OpContext&) { return false; });
+
+    MutationDef yes = MakeMutation("veto", BehaviorGraph{});
+    yes.where = json{{"yes", json::object()}};
+    MutationDef no = MakeMutation("veto", BehaviorGraph{});
+    no.where = json{{"no", json::object()}};
+
+    // INFO: either veto alone suppresses the original; both must pass through.
+    CHECK(RunTags(CompileMutations(original, {&yes, &no}), &conditions) == "");
+    CHECK(RunTags(CompileMutations(original, {&no, &yes}), &conditions) == "");
+    CHECK(RunTags(CompileMutations(original, {&no}), &conditions) == "O");
+}
+
+TEST_CASE("mutation compiler: filter, restriction target and malformed inert") {
+    BehaviorGraph original = OneLogGraph();
+    MutationDef filter =
+        MakeMutation("filter", MakeGraph(json::array({LogNode("f1", "F")})));
+    MutationDef unknown =
+        MakeMutation("explode", MakeGraph(json::array({LogNode("x1", "X")})));
+    MutationDef empty_wrap = MakeMutation("wrap", BehaviorGraph{});
+    MutationDef restriction =
+        MakeMutation("wrap", MakeGraph(json::array({LogNode("s1", "S")})));
+    restriction.target = "mod:restriction_entry";
+    MutationDef malformed = MakeMutation("wrap", BehaviorGraph{});
+    malformed.replacement.nodes = json::array(
+        {json::object(), LogNode("m1", "M")});
+
+    std::vector<const MutationDef*> mutations = {
+        nullptr,    &filter,      &unknown,
+        &empty_wrap, &restriction, &malformed,
+    };
+    MutationCompileOptions options;
+    options.restriction_targets.insert("mod:restriction_entry");
+
+    BehaviorGraph out = CompileMutations(original, mutations, options);
+
+    CHECK(out.nodes.is_array());
+    CHECK(!out.nodes.empty());
+    CHECK(out.raw.is_object());
+    CHECK(out.raw["nodes"] == out.nodes);
+    // INFO: only the well-formed malformed-case node and the original run.
+    CHECK(RunTags(out) == "M,O");
+}

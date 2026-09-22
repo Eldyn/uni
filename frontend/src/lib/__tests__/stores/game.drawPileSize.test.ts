@@ -80,14 +80,12 @@ describe("storeGame draw_pile_size", () => {
 			);
 		}
 
-		// Call the handler with a minimal valid payload including draw_pile_size
+		// Call the handler with a minimal valid payload including draw_pile.count
 		handler({
 			match_state: {
-				active_type: 0,
-				current_turn: "test_player",
-				play_direction: 1,
+				current_player: "test_player",
 				players: [],
-				draw_pile_size: 42
+				draw_pile: { count: 42 }
 			},
 			action_required: null
 		});
@@ -101,12 +99,10 @@ describe("storeGame draw_pile_size", () => {
 
 		handler({
 			match_state: {
-				active_type: 0,
-				current_turn: "test_player",
-				play_direction: 1,
+				current_player: "test_player",
 				players: [],
-				draw_pile_size: 0,
-				discard_pile_size: 13
+				draw_pile: { count: 0 },
+				discard_pile: { count: 13 }
 			},
 			action_required: null
 		});
