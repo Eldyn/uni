@@ -44,8 +44,12 @@ describe("i18n coverage for the P1.1 polish screens", () => {
 });
 
 describe("structural catalog parity and non-empty values", () => {
-	const enKeys = Object.keys(en).filter((k) => k !== "$schema").sort();
-	const itKeys = Object.keys(itLocale).filter((k) => k !== "$schema").sort();
+	const enKeys = Object.keys(en)
+		.filter((k) => k !== "$schema")
+		.sort();
+	const itKeys = Object.keys(itLocale)
+		.filter((k) => k !== "$schema")
+		.sort();
 
 	it("en.json and it.json key sets are identical", () => {
 		expect(enKeys).toEqual(itKeys);
