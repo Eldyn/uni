@@ -9,6 +9,18 @@
         "nodes": [
           {
             "id": "n1",
+            "op": "prompt",
+            "args": { "kind": "choose_color", "target": "@self" },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "set_active_type",
+            "args": { "from_prompt": "n1" },
+            "next": "n3"
+          },
+          {
+            "id": "n3",
             "op": "draw_cards",
             "args": { "target": "@choose_player", "n": 2 }
           }
