@@ -20,13 +20,15 @@ beforeEach(() => {
 	vi.resetModules();
 });
 
-function member(overrides: Partial<{
-	username: string;
-	is_host: boolean;
-	is_bot: boolean;
-	is_ready: boolean;
-	is_connected: boolean;
-}>) {
+function member(
+	overrides: Partial<{
+		username: string;
+		is_host: boolean;
+		is_bot: boolean;
+		is_ready: boolean;
+		is_connected: boolean;
+	}>
+) {
 	return {
 		username: "p",
 		is_connected: true,

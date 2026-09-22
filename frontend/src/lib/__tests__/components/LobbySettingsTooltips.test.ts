@@ -115,7 +115,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		await act(() => vi.runAllTimers());
 
 		const tooltip = screen.getByRole("tooltip");
-		expect(tooltip.querySelector(".balatro-title")).toHaveTextContent("Test Toggle");
+		expect(tooltip.querySelector(".tooltip-title")).toHaveTextContent("Test Toggle");
 	});
 
 	it("renders the rule label as title and a Rule tag in RulesGrid", async () => {
@@ -139,7 +139,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		await act(() => vi.runAllTimers());
 
 		const tooltip = screen.getByRole("tooltip");
-		expect(tooltip.querySelector(".balatro-title")).toHaveTextContent("7-0 Rule");
-		expect(tooltip.querySelector(".balatro-tag-pill")).toBeInTheDocument();
+		expect(tooltip.querySelector(".tooltip-title")).toHaveTextContent("7-0 Rule");
+		expect(tooltip.querySelector(".tooltip-tag-pill")).toBeInTheDocument();
 	});
 });

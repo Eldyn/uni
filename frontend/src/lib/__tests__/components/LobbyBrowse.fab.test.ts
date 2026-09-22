@@ -12,7 +12,9 @@ vi.stubGlobal("ResizeObserver", StubResizeObserver);
 vi.mock("$lib/stores/lobby.svelte", () => ({
 	storeLobby: { available: [], fetchList: vi.fn(), listError: false }
 }));
-vi.mock("$lib/stores/catalog.svelte", () => ({ storeCatalog: { ensureLoaded: vi.fn(), rules: [] } }));
+vi.mock("$lib/stores/catalog.svelte", () => ({
+	storeCatalog: { ensureLoaded: vi.fn(), rules: [] }
+}));
 vi.mock("$lib/stores/auth.svelte", () => ({ storeAuth: { username: "eldyn" } }));
 vi.mock("$lib/stores/navigation.svelte", () => ({ storeNavigation: { goto: vi.fn() } }));
 

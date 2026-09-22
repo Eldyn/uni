@@ -98,10 +98,13 @@ describe("lobby store: handle methods", () => {
 		await expect(storeLobby.quickJoin()).resolves.toBe(false);
 	});
 
-	it("quickJoin shows a quick-play-specific message when the code is lobby_not_found", async () => {
+	it("quickJoin creates a <username>'s Lobby when no public lobby is open", async () => {
+		const { storeAuth } = await import("$lib/stores/auth.svelte");
+		storeAuth.username = "Eldyn";
 		const { storeToast } = await import("$lib/stores/toast.svelte");
 		const toastSpy = vi.spyOn(storeToast, "error");
-		mockEmitAndWait.mockResolvedValue({
+
+		mockEmitAndWait.mockResolvedValueOnce({
 			ok: false,
 			code: "lobby_not_found",
 			message: "This code has no lobby associated.",
@@ -110,9 +113,14 @@ describe("lobby store: handle methods", () => {
 			getOr: (_key: string, fallback: unknown) => fallback
 		});
 
-		await storeLobby.quickJoin();
+		await expect(storeLobby.quickJoin()).resolves.toBe(true);
 
-		expect(toastSpy).toHaveBeenCalledWith("No lobbies are currently open to quick play with.");
+		// No lobbies open is not an error — it falls through to creating one.
+		expect(toastSpy).not.toHaveBeenCalled();
+		expect(mockEmitAndWait).toHaveBeenLastCalledWith("lobby_create", {
+			is_public: true,
+			name: "Eldyn's Lobby"
+		});
 	});
 
 	it("join still shows the join-by-code message when the code is lobby_not_found", async () => {

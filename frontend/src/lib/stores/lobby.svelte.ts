@@ -7,7 +7,7 @@
 import { z } from "zod";
 import type { SessionStore } from "$stores/sessionStore";
 import { failureText } from "./errors";
-import { ErrorCode } from "$lib/generated/schemas";
+import { ErrorCode, LOBBY_NAME_MAX } from "$lib/generated/schemas";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeAuth } from "./auth.svelte";
@@ -270,8 +270,9 @@ class StoreLobby implements SessionStore {
 		// PLACEHOLDER-SFX: sfx.lobby.kick, punchy "removed" sting when a member
 		// is kicked from the lobby.
 		storeAudio.playSfx("sfx.lobby.kick");
-		// Bots are removed by decrementing the bot count rather than kicking a
-		// named member, so a "kicked <name>" toast would be misleading noise.
+		// Bots are now removed by a targeted kick like anyone else, but the
+		// server owns their names and re-derives bot_count, so a "kicked <name>"
+		// toast would just be noise.
 		const target = this.current?.members.find((member) => member.username === username);
 		if (!target?.is_bot) {
 			storeToast.success(m.lobby_toast_kicked({ username }, { locale: storeI18n.locale }));
@@ -450,11 +451,15 @@ class StoreLobby implements SessionStore {
 	}
 
 	/**
-	 * @brief Joins the fullest open public lobby with a free slot.
+	 * @brief Joins the fullest open public lobby with a free slot; when no
+	 * public lobby is open at all, creates one named after the player instead.
 	 * Stopgap until ranked matchmaking exists — this is
 	 * intentionally simple and server-side, so concurrent quick-joiners can't
 	 * race each other into a lobby that just filled on the client's stale view.
-	 * @returns True if a lobby was joined, false if none was available.
+	 * "No lobbies open" is a normal outcome, not an error: the button's job is
+	 * to get the player into a game, so it starts one rather than surfacing a
+	 * failure nobody can act on.
+	 * @returns True if a lobby was joined or created, false on a real failure.
 	 */
 	async quickJoin(): Promise<boolean> {
 		try {
@@ -462,11 +467,10 @@ class StoreLobby implements SessionStore {
 			const response = await ws.emitAndWait(ClientAction.LobbyQuickJoin);
 
 			if (!response.ok) {
-				const message =
-					response.code === ErrorCode.LobbyNotFound
-						? m.lobby_toast_no_open_lobbies({}, { locale: storeI18n.locale })
-						: response.message;
-				storeToast.error(message);
+				if (response.code === ErrorCode.LobbyNotFound) {
+					return this.create({ is_public: true, name: this.#defaultLobbyName() });
+				}
+				storeToast.error(response.message);
 				return false;
 			}
 			return true;
@@ -474,6 +478,12 @@ class StoreLobby implements SessionStore {
 			storeToast.error(failureText(error));
 			return false;
 		}
+	}
+
+	/** The fallback lobby name for quick play: "<username>'s Lobby", capped to
+	 *  the contract's lobby-name limit so a max-length username can't overflow. */
+	#defaultLobbyName(): string {
+		return `${storeAuth.username ?? ""}'s Lobby`.slice(0, LOBBY_NAME_MAX);
 	}
 
 	/**

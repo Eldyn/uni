@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { flip } from "svelte/animate";
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeToast } from "$stores/toast.svelte";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
@@ -20,7 +22,7 @@
 	let showInviteCode = $state(false);
 	let settingsOpen = $state(false);
 	let activeMenu = $state<string | null>(null);
-	let isAddingBot = $state(false);
+	let isBotPending = $state(false);
 
 	// Box the seat grid has to fit inside, measured off the scroll area so the
 	// layout can scale cards to whatever room the viewport actually leaves.
@@ -28,7 +30,7 @@
 	let seatBoxHeight = $state(0);
 
 	async function handleAddBot() {
-		if (!isHost || isAddingBot) return;
+		if (!isHost || isBotPending) return;
 		const current = storeLobby.current;
 		if (!current) return;
 		const maxPlayers = current.settings.max_players;
@@ -39,28 +41,25 @@
 		const maxBots = maxPlayers - humanCount;
 		if (currentBotCount >= maxBots) return;
 
-		isAddingBot = true;
+		isBotPending = true;
 		try {
 			await storeLobby.updateSettings({ bot_count: currentBotCount + 1 });
 		} finally {
-			isAddingBot = false;
+			isBotPending = false;
 		}
 	}
 
-	// Removing a bot is a bot-count decrement, not a targeted kick: the server
-	// decides which seat empties, and no "kicked" toast fires for bots.
-	async function handleRemoveBot() {
-		if (!isHost || isAddingBot) return;
-		const current = storeLobby.current;
-		if (!current) return;
-		const currentBotCount = current.settings.bot_count ?? 0;
-		if (currentBotCount <= 0) return;
-
-		isAddingBot = true;
+	// Removing a bot targets that specific member: the server removes exactly
+	// the named bot and re-derives settings.bot_count from the survivors, so
+	// the count drops by one without the LIFO collateral of a bot-count
+	// decrement. No "kicked" toast fires for bots (see storeLobby.kick).
+	async function handleRemoveBot(username: string) {
+		if (!isHost || isBotPending) return;
+		isBotPending = true;
 		try {
-			await storeLobby.updateSettings({ bot_count: currentBotCount - 1 });
+			await storeLobby.kick(username);
 		} finally {
-			isAddingBot = false;
+			isBotPending = false;
 		}
 	}
 
@@ -109,7 +108,7 @@
 	// Bots use a smaller mark so their remove "X" can't be mistaken for a
 	// human's not-ready state.
 	let botBadgeFontSize = $derived(`${Math.round(seatLayout.cardWidth * 0.2)}px`);
-	let plusFontSize = $derived(`${Math.round(seatLayout.cardWidth * 0.6)}px`);
+	let plusFontSize = $derived(`${Math.round(seatLayout.cardWidth * 0.22)}px`);
 
 	function handleSeatMenu(
 		member: { username: string; is_host: boolean; is_bot: boolean },
@@ -239,9 +238,16 @@
 				class="pixel-bordered flex items-center gap-3 px-4 py-2 text-text-h shadow-[var(--elevation-1)] [--pc-fill:var(--bg)] [--pc-border:var(--border)]"
 			>
 				<span
-					class="font-monogram inline-block min-w-[7ch] select-all text-center text-2xl font-bold leading-none tracking-widest text-text-h sm:text-3xl"
+					class="invite-code font-monogram inline-flex min-w-[7ch] select-all items-center justify-center text-center text-2xl font-bold leading-none text-text-h sm:text-3xl"
 				>
-					{showInviteCode ? storeLobby.current?.invite_code : "••••••"}
+					<!-- One fixed-width cell per character so the hidden bullets and
+					     the revealed code occupy the exact same chips width — the
+					     glyphs themselves are not the same width in every font. -->
+					{#each Array(6) as _, i}
+						<span class="invite-code-cell">
+							{showInviteCode ? (storeLobby.current?.invite_code?.[i] ?? "") : "•"}
+						</span>
+					{/each}
 				</span>
 				<div class="flex items-center gap-1 border-l border-white/10 pl-2">
 					<button
@@ -312,7 +318,7 @@
 				class:fan={tableSeats <= 4}
 				style="grid-template-columns: repeat({seatLayout.cols}, {seatLayout.cardWidth}px); gap: {SEAT_GAP}px; --card-w: {seatLayout.cardWidth}px;"
 			>
-				{#each storeLobby.current?.members ?? [] as member, i}
+				{#each storeLobby.current?.members ?? [] as member, i (member.username)}
 					{@const color = member.is_bot ? "var(--blackCard)" : SEAT_COLORS[i % SEAT_COLORS.length]}
 					{@const isSelf = member.username === storeAuth.username && !member.is_bot}
 					{@const interactive = isSelf || (isHost && !member.is_host && !member.is_bot)}
@@ -321,6 +327,7 @@
 						and self-interactive (ready toggle) for the local player's own seat -->
 					<li
 						class="seat-item group relative flex flex-col items-center"
+						animate:flip={{ duration: storeAnimation.enabled ? 200 : 0 }}
 						class:cursor-context-menu={isHost && !member.is_host && !member.is_bot}
 						class:cursor-pointer={isSelf}
 						role={interactive ? "button" : undefined}
@@ -380,7 +387,7 @@
 										aria-label={m.lobby_kick({}, { locale: storeI18n.locale })}
 										onclick={(e) => {
 											e.stopPropagation();
-											handleRemoveBot();
+											handleRemoveBot(member.username);
 										}}
 									>
 										<i class="pia pixelart-icons-font-close leading-none"></i>
@@ -487,7 +494,7 @@
 									type="button"
 									class="seat-empty group/empty absolute inset-0 h-full w-full cursor-pointer overflow-hidden rounded-[0.8em] border-none p-0 shadow-[var(--elevation-1)] disabled:cursor-not-allowed"
 									style="filter: grayscale(0.55) brightness(0.85);"
-									disabled={isAddingBot ||
+									disabled={isBotPending ||
 										(storeLobby.current?.members.length ?? 0) >=
 											(storeLobby.current?.settings.max_players ?? 4)}
 									onclick={handleAddBot}
@@ -504,10 +511,11 @@
 										<TintedSprite src="/assets/cards/border.png" {color} fit="100% 100%" />
 									</div>
 									<span class="absolute inset-0 z-10 flex items-center justify-center">
-										<i
-											class="seat-plus pia pixelart-icons-font-plus text-white/75 transition-transform group-hover/empty:scale-125 group-hover/empty:text-white"
+										<span
+											class="seat-plus transition-transform group-hover/empty:scale-110"
 											style="font-size: {plusFontSize}"
-										></i>
+											aria-hidden="true">+</span
+										>
 									</span>
 								</button>
 							{:else}
@@ -688,16 +696,25 @@
 		}
 	}
 
+	/* The add-slot glyph: a real FatPixel "+" rather than a thin icon font, so
+	   it reads as a chunky pixel-art affordance at a glance. */
+	.seat-plus {
+		font-family: "FatPixel", var(--heading);
+		line-height: 1;
+		color: #fff;
+		text-shadow: 2px 2px 0 var(--pixel-shadow);
+	}
+
 	.seat-empty {
 		animation: seat-wait 3s ease-in-out infinite;
 	}
 	@keyframes seat-wait {
 		0%,
 		100% {
-			opacity: 0.45;
+			opacity: 0.6;
 		}
 		50% {
-			opacity: 0.9;
+			opacity: 1;
 		}
 	}
 
@@ -707,7 +724,7 @@
 		}
 		.seat-empty {
 			animation: none;
-			opacity: 0.7;
+			opacity: 0.85;
 		}
 	}
 
@@ -737,5 +754,14 @@
 		:global(.lobby-name) {
 			font-size: 1.125rem;
 		}
+	}
+
+	/* A fixed cell per invite-code character keeps the hidden (bullets) and
+	   revealed (letters/digits) states at exactly the same width, so toggling
+	   the eye never resizes the chip. */
+	.invite-code-cell {
+		display: inline-block;
+		width: 1.2ch;
+		text-align: center;
 	}
 </style>

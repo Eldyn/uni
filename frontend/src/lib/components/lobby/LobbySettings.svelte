@@ -138,8 +138,16 @@
 				value={settings.mode ?? "standard"}
 				disabled={!isHost}
 				options={[
-					{ value: "standard", label: m.lobby_mode_standard({}, { locale: storeI18n.locale }) },
-					{ value: "elimination", label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }) }
+					{
+						value: "standard",
+						label: m.lobby_mode_standard({}, { locale: storeI18n.locale }),
+						description: m.lobby_mode_standard_desc({}, { locale: storeI18n.locale })
+					},
+					{
+						value: "elimination",
+						label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }),
+						description: m.lobby_mode_elimination_desc({}, { locale: storeI18n.locale })
+					}
 				]}
 				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
 			/>

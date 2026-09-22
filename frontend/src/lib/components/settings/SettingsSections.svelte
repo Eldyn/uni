@@ -24,7 +24,9 @@
 		de: "Deutsch",
 		ko: "한국어",
 		zh: "中文",
-		ja: "日本語"
+		ja: "日本語",
+		uk: "Українська",
+		ru: "Русский"
 	};
 
 	const localeFlags: Record<string, string> = {
@@ -34,7 +36,9 @@
 		de: "🇩🇪",
 		ko: "🇰🇷",
 		zh: "🇨🇳",
-		ja: "🇯🇵"
+		ja: "🇯🇵",
+		uk: "🇺🇦",
+		ru: "🇷🇺"
 	};
 
 	const SOCIAL_LINKS = [
@@ -128,32 +132,35 @@
 	</section>
 
 	<section class="panel settings-panel">
-		{@render sectionHeading("Graphics & Gameplay")}
+		{@render sectionHeading(m.settings_graphics_heading({}, { locale: storeI18n.locale }))}
 		<div class="mt-4 flex flex-col gap-4">
 			<Toggle
-				label="Full 3D draw pile stack"
-				description="Render complete 3D card stack for the draw pile instead of capped depth."
+				label={m.settings_graphics_draw_pile({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_draw_pile_description({}, { locale: storeI18n.locale })}
 				checked={storeRenderSettings.drawPileThickness === "full"}
 				oncommit={(v) => storeRenderSettings.setDrawPileThickness(v ? "full" : "capped")}
 			/>
 
 			<Toggle
-				label="Click to play card"
-				description="Play card immediately with a single click or Enter press instead of two-step confirm."
+				label={m.settings_graphics_click_to_play({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_click_to_play_description(
+					{},
+					{ locale: storeI18n.locale }
+				)}
 				checked={storeRenderSettings.clickToPlay}
 				oncommit={(v) => storeRenderSettings.setClickToPlay(v)}
 			/>
 
 			<Toggle
-				label="Sync cursor on click"
-				description="Keep keyboard navigation cursor synced with mouse-clicked cards."
+				label={m.settings_graphics_sync_cursor({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_sync_cursor_description({}, { locale: storeI18n.locale })}
 				checked={storeRenderSettings.syncCursorOnClick}
 				oncommit={(v) => storeRenderSettings.setSyncCursorOnClick(v)}
 			/>
 
 			<Toggle
-				label="Auto-scroll on edge creep"
-				description="Automatically scroll hand cards when pointer or cursor hovers near edges."
+				label={m.settings_graphics_autoscroll({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_autoscroll_description({}, { locale: storeI18n.locale })}
 				checked={storeRenderSettings.autoScrollOnEdgeCreep}
 				oncommit={(v) => storeRenderSettings.setAutoScrollOnEdgeCreep(v)}
 			/>
@@ -249,8 +256,12 @@
 		/* No border/fill to notch here (plain emoji glyph) — override the
 		   global button pixel-notch reset, which would otherwise nibble the
 		   flag's corners for no visual reason. */
+		/* Slightly desaturated, not fully grayscale: many flags share the same
+		   tricolor shape, and a pure grayscale filter makes them impossible to
+		   tell apart. 90% keeps the pixel-art restraint while the active locale
+		   still pops to full colour. */
 		clip-path: none !important;
-		filter: grayscale(1);
+		filter: grayscale(0.9);
 		opacity: 0.6;
 		transition:
 			filter var(--duration-fast) var(--ease-standard),

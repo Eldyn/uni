@@ -2,13 +2,15 @@
 	export type EnumOption<T> = {
 		value: T;
 		label: string;
-		description: string;
+		description?: string;
 	};
 </script>
 
 <script lang="ts" generics="T">
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
+	import * as m from "$lib/paraglide/messages.js";
+	import { storeI18n } from "$stores/i18n.svelte";
 
 	let {
 		label,
@@ -25,43 +27,70 @@
 		disabled?: boolean;
 		oncommit: (value: T) => void;
 	} = $props();
+
+	let hasFieldDescription = $derived((description?.length ?? 0) > 0);
+	let selectedOption = $derived(options.find((option) => option.value === value));
+	let hasSelectionDescription = $derived((selectedOption?.description?.length ?? 0) > 0);
 </script>
 
 {#snippet selectorControl()}
 	<label class="selector-label" class:disabled>
-		<span>{label}</span>
-		<select
-			class="enum-selector"
-			{disabled}
-			onchange={(e) => {
-				const target = e.target as HTMLSelectElement;
-				oncommit(options[target.selectedIndex].value);
-			}}
-		>
-			{#each options as option}
-				<option value={String(option.value)} selected={option.value === value}>
-					{option.label}
-				</option>
-			{/each}
-		</select>
+		{#if hasFieldDescription}
+			<Tooltip interactive={true} title={label} class="enum-info-tooltip">
+				{#snippet tooltipContent()}
+					<RichText text={description ?? ""} allowKeywords={true} />
+				{/snippet}
+				<button
+					type="button"
+					class="info-btn"
+					aria-label={m.common_more_info({}, { locale: storeI18n.locale })}
+				>
+					<i class="pia pixelart-icons-font-circle-info"></i>
+				</button>
+			</Tooltip>
+		{/if}
+		<span class="selector-label-text">{label}</span>
+		{#if hasSelectionDescription}
+			<Tooltip
+				interactive={true}
+				title={selectedOption?.label ?? label}
+				class="enum-select-tooltip"
+			>
+				{#snippet tooltipContent()}
+					<RichText text={selectedOption?.description ?? ""} allowKeywords={true} />
+				{/snippet}
+				{@render selectControl()}
+			</Tooltip>
+		{:else}
+			{@render selectControl()}
+		{/if}
 	</label>
 {/snippet}
 
-{#if (description?.length ?? 0) > 0}
-	<Tooltip interactive={true} title={label}>
-		{#snippet tooltipContent()}
-			<RichText text={description ?? ""} allowKeywords={true} />
-		{/snippet}
-		{@render selectorControl()}
-	</Tooltip>
-{/if}
+{#snippet selectControl()}
+	<select
+		class="enum-selector"
+		{disabled}
+		onchange={(e) => {
+			const target = e.target as HTMLSelectElement;
+			oncommit(options[target.selectedIndex].value);
+		}}
+	>
+		{#each options as option}
+			<option value={String(option.value)} selected={option.value === value}>
+				{option.label}
+			</option>
+		{/each}
+	</select>
+{/snippet}
+
+{@render selectorControl()}
 
 <style>
 	.selector-label {
 		display: flex;
 		align-items: center;
-		justify-content: space-between; /* Pushes the select box to the right */
-		gap: 16px;
+		gap: 8px;
 		font-size: 14px;
 		font-weight: 500;
 		color: var(--text-h);
@@ -71,6 +100,26 @@
 	.selector-label.disabled {
 		cursor: not-allowed;
 		opacity: 0.6;
+	}
+
+	.selector-label-text {
+		flex: 1;
+	}
+
+	.info-btn {
+		display: inline-flex;
+		align-items: center;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--text);
+		cursor: help;
+		font-size: 18px;
+		line-height: 1;
+	}
+
+	.info-btn:hover {
+		color: var(--text-h);
 	}
 
 	select {
@@ -94,5 +143,13 @@
 	.enum-selector {
 		color: var(--text);
 		background-color: var(--bg);
+	}
+
+	/* Tooltip wraps a single control here, so its default full-width
+	   inline-block container must not stretch or break the label row. */
+	:global(.tooltip-container.enum-info-tooltip),
+	:global(.tooltip-container.enum-select-tooltip) {
+		display: inline-flex;
+		width: auto;
 	}
 </style>

@@ -57,9 +57,15 @@ describe("LobbyScreen responsive action bar placement", () => {
 	});
 
 	it("renders a prominent pixel-bordered chip for the join code with reveal and copy actions", async () => {
-		render(LobbyScreen);
+		const { container } = render(LobbyScreen);
+		// The code is rendered one fixed-width cell per character, so its text
+		// is split across spans — assert on the chip's own text content.
+		const chip = container.querySelector(".invite-code")!;
+		expect(chip).toBeInTheDocument();
+		const codeText = () => chip.textContent?.replace(/\s+/g, "") ?? "";
+
 		// Initially masked
-		expect(screen.getByText("••••••")).toBeInTheDocument();
+		expect(codeText()).toBe("••••••");
 
 		const showCodeBtn = screen.getByRole("button", { name: /show code/i });
 		expect(showCodeBtn).toBeInTheDocument();
@@ -69,7 +75,7 @@ describe("LobbyScreen responsive action bar placement", () => {
 
 		// Reveal code
 		await fireEvent.click(showCodeBtn);
-		expect(screen.getByText("ABCD")).toBeInTheDocument();
+		expect(codeText()).toBe("ABCD");
 
 		const hideCodeBtn = screen.getByRole("button", { name: /hide code/i });
 		expect(hideCodeBtn).toBeInTheDocument();

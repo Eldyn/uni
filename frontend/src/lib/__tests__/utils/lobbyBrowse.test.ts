@@ -128,19 +128,13 @@ describe("joinInfo", () => {
 	});
 
 	it("in-game with takeover and bots offers Join", () => {
-		const info = joinInfo(
-			makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 1 }),
-			"en"
-		);
+		const info = joinInfo(makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 1 }), "en");
 		expect(info.label).toBe("Join");
 		expect(info.disabled).toBe(false);
 	});
 
 	it("in-game with takeover but no bots renders no button", () => {
-		const info = joinInfo(
-			makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 0 }),
-			"en"
-		);
+		const info = joinInfo(makeBrowse({ status: "in-game", allowBotTakeover: true, bots: 0 }), "en");
 		expect(info.label).toBeNull();
 	});
 
