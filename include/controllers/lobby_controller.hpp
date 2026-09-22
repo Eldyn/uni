@@ -309,6 +309,17 @@ private:
     void HandleListMods(AppResponse* res);
 
     /**
+     * @brief HTTP handler for `GET /assets/:mod/:bundle/:slot/:tier/:hash`
+     * * Resolves the tuple through the in-memory asset index — never a raw
+     * path — verifies the content hash, and serves the file with an immutable
+     * cache header. Unknown ids, a hash mismatch or a disallowed extension are
+     * a 404.
+     * @param res Pointer to the HTTP response (uWS).
+     * @param req Pointer to the HTTP request (uWS), carrying the path params.
+     */
+    void HandleAsset(AppResponse* res, AppRequest* req);
+
+    /**
      * @brief Promotes a specific player to the Host role of the lobby.
      * @param ctx WebSocket context of the request.
      * @param msg Associated JSON payload.

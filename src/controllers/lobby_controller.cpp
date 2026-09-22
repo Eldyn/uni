@@ -11,12 +11,15 @@
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/modload/asset_index.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <iterator>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -176,6 +179,13 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         http_router->Get("/api/mods", [this](AppResponse* res, AppRequest*) {
             HandleListMods(res);
         });
+        // INFO: mod asset serving: resolved through the in-memory
+        //       index by id + content hash; no path ever reaches the client.
+        http_router->Get(
+            "/assets/:mod/:bundle/:slot/:tier/:hash",
+            [this](AppResponse* res, AppRequest* req) {
+                HandleAsset(res, req);
+            });
     }
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
@@ -1148,6 +1158,55 @@ void LobbyController::HandleListMods(AppResponse* res) {
 
     res->writeHeader("Content-Type", "application/json")
        ->end(ModsReportJson(loaded).dump());
+}
+
+void LobbyController::HandleAsset(AppResponse* res, AppRequest* req) {
+    const std::string mod_id(req->getParameter(0));
+    const std::string bundle_id(req->getParameter(1));
+    const std::string slot(req->getParameter(2));
+    const std::string tier(req->getParameter(3));
+    const std::string hash(req->getParameter(4));
+
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (loaded.fatal()) {
+        res->writeStatus("500 Internal Server Error")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json{{"error", "mods scan failed"}}.dump());
+        return;
+    }
+
+    // INFO: the index is rebuilt per request in phase 1 (the mods tree is
+    //       small and static); only indexed id+hash tuples can ever resolve,
+    //       so no path is reachable from the URL.
+    const match::modload::AssetIndex index =
+        match::modload::AssetIndex::Build(loaded);
+    const match::modload::AssetEntry* entry =
+        index.Resolve(mod_id, bundle_id, slot, tier, hash);
+    if (entry == nullptr || entry->content_type.empty()) {
+        res->writeStatus("404 Not Found")->end();
+        return;
+    }
+
+    std::ifstream in(entry->path, std::ios::binary);
+    if (!in.is_open()) {
+        res->writeStatus("404 Not Found")->end();
+        return;
+    }
+    const std::string bytes((std::istreambuf_iterator<char>(in)),
+                            std::istreambuf_iterator<char>());
+    // INFO: recompute and verify; a changed asset is a new URL, so a mismatch
+    //       means the id/hash pair is stale or forged.
+    if (match::modload::ShortContentHash(bytes) != entry->hash) {
+        res->writeStatus("404 Not Found")->end();
+        return;
+    }
+
+    res->writeStatus("200 OK")
+       ->writeHeader("Content-Type", entry->content_type)
+       ->writeHeader("Cache-Control", "public, max-age=31536000, immutable")
+       ->writeHeader("ETag", "\"" + entry->hash + "\"")
+       ->end(bytes);
 }
 
 /**
