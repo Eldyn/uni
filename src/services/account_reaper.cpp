@@ -5,10 +5,12 @@
 #include <stdexcept>
 #include <ctime>
 
-AccountReaper::AccountReaper(Database& db, std::chrono::seconds interval, std::chrono::seconds grace)
+AccountReaper::AccountReaper(Database& db, std::chrono::seconds interval,
+                             std::chrono::seconds grace)
     : db_(db), interval_(interval), grace_(grace) {
     if (sqlite3_threadsafe() != 1) {
-        throw std::runtime_error("AccountReaper requires sqlite3 to be compiled with threadsafe=1 (serialized)");
+        throw std::runtime_error(
+            "AccountReaper requires sqlite3 to be compiled with threadsafe=1 (serialized)");
     }
 }
 
@@ -45,7 +47,8 @@ int AccountReaper::SweepAt(std::int64_t now_unix) {
 
     // Must ensure pre-existing accounts (created_at = 0) are never deleted!
     auto res_codes = db_.Exec(
-        "DELETE FROM email_verification_codes WHERE user_id IN (SELECT id FROM users WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
+        "DELETE FROM email_verification_codes WHERE user_id IN (SELECT id FROM users "
+        "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
         {static_cast<int>(grace_threshold)});
     if (!res_codes) {
         Logger::Error("[Reaper] Failed to delete codes: " + res_codes.error().message);
@@ -66,7 +69,8 @@ int AccountReaper::SweepAt(std::int64_t now_unix) {
         deleted = changes_res.value()->GetOr<int>("c", 0);
     }
 
-    auto res_log = db_.Exec("DELETE FROM email_send_log WHERE sent_at < ?;", {static_cast<int>(log_threshold)});
+    auto res_log = db_.Exec("DELETE FROM email_send_log WHERE sent_at < ?;",
+                            {static_cast<int>(log_threshold)});
     if (!res_log) {
         Logger::Error("[Reaper] Failed to delete send log: " + res_log.error().message);
         return 0;

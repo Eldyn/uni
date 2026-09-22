@@ -1,0 +1,56 @@
+{
+  "id": "wild_draw4",
+  "title": "Wild Draw Four",
+  "face": {
+    "kind": "text",
+    "color": "white",
+    "label": "jolly_draw4",
+    "art_version": 1
+  },
+  "tags": [
+    "wild",
+    "wild_draw4",
+    "action",
+    "draw_penalty",
+    "stackable"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "prompt",
+          "args": {
+            "kind": "choose_color",
+            "target": "@self"
+          },
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "op": "set_active_type",
+          "args": {
+            "from_prompt": "n1"
+          },
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "op": "draw_cards",
+          "args": {
+            "target": "@next_player",
+            "n": 4
+          },
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "op": "skip_turn",
+          "args": {
+            "target": "@next_player"
+          }
+        }
+      ]
+    }
+  }
+}

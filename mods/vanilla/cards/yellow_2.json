@@ -1,0 +1,15 @@
+{
+  "id": "yellow_2",
+  "title": "Yellow 2",
+  "face": {
+    "kind": "text",
+    "color": "yellow",
+    "label": "2",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "yellow"
+  ]
+}

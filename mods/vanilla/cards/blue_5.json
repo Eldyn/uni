@@ -1,0 +1,15 @@
+{
+  "id": "blue_5",
+  "title": "Blue 5",
+  "face": {
+    "kind": "text",
+    "color": "blue",
+    "label": "5",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "blue"
+  ]
+}

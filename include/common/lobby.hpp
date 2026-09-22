@@ -151,7 +151,8 @@ struct LobbyMember {
     /**< Timestamp of the last disconnection (for the eviction timer). */
     std::chrono::steady_clock::time_point disconnected_at{};
 
-    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1, bool spectator = false, bool privacy = false)
+    LobbyMember(std::string u, AppWebSocket* s, bool c, bool b, int seat = -1,
+                bool spectator = false, bool privacy = false)
         : username(std::move(u)), socket(s), is_connected(c), is_bot(b), seat_index(seat),
           is_spectator(spectator), privacy_mode(privacy) {}
 };

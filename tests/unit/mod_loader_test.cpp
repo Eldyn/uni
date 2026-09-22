@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <match/modload/mod_loader.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -40,6 +42,21 @@ struct TempModsRoot {
         out.close();
         return file;
     }
+
+    /** INFO: Entry sets are directories, one definition per file. Split a
+     *       JSON array fixture into `<subdir>/0.json`, `1.json`, ... so tests
+     *       can keep array-shaped fixtures; zero-padded indices preserve the
+     *       array's order under the loader's sorted-filename scan. */
+    void WriteEntrySet(const std::string& folder,
+                       const std::string& subdir,
+                       const std::string& array_json) const {
+        nlohmann::json arr = nlohmann::json::parse(array_json);
+        int index = 0;
+        for (const auto& item : arr) {
+            Write(folder, subdir + "/" + std::to_string(index++) + ".json",
+                  item.dump());
+        }
+    }
 };
 
 const char* kValidManifest = R"({
@@ -48,10 +65,7 @@ const char* kValidManifest = R"({
   "version": "1.0.0",
   "api": "1",
   "description": "The standard UNI card set.",
-  "author": "eldyn",
-  "provides_cards": "cards.json",
-  "provides_rules": "rules.json",
-  "provides_mutations": "mutations.json"
+  "author": "eldyn"
 })";
 
 const char* kMinimalManifest = R"({
@@ -88,22 +102,21 @@ const char* kValidCards = R"([
   { "id": "red_0", "title": "Red 0", "face": { "kind": "text", "color": "red", "label": "0" }, "tags": [] }
 ])";
 
-const char* kValidRules = R"({
-  "rules": [
-    {
-      "id": "draw_stacking",
-      "title": "Draw Stacking",
-      "description": "+2/+4 stack.",
-      "hooks": [
-        { "on": "before:play", "where": { "card_has_tag": "stackable" },
-          "nodes": [ { "id": "n1", "op": "advance_turn", "args": {} } ] }
-      ]
-    }
-  ],
-  "statuses": [
-    { "id": "shielded", "title": "Shielded", "stack_policy": "replace", "hidden": false }
-  ]
-})";
+const char* kValidRules = R"([
+  {
+    "id": "draw_stacking",
+    "title": "Draw Stacking",
+    "description": "+2/+4 stack.",
+    "hooks": [
+      { "on": "before:play", "where": { "card_has_tag": "stackable" },
+        "nodes": [ { "id": "n1", "op": "advance_turn", "args": {} } ] }
+    ]
+  }
+])";
+
+const char* kValidStatuses = R"([
+  { "id": "shielded", "title": "Shielded", "stack_policy": "replace", "hidden": false }
+])";
 
 const char* kValidMutations = R"([
   { "id": "nerf_plus4", "target": "vanilla:plus4", "mode": "replace",
@@ -131,9 +144,10 @@ bool HasCheck(const std::vector<LoadError>& errors, const std::string& check) {
 TEST_CASE("modloader: valid mod folder loads all artifacts") {
     TempModsRoot tmp;
     tmp.Write("vanilla", "mod.json", kValidManifest);
-    tmp.Write("vanilla", "cards.json", kValidCards);
-    tmp.Write("vanilla", "rules.json", kValidRules);
-    tmp.Write("vanilla", "mutations.json", kValidMutations);
+    tmp.WriteEntrySet("vanilla", "cards", kValidCards);
+    tmp.WriteEntrySet("vanilla", "rules", kValidRules);
+    tmp.WriteEntrySet("vanilla", "statuses", kValidStatuses);
+    tmp.WriteEntrySet("vanilla", "mutations", kValidMutations);
     tmp.Write("vanilla", "decks/classic.json", kValidDeck);
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -144,8 +158,6 @@ TEST_CASE("modloader: valid mod folder loads all artifacts") {
     CHECK(mod.manifest.id == "vanilla");
     CHECK(mod.manifest.name == "UNI Vanilla");
     CHECK(mod.manifest.api == "1");
-    CHECK(mod.manifest.provides_cards.has_value());
-    CHECK(mod.manifest.provides_mutations.has_value());
 
     REQUIRE(mod.cards.size() == 2);
     CHECK(mod.cards[0].id == "plus4");
@@ -184,7 +196,8 @@ TEST_CASE("modloader: valid mod folder loads all artifacts") {
 
 TEST_CASE("modloader: missing manifest yields structured error") {
     TempModsRoot tmp;
-    tmp.Write("orphan", "cards.json", "[]");
+    tmp.Write("orphan", "cards/c1.json",
+              R"({ "id": "c1", "face": { "kind": "blank" } })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
@@ -263,7 +276,7 @@ TEST_CASE("modloader: api equal to engine version is accepted") {
     CHECK(result.ok());
 }
 
-TEST_CASE("modloader: absent optional provides files are fine") {
+TEST_CASE("modloader: absent entry-set directories are fine") {
     TempModsRoot tmp;
     tmp.Write("minimal", "mod.json", kMinimalManifest);
 
@@ -272,88 +285,34 @@ TEST_CASE("modloader: absent optional provides files are fine") {
     REQUIRE(result.mods.size() == 1);
     CHECK(result.mods[0].cards.empty());
     CHECK(result.mods[0].rules.empty());
+    CHECK(result.mods[0].statuses.empty());
     CHECK(result.mods[0].mutations.empty());
     CHECK(result.mods[0].decks.empty());
+    CHECK(result.mods[0].assets.empty());
 }
 
-TEST_CASE("modloader: referenced-but-absent file is a structured error") {
+TEST_CASE("modloader: malformed entry file is a structured error") {
     TempModsRoot tmp;
-    tmp.Write("ghost", "mod.json", R"({
-      "id": "ghost", "name": "Ghost", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
-    })");
-
-    LoadResult result = ScanModsDirectory(tmp.root.string());
-    REQUIRE(result.errors.size() == 1);
-    CHECK(result.errors[0].check == "provides.missing");
-    CHECK(result.errors[0].artifact == "cards");
-    CHECK(result.errors[0].path.find("cards.json") != std::string::npos);
-}
-
-TEST_CASE("modloader: path traversal in provides_cards is rejected") {
-    TempModsRoot tmp;
-    tmp.Write("evil", "mod.json", R"({
-      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
-      "provides_cards": "../../../../etc/passwd"
-    })");
+    tmp.Write("bad", "mod.json", kMinimalManifest);
+    tmp.Write("bad", "cards/broken.json", "{ not json ");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(HasCheck(result.errors, "json.parse"));
     CHECK(result.mods.empty());
 }
 
-TEST_CASE("modloader: absolute provides_rules path is rejected") {
+TEST_CASE("modloader: an old-style cards array file is rejected") {
     TempModsRoot tmp;
-    tmp.Write("evil", "mod.json", R"({
-      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
-      "provides_rules": "/etc/passwd"
-    })");
+    tmp.Write("old", "mod.json", kMinimalManifest);
+    /* INFO: The loader retires the single-file array form; a cards entry must be one
+     *       card object, so an array is a shape error, not a silent load. */
+    tmp.Write("old", "cards/0.json",
+              R"([ { "id": "c1", "face": { "kind": "blank" } } ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "provides.invalid"));
-    CHECK(result.mods.empty());
-}
-
-TEST_CASE("modloader: leading-dot provides_mutations is rejected") {
-    TempModsRoot tmp;
-    tmp.Write("evil", "mod.json", R"({
-      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
-      "provides_mutations": ".hidden.json"
-    })");
-
-    LoadResult result = ScanModsDirectory(tmp.root.string());
-    CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "provides.invalid"));
-    CHECK(result.mods.empty());
-}
-
-TEST_CASE("modloader: backslash in provides_cards is rejected") {
-    TempModsRoot tmp;
-    tmp.Write("evil", "mod.json", R"({
-      "id": "evil", "name": "Evil", "version": "1.0.0", "api": "1",
-      "provides_cards": "..\\..\\cards.json"
-    })");
-
-    LoadResult result = ScanModsDirectory(tmp.root.string());
-    CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "provides.invalid"));
-    CHECK(result.mods.empty());
-}
-
-TEST_CASE("modloader: symlinked provides target escaping the folder is rejected") {
-    TempModsRoot tmp;
-    tmp.Write("linkmod", "mod.json", R"({
-      "id": "linkmod", "name": "L", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
-    })");
-    tmp.Write(".", "outside.json", "[]");
-    fs::create_symlink("../outside.json", tmp.root / "linkmod" / "cards.json");
-
-    LoadResult result = ScanModsDirectory(tmp.root.string());
-    CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "provides.invalid"));
+    CHECK(HasCheck(result.errors, "card.shape"));
     CHECK(result.mods.empty());
 }
 
@@ -389,10 +348,9 @@ TEST_CASE("modloader: deeply nested JSON is rejected") {
 TEST_CASE("modloader: duplicate card ids within a mod are rejected") {
     TempModsRoot tmp;
     tmp.Write("dup", "mod.json", R"({
-      "id": "dup", "name": "Dup", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "dup", "name": "Dup", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("dup", "cards.json", R"([
+    tmp.WriteEntrySet("dup", "cards", R"([
       { "id": "same", "face": { "kind": "blank" } },
       { "id": "same", "face": { "kind": "blank" } }
     ])");
@@ -405,10 +363,9 @@ TEST_CASE("modloader: duplicate card ids within a mod are rejected") {
 TEST_CASE("modloader: unknown face kind is rejected") {
     TempModsRoot tmp;
     tmp.Write("faces", "mod.json", R"({
-      "id": "faces", "name": "Faces", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "faces", "name": "Faces", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("faces", "cards.json", R"([
+    tmp.WriteEntrySet("faces", "cards", R"([
       { "id": "weird", "face": { "kind": "hologram" } }
     ])");
 
@@ -419,10 +376,9 @@ TEST_CASE("modloader: unknown face kind is rejected") {
 TEST_CASE("modloader: card auto_trigger loads with must_apply") {
     TempModsRoot tmp;
     tmp.Write("totem", "mod.json", R"({
-      "id": "totem", "name": "Totem", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "totem", "name": "Totem", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("totem", "cards.json", R"([
+    tmp.WriteEntrySet("totem", "cards", R"([
       { "id": "totem", "face": { "kind": "blank" },
         "auto_trigger": {
           "condition": { "always": null },
@@ -449,10 +405,9 @@ TEST_CASE("modloader: card auto_trigger loads with must_apply") {
 TEST_CASE("modloader: auto_trigger must_apply defaults to false") {
     TempModsRoot tmp;
     tmp.Write("opt", "mod.json", R"({
-      "id": "opt", "name": "Opt", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "opt", "name": "Opt", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("opt", "cards.json", R"([
+    tmp.WriteEntrySet("opt", "cards", R"([
       { "id": "c1", "face": { "kind": "blank" },
         "auto_trigger": {
           "condition": { "always": null },
@@ -471,10 +426,9 @@ TEST_CASE("modloader: auto_trigger must_apply defaults to false") {
 TEST_CASE("modloader: non-object auto_trigger condition is rejected") {
     TempModsRoot tmp;
     tmp.Write("bad", "mod.json", R"({
-      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("bad", "cards.json", R"([
+    tmp.WriteEntrySet("bad", "cards", R"([
       { "id": "c1", "face": { "kind": "blank" },
         "auto_trigger": { "condition": 7, "graph": { "nodes": [] } } }
     ])");
@@ -488,10 +442,9 @@ TEST_CASE("modloader: non-object auto_trigger condition is rejected") {
 TEST_CASE("modloader: auto_trigger graph without nodes is rejected") {
     TempModsRoot tmp;
     tmp.Write("bad", "mod.json", R"({
-      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("bad", "cards.json", R"([
+    tmp.WriteEntrySet("bad", "cards", R"([
       { "id": "c1", "face": { "kind": "blank" },
         "auto_trigger": { "condition": { "always": null },
                           "graph": { "foo": 1 } } }
@@ -506,10 +459,9 @@ TEST_CASE("modloader: auto_trigger graph without nodes is rejected") {
 TEST_CASE("modloader: non-bool auto_trigger must_apply is rejected") {
     TempModsRoot tmp;
     tmp.Write("bad", "mod.json", R"({
-      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("bad", "cards.json", R"([
+    tmp.WriteEntrySet("bad", "cards", R"([
       { "id": "c1", "face": { "kind": "blank" },
         "auto_trigger": { "condition": { "always": null },
                           "graph": { "nodes": [] },
@@ -522,51 +474,33 @@ TEST_CASE("modloader: non-bool auto_trigger must_apply is rejected") {
     CHECK(result.mods.empty());
 }
 
-TEST_CASE("modloader: rules.json accepts bare-array and object forms") {
+TEST_CASE("modloader: rules and statuses load from their entry sets") {
     TempModsRoot tmp;
-    tmp.Write("arr", "mod.json", R"({
-      "id": "arr", "name": "A", "version": "1.0.0", "api": "1",
-      "provides_rules": "rules.json"
-    })");
-    tmp.Write("arr", "rules.json", R"([
+    tmp.Write("arr", "mod.json", kMinimalManifest);
+    tmp.WriteEntrySet("arr", "rules", R"([
       { "id": "r1", "hooks": [] },
       { "id": "r2", "hooks": [ { "on": "after:play", "nodes": [] } ] }
+    ])");
+    tmp.WriteEntrySet("arr", "statuses", R"([
+      { "id": "s1", "stack_policy": "cap:3" }
     ])");
     LoadResult arr = ScanModsDirectory(tmp.root.string());
     REQUIRE(arr.ok());
     REQUIRE(arr.mods[0].rules.size() == 2);
     CHECK(arr.mods[0].rules[1].hooks[0].hook == "after:play");
-
-    TempModsRoot tmp2;
-    tmp2.Write("obj", "mod.json", R"({
-      "id": "obj", "name": "O", "version": "1.0.0", "api": "1",
-      "provides_rules": "rules.json"
-    })");
-    tmp2.Write("obj", "rules.json", R"({
-      "rules": [ { "id": "r1", "hooks": [] } ],
-      "statuses": [ { "id": "s1", "stack_policy": "cap:3" } ]
-    })");
-    LoadResult obj = ScanModsDirectory(tmp2.root.string());
-    REQUIRE(obj.ok());
-    CHECK(obj.mods[0].rules.size() == 1);
-    CHECK(obj.mods[0].statuses.size() == 1);
-    CHECK(obj.mods[0].statuses[0].stack_policy == "cap:3");
+    REQUIRE(arr.mods[0].statuses.size() == 1);
+    CHECK(arr.mods[0].statuses[0].stack_policy == "cap:3");
 }
 
 TEST_CASE("modloader: rule hook accepts the nested graph form") {
     TempModsRoot tmp;
-    tmp.Write("g", "mod.json", R"({
-      "id": "g", "name": "G", "version": "1.0.0", "api": "1",
-      "provides_rules": "rules.json"
-    })");
-    tmp.Write("g", "rules.json", R"({
-      "rules": [
-        { "id": "r1", "hooks": [
-          { "on": "before:play", "phase": "before",
-            "graph": { "nodes": [
-              { "id": "n1", "op": "advance_turn", "args": {} }
-            ] } }
-        ] }
+    tmp.Write("g", "mod.json", kMinimalManifest);
+    tmp.Write("g", "rules/r1.json", R"({
+      "id": "r1", "hooks": [
+        { "on": "before:play", "phase": "before",
+          "graph": { "nodes": [
+            { "id": "n1", "op": "advance_turn", "args": {} }
+          ] } }
       ]
     })");
 
@@ -584,12 +518,9 @@ TEST_CASE("modloader: rule hook accepts the nested graph form") {
 
 TEST_CASE("modloader: a non-object rule hook is a structured error") {
     TempModsRoot tmp;
-    tmp.Write("bad", "mod.json", R"({
-      "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1",
-      "provides_rules": "rules.json"
-    })");
-    tmp.Write("bad", "rules.json", R"({
-      "rules": [ { "id": "r1", "hooks": [ "not-an-object" ] } ]
+    tmp.Write("bad", "mod.json", kMinimalManifest);
+    tmp.Write("bad", "rules/r1.json", R"({
+      "id": "r1", "hooks": [ "not-an-object" ]
     })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -600,12 +531,9 @@ TEST_CASE("modloader: a non-object rule hook is a structured error") {
 
 TEST_CASE("modloader: a rule hook missing 'on' is a structured error") {
     TempModsRoot tmp;
-    tmp.Write("noon", "mod.json", R"({
-      "id": "noon", "name": "NoOn", "version": "1.0.0", "api": "1",
-      "provides_rules": "rules.json"
-    })");
-    tmp.Write("noon", "rules.json", R"({
-      "rules": [ { "id": "r1", "hooks": [ { "nodes": [] } ] } ]
+    tmp.Write("noon", "mod.json", kMinimalManifest);
+    tmp.Write("noon", "rules/r1.json", R"({
+      "id": "r1", "hooks": [ { "nodes": [] } ]
     })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -617,10 +545,9 @@ TEST_CASE("modloader: a rule hook missing 'on' is a structured error") {
 TEST_CASE("modloader: pre-existing errors do not poison ParseModFolder") {
     TempModsRoot tmp;
     tmp.Write("good", "mod.json", R"({
-      "id": "good", "name": "Good", "version": "1.0.0", "api": "1",
-      "provides_cards": "cards.json"
+      "id": "good", "name": "Good", "version": "1.0.0", "api": "1"
     })");
-    tmp.Write("good", "cards.json", R"([
+    tmp.WriteEntrySet("good", "cards", R"([
       { "id": "c1", "face": { "kind": "blank" } }
     ])");
 

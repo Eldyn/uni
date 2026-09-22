@@ -80,7 +80,7 @@ struct InZone {
  */
 enum class FaceKind {
     kText,
-    kArtRef,
+    kImage,
     kEmoji,
     kBlank,
 };
@@ -94,6 +94,10 @@ struct FaceSpec {
     std::string color;
     std::string label;
     std::string url;
+    std::string art;        /**< image kind: asset bundle id. */
+    std::string art_mode = "inset";  /**< inset | replace | overlay. */
+    std::string art_fit = "contain"; /**< contain | cover | stretch. */
+    std::vector<std::string> keep;   /**< Layers drawn over the art. */
     int art_version = 1;
 };
 

@@ -43,14 +43,12 @@ WebServer::WebServer(int port, std::string_view key_file, std::string_view cert_
     if (!InitDB()) {
         throw std::runtime_error("Failed to initialise database");
     }
-    
+
     auto grace_days = std::stoull(Env::Get("UNVERIFIED_GRACE_DAYS", "7"));
     auto interval_sec = std::stoull(Env::Get("REAPER_INTERVAL_SEC", "3600"));
-    reaper_ = std::make_unique<AccountReaper>(
-        Database::Get(), 
-        std::chrono::seconds(interval_sec), 
-        std::chrono::hours(24 * grace_days)
-    );
+    reaper_ = std::make_unique<AccountReaper>(Database::Get(),
+                                              std::chrono::seconds(interval_sec),
+                                              std::chrono::hours(24 * grace_days));
     reaper_->Start();
 
     RegisterRoutes();
@@ -250,7 +248,8 @@ void WebServer::RegisterRoutes() {
                     verifier.RecordSend(user_id);
                     ++queued;
                 } catch (const std::exception& e) {
-                    Logger::Error("[VerifyBlast] Failed to send email to " + username + ": " + e.what());
+                    Logger::Error("[VerifyBlast] Failed to send email to " + username + ": " +
+                                  e.what());
                     ++skipped;
                 }
             }
@@ -617,7 +616,8 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
     // INFO: Downstream helpers call json::value(), which throws on
     //       non-objects, so a well-formed but non-object payload (e.g. "5"
     //       or "[]") must be rejected too.
-    if (!message_json.is_object() || !message_json.contains("action") || !message_json["action"].is_string()) {
+    if (!message_json.is_object() || !message_json.contains("action") ||
+        !message_json["action"].is_string()) {
         Logger::Warn("[WS] Message missing or invalid 'action' field");
         return;
     }
@@ -627,7 +627,8 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
 
     try {
         if (!ws_router_.Dispatch(context, message_json)) {
-            Logger::Warn("No handler found for action: " + message_json["action"].get<std::string>());
+            Logger::Warn("No handler found for action: " +
+                         message_json["action"].get<std::string>());
         }
     } catch (const std::exception& e) {
         Logger::Error("[WS] Uncaught exception in OnSocketMessage: ", e.what());

@@ -31,8 +31,8 @@ ecs::FaceKind ToEcsFaceKind(modload::FaceKind kind) {
     switch (kind) {
         case modload::FaceKind::kText:
             return ecs::FaceKind::kText;
-        case modload::FaceKind::kArtRef:
-            return ecs::FaceKind::kArtRef;
+        case modload::FaceKind::kImage:
+            return ecs::FaceKind::kImage;
         case modload::FaceKind::kEmoji:
             return ecs::FaceKind::kEmoji;
         case modload::FaceKind::kBlank:
@@ -48,6 +48,10 @@ ecs::FaceSpec ToEcsFace(const modload::FaceSpec& face) {
     out.color = face.color.value_or("");
     out.label = face.label.value_or("");
     out.url = face.url.value_or("");
+    out.art = face.art.value_or("");
+    out.art_mode = face.art_mode;
+    out.art_fit = face.art_fit;
+    out.keep = face.keep;
     out.art_version = face.art_version;
     return out;
 }

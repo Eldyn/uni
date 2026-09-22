@@ -26,7 +26,8 @@ Result<std::string> VerificationService::GenerateCode() {
     do {
         unsigned char raw[4];
         if (RAND_bytes(raw, sizeof(raw)) != 1) {
-            return std::unexpected(Error::Internal("[Verify] CSPRNG failure: RAND_bytes returned 0"));
+            return std::unexpected(
+                Error::Internal("[Verify] CSPRNG failure: RAND_bytes returned 0"));
         }
         value = (static_cast<uint32_t>(raw[0]) << 24) |
                 (static_cast<uint32_t>(raw[1]) << 16) |
@@ -140,12 +141,14 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
     if (!tx.Ok()) return std::unexpected(tx.GetError());
 
     auto row_result = db_.QueryOne(
-        "SELECT code_hash, expires_at, attempt_count FROM email_verification_codes WHERE user_id = ?;",
+        "SELECT code_hash, expires_at, attempt_count FROM email_verification_codes "
+        "WHERE user_id = ?;",
         {user_id});
     if (!row_result) return std::unexpected(row_result.error());
 
     if (!row_result->has_value()) {
-        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=wrong");
+        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) +
+                     " reason=wrong");
         return std::unexpected(Error::Unauthorised("Invalid or expired code"));
     }
 
@@ -157,7 +160,8 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
         if (!del) return std::unexpected(del.error());
         auto commit = tx.Commit();
         if (!commit) return std::unexpected(commit.error());
-        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=locked");
+        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) +
+                     " reason=locked");
         return std::unexpected(Error::TooManyRequests("Too many attempts. Request a new code."));
     }
 
@@ -167,7 +171,8 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
         if (!del) return std::unexpected(del.error());
         auto commit = tx.Commit();
         if (!commit) return std::unexpected(commit.error());
-        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=expired");
+        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) +
+                     " reason=expired");
         return std::unexpected(Error::Unauthorised("Invalid or expired code"));
     }
 
@@ -180,19 +185,22 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
 
     if (!match) {
         auto update = db_.Exec(
-            "UPDATE email_verification_codes SET attempt_count = attempt_count + 1 WHERE user_id = ?;",
+            "UPDATE email_verification_codes SET attempt_count = attempt_count + 1 "
+            "WHERE user_id = ?;",
             {user_id});
         if (!update) return std::unexpected(update.error());
         auto commit = tx.Commit();
         if (!commit) return std::unexpected(commit.error());
-        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) + " reason=wrong");
+        Logger::Info("[Verify] confirm failed user_id=" + std::to_string(user_id) +
+                     " reason=wrong");
         return std::unexpected(Error::Unauthorised("Invalid or expired code"));
     }
 
     auto update_user = db_.Exec("UPDATE users SET email_verified = 1 WHERE id = ?;", {user_id});
     if (!update_user) return std::unexpected(update_user.error());
 
-    auto delete_code = db_.Exec("DELETE FROM email_verification_codes WHERE user_id = ?;", {user_id});
+    auto delete_code = db_.Exec("DELETE FROM email_verification_codes WHERE user_id = ?;",
+                                {user_id});
     if (!delete_code) return std::unexpected(delete_code.error());
 
     auto commit = tx.Commit();

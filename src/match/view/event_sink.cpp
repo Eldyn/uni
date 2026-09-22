@@ -164,7 +164,7 @@ std::string StableDigest(std::string_view data) {
     }
     char buffer[17];
     std::snprintf(buffer, sizeof(buffer), "%016llx",
-                  static_cast<unsigned long long>(hash));
+                  static_cast<unsigned long long>(hash));  // NOLINT
     return std::string(buffer);
 }
 

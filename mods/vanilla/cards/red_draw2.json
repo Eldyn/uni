@@ -1,0 +1,39 @@
+{
+  "id": "red_draw2",
+  "title": "Red Draw Two",
+  "face": {
+    "kind": "text",
+    "color": "red",
+    "label": "+2",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "action",
+    "red",
+    "draw_penalty",
+    "stackable"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "draw_cards",
+          "args": {
+            "target": "@next_player",
+            "n": 2
+          },
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "op": "skip_turn",
+          "args": {
+            "target": "@next_player"
+          }
+        }
+      ]
+    }
+  }
+}

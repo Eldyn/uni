@@ -44,7 +44,8 @@ void EmailQueue::Run() {
 
         auto result = sender_->Send(mail);
         if (!result.has_value()) {
-            Logger::Error("[Email] send failed to=" + mail.to_address + " " + result.error().message);
+            Logger::Error("[Email] send failed to=" + mail.to_address + " " +
+                          result.error().message);
         }
     }
 }

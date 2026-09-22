@@ -1,0 +1,29 @@
+{
+  "id": "green_skip",
+  "title": "Green Skip",
+  "face": {
+    "kind": "text",
+    "color": "green",
+    "label": "skip",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "action",
+    "green",
+    "skip"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "skip_turn",
+          "args": {
+            "target": "@next_player"
+          }
+        }
+      ]
+    }
+  }
+}

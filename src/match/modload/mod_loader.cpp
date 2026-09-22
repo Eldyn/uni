@@ -53,31 +53,6 @@ bool DepthGuardCallback(int depth, nlohmann::json::parse_event_t,
     return true;
 }
 
-/** INFO: `provides_*` is an untrusted bare filename. Mirrors IsValidLocalId's
- *       strictness and additionally forbids path syntax: separators, parent
- *       segments, absolute markers and a leading dot. */
-bool IsSafeProvidesValue(const std::string& value) {
-    if (value.empty()) return false;
-    if (value.front() == '.') return false;
-    if (value.find('/') != std::string::npos) return false;
-    if (value.find('\\') != std::string::npos) return false;
-    if (value.find("..") != std::string::npos) return false;
-    if (value.find(':') != std::string::npos) return false;
-    return true;
-}
-
-/** INFO: component-wise prefix test; true when `candidate` is `root` or below
- *       it. Both paths must already be canonical. */
-bool IsPathWithin(const fs::path& root, const fs::path& candidate) {
-    auto root_it = root.begin();
-    auto cand_it = candidate.begin();
-    for (; root_it != root.end() && cand_it != candidate.end();
-         ++root_it, ++cand_it) {
-        if (*root_it != *cand_it) return false;
-    }
-    return root_it == root.end();
-}
-
 /* INFO: loader errors are collected, never thrown, so a bad folder yields a
  *       structured report instead of aborting the whole scan. */
 void AddError(std::vector<LoadError>& errors,
@@ -86,35 +61,6 @@ void AddError(std::vector<LoadError>& errors,
               const std::string& path,
               const std::string& message) {
     errors.push_back(LoadError{check, artifact, path, message});
-}
-
-/** INFO: resolves a `provides_*` value under `canonical_root` and rejects both
- *       lexical escapes and symlinks that point outside the mod folder. */
-bool ResolveProvidesPath(const fs::path& canonical_root,
-                         const std::string& value,
-                         const std::string& artifact,
-                         std::vector<LoadError>& errors,
-                         fs::path& out) {
-    if (!IsSafeProvidesValue(value)) {
-        AddError(errors, "provides.invalid", artifact, value,
-                 "provides_* must be a bare filename without '/', '\\', '..', "
-                 "a leading '.' or ':'");
-        return false;
-    }
-    std::error_code ec;
-    fs::path resolved = fs::weakly_canonical(canonical_root / value, ec);
-    if (ec) {
-        AddError(errors, "provides.invalid", artifact, value,
-                 "provides_* path could not be resolved");
-        return false;
-    }
-    if (!IsPathWithin(canonical_root, resolved)) {
-        AddError(errors, "provides.invalid", artifact, value,
-                 "provides_* resolves outside the mod folder");
-        return false;
-    }
-    out = std::move(resolved);
-    return true;
 }
 
 bool ReadJsonFile(const fs::path& path,
@@ -240,6 +186,15 @@ bool ParseFace(const nlohmann::json& value,
     (void)ParseOptionalStringField(value, "color", out.color);
     (void)ParseOptionalStringField(value, "label", out.label);
     (void)ParseOptionalStringField(value, "url", out.url);
+    (void)ParseOptionalStringField(value, "art", out.art);
+    (void)ParseStringField(value, "art_mode", out.art_mode);
+    (void)ParseStringField(value, "art_fit", out.art_fit);
+    auto keep = value.find("keep");
+    if (keep != value.end() && keep->is_array()) {
+        for (const auto& layer : *keep) {
+            if (layer.is_string()) out.keep.push_back(layer.get<std::string>());
+        }
+    }
     auto av = value.find("art_version");
     if (av != value.end() && av->is_number_integer()) {
         out.art_version = av->get<int>();
@@ -362,10 +317,6 @@ bool ParseManifest(const fs::path& path,
     (void)ParseStringField(json, "api", out.api);
     (void)ParseStringField(json, "description", out.description);
     (void)ParseStringField(json, "author", out.author);
-    (void)ParseOptionalStringField(json, "provides_cards", out.provides_cards);
-    (void)ParseOptionalStringField(json, "provides_rules", out.provides_rules);
-    (void)ParseOptionalStringField(json, "provides_mutations",
-                                   out.provides_mutations);
     ParseSettingsDecls(json, out);
     auto prompts = json.find("prompts");
     if (prompts != json.end()) out.prompts = *prompts;
@@ -374,79 +325,111 @@ bool ParseManifest(const fs::path& path,
     return true;
 }
 
-bool ParseCardsFile(const fs::path& path,
+/* INFO: List a directory's `*.json` files in sorted filename order. A
+ *       missing directory is an empty entry set; an unreadable one is
+ *       reported once against `artifact`. */
+std::vector<fs::path> ListJsonFiles(const fs::path& dir,
+                                    const std::string& artifact,
+                                    std::vector<LoadError>& errors) {
+    std::vector<fs::path> files;
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return files;
+    for (const auto& entry : fs::directory_iterator(dir, ec)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".json") {
+            files.push_back(entry.path());
+        }
+    }
+    if (ec) {
+        AddError(errors, "entryset.read", artifact, dir.string(),
+                 "cannot read entry-set directory");
+        return {};
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+bool ParseCardEntry(const fs::path& path,
                     const std::string& ns,
-                    std::vector<CardDef>& out,
+                    CardDef& out,
                     std::vector<LoadError>& errors) {
-    nlohmann::json json;
-    if (!ReadJsonFile(path, json, errors, "cards")) return false;
-    if (!json.is_array()) {
-        AddError(errors, "cards.shape", "cards", path.string(),
-                 "cards.json must be a JSON array");
+    nlohmann::json entry;
+    if (!ReadJsonFile(path, entry, errors, "cards")) return false;
+    if (!entry.is_object()) {
+        AddError(errors, "card.shape", "cards", path.string(),
+                 "card file must be a JSON object");
         return false;
     }
-    std::set<std::string> seen;
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        AddError(errors, "card.id", "cards", path.string(),
+                 "card needs an id matching [a-z0-9_]+ (1-32)");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.kind_id = ns + ":" + out.id;
+    out.raw = entry;
+    (void)ParseStringField(entry, "title", out.title);
+
     bool ok = true;
-    for (const auto& entry : json) {
+    auto face = entry.find("face");
+    if (face != entry.end()) {
+        if (!ParseFace(*face, out.face, errors, path.string())) ok = false;
+    }
+    auto tags = entry.find("tags");
+    if (tags != entry.end() && tags->is_array()) {
+        for (const auto& tag : *tags) {
+            if (tag.is_string()) out.tags.push_back(tag.get<std::string>());
+        }
+    }
+    auto behavior = entry.find("behavior");
+    if (behavior != entry.end() && behavior->is_object()) {
+        for (auto it = behavior->begin(); it != behavior->end(); ++it) {
+            BehaviorEntry be;
+            if (ParseBehaviorEntry(it.value(), be, errors, "cards",
+                                   path.string(), it.key())) {
+                out.behaviors.push_back(std::move(be));
+            } else {
+                ok = false;
+            }
+        }
+    }
+    auto window = entry.find("window");
+    if (window != entry.end()) {
+        WindowSpec spec;
+        if (ParseWindow(*window, spec, errors, path.string())) {
+            out.window = std::move(spec);
+        } else {
+            ok = false;
+        }
+    }
+    auto auto_trigger = entry.find("auto_trigger");
+    if (auto_trigger != entry.end()) {
+        AutoTriggerDef spec;
+        if (ParseAutoTrigger(*auto_trigger, spec, errors, path.string())) {
+            out.auto_trigger = std::move(spec);
+        } else {
+            ok = false;
+        }
+    }
+    return ok;
+}
+
+bool ScanCardsDirectory(const fs::path& dir,
+                        const std::string& ns,
+                        std::vector<CardDef>& out,
+                        std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "cards", errors)) {
         CardDef card;
-        if (!entry.is_object()
-            || !ParseStringField(entry, "id", card.id)
-            || !IsValidLocalId(card.id)) {
-            AddError(errors, "card.id", "cards", path.string(),
-                     "every card needs an id matching [a-z0-9_]+ (1-32)");
+        if (!ParseCardEntry(file, ns, card, errors)) {
             ok = false;
             continue;
         }
         if (!seen.insert(card.id).second) {
-            AddError(errors, "card.id.duplicate", "cards", path.string(),
+            AddError(errors, "card.id.duplicate", "cards", file.string(),
                      "duplicate card id '" + card.id + "'");
             ok = false;
             continue;
-        }
-        card.namespace_id = ns;
-        card.kind_id = ns + ":" + card.id;
-        card.raw = entry;
-        (void)ParseStringField(entry, "title", card.title);
-
-        auto face = entry.find("face");
-        if (face != entry.end()) {
-            if (!ParseFace(*face, card.face, errors, path.string())) ok = false;
-        }
-        auto tags = entry.find("tags");
-        if (tags != entry.end() && tags->is_array()) {
-            for (const auto& tag : *tags) {
-                if (tag.is_string()) card.tags.push_back(tag.get<std::string>());
-            }
-        }
-        auto behavior = entry.find("behavior");
-        if (behavior != entry.end() && behavior->is_object()) {
-            for (auto it = behavior->begin(); it != behavior->end(); ++it) {
-                BehaviorEntry be;
-                if (ParseBehaviorEntry(it.value(), be, errors, "cards",
-                                       path.string(), it.key())) {
-                    card.behaviors.push_back(std::move(be));
-                } else {
-                    ok = false;
-                }
-            }
-        }
-        auto window = entry.find("window");
-        if (window != entry.end()) {
-            WindowSpec spec;
-            if (ParseWindow(*window, spec, errors, path.string())) {
-                card.window = std::move(spec);
-            } else {
-                ok = false;
-            }
-        }
-        auto auto_trigger = entry.find("auto_trigger");
-        if (auto_trigger != entry.end()) {
-            AutoTriggerDef spec;
-            if (ParseAutoTrigger(*auto_trigger, spec, errors, path.string())) {
-                card.auto_trigger = std::move(spec);
-            } else {
-                ok = false;
-            }
         }
         out.push_back(std::move(card));
     }
@@ -528,151 +511,125 @@ bool ParseRuleEntry(const nlohmann::json& entry,
     return ok;
 }
 
-bool ParseRulesFile(const fs::path& path,
-                    const std::string& ns,
-                    std::vector<RuleDef>& rules,
-                    std::vector<StatusDef>& statuses,
-                    std::vector<LoadError>& errors) {
-    nlohmann::json json;
-    if (!ReadJsonFile(path, json, errors, "rules")) return false;
+bool ScanRulesDirectory(const fs::path& dir,
+                        const std::string& ns,
+                        std::vector<RuleDef>& out,
+                        std::vector<LoadError>& errors) {
     bool ok = true;
     std::set<std::string> seen;
-
-    auto parse_list = [&](const char* key, auto parse_one) {
-        auto it = json.find(key);
-        if (it == json.end()) return;
-        if (!it->is_array()) {
-            AddError(errors, std::string("rules.shape"), "rules", path.string(),
-                     std::string("'") + key + "' must be an array");
+    for (const fs::path& file : ListJsonFiles(dir, "rules", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "rules")) {
             ok = false;
-            return;
+            continue;
         }
-        for (const auto& entry : *it) {
-            std::size_t before = errors.size();
-            if (parse_one(entry)) continue;
-            if (errors.size() == before) {
-                AddError(errors, "rules.id", "rules", path.string(),
-                         std::string("every ") + key
-                             + " entry needs an id matching [a-z0-9_]+ (1-32)");
-            }
-            ok = false;
-        }
-    };
-
-    if (json.is_array()) {
-        /* INFO: bare array form: rule entries only. */
-        for (const auto& entry : json) {
-            RuleDef rule;
-            std::size_t before = errors.size();
-            if (!ParseRuleEntry(entry, ns, rule, errors, path.string())) {
-                if (errors.size() == before) {
-                    AddError(errors, "rules.id", "rules", path.string(),
-                             "rule entry needs an id matching [a-z0-9_]+ (1-32)");
-                }
-                ok = false;
-                continue;
-            }
-            if (!seen.insert(rule.id).second) {
-                AddError(errors, "rule.id.duplicate", "rules", path.string(),
-                         "duplicate rule id '" + rule.id + "'");
-                ok = false;
-                continue;
-            }
-            rules.push_back(std::move(rule));
-        }
-        return ok;
-    }
-    if (!json.is_object()) {
-        AddError(errors, "rules.shape", "rules", path.string(),
-                 "rules.json must be a JSON object or array");
-        return false;
-    }
-
-    auto parse_rule = [&](const nlohmann::json& entry) {
         RuleDef rule;
         std::size_t before = errors.size();
-        if (!ParseRuleEntry(entry, ns, rule, errors, path.string())) {
+        if (!ParseRuleEntry(entry, ns, rule, errors, file.string())) {
             if (errors.size() == before) {
-                AddError(errors, "rules.id", "rules", path.string(),
+                AddError(errors, "rules.id", "rules", file.string(),
                          "rule entry needs an id matching [a-z0-9_]+ (1-32)");
             }
-            return false;
+            ok = false;
+            continue;
         }
         if (!seen.insert(rule.id).second) {
-            AddError(errors, "rule.id.duplicate", "rules", path.string(),
+            AddError(errors, "rule.id.duplicate", "rules", file.string(),
                      "duplicate rule id '" + rule.id + "'");
-            return false;
+            ok = false;
+            continue;
         }
-        rules.push_back(std::move(rule));
-        return true;
-    };
-    auto parse_status = [&](const nlohmann::json& entry) {
-        StatusDef status;
-        if (!ParseStatusEntry(entry, ns, status)) return false;
-        if (!seen.insert(status.id).second) {
-            AddError(errors, "status.id.duplicate", "rules", path.string(),
-                     "duplicate status id '" + status.id + "'");
-            return false;
-        }
-        statuses.push_back(std::move(status));
-        return true;
-    };
-
-    if (json.contains("rules")) parse_list("rules", parse_rule);
-    if (json.contains("statuses")) parse_list("statuses", parse_status);
-    /* INFO: flat form: `{"id": ..., "hooks": [...]}` rule entries directly,
-     *       which is how the rule example reads. */
-    if (!json.contains("rules") && !json.contains("statuses")
-        && json.contains("hooks")) {
-        if (!parse_rule(json)) ok = false;
+        out.push_back(std::move(rule));
     }
     return ok;
 }
 
-bool ParseMutationsFile(const fs::path& path,
+bool ScanStatusesDirectory(const fs::path& dir,
+                           const std::string& ns,
+                           std::vector<StatusDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "statuses", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "statuses")) {
+            ok = false;
+            continue;
+        }
+        StatusDef status;
+        if (!ParseStatusEntry(entry, ns, status)) {
+            AddError(errors, "status.id", "statuses", file.string(),
+                     "status entry needs an id matching [a-z0-9_]+ (1-32)");
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(status.id).second) {
+            AddError(errors, "status.id.duplicate", "statuses", file.string(),
+                     "duplicate status id '" + status.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(status));
+    }
+    return ok;
+}
+
+bool ParseMutationEntry(const nlohmann::json& entry,
                         const std::string& ns,
-                        std::vector<MutationDef>& out,
-                        std::vector<LoadError>& errors) {
-    nlohmann::json json;
-    if (!ReadJsonFile(path, json, errors, "mutations")) return false;
-    if (!json.is_array()) {
-        AddError(errors, "mutations.shape", "mutations", path.string(),
-                 "mutations.json must be a JSON array");
+                        MutationDef& out,
+                        std::vector<LoadError>& errors,
+                        const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "mutation.shape", "mutations", path,
+                 "mutation entry must be an object");
         return false;
     }
-    std::set<std::string> seen;
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        AddError(errors, "mutation.id", "mutations", path,
+                 "every mutation needs an id matching [a-z0-9_]+ (1-32)");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.mutation_id = ns + ":" + out.id;
+    out.raw = entry;
+    (void)ParseStringField(entry, "target", out.target);
+    if (!ParseStringField(entry, "mode", out.mode)) {
+        AddError(errors, "mutation.mode", "mutations", path,
+                 "mutation '" + out.id + "' requires a string 'mode'");
+        return false;
+    }
+    (void)ParseOptionalStringField(entry, "position", out.position);
+    auto where = entry.find("where");
+    if (where != entry.end()) out.where = *where;
+    auto replacement = entry.find("replacement");
+    if (replacement != entry.end()) {
+        out.replacement = ParseGraph(*replacement);
+    }
+    return true;
+}
+
+bool ScanMutationsDirectory(const fs::path& dir,
+                            const std::string& ns,
+                            std::vector<MutationDef>& out,
+                            std::vector<LoadError>& errors) {
     bool ok = true;
-    for (const auto& entry : json) {
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "mutations", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "mutations")) {
+            ok = false;
+            continue;
+        }
         MutationDef mut;
-        if (!entry.is_object()
-            || !ParseStringField(entry, "id", mut.id)
-            || !IsValidLocalId(mut.id)) {
-            AddError(errors, "mutation.id", "mutations", path.string(),
-                     "every mutation needs an id matching [a-z0-9_]+ (1-32)");
+        if (!ParseMutationEntry(entry, ns, mut, errors, file.string())) {
             ok = false;
             continue;
         }
         if (!seen.insert(mut.id).second) {
-            AddError(errors, "mutation.id.duplicate", "mutations", path.string(),
-                     "duplicate mutation id '" + mut.id + "'");
+            AddError(errors, "mutation.id.duplicate", "mutations",
+                     file.string(), "duplicate mutation id '" + mut.id + "'");
             ok = false;
             continue;
-        }
-        mut.namespace_id = ns;
-        mut.mutation_id = ns + ":" + mut.id;
-        mut.raw = entry;
-        (void)ParseStringField(entry, "target", mut.target);
-        if (!ParseStringField(entry, "mode", mut.mode)) {
-            AddError(errors, "mutation.mode", "mutations", path.string(),
-                     "mutation '" + mut.id + "' requires a string 'mode'");
-            ok = false;
-        }
-        (void)ParseOptionalStringField(entry, "position", mut.position);
-        auto where = entry.find("where");
-        if (where != entry.end()) mut.where = *where;
-        auto replacement = entry.find("replacement");
-        if (replacement != entry.end()) {
-            mut.replacement = ParseGraph(*replacement);
         }
         out.push_back(std::move(mut));
     }
@@ -730,15 +687,7 @@ bool ScanDeckDirectory(const fs::path& dir,
                        const std::string& ns,
                        std::vector<DeckDef>& out,
                        std::vector<LoadError>& errors) {
-    std::error_code ec;
-    if (!fs::is_directory(dir, ec)) return true;
-    std::vector<fs::path> files;
-    for (const auto& entry : fs::directory_iterator(dir, ec)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".json") {
-            files.push_back(entry.path());
-        }
-    }
-    std::sort(files.begin(), files.end());
+    std::vector<fs::path> files = ListJsonFiles(dir, "deck", errors);
     bool ok = true;
     std::set<std::string> seen;
     for (const auto& file : files) {
@@ -758,12 +707,150 @@ bool ScanDeckDirectory(const fs::path& dir,
     return ok;
 }
 
+bool ParseAssetVariant(const nlohmann::json& value,
+                       AssetVariant& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path,
+                       const std::string& slot) {
+    if (!value.is_object()) {
+        AddError(errors, "asset.variant", "assets", path,
+                 "slot '" + slot + "' variants must be objects");
+        return false;
+    }
+    std::string tier_token;
+    if (!ParseStringField(value, "tier", tier_token)) {
+        AddError(errors, "asset.variant", "assets", path,
+                 "slot '" + slot + "' variant requires a string 'tier'");
+        return false;
+    }
+    auto tier = AssetTierFromString(tier_token);
+    if (!tier) {
+        AddError(errors, "asset.variant", "assets", path,
+                 "slot '" + slot + "' has unknown tier '" + tier_token + "'");
+        return false;
+    }
+    out.tier = *tier;
+    (void)ParseOptionalStringField(value, "file", out.file);
+    (void)ParseOptionalStringField(value, "value", out.value);
+    out.raw = value;
+    return true;
+}
+
+/* INFO: a slot is either an array of variants or a bare string (sugar for a
+ *       single `high` file variant. */
+bool ParseAssetSlot(const std::string& name,
+                    const nlohmann::json& value,
+                    AssetSlot& out,
+                    std::vector<LoadError>& errors,
+                    const std::string& path) {
+    out.name = name;
+    if (value.is_string()) {
+        AssetVariant variant;
+        variant.tier = AssetTier::kHigh;
+        variant.file = value.get<std::string>();
+        variant.raw = value;
+        out.variants.push_back(std::move(variant));
+        return true;
+    }
+    if (!value.is_array()) {
+        AddError(errors, "asset.slot", "assets", path,
+                 "slot '" + name + "' must be an array of variants or a string");
+        return false;
+    }
+    bool ok = true;
+    for (const auto& item : value) {
+        AssetVariant variant;
+        if (!ParseAssetVariant(item, variant, errors, path, name)) {
+            ok = false;
+            continue;
+        }
+        out.variants.push_back(std::move(variant));
+    }
+    return ok;
+}
+
+bool ParseAssetBundleFile(const fs::path& index_path,
+                          const std::string& folder,
+                          const std::string& ns,
+                          AssetBundleDef& out,
+                          std::vector<LoadError>& errors) {
+    nlohmann::json json;
+    if (!ReadJsonFile(index_path, json, errors, "assets")) return false;
+    if (!json.is_object()) {
+        AddError(errors, "asset.shape", "assets", index_path.string(),
+                 "bundle index.json must be a JSON object");
+        return false;
+    }
+    out.raw = json;
+    if (!ParseStringField(json, "id", out.id) || !IsValidLocalId(out.id)) {
+        AddError(errors, "asset.id", "assets", index_path.string(),
+                 "bundle index requires an id matching [a-z0-9_]+ (1-32)");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.bundle_id = ns + ":" + out.id;
+    out.folder = folder;
+    (void)ParseOptionalStringField(json, "card", out.card);
+    (void)ParseStringField(json, "license", out.license);
+    (void)ParseStringField(json, "author", out.author);
+
+    auto slots = json.find("slots");
+    if (slots == json.end() || !slots->is_object()) {
+        AddError(errors, "asset.slots", "assets", index_path.string(),
+                 "bundle index requires a 'slots' object");
+        return false;
+    }
+    bool ok = true;
+    for (auto it = slots->begin(); it != slots->end(); ++it) {
+        AssetSlot slot;
+        if (!ParseAssetSlot(it.key(), it.value(), slot, errors,
+                            index_path.string())) {
+            ok = false;
+            continue;
+        }
+        out.slots.push_back(std::move(slot));
+    }
+    return ok;
+}
+
+bool ScanAssetsDirectory(const fs::path& dir,
+                         const std::string& ns,
+                         std::vector<AssetBundleDef>& out,
+                         std::vector<LoadError>& errors) {
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return true;
+    std::vector<fs::path> folders;
+    for (const auto& entry : fs::directory_iterator(dir, ec)) {
+        if (entry.is_directory()) folders.push_back(entry.path());
+    }
+    std::sort(folders.begin(), folders.end());
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const auto& folder : folders) {
+        fs::path index = folder / "index.json";
+        if (!fs::is_regular_file(index, ec)) continue;
+        AssetBundleDef bundle;
+        if (!ParseAssetBundleFile(index, folder.string(), ns, bundle, errors)) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(bundle.id).second) {
+            AddError(errors, "asset.id.duplicate", "assets", index.string(),
+                     "duplicate bundle id '" + bundle.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(bundle));
+    }
+    return ok;
+}
+
 }  // namespace
 
 std::string ToString(FaceKind kind) {
     switch (kind) {
         case FaceKind::kText: return "text";
-        case FaceKind::kArtRef: return "art_ref";
+        case FaceKind::kImage: return "image";
         case FaceKind::kEmoji: return "emoji";
         case FaceKind::kBlank: return "blank";
     }
@@ -772,9 +859,25 @@ std::string ToString(FaceKind kind) {
 
 std::optional<FaceKind> FaceKindFromString(const std::string& token) {
     if (token == "text") return FaceKind::kText;
-    if (token == "art_ref") return FaceKind::kArtRef;
+    if (token == "image") return FaceKind::kImage;
     if (token == "emoji") return FaceKind::kEmoji;
     if (token == "blank") return FaceKind::kBlank;
+    return std::nullopt;
+}
+
+std::string ToString(AssetTier tier) {
+    switch (tier) {
+        case AssetTier::kHigh: return "high";
+        case AssetTier::kMedium: return "medium";
+        case AssetTier::kLow: return "low";
+    }
+    return "low";
+}
+
+std::optional<AssetTier> AssetTierFromString(const std::string& token) {
+    if (token == "high") return AssetTier::kHigh;
+    if (token == "medium") return AssetTier::kMedium;
+    if (token == "low") return AssetTier::kLow;
     return std::nullopt;
 }
 
@@ -851,58 +954,31 @@ bool ParseModFolder(const std::string& folder_path,
     loaded.path = folder_path;
     loaded.manifest = std::move(manifest);
 
-    /* INFO: canonical mod root; every `provides_*` target must resolve inside
-     *       it, so a symlink cannot smuggle a path out of the folder. */
-    std::error_code root_ec;
-    fs::path canonical_root = fs::weakly_canonical(root, root_ec);
-    if (root_ec) canonical_root = root;
-
+    /* INFO: Entry sets are directories; a missing directory is an empty
+     *       set, so a mod declares only the content it ships. */
     bool ok = true;
-    if (loaded.manifest.provides_cards) {
-        fs::path cards_path;
-        if (!ResolveProvidesPath(canonical_root, *loaded.manifest.provides_cards,
-                                 "cards", errors, cards_path)) {
-            ok = false;
-        } else if (!fs::exists(cards_path)) {
-            AddError(errors, "provides.missing", "cards", cards_path.string(),
-                     "manifest declares provides_cards but the file is absent");
-            ok = false;
-        } else if (!ParseCardsFile(cards_path, loaded.manifest.id,
-                                   loaded.cards, errors)) {
-            ok = false;
-        }
+    if (!ScanCardsDirectory(root / "cards", loaded.manifest.id, loaded.cards,
+                            errors)) {
+        ok = false;
     }
-    if (loaded.manifest.provides_rules) {
-        fs::path rules_path;
-        if (!ResolveProvidesPath(canonical_root, *loaded.manifest.provides_rules,
-                                 "rules", errors, rules_path)) {
-            ok = false;
-        } else if (!fs::exists(rules_path)) {
-            AddError(errors, "provides.missing", "rules", rules_path.string(),
-                     "manifest declares provides_rules but the file is absent");
-            ok = false;
-        } else if (!ParseRulesFile(rules_path, loaded.manifest.id,
-                                   loaded.rules, loaded.statuses, errors)) {
-            ok = false;
-        }
+    if (!ScanRulesDirectory(root / "rules", loaded.manifest.id, loaded.rules,
+                            errors)) {
+        ok = false;
     }
-    if (loaded.manifest.provides_mutations) {
-        fs::path mut_path;
-        if (!ResolveProvidesPath(canonical_root,
-                                 *loaded.manifest.provides_mutations,
-                                 "mutations", errors, mut_path)) {
-            ok = false;
-        } else if (!fs::exists(mut_path)) {
-            AddError(errors, "provides.missing", "mutations", mut_path.string(),
-                     "manifest declares provides_mutations but the file is absent");
-            ok = false;
-        } else if (!ParseMutationsFile(mut_path, loaded.manifest.id,
-                                       loaded.mutations, errors)) {
-            ok = false;
-        }
+    if (!ScanStatusesDirectory(root / "statuses", loaded.manifest.id,
+                               loaded.statuses, errors)) {
+        ok = false;
     }
-    if (!ScanDeckDirectory(root / "decks", loaded.manifest.id,
-                           loaded.decks, errors)) {
+    if (!ScanMutationsDirectory(root / "mutations", loaded.manifest.id,
+                                loaded.mutations, errors)) {
+        ok = false;
+    }
+    if (!ScanDeckDirectory(root / "decks", loaded.manifest.id, loaded.decks,
+                           errors)) {
+        ok = false;
+    }
+    if (!ScanAssetsDirectory(root / "assets", loaded.manifest.id, loaded.assets,
+                             errors)) {
         ok = false;
     }
 

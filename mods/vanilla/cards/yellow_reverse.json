@@ -1,0 +1,53 @@
+{
+  "id": "yellow_reverse",
+  "title": "Yellow Reverse",
+  "face": {
+    "kind": "text",
+    "color": "yellow",
+    "label": "reverse",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "action",
+    "yellow",
+    "reverse"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "cases": [
+            {
+              "when": {
+                "player_count": {
+                  "cmp": "eq",
+                  "n": 2
+                }
+              },
+              "next": "two_player"
+            }
+          ],
+          "else": "standard"
+        },
+        {
+          "id": "standard",
+          "op": "reverse_direction",
+          "args": {}
+        },
+        {
+          "id": "two_player",
+          "op": "reverse_direction",
+          "args": {},
+          "next": "extra_advance"
+        },
+        {
+          "id": "extra_advance",
+          "op": "advance_turn",
+          "args": {}
+        }
+      ]
+    }
+  }
+}

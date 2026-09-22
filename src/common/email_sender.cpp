@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
+#include <cstdint>
 #include <cctype>
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -31,7 +32,7 @@
 using json = nlohmann::json;
 
 namespace {
-long long NowSeconds() {
+std::int64_t NowSeconds() {
     return std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
 }
@@ -157,7 +158,7 @@ VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));  // NOLINT
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, AppendResponseBody);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
@@ -178,7 +179,7 @@ VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
         return std::unexpected(Error::Internal("[Email] Brevo request failed: " + curl_error));
     }
 
-    long status_code = 0;
+    long status_code = 0;  // NOLINT
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
 
     curl_slist_free_all(headers);

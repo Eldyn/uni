@@ -1,0 +1,36 @@
+{
+  "id": "wild",
+  "title": "Wild",
+  "face": {
+    "kind": "text",
+    "color": "white",
+    "label": "jolly",
+    "art_version": 1
+  },
+  "tags": [
+    "wild",
+    "action"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "prompt",
+          "args": {
+            "kind": "choose_color",
+            "target": "@self"
+          },
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "op": "set_active_type",
+          "args": {
+            "from_prompt": "n1"
+          }
+        }
+      ]
+    }
+  }
+}

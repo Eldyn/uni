@@ -228,14 +228,16 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
 
     if (session) {
         // When match in progress and no bot seat was hijacked, join as spectator!
-        members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true, user_privacy);
+        members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true,
+                             user_privacy);
         result.outcome = JoinOutcome::kJoinedAsSpectator;
         return result;
     }
 
     if (static_cast<int>(members.size()) < settings.max_players) {
         int seat = NextFreeSeat();
-        members.emplace_back(username, socket, true, false, seat, /*is_spectator=*/false, user_privacy);
+        members.emplace_back(username, socket, true, false, seat, /*is_spectator=*/false,
+                             user_privacy);
 
         result.outcome = JoinOutcome::kJoinedEmptySlot;
         return result;

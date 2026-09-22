@@ -13,7 +13,8 @@ AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
       verify_request_limiter_(std::stod(Env::Get("RATE_VERIFY_BURST", "3")),
                               std::stod(Env::Get("RATE_VERIFY_RPS",   "0.05"))),
       verify_attempt_throttle_(std::stoi(Env::Get("VERIFY_MAX_FAILS", "5")),
-                               std::chrono::seconds(std::stoi(Env::Get("VERIFY_LOCKOUT_SEC", "300")))) {
+                               std::chrono::seconds(std::stoi(
+                                   Env::Get("VERIFY_LOCKOUT_SEC", "300")))) {
     router.Post("/auth/register", [this](AppResponse* res, AppRequest* req) {
         HandleRegister(res, req);
     });
@@ -22,7 +23,8 @@ AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
         HandleLogin(res, req);
     });
 
-    // Per-IP auth_limiter_ already covers routes starting with /auth/, so no additional wiring is needed there
+    // Per-IP auth_limiter_ already covers routes starting with /auth/, so no
+    // additional wiring is needed there
     router.Post("/auth/verify/request-code", [this](AppResponse* res, AppRequest* req) {
         HandleRequestCode(res, req);
     });
@@ -277,11 +279,14 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
         return;
     }
     if (*sends_res >= Env::GetInt("EMAIL_MAX_SENDS_PER_DAY", 5)) {
-        WriteError(res, Error::TooManyRequests("Daily verification email limit reached. Try again tomorrow."));
+        WriteError(res, Error::TooManyRequests(
+                             "Daily verification email limit reached. Try again tomorrow."));
         return;
     }
 
-    http::ReadBody(res, kMaxBodyBytes, [this, res, ip, id = status->id, username = payload->username, email = status->email, db_locale = status->locale](const std::string& body) {
+    http::ReadBody(res, kMaxBodyBytes,
+                   [this, res, ip, id = status->id, username = payload->username,
+                    email = status->email, db_locale = status->locale](const std::string& body) {
         std::string effective_locale = db_locale;
         json data = json::object();
         if (!body.empty()) {
@@ -295,10 +300,12 @@ void AuthController::HandleRequestCode(AppResponse* res, AppRequest* req) {
 
         if (data.is_object() && data.contains("locale") && data["locale"].is_string()) {
             std::string req_locale = data["locale"].get<std::string>();
-            if (req_locale == "en" || req_locale == "de" || req_locale == "es" || 
-                req_locale == "it" || req_locale == "ja" || req_locale == "ko" || req_locale == "zh") {
+            if (req_locale == "en" || req_locale == "de" || req_locale == "es" ||
+                req_locale == "it" || req_locale == "ja" || req_locale == "ko" ||
+                req_locale == "zh") {
                 effective_locale = req_locale;
-                (void)Database::Get().Exec("UPDATE users SET locale = ? WHERE id = ?;", {effective_locale, id});
+                (void)Database::Get().Exec("UPDATE users SET locale = ? WHERE id = ?;",
+                                           {effective_locale, id});
             }
         }
 
@@ -373,7 +380,8 @@ void AuthController::HandleConfirmCode(AppResponse* res, AppRequest* req) {
 
         int user_id = -1;
         if (session_username) {
-            auto rows = Database::Get().Query("SELECT id FROM users WHERE username = ?;", {*session_username});
+            auto rows = Database::Get().Query("SELECT id FROM users WHERE username = ?;",
+                                              {*session_username});
             if (rows && !rows->empty()) {
                 user_id = rows->at(0).Get<int>("id");
             }
@@ -384,7 +392,8 @@ void AuthController::HandleConfirmCode(AppResponse* res, AppRequest* req) {
             }
         }
 
-        const std::string throttle_key = (user_id != -1) ? (std::to_string(user_id) + "|" + ip) : ip;
+        const std::string throttle_key =
+            (user_id != -1) ? (std::to_string(user_id) + "|" + ip) : ip;
         if (verify_attempt_throttle_.IsLocked(throttle_key)) {
             WriteError(res, Error::TooManyRequests("Too many failed attempts. Try again later."));
             return;

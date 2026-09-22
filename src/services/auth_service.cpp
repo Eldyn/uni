@@ -81,7 +81,8 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
         std::chrono::system_clock::now().time_since_epoch()).count());
 
     auto result = db_.Exec(
-        "INSERT INTO users (username, pass_hash, salt, email, created_at, locale) VALUES (?, ?, ?, ?, ?, ?);",
+        "INSERT INTO users (username, pass_hash, salt, email, created_at, locale) "
+        "VALUES (?, ?, ?, ?, ?, ?);",
         {username, hash_b64, salt_b64, email, created_at, locale});
 
     if (!result) {
@@ -185,11 +186,11 @@ bool AuthService::IsFullMember(const std::string& username) {
     auto row_result = Database::Get().QueryOne(
         "SELECT email_verified FROM users WHERE username = ?;",
         {username});
-    
+
     if (!row_result || !row_result->has_value()) {
         return false;
     }
-    
+
     return row_result->value().Get<int>("email_verified") == 1;
 }
 

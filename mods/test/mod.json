@@ -4,6 +4,5 @@
   "version": "1.0.0",
   "api": "1",
   "description": "Test mod: a Bomb card that makes the player choose a seat to draw two from.",
-  "author": "eldyn",
-  "provides_cards": "cards.json"
+  "author": "eldyn"
 }

@@ -4,6 +4,5 @@
   "version": "1.0.0",
   "api": "1",
   "description": "Rule-only mod: if the card you draw is playable, you must play it immediately (see rules.json).",
-  "author": "eldyn",
-  "provides_rules": "rules.json"
+  "author": "eldyn"
 }

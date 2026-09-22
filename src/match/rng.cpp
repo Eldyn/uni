@@ -28,7 +28,7 @@ std::optional<uint64_t> Rng::SeedFromEnv() {
     if (raw.empty()) return std::nullopt;
     try {
         std::size_t consumed = 0;
-        const unsigned long long value = std::stoull(raw, &consumed, 10);
+        const uint64_t value = std::stoull(raw, &consumed, 10);
         if (consumed != raw.size()) return std::nullopt;
         return static_cast<uint64_t>(value);
     } catch (...) {

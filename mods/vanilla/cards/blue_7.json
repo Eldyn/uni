@@ -1,0 +1,16 @@
+{
+  "id": "blue_7",
+  "title": "Blue 7",
+  "face": {
+    "kind": "text",
+    "color": "blue",
+    "label": "7",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "blue",
+    "seven"
+  ]
+}

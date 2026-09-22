@@ -1,0 +1,29 @@
+{
+  "id": "blue_skip",
+  "title": "Blue Skip",
+  "face": {
+    "kind": "text",
+    "color": "blue",
+    "label": "skip",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "action",
+    "blue",
+    "skip"
+  ],
+  "behavior": {
+    "on_play": {
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "skip_turn",
+          "args": {
+            "target": "@next_player"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -67,12 +67,14 @@ std::string BuildHtmlBody(const std::string& heading,
     html += HtmlEscape(heading);
     html += "</h1>";
 
-    html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;margin:0 0 16px 0;\">";
+    html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;"
+            "margin:0 0 16px 0;\">";
     html += HtmlEscape(intro);
     html += "</p>";
 
     if (!code_label.empty()) {
-        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;margin:0 0 8px 0;\">";
+        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;"
+                "margin:0 0 8px 0;\">";
         html += HtmlEscape(code_label);
         html += "</p>";
     }
@@ -83,13 +85,15 @@ std::string BuildHtmlBody(const std::string& heading,
     html += "</p>";
 
     if (!note.empty()) {
-        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;margin:0 0 16px 0;\">";
+        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;"
+                "margin:0 0 16px 0;\">";
         html += HtmlEscape(note);
         html += "</p>";
     }
 
     if (!link_prompt.empty()) {
-        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;margin:0 0 8px 0;\">";
+        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;"
+                "margin:0 0 8px 0;\">";
         html += HtmlEscape(link_prompt);
         html += "</p>";
     }
@@ -102,7 +106,8 @@ std::string BuildHtmlBody(const std::string& heading,
     html += "</a></p>";
 
     if (!footer.empty()) {
-        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:12px;line-height:1.5;margin:24px 0 0 0;\">";
+        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:12px;line-height:1.5;"
+                "margin:24px 0 0 0;\">";
         html += HtmlEscape(footer);
         html += "</p>";
     }

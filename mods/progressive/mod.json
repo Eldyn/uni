@@ -4,6 +4,5 @@
   "version": "1.0.0",
   "api": "1",
   "description": "Rule-only mod: keep drawing until you draw a playable card (see rules.json).",
-  "author": "eldyn",
-  "provides_rules": "rules.json"
+  "author": "eldyn"
 }

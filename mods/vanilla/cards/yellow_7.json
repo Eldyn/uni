@@ -1,0 +1,16 @@
+{
+  "id": "yellow_7",
+  "title": "Yellow 7",
+  "face": {
+    "kind": "text",
+    "color": "yellow",
+    "label": "7",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "yellow",
+    "seven"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "red_1",
+  "title": "Red 1",
+  "face": {
+    "kind": "text",
+    "color": "red",
+    "label": "1",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "red"
+  ]
+}

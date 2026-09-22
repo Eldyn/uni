@@ -1,0 +1,16 @@
+{
+  "id": "green_7",
+  "title": "Green 7",
+  "face": {
+    "kind": "text",
+    "color": "green",
+    "label": "7",
+    "art_version": 1
+  },
+  "tags": [
+    "colored",
+    "numbered",
+    "green",
+    "seven"
+  ]
+}

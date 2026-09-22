@@ -49,7 +49,9 @@ void FriendController::HandleFriendRequest(WsContext ctx, const json& message) {
     const std::string& username = ctx.socket_data->username;
 
     if (!AuthService::IsFullMember(username)) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kFriendRequestInvalid, request_id, "Email verification required");
+        broadcaster_.SendError(ctx.socket, ctx.op_code,
+                               contract::ErrorCode::kFriendRequestInvalid, request_id,
+                               "Email verification required");
         return;
     }
 
@@ -77,7 +79,9 @@ void FriendController::HandleFriendResponse(WsContext ctx, const json& message) 
     const std::string& username = ctx.socket_data->username;
 
     if (!AuthService::IsFullMember(username)) {
-        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kFriendRequestInvalid, request_id, "Email verification required");
+        broadcaster_.SendError(ctx.socket, ctx.op_code,
+                               contract::ErrorCode::kFriendRequestInvalid, request_id,
+                               "Email verification required");
         return;
     }
 

@@ -188,20 +188,6 @@ json RandomManifest(std::mt19937_64& rng, const std::string& folder) {
                          {"name", "Fuzz"},
                          {"version", "1.0.0"},
                          {"api", "1"}};
-        switch (rng() % 4) {
-            case 0:
-                manifest["provides_cards"] = "cards.json";
-                break;
-            case 1:
-                manifest["provides_rules"] = "rules.json";
-                break;
-            case 2:
-                manifest["provides_cards"] = "cards.json";
-                manifest["provides_rules"] = "rules.json";
-                break;
-            default:
-                break;
-        }
         return manifest;
     }
     json value = RandomValue(rng, 2);
@@ -209,29 +195,24 @@ json RandomManifest(std::mt19937_64& rng, const std::string& folder) {
     return value;
 }
 
-std::string RandomCards(std::mt19937_64& rng) {
+std::string RandomCard(std::mt19937_64& rng) {
     switch (rng() % 4) {
         case 0:
-            return "[]";
-        case 1: {
-            json arr = json::array();
-            const int n = static_cast<int>(rng() % 4);
-            for (int i = 0; i < n; ++i) {
-                arr.push_back(json{{"id", "card_" + std::to_string(i)},
-                                   {"face", {{"kind", "blank"}}}});
-            }
-            return DumpJson(arr);
-        }
+            return DumpJson(json{{"id", "card_0"},
+                                 {"face", {{"kind", "blank"}}}});
+        case 1:
+            return DumpJson(json{{"id", "card_0"},
+                                 {"face", {{"kind", "image"},
+                                           {"art", "bundle"}}}});
         default:
             return RandomJsonOrBytes(rng, 3);
     }
 }
 
-std::string RandomRules(std::mt19937_64& rng) {
+std::string RandomRule(std::mt19937_64& rng) {
     switch (rng() % 3) {
         case 0:
-            return DumpJson(json{{"rules", json::array()},
-                                 {"statuses", json::array()}});
+            return DumpJson(json{{"id", "rule_0"}, {"hooks", json::array()}});
         default:
             return RandomJsonOrBytes(rng, 3);
     }
@@ -259,8 +240,9 @@ void WriteIteration(TempModsRoot& tmp, std::mt19937_64& rng) {
     } else {
         tmp.Write(folder, "mod.json", DumpJson(RandomManifest(rng, folder)));
     }
-    if ((rng() % 2) == 0) tmp.Write(folder, "cards.json", RandomCards(rng));
-    if ((rng() % 2) == 0) tmp.Write(folder, "rules.json", RandomRules(rng));
+    if ((rng() % 2) == 0) tmp.Write(folder, "cards/0.json", RandomCard(rng));
+    if ((rng() % 2) == 0) tmp.Write(folder, "rules/0.json", RandomRule(rng));
+    if ((rng() % 2) == 0) tmp.Write(folder, "statuses/0.json", RandomRule(rng));
     if ((rng() % 2) == 0) {
         tmp.Write(folder, "decks/classic.json", RandomDeck(rng, folder));
     }

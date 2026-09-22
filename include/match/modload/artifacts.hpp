@@ -39,7 +39,7 @@ struct LoadError {
  */
 enum class FaceKind {
     kText,
-    kArtRef,
+    kImage,
     kEmoji,
     kBlank,
 };
@@ -59,6 +59,10 @@ struct FaceSpec {
     std::optional<std::string> color;   /**< text kind. */
     std::optional<std::string> label;   /**< text / emoji kinds. */
     std::optional<std::string> url;     /**< art_ref kind (placeholder). */
+    std::optional<std::string> art;     /**< image kind: asset bundle id. */
+    std::string art_mode = "inset";     /**< inset | replace | overlay. */
+    std::string art_fit = "contain";    /**< contain | cover | stretch. */
+    std::vector<std::string> keep;      /**< Layers drawn over the art. */
     int art_version = 1;
 };
 
@@ -191,6 +195,64 @@ struct DeckDef {
 };
 
 /**
+ * @enum AssetTier
+ * @brief Quality tier of an asset variant; richest allowed wins.
+ */
+enum class AssetTier {
+    kHigh,
+    kMedium,
+    kLow,
+};
+
+/** Serialize an AssetTier to its wire token (`high`/`medium`/`low`). */
+std::string ToString(AssetTier tier);
+
+/** Parse an asset-tier token; nullopt when the token is not a known tier. */
+std::optional<AssetTier> AssetTierFromString(const std::string& token);
+
+/**
+ * @struct AssetVariant
+ * @brief One tier of one asset slot.
+ *
+ * A file variant carries `file` (path relative to the bundle folder); a glyph
+ * variant carries `value`. Exactly one is set (validator-enforced).
+ */
+struct AssetVariant {
+    AssetTier tier = AssetTier::kLow;
+    std::optional<std::string> file;   /**< File variant. */
+    std::optional<std::string> value;  /**< Glyph variant. */
+    nlohmann::json raw;
+};
+
+/**
+ * @struct AssetSlot
+ * @brief One named slot of an asset bundle.
+ */
+struct AssetSlot {
+    std::string name;
+    std::vector<AssetVariant> variants;
+};
+
+/**
+ * @struct AssetBundleDef
+ * @brief One `assets/<bundle>/index.json`.
+ *
+ * The folder name is irrelevant; `id` is authoritative. `card` optionally
+ * binds the bundle to a `cards/<id>.json` entry for cross-validation.
+ */
+struct AssetBundleDef {
+    std::string id;
+    std::string namespace_id;
+    std::string bundle_id;              /**< Full `namespace:id`. */
+    std::optional<std::string> card;    /**< Optional card binding. */
+    std::string license;
+    std::string author;
+    std::vector<AssetSlot> slots;       /**< Sorted by slot name. */
+    std::string folder;                 /**< Bundle folder path on disk. */
+    nlohmann::json raw;
+};
+
+/**
  * @struct SettingDecl
  * @brief A named setting declared by a mod manifest.
  */
@@ -214,9 +276,6 @@ struct ModManifest {
     std::string api;
     std::string description;
     std::string author;
-    std::optional<std::string> provides_cards;
-    std::optional<std::string> provides_rules;
-    std::optional<std::string> provides_mutations;
     std::vector<SettingDecl> settings;
     nlohmann::json prompts = nlohmann::json::array();
     nlohmann::json signals = nlohmann::json::array();
@@ -236,6 +295,7 @@ struct LoadedMod {
     std::vector<StatusDef> statuses;
     std::vector<MutationDef> mutations;
     std::vector<DeckDef> decks;
+    std::vector<AssetBundleDef> assets;
 };
 
 /**

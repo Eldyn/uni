@@ -4,6 +4,7 @@
 #include "match/modload/vocabulary.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <fstream>
 #include <map>
@@ -255,7 +256,7 @@ bool CompileNode(const nlohmann::json& schema,
                 return false;
             }
         } else if (key == "minLength" || key == "maxLength") {
-            if (!value.is_number_integer() || value.get<long long>() < 0) {
+            if (!value.is_number_integer() || value.get<std::int64_t>() < 0) {
                 error = key + " must be a non-negative integer at '" + path
                         + "'";
                 return false;
@@ -427,12 +428,12 @@ void ValidateNode(const nlohmann::json& schema,
         const std::string& text = instance.get_ref<const std::string&>();
         if (schema.contains("minLength")
             && text.size() < static_cast<std::size_t>(
-                   schema["minLength"].get<long long>())) {
+                   schema["minLength"].get<std::int64_t>())) {
             out.push_back({path, "string shorter than minLength"});
         }
         if (schema.contains("maxLength")
             && text.size() > static_cast<std::size_t>(
-                   schema["maxLength"].get<long long>())) {
+                   schema["maxLength"].get<std::int64_t>())) {
             out.push_back({path, "string longer than maxLength"});
         }
         if (schema.contains("pattern")) {
@@ -1314,9 +1315,9 @@ class Checker {
                     break;
                 }
                 if (spec.has_bounds) {
-                    long long n = value.get<long long>();
-                    if (n < static_cast<long long>(spec.min_value)
-                        || n > static_cast<long long>(spec.max_value)) {
+                    std::int64_t n = value.get<std::int64_t>();
+                    if (n < static_cast<std::int64_t>(spec.min_value)
+                        || n > static_cast<std::int64_t>(spec.max_value)) {
                         buckets_.ops.push_back(Err("op.bounds", ctx.artifact,
                                                    ctx.path,
                                                    where + " out of range"));
@@ -1510,11 +1511,11 @@ class Checker {
         auto sides = value.find("sides");
         auto count = value.find("count");
         bool ok = sides != value.end() && sides->is_number_integer()
-                  && sides->get<long long>() >= 1 && count != value.end()
-                  && count->is_number_integer() && count->get<long long>() >= 1;
+                  && sides->get<std::int64_t>() >= 1 && count != value.end()
+                  && count->is_number_integer() && count->get<std::int64_t>() >= 1;
         auto keep = value.find("keep");
         if (keep != value.end()
-            && (!keep->is_number_integer() || keep->get<long long>() < 0)) {
+            && (!keep->is_number_integer() || keep->get<std::int64_t>() < 0)) {
             ok = false;
         }
         if (!ok) {
@@ -1584,7 +1585,7 @@ class Checker {
         bool ok = unit != value.end() && unit->is_string()
                   && IsDurationUnit(unit->get<std::string>())
                   && amount != value.end() && amount->is_number_integer()
-                  && amount->get<long long>() >= 0;
+                  && amount->get<std::int64_t>() >= 0;
         if (!ok) {
             buckets_.ops.push_back(Err("op.type", ctx.artifact, ctx.path,
                                        where + " has an invalid duration"));
@@ -2049,12 +2050,16 @@ std::vector<LoadError> SchemaErrors(
             errors.insert(errors.end(), local.begin(), local.end());
         }
         if (!mod->cards.empty()) {
-            nlohmann::json cards = nlohmann::json::array();
-            for (const auto& card : mod->cards) cards.push_back(card.raw);
+            /* INFO: Cards are one definition per file; the card schema
+             *       describes a single card, so validate each entry against
+             *       it and point the error at that entry's file. */
             const auto& compiled = validator.Schema(schema_files::kCards);
-            std::vector<LoadError> local = ValidateAgainstSchema(
-                compiled, cards, "cards", base + "/cards.json");
-            errors.insert(errors.end(), local.begin(), local.end());
+            for (const auto& card : mod->cards) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, card.raw, "cards",
+                    base + "/cards/" + card.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
         }
         if (!mod->rules.empty() || !mod->statuses.empty()) {
             nlohmann::json rules = nlohmann::json::object();

@@ -5,56 +5,75 @@
   "api": "1",
   "description": "The standard UNI card set, deck-shape settings and classic deck.",
   "author": "eldyn",
-  "provides_cards": "cards.json",
-  "provides_rules": "rules.json",
   "settings": [
     {
       "id": "count_zeros",
       "type": "int",
       "default": 1,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Copies per colour of the number 0."
     },
     {
       "id": "count_numbered",
       "type": "int",
       "default": 2,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Copies per colour of the numbers 1-9."
     },
     {
       "id": "count_skips",
       "type": "int",
       "default": 2,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Copies per colour of the Skip card."
     },
     {
       "id": "count_reverses",
       "type": "int",
       "default": 2,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Copies per colour of the Reverse card."
     },
     {
       "id": "count_draw_two",
       "type": "int",
       "default": 2,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Copies per colour of the Draw Two card."
     },
     {
       "id": "count_wild",
       "type": "int",
       "default": 4,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Total number of Wild cards."
     },
     {
       "id": "count_wild_draw_four",
       "type": "int",
       "default": 4,
-      "range": { "min": 0, "max": 20 },
+      "range": {
+        "min": 0,
+        "max": 20
+      },
       "description": "Total number of Wild Draw Four cards."
     }
   ]
