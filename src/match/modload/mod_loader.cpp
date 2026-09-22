@@ -63,6 +63,15 @@ void AddError(std::vector<LoadError>& errors,
     errors.push_back(LoadError{check, artifact, path, message});
 }
 
+/** INFO: non-blocking counterpart to AddError: warnings never block. */
+void AddWarning(std::vector<LoadWarning>& warnings,
+                const std::string& check,
+                const std::string& artifact,
+                const std::string& path,
+                const std::string& message) {
+    warnings.push_back(LoadWarning{check, artifact, path, message});
+}
+
 bool ReadJsonFile(const fs::path& path,
                   nlohmann::json& out,
                   std::vector<LoadError>& errors,
@@ -845,6 +854,256 @@ bool ScanAssetsDirectory(const fs::path& dir,
     return ok;
 }
 
+/* INFO: asset budgets and the content-type allowlist. */
+constexpr std::uintmax_t kMaxAssetFileBytes = 1ULL * 1024ULL * 1024ULL;
+constexpr std::uintmax_t kMaxModAssetBytes = 2ULL * 1024ULL * 1024ULL;
+
+/** INFO: component-wise prefix test; true when `candidate` is `root` or below
+ *       it. Both paths must already be canonical. */
+bool IsPathWithin(const fs::path& root, const fs::path& candidate) {
+    auto root_it = root.begin();
+    auto cand_it = candidate.begin();
+    for (; root_it != root.end() && cand_it != candidate.end();
+         ++root_it, ++cand_it) {
+        if (*root_it != *cand_it) return false;
+    }
+    return root_it == root.end();
+}
+
+bool IsAllowedAssetExtension(const fs::path& path) {
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return ext == ".png" || ext == ".webp" || ext == ".jpg" || ext == ".gif"
+        || ext == ".json";
+}
+
+/* INFO: resolve a slot variant's relative path under its bundle folder,
+ *       rejecting absolute paths, parent segments and symlink escapes. Reuses
+ *       the ResolveProvidesPath canonicalisation approach. */
+bool ResolveBundlePath(const fs::path& bundle_dir,
+                       const std::string& rel,
+                       fs::path& out) {
+    if (rel.empty() || rel.front() == '/') return false;
+    if (rel.find('\\') != std::string::npos) return false;
+    const fs::path rel_path(rel);
+    for (const auto& part : rel_path) {
+        if (part == "..") return false;
+    }
+    std::error_code ec;
+    const fs::path canonical_bundle = fs::weakly_canonical(bundle_dir, ec);
+    if (ec) return false;
+    const fs::path resolved = fs::weakly_canonical(bundle_dir / rel_path, ec);
+    if (ec) return false;
+    if (!IsPathWithin(canonical_bundle, resolved)) return false;
+    out = resolved;
+    return true;
+}
+
+/* INFO: whole-mod content validation. Errors block the mod; warnings
+ *       are recorded and the mod still loads. */
+bool ValidateModContent(const LoadedMod& mod,
+                        std::vector<LoadWarning>& warnings,
+                        std::vector<LoadError>& errors,
+                        std::size_t& asset_count,
+                        std::uintmax_t& asset_bytes) {
+    bool ok = true;
+    const fs::path root(mod.path);
+
+    std::set<std::string> card_ids;
+    for (const CardDef& card : mod.cards) card_ids.insert(card.id);
+    std::set<std::string> bundle_ids;
+    for (const AssetBundleDef& bundle : mod.assets) bundle_ids.insert(bundle.id);
+
+    std::set<std::string> referenced_bundles;
+
+    // Card -> bundle references.
+    for (const CardDef& card : mod.cards) {
+        if (card.face.kind != FaceKind::kImage) continue;
+        const std::string card_path =
+            (root / "cards" / (card.id + ".json")).string();
+        if (!card.face.art.has_value()) {
+            AddError(errors, "asset.card_ref", "cards", card_path,
+                     "image face requires an 'art' bundle id");
+            ok = false;
+            continue;
+        }
+        if (bundle_ids.count(*card.face.art) == 0) {
+            AddError(errors, "asset.card_ref", "cards", card_path,
+                     "card references unknown asset bundle '"
+                         + *card.face.art + "'");
+            ok = false;
+            continue;
+        }
+        referenced_bundles.insert(*card.face.art);
+    }
+
+    // Bundle -> card bindings.
+    for (const AssetBundleDef& bundle : mod.assets) {
+        if (!bundle.card.has_value()) continue;
+        referenced_bundles.insert(bundle.id);
+        if (card_ids.count(*bundle.card) == 0) {
+            AddError(errors, "asset.card_binding", "assets",
+                     bundle.folder + "/index.json",
+                     "bundle '" + bundle.id + "' binds unknown card '"
+                         + *bundle.card + "'");
+            ok = false;
+        }
+    }
+
+    // Per-bundle slots and files.
+    for (const AssetBundleDef& bundle : mod.assets) {
+        const fs::path bundle_dir(bundle.folder);
+        const std::string index_path = bundle.folder + "/index.json";
+        std::set<std::string> slot_tiers;
+        std::set<std::string> referenced_files;
+        for (const AssetSlot& slot : bundle.slots) {
+            for (const AssetVariant& variant : slot.variants) {
+                const std::string tier = ToString(variant.tier);
+                if (!slot_tiers.insert(slot.name + "/" + tier).second) {
+                    AddError(errors, "asset.duplicate_tier", "assets",
+                             index_path,
+                             "bundle '" + bundle.id + "' slot '" + slot.name
+                                 + "' declares tier '" + tier + "' twice");
+                    ok = false;
+                }
+                const bool has_file = variant.file.has_value();
+                const bool has_value = variant.value.has_value();
+                if (has_file == has_value) {
+                    AddError(errors, "asset.variant", "assets", index_path,
+                             "slot '" + slot.name
+                                 + "' variant must declare exactly one of "
+                                   "'file' or 'value'");
+                    ok = false;
+                    continue;
+                }
+                if (!has_file) continue;
+                ++asset_count;
+                fs::path resolved;
+                if (!ResolveBundlePath(bundle_dir, *variant.file, resolved)) {
+                    AddError(errors, "asset.path", "assets", index_path,
+                             "slot '" + slot.name + "' file '" + *variant.file
+                                 + "' escapes the bundle folder or is invalid");
+                    ok = false;
+                    continue;
+                }
+                if (!IsAllowedAssetExtension(resolved)) {
+                    AddError(errors, "asset.extension", "assets",
+                             resolved.string(),
+                             "asset file '" + *variant.file
+                                 + "' has a disallowed extension");
+                    ok = false;
+                    continue;
+                }
+                std::error_code ec;
+                if (!fs::is_regular_file(resolved, ec)) {
+                    AddError(errors, "asset.missing", "assets",
+                             resolved.string(),
+                             "asset file '" + *variant.file + "' is missing");
+                    ok = false;
+                    continue;
+                }
+                const std::uintmax_t size = fs::file_size(resolved, ec);
+                if (ec) {
+                    AddError(errors, "asset.missing", "assets",
+                             resolved.string(),
+                             "asset file '" + *variant.file
+                                 + "' could not be sized");
+                    ok = false;
+                    continue;
+                }
+                if (size > kMaxAssetFileBytes) {
+                    AddError(errors, "asset.too_large", "assets",
+                             resolved.string(),
+                             "asset file '" + *variant.file + "' is "
+                                 + std::to_string(size)
+                                 + " bytes, exceeding the 1 MiB limit");
+                    ok = false;
+                }
+                asset_bytes += size;
+                referenced_files.insert(resolved.string());
+            }
+        }
+
+        if (referenced_bundles.count(bundle.id) == 0) {
+            AddWarning(warnings, "asset.unreferenced", "assets", index_path,
+                       "bundle '" + bundle.id
+                           + "' is not referenced by any card or binding");
+        }
+
+        std::error_code ec;
+        if (fs::is_directory(bundle_dir, ec)) {
+            for (const auto& entry :
+                 fs::recursive_directory_iterator(bundle_dir, ec)) {
+                if (!entry.is_regular_file()) continue;
+                const fs::path path = entry.path();
+                if (path.filename() == "index.json"
+                    && path.parent_path() == bundle_dir) {
+                    continue;
+                }
+                if (referenced_files.count(path.string()) == 0) {
+                    AddWarning(warnings, "asset.orphan_file", "assets",
+                               path.string(),
+                               "file is not referenced by any slot variant");
+                }
+            }
+        }
+    }
+
+    if (asset_bytes > kMaxModAssetBytes) {
+        AddError(errors, "asset.budget", "assets", root.string(),
+                 "mod asset total " + std::to_string(asset_bytes)
+                     + " bytes exceeds the 2 MiB budget");
+        ok = false;
+    }
+
+    // Image cards whose bundle has no reachable variant at any tier.
+    for (const CardDef& card : mod.cards) {
+        if (card.face.kind != FaceKind::kImage || !card.face.art.has_value()) {
+            continue;
+        }
+        const AssetBundleDef* bundle = nullptr;
+        for (const AssetBundleDef& candidate : mod.assets) {
+            if (candidate.id == *card.face.art) {
+                bundle = &candidate;
+                break;
+            }
+        }
+        if (bundle == nullptr) continue;  // already an error above
+        bool has_variant = false;
+        for (const AssetSlot& slot : bundle->slots) {
+            if ((slot.name == "art" || slot.name == "emoji")
+                && !slot.variants.empty()) {
+                has_variant = true;
+            }
+        }
+        if (!has_variant) {
+            AddWarning(warnings, "asset.unreachable", "cards",
+                       (root / "cards" / (card.id + ".json")).string(),
+                       "image card '" + card.id
+                           + "' has no art/emoji variant at any tier; it "
+                             "falls back to a generated face");
+        }
+    }
+
+    // Unknown top-level entries are ignored with a warning.
+    static const std::set<std::string> kKnownEntries = {
+        "mod.json", "cards", "rules", "statuses", "mutations", "decks",
+        "assets"};
+    std::error_code ec;
+    for (const auto& entry : fs::directory_iterator(root, ec)) {
+        const std::string name = entry.path().filename().string();
+        if (kKnownEntries.count(name) == 0) {
+            AddWarning(warnings, "mod.unknown_entry", "mod",
+                       entry.path().string(),
+                       "unknown top-level entry '" + name + "' is ignored");
+        }
+    }
+
+    return ok;
+}
+
 }  // namespace
 
 std::string ToString(FaceKind kind) {
@@ -993,6 +1252,7 @@ LoadResult ScanModsDirectory(const std::string& root) {
     if (!fs::is_directory(root, ec)) {
         AddError(result.errors, "root.scan", "mods", root,
                  "mods root is not a readable directory");
+        result.fatal_scan_error = true;
         return result;
     }
 
@@ -1002,38 +1262,54 @@ LoadResult ScanModsDirectory(const std::string& root) {
     }
     std::sort(folders.begin(), folders.end());
 
+    /* INFO: per-mod isolation: every folder gets a ModReport; the
+     *       mods that validate land in `mods`. A bad mod no longer empties the
+     *       whole scan, so the server keeps running and authors can read why it
+     *       failed. Fail-closed moves to the match boundary. */
     std::unordered_set<std::string> seen_ids;
-    std::vector<LoadedMod> mods;
-    bool ok = true;
     for (const auto& folder : folders) {
-        LoadedMod mod;
-        if (!ParseModFolder(folder.string(), folder.filename().string(),
-                            mod, result.errors)) {
-            ok = false;
-            continue;
-        }
-        if (!seen_ids.insert(mod.manifest.id).second) {
-            AddError(result.errors, "mod.id.duplicate", "mod",
-                     (folder / "mod.json").string(),
-                     "duplicate mod id '" + mod.manifest.id + "'");
-            ok = false;
-            continue;
-        }
-        mods.push_back(std::move(mod));
-    }
+        ModReport report;
+        report.folder = folder.string();
+        report.mod_id = folder.filename().string();
 
-    if (!ok) {
-        result.mods.clear();
-        return result;
+        LoadedMod mod;
+        std::vector<LoadError> errors;
+        std::vector<LoadWarning> warnings;
+        bool ok = ParseModFolder(folder.string(), folder.filename().string(),
+                                 mod, errors);
+        if (ok) {
+            report.mod_id = mod.manifest.id;
+            if (!seen_ids.insert(mod.manifest.id).second) {
+                AddError(errors, "mod.id.duplicate", "mod",
+                         (folder / "mod.json").string(),
+                         "duplicate mod id '" + mod.manifest.id + "'");
+                ok = false;
+            } else {
+                ok = ValidateModContent(mod, warnings, errors,
+                                        report.asset_count,
+                                        report.asset_bytes);
+            }
+        }
+
+        report.ok = ok;
+        report.errors = std::move(errors);
+        report.warnings = std::move(warnings);
+        for (const LoadError& error : report.errors) {
+            result.errors.push_back(error);
+        }
+        for (const LoadWarning& warning : report.warnings) {
+            result.warnings.push_back(warning);
+        }
+        if (ok) result.mods.push_back(std::move(mod));
+        result.reports.push_back(std::move(report));
     }
 
     /* INFO: deterministic ordering: sort by manifest id so match assembly
      *       sees a stable mod list regardless of filesystem enumeration. */
-    std::sort(mods.begin(), mods.end(),
+    std::sort(result.mods.begin(), result.mods.end(),
               [](const LoadedMod& a, const LoadedMod& b) {
                   return a.manifest.id < b.manifest.id;
               });
-    result.mods = std::move(mods);
     return result;
 }
 
@@ -1041,14 +1317,33 @@ LoadResult LoadModsFromEnv() {
     std::string root = Env::Get("UNI_MODS_DIR", kModsDefaultDir);
     Logger::Info("[ModLoad] Scanning mods root '" + root + "'");
     LoadResult result = ScanModsDirectory(root);
-    if (!result.ok()) {
-        for (const auto& err : result.errors) {
-            Logger::Error("[ModLoad] " + err.check + " (" + err.artifact + ") "
-                          + err.path + ": " + err.message);
+    for (const ModReport& report : result.reports) {
+        if (report.ok) {
+            Logger::Info("[ModLoad] " + report.mod_id + " ok ("
+                         + std::to_string(report.asset_count) + " asset(s), "
+                         + std::to_string(report.asset_bytes) + " bytes)");
+        } else {
+            Logger::Error("[ModLoad] " + report.mod_id + " failed ("
+                          + std::to_string(report.errors.size())
+                          + " error(s))");
         }
+        for (const LoadError& error : report.errors) {
+            Logger::Error("[ModLoad]   " + report.mod_id + " " + error.check
+                          + " (" + error.artifact + ") " + error.path + ": "
+                          + error.message);
+        }
+        for (const LoadWarning& warning : report.warnings) {
+            Logger::Warn("[ModLoad]   " + report.mod_id + " " + warning.check
+                         + " (" + warning.artifact + ") " + warning.path + ": "
+                         + warning.message);
+        }
+    }
+    if (result.fatal()) {
+        Logger::Error("[ModLoad] mods root is not readable");
     } else {
         Logger::Info("[ModLoad] Loaded " + std::to_string(result.mods.size())
-                     + " mod(s)");
+                     + " mod(s), " + std::to_string(result.reports.size())
+                     + " report(s)");
     }
     return result;
 }

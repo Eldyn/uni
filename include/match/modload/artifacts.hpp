@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -283,6 +284,37 @@ struct ModManifest {
 };
 
 /**
+ * @struct LoadWarning
+ * @brief A non-blocking content warning in the shape.
+ *
+ * Same fields as LoadError; kept distinct so the verification log can separate
+ * "this mod did not load" from "this mod loaded with caveats".
+ */
+struct LoadWarning {
+    std::string check;
+    std::string artifact;
+    std::string path;
+    std::string message;
+};
+
+/**
+ * @struct ModReport
+ * @brief Per-mod verification report.
+ *
+ * One report exists for every mod folder the scan discovered, whether or not
+ * it loaded. `ok` is false when any error blocked the mod.
+ */
+struct ModReport {
+    std::string mod_id;
+    std::string folder;
+    bool ok = false;
+    std::vector<LoadError> errors;
+    std::vector<LoadWarning> warnings;
+    std::size_t asset_count = 0;        /**< File variants declared. */
+    std::uintmax_t asset_bytes = 0;     /**< Sum of those files' sizes. */
+};
+
+/**
  * @struct LoadedMod
  * @brief One fully parsed mod folder.
  */
@@ -302,14 +334,21 @@ struct LoadedMod {
  * @struct LoadResult
  * @brief Aggregate result of a folder scan.
  *
- * On failure `mods` is empty: the loader is all-or-nothing per scan, so a
- * malformed folder never yields a partial registry.
+ * Per-mod isolation: `mods` holds only the mods that validated, while
+ * `reports` carries one `ModReport` per discovered folder (loaded or not) so
+ * the verification log can explain every failure. `errors`/`warnings` are flat
+ * aggregates across all mods for callers that only need counts. A scan-level
+ * failure (an unreadable root) sets `fatal_scan_error` and leaves `mods` empty.
  */
 struct LoadResult {
     std::vector<LoadedMod> mods;
     std::vector<LoadError> errors;
+    std::vector<LoadWarning> warnings;
+    std::vector<ModReport> reports;
+    bool fatal_scan_error = false;
 
     bool ok() const { return errors.empty(); }
+    bool fatal() const { return fatal_scan_error; }
 };
 
 }  // namespace match::modload

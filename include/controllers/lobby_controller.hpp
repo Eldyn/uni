@@ -199,6 +199,18 @@ public:
         const std::vector<match::modload::LoadedMod>& mods);
 
     /**
+     * @brief Builds the `GET /api/mods` verification log.
+     * * Emits `{ "mods": [ {id, folder, ok, errors[], warnings[],
+     * asset_count, asset_bytes}, ... ] }`, one entry per mod folder the scan
+     * discovered — including the ones that failed to load — so authors can
+     * read exactly why a mod was rejected.
+     * @param loaded The scan result, whose `reports` carry every mod's report.
+     * @return nlohmann::json The response body.
+     */
+    static nlohmann::json ModsReportJson(
+        const match::modload::LoadResult& loaded);
+
+    /**
      * @brief Loads one deck snapshot (mod list + card multiset + typed
      * settings bag) into `settings.deck` atomically.
      * * Stores the schema-shaped object (`id`, `name`, `namespace`, `mods`,
@@ -286,6 +298,15 @@ private:
      * @param res Pointer to the HTTP response (uWS).
      */
     void HandleListDecks(AppResponse* res);
+
+    /**
+     * @brief HTTP handler for `GET /api/mods`.
+     * * Scans `mods_root_` and writes the per-mod verification log as JSON.
+     * Returns 500 only when the mods folder itself cannot be scanned; an
+     * individual mod failing is reported in the body, not as an HTTP error.
+     * @param res Pointer to the HTTP response (uWS).
+     */
+    void HandleListMods(AppResponse* res);
 
     /**
      * @brief Promotes a specific player to the Host role of the lobby.

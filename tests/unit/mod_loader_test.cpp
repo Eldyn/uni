@@ -251,7 +251,10 @@ TEST_CASE("modloader: duplicate mod ids across folders are rejected") {
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
     CHECK(HasCheck(result.errors, "mod.id.duplicate"));
-    CHECK(result.mods.empty());
+    /* INFO: per-mod isolation: the first folder loads, the duplicate
+     *       is reported and dropped rather than failing the whole scan. */
+    CHECK(result.mods.size() == 1);
+    REQUIRE(result.reports.size() == 2);
 }
 
 TEST_CASE("modloader: api greater than engine version is rejected") {
@@ -582,8 +585,10 @@ TEST_CASE("modloader: a valid folder after a failing folder still loads") {
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
     CHECK(HasCheck(result.errors, "manifest.required"));
-    /* INFO: the scan is all-or-nothing, so no partial registry is returned. */
-    CHECK(result.mods.empty());
+    /* INFO: per-mod isolation: the valid folder still loads; the bad
+     *       one is reported and dropped. */
+    REQUIRE(result.mods.size() == 1);
+    CHECK(result.mods[0].manifest.id == "good");
 }
 
 TEST_CASE("modloader: mods are returned sorted by manifest id") {
@@ -632,3 +637,212 @@ TEST_CASE("modloader: unreadable mods root is a structured error") {
     REQUIRE(result.errors.size() == 1);
     CHECK(result.errors[0].check == "root.scan");
 }
+
+// --: asset validation and the verification log ---------------
+
+namespace {
+
+const char* kAssetManifest = R"({
+  "id": "artmod", "name": "Art", "version": "1.0.0", "api": "1"
+})";
+
+const char* kImageCard = R"({
+  "id": "bomb",
+  "face": { "kind": "image", "art": "bomb", "art_mode": "inset", "art_version": 1 }
+})";
+
+const char* kTextCard = R"({
+  "id": "plain", "face": { "kind": "text", "color": "red", "label": "0" }
+})";
+
+const char* kGoodBundle = R"({
+  "id": "bomb",
+  "card": "bomb",
+  "slots": { "art": [ { "tier": "high", "file": "art.png" } ] }
+})";
+
+bool HasWarning(const std::vector<LoadWarning>& warnings,
+                const std::string& check) {
+    for (const auto& w : warnings) {
+        if (w.check == check) return true;
+    }
+    return false;
+}
+
+/** INFO: a mod with an image card plus a bundle whose index is `bundle`. */
+void WriteArtMod(TempModsRoot& tmp, const char* bundle) {
+    tmp.Write("artmod", "mod.json", kAssetManifest);
+    tmp.Write("artmod", "cards/bomb.json", kImageCard);
+    tmp.Write("artmod", "assets/bomb/index.json", bundle);
+}
+
+}  // namespace
+
+TEST_CASE("modloader: a valid bundle loads and reports its asset totals") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp, kGoodBundle);
+    tmp.Write("artmod", "assets/bomb/art.png", "PNG");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    REQUIRE(result.mods.size() == 1);
+    REQUIRE(result.mods[0].assets.size() == 1);
+    REQUIRE(result.mods[0].assets[0].slots.size() == 1);
+    REQUIRE(result.mods[0].assets[0].slots[0].variants.size() == 1);
+    CHECK(result.mods[0].assets[0].slots[0].variants[0].file == "art.png");
+
+    REQUIRE(result.reports.size() == 1);
+    CHECK(result.reports[0].ok);
+    CHECK(result.reports[0].asset_count == 1);
+    CHECK(result.reports[0].asset_bytes == 3);
+}
+
+TEST_CASE("modloader: a card referencing an unknown bundle is rejected") {
+    TempModsRoot tmp;
+    tmp.Write("artmod", "mod.json", kAssetManifest);
+    tmp.Write("artmod", "cards/bomb.json",
+              R"({ "id": "bomb", "face": { "kind": "image", "art": "ghost" } })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.card_ref"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a bundle binding an unknown card is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb", "card": "nope",
+                     "slots": { "art": [ { "tier": "high", "file": "art.png" } ] } })");
+    tmp.Write("artmod", "assets/bomb/art.png", "PNG");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.card_binding"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a duplicate slot+tier is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb",
+                     "slots": { "art": [
+                       { "tier": "high", "file": "art.png" },
+                       { "tier": "high", "file": "art2.png" } ] } })");
+    tmp.Write("artmod", "assets/bomb/art.png", "PNG");
+    tmp.Write("artmod", "assets/bomb/art2.png", "PNG");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.duplicate_tier"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a variant declaring both file and value is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb",
+                     "slots": { "art": [
+                       { "tier": "high", "file": "art.png", "value": "x" } ] } })");
+    tmp.Write("artmod", "assets/bomb/art.png", "PNG");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.variant"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a missing variant file is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp, kGoodBundle);
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.missing"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a variant escaping the bundle folder is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb",
+                     "slots": { "art": [ { "tier": "high", "file": "../escape.png" } ] } })");
+    tmp.Write("artmod", "assets/escape.png", "PNG");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.path"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: a variant with a disallowed extension is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb",
+                     "slots": { "art": [ { "tier": "high", "file": "art.bmp" } ] } })");
+    tmp.Write("artmod", "assets/bomb/art.bmp", "BMP");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.extension"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: an asset file over 1 MiB is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp, kGoodBundle);
+    tmp.Write("artmod", "assets/bomb/art.png",
+              std::string(1024 * 1024 + 1, 'x'));
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.too_large"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: exceeding the 2 MiB mod asset budget is rejected") {
+    TempModsRoot tmp;
+    WriteArtMod(tmp,
+                R"({ "id": "bomb",
+                     "slots": {
+                       "art":  [ { "tier": "high", "file": "a.png" } ],
+                       "extra": [ { "tier": "high", "file": "b.png" } ],
+                       "more": [ { "tier": "high", "file": "c.png" } ] } })");
+    const std::string chunk(800 * 1024, 'x');
+    tmp.Write("artmod", "assets/bomb/a.png", chunk);
+    tmp.Write("artmod", "assets/bomb/b.png", chunk);
+    tmp.Write("artmod", "assets/bomb/c.png", chunk);
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    CHECK(HasCheck(result.errors, "asset.budget"));
+    CHECK(result.mods.empty());
+}
+
+TEST_CASE("modloader: warnings never block a mod") {
+    TempModsRoot tmp;
+    tmp.Write("artmod", "mod.json", kAssetManifest);
+    tmp.Write("artmod", "cards/plain.json", kTextCard);
+    /* INFO: bundle is unreferenced and carries an orphan file. */
+    tmp.Write("artmod", "assets/extra/index.json",
+              R"({ "id": "extra",
+                   "slots": { "art": [ { "tier": "high", "file": "art.png" } ] } })");
+    tmp.Write("artmod", "assets/extra/art.png", "PNG");
+    tmp.Write("artmod", "assets/extra/orphan.png", "PNG");
+    tmp.Write("artmod", "README.md", "hello");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    REQUIRE(result.mods.size() == 1);
+    CHECK(HasWarning(result.warnings, "asset.unreferenced"));
+    CHECK(HasWarning(result.warnings, "asset.orphan_file"));
+    CHECK(HasWarning(result.warnings, "mod.unknown_entry"));
+    CHECK(result.reports[0].ok);
+    CHECK_FALSE(result.reports[0].warnings.empty());
+}
+
+TEST_CASE("modloader: an image card with no reachable variant warns") {
+    TempModsRoot tmp;
+    tmp.Write("artmod", "mod.json", kAssetManifest);
+    tmp.Write("artmod", "cards/bomb.json", kImageCard);
+    /* INFO: the bundle exists but has neither an art nor an emoji slot. */
+    tmp.Write("artmod", "assets/bomb/index.json",
+              R"({ "id": "bomb", "card": "bomb",
+                   "slots": { "shader": [ { "tier": "high", "value": "x" } ] } })");
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.ok());
+    CHECK(HasWarning(result.warnings, "asset.unreachable"));
+}
+

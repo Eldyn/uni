@@ -11,6 +11,8 @@
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
 #include <nlohmann/json.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -48,10 +50,24 @@ static std::vector<match::modload::LoadedMod> ShippedMods() {
     return std::move(loaded.mods);
 }
 
-// AppWebSocket* as an opaque test key, FakeBroadcaster stores but never
-// dereferences it. Cast from PerSocketData address to avoid null checks.
+// uWS's WebSocket::getUserData() is pure pointer arithmetic:
+//   (char*)this + sizeof(us_socket_t) + sizeof(WebSocketData)
+// so a fake socket must sit exactly that far *before* its PerSocketData for
+// getUserData() to hand the controller the real object. Returning &sd directly
+// (the old approach) made RemoveMember write lobby_code.clear() past the end of
+// the struct — silent stack corruption that eventually segfaulted.
+static std::size_t UserDataOffset() {
+    static const std::size_t offset = [] {
+        auto* probe = reinterpret_cast<AppWebSocket*>(0x1000);
+        return reinterpret_cast<std::uintptr_t>(probe->getUserData())
+             - static_cast<std::uintptr_t>(0x1000);
+    }();
+    return offset;
+}
+
 static AppWebSocket* fake_sock(PerSocketData& sd) {
-    return reinterpret_cast<AppWebSocket*>(&sd);
+    return reinterpret_cast<AppWebSocket*>(
+        reinterpret_cast<std::byte*>(&sd) - UserDataOffset());
 }
 
 static WsContext make_ctx(AppWebSocket* sock, PerSocketData* sd) {
@@ -798,7 +814,62 @@ TEST_CASE("deck catalog: lists the classic deck with namespace and mods") {
         CHECK(deck.contains("namespace"));
         CHECK(deck.contains("mods"));
         CHECK(deck["mods"].is_array());
+        CHECK(deck.contains("valid"));
     }
+}
+
+TEST_CASE("deck catalog: marks a deck with an unavailable mod invalid") {
+    auto mods = ShippedMods();
+    REQUIRE(!mods.empty());
+
+    // INFO: fabricate a deck requiring a mod that is not loaded.
+    match::modload::DeckDef broken;
+    broken.id = "needs_ghost";
+    broken.namespace_id = mods[0].manifest.id;
+    broken.deck_id = broken.namespace_id + ":" + broken.id;
+    broken.name = "Needs Ghost";
+    broken.mods = {"vanilla", "ghost_mod"};
+    mods[0].decks.push_back(broken);
+
+    json catalog = LobbyController::DeckCatalogJson(mods);
+    bool saw_valid = false;
+    bool saw_invalid = false;
+    for (const auto& deck : catalog["decks"]) {
+        if (deck.value("id", "") == "classic") {
+            CHECK(deck.value("valid", false));
+            saw_valid = true;
+        }
+        if (deck.value("id", "") == "needs_ghost") {
+            CHECK_FALSE(deck.value("valid", true));
+            saw_invalid = true;
+        }
+    }
+    CHECK(saw_valid);
+    CHECK(saw_invalid);
+}
+
+TEST_CASE("mods report: surfaces a broken mod with its errors") {
+    match::modload::LoadResult loaded;
+    match::modload::ModReport report;
+    report.mod_id = "broken";
+    report.folder = "/mods/broken";
+    report.ok = false;
+    report.errors.push_back({"asset.missing", "assets",
+                             "/mods/broken/assets/b/index.json",
+                             "asset file 'art.png' is missing"});
+    report.warnings.push_back({"asset.unreferenced", "assets", "x",
+                               "bundle is unreferenced"});
+    loaded.reports.push_back(report);
+
+    json out = LobbyController::ModsReportJson(loaded);
+    REQUIRE(out["mods"].is_array());
+    REQUIRE(out["mods"].size() == 1);
+    CHECK(out["mods"][0]["id"] == "broken");
+    CHECK(out["mods"][0]["ok"] == false);
+    REQUIRE(out["mods"][0]["errors"].size() == 1);
+    CHECK(out["mods"][0]["errors"][0]["check"] == "asset.missing");
+    REQUIRE(out["mods"][0]["warnings"].size() == 1);
+    CHECK(out["mods"][0]["warnings"][0]["check"] == "asset.unreferenced");
 }
 
 TEST_CASE("deck snapshot: selection loads mods, cards and settings at once") {

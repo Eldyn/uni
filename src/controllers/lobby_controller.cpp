@@ -171,6 +171,11 @@ LobbyController::LobbyController(IActionRouter& router, IBroadcaster& broadcast,
         http_router->Get("/api/decks", [this](AppResponse* res, AppRequest*) {
             HandleListDecks(res);
         });
+        // INFO: author-facing verification log: every mod folder's
+        //       report, including the ones that failed to load.
+        http_router->Get("/api/mods", [this](AppResponse* res, AppRequest*) {
+            HandleListMods(res);
+        });
     }
 
     action_router_.On(ws::ClientAction::kLobbyCreate, [this](WsContext ctx, const json& msg) {
@@ -1003,9 +1008,9 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     json available_rules = json::array();
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
-    if (!loaded.ok()) {
-        Logger::Warn("[Lobby] Metadata: mods scan failed for '", mods_root_,
-                     "' (", loaded.errors.size(), " error(s))");
+    if (loaded.fatal()) {
+        Logger::Warn("[Lobby] Metadata: mods root unreadable for '", mods_root_,
+                     "'");
     } else {
         for (const auto& mod : loaded.mods) {
             if (mod.manifest.id == "vanilla") continue;
@@ -1024,18 +1029,63 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
 
 json LobbyController::DeckCatalogJson(
     const std::vector<match::modload::LoadedMod>& mods) {
+    std::set<std::string> loaded_ids;
+    for (const auto& mod : mods) loaded_ids.insert(mod.manifest.id);
+
     json decks = json::array();
     for (const auto& mod : mods) {
         for (const auto& deck : mod.decks) {
+            // INFO: a deck is invalid when it requires a mod that is missing or
+            //       failed validation; the client marks it and match
+            //       start refuses it (fail closed at the match boundary).
+            bool valid = true;
+            for (const auto& required : deck.mods) {
+                if (loaded_ids.count(required) == 0) {
+                    valid = false;
+                    break;
+                }
+            }
             decks.push_back({
                 {"id",        deck.id},
                 {"name",      deck.name},
                 {"namespace", deck.namespace_id},
-                {"mods",      deck.mods}
+                {"mods",      deck.mods},
+                {"valid",     valid}
             });
         }
     }
     return json{{"decks", decks}};
+}
+
+json LobbyController::ModsReportJson(
+    const match::modload::LoadResult& loaded) {
+    json mods = json::array();
+    for (const auto& report : loaded.reports) {
+        json errors = json::array();
+        for (const auto& error : report.errors) {
+            errors.push_back({{"check", error.check},
+                              {"artifact", error.artifact},
+                              {"path", error.path},
+                              {"message", error.message}});
+        }
+        json warnings = json::array();
+        for (const auto& warning : report.warnings) {
+            warnings.push_back({{"check", warning.check},
+                                {"artifact", warning.artifact},
+                                {"path", warning.path},
+                                {"message", warning.message}});
+        }
+        mods.push_back({
+            {"id",          report.mod_id},
+            {"folder",      report.folder},
+            {"ok",          report.ok},
+            {"errors",      std::move(errors)},
+            {"warnings",    std::move(warnings)},
+            {"asset_count", report.asset_count},
+            {"asset_bytes", report.asset_bytes}
+        });
+    }
+    return json{{"mods", mods}};
 }
 
 bool LobbyController::ApplyDeckSnapshot(
@@ -1073,9 +1123,8 @@ bool LobbyController::ApplyDeckSnapshot(
 void LobbyController::HandleListDecks(AppResponse* res) {
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
-    if (!loaded.ok()) {
-        Logger::Error("[Deck] Mods scan failed for '", mods_root_, "' (",
-                      loaded.errors.size(), " error(s))");
+    if (loaded.fatal()) {
+        Logger::Error("[Deck] Mods root unreadable for '", mods_root_, "'");
         res->writeStatus("500 Internal Server Error")
            ->writeHeader("Content-Type", "application/json")
            ->end(json{{"error", "mods scan failed"}}.dump());
@@ -1084,6 +1133,21 @@ void LobbyController::HandleListDecks(AppResponse* res) {
 
     res->writeHeader("Content-Type", "application/json")
        ->end(DeckCatalogJson(loaded.mods).dump());
+}
+
+void LobbyController::HandleListMods(AppResponse* res) {
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (loaded.fatal()) {
+        Logger::Error("[Mods] Mods root unreadable for '", mods_root_, "'");
+        res->writeStatus("500 Internal Server Error")
+           ->writeHeader("Content-Type", "application/json")
+           ->end(json{{"error", "mods scan failed"}}.dump());
+        return;
+    }
+
+    res->writeHeader("Content-Type", "application/json")
+       ->end(ModsReportJson(loaded).dump());
 }
 
 /**
@@ -1236,7 +1300,7 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         } else {
             match::modload::LoadResult loaded =
                 match::modload::ScanModsDirectory(mods_root_);
-            if (!loaded.ok()) {
+            if (loaded.fatal()) {
                 broadcaster_.SendError(
                     ctx.socket, ctx.op_code,
                     contract::ErrorCode::kInternalError, request_id);
@@ -1375,10 +1439,9 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
 
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
-    if (!loaded.ok()) {
-        Logger::Error("[Lobby] Start failed: mods scan failed for '",
-                      mods_root_, "' (", loaded.errors.size(),
-                      " error(s))");
+    if (loaded.fatal()) {
+        Logger::Error("[Lobby] Start failed: mods root unreadable for '",
+                      mods_root_, "'");
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kInternalError, request_id);
         return;
@@ -1389,6 +1452,28 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
             ? DeckDefFromSnapshot(lobby.settings.deck)
             : SynthesizeFreestyleDeck(lobby.settings);
     if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+
+    // INFO: fail closed at the match boundary: every mod the deck
+    //       requires must be present and valid, otherwise a mod that failed
+    //       validation would be silently dropped from the match.
+    for (const auto& required : deck_def.mods) {
+        bool present = false;
+        for (const auto& mod : loaded.mods) {
+            if (mod.manifest.id == required) {
+                present = true;
+                break;
+            }
+        }
+        if (!present) {
+            Logger::Error("[Lobby] Start failed: deck requires unavailable mod '",
+                          required, "'");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload,
+                                   request_id,
+                                   "deck requires unavailable mod: " + required);
+            return;
+        }
+    }
 
     std::vector<match::modload::LoadedMod> active_mods;
     for (const auto& mod : loaded.mods) {
