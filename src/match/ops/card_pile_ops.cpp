@@ -287,7 +287,9 @@ bool EnsureDrawSource(ecs::EntityStore& store, ecs::PileKind kind,
         FindPile(store, ecs::PileKind::kDiscard);
     if (!discard.has_value()) return false;
     const std::vector<ecs::Entity> cards = PileOf(store, *discard);
-    if (cards.empty()) return false;
+    // INFO: the discard top is the active pile and is never recycled; a
+    //       reshuffle needs at least one buried card to move.
+    if (cards.size() <= 1) return false;
 
     const std::size_t discard_size = cards.size();
     const json shuffle_data = json{{"draw_size", PileOf(store, *pile).size()},
@@ -299,13 +301,13 @@ bool EnsureDrawSource(ecs::EntityStore& store, ecs::PileKind kind,
         return false;
     }
 
-    for (ecs::Entity card : cards) {
-        MoveCardToZone(store, card,
+    for (auto it = cards.begin(); it != cards.end() - 1; ++it) {
+        MoveCardToZone(store, *it,
                        ecs::ZoneRef{ecs::ZoneKind::kDrawPile, ecs::Entity{}});
     }
 
     const std::size_t draw_size = PileOf(store, *pile).size();
-    const json settled = json{{"draw_size", draw_size}, {"discard_size", 0}};
+    const json settled = json{{"draw_size", draw_size}, {"discard_size", 1}};
     ecs::HookPayload shuffled;
     shuffled.hook = ecs::HookId{"shuffle", ecs::HookPhase::kAfter};
     shuffled.data = settled;

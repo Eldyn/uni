@@ -331,13 +331,15 @@ TEST_CASE("card_pile_ops: draw_cards reshuffles discard when draw empties") {
         h.Invoke("draw_cards", json{{"n", 1}}, {{"target", {player}}});
     REQUIRE(result.events.size() == 2);
     CHECK(result.events[0]["type"] == "reshuffle");
-    CHECK(result.events[0]["payload"]["draw_size"] == 2);
+    // INFO: the discard top stays the active pile; only the buried card is
+    //       recycled into the draw pile.
+    CHECK(result.events[0]["payload"]["draw_size"] == 1);
     CHECK(result.events[1]["type"] == "cards_drawn");
     CHECK(result.events[1]["payload"]["count"] == 1);
 
-    CHECK(HandOf(h.store, player) == std::vector<Entity>{d2});
-    CHECK(PileOf(h.store, discard).empty());
-    CHECK(PileOf(h.store, draw) == std::vector<Entity>{d1});
+    CHECK(HandOf(h.store, player) == std::vector<Entity>{d1});
+    CHECK(PileOf(h.store, discard) == std::vector<Entity>{d2});
+    CHECK(PileOf(h.store, draw).empty());
 }
 
 TEST_CASE("card_pile_ops: draw_cards honors a vetoed reshuffle") {
@@ -901,8 +903,12 @@ TEST_CASE("card_pile_ops: draw_until_playable reshuffles to reach one") {
 
     Entity unplayable = MakeCard(h.store, "vanilla:blue_1", "blue");
     Entity playable = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity buried = MakeCard(h.store, "vanilla:blue_3", "blue");
     PutInPile(h.store, draw, unplayable);
+    // INFO: the discard top (`buried`) stays the active pile; the playable
+    //       card underneath is recycled into the draw pile and reached next.
     PutInPile(h.store, discard, playable);
+    PutInPile(h.store, discard, buried);
 
     const OpResult result =
         h.Invoke("draw_until_playable", json::object(), {{"target", {player}}});
