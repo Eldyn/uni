@@ -57,9 +57,15 @@ uniform vec4 uUvRectBack;
 	import {
 		getFaceTexture,
 		getAtlasPage,
+		getLayerTexture,
 		ATLAS_PAGE_VERSION,
 		cardFaceKeyFor
 	} from "./cardFaceAtlas";
+	import { resolveFace, type ResolvedFace } from "./faceResolution";
+	import { assetTextures } from "./assetTextures";
+	import AtlasLayerMesh from "./AtlasLayerMesh.svelte";
+	import { CARD_COLOR_MAP } from "$lib/palette";
+	import { storePresentation } from "$stores/presentation.svelte";
 	import { isDragged } from "./renderOrder";
 
 	let {
@@ -223,6 +229,60 @@ uniform vec4 uUvRectBack;
 
 	let activeFront = $derived(turned ? backEntry : frontEntry);
 	let activeBack = $derived(turned ? frontEntry : backEntry);
+
+	// Mod face composition: resolve the defs face to a plan and, when
+	// it carries art, stack the layer planes around the art instead of the
+	// single baked composite.
+	let facePlan = $derived(
+		resolveFace(resolvedFace as ResolvedFace | undefined, storePresentation.tier)
+	);
+	let artTexture = $derived.by(() => {
+		const art = facePlan.art;
+		if (!art) return null;
+		return art.source === "asset"
+			? assetTextures.getImage(art.hash, art.url)
+			: assetTextures.getGlyph(art.glyph);
+	});
+	let layerKey = $derived(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false));
+	let valueLayerEntry = $derived.by(() => {
+		void ATLAS_PAGE_VERSION.value;
+		return getLayerTexture("value", layerKey);
+	});
+	let borderLayerEntry = $derived.by(() => {
+		void ATLAS_PAGE_VERSION.value;
+		return getLayerTexture("border", layerKey);
+	});
+	let bgColor = $derived(CARD_COLOR_MAP[facePlan.color ?? card.type] ?? "#ffffff");
+
+	const ART_INNER_MARGIN = 0.12;
+	const BG_Z = 0;
+	const ART_Z = 0.003;
+	const VALUE_Z = 0.005;
+	const BORDER_Z = 0.007;
+	let artTarget = $derived.by(() =>
+		facePlan.art_mode === "replace" || facePlan.art_mode === "overlay"
+			? { w: CARD_WIDTH, h: CARD_HEIGHT }
+			: {
+					w: CARD_WIDTH * (1 - 2 * ART_INNER_MARGIN),
+					h: CARD_HEIGHT * (1 - 2 * ART_INNER_MARGIN)
+				}
+	);
+	let artScale = $state<[number, number]>([1, 1]);
+	useTask(() => {
+		const image = artTexture?.image as { width?: number; height?: number } | undefined;
+		if (!image?.width || !image?.height) return;
+		const aspect = image.width / image.height;
+		const targetAspect = artTarget.w / artTarget.h;
+		let sx = 1;
+		let sy = 1;
+		// INFO: `cover` is approximated as `contain` for phase 1 — a true cover
+		//       crop needs a per-card UV transform to avoid overflowing the card.
+		if (facePlan.art_fit === "contain" || facePlan.art_fit === "cover") {
+			if (aspect > targetAspect) sy = targetAspect / aspect;
+			else sx = aspect / targetAspect;
+		}
+		if (artScale[0] !== sx || artScale[1] !== sy) artScale = [sx, sy];
+	});
 
 	let atlasPageVersion = $derived(ATLAS_PAGE_VERSION.value);
 	let atlasTexture = $derived.by(() => {
@@ -414,6 +474,7 @@ uniform vec4 uUvRectBack;
 					color="#000000"
 					transparent
 					opacity={shadow.opacity * (1 + 0.2 * dragT) * opacity}
+					depthTest={!dragging}
 					depthWrite={false}
 					toneMapped={false}
 				/>
@@ -441,25 +502,98 @@ uniform vec4 uUvRectBack;
 					/>
 				</T.Mesh>
 			{/if}
-			<T.Mesh rotation.z={valueFlipRad} {renderOrder}>
-				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-				<T.MeshBasicMaterial
-					bind:ref={cardMaterial}
-					oncreate={(mat) => {
-						mat.onBeforeCompile = handleBeforeCompile;
-						mat.customProgramCacheKey = handleCustomProgramCacheKey;
-						mat.needsUpdate = true;
-					}}
-					map={atlasTexture}
-					color={meshColor}
-					alphaTest={0.5}
-					transparent={dragging}
-					depthTest={!dragging}
-					depthWrite
-					toneMapped={false}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
+			<T.Group rotation.z={valueFlipRad}>
+				{#if facePlan.art && !turned}
+					{#if facePlan.art_mode === "overlay"}
+						<T.Mesh {renderOrder}>
+							<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+							<T.MeshBasicMaterial
+								map={atlasTexture}
+								color={meshColor}
+								alphaTest={0.5}
+								transparent={dragging}
+								depthTest={!dragging}
+								depthWrite
+								toneMapped={false}
+								side={DoubleSide}
+							/>
+						</T.Mesh>
+						<T.Mesh
+							position.z={ART_Z}
+							scale={[artScale[0], artScale[1], 1]}
+							renderOrder={renderOrder + 1}
+						>
+							<T.PlaneGeometry args={[artTarget.w, artTarget.h]} />
+							<T.MeshBasicMaterial
+								map={artTexture}
+								transparent
+								alphaTest={0.05}
+								depthWrite={false}
+								toneMapped={false}
+								side={DoubleSide}
+							/>
+						</T.Mesh>
+					{:else}
+						<T.Mesh position.z={BG_Z} {renderOrder}>
+							<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+							<T.MeshBasicMaterial color={bgColor} toneMapped={false} side={DoubleSide} />
+						</T.Mesh>
+						<T.Mesh
+							position.z={ART_Z}
+							scale={[artScale[0], artScale[1], 1]}
+							renderOrder={renderOrder + 1}
+						>
+							<T.PlaneGeometry args={[artTarget.w, artTarget.h]} />
+							<T.MeshBasicMaterial
+								map={artTexture}
+								transparent
+								alphaTest={0.05}
+								depthWrite={false}
+								toneMapped={false}
+								side={DoubleSide}
+							/>
+						</T.Mesh>
+						{#if facePlan.keep.includes("value")}
+							<AtlasLayerMesh
+								entry={valueLayerEntry}
+								positionZ={VALUE_Z}
+								renderOrder={renderOrder + 2}
+								color={meshColor}
+								{opacity}
+							/>
+						{/if}
+						{#if facePlan.keep.includes("border")}
+							<AtlasLayerMesh
+								entry={borderLayerEntry}
+								positionZ={BORDER_Z}
+								renderOrder={renderOrder + 3}
+								color={meshColor}
+								{opacity}
+							/>
+						{/if}
+					{/if}
+				{:else}
+					<T.Mesh {renderOrder}>
+						<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+						<T.MeshBasicMaterial
+							bind:ref={cardMaterial}
+							oncreate={(mat) => {
+								mat.onBeforeCompile = handleBeforeCompile;
+								mat.customProgramCacheKey = handleCustomProgramCacheKey;
+								mat.needsUpdate = true;
+							}}
+							map={atlasTexture}
+							color={meshColor}
+							alphaTest={0.5}
+							transparent={dragging}
+							depthTest={!dragging}
+							depthWrite
+							toneMapped={false}
+							side={DoubleSide}
+						/>
+					</T.Mesh>
+				{/if}
+			</T.Group>
 		</T.Group>
 	</T.Group>
 </T.Group>

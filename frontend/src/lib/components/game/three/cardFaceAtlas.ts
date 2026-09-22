@@ -27,6 +27,9 @@ export interface CardFaceKey {
 	artVersion?: string;
 }
 
+/** @brief A single composited layer of a vanilla face. */
+export type FaceLayer = "background" | "value" | "border";
+
 export const ATLAS_PAGE_VERSION = { value: 0 };
 
 const PAGE_SIZE = 2048;
@@ -115,6 +118,8 @@ interface AllocatedSlot {
 	drawX: number;
 	drawY: number;
 	baked: boolean;
+	/** Set for a single-layer slot (`getLayerTexture`); undefined = composite. */
+	layer?: FaceLayer;
 }
 
 const pages: AtlasPage[] = [];
@@ -275,6 +280,23 @@ export function getFaceTexture(key: CardFaceKey): AtlasEntry {
 		return existing;
 	}
 
+	const { entry, slot } = allocateSlot(hash, key);
+
+	if (canBakeKey(key)) {
+		if (bakeSlot(slot)) {
+			ATLAS_PAGE_VERSION.value++;
+		}
+	}
+
+	return entry;
+}
+
+/** Allocates a fresh atlas slot (page/UV/slot bookkeeping) for `hash`. */
+function allocateSlot(
+	hash: string,
+	key: CardFaceKey,
+	layer?: FaceLayer
+): { entry: AtlasEntry; slot: AllocatedSlot } {
 	const slotIndex = allocatedSlots.length;
 	const pageIndex = Math.floor(slotIndex / TILES_PER_PAGE);
 	const slotInPage = slotIndex % TILES_PER_PAGE;
@@ -291,13 +313,7 @@ export function getFaceTexture(key: CardFaceKey): AtlasEntry {
 	const v0 = (PAGE_SIZE - (drawY + CARD_PX_HEIGHT)) / PAGE_SIZE;
 	const v1 = (PAGE_SIZE - drawY) / PAGE_SIZE;
 
-	const entry: AtlasEntry = {
-		page: pageIndex,
-		u0,
-		v0,
-		u1,
-		v1
-	};
+	const entry: AtlasEntry = { page: pageIndex, u0, v0, u1, v1 };
 
 	ensurePage(pageIndex);
 	cache.set(hash, entry);
@@ -309,12 +325,75 @@ export function getFaceTexture(key: CardFaceKey): AtlasEntry {
 		page: pageIndex,
 		drawX,
 		drawY,
-		baked: false
+		baked: false,
+		layer
 	};
 	allocatedSlots.push(slot);
 
-	if (canBakeKey(key)) {
-		if (bakeSlot(slot)) {
+	return { entry, slot };
+}
+
+function canBakeLayer(key: CardFaceKey, layer: FaceLayer): boolean {
+	if (key.turned) return false;
+	if (!loadedArt.has("background") || !loadedArt.has("border")) return false;
+	if (layer === "value" && !loadedArt.has(key.value)) return false;
+	return true;
+}
+
+function bakeLayerSlot(slot: AllocatedSlot, layer: FaceLayer): boolean {
+	const page = ensurePage(slot.page);
+	const ctx = page.ctx;
+	if (!ctx) return false;
+
+	const { key, drawX, drawY } = slot;
+	const w = CARD_PX_WIDTH;
+	const h = CARD_PX_HEIGHT;
+
+	ctx.clearRect(drawX - TILE_PAD, drawY - TILE_PAD, SLOT_WIDTH, SLOT_HEIGHT);
+
+	const tintType = key.wildColor ?? key.type;
+	const tintColorHex = CARD_COLOR_MAP[tintType] ?? "#ffffff";
+
+	if (layer === "background") {
+		const bgImg = loadedArt.get("background");
+		if (bgImg) ctx.drawImage(bgImg, drawX, drawY, w, h);
+	} else if (layer === "value") {
+		const paintedJolly = key.value === "jolly" && key.wildColor !== undefined;
+		const shouldTint = key.value !== "jolly" || paintedJolly;
+		const valImg = loadedArt.get(key.value);
+		if (valImg) {
+			if (shouldTint) {
+				drawTinted(ctx, valImg, tintColorHex, drawX, drawY, w, h);
+			} else {
+				ctx.drawImage(valImg, drawX, drawY, w, h);
+			}
+		}
+	} else {
+		const borderImg = loadedArt.get("border");
+		if (borderImg) drawTinted(ctx, borderImg, tintColorHex, drawX, drawY, w, h);
+	}
+
+	page.texture.needsUpdate = true;
+	slot.baked = true;
+	return true;
+}
+
+/**
+ * @brief UV rect for one layer of a vanilla face.
+ *
+ * `inset` mod art is drawn between the background and the value/border, which
+ * the single composite slot cannot express — so the renderer requests these
+ * layers individually and stacks them around the art plane.
+ */
+export function getLayerTexture(layer: FaceLayer, key: CardFaceKey): AtlasEntry {
+	const hash = `${faceKeyHash(key)}:${layer}`;
+	const existing = cache.get(hash);
+	if (existing) return existing;
+
+	const { entry, slot } = allocateSlot(hash, key, layer);
+
+	if (canBakeLayer(key, layer)) {
+		if (bakeLayerSlot(slot, layer)) {
 			ATLAS_PAGE_VERSION.value++;
 		}
 	}
@@ -382,10 +461,12 @@ export async function preloadCardArt(): Promise<void> {
 
 	let newlyBaked = 0;
 	for (const slot of allocatedSlots) {
-		if (!slot.baked && canBakeKey(slot.key)) {
-			if (bakeSlot(slot)) {
-				newlyBaked++;
-			}
+		if (slot.baked) continue;
+		const bakeable = slot.layer ? canBakeLayer(slot.key, slot.layer) : canBakeKey(slot.key);
+		if (!bakeable) continue;
+		const baked = slot.layer ? bakeLayerSlot(slot, slot.layer) : bakeSlot(slot);
+		if (baked) {
+			newlyBaked++;
 		}
 	}
 
