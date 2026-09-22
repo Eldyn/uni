@@ -1064,7 +1064,43 @@ components:
         face:
           type: object
           additionalProperties: true
-          description: Face definition (type/value/art); opaque on the wire.
+          description: >
+            Face definition. Opaque on the
+            wire; `slots` carries the resolved asset variants so the client
+            needs no extra round trip and no filesystem knowledge (only ids +
+            content hashes).
+          properties:
+            kind:
+              type: string
+              enum: [text, image, emoji, blank]
+            color:
+              type: string
+            label:
+              type: string
+            art:
+              type: string
+              description: Asset bundle id; `kind` selects the slot.
+            art_mode:
+              type: string
+              enum: [inset, replace, overlay]
+            art_fit:
+              type: string
+              enum: [contain, cover, stretch]
+            keep:
+              type: array
+              items:
+                type: string
+                enum: [value, border]
+            art_version:
+              type: integer
+              minimum: 0
+            slots:
+              type: object
+              additionalProperties: true
+              description: >
+                Resolved per-slot variants: slot name to an array of
+                `{tier, url, hash}` (file variants) or `{tier, value}`
+                (glyph variants).
         tags:
           type: array
           items:

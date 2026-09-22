@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://playuni.app/contract/schemas/mod.schema.json",
   "title": "Mod manifest (mod.json)",
-  "description": "One mod folder's manifest. Spec 6.1-6.2: folder name is a suggested id, the manifest id is authoritative. `provides_*` files are optional; absent means an empty list.",
+  "description": "One mod folder's manifest. The folder name is a suggested id, the manifest id is authoritative. Metadata only; content lives in entry-set directories (cards/, rules/, mutations/, decks/, assets/) auto-detected by the loader.",
   "type": "object",
   "required": ["id", "name", "version", "api"],
   "additionalProperties": true,
@@ -31,21 +31,6 @@
     },
     "author": {
       "type": "string"
-    },
-    "provides_cards": {
-      "type": "string",
-      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
-      "description": "Bare filename of the cards artifact inside the mod folder (no path separators, no parent segments)."
-    },
-    "provides_rules": {
-      "type": "string",
-      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
-      "description": "Bare filename of the rules artifact inside the mod folder (no path separators, no parent segments)."
-    },
-    "provides_mutations": {
-      "type": "string",
-      "pattern": "^[a-z0-9_-]+(\\.[a-z0-9_-]+)*$",
-      "description": "Bare filename of the mutations artifact inside the mod folder (no path separators, no parent segments)."
     },
     "settings": {
       "type": "array",

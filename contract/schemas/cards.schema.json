@@ -1,11 +1,37 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://playuni.app/contract/schemas/cards.schema.json",
-  "title": "Card definitions (cards.json)",
-  "description": "A JSON array of card definitions. Spec 6.3. Local id is unique within the mod; the full kind id is `namespace:id`.",
-  "type": "array",
-  "items": {
-    "$ref": "#/$defs/card"
+  "title": "Card definition (cards/<local_id>.json)",
+  "description": "One card definition per file (D1). Local id is unique within the mod; the full kind id is `namespace:id`.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/localId"
+    },
+    "title": {
+      "type": "string"
+    },
+    "face": {
+      "$ref": "#/$defs/face"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "behavior": {
+      "$ref": "#/$defs/behavior"
+    },
+    "window": {
+      "$ref": "#/$defs/window"
+    },
+    "auto_trigger": {
+      "$ref": "#/$defs/autoTrigger"
+    }
   },
   "$defs": {
     "localId": {
@@ -19,7 +45,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["text", "art_ref", "emoji", "blank"]
+          "enum": ["text", "image", "emoji", "blank"]
         },
         "color": {
           "type": "string"
@@ -27,9 +53,29 @@
         "label": {
           "type": "string"
         },
-        "url": {
+        "art": {
           "type": "string",
-          "description": "art_ref placeholder; shape-validated only."
+          "pattern": "^[a-z0-9_]{1,32}$",
+          "description": "Asset bundle id the face references (D4); the face kind selects the slot."
+        },
+        "art_mode": {
+          "type": "string",
+          "enum": ["inset", "replace", "overlay"],
+          "default": "inset",
+          "description": "Layer composition (D6): inset draws art inside the vanilla frame, replace covers the whole card, overlay draws over the vanilla composite."
+        },
+        "art_fit": {
+          "type": "string",
+          "enum": ["contain", "cover", "stretch"],
+          "default": "contain"
+        },
+        "keep": {
+          "type": "array",
+          "description": "Layers drawn over the art (defaults per art_mode).",
+          "items": {
+            "type": "string",
+            "enum": ["value", "border"]
+          }
         },
         "art_version": {
           "type": "integer",
@@ -124,38 +170,6 @@
           "type": "boolean",
           "default": false,
           "description": "true = fires without player agency."
-        }
-      }
-    },
-    "card": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": true,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/localId"
-        },
-        "title": {
-          "type": "string"
-        },
-        "face": {
-          "$ref": "#/$defs/face"
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "behavior": {
-          "$ref": "#/$defs/behavior"
-        },
-        "window": {
-          "$ref": "#/$defs/window"
-        },
-        "auto_trigger": {
-          "$ref": "#/$defs/autoTrigger"
         }
       }
     }

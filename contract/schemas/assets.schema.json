@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/assets.schema.json",
+  "title": "Asset bundle index (assets/<bundle>/index.json)",
+  "description": "Authoritative manifest for one asset bundle (D2); folder name is irrelevant. `slots` is open: this spec defines `art` (tiered image file) and `emoji` (tiered glyph); sub-projects 2-4 add `animation`/`shader`/`model` without touching the pipeline. File paths are relative to the bundle folder and may not escape it.",
+  "type": "object",
+  "required": ["id", "slots"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$",
+      "description": "Logical bundle id, unique within the mod."
+    },
+    "card": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$",
+      "description": "Optional binding to a cards/<id>.json entry, for cross-validation and orphan detection."
+    },
+    "license": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "slots": {
+      "type": "object",
+      "description": "Slot name to its variants. A slot may be a bare string (sugar for a single `high` variant) or an array of variants.",
+      "additionalProperties": {
+        "$ref": "#/$defs/slot"
+      }
+    }
+  },
+  "$defs": {
+    "tier": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "slot": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sugar: a single `high` variant."
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variant"
+          }
+        }
+      ]
+    },
+    "variant": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["tier", "file"],
+          "additionalProperties": true,
+          "properties": {
+            "tier": {
+              "$ref": "#/$defs/tier"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Path relative to the bundle folder; may not escape it."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["tier", "value"],
+          "additionalProperties": true,
+          "properties": {
+            "tier": {
+              "$ref": "#/$defs/tier"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Glyph for an emoji slot."
+            }
+          }
+        }
+      ]
+    }
+  }
+}
