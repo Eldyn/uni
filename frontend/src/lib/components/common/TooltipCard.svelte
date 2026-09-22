@@ -7,9 +7,13 @@
 		tags?: GlossaryTag[];
 		children?: Snippet;
 		onclose?: () => void;
+		/** Color for glossary hyperlinks in the tooltip content. Inherited by
+		 *  any nested RichText via the --tooltip-link-color custom property.
+		 *  Defaults to gold; card tooltips pass the card's own color. */
+		linkColor?: string;
 	}
 
-	let { title, tags = [], children, onclose }: Props = $props();
+	let { title, tags = [], children, onclose, linkColor = "var(--gold, #ffcc00)" }: Props = $props();
 
 	function handleCardClick(e: MouseEvent) {
 		const target = e.target as HTMLElement | null;
@@ -20,20 +24,24 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="balatro-tooltip-card pixel-bordered" onclick={handleCardClick}>
+<div
+	class="tooltip-card pixel-bordered"
+	style:--tooltip-link-color={linkColor}
+	onclick={handleCardClick}
+>
 	{#if title}
-		<div class="balatro-title">{title}</div>
+		<div class="tooltip-title">{title}</div>
 	{/if}
 
-	<div class="balatro-content-box pixel-bordered">
+	<div class="tooltip-content-box pixel-bordered">
 		{@render children?.()}
 	</div>
 
 	{#if tags.length > 0}
-		<div class="balatro-tags-row">
+		<div class="tooltip-tags-row">
 			{#each tags as tag}
 				<span
-					class="balatro-tag-pill"
+					class="tooltip-tag-pill"
 					style:background={tag.bg}
 					style:--pill-shadow={tag.shadowColor ?? "rgba(0, 0, 0, 0.4)"}
 					style:color={tag.textColor ?? "#ffffff"}
@@ -54,7 +62,7 @@
 	 * every corner. filter: drop-shadow() shadows the actual painted alpha
 	 * (the clipped pseudo layers included), so it follows the notch shape.
 	 */
-	.balatro-tooltip-card {
+	.tooltip-card {
 		--pc-fill: var(--surface);
 		--pc-border: var(--border);
 		--pc-width: 2px;
@@ -69,7 +77,7 @@
 		cursor: pointer;
 	}
 
-	.balatro-title {
+	.tooltip-title {
 		text-align: center;
 		color: var(--text-h);
 		font-family: var(--pixel);
@@ -86,7 +94,7 @@
 	 * reads flush with the outer card, and bevel with dark top/left + light
 	 * bottom/right inset edges (classic pixel inset).
 	 */
-	.balatro-content-box {
+	.tooltip-content-box {
 		--pc-fill: var(--surface-deep);
 		--pc-border: var(--border);
 		--pc-width: 2px;
@@ -102,7 +110,7 @@
 		cursor: default;
 	}
 
-	.balatro-tags-row {
+	.tooltip-tags-row {
 		display: flex;
 		justify-content: center;
 		align-items: center;
@@ -111,7 +119,7 @@
 		padding-top: 2px;
 	}
 
-	.balatro-tag-pill {
+	.tooltip-tag-pill {
 		display: inline-block;
 		padding: 2px 10px;
 		font-family: var(--pixel);

@@ -30,6 +30,10 @@ export interface TooltipStackEntry {
 	triggerRect?: Rect;
 	depth: number;
 	parentId: string | null;
+	/** Color for glossary hyperlinks rendered inside this tooltip. Inherited
+	 *  from the parent entry when not given, so a whole tooltip subtree shares
+	 *  one link color. Undefined falls back to TooltipCard's default. */
+	linkColor?: string;
 	x: number;
 	y: number;
 	width?: number;
@@ -102,7 +106,8 @@ class StoreTooltipStack {
 	open(
 		keyword: string,
 		targetEl: HTMLElement | null = null,
-		explicitParentId?: string | null
+		explicitParentId?: string | null,
+		linkColor?: string
 	): TooltipStackEntry | null {
 		const entry = getGlossaryEntry(keyword);
 		if (!entry) return null;
@@ -126,6 +131,10 @@ class StoreTooltipStack {
 		if (depth >= MAX_TOOLTIP_DEPTH) {
 			return null;
 		}
+
+		// Child tooltips opened from a keyword link inherit the enclosing
+		// tooltip's link color, so a whole subtree stays one color.
+		const inheritedLinkColor = linkColor ?? parent?.linkColor;
 
 		const id = `tt-${++this.#counter}`;
 
@@ -191,6 +200,7 @@ class StoreTooltipStack {
 			triggerRect,
 			depth,
 			parentId: parent ? parent.id : null,
+			linkColor: inheritedLinkColor,
 			x,
 			y,
 			side

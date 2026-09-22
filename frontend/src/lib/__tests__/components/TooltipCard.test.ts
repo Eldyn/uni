@@ -14,7 +14,7 @@ describe("TooltipCard component", () => {
 		expect(screen.getByText("Fibonacci")).toBeInTheDocument();
 		expect(screen.getByText("Uncommon")).toBeInTheDocument();
 		const tagEl = screen.getByText("Uncommon");
-		expect(tagEl.closest(".balatro-tag-pill")).toBeInTheDocument();
+		expect(tagEl.closest(".tooltip-tag-pill")).toBeInTheDocument();
 	});
 
 	it("triggers onclose when clicking tooltip card outside links/buttons", async () => {
@@ -26,7 +26,7 @@ describe("TooltipCard component", () => {
 			}
 		});
 
-		const card = screen.getByText("Turn").closest(".balatro-tooltip-card")!;
+		const card = screen.getByText("Turn").closest(".tooltip-card")!;
 		await fireEvent.click(card);
 		expect(onclose).toHaveBeenCalledTimes(1);
 	});

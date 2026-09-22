@@ -13,7 +13,12 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 }));
 vi.mock("$lib/stores/game.svelte", () => ({ storeGame: { state: null, returnToLobby: vi.fn() } }));
 vi.mock("$lib/stores/lobby.svelte", () => ({
-	storeLobby: { get isInLobby() { return false; }, leave: vi.fn() }
+	storeLobby: {
+		get isInLobby() {
+			return false;
+		},
+		leave: vi.fn()
+	}
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({ storeAuth: { isLoggedIn: true, isGuest: false } }));
 
@@ -45,7 +50,12 @@ describe("navigation restore on connect", () => {
 
 	it("never writes lobby or game to localStorage", async () => {
 		vi.doMock("$lib/stores/lobby.svelte", () => ({
-			storeLobby: { get isInLobby() { return true; }, leave: vi.fn() }
+			storeLobby: {
+				get isInLobby() {
+					return true;
+				},
+				leave: vi.fn()
+			}
 		}));
 		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
 
@@ -56,7 +66,12 @@ describe("navigation restore on connect", () => {
 
 	it("never writes lobby or game to localStorage via a popstate gesture", async () => {
 		vi.doMock("$lib/stores/lobby.svelte", () => ({
-			storeLobby: { get isInLobby() { return true; }, leave: vi.fn() }
+			storeLobby: {
+				get isInLobby() {
+					return true;
+				},
+				leave: vi.fn()
+			}
 		}));
 		await import("$lib/stores/navigation.svelte");
 

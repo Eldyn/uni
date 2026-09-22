@@ -13,18 +13,14 @@ function detectHardwareAcceleration(): boolean {
 		const canvas = document.createElement("canvas");
 		gl = (canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: true }) ??
 			canvas.getContext("webgl", { failIfMajorPerformanceCaveat: true })) as
-			| WebGLRenderingContext
-			| WebGL2RenderingContext
-			| null;
+			WebGLRenderingContext | WebGL2RenderingContext | null;
 	} catch {
 		return false;
 	}
 	if (!gl) return false;
 
 	const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
-	const renderer = debugInfo
-		? (gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string)
-		: "";
+	const renderer = debugInfo ? (gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string) : "";
 	return !/swiftshader|llvmpipe|software/i.test(renderer);
 }
 

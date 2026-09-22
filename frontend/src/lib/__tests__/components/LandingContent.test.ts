@@ -18,7 +18,14 @@ describe("LandingContent", () => {
 
 	it("names every custom rule from the lobby settings", () => {
 		render(LandingContent);
-		for (const rule of ["Draw Stacking", "Seven-Zero", "Jump In", "Force Play", "Progressive", "No Bluffing"]) {
+		for (const rule of [
+			"Draw Stacking",
+			"Seven-Zero",
+			"Jump In",
+			"Force Play",
+			"Progressive",
+			"No Bluffing"
+		]) {
 			expect(screen.getByText(new RegExp(rule, "i"))).toBeInTheDocument();
 		}
 	});

@@ -11,7 +11,7 @@ vi.mock("$stores/navigation.svelte", () => ({
 }));
 vi.mock("$stores/modal.svelte", () => ({ storeModal: { isAnyOpen: false } }));
 vi.mock("$stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false } }));
-vi.mock("$stores/game.svelte", () => ({ storeGame: { state: null } }));
+vi.mock("$stores/game.svelte", () => ({ storeGame: { state: null, actionRequired: null } }));
 vi.mock("$stores/chat.svelte", () => ({ chatStore: { open: chatOpenMock } }));
 
 import { initKeyboardAccelerators } from "$lib/actions/keyboardAccelerators";
@@ -33,6 +33,7 @@ describe("keyboard accelerators", () => {
 		storeModal.isAnyOpen = false;
 		storeLobby.isInLobby = false;
 		storeGame.state = null;
+		storeGame.actionRequired = null;
 		cleanup = initKeyboardAccelerators();
 	});
 
@@ -75,6 +76,22 @@ describe("keyboard accelerators", () => {
 		storeModal.isAnyOpen = true;
 		press("1");
 		expect(gotoMock).not.toHaveBeenCalled();
+	});
+
+	it("ignores screen shortcuts while a game prompt is open", () => {
+		storeGame.state = { current_turn: "me" };
+		storeGame.actionRequired = 0;
+		press("1");
+		press("c");
+		expect(gotoMock).not.toHaveBeenCalled();
+		expect(chatOpenMock).not.toHaveBeenCalled();
+	});
+
+	it("still opens settings with Escape while a game prompt is open", () => {
+		storeGame.state = { current_turn: "me" };
+		storeGame.actionRequired = 0;
+		press("Escape");
+		expect(openSettingsMock).toHaveBeenCalled();
 	});
 
 	it("ignores keys while focus is in a text input", () => {

@@ -8,9 +8,11 @@
 	let joining = $state(false);
 
 	async function quickPlay() {
-		// Stopgap: no matchmaking exists yet. Server picks the
-		// fullest open public lobby with a free slot; a real matchmaking
-		// service replaces this call without touching this screen.
+		// Stopgap: no matchmaking exists yet. The server picks
+		// the fullest open public lobby with a free slot; if none is open,
+		// storeLobby.quickJoin starts one named after the player instead of
+		// reporting an error. A real matchmaking service replaces that call
+		// without touching this screen.
 		await storeLobby.quickJoin();
 	}
 

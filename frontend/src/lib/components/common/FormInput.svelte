@@ -36,7 +36,8 @@
 				disabled={rest.disabled}
 				aria-label={showPassword ? "Hide password" : "Show password"}
 			>
-				<i class="pia {showPassword ? 'pixelart-icons-font-eye-off' : 'pixelart-icons-font-eye'}"></i>
+				<i class="pia {showPassword ? 'pixelart-icons-font-eye-off' : 'pixelart-icons-font-eye'}"
+				></i>
 			</button>
 		</div>
 	{:else}

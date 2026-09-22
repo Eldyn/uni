@@ -59,6 +59,7 @@
 				<TooltipCard
 					title={item.title}
 					tags={item.tags}
+					linkColor={item.linkColor}
 					onclose={() => storeTooltipStack.close(item.id)}
 				>
 					<RichText text={item.description} allowKeywords={true} tooltipParentId={item.id} />

@@ -23,7 +23,8 @@ describe("app bootstrap", () => {
 	it("mounts the Svelte app into its own element, not #app", async () => {
 		const { mount } = await import("svelte");
 		await import("../../main.js");
-		const target = (mount as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].target as Element;
+		const target = (mount as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1]
+			.target as Element;
 		expect(target.id).not.toBe("app");
 		expect(document.body.contains(target)).toBe(true);
 	});

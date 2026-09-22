@@ -127,8 +127,15 @@ describe("chatStore: global history push on join (unsolicited chat_history)", ()
 	});
 
 	it("ignores a chat_history push with channel: dm (handled by emitAndWait instead)", () => {
-		fire("chat_history", { channel: "global", messages: [{ username: "Bianca", message: "kept" }] });
-		fire("chat_history", { channel: "dm", target: "Bianca", messages: [{ username: "Bianca", message: "dm-only" }] });
+		fire("chat_history", {
+			channel: "global",
+			messages: [{ username: "Bianca", message: "kept" }]
+		});
+		fire("chat_history", {
+			channel: "dm",
+			target: "Bianca",
+			messages: [{ username: "Bianca", message: "dm-only" }]
+		});
 		expect(chatStore.linesFor("global").map((l) => l.text)).toEqual(["kept"]);
 	});
 });
@@ -202,7 +209,10 @@ describe("chatStore: party channel gated by lobby_code", () => {
 	it("send() on party while in a lobby emits channel: lobby", () => {
 		storeLobby.current = { invite_code: "ABC123" } as typeof storeLobby.current;
 		chatStore.send("anyone here?");
-		expect(mockEmit).toHaveBeenCalledWith("chat_send", { message: "anyone here?", channel: "lobby" });
+		expect(mockEmit).toHaveBeenCalledWith("chat_send", {
+			message: "anyone here?",
+			channel: "lobby"
+		});
 	});
 });
 
@@ -355,7 +365,10 @@ describe("chatStore: shard-based history loading (loadMoreHistory)", () => {
 
 	it("loadMoreHistory for a DM thread requests channel: dm with the friend as target", async () => {
 		mockEmitAndWait.mockResolvedValueOnce(
-			okResponse({ has_more: true, messages: [{ id: 50, username: "Otto", message: "first shard" }] })
+			okResponse({
+				has_more: true,
+				messages: [{ id: 50, username: "Otto", message: "first shard" }]
+			})
 		);
 		chatStore.selectChannel({ friendId: "otto-shard" });
 		await vi.waitFor(() => expect(mockEmitAndWait).toHaveBeenCalledTimes(1));

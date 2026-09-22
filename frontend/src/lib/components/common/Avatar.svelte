@@ -10,4 +10,4 @@
 	const resolvedSrc = $derived(src || FALLBACK_SRC);
 </script>
 
-<TintedSprite src={resolvedSrc} color="#ffffff" size={size} fit="contain" />
+<TintedSprite src={resolvedSrc} color="#ffffff" {size} fit="contain" />

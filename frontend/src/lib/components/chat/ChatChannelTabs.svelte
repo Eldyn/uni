@@ -52,7 +52,11 @@
 <div class="flex items-stretch border-b-2 border-border">
 	{@render tab(m.chat_tab_global({}, { locale: storeI18n.locale }), isGlobalActive, selectGlobal)}
 	{@render tab(partyLabel, isPartyActive, selectParty, !chatStore.isPartyAvailable)}
-	{@render tab(m.chat_tab_friends({}, { locale: storeI18n.locale }), showFriendsList, selectFriends)}
+	{@render tab(
+		m.chat_tab_friends({}, { locale: storeI18n.locale }),
+		showFriendsList,
+		selectFriends
+	)}
 	<button
 		class="flex items-center justify-center px-3 text-text hover:text-text-h"
 		title={m.chat_dock_close({}, { locale: storeI18n.locale })}

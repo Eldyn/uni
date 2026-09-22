@@ -112,10 +112,20 @@
    style; it's swapped in only for those locales below, never for the rest. */
 @font-face {
 	font-family: "LanaPixel";
-	src: url("/fonts/lanapixel.woff2?v=2") format("woff2");
+	src: url("/fonts/lanapixel.woff2?v=3") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
+	/* LanaPixel ships small Latin glyphs alongside its CJK/Cyrillic coverage.
+	   Restrict the face to CJK + Cyrillic codepoints so any Latin text falls
+	   through to the bigger Latin pixel faces in each stack (Pixel/Habbo/
+	   FatPixel/...). Without this, ja/ko/zh/uk/ru locales render all Latin text
+	   in LanaPixel's undersized Latin, and the "UNI!" hero logo loses FatPixel. */
+	unicode-range:
+		U+0400-04FF, U+0500-052F, U+1C80-1C8F, U+2DE0-2DFF, U+A640-A64F, U+1100-11FF, U+2E80-2FDF,
+		U+3000-303F, U+3040-309F, U+30A0-30FF, U+3130-318F, U+31F0-31FF, U+3200-32FF, U+3400-4DBF,
+		U+4E00-9FFF, U+A960-A97F, U+AC00-D7AF, U+D7B0-D7FF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F,
+		U+FF00-FFEF, U+20000-2A6DF, U+2A700-2EBEF;
 }
 
 /* html[lang] is kept in sync with the active Paraglide locale by
@@ -130,6 +140,23 @@
 	--micro: "LanaPixel", "TinyUnicode", var(--pixel);
 	--monogram: "LanaPixel", "Monogram", var(--pixel);
 	--pypx: "LanaPixel", "Pypx", var(--pixel);
+}
+
+/* Cyrillic locales (uk/ru): none of the Latin pixel faces carry Cyrillic, so
+   LanaPixel is the only body-compatible Cyrillic pixel face (Monogram is the
+   condensed one, only used via --monogram). Put the designated Latin face
+   FIRST and LanaPixel after it: per-glyph fallback then renders each Latin
+   character in its proper bigger face and only reaches for LanaPixel where the
+   Latin face has no glyph (i.e. Cyrillic). TinyUnicode/Habbo/etc. have no
+   Cyrillic, which is why they sit ahead of LanaPixel rather than replacing it. */
+:root:lang(uk),
+:root:lang(ru) {
+	--pixel: "Pixel", "LanaPixel", var(--sans);
+	--heading: "FatPixel", "LanaPixel", system-ui, "Segoe UI", Roboto, sans-serif;
+	--tiny: "Habbo", "LanaPixel", var(--pixel);
+	--micro: "TinyUnicode", "LanaPixel", var(--pixel);
+	--monogram: "Monogram", "LanaPixel", var(--pixel);
+	--pypx: "Pypx", "LanaPixel", var(--pixel);
 }
 
 /*
@@ -780,57 +807,64 @@
 	}
 }
 
-body {
-	margin: 0;
-}
+/* Element defaults live in `@layer base`, never unlayered: an unlayered rule
+   outranks every `@layer utilities` rule regardless of specificity, so the
+   `p`/heading margin resets here used to silently swallow `mt-*`/`mb-*`
+   utilities on those tags (e.g. the lobby seat name label). Base sits below
+   utilities in the cascade, so utilities win as intended. */
+@layer base {
+	body {
+		margin: 0;
+	}
 
-img {
-	image-rendering: pixelated;
-	image-rendering: crisp-edges;
-}
+	img {
+		image-rendering: pixelated;
+		image-rendering: crisp-edges;
+	}
 
-svg {
-	shape-rendering: crispEdges;
-}
+	svg {
+		shape-rendering: crispEdges;
+	}
 
-button:not(.pixel-bordered) {
-	border-radius: 0 !important;
-	clip-path: var(--notch-clip);
-}
+	button:not(.pixel-bordered) {
+		border-radius: 0 !important;
+		clip-path: var(--notch-clip);
+	}
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-	font-family: var(--heading);
-	font-weight: 500;
-	color: var(--text-h);
-	margin: 0;
-}
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-family: var(--heading);
+		font-weight: 500;
+		color: var(--text-h);
+		margin: 0;
+	}
 
-h1 {
-	font-size: var(--text-display);
-}
-h2 {
-	font-size: var(--text-title);
-	margin-bottom: 0.5rem;
-}
-h3 {
-	font-size: var(--text-title);
-}
-h4 {
-	font-size: var(--text-body);
-}
-h5 {
-	font-size: var(--text-small);
-}
-h6 {
-	font-size: var(--text-small);
-}
-p {
-	margin: 0;
+	h1 {
+		font-size: var(--text-display);
+	}
+	h2 {
+		font-size: var(--text-title);
+		margin-bottom: 0.5rem;
+	}
+	h3 {
+		font-size: var(--text-title);
+	}
+	h4 {
+		font-size: var(--text-body);
+	}
+	h5 {
+		font-size: var(--text-small);
+	}
+	h6 {
+		font-size: var(--text-small);
+	}
+	p {
+		margin: 0;
+	}
 }
 
 code,

@@ -130,7 +130,10 @@ describe("chatStore: friend_request / friend_response", () => {
 	it("respondToRequest emits friend_response with username and accept", async () => {
 		mockEmitAndWait.mockResolvedValue(okResponse());
 		await chatStore.respondToRequest("Suki", true);
-		expect(mockEmitAndWait).toHaveBeenCalledWith("friend_response", { username: "Suki", accept: true });
+		expect(mockEmitAndWait).toHaveBeenCalledWith("friend_response", {
+			username: "Suki",
+			accept: true
+		});
 	});
 
 	it("respondToRequest toasts on rejection", async () => {

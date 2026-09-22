@@ -54,7 +54,10 @@ export function getCardTitle(card: { type: string; value: CardValue }, locale?: 
 	}
 }
 
-export function getCardInfo(card: { type: string; value: CardValue }, locale?: string): CardDescriptionInfo {
+export function getCardInfo(
+	card: { type: string; value: CardValue },
+	locale?: string
+): CardDescriptionInfo {
 	return {
 		title: getCardTitle(card, locale),
 		description: getCardDescription(card.value, locale)

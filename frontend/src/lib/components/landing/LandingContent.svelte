@@ -2,17 +2,21 @@
 	<section class="landing-section">
 		<h1>What is this</h1>
 		<p>
-			UNI! is a free, open-source online multiplayer card game. Play in your browser with up to
-			4 players in real time — a fast, friendly take on the classic colour-and-number card game
-			genre.
+			UNI! is a free, open-source online multiplayer card game. Play in your browser with up to 4
+			players in real time — a fast, friendly take on the classic colour-and-number card game genre.
 		</p>
 		<p class="landing-legal">
-			UNO® is a registered trademark of Mattel. UNI is similar to UNO but not affiliated with or endorsed by Mattel.
+			UNO® is a registered trademark of Mattel. UNI is similar to UNO but not affiliated with or
+			endorsed by Mattel.
 		</p>
 	</section>
 
 	<section class="landing-section landing-screenshot">
-		<img src="/assets/link_image.png" alt="A UNI! match in progress, showing the playmat and hand of cards" loading="lazy" />
+		<img
+			src="/assets/link_image.png"
+			alt="A UNI! match in progress, showing the playmat and hand of cards"
+			loading="lazy"
+		/>
 	</section>
 
 	<section class="landing-section">
@@ -36,8 +40,8 @@
 			</div>
 		</div>
 		<p class="landing-quote">
-			"It feels as if someone played modded Minecraft or Risk of Rain 2, and chugged down all of
-			the mods existing."
+			"It feels as if someone played modded Minecraft or Risk of Rain 2, and chugged down all of the
+			mods existing."
 		</p>
 	</section>
 
@@ -74,9 +78,9 @@
 	<section class="landing-section">
 		<h2>Free, no ads in the game, open source</h2>
 		<p>
-			UNI! costs nothing to play and never puts ads in front of you mid-match. The code is public
-			on <a href="https://github.com/Eldyn/uni">GitHub</a> — read it, run it yourself, or send a
-			pull request.
+			UNI! costs nothing to play and never puts ads in front of you mid-match. The code is public on <a
+				href="https://github.com/Eldyn/uni">GitHub</a
+			> — read it, run it yourself, or send a pull request.
 		</p>
 	</section>
 
@@ -85,7 +89,10 @@
 		<dl class="landing-faq">
 			<div>
 				<dt>Do I need an account?</dt>
-				<dd>No — Play as Guest gets you into a match immediately. An account just remembers your stats.</dd>
+				<dd>
+					No — Play as Guest gets you into a match immediately. An account just remembers your
+					stats.
+				</dd>
 			</div>
 			<div>
 				<dt>How many people can play?</dt>
@@ -93,11 +100,16 @@
 			</div>
 			<div>
 				<dt>Does it work on my phone?</dt>
-				<dd>Yes — UNI! is built mobile-first and runs in any modern browser, no install required.</dd>
+				<dd>
+					Yes — UNI! is built mobile-first and runs in any modern browser, no install required.
+				</dd>
 			</div>
 			<div>
 				<dt>Is this made by Mattel?</dt>
-				<dd>No. UNI! is an independent, open-source project and isn't affiliated with or endorsed by Mattel.</dd>
+				<dd>
+					No. UNI! is an independent, open-source project and isn't affiliated with or endorsed by
+					Mattel.
+				</dd>
 			</div>
 		</dl>
 	</section>

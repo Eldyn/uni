@@ -58,9 +58,9 @@ const { FakeHowl, fakeCtx, fakeMasterGain, HowlerMock } = vi.hoisted(() => {
 vi.mock("howler", () => ({ Howl: FakeHowl, Howler: HowlerMock }));
 
 const { playSyncedChannelsMock } = vi.hoisted(() => ({
-	playSyncedChannelsMock: vi.fn(
-		(_ctx: unknown, _channels: unknown, _dest: unknown) => ({ stop: vi.fn() })
-	)
+	playSyncedChannelsMock: vi.fn((_ctx: unknown, _channels: unknown, _dest: unknown) => ({
+		stop: vi.fn()
+	}))
 }));
 vi.mock("$lib/audio/multiChannelSync", () => ({
 	playSyncedChannels: playSyncedChannelsMock

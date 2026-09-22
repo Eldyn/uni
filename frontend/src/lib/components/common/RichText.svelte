@@ -41,8 +41,13 @@
 		// puts the child outside (above/beside) it.
 		const anchor = tooltipParentId
 			? target
-			: (target.closest<HTMLElement>(".balatro-tooltip-card") ?? target);
-		storeTooltipStack.open(keyword, anchor, tooltipParentId);
+			: (target.closest<HTMLElement>(".tooltip-card") ?? target);
+		// Propagate the enclosing tooltip's link color to the child tooltip, so
+		// a card-colored tooltip's links stay card-colored all the way down.
+		// Falls back to undefined (store inherits the parent entry's color).
+		const linkColor =
+			getComputedStyle(target).getPropertyValue("--tooltip-link-color").trim() || undefined;
+		storeTooltipStack.open(keyword, anchor, tooltipParentId, linkColor);
 	}
 </script>
 
@@ -62,8 +67,8 @@
 					<TextEffects
 						text={displayText}
 						effect={segment.effect}
-						color={segment.color ?? "var(--redCard, #bd3130)"}
-						shineBaseColor={segment.color ?? "var(--redCard, #bd3130)"}
+						color={segment.color ?? "var(--tooltip-link-color, var(--redCard, #bd3130))"}
+						shineBaseColor={segment.color ?? "var(--tooltip-link-color, var(--redCard, #bd3130))"}
 						class="fx-{segment.effect}"
 					/>
 				{:else}
@@ -109,7 +114,7 @@
 		margin: 0;
 		font: inherit;
 		font-weight: 700;
-		color: var(--redCard, #bd3130);
+		color: var(--tooltip-link-color, var(--redCard, #bd3130));
 		text-decoration: underline;
 		text-decoration-style: solid;
 		text-underline-offset: 2px;
@@ -123,7 +128,7 @@
 	}
 
 	.glossary-keyword-btn:focus-visible {
-		outline: 2px solid var(--redCard, #bd3130);
+		outline: 2px solid var(--tooltip-link-color, var(--redCard, #bd3130));
 		outline-offset: 1px;
 	}
 </style>

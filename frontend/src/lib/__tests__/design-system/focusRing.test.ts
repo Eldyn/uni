@@ -10,9 +10,7 @@ beforeAll(() => {
 
 describe("focus ring on clipped buttons", () => {
 	it("gives button:not(.pixel-bordered) a focus-visible rule using box-shadow, not outline", () => {
-		const match = sheetText.match(
-			/button:not\(\.pixel-bordered\):focus-visible\s*\{([^}]*)\}/
-		);
+		const match = sheetText.match(/button:not\(\.pixel-bordered\):focus-visible\s*\{([^}]*)\}/);
 		expect(match, "expected a button:not(.pixel-bordered):focus-visible rule").toBeTruthy();
 		const body = match![1];
 		expect(body).toMatch(/box-shadow:\s*inset/);
@@ -22,9 +20,7 @@ describe("focus ring on clipped buttons", () => {
 	});
 
 	it("suppresses the default outline on clipped buttons so it cannot double up with the inset ring", () => {
-		const match = sheetText.match(
-			/button:not\(\.pixel-bordered\):focus-visible\s*\{([^}]*)\}/
-		);
+		const match = sheetText.match(/button:not\(\.pixel-bordered\):focus-visible\s*\{([^}]*)\}/);
 		expect(match![1]).toMatch(/outline:\s*none/);
 	});
 });

@@ -70,12 +70,7 @@
 			aria-keyshortcuts={acceleratorKey("chat")}
 			onclick={open}
 		>
-			<svg
-				viewBox="0 0 24 24"
-				width="1.25em"
-				height="1.25em"
-				fill="currentColor"
-				aria-hidden="true"
+			<svg viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="currentColor" aria-hidden="true"
 				><path
 					d="M22 22h-2v-2h-2v-2h2v-8h2v12Zm-4-4h-8v-2h8v2ZM4 12h2v2H4v2H2V4h2v8Zm6 4H8v-6h2v6Zm10-6H10V8h10v2Zm-4-4h-2V4h2v2Zm-2-2H4V2h10v2Z"
 				></path></svg

@@ -12,7 +12,9 @@ vi.stubGlobal("ResizeObserver", StubResizeObserver);
 vi.mock("$lib/stores/auth.svelte", () => ({
 	storeAuth: { isLoggedIn: false, isGuest: false, isLoading: false, username: "" }
 }));
-vi.mock("$lib/stores/navigation.svelte", () => ({ storeNavigation: { gotoAuth: vi.fn(), goto: vi.fn() } }));
+vi.mock("$lib/stores/navigation.svelte", () => ({
+	storeNavigation: { gotoAuth: vi.fn(), goto: vi.fn() }
+}));
 
 import MainScreen from "$components/MainScreen.svelte";
 

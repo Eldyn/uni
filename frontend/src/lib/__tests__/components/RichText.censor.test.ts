@@ -12,7 +12,9 @@ describe("RichText censoring behavior", () => {
 		});
 
 		expect(
-			screen.getByText("Stack +2 or +4 cards to pass the accumulated draw penalty to the next player.")
+			screen.getByText(
+				"Stack +2 or +4 cards to pass the accumulated draw penalty to the next player."
+			)
 		).toBeInTheDocument();
 		expect(screen.queryByText(/p\*\*\*/)).not.toBeInTheDocument();
 	});

@@ -122,9 +122,7 @@ class StoreStats implements SessionStore {
 				storeToast.error(m.stats_toast_leaderboard_failed({}, { locale: storeI18n.locale }));
 			}
 		} catch {
-			storeToast.error(
-				m.stats_toast_leaderboard_network_error({}, { locale: storeI18n.locale })
-			);
+			storeToast.error(m.stats_toast_leaderboard_network_error({}, { locale: storeI18n.locale }));
 		} finally {
 			this.isLoading = false;
 		}

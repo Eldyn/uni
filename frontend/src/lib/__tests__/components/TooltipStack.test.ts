@@ -116,7 +116,7 @@ describe("TooltipStack component", () => {
 		expect(screen.queryByRole("button", { name: "✕" })).not.toBeInTheDocument();
 		expect(screen.getByText("Turn")).toBeInTheDocument();
 
-		const card = screen.getByText("Turn").closest(".balatro-tooltip-card")!;
+		const card = screen.getByText("Turn").closest(".tooltip-card")!;
 		await fireEvent.click(card);
 		expect(storeTooltipStack.stack.length).toBe(0);
 	});

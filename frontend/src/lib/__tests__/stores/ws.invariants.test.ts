@@ -29,14 +29,12 @@ describe("ws single-socket invariant", () => {
 
 	it("concurrent connect() calls share one in-flight attempt", async () => {
 		let resolveHandshake: () => void = () => {};
-		const connectOnce = vi
-			.spyOn(wsAny, "_connectOnce")
-			.mockImplementation(
-				() =>
-					new Promise<void>((resolve) => {
-						resolveHandshake = resolve;
-					})
-			);
+		const connectOnce = vi.spyOn(wsAny, "_connectOnce").mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveHandshake = resolve;
+				})
+		);
 
 		const first = ws.connect();
 		const second = ws.connect();
