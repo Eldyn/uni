@@ -1,15 +1,11 @@
 {
-  "id": "bomb",
-  "title": "Bomb",
+  "id": "emoji_wild",
+  "title": "Emoji Wild",
   "face": {
-    "kind": "image",
-    "art": "bomb",
+    "kind": "emoji",
     "color": "white",
-    "label": "bomb",
-    "art_version": 1,
-    "art_mode": "inset",
-    "art_fit": "contain",
-    "keep": ["border"]
+    "label": "🌟",
+    "art_version": 1
   },
   "tags": [
     "wild",
@@ -32,15 +28,6 @@
           "op": "set_active_type",
           "args": {
             "from_prompt": "n1"
-          },
-          "next": "n3"
-        },
-        {
-          "id": "n3",
-          "op": "draw_cards",
-          "args": {
-            "target": "@choose_player",
-            "n": 2
           }
         }
       ]

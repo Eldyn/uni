@@ -58,7 +58,8 @@
     "vanilla:yellow_draw2": 2,
     "vanilla:wild": 4,
     "vanilla:wild_draw4": 4,
-    "test:bomb": 10
+    "test:bomb": 10,
+    "test:emoji_wild": 2
   },
   "settings": {
     "count_zeros": 1,

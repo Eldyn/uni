@@ -1,0 +1,13 @@
+{
+  "id": "bomb",
+  "card": "bomb",
+  "license": "CC0-1.0",
+  "author": "eldyn",
+  "slots": {
+    "art": [
+      { "tier": "high", "file": "art@2x.png" },
+      { "tier": "low", "file": "art.png" }
+    ],
+    "emoji": [{ "tier": "low", "value": "💣" }]
+  }
+}
