@@ -1,11 +1,18 @@
 <!-- One composited atlas layer (background / value / border) drawn as its own
      plane, so mod art can be stacked between the background and the value/border.
      The composite mesh in CardMesh3D bakes all three into one slot,
-     which cannot express an inset art layer. -->
+     which cannot express an inset art layer.
+
+     Material flags mirror CardMesh3D's composite face mesh: an opaque cutout
+     (`alphaTest`, `transparent` only while dragging) so the layer sorts with
+     neighbouring cards by depth and keeps the card's rounded-corner silhouette.
+     A `transparent` layer would join the transparent pass and draw over opaque
+     neighbour cards regardless of depth (see renderOrder.ts). -->
 <script lang="ts">
 	import { T } from "@threlte/core";
 	import {
 		Color,
+		DoubleSide,
 		Vector4,
 		type MeshBasicMaterial,
 		type WebGLProgramParametersWithUniforms
@@ -19,7 +26,11 @@
 		renderOrder = 0,
 		color = "#ffffff",
 		opacity = 1,
-		visible = true
+		visible = true,
+		alphaTest = 0.01,
+		transparent = true,
+		depthWrite = false,
+		depthTest = true
 	}: {
 		entry: AtlasEntry;
 		positionZ?: number;
@@ -27,6 +38,10 @@
 		color?: string | Color;
 		opacity?: number;
 		visible?: boolean;
+		alphaTest?: number;
+		transparent?: boolean;
+		depthWrite?: boolean;
+		depthTest?: boolean;
 	} = $props();
 
 	const rect = new Vector4();
@@ -69,11 +84,13 @@
 		<T.MeshBasicMaterial
 			map={texture}
 			{color}
-			transparent
+			{transparent}
 			{opacity}
-			alphaTest={0.01}
-			depthWrite={false}
+			{alphaTest}
+			{depthWrite}
+			{depthTest}
 			toneMapped={false}
+			side={DoubleSide}
 			oncreate={onCreate}
 		/>
 	</T.Mesh>

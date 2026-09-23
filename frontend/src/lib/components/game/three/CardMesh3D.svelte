@@ -252,6 +252,10 @@ uniform vec4 uUvRectBack;
 		void ATLAS_PAGE_VERSION.value;
 		return getLayerTexture("border", layerKey);
 	});
+	let backgroundLayerEntry = $derived.by(() => {
+		void ATLAS_PAGE_VERSION.value;
+		return getLayerTexture("background", layerKey);
+	});
 	let bgColor = $derived(CARD_COLOR_MAP[facePlan.color ?? card.type] ?? "#ffffff");
 
 	const ART_INNER_MARGIN = 0.12;
@@ -518,37 +522,41 @@ uniform vec4 uUvRectBack;
 								side={DoubleSide}
 							/>
 						</T.Mesh>
-						<T.Mesh
-							position.z={ART_Z}
-							scale={[artScale[0], artScale[1], 1]}
-							renderOrder={renderOrder + 1}
-						>
+						<T.Mesh position.z={ART_Z} scale={[artScale[0], artScale[1], 1]} {renderOrder}>
 							<T.PlaneGeometry args={[artTarget.w, artTarget.h]} />
 							<T.MeshBasicMaterial
 								map={artTexture}
-								transparent
-								alphaTest={0.05}
-								depthWrite={false}
+								alphaTest={0.5}
+								transparent={dragging}
+								depthTest={!dragging}
+								depthWrite
 								toneMapped={false}
 								side={DoubleSide}
 							/>
 						</T.Mesh>
 					{:else}
-						<T.Mesh position.z={BG_Z} {renderOrder}>
-							<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-							<T.MeshBasicMaterial color={bgColor} toneMapped={false} side={DoubleSide} />
-						</T.Mesh>
-						<T.Mesh
-							position.z={ART_Z}
-							scale={[artScale[0], artScale[1], 1]}
-							renderOrder={renderOrder + 1}
-						>
+						<!-- Background comes from the atlas (rounded-corner alpha +
+						     gradient), tinted to the card colour. A flat colour quad
+						     would paint a solid rectangle over the neighbouring card. -->
+						<AtlasLayerMesh
+							entry={backgroundLayerEntry}
+							positionZ={BG_Z}
+							{renderOrder}
+							color={bgColor}
+							{opacity}
+							alphaTest={0.5}
+							transparent={dragging}
+							depthWrite
+							depthTest={!dragging}
+						/>
+						<T.Mesh position.z={ART_Z} scale={[artScale[0], artScale[1], 1]} {renderOrder}>
 							<T.PlaneGeometry args={[artTarget.w, artTarget.h]} />
 							<T.MeshBasicMaterial
 								map={artTexture}
-								transparent
-								alphaTest={0.05}
-								depthWrite={false}
+								alphaTest={0.5}
+								transparent={dragging}
+								depthTest={!dragging}
+								depthWrite
 								toneMapped={false}
 								side={DoubleSide}
 							/>
@@ -557,18 +565,24 @@ uniform vec4 uUvRectBack;
 							<AtlasLayerMesh
 								entry={valueLayerEntry}
 								positionZ={VALUE_Z}
-								renderOrder={renderOrder + 2}
+								{renderOrder}
 								color={meshColor}
 								{opacity}
+								alphaTest={0.5}
+								transparent={dragging}
+								depthTest={!dragging}
 							/>
 						{/if}
 						{#if facePlan.keep.includes("border")}
 							<AtlasLayerMesh
 								entry={borderLayerEntry}
 								positionZ={BORDER_Z}
-								renderOrder={renderOrder + 3}
+								{renderOrder}
 								color={meshColor}
 								{opacity}
+								alphaTest={0.5}
+								transparent={dragging}
+								depthTest={!dragging}
 							/>
 						{/if}
 					{/if}
