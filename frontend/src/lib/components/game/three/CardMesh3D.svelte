@@ -257,6 +257,14 @@ uniform vec4 uUvRectBack;
 		return getLayerTexture("background", layerKey);
 	});
 	let bgColor = $derived(CARD_COLOR_MAP[facePlan.color ?? card.type] ?? "#ffffff");
+	// INFO: mirror `bakeSlot`'s tint rule — a wild lying under a chosen colour
+	//       tints its value/border (background stays the card's own colour).
+	//       `meshColor` is only the dim/brightness multiplier, so multiply it in.
+	let layerTintColor = $derived(
+		CARD_COLOR_MAP[wildColor ?? facePlan.color ?? card.type] ?? "#ffffff"
+	);
+	let layerColor = $derived(new Color(layerTintColor).multiply(meshColor));
+	let backgroundLayerColor = $derived(new Color(bgColor).multiply(meshColor));
 
 	const ART_INNER_MARGIN = 0.12;
 	const BG_Z = 0;
@@ -542,7 +550,7 @@ uniform vec4 uUvRectBack;
 							entry={backgroundLayerEntry}
 							positionZ={BG_Z}
 							{renderOrder}
-							color={bgColor}
+							color={backgroundLayerColor}
 							{opacity}
 							alphaTest={0.5}
 							transparent={dragging}
@@ -566,7 +574,7 @@ uniform vec4 uUvRectBack;
 								entry={valueLayerEntry}
 								positionZ={VALUE_Z}
 								{renderOrder}
-								color={meshColor}
+								color={layerColor}
 								{opacity}
 								alphaTest={0.5}
 								transparent={dragging}
@@ -578,7 +586,7 @@ uniform vec4 uUvRectBack;
 								entry={borderLayerEntry}
 								positionZ={BORDER_Z}
 								{renderOrder}
-								color={meshColor}
+								color={layerColor}
 								{opacity}
 								alphaTest={0.5}
 								transparent={dragging}
