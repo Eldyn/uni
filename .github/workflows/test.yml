@@ -1,0 +1,86 @@
+name: test
+
+# PR / merge gate. The nightly workflow runs the same suites on a schedule; this
+# job makes them block a pull request instead of letting green-looking code land
+# and only surface a failure at 03:00 (or never, if nobody reads the nightly).
+#
+# Backend: full C++ unit suite (the slow part, hence the Conan cache), minus the
+# 10k-iteration loader fuzz that stays nightly-only.
+# Frontend: Prettier check + the Vitest suite.
+
+on:
+  pull_request:
+  push:
+    branches: [main, "feat/**"]
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Conan and build tools
+        run: pip install conan ninja pyyaml
+
+      - name: Detect Conan profile
+        run: conan profile detect
+
+      # conanfile.py and the profile decide the resolved dependency graph, so
+      # they key the cache. A miss just pays the build cost; a hit skips it.
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ hashFiles('conanfile.py', 'conan/**') }}
+          restore-keys: |
+            conan-${{ runner.os }}-
+
+      - name: Install backend dependencies (Conan)
+        run: conan install . -pr:a conan/release --build=missing
+
+      - name: Configure (CMake preset)
+        run: cmake --preset conan-release -DPython3_EXECUTABLE=$(which python3)
+
+      - name: Build
+        run: cmake --build --preset release -j$(nproc)
+
+      - name: Generate self-signed TLS certificate for the unit tests
+        run: |
+          openssl req -newkey rsa:2048 -nodes -x509 -days 1 \
+            -keyout key.pem -out cert.pem \
+            -subj "/C=IT/ST=Italy/L=Uniba/O=uni/CN=localhost"
+
+      - name: Unit suite
+        run: ./build/Release/uni_tests
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Lint before codegen: src/lib/generated is gitignored and absent on a
+      # clean checkout, so Prettier never has to inspect generated output.
+      - name: Lint (Prettier)
+        run: npm run lint
+
+      - name: Generate contract schemas
+        run: npm run generate:contract
+
+      - name: Unit tests (Vitest)
+        run: npm test
