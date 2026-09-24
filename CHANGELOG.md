@@ -9,6 +9,10 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Added
+
+- **Outcome tables (`tables/`)** — the first artifact of the mod SFX programme. Mods declare named weighted tables as content (`contract/schemas/tables.schema.json`, one `tables/<id>.json` per file, sorted, fail-closed); the server ingests, validates and rolls them. A new `roll_table { table, into? }` op performs a weighted pick on the match's existing seeded splitmix64 stream (never a new RNG), supports an optional nested 10.6 `roll` and an optional 10.2 `where` filter, binds `$last_outcome {table,key,value}` and emits a new `outcome_result` packet (`{table, key, value, counter}`, `key` pre-namespaced `mod_id:key`). New per-outcome accessors `outcome_is` / `outcome_value` let rules branch on a rolled key/value rather than only the rolled total; raw `roll_result` is unchanged. Validation stays fail-closed: unknown tables, duplicate keys, `weight < 1`, `value`+`roll` together, out-of-range nested rolls and dangling `where` keywords all block the mod with a readable error.
+
 ## [0.6.0] - 2026-10-05
 
 UI Glow Up, 3D Table, 16 Players! The table is now a 3D scene, a match can hold up to 16 players, and nearly every screen around the game got reworked to match.
