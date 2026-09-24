@@ -12,6 +12,7 @@ import { CARD_COLOR_MAP } from "$lib/palette";
 import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
 import { assetUrl } from "$lib/utils/assetUrl";
+import type { FaceOverride } from "$components/game/affliction/overrideChannel";
 
 export interface AtlasEntry {
 	page: number;
@@ -79,6 +80,49 @@ const STANDARD_ART_NAMES = [
  */
 export function hasStandardFaceArt(name: string | undefined): name is string {
 	return name !== undefined && (STANDARD_ART_NAMES as readonly string[]).includes(name);
+}
+
+/**
+ * @brief The vanilla face values a `seeded-random-tile` face source may pick
+ * from. Excludes the non-value layers (`background`/`back`/`border`)
+ * so a random tile is always a legible face.
+ */
+export const STANDARD_TILE_VALUES: readonly string[] = STANDARD_ART_NAMES.filter(
+	(name) => name !== "background" && name !== "back" && name !== "border"
+);
+
+/**
+ * @brief The face key a renderer resolves after an active `face.override`.
+ *
+ * is UV/texture-only: an override's `texture` names the face value to
+ * draw, so the atlas bakes/resolves that face instead of the card's own. The
+ * card back is never overridden (a turned card's face is not the front), and an
+ * override without a `texture` leaves the key untouched (its `uvRect`, if any,
+ * is applied by `entryWithOverride`).
+ */
+export function faceKeyForOverride(
+	base: CardFaceKey,
+	override: FaceOverride | undefined
+): CardFaceKey {
+	if (base.turned || !override?.texture) return base;
+	return { ...base, value: override.texture };
+}
+
+/**
+ * @brief The atlas entry a renderer draws after an active `face.override`.
+ *
+ * An override `uvRect` is a `[u0, v0, w, h]` rect in normalized atlas space
+ * (the same convention as the shader's `uUvRectFront`), applied onto the base
+ * entry's page. Without a `uvRect` the base entry is returned unchanged.
+ */
+export function entryWithOverride(
+	base: AtlasEntry,
+	override: FaceOverride | undefined
+): AtlasEntry {
+	const rect = override?.uvRect;
+	if (!rect) return base;
+	const [u0, v0, w, h] = rect;
+	return { ...base, u0, v0, u1: u0 + w, v1: v0 + h };
 }
 
 /**

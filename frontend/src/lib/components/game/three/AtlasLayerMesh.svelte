@@ -36,10 +36,17 @@
 		type WebGLProgramParametersWithUniforms
 	} from "three";
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
-	import { getAtlasPage, ATLAS_PAGE_VERSION, type AtlasEntry } from "./cardFaceAtlas";
+	import {
+		getAtlasPage,
+		ATLAS_PAGE_VERSION,
+		entryWithOverride,
+		type AtlasEntry
+	} from "./cardFaceAtlas";
+	import type { FaceOverride } from "$components/game/affliction/overrideChannel";
 
 	let {
 		entry,
+		override,
 		positionZ = 0,
 		renderOrder = 0,
 		color = "#ffffff",
@@ -51,6 +58,9 @@
 		depthTest = true
 	}: {
 		entry: AtlasEntry;
+		/** An active `face.override` for the owning card, if any. Its
+		 *  `uvRect` re-targets this layer's atlas slot; `undefined` is a no-op. */
+		override?: FaceOverride;
 		positionZ?: number;
 		renderOrder?: number;
 		color?: string | Color;
@@ -63,14 +73,15 @@
 	} = $props();
 
 	const rect = new Vector4();
+	const resolved = $derived(entryWithOverride(entry, override));
 
 	$effect(() => {
-		rect.set(entry.u0, entry.v0, entry.u1 - entry.u0, entry.v1 - entry.v0);
+		rect.set(resolved.u0, resolved.v0, resolved.u1 - resolved.u0, resolved.v1 - resolved.v0);
 	});
 
 	let texture = $derived.by(() => {
 		void ATLAS_PAGE_VERSION.value;
-		return getAtlasPage(entry.page);
+		return getAtlasPage(resolved.page);
 	});
 
 	function patch(shader: WebGLProgramParametersWithUniforms) {

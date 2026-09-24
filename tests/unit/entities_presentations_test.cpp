@@ -3,6 +3,8 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/modload/semantic_validator.hpp>
+#include <match/ops/op_helpers.hpp>
+#include <match/ops/ops.hpp>
 #include <match/view/defs_builder.hpp>
 
 #include <nlohmann/json.hpp>
@@ -155,6 +157,68 @@ const nlohmann::json* FindManifest(const nlohmann::json& defs,
         if (entry.value("id", std::string()) == id) return &entry;
     }
     return nullptr;
+}
+
+/* INFO: the first event of `type` an op produced (mirrors outcome_tables_test). */
+const nlohmann::json* FindEvent(const match::ops::OpResult& result,
+                                const std::string& type) {
+    for (const nlohmann::json& event : result.events) {
+        if (event.value("type", std::string()) == type) return &event;
+    }
+    return nullptr;
+}
+
+/* INFO: the shipped `rules/dice_roll.json` acceptance chain, driven through the
+ *       real `roll_table` op against the assembled match registries. */
+struct DiceHarness {
+    match::ecs::EntityStore store;
+    match::ecs::BudgetLedger ledger;
+    match::ecs::EventBus bus = match::ecs::EventBus(std::vector<std::string>{"test"});
+    match::ops::ResolutionFrame frame;
+    match::ops::OpRuntime runtime = match::ops::MakeDefaultRuntime();
+    match::engine::MatchRegistries* registries = nullptr;
+
+    DiceHarness() {
+        match::ecs::Entity match = store.Create();
+        store.Add(match, match::ecs::MatchMeta{});
+        match::ecs::RngState rng;
+        rng.seed = 42;
+        rng.op_counter = 0;
+        store.Add(match, rng);
+    }
+
+    match::ops::OpResult Roll(const std::string& table) {
+        match::ops::OpArgs args("roll_table", nlohmann::json{{"table", table}});
+        match::ops::OpContext ctx(bus, ledger, frame);
+        ctx.registries = registries;
+        return runtime.Invoke("roll_table", store, args, ctx);
+    }
+};
+
+/* INFO: the assembled match registries for the shipped `mods/` tree (the deck
+ *       selects the `test` mod, whose `entities/dice.json` carries the
+ *       outcome.resolver under test). */
+match::engine::AssemblyResult AssembleShippedMods(const fs::path& root) {
+    LoadResult loaded = ScanModsDirectory((root / "mods").string());
+    REQUIRE(loaded.ok());
+
+    match::modload::DeckDef deck;
+    for (const auto& mod : loaded.mods) {
+        for (const auto& candidate : mod.decks) {
+            if (candidate.deck_id == "test:classic_bombs") deck = candidate;
+        }
+    }
+    REQUIRE_FALSE(deck.deck_id.empty());
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 2; ++i) {
+        match::engine::MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    return match::engine::MatchAssembler::Assemble(loaded.mods, deck, options);
 }
 
 }  // namespace
@@ -427,6 +491,66 @@ TEST_CASE("entities_presentations: exact key and star catch-all pass") {
         auto errors = ValidateModFrom(root);
         CHECK_FALSE(HasCheck(errors, "outcome.resolver.missing"));
     }
+}
+
+// --- acceptance: dice_roll -> outcome_result -> outcome.resolver --------
+
+TEST_CASE("entities_presentations: dice_roll binds the loot outcome and the dice resolver covers it") {
+    const fs::path root = ProjectRoot();
+    REQUIRE_FALSE(root.empty());
+
+    LoadResult loaded = ScanModsDirectory((root / "mods").string());
+    REQUIRE(loaded.ok());
+
+    // INFO: the shipped chain exists and rolls the loot table (the key binding
+    //       and outcome_result emission are the roll_table op's job).
+    const match::modload::RuleDef* dice_roll = nullptr;
+    for (const auto& mod : loaded.mods) {
+        for (const auto& rule : mod.rules) {
+            if (rule.rule_id == "test:dice_roll") dice_roll = &rule;
+        }
+    }
+    REQUIRE(dice_roll != nullptr);
+    const nlohmann::json* roll_node = nullptr;
+    for (const auto& hook : dice_roll->hooks) {
+        for (const auto& node : hook.graph.nodes) {
+            if (node.value("op", std::string()) == "roll_table") roll_node = &node;
+        }
+    }
+    REQUIRE(roll_node != nullptr);
+    CHECK((*roll_node)["args"]["table"] == "loot");
+
+    match::engine::AssemblyResult assembled = AssembleShippedMods(root);
+    REQUIRE(assembled.ok());
+    REQUIRE(assembled.assembly != nullptr);
+    match::engine::MatchRegistries& registries = assembled.assembly->registries;
+
+    // INFO: force the loot table to its `six` entry so the emitted key is
+    //       deterministic, then drive the roll through the real op.
+    auto loot = registries.tables.find("test:loot");
+    REQUIRE(loot != registries.tables.end());
+    loot->second.entries = {match::modload::TableEntry{
+        "six", 1, 6, std::nullopt, std::nullopt, nlohmann::json::object()}};
+
+    DiceHarness harness;
+    harness.registries = &registries;
+    const match::ops::OpResult result = harness.Roll("loot");
+    REQUIRE(result.value.is_object());
+    CHECK(result.value["key"] == "test:six");
+
+    const nlohmann::json* event = FindEvent(result, "outcome_result");
+    REQUIRE(event != nullptr);
+    CHECK((*event)["payload"]["key"] == "test:six");
+
+    // INFO: acceptance end-to-end - the key the chain emits is covered by
+    //       the dice entity's outcome.resolver payload on the wire.
+    auto dice = registries.entities.find("test:dice");
+    REQUIRE(dice != registries.entities.end());
+    const nlohmann::json& components = dice->second.raw.at("components");
+    REQUIRE(components.contains("outcome.resolver"));
+    const nlohmann::json& resolver = components["outcome.resolver"];
+    REQUIRE(resolver.is_object());
+    CHECK((resolver.contains("test:six") || resolver.contains("*")));
 }
 
 // --- semantic validation: asset dependencies -------------------------------

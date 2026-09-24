@@ -2,6 +2,8 @@
 	import { Canvas } from "@threlte/core";
 	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { storeGameLoader } from "$stores/gameLoader.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeAffliction } from "$stores/affliction.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
@@ -52,6 +54,14 @@
 	// instance the entity renderer will observe and tick.
 	const entityRuntime = new EntityRuntime();
 	const cardRegistry = createCardRegistry(entityRuntime);
+	// the affliction subsystem bootstraps from the `defs` packet's
+	// entities/presentations and drives the read-only face-override channel the
+	// card renderer consults. Disposed on match teardown via the effect below.
+	const disposeAffliction = storeAffliction.bind(entityRuntime, (cb) => storeGame.onMatchEvent(cb));
+	$effect(() => {
+		storeAffliction.enabled = storeAnimation.enabled;
+	});
+	$effect(() => disposeAffliction);
 	const layout = useGameLayoutContext() ?? createGameLayoutContext();
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap

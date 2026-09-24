@@ -78,6 +78,13 @@ export class EntityRuntime {
 		this.#defs.set(defId, def);
 	}
 
+	/** The live entity for an instance id, or `undefined`. Read-only accessor for
+	 *  step renderers that need the spawned entity's def components — e.g. the
+	 *  `outcome.resolver` selection in `spawnEntity` (T9). */
+	get(instanceId: number): Entity | undefined {
+		return this.#entities.get(instanceId);
+	}
+
 	spawn(defId: string, opts: { as?: string } = {}): number {
 		const def = this.#defs.get(defId);
 		if (!def) {

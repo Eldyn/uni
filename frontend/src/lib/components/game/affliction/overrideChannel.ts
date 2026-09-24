@@ -24,6 +24,14 @@ export interface FaceOverride {
  *  own address. */
 export type CardTargetResolver = (cardId: string) => string;
 
+/** Resolves a `face.override` modifier's `source` (e.g. `seeded-random-tile`)
+ *  into a concrete face override. The store injects the per-client cosmetic-RNG
+ *  implementation; an unknown source degrades to `undefined`. */
+export type FaceSourceResolver = (
+	source: string,
+	modifier: Record<string, unknown>
+) => FaceOverride | undefined;
+
 function defaultCardTarget(cardId: string): string {
 	return cardId.includes(":") ? cardId : `card:${cardId}`;
 }
@@ -48,19 +56,37 @@ function toFaceOverride(value: unknown): FaceOverride | undefined {
 export class OverrideChannel {
 	#mgr: AfflictionManager;
 	#resolveTarget: CardTargetResolver;
+	#resolveSource: FaceSourceResolver | undefined;
 
-	constructor(mgr: AfflictionManager, resolveTarget: CardTargetResolver = defaultCardTarget) {
+	constructor(
+		mgr: AfflictionManager,
+		resolveTarget: CardTargetResolver = defaultCardTarget,
+		resolveSource?: FaceSourceResolver
+	) {
 		this.#mgr = mgr;
 		this.#resolveTarget = resolveTarget;
+		this.#resolveSource = resolveSource;
 	}
 
 	/**
 	 * The highest-priority active `face.override` for `cardId`, or `undefined`.
 	 * An `exclusive` owner on the target suppresses face overrides, matching the
-	 * composition engine.
+	 * composition engine. An explicit `uvRect`/`texture` wins; otherwise a
+	 * `source` is resolved through the injected `FaceSourceResolver` (e.g.
+	 * `seeded-random-tile`), which degrades to `undefined` when unknown.
 	 */
 	override(cardId: string): FaceOverride | undefined {
 		const target = this.#resolveTarget(cardId);
-		return toFaceOverride(this.#mgr.resolve(kindTarget("face.override", target)));
+		const raw = this.#mgr.resolve(kindTarget("face.override", target));
+		const explicit = toFaceOverride(raw);
+		if (explicit) return explicit;
+		if (!this.#resolveSource || !raw || typeof raw !== "object") return undefined;
+		const source = (raw as Record<string, unknown>).source;
+		if (typeof source !== "string") return undefined;
+		try {
+			return this.#resolveSource(source, raw as Record<string, unknown>);
+		} catch {
+			return undefined;
+		}
 	}
 }
