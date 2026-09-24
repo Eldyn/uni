@@ -536,10 +536,10 @@ const std::set<std::string>& NoWhereFields() {
 }
 
 /* INFO: payload fields a trigger `where` may test, per source. Derived from the
- *       asyncapi `*Payload` schemas. `play_rejected` additionally accepts
- *       `reason` as an alias for its wire field `reason_id` so the lsd
- *       sample validates (controller ruling). `status:<id>` sources evaluate
- *       against the `status_applied` payload. */
+ *       asyncapi `*Payload` schemas. `status:<id>` sources evaluate against the
+ *       `status_applied` payload. The field sets are authoritative: a phantom
+ *       key (e.g. `reason` instead of `play_rejected`'s `reason_id`) is
+ *       rejected rather than silently never firing. */
 const std::set<std::string>& EventWhereFields(const std::string& type) {
     static const std::map<std::string, std::set<std::string>> k{
         {"card_played", {"player", "card", "from_zone_ordinal"}},
@@ -550,7 +550,7 @@ const std::set<std::string>& EventWhereFields(const std::string& type) {
         {"status_applied",
          {"target", "status_kind", "magnitude", "duration_unit",
           "instance_id"}},
-        {"play_rejected", {"player", "reason_id", "reason"}}};
+        {"play_rejected", {"player", "reason_id"}}};
     auto it = k.find(type);
     return it == k.end() ? NoWhereFields() : it->second;
 }

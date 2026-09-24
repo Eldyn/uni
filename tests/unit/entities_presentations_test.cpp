@@ -79,7 +79,7 @@ const char* kLsdPresentation = R"({
   "priority": 10,
   "modifiers": [ { "kind": "face.override", "source": "seeded-random-tile" } ],
   "triggers": [
-    { "on": "play_rejected", "where": { "reason": "unplayable" }, "duration": 5 }
+    { "on": "play_rejected", "where": { "reason_id": "unplayable" }, "duration": 5 }
   ]
 })";
 
@@ -331,6 +331,27 @@ TEST_CASE("entities_presentations: known event source and payload pass") {
     })");
     CHECK_FALSE(HasCheck(errors, "presentation.trigger.source"));
     CHECK_FALSE(HasCheck(errors, "presentation.trigger.where"));
+}
+
+TEST_CASE("entities_presentations: play_rejected reason_id is accepted") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override" } ],
+      "triggers": [ { "on": "play_rejected",
+                      "where": { "reason_id": "unplayable" } } ]
+    })");
+    CHECK_FALSE(HasCheck(errors, "presentation.trigger.source"));
+    CHECK_FALSE(HasCheck(errors, "presentation.trigger.where"));
+}
+
+TEST_CASE("entities_presentations: play_rejected phantom reason is rejected") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override" } ],
+      "triggers": [ { "on": "play_rejected",
+                      "where": { "reason": "unplayable" } } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.trigger.where"));
 }
 
 // --- semantic validation: outcome resolver -----------------------------
