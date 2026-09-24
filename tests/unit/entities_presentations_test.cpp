@@ -1,7 +1,11 @@
 #include <doctest/doctest.h>
 
+#include <match/engine/match_assembler.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/modload/semantic_validator.hpp>
+#include <match/view/defs_builder.hpp>
+
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -13,7 +17,8 @@
 /**
  * @file entities_presentations_test.cpp
  * @brief entities/presentations ingest: loader accept/reject, duplicate ids
- *        and deterministic sorted scans.
+ *        and deterministic sorted scans, plus the
+ *        `defs` packet manifests.
  */
 
 namespace fs = std::filesystem;
@@ -126,6 +131,30 @@ std::vector<LoadError> ValidatePresentation(
     WriteMod(root, "test_mod", kManifest);
     WriteFile(root.root / "test_mod/presentations/p.json", presentation_json);
     return ValidateModFrom(root);
+}
+
+/* INFO: locate the repo root from this test file so the shipped `mods/` tree
+ *       can be assembled cwd-independently (mirrors view_defs_builder_test). */
+std::filesystem::path ProjectRoot() {
+    std::filesystem::path p(__FILE__);
+    while (!p.empty()) {
+        std::error_code ec;
+        if (std::filesystem::is_directory(p / "mods" / "test", ec)) return p;
+        std::filesystem::path parent = p.parent_path();
+        if (parent == p) break;
+        p = parent;
+    }
+    return {};
+}
+
+/* INFO: the `defs` manifest entry with a given `id` in array `key`. */
+const nlohmann::json* FindManifest(const nlohmann::json& defs,
+                                   const char* key,
+                                   const std::string& id) {
+    for (const nlohmann::json& entry : defs[key]) {
+        if (entry.value("id", std::string()) == id) return &entry;
+    }
+    return nullptr;
 }
 
 }  // namespace
@@ -449,4 +478,113 @@ TEST_CASE("entities_presentations: entities/ and presentations/ are known entrie
     for (const auto& warning : result.warnings) {
         CHECK(warning.check != "mod.unknown_entry");
     }
+}
+
+// --- defs packet manifests --------------------------------------
+
+TEST_CASE("entities_presentations: defs publishes entity and presentation manifests") {
+    const std::filesystem::path root = ProjectRoot();
+    REQUIRE_FALSE(root.empty());
+    LoadResult loaded = ScanModsDirectory((root / "mods").string());
+    REQUIRE(loaded.ok());
+
+    match::modload::DeckDef deck;
+    bool found = false;
+    for (const auto& mod : loaded.mods) {
+        for (const auto& candidate : mod.decks) {
+            if (candidate.deck_id == "test:classic_bombs") {
+                deck = candidate;
+                found = true;
+            }
+        }
+    }
+    REQUIRE(found);
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 2; ++i) {
+        match::engine::MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    match::engine::AssemblyResult assembled =
+        match::engine::MatchAssembler::Assemble(loaded.mods, deck, options);
+    REQUIRE(assembled.ok());
+    REQUIRE(assembled.assembly != nullptr);
+
+    const nlohmann::json defs = match::view::DefsBuilder::Build(
+        assembled.assembly->registries, loaded.mods);
+
+    // INFO: entities/presentations are client-consumed, so the defs
+    //       packet must publish them.
+    REQUIRE(defs.contains("entities"));
+    REQUIRE(defs["entities"].is_array());
+    const nlohmann::json* dice = FindManifest(defs, "entities", "test:dice");
+    REQUIRE(dice != nullptr);
+    CHECK((*dice)["def_hash"].is_string());
+    CHECK((*dice)["def_hash"].get<std::string>().size() == 16);
+    REQUIRE((*dice)["components"].is_object());
+
+    REQUIRE(defs.contains("presentations"));
+    REQUIRE(defs["presentations"].is_array());
+    const nlohmann::json* lsd =
+        FindManifest(defs, "presentations", "test:lsd");
+    REQUIRE(lsd != nullptr);
+    CHECK((*lsd)["def_hash"].is_string());
+    CHECK((*lsd)["def_hash"].get<std::string>().size() == 16);
+    CHECK((*lsd)["target"] == "hand");
+    REQUIRE((*lsd)["modifiers"].is_array());
+}
+
+TEST_CASE("entities_presentations: manifest def_hash tracks the def content") {
+    const std::filesystem::path root = ProjectRoot();
+    REQUIRE_FALSE(root.empty());
+    LoadResult loaded = ScanModsDirectory((root / "mods").string());
+    REQUIRE(loaded.ok());
+
+    match::modload::DeckDef deck;
+    for (const auto& mod : loaded.mods) {
+        for (const auto& candidate : mod.decks) {
+            if (candidate.deck_id == "test:classic_bombs") deck = candidate;
+        }
+    }
+    REQUIRE_FALSE(deck.deck_id.empty());
+
+    match::engine::MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 2; ++i) {
+        match::engine::MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    match::engine::AssemblyResult assembled =
+        match::engine::MatchAssembler::Assemble(loaded.mods, deck, options);
+    REQUIRE(assembled.assembly != nullptr);
+    match::engine::MatchRegistries& registries =
+        assembled.assembly->registries;
+
+    const nlohmann::json first =
+        match::view::DefsBuilder::Build(registries, loaded.mods);
+    const nlohmann::json* dice = FindManifest(first, "entities", "test:dice");
+    REQUIRE(dice != nullptr);
+    const std::string hash = (*dice)["def_hash"].get<std::string>();
+
+    // INFO: rebuilding from the same frozen registries is deterministic.
+    const nlohmann::json second =
+        match::view::DefsBuilder::Build(registries, loaded.mods);
+    REQUIRE(FindManifest(second, "entities", "test:dice") != nullptr);
+    CHECK(FindManifest(second, "entities", "test:dice")->at("def_hash")
+          == hash);
+
+    // INFO: changing the def's canonical JSON changes its content hash, so the
+    //       client reloads exactly that def.
+    auto it = registries.entities.find("test:dice");
+    REQUIRE(it != registries.entities.end());
+    it->second.raw["components"]["visual.emoji"]["size"] = 0.9;
+    const nlohmann::json third =
+        match::view::DefsBuilder::Build(registries, loaded.mods);
+    REQUIRE(FindManifest(third, "entities", "test:dice") != nullptr);
+    CHECK(FindManifest(third, "entities", "test:dice")->at("def_hash") != hash);
 }

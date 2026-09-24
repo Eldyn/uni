@@ -61,6 +61,26 @@ void LoadTables(const std::vector<modload::TableDef>& tables,
                 ops::TableRegistry& out);
 
 /**
+ * @brief Build full-`namespace:id` -> entity into `out`.
+ *
+ * Replaces `out` with an entry for every entity declared across the loaded
+ * mods. Like `LoadTables`, written to the caller-owned per-match
+ * `MatchRegistries::entities`, never a process global.
+ */
+void LoadEntities(const std::vector<modload::EntityDef>& entities,
+                  modload::EntityRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> presentation into `out`.
+ *
+ * Replaces `out` with an entry for every presentation declared across the
+ * loaded mods; per-match like `LoadEntities`.
+ */
+void LoadPresentations(
+    const std::vector<modload::PresentationDef>& presentations,
+    modload::PresentationRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

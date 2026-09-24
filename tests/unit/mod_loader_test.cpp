@@ -272,7 +272,7 @@ TEST_CASE("modloader: api greater than engine version is rejected") {
 TEST_CASE("modloader: api equal to engine version is accepted") {
     TempModsRoot tmp;
     tmp.Write("ok", "mod.json", R"({
-      "id": "ok", "name": "Ok", "version": "1.0.0", "api": "1"
+      "id": "ok", "name": "Ok", "version": "1.0.0", "api": "2"
     })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -626,8 +626,8 @@ TEST_CASE("modloader: id helpers enforce the syntax") {
     CHECK_FALSE(IsValidKindId(":plus4"));
 }
 
-TEST_CASE("modloader: engine api version starts at 1") {
-    CHECK(EngineModApiVersion() == 1);
+TEST_CASE("modloader: engine api version") {
+    CHECK(EngineModApiVersion() == 2);
 }
 
 TEST_CASE("modloader: unreadable mods root is a structured error") {

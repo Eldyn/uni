@@ -765,10 +765,12 @@ components:
     # (frontend: MOD_API_VERSION, backend: contract::kModApiVersion).
     ModApiVersion:
       type: integer
-      minimum: 1
+      minimum: 2
       description: >
         Highest mod content API version this engine accepts. Starts at 1 and
-        lives with the generated contract constants.
+        lives with the generated contract constants. Bumped to 2 for
+        `entities/` and `presentations/` (a mod using them must not load on an
+        engine that would silently ignore the directories).
       x-constants: { minimum: ModApiVersion }
 
     # --- Client → Server payload schemas (C++ structs generated from these) ---
@@ -1171,6 +1173,49 @@ components:
           items:
             type: string
 
+    # Per-entity entry in the `defs` packet. Hash-addressed:
+    # `def_hash` is the stable digest of the canonical def, so the client
+    # caches by content and reloads only what changed.
+    EntityDef:
+      type: object
+      required: [id, def_hash, components]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+        components:
+          type: object
+          additionalProperties: true
+          description: >
+            Component name to its verbatim parameter object; the client entity runtime interprets them.
+
+    # Per-presentation entry in the `defs` packet.
+    PresentationDef:
+      type: object
+      required: [id, def_hash, target, modifiers]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+        target:
+          type: string
+        priority:
+          type: integer
+        modifiers:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        triggers:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
     MatchStartPayload:
       type: object
       x-packet-version: "1"
@@ -1212,7 +1257,7 @@ components:
     DefsPayload:
       type: object
       x-packet-version: "1"
-      required: [defs_digest, mods, kinds]
+      required: [defs_digest, mods, kinds, entities, presentations]
       properties:
         defs_digest:
           type: string
@@ -1224,6 +1269,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/KindDef"
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityDef"
+        presentations:
+          type: array
+          items:
+            $ref: "#/components/schemas/PresentationDef"
 
     CardPlayedPayload:
       type: object

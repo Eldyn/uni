@@ -786,6 +786,26 @@ AssemblyResult MatchAssembler::Assemble(
         wiring::LoadTables(active_tables, assembly->registries.tables);
     }
 
+    // INFO: entity/presentation registries are per-match like `tables`.
+    //       Flatten every active mod's defs so the `defs` packet can publish
+    //       them and the client entity runtime can resolve by def id.
+    {
+        std::vector<modload::EntityDef> active_entities;
+        std::vector<modload::PresentationDef> active_presentations;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::EntityDef& entity : mod->entities) {
+                active_entities.push_back(entity);
+            }
+            for (const modload::PresentationDef& presentation :
+                 mod->presentations) {
+                active_presentations.push_back(presentation);
+            }
+        }
+        wiring::LoadEntities(active_entities, assembly->registries.entities);
+        wiring::LoadPresentations(active_presentations,
+                                  assembly->registries.presentations);
+    }
+
     // --- systems: rules then card behaviors, frozen order -------
     for (const modload::LoadedMod* mod : active) {
         uint32_t registration = 0;

@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -341,6 +342,20 @@ struct PresentationDef {
     std::vector<TriggerDef> triggers;     /**< Install triggers. */
     nlohmann::json raw;                   /**< Verbatim file object. */
 };
+
+/**
+ * @brief Full-`namespace:id` -> entity def, sorted.
+ *
+ * Mirrors `ops::TableRegistry`: a per-match, read-only collection the assembler
+ * freezes once so concurrent matches cannot clobber each other's entities.
+ */
+using EntityRegistry = std::map<std::string, EntityDef, std::less<>>;
+
+/**
+ * @brief Full-`namespace:id` -> presentation def, sorted.
+ */
+using PresentationRegistry =
+    std::map<std::string, PresentationDef, std::less<>>;
 
 /**
  * @struct SettingDecl

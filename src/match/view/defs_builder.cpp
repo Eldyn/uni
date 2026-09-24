@@ -86,6 +86,32 @@ json FaceJsonWithSlots(const match::modload::FaceSpec& face,
     return out;
 }
 
+/**
+ * @brief One hash-addressed `defs` manifest entry.
+ *
+ * Shape `{id: "namespace:local", def_hash, ...full def}`: the def's verbatim
+ * JSON with its local `id` replaced by the full `namespace:id`. `def_hash` is
+ * the existing stable digest over that canonical JSON (minus the hash itself),
+ * so the client caches by content and reloads only what changed.
+ */
+json ManifestEntry(const nlohmann::json& raw, const std::string& full_id) {
+    json entry = raw.is_object() ? raw : json::object();
+    entry["id"] = full_id;
+    entry.erase("def_hash");
+    entry["def_hash"] = StableDigest(entry.dump());
+    return entry;
+}
+
+/** @brief The `defs` manifest array for a `full-id -> def` registry. */
+template <typename Registry>
+json ManifestArray(const Registry& registry) {
+    json out = json::array();
+    for (const auto& [full_id, def] : registry) {
+        out.push_back(ManifestEntry(def.raw, full_id));
+    }
+    return out;
+}
+
 }  // namespace
 
 nlohmann::json DefsBuilder::Build(
@@ -153,6 +179,10 @@ nlohmann::json DefsBuilder::Build(
     defs["defs_digest"] = std::string();
     defs["mods"] = mods_json;
     defs["kinds"] = kinds_json;
+    // INFO: entities/presentations are client-consumed, so unlike
+    //       tables they are published here, hash-addressed per def.
+    defs["entities"] = ManifestArray(registries.entities);
+    defs["presentations"] = ManifestArray(registries.presentations);
     defs["defs_digest"] = Digest(defs);
     return defs;
 }
@@ -166,6 +196,14 @@ std::string DefsBuilder::Digest(const nlohmann::json& defs_payload) {
     basis["kinds"] = defs_payload.contains("kinds")
                          ? defs_payload["kinds"]
                          : nlohmann::json::array();
+    // INFO: entities/presentations are client-consumed content, so they
+    //       participate in the stale-cache digest alongside mods/kinds.
+    basis["entities"] = defs_payload.contains("entities")
+                            ? defs_payload["entities"]
+                            : nlohmann::json::array();
+    basis["presentations"] = defs_payload.contains("presentations")
+                                 ? defs_payload["presentations"]
+                                 : nlohmann::json::array();
     return StableDigest(basis.dump());
 }
 

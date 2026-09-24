@@ -38,7 +38,7 @@ public:
      * `index` is its `kind_index` within its owning mod. The mod a
      * kind belongs to is the namespace prefix of `string_id`.
      *
-     * @param registries Frozen match registries (mod list + kind table).
+     * @param registries Frozen match registries (mod list + kind table + defs).
      * @param mods       Loaded mods, for each kind's face and tags.
      * @return The `defs` payload, including its digest.
      */
@@ -49,8 +49,8 @@ public:
     /**
      * @brief Recompute the FNV-1a digest a `defs` payload advertises.
      *
-     * Digests the `mods` + `kinds` subtrees only, so setting or clearing
-     * `defs_digest` does not change the result.
+     * Digests the `mods` + `kinds` + `entities` + `presentations` subtrees
+     * only, so setting or clearing `defs_digest` does not change the result.
      *
      * @param defs_payload A payload produced by `Build`.
      * @return 16-character lowercase hex digest, or empty on a bad shape.

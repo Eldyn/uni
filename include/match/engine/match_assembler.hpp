@@ -137,6 +137,24 @@ struct MatchRegistries {
      */
     ops::TableRegistry tables;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> entity def for this match.
+     *
+     * Same per-match rule as `tables`: filled once at assembly from the active
+     * mods' `EntityDef`s and read-only during play. The `defs` packet publishes
+     * them so the client's entity runtime can spawn by def id.
+     */
+    modload::EntityRegistry entities;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> presentation def for this match
+     *.
+     *
+     * Same per-match rule as `entities`: filled once at assembly and read-only
+     * during play; client-consumed through the `defs` packet.
+     */
+    modload::PresentationRegistry presentations;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 
