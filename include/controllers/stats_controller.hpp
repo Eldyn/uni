@@ -1,6 +1,8 @@
 #pragma once
 #include <http_router.hpp>
 #include <services/stats_service.hpp>
+#include <cstddef>
+#include <functional>
 
 /**
  * @file stats_controller.hpp
@@ -22,6 +24,16 @@ public:
      */
     explicit StatsController(HttpRouter& router);
 
+    /**
+     * @brief Supplies the live online-player count for the public `/stats/online`
+     * route. Wired by main() to PresenceRegistry::OnlineCount; when unset the
+     * route reports 0 rather than erroring.
+     * @param provider Callable returning the number of connected players.
+     */
+    void SetOnlineCountProvider(std::function<std::size_t()> provider) {
+        online_count_provider_ = std::move(provider);
+    }
+
 private:
     /**
      * @brief Handler for the GET route `/stats/me`.
@@ -41,5 +53,15 @@ private:
      */
     void HandleGetLeaderboard(AppResponse* res, AppRequest* req);
 
+    /**
+     * @brief Handler for the public GET route `/stats/online`.
+     * Returns `{"online": <n>}`, an aggregate connected-player count only (no
+     * usernames). Read by the blog's player-count pill.
+     * @param res Pointer to the HTTP response.
+     * @param req Pointer to the HTTP request (unused).
+     */
+    void HandleGetOnline(AppResponse* res, AppRequest* req);
+
     StatsService stats_service_;
+    std::function<std::size_t()> online_count_provider_;
 };

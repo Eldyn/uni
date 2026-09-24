@@ -14,6 +14,13 @@ StatsController::StatsController(HttpRouter& router) {
     router.Get("/stats/leaderboard", [this](AppResponse* res, AppRequest* req) {
         HandleGetLeaderboard(res, req);
     });
+
+    // INFO: Public live player count consumed by the blog (playuni.app/blog).
+    //       Same-origin, read-only, never cached. The route runs through the
+    //       shared per-IP HTTP limiter, so a 30s poll per reader is negligible.
+    router.Get("/stats/online", [this](AppResponse* res, AppRequest* req) {
+        HandleGetOnline(res, req);
+    });
 }
 
 void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
@@ -104,4 +111,11 @@ void StatsController::HandleGetLeaderboard(AppResponse* res, AppRequest* req) {
 
     res->writeHeader("Content-Type", "application/json")
        ->end(response_data.dump());
+}
+
+void StatsController::HandleGetOnline(AppResponse* res, AppRequest* /*req*/) {
+    const std::size_t count = online_count_provider_ ? online_count_provider_() : 0;
+    res->writeHeader("Content-Type", "application/json")
+       ->writeHeader("Cache-Control", "no-store")
+       ->end(json({{"online", count}}).dump());
 }

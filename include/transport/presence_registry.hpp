@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <transport/ipresence_store.hpp>
@@ -37,6 +38,14 @@ public:
     bool                     IsOnline(const std::string& username) const override;
     AppWebSocket*            GetSocket(const std::string& username) const override;
     std::vector<std::string> OnlineUsernames() const override;
+
+    /**
+     * @brief Number of currently connected players (unique usernames).
+     * Cheap `sockets_.size()`; avoids materialising OnlineUsernames() for the
+     * public `/stats/online` count.
+     * @return std::size_t The live connection count.
+     */
+    std::size_t OnlineCount() const { return sockets_.size(); }
 
     /**
      * @brief Records which lobby a user currently belongs to.

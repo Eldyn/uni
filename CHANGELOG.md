@@ -11,6 +11,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Public online-player count endpoint**: `GET /stats/online` returns `{"online": <n>}`, the live connected-player count from `PresenceRegistry` (unique usernames, aggregate only — no PII), served `no-store` and behind the shared per-IP HTTP limiter. The blog's player-count pill (`playuni.app/blog`) polls it; until this shipped the pill stayed hidden.
 - **Configurable per-lobby player cap**: `LobbySettings.max_players` (default 4, sanitized to `[2, ABSOLUTE_MAX_LOBBY_MEMBERS]`) replaces the flat compile-time `contract::kMaxLobbyMembers` check in `Lobby::AddOrHijack` and bot-sync; the contract ceiling itself was raised and is now broadcast to clients instead of assumed. A new `ABSOLUTE_MAX_LOBBY_MEMBERS` env var (defaulting to the contract ceiling, 16) sets the absolute upper bound.
 - **Starting-hand/deck-size safeguard**: `LobbySettings::Sanitize()` now clamps `starting_cards` down if `starting_cards * max_players` would exceed the generated deck size, so large lobbies can't be configured into an unwinnable deal.
 - **Proportional browse-screen occupancy gauge**: `OccupancyGauge.svelte` always renders 4 icons regardless of `max_players`, each clipped to its fractional share (star-rating style), replacing the old one-icon-per-seat rendering that stopped scaling past 4 seats. A "Max players" slider was added to `LobbySettings.svelte`.
@@ -96,9 +97,6 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **The draw reshuffle no longer recycles the discard's top card**: the ops-layer reshuffle (`card_pile_ops.cpp` `EnsureDrawSource`, used by `draw_cards` and `draw_until_playable`) moved the *entire* discard into the draw pile, unlike `MatchInstance::ReshuffleDiscardIntoDraw`, which keeps the top. In a long game that could empty the discard completely — leaving no active pile to match and deadlocking the all-mods bot simulation. The ops path now keeps the top too.
 ### Known issues
 
-- Card-flight animations that target an individual hand slot (a card being drawn into your own hand, or an opponent's) fall back to the screen center, since those slots were DOM elements the flight system located by rect and are now WebGL meshes; porting flights into the 3D scene is the next Threlte-migration phase.
-
-- **Local hand overlap now scales with card count**: `PlayerHand.svelte` shrinks the per-card overlap as the hand grows so N cards stay within a fixed span instead of overflowing; flagged with a TODO for a proper long-term overflow scheme (fanning/scrolling/second row).
 - **Per-seat player color stays a 4-color RGBY wraparound** rather than growing a richer palette past 4 seats, pending a future player-picked character color feature.
 
 ## [0.5.5] - 2026-07-17

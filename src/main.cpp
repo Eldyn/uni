@@ -69,6 +69,7 @@ int main() {
         server.SetActiveMatchProvider([&lobby] { return lobby.ActiveMatchCount(); });
 
         StatsController  stats(server.GetHTTPRouter());
+        stats.SetOnlineCountProvider([&presence] { return presence.OnlineCount(); });
         MatchController  game(server.GetActionRouter(), server.GetBroadcaster(),
                               server.GetTimerService(), lobby);
         FriendController friends(server.GetActionRouter(), server.GetBroadcaster(), presence);
