@@ -14,8 +14,7 @@
     },
     "target": {
       "type": "string",
-      "pattern": "^(hand|discard|table|card:.+|seat:.+|entity:.+)$",
-      "description": "Where the presentation applies: a named anchor or a card/seat/entity address."
+      "description": "Where the presentation applies: a named anchor or a card/seat/entity address. Grammar validated semantically (`presentation.target`)."
     },
     "priority": {
       "type": "integer",
@@ -31,13 +30,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "face.override",
-              "material.param",
-              "screen.effect",
-              "particles.emitter",
-              "audio.loop"
-            ]
+            "description": "Modifier kind. The engine owns the kind -> merge-mode table, so the vocabulary is validated semantically (`presentation.kind.unknown`)."
           },
           "duration": { "type": "number", "minimum": 0 }
         }

@@ -11,6 +11,7 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -488,6 +489,104 @@ std::vector<SchemaViolation> JsonSchemaSubsetValidator::Validate(
 
 namespace {
 
+/* INFO: component -> family table. One entity may declare at most one
+ *       component per family. Engine-owned: it is not read from content. */
+const std::unordered_map<std::string, std::string>& ComponentFamilies() {
+    static const std::unordered_map<std::string, std::string> k{
+        {"visual.model", "visual"},      {"visual.shader", "visual"},
+        {"visual.sprite", "visual"},     {"visual.emoji", "visual"},
+        {"movement.arc", "movement"},    {"movement.linear", "movement"},
+        {"movement.ballistic", "movement"},
+        {"movement.static", "movement"}, {"motion.oscillate", "motion"},
+        {"motion.jitter", "motion"},     {"motion.spin", "motion"},
+        {"motion.spring", "motion"},     {"motion.follow", "motion"},
+        {"emitter.particles", "emitter"}, {"audio.sound", "audio"},
+        {"outcome.resolver", "outcome"}, {"camera.shake", "camera"},
+        {"camera.zoom", "camera"},       {"camera.punch", "camera"},
+        {"screen.effect", "screen"},     {"lifetime.ttl", "lifetime"},
+        {"lifetime.untilDespawn", "lifetime"}};
+    return k;
+}
+
+/* INFO: modifier kind -> merge mode table. Engine-owned, so a
+ *       presentation never carries `mode` in content. */
+const std::unordered_map<std::string, std::string>& ModifierMergeModes() {
+    static const std::unordered_map<std::string, std::string> k{
+        {"face.override", "override"},   {"material.param", "override"},
+        {"screen.effect", "additive"},   {"particles.emitter", "additive"},
+        {"audio.loop", "exclusive"}};
+    return k;
+}
+
+/* INFO: the `match_event` wire types a presentation trigger may key on. The
+ *       six core types mirror `frontend/src/lib/stores/matchEventMap.ts`; the
+ *       seventh, `play_rejected`, is a real server-emitted match event
+ *       (`match_instance.cpp`, asyncapi `x-packet-types`) so the shipped lsd
+ *       sample can install on it. */
+const std::set<std::string>& KnownMatchEventTypes() {
+    static const std::set<std::string> k{
+        "card_played", "auto_played", "cards_drawn", "reshuffle",
+        "turn_advance", "status_applied", "play_rejected"};
+    return k;
+}
+
+const std::set<std::string>& NoWhereFields() {
+    static const std::set<std::string> k;
+    return k;
+}
+
+/* INFO: payload fields a trigger `where` may test, per source. Derived from the
+ *       asyncapi `*Payload` schemas. `play_rejected` additionally accepts
+ *       `reason` as an alias for its wire field `reason_id` so the lsd
+ *       sample validates (controller ruling). `status:<id>` sources evaluate
+ *       against the `status_applied` payload. */
+const std::set<std::string>& EventWhereFields(const std::string& type) {
+    static const std::map<std::string, std::set<std::string>> k{
+        {"card_played", {"player", "card", "from_zone_ordinal"}},
+        {"auto_played", {"player", "card", "trigger_summary"}},
+        {"cards_drawn", {"player", "count", "source_pile", "cards"}},
+        {"reshuffle", {"draw_size", "discard_size"}},
+        {"turn_advance", {"from", "to", "direction", "deadline_ms"}},
+        {"status_applied",
+         {"target", "status_kind", "magnitude", "duration_unit",
+          "instance_id"}},
+        {"play_rejected", {"player", "reason_id", "reason"}}};
+    auto it = k.find(type);
+    return it == k.end() ? NoWhereFields() : it->second;
+}
+
+/* INFO: target grammar `hand|discard|table|card:<id>|seat:<user>|
+ *       entity:<id>`. */
+bool IsValidPresentationTarget(const std::string& target) {
+    if (target == "hand" || target == "discard" || target == "table") {
+        return true;
+    }
+    auto prefixed = [&target](const char* prefix) {
+        const std::string p(prefix);
+        return target.size() > p.size()
+               && target.compare(0, p.size(), p) == 0;
+    };
+    return prefixed("card:") || prefixed("seat:") || prefixed("entity:");
+}
+
+/* INFO: a component that names an asset slot value. `slot` is the
+ *       bundle slot name; `param` is the component param carrying the value. */
+struct AssetRef {
+    const char* slot;
+    const char* param;
+};
+
+const AssetRef* AssetRefForComponent(const std::string& name) {
+    static const std::map<std::string, AssetRef> k{
+        {"audio.sound", {"sound", "clip"}},
+        {"visual.shader", {"shader", "shader"}},
+        {"screen.effect", {"shader", "shader"}},
+        {"visual.sprite", {"sprite", "sprite"}},
+        {"visual.model", {"model", "model"}}};
+    auto it = k.find(name);
+    return it == k.end() ? nullptr : &it->second;
+}
+
 struct Buckets {
     std::vector<LoadError> ids;
     std::vector<LoadError> refs;
@@ -497,6 +596,10 @@ struct Buckets {
     std::vector<LoadError> deck;
     std::vector<LoadError> selector;
     std::vector<LoadError> tables;
+    std::vector<LoadError> entities;
+    std::vector<LoadError> presentations;
+    std::vector<LoadError> outcome;
+    std::vector<LoadError> asset;
 };
 
 std::string DeckPath(const DeckDef& deck);
@@ -534,6 +637,10 @@ class Checker {
         WalkAllGraphs();
         CheckConflicts();
         CheckDeck();
+        CheckEntities();
+        CheckPresentations();
+        CheckOutcomeResolvers();
+        CheckAssetDependencies();
     }
 
     const Buckets& buckets() const { return buckets_; }
@@ -752,6 +859,247 @@ class Checker {
             && (!keep->is_number_integer() || keep->get<long long>() < 1
                 || keep->get<long long>() > count->get<long long>())) {
             bad();
+        }
+    }
+
+    /* INFO: one component per family per entity; unknown component
+     *       names and empty component sets are errors. */
+    void CheckEntities() {
+        for (const LoadedMod* mod : mods_) {
+            for (const auto& entity : mod->entities) {
+                const std::string path =
+                    mod->path + "/entities/" + entity.id + ".json";
+                if (entity.components.empty()) {
+                    buckets_.entities.push_back(Err(
+                        "entity.components.empty", "entities", path,
+                        "entity '" + entity.entity_id
+                            + "' declares no components"));
+                }
+                std::map<std::string, std::string> family_owner;
+                for (const auto& component : entity.components) {
+                    auto family = ComponentFamilies().find(component.name);
+                    if (family == ComponentFamilies().end()) {
+                        buckets_.entities.push_back(Err(
+                            "entity.component.unknown", "entities", path,
+                            "entity '" + entity.entity_id
+                                + "' declares unknown component '"
+                                + component.name + "'"));
+                        continue;
+                    }
+                    auto inserted =
+                        family_owner.emplace(family->second, component.name);
+                    if (!inserted.second) {
+                        buckets_.entities.push_back(Err(
+                            "entity.component.family", "entities", path,
+                            "entity '" + entity.entity_id + "' declares two '"
+                                + family->second + "' components ('"
+                                + inserted.first->second + "' and '"
+                                + component.name + "')"));
+                    }
+                }
+            }
+        }
+    }
+
+    /* INFO: modifier kinds, forbidden `mode`, target grammar and
+     *       trigger source/where validation. */
+    void CheckPresentations() {
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& presentation : mod->presentations) {
+                const std::string path = mod->path + "/presentations/"
+                                         + presentation.id + ".json";
+                if (!IsValidPresentationTarget(presentation.target)) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.target", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' has invalid target '" + presentation.target
+                            + "'"));
+                }
+                if (presentation.modifiers.empty()) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.modifiers.empty", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' declares no modifiers"));
+                }
+                for (const auto& modifier : presentation.modifiers) {
+                    if (ModifierMergeModes().count(modifier.kind) == 0) {
+                        buckets_.presentations.push_back(Err(
+                            "presentation.kind.unknown", "presentations", path,
+                            "presentation '" + presentation.presentation_id
+                                + "' declares unknown modifier kind '"
+                                + modifier.kind + "'"));
+                    }
+                    if (modifier.params.is_object()
+                        && modifier.params.contains("mode")) {
+                        buckets_.presentations.push_back(Err(
+                            "presentation.mode.forbidden", "presentations",
+                            path,
+                            "presentation '" + presentation.presentation_id
+                                + "' modifier '" + modifier.kind
+                                + "' carries a forbidden 'mode' field"));
+                    }
+                }
+                for (const auto& trigger : presentation.triggers) {
+                    CheckPresentationTrigger(trigger, presentation, ns, path);
+                }
+            }
+        }
+    }
+
+    void CheckPresentationTrigger(const TriggerDef& trigger,
+                                  const PresentationDef& presentation,
+                                  const std::string& ns,
+                                  const std::string& path) {
+        const std::set<std::string>* fields = nullptr;
+        if (!trigger.on.has_value() || *trigger.on == "always") {
+            fields = &NoWhereFields();
+        } else if (trigger.on->rfind("status:", 0) == 0) {
+            const std::string status = trigger.on->substr(7);
+            if (status.empty()) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.source", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' has an empty status trigger source"));
+            } else {
+                const std::string full = NormalizeRef(status, ns);
+                if (!status_ids_.count(full)
+                    && (match_set_ || RefNamespace(full) == ns)) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.trigger.source", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' trigger source '" + *trigger.on
+                            + "' does not resolve to a known status"));
+                }
+            }
+            fields = &EventWhereFields("status_applied");
+        } else {
+            std::string event = *trigger.on;
+            if (event.rfind("match:", 0) == 0) event = event.substr(6);
+            if (KnownMatchEventTypes().count(event) == 0) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.source", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' declares unknown trigger source '" + *trigger.on
+                        + "'"));
+                return;
+            }
+            fields = &EventWhereFields(event);
+        }
+
+        if (!trigger.where.is_object() || trigger.where.empty()) return;
+        for (auto it = trigger.where.begin(); it != trigger.where.end(); ++it) {
+            if (fields->count(it.key()) == 0) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.where", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' trigger where field '" + it.key()
+                        + "' is not on the source payload"));
+            }
+        }
+    }
+
+    /* INFO: every key a table can emit must have an entity
+     *       `outcome.resolver` entry (exact `ns:key`) or a `*` catch-all
+     *       anywhere in the match set. */
+    void CheckOutcomeResolvers() {
+        std::set<std::string> resolvable;
+        bool has_star = false;
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& entity : mod->entities) {
+                for (const auto& component : entity.components) {
+                    if (component.name != "outcome.resolver"
+                        || !component.params.is_object()) {
+                        continue;
+                    }
+                    for (auto it = component.params.begin();
+                         it != component.params.end(); ++it) {
+                        if (it.key() == "*") {
+                            has_star = true;
+                        } else {
+                            resolvable.insert(NormalizeRef(it.key(), ns));
+                        }
+                    }
+                }
+            }
+        }
+        if (has_star) return;
+
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& table : mod->tables) {
+                const std::string path =
+                    mod->path + "/tables/" + table.id + ".json";
+                for (const auto& entry : table.entries) {
+                    const std::string key = ns + ":" + entry.key;
+                    if (resolvable.count(key)) continue;
+                    buckets_.outcome.push_back(Err(
+                        "outcome.resolver.missing", "entities", path,
+                        "outcome key '" + key + "' emitted by table '"
+                            + table.table_id
+                            + "' has no entity resolver and no '*' catch-all"));
+                }
+            }
+        }
+    }
+
+    /* INFO: entity component references into asset slots must
+     *       resolve in an asset bundle the mod ships. */
+    void CheckAssetDependencies() {
+        for (const LoadedMod* mod : mods_) {
+            std::map<std::string, std::set<std::string>> slots;
+            for (const auto& bundle : mod->assets) {
+                for (const auto& slot : bundle.slots) {
+                    auto& values = slots[slot.name];
+                    for (const auto& variant : slot.variants) {
+                        if (variant.value.has_value()) {
+                            values.insert(*variant.value);
+                        }
+                        if (!variant.file.has_value()) continue;
+                        const std::string& file = *variant.file;
+                        values.insert(file);
+                        const auto slash = file.find_last_of('/');
+                        const std::string base =
+                            slash == std::string::npos
+                                ? file
+                                : file.substr(slash + 1);
+                        values.insert(base);
+                        const auto dot = base.find_last_of('.');
+                        if (dot != std::string::npos) {
+                            values.insert(base.substr(0, dot));
+                        }
+                    }
+                }
+            }
+
+            for (const auto& entity : mod->entities) {
+                const std::string path =
+                    mod->path + "/entities/" + entity.id + ".json";
+                for (const auto& component : entity.components) {
+                    const AssetRef* ref =
+                        AssetRefForComponent(component.name);
+                    if (ref == nullptr || !component.params.is_object()) {
+                        continue;
+                    }
+                    auto value = component.params.find(ref->param);
+                    if (value == component.params.end()
+                        || !value->is_string()) {
+                        continue;
+                    }
+                    const std::string token = value->get<std::string>();
+                    auto slot = slots.find(ref->slot);
+                    if (slot == slots.end()
+                        || slot->second.count(token) == 0) {
+                        buckets_.asset.push_back(Err(
+                            "asset.dep.missing", "entities", path,
+                            "entity '" + entity.entity_id + "' component '"
+                                + component.name + "' references "
+                                + ref->slot + " '" + token
+                                + "' which no asset bundle declares"));
+                    }
+                }
+            }
         }
     }
 
@@ -2249,6 +2597,30 @@ std::vector<LoadError> SchemaErrors(
                 errors.insert(errors.end(), local.begin(), local.end());
             }
         }
+        if (!mod->entities.empty()) {
+            /* INFO: entities are one definition per file; validate
+             *       each entry against the single-entity schema and point the
+             *       error at that entry's file. */
+            const auto& compiled = validator.Schema(schema_files::kEntities);
+            for (const auto& entity : mod->entities) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, entity.raw, "entities",
+                    base + "/entities/" + entity.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->presentations.empty()) {
+            /* INFO: presentations are one definition per file;
+             *       semantic checks (kind/target/trigger) report the rest. */
+            const auto& compiled =
+                validator.Schema(schema_files::kPresentations);
+            for (const auto& presentation : mod->presentations) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, presentation.raw, "presentations",
+                    base + "/presentations/" + presentation.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
     }
     for (const DeckDef* deck : decks) {
         const auto& compiled = validator.Schema(schema_files::kDeck);
@@ -2275,7 +2647,8 @@ std::vector<LoadError> SemanticValidator::ValidateMod(
         &buckets.ids,       &buckets.refs,    &buckets.tables,
         &buckets.ops,
         &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector};
+        &buckets.selector,  &buckets.entities, &buckets.presentations,
+        &buckets.outcome,   &buckets.asset};
     for (const auto* list : order) {
         if (!list->empty()) return *list;
     }
@@ -2300,7 +2673,8 @@ std::vector<LoadError> SemanticValidator::ValidateMatchSet(
         &buckets.ids,       &buckets.refs,    &buckets.tables,
         &buckets.ops,
         &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector};
+        &buckets.selector,  &buckets.entities, &buckets.presentations,
+        &buckets.outcome,   &buckets.asset};
     for (const auto* list : order) {
         if (!list->empty()) return *list;
     }

@@ -41,6 +41,8 @@ inline constexpr const char* kRules = "rules.schema.json";
 inline constexpr const char* kMutations = "mutations.schema.json";
 inline constexpr const char* kDeck = "deck.schema.json";
 inline constexpr const char* kTables = "tables.schema.json";
+inline constexpr const char* kEntities = "entities.schema.json";
+inline constexpr const char* kPresentations = "presentations.schema.json";
 }  // namespace schema_files
 
 /**

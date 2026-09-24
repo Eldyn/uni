@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <match/modload/mod_loader.hpp>
+#include <match/modload/semantic_validator.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -87,6 +88,44 @@ bool HasCheck(const std::vector<LoadError>& errors, const std::string& check) {
         if (e.check == check) return true;
     }
     return false;
+}
+
+/* INFO: locate contract/schemas by walking up from this test file so the suite
+ *       works regardless of the ctest working directory (mirrors
+ *       outcome_tables_test.cpp). */
+std::string SchemaDir() {
+    fs::path p(__FILE__);
+    while (!p.empty()) {
+        std::error_code ec;
+        fs::path cand = p / "contract" / "schemas";
+        if (fs::is_directory(cand, ec)) return cand.string();
+        fs::path parent = p.parent_path();
+        if (parent == p) break;
+        p = parent;
+    }
+    return {};
+}
+
+std::vector<LoadError> ValidateModFrom(const TempModsRoot& root) {
+    LoadResult loaded = ScanModsDirectory(root.root.string());
+    if (loaded.mods.empty()) return loaded.errors;
+    match::modload::SemanticValidator validator(SchemaDir());
+    return validator.ValidateMod(loaded.mods[0]);
+}
+
+std::vector<LoadError> ValidateEntity(const std::string& entity_json) {
+    TempModsRoot root;
+    WriteMod(root, "test_mod", kManifest);
+    WriteFile(root.root / "test_mod/entities/e.json", entity_json);
+    return ValidateModFrom(root);
+}
+
+std::vector<LoadError> ValidatePresentation(
+    const std::string& presentation_json) {
+    TempModsRoot root;
+    WriteMod(root, "test_mod", kManifest);
+    WriteFile(root.root / "test_mod/presentations/p.json", presentation_json);
+    return ValidateModFrom(root);
 }
 
 }  // namespace
@@ -193,6 +232,177 @@ TEST_CASE("entities_presentations: missing target or modifiers is rejected") {
     CHECK_FALSE(result.ok());
     CHECK(HasCheck(result.errors, "presentation.modifiers"));
     CHECK(result.mods.empty());
+}
+
+// --- semantic validation: entities -----------------------------------
+
+TEST_CASE("entities_presentations: rejects two components of one family") {
+    auto errors = ValidateEntity(R"({
+      "id": "dice",
+      "components": {
+        "movement.arc": { "from": "a", "to": "b" },
+        "movement.linear": { "from": "a", "to": "b" }
+      }
+    })");
+    CHECK(HasCheck(errors, "entity.component.family"));
+}
+
+TEST_CASE("entities_presentations: allows distinct component families") {
+    auto errors = ValidateEntity(R"({
+      "id": "dice",
+      "components": {
+        "visual.emoji": { "glyph": "🎲" },
+        "movement.arc": { "from": "a", "to": "b" },
+        "motion.spin": { "axis": "y", "turns": 3, "hz": 1.0 }
+      }
+    })");
+    CHECK_FALSE(HasCheck(errors, "entity.component.family"));
+}
+
+TEST_CASE("entities_presentations: unknown component name is an error") {
+    auto errors = ValidateEntity(R"({
+      "id": "dice",
+      "components": { "visual.bogus": {} }
+    })");
+    CHECK(HasCheck(errors, "entity.component.unknown"));
+}
+
+TEST_CASE("entities_presentations: empty components object is an error") {
+    auto errors = ValidateEntity(R"({ "id": "dice", "components": {} })");
+    CHECK(HasCheck(errors, "entity.components.empty"));
+}
+
+// --- semantic validation: presentations ------------------------------------
+
+TEST_CASE("entities_presentations: unknown modifier kind is an error") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.bogus" } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.kind.unknown"));
+}
+
+TEST_CASE("entities_presentations: a stray mode field is rejected") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override", "mode": "override" } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.mode.forbidden"));
+}
+
+TEST_CASE("entities_presentations: malformed target grammar is an error") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "bogus",
+      "modifiers": [ { "kind": "face.override" } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.target"));
+}
+
+TEST_CASE("entities_presentations: empty modifiers array is an error") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand", "modifiers": []
+    })");
+    CHECK(HasCheck(errors, "presentation.modifiers.empty"));
+}
+
+TEST_CASE("entities_presentations: unknown trigger source is an error") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override" } ],
+      "triggers": [ { "on": "bogus_event" } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.trigger.source"));
+}
+
+TEST_CASE("entities_presentations: unknown trigger where field is an error") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override" } ],
+      "triggers": [ { "on": "card_played", "where": { "nope": 1 } } ]
+    })");
+    CHECK(HasCheck(errors, "presentation.trigger.where"));
+}
+
+TEST_CASE("entities_presentations: known event source and payload pass") {
+    auto errors = ValidatePresentation(R"({
+      "id": "p", "target": "hand",
+      "modifiers": [ { "kind": "face.override" } ],
+      "triggers": [ { "on": "card_played", "where": { "player": "x" } } ]
+    })");
+    CHECK_FALSE(HasCheck(errors, "presentation.trigger.source"));
+    CHECK_FALSE(HasCheck(errors, "presentation.trigger.where"));
+}
+
+// --- semantic validation: outcome resolver -----------------------------
+
+TEST_CASE("entities_presentations: requires a resolver for every table key") {
+    TempModsRoot root;
+    WriteMod(root, "test_mod", kManifest);
+    WriteFile(root.root / "test_mod/tables/loot.json", R"({
+      "id": "loot", "entries": [ { "key": "six", "weight": 1, "value": 6 } ]
+    })");
+    WriteFile(root.root / "test_mod/entities/dice.json", R"({
+      "id": "dice",
+      "components": { "outcome.resolver": { "test_mod:other": {} } }
+    })");
+
+    auto errors = ValidateModFrom(root);
+    CHECK(HasCheck(errors, "outcome.resolver.missing"));
+}
+
+TEST_CASE("entities_presentations: exact key and star catch-all pass") {
+    {
+        TempModsRoot root;
+        WriteMod(root, "test_mod", kManifest);
+        WriteFile(root.root / "test_mod/tables/loot.json", R"({
+          "id": "loot", "entries": [ { "key": "six", "weight": 1, "value": 6 } ]
+        })");
+        WriteFile(root.root / "test_mod/entities/dice.json", R"({
+          "id": "dice",
+          "components": { "outcome.resolver": { "test_mod:six": {} } }
+        })");
+        auto errors = ValidateModFrom(root);
+        CHECK_FALSE(HasCheck(errors, "outcome.resolver.missing"));
+    }
+    {
+        TempModsRoot root;
+        WriteMod(root, "test_mod", kManifest);
+        WriteFile(root.root / "test_mod/tables/loot.json", R"({
+          "id": "loot", "entries": [ { "key": "six", "weight": 1, "value": 6 } ]
+        })");
+        WriteFile(root.root / "test_mod/entities/dice.json", R"({
+          "id": "dice",
+          "components": { "outcome.resolver": { "*": {} } }
+        })");
+        auto errors = ValidateModFrom(root);
+        CHECK_FALSE(HasCheck(errors, "outcome.resolver.missing"));
+    }
+}
+
+// --- semantic validation: asset dependencies -------------------------------
+
+TEST_CASE("entities_presentations: an unresolved sound clip is an error") {
+    auto errors = ValidateEntity(R"({
+      "id": "dice",
+      "components": { "audio.sound": { "clip": "nope" } }
+    })");
+    CHECK(HasCheck(errors, "asset.dep.missing"));
+}
+
+TEST_CASE("entities_presentations: a declared sound clip resolves") {
+    TempModsRoot root;
+    WriteMod(root, "test_mod", kManifest);
+    WriteFile(root.root / "test_mod/assets/sfx/index.json", R"({
+      "id": "sfx", "license": "CC0-1.0", "author": "t",
+      "slots": { "sound": [ { "tier": "low", "value": "roll" } ] }
+    })");
+    WriteFile(root.root / "test_mod/entities/dice.json", R"({
+      "id": "dice",
+      "components": { "audio.sound": { "clip": "roll" } }
+    })");
+
+    auto errors = ValidateModFrom(root);
+    CHECK_FALSE(HasCheck(errors, "asset.dep.missing"));
 }
 
 // --- entry-set shape -------------------------------------------------------
