@@ -175,10 +175,6 @@ export class CardRegistry {
 
 	activeFlights = $state<FlightHandle[]>([]);
 
-	/** Ops a watchdog has disabled for this session: an op whose
-	 *  step blew the per-step timeout is not retried until reload. */
-	readonly sessionDisabledOps = new Set<string>();
-
 	/** Test/observability hook: called with the 0-based index of each beat
 	 *  within its enqueue() batch as it completes (naturally or via skip). */
 	onBeatComplete: ((index: number) => void) | null = null;
@@ -640,9 +636,15 @@ export class CardRegistry {
 	/** Arms the per-beat watchdog. A `setTimeout` runs
 	 *  independently of GSAP's ticker, so it fires even when the composite
 	 *  timeline is frozen by `timeScale(0)`/NaN — the documented permanent
-	 *  wedge. On fire every step is skipped and the offending op is
-	 *  session-disabled, which advances the queue instead of hanging forever. */
-	#armWatchdog(beatIndex: number, beat: AnimationBeat): void {
+	 *  wedge. On fire every step is skipped, which advances the queue instead of
+	 *  hanging forever.
+	 *
+	 *  Deliberately does NOT session-disable an op: a composite beat commonly
+	 *  mixes a healthy op with a custom one, and a single timeout cannot tell
+	 *  which is at fault — disabling every op in the beat would silently kill
+	 *  card flights for the rest of the session. Warning + skip is the safe
+	 *  response. */
+	#armWatchdog(beatIndex: number): void {
 		this.#clearWatchdog();
 		const timeoutMs = storeFxBudget.stepTimeoutMs;
 		this.#watchdogTimer = setTimeout(() => {
@@ -650,7 +652,6 @@ export class CardRegistry {
 			console.warn(
 				`CardRegistry: beat ${beatIndex} exceeded the ${timeoutMs}ms watchdog — forcing it to completion.`
 			);
-			for (const step of beat) this.sessionDisabledOps.add(step.op);
 			this.skipCurrent();
 		}, timeoutMs);
 	}
@@ -712,11 +713,6 @@ export class CardRegistry {
 					console.warn(
 						`CardRegistry: unknown op "${step.op}" for target "${step.target}" — skipping.`
 					);
-					continue;
-				}
-				if (this.sessionDisabledOps.has(step.op)) {
-					// Watchdog-disabled this session: a step whose op
-					// already blew the per-step timeout is not retried.
 					continue;
 				}
 				try {
@@ -836,7 +832,7 @@ export class CardRegistry {
 				// an empty composite timeline would otherwise never fire onComplete.
 				finishBeat();
 			} else {
-				this.#armWatchdog(beatIndex, beat);
+				this.#armWatchdog(beatIndex);
 			}
 		} catch (err) {
 			this.#clearWatchdog();

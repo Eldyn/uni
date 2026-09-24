@@ -70,7 +70,6 @@ describe("CardRegistry watchdog", () => {
 		expect(completed).toEqual([0, 1]);
 
 		expect(skip).toHaveBeenCalledTimes(1);
-		expect(queue.sessionDisabledOps.has("stuck")).toBe(true);
 		expect(warn).toHaveBeenCalledWith(expect.stringContaining("watchdog"));
 	});
 
@@ -103,22 +102,35 @@ describe("CardRegistry watchdog", () => {
 		}
 	});
 
-	it("session-disables an op once its watchdog has fired", async () => {
+	it("does not session-disable a healthy op sharing a beat with a non-settling op", async () => {
 		const queue = createCardRegistry();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
-		const render = vi.fn(() => ({ skip() {}, blocking: stuckTimeline(), persistent: false }));
-		queue.register("stuck", render);
+		// A healthy, short blocking op: on its own it would complete normally.
+		const healthy = vi.fn(() => gsap.timeline().to({}, { duration: 0.25 }));
+		queue.register("healthy", healthy);
+		queue.register("stuck", () => ({ skip() {}, blocking: stuckTimeline(), persistent: false }));
 
-		const first = queue.enqueue([[{ op: "stuck", target: "A" }]], resolverFor({}));
+		// The composite beat's duration is dominated by the non-settling op, so
+		// the whole beat times out — but only `stuck` is at fault.
+		const done = queue.enqueue(
+			[
+				[
+					{ op: "healthy", target: "card-1" },
+					{ op: "stuck", target: "card-2" }
+				]
+			],
+			resolverFor({})
+		);
 		await vi.advanceTimersByTimeAsync(storeFxBudget.stepTimeoutMs);
-		await expect(first).resolves.toBeUndefined();
-		expect(render).toHaveBeenCalledTimes(1);
-		expect(queue.sessionDisabledOps.has("stuck")).toBe(true);
+		await expect(done).resolves.toBeUndefined();
+		expect(healthy).toHaveBeenCalledTimes(1);
 
-		// A later batch must not run the watchdog-disabled op again.
-		const second = queue.enqueue([[{ op: "stuck", target: "B" }]], resolverFor({}));
-		await expect(second).resolves.toBeUndefined();
-		expect(render).toHaveBeenCalledTimes(1);
+		// The healthy op must still render in a later batch: the watchdog must
+		// not have disabled it for the session.
+		const later = queue.enqueue([[{ op: "healthy", target: "card-3" }]], resolverFor({}));
+		await vi.advanceTimersByTimeAsync(storeFxBudget.stepTimeoutMs);
+		await expect(later).resolves.toBeUndefined();
+		expect(healthy).toHaveBeenCalledTimes(2);
 	});
 });
 
