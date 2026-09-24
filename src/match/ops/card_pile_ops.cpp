@@ -536,18 +536,20 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
         }
 
         int64_t drawn = 0;
+        json drawn_cards = json::array();
         for (int64_t i = 0; i < target_n; ++i) {
-            if (!DrawOneCard(store, target, source_kind, filter, ctx, events)
-                     .has_value()) {
-                break;
-            }
+            const std::optional<ecs::Entity> card =
+                DrawOneCard(store, target, source_kind, filter, ctx, events);
+            if (!card.has_value()) break;
             ++drawn;
+            drawn_cards.push_back(EntityJson(*card));
         }
 
         events.push_back(MakeEvent(
             "cards_drawn",
             json{{"player", EntityJson(target)}, {"count", drawn},
-                 {"source", std::string(PileToken(source_kind))}}));
+                 {"source", std::string(PileToken(source_kind))},
+                 {"cards", std::move(drawn_cards)}}));
         total_drawn += drawn;
     }
 
@@ -591,18 +593,21 @@ OpResult OpDrawUntilPlayable(ecs::EntityStore& store, const OpArgs& args,
         if (!store.IsAlive(target) || !store.Has<ecs::Hand>(target)) continue;
 
         int64_t drawn = 0;
+        json drawn_cards = json::array();
         for (std::size_t i = 0; i < bound; ++i) {
             const std::optional<ecs::Entity> card =
                 DrawOneCard(store, target, source_kind, nullptr, ctx, events);
             if (!card.has_value()) break;
             ++drawn;
+            drawn_cards.push_back(EntityJson(*card));
             if (DrawnCardPlayable(store, *card, ctx)) break;
         }
 
         events.push_back(MakeEvent(
             "cards_drawn",
             json{{"player", EntityJson(target)}, {"count", drawn},
-                 {"source", std::string(PileToken(source_kind))}}));
+                 {"source", std::string(PileToken(source_kind))},
+                 {"cards", std::move(drawn_cards)}}));
         total_drawn += drawn;
     }
 

@@ -365,7 +365,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     Emit("cards_drawn", json{{"player", username},
                              {"count", 1},
-                             {"source", "draw_pile"}});
+                             {"source", "draw_pile"},
+                             {"cards", json::array({EntityJson(*card)})}});
 
     // INFO: An `after:draw` graph may request a forced play of the
     //       drawn card (legacy force_play); route it through the normal play

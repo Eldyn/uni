@@ -196,6 +196,10 @@ TEST_CASE("card_pile_ops: draw_cards moves n and fires per-card hooks") {
     CHECK(result.events[0]["type"] == "cards_drawn");
     CHECK(result.events[0]["payload"]["count"] == 2);
     CHECK(result.events[0]["payload"]["source"] == "draw");
+    // INFO: owner-only identities the view layer normalizes to CompactCardV2
+    //       bits; the client draw animation aborts without them.
+    REQUIRE(result.events[0]["payload"]["cards"].is_array());
+    CHECK(result.events[0]["payload"]["cards"].size() == 2);
 }
 
 TEST_CASE("card_pile_ops: draw_cards bounds n=0 and n over 1000") {
@@ -871,6 +875,8 @@ TEST_CASE("card_pile_ops: draw_until_playable stops at the first playable") {
     CHECK(result.events[0]["type"] == "cards_drawn");
     CHECK(result.events[0]["payload"]["count"] == 2);
     CHECK(result.events[0]["payload"]["source"] == "draw");
+    REQUIRE(result.events[0]["payload"]["cards"].is_array());
+    CHECK(result.events[0]["payload"]["cards"].size() == 2);
 }
 
 TEST_CASE("card_pile_ops: draw_until_playable exhausts a dry pile") {
