@@ -42,13 +42,3 @@ frontend/public/assets/audio/**/*.flac
 frontend/public/assets/audio/**/*.aiff
 
 .worktrees/
-
-# local tooling — never tracked
-.claude/
-.opencode/
-.tokensave/
-.playwright-mcp/
-.superpowers/
-.cursor/
-.aider*
-email-out/
