@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://playuni.app/contract/schemas/mod.schema.json",
   "title": "Mod manifest (mod.json)",
-  "description": "One mod folder's manifest. The folder name is a suggested id, the manifest id is authoritative. Metadata only; content lives in entry-set directories (cards/, rules/, mutations/, decks/, assets/) auto-detected by the loader.",
+  "description": "One mod folder's manifest. The folder name is a suggested id, the manifest id is authoritative. Metadata only; content lives in entry-set directories (cards/, rules/, statuses/, mutations/, decks/, assets/, tables/, entities/, presentations/) auto-detected by the loader.",
   "type": "object",
   "required": ["id", "name", "version", "api"],
   "additionalProperties": true,

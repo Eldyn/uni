@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/entities.schema.json",
+  "title": "Entity definition (entities/<id>.json)",
+  "description": "One namespaced entity type. Entities are declared as content: the server ingests and validates them fail-closed, and a mod never runs code. `components` maps a namespaced component name to its params; at most one component per exclusive family is allowed per entity (semantic check `entity.component.family`), and an unknown component name is an error (`entity.component.unknown`).",
+  "type": "object",
+  "required": ["id", "components"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$",
+      "description": "Local entity id; full id is namespace:id."
+    },
+    "components": {
+      "type": "object",
+      "description": "Namespaced component names to params. Unknown names are rejected semantically; at most one component per exclusive family.",
+      "properties": {
+        "visual.model": { "$ref": "#/$defs/visual.model" },
+        "visual.shader": { "$ref": "#/$defs/visual.shader" },
+        "visual.sprite": { "$ref": "#/$defs/visual.sprite" },
+        "visual.emoji": { "$ref": "#/$defs/visual.emoji" },
+        "movement.arc": { "$ref": "#/$defs/movement.arc" },
+        "movement.linear": { "$ref": "#/$defs/movement.linear" },
+        "movement.ballistic": { "$ref": "#/$defs/movement.ballistic" },
+        "movement.static": { "$ref": "#/$defs/movement.static" },
+        "motion.oscillate": { "$ref": "#/$defs/motion.oscillate" },
+        "motion.jitter": { "$ref": "#/$defs/motion.jitter" },
+        "motion.spin": { "$ref": "#/$defs/motion.spin" },
+        "motion.spring": { "$ref": "#/$defs/motion.spring" },
+        "motion.follow": { "$ref": "#/$defs/motion.follow" },
+        "emitter.particles": { "$ref": "#/$defs/emitter.particles" },
+        "audio.sound": { "$ref": "#/$defs/audio.sound" },
+        "outcome.resolver": { "$ref": "#/$defs/outcome.resolver" },
+        "camera.shake": { "$ref": "#/$defs/camera.shake" },
+        "camera.zoom": { "$ref": "#/$defs/camera.zoom" },
+        "camera.punch": { "$ref": "#/$defs/camera.punch" },
+        "screen.effect": { "$ref": "#/$defs/screen.effect" },
+        "lifetime.ttl": { "$ref": "#/$defs/lifetime.ttl" },
+        "lifetime.untilDespawn": { "$ref": "#/$defs/lifetime.untilDespawn" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "visual.model": {
+      "type": "object",
+      "required": ["model"],
+      "additionalProperties": true,
+      "properties": {
+        "model": { "type": "string" },
+        "animation": { "type": "string" }
+      }
+    },
+    "visual.shader": {
+      "type": "object",
+      "required": ["shader"],
+      "additionalProperties": true,
+      "properties": {
+        "shader": { "type": "string" }
+      }
+    },
+    "visual.sprite": {
+      "type": "object",
+      "required": ["sprite"],
+      "additionalProperties": true,
+      "properties": {
+        "sprite": { "type": "string" }
+      }
+    },
+    "visual.emoji": {
+      "type": "object",
+      "required": ["glyph"],
+      "additionalProperties": true,
+      "properties": {
+        "glyph": { "type": "string" },
+        "size": { "type": "number", "minimum": 0 }
+      }
+    },
+    "movement.arc": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": true,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "movement.linear": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": true,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" }
+      }
+    },
+    "movement.ballistic": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": true,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "speed": { "type": "number" },
+        "gravity": { "type": "number" }
+      }
+    },
+    "movement.static": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "motion.oscillate": {
+      "type": "object",
+      "required": ["axis", "amplitude", "hz"],
+      "additionalProperties": true,
+      "properties": {
+        "axis": { "type": "string" },
+        "amplitude": { "type": "number" },
+        "hz": { "type": "number", "minimum": 0 }
+      }
+    },
+    "motion.jitter": {
+      "type": "object",
+      "required": ["amplitude", "hz"],
+      "additionalProperties": true,
+      "properties": {
+        "amplitude": { "type": "number" },
+        "hz": { "type": "number", "minimum": 0 }
+      }
+    },
+    "motion.spin": {
+      "type": "object",
+      "required": ["axis", "turns", "hz"],
+      "additionalProperties": true,
+      "properties": {
+        "axis": { "type": "string" },
+        "turns": { "type": "number" },
+        "hz": { "type": "number", "minimum": 0 }
+      }
+    },
+    "motion.spring": {
+      "type": "object",
+      "required": ["target", "stiffness", "damping"],
+      "additionalProperties": true,
+      "properties": {
+        "target": { "type": "string" },
+        "stiffness": { "type": "number", "minimum": 0 },
+        "damping": { "type": "number", "minimum": 0 }
+      }
+    },
+    "motion.follow": {
+      "type": "object",
+      "required": ["target", "strength"],
+      "additionalProperties": true,
+      "properties": {
+        "target": { "type": "string" },
+        "strength": { "type": "number", "minimum": 0 }
+      }
+    },
+    "emitter.particles": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "audio.sound": {
+      "type": "object",
+      "required": ["clip"],
+      "additionalProperties": true,
+      "properties": {
+        "clip": { "type": "string" },
+        "spatial": { "type": "boolean" }
+      }
+    },
+    "resolverDescriptor": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "animation": { "type": "string" },
+        "sound": { "type": "string" },
+        "motion": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
+    "outcome.resolver": {
+      "type": "object",
+      "description": "Maps a namespaced outcome key (or `*` catch-all) to a descriptor; every emittable table key must resolve (semantic check `outcome.resolver.missing`).",
+      "additionalProperties": { "$ref": "#/$defs/resolverDescriptor" }
+    },
+    "camera.shake": {
+      "type": "object",
+      "required": ["intensity"],
+      "additionalProperties": true,
+      "properties": {
+        "intensity": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "minimum": 0 }
+      }
+    },
+    "camera.zoom": {
+      "type": "object",
+      "required": ["factor"],
+      "additionalProperties": true,
+      "properties": {
+        "factor": { "type": "number" },
+        "duration": { "type": "number", "minimum": 0 }
+      }
+    },
+    "camera.punch": {
+      "type": "object",
+      "required": ["axis"],
+      "additionalProperties": true,
+      "properties": {
+        "axis": { "type": "string" },
+        "strength": { "type": "number" }
+      }
+    },
+    "screen.effect": {
+      "type": "object",
+      "required": ["shader"],
+      "additionalProperties": true,
+      "properties": {
+        "shader": { "type": "string" },
+        "intensity": { "type": "number" }
+      }
+    },
+    "lifetime.ttl": {
+      "type": "object",
+      "required": ["seconds"],
+      "additionalProperties": true,
+      "properties": {
+        "seconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "lifetime.untilDespawn": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

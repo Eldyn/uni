@@ -284,6 +284,65 @@ struct TableDef {
 };
 
 /**
+ * @struct ComponentDef
+ * @brief One component of an entity definition.
+ *
+ * `name` is a namespaced component name; `params` is the component's raw
+ * parameter object kept verbatim (the component vocabulary and its families are
+ * owned by the validator/engine, not the loader).
+ */
+struct ComponentDef {
+    std::string name;             /**< Namespaced component name. */
+    nlohmann::json params;        /**< Verbatim parameter object. */
+};
+
+/**
+ * @struct EntityDef
+ * @brief One `entities/<id>.json` entity type.
+ */
+struct EntityDef {
+    std::string id;                       /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;             /**< Owning mod id. */
+    std::string entity_id;                /**< Full `namespace:id`. */
+    std::vector<ComponentDef> components; /**< Components, name-sorted. */
+    nlohmann::json raw;                   /**< Verbatim file object. */
+};
+
+/**
+ * @struct ModifierDef
+ * @brief One modifier of a presentation.
+ */
+struct ModifierDef {
+    std::string kind;             /**< Modifier kind (engine-known). */
+    nlohmann::json params;        /**< Verbatim modifier object. */
+};
+
+/**
+ * @struct TriggerDef
+ * @brief One install trigger of a presentation.
+ */
+struct TriggerDef {
+    std::optional<std::string> on;  /**< Source; absent = always-on. */
+    nlohmann::json where;           /**< Flat payload-field condition. */
+    std::optional<double> duration; /**< Seconds; absent = persistent. */
+};
+
+/**
+ * @struct PresentationDef
+ * @brief One `presentations/<id>.json` presentation.
+ */
+struct PresentationDef {
+    std::string id;                       /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;             /**< Owning mod id. */
+    std::string presentation_id;          /**< Full `namespace:id`. */
+    std::string target;                   /**< Target grammar (validated). */
+    int64_t priority = 0;                 /**< Merge priority; higher wins. */
+    std::vector<ModifierDef> modifiers;   /**< Ordered modifier list. */
+    std::vector<TriggerDef> triggers;     /**< Install triggers. */
+    nlohmann::json raw;                   /**< Verbatim file object. */
+};
+
+/**
  * @struct SettingDecl
  * @brief A named setting declared by a mod manifest.
  */
@@ -361,6 +420,8 @@ struct LoadedMod {
     std::vector<DeckDef> decks;
     std::vector<AssetBundleDef> assets;
     std::vector<TableDef> tables;
+    std::vector<EntityDef> entities;
+    std::vector<PresentationDef> presentations;
 };
 
 /**

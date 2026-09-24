@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/presentations.schema.json",
+  "title": "Presentation definition (presentations/<id>.json)",
+  "description": "One targetable presentation / affliction. Presentations are mod content: the server ingests and validates them fail-closed. Per-modifier merge mode is engine-owned per kind, so content carries no `mode` field; a stray `mode` is rejected semantically (`presentation.mode.forbidden`). Unknown modifier kinds are errors (`presentation.kind.unknown`); `target` grammar and trigger sources are validated semantically.",
+  "type": "object",
+  "required": ["id", "target", "modifiers"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$",
+      "description": "Local presentation id; full id is namespace:id."
+    },
+    "target": {
+      "type": "string",
+      "pattern": "^(hand|discard|table|card:.+|seat:.+|entity:.+)$",
+      "description": "Where the presentation applies: a named anchor or a card/seat/entity address."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Merge priority within a kind; higher wins."
+    },
+    "modifiers": {
+      "type": "array",
+      "description": "Ordered modifier list; merge behaviour is engine-owned per kind. Non-empty is enforced semantically.",
+      "items": {
+        "type": "object",
+        "required": ["kind"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "face.override",
+              "material.param",
+              "screen.effect",
+              "particles.emitter",
+              "audio.loop"
+            ]
+          },
+          "duration": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Client-evaluated install conditions; `on` absent means always-on.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "on": { "type": "string" },
+          "where": { "type": "object" },
+          "duration": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

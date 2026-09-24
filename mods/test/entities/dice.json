@@ -1,0 +1,14 @@
+{
+  "id": "dice",
+  "components": {
+    "visual.emoji": { "glyph": "🎲", "size": 0.4 },
+    "movement.arc": { "from": "$origin", "to": "$target", "height": 2.0 },
+    "motion.spin": { "axis": "y", "turns": 3, "hz": 1.0 },
+    "outcome.resolver": {
+      "test:six": { "animation": "land_6", "sound": "clack" },
+      "*": {}
+    },
+    "audio.sound": { "clip": "roll", "spatial": false },
+    "lifetime.ttl": { "seconds": 3.0 }
+  }
+}

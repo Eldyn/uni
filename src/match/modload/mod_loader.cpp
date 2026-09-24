@@ -760,6 +760,193 @@ bool ScanTablesDirectory(const fs::path& dir,
     return ok;
 }
 
+/* INFO: one entity per file. Structural checks only; the
+ *       component vocabulary and exclusive-family checks are the semantic validator's job. */
+bool ParseEntityEntry(const nlohmann::json& entry,
+                      const std::string& ns,
+                      EntityDef& out,
+                      std::vector<LoadError>& errors,
+                      const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "entity.shape", "entities", path,
+                 "entity file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    const auto components = entry.find("components");
+    if (components == entry.end() || !components->is_object()) {
+        AddError(errors, "entity.components", "entities", path,
+                 "entity '" + out.id + "' requires a 'components' object");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.entity_id = ns + ":" + out.id;
+    out.raw = entry;
+    /* INFO: nlohmann objects iterate in key order, so components are sorted by
+     *       name (deterministic) without an explicit sort. */
+    for (auto it = components->begin(); it != components->end(); ++it) {
+        ComponentDef component;
+        component.name = it.key();
+        component.params = it.value();
+        out.components.push_back(std::move(component));
+    }
+    return true;
+}
+
+bool ScanEntitiesDirectory(const fs::path& dir,
+                           const std::string& ns,
+                           std::vector<EntityDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "entities", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "entities")) {
+            ok = false;
+            continue;
+        }
+        EntityDef entity;
+        std::size_t before = errors.size();
+        if (!ParseEntityEntry(entry, ns, entity, errors, file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "entity.id", "entities", file.string(),
+                         "entity entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(entity.id).second) {
+            AddError(errors, "entity.id.duplicate", "entities", file.string(),
+                     "duplicate entity id '" + entity.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(entity));
+    }
+    return ok;
+}
+
+/* INFO: one presentation per file. Structural checks only;
+ *       modifier kinds, merge modes, target grammar and trigger sources are
+ *       the semantic validator's job. */
+bool ParsePresentationEntry(const nlohmann::json& entry,
+                            const std::string& ns,
+                            PresentationDef& out,
+                            std::vector<LoadError>& errors,
+                            const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "presentation.shape", "presentations", path,
+                 "presentation file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    if (!ParseStringField(entry, "target", out.target)) {
+        AddError(errors, "presentation.target", "presentations", path,
+                 "presentation '" + out.id + "' requires a string 'target'");
+        return false;
+    }
+    const auto modifiers = entry.find("modifiers");
+    if (modifiers == entry.end() || !modifiers->is_array()) {
+        AddError(errors, "presentation.modifiers", "presentations", path,
+                 "presentation '" + out.id + "' requires a 'modifiers' array");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.presentation_id = ns + ":" + out.id;
+    out.raw = entry;
+
+    const auto priority = entry.find("priority");
+    if (priority != entry.end() && priority->is_number_integer()) {
+        out.priority = priority->get<int64_t>();
+    }
+
+    bool ok = true;
+    for (const auto& raw_modifier : *modifiers) {
+        ModifierDef modifier;
+        if (!raw_modifier.is_object()
+            || !ParseStringField(raw_modifier, "kind", modifier.kind)) {
+            AddError(errors, "presentation.modifier", "presentations", path,
+                     "presentation '" + out.id
+                         + "' modifiers must be objects with a string 'kind'");
+            ok = false;
+            continue;
+        }
+        modifier.params = raw_modifier;
+        out.modifiers.push_back(std::move(modifier));
+    }
+
+    const auto triggers = entry.find("triggers");
+    if (triggers != entry.end()) {
+        if (!triggers->is_array()) {
+            AddError(errors, "presentation.trigger", "presentations", path,
+                     "presentation '" + out.id + "' triggers must be an array");
+            ok = false;
+        } else {
+            for (const auto& raw_trigger : *triggers) {
+                if (!raw_trigger.is_object()) {
+                    AddError(errors, "presentation.trigger", "presentations",
+                             path,
+                             "presentation '" + out.id
+                                 + "' has a non-object trigger");
+                    ok = false;
+                    continue;
+                }
+                TriggerDef trigger;
+                (void)ParseOptionalStringField(raw_trigger, "on", trigger.on);
+                const auto where = raw_trigger.find("where");
+                if (where != raw_trigger.end()) trigger.where = *where;
+                const auto duration = raw_trigger.find("duration");
+                if (duration != raw_trigger.end() && duration->is_number()) {
+                    trigger.duration = duration->get<double>();
+                }
+                out.triggers.push_back(std::move(trigger));
+            }
+        }
+    }
+    return ok;
+}
+
+bool ScanPresentationsDirectory(const fs::path& dir,
+                                const std::string& ns,
+                                std::vector<PresentationDef>& out,
+                                std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "presentations", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "presentations")) {
+            ok = false;
+            continue;
+        }
+        PresentationDef presentation;
+        std::size_t before = errors.size();
+        if (!ParsePresentationEntry(entry, ns, presentation, errors,
+                                    file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "presentation.id", "presentations",
+                         file.string(),
+                         "presentation entry needs an id matching [a-z0-9_]+ "
+                         "(1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(presentation.id).second) {
+            AddError(errors, "presentation.id.duplicate", "presentations",
+                     file.string(),
+                     "duplicate presentation id '" + presentation.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(presentation));
+    }
+    return ok;
+}
+
 bool ParseDeckFile(const fs::path& path,
                    const std::string& ns,
                    DeckDef& out,
@@ -1205,7 +1392,7 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets", "tables"};
+        "assets", "tables", "entities", "presentations"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -1359,6 +1546,14 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanTablesDirectory(root / "tables", loaded.manifest.id, loaded.tables,
                              errors)) {
+        ok = false;
+    }
+    if (!ScanEntitiesDirectory(root / "entities", loaded.manifest.id,
+                               loaded.entities, errors)) {
+        ok = false;
+    }
+    if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,
+                                    loaded.presentations, errors)) {
         ok = false;
     }
 
