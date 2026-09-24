@@ -8,6 +8,7 @@
 import { storeAnalytics } from "./analytics.svelte";
 import { storeAuth } from "./auth.svelte";
 import { storeGame } from "./game.svelte";
+import { storeI18n } from "./i18n.svelte";
 import { storeLobby } from "./lobby.svelte";
 import { ws } from "./ws.svelte";
 
@@ -317,7 +318,11 @@ export class StoreNavigation {
 		if (PERSISTED_SCREENS.has(screen)) {
 			localStorage.setItem("currentScreen", screen);
 		}
-		storeAnalytics.track("screen_view", { screen, account_type: this.#accountType });
+		storeAnalytics.track("screen_view", {
+			screen,
+			account_type: this.#accountType,
+			locale: storeI18n.locale
+		});
 		window.history.pushState(this.#historyState, "", pathForScreen(this.current));
 		return true;
 	}

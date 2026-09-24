@@ -246,6 +246,27 @@ class StoreGame implements SessionStore {
 	/** Duration (ms) of every completed human turn this match, for time_to_play_avg. */
 	#humanTurnDurations: number[] = [];
 
+	/** Completed turns observed this match, from snapshot turn transitions. */
+	#turnCount = 0;
+
+	/** Of `#turnCount`, turns taken by a human seat. */
+	#humanTurnCount = 0;
+
+	/** Longest completed human turn this match (ms). */
+	#longestTurnMs = 0;
+
+	/** Cards played this match by any seat, from card_played/auto_played beats. */
+	#totalPlays = 0;
+
+	/** Of `#totalPlays`, plays the engine forced (auto_played). */
+	#autoPlays = 0;
+
+	/** Cards drawn this match by any seat, from cards_drawn beats. */
+	#totalDraws = 0;
+
+	/** WebSocket drops the local client saw while this match was live. */
+	#matchDisconnects = 0;
+
 	/** Derived property to instantly identify the local player. */
 	localPlayer = $derived(
 		this.state?.players.find((p) => p.username === storeAuth.username) ?? null
@@ -316,6 +337,12 @@ class StoreGame implements SessionStore {
 		// FIXED: Register handlers exactly once at store initialization.
 		// They will safely survive any underlying WebSocket re-connections.
 		this.#registerListeners();
+		// Count connectivity drops while a match is live, so match_abandoned can
+		// separate a flaky-network abort from a deliberate one. Optional call:
+		// partial test doubles of the ws store may not implement onClose.
+		ws.onClose?.(() => {
+			if (this.state !== null) this.#matchDisconnects += 1;
+		});
 	}
 
 	/**
@@ -350,6 +377,7 @@ class StoreGame implements SessionStore {
 		this.#matchStartedAt = null;
 		this.#turnStartedAt = null;
 		this.#humanTurnDurations = [];
+		this.#resetMatchCounters();
 		this.state = null;
 		this.turnTimeRemaining = 0;
 		this.#clearWindowState();
@@ -361,6 +389,20 @@ class StoreGame implements SessionStore {
 		storeTableSpin.reset();
 		storeCardDefs.reset();
 		storeNavigation.goto("lobby");
+	}
+
+	/**
+	 * @brief Zeroes the per-match analytics counters. Called on match end and
+	 * whenever the match is torn down, so no counter leaks into the next match.
+	 */
+	#resetMatchCounters(): void {
+		this.#turnCount = 0;
+		this.#humanTurnCount = 0;
+		this.#longestTurnMs = 0;
+		this.#totalPlays = 0;
+		this.#autoPlays = 0;
+		this.#totalDraws = 0;
+		this.#matchDisconnects = 0;
 	}
 
 	/**
@@ -399,6 +441,7 @@ class StoreGame implements SessionStore {
 				const s = storeLobby.current?.settings;
 				const active_mods = s?.active_mods ?? [];
 				const settingsParams = {
+					match_key: storeLobby.matchKey ?? undefined,
 					mods: active_mods.join(",") || "none",
 					mod_count: active_mods.length,
 					starting_cards: s?.starting_cards,
@@ -410,24 +453,49 @@ class StoreGame implements SessionStore {
 					quit_deletes_match: s?.quit_deletes_match,
 					is_public: s?.is_public
 				};
+				// Match-depth metrics, observed by this client from snapshot turn
+				// transitions and match_event beats (all seats, bots included).
+				const depthParams = {
+					match_key: storeLobby.matchKey ?? undefined,
+					turn_count: this.#turnCount,
+					human_turn_count: this.#humanTurnCount,
+					cards_played: this.#totalPlays,
+					auto_plays: this.#autoPlays,
+					cards_drawn: this.#totalDraws,
+					longest_turn_ms: this.#longestTurnMs || undefined
+				};
 
 				if (winner) {
 					storeAnalytics.track("match_end", {
 						duration_seconds,
 						time_to_play_avg_ms,
-						winner_is_bot: this.state.players.find((p) => p.username === winner)?.is_bot
+						winner_is_bot: this.state.players.find((p) => p.username === winner)?.is_bot,
+						...depthParams
 					});
 					storeAnalytics.track("match_settings", settingsParams);
 				} else if (reason) {
-					storeAnalytics.track("match_saved", { duration_seconds });
+					storeAnalytics.track("match_saved", { duration_seconds, ...depthParams });
+					storeAnalytics.track("match_settings", settingsParams);
+				} else {
+					// No winner and no save: the match was aborted/deleted. Fired
+					// host-only like the rest, with what the client can observe.
+					// `host_disconnects` separates a flaky-network abort from a
+					// deliberate one; a host who left before receiving this frame
+					// fires nothing (same gap as match_end/match_saved).
+					storeAnalytics.track("match_abandoned", {
+						duration_seconds,
+						player_count: this.state.players.length,
+						human_count: this.state.players.filter((p) => !p.is_bot).length,
+						host_disconnects: this.#matchDisconnects,
+						...depthParams
+					});
 					storeAnalytics.track("match_settings", settingsParams);
 				}
-				// winner empty AND reason empty: true abort/delete, no event —
-				// counted as abandoned only by exclusion (match_start - match_end - match_saved).
 			}
 			this.#matchStartedAt = null;
 			this.#turnStartedAt = null;
 			this.#humanTurnDurations = [];
+			this.#resetMatchCounters();
 		});
 
 		ws.on(ServerAction.MatchStateUpdated, (data: any) => {
@@ -443,9 +511,13 @@ class StoreGame implements SessionStore {
 			const previousTurn = this.state?.current_turn;
 			const previousPlayers = this.state?.players;
 			if (previousTurn && previousTurn !== currentTurn) {
+				this.#turnCount += 1;
 				const previousPlayer = previousPlayers?.find((p) => p.username === previousTurn);
 				if (previousPlayer && !previousPlayer.is_bot && this.#turnStartedAt !== null) {
-					this.#humanTurnDurations.push(Date.now() - this.#turnStartedAt);
+					const turnMs = Date.now() - this.#turnStartedAt;
+					this.#humanTurnCount += 1;
+					this.#humanTurnDurations.push(turnMs);
+					if (turnMs > this.#longestTurnMs) this.#longestTurnMs = turnMs;
 				}
 			}
 			if (previousTurn !== currentTurn) {
@@ -610,7 +682,16 @@ class StoreGame implements SessionStore {
 		}
 
 		const beat = mapMatchEventPacket(data);
-		if (beat) this.#pendingBeats.push(beat);
+		if (beat) {
+			// Tally match depth from the wire (all seats), not just local actions.
+			if (beat.kind === "play") {
+				this.#totalPlays += 1;
+				if (beat.auto) this.#autoPlays += 1;
+			} else if (beat.kind === "draw") {
+				this.#totalDraws += beat.count;
+			}
+			this.#pendingBeats.push(beat);
+		}
 	}
 
 	#clearActionPending() {
@@ -788,6 +869,7 @@ class StoreGame implements SessionStore {
 	reset(): void {
 		this.#clearTimer();
 		this.#clearActionPending();
+		this.#resetMatchCounters();
 		this.state = null;
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;

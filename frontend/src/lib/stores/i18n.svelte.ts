@@ -11,6 +11,7 @@
  */
 
 import { getLocale, setLocale as paraglideSetLocale, locales } from "$lib/paraglide/runtime.js";
+import { storeAnalytics } from "./analytics.svelte";
 
 // Paraglide's generated runtime.js only exposes `Locale` as a JSDoc typedef,
 // not an importable TS type, so it's derived locally from the locales tuple.
@@ -37,9 +38,14 @@ class StoreI18n {
 	}
 
 	setLocale(locale: Locale): void {
+		const previous = this.locale;
 		paraglideSetLocale(locale, { reload: false });
 		this.locale = locale;
 		document.documentElement.lang = locale;
+		// Explicit language choices only (not the auto-resolved initial locale).
+		if (locale !== previous) {
+			storeAnalytics.track("locale_change", { from: previous, to: locale });
+		}
 	}
 }
 

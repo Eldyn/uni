@@ -231,6 +231,15 @@ class StoreLobby implements SessionStore {
 
 	#listenersRegistered = false;
 
+	/** Consecutive matches started in this lobby; 0 before the first. Feeds `rematch`. */
+	#matchesStarted = 0;
+
+	/** Random per-match join key shared by match_start/match_end/match_saved. */
+	#matchKey: string | null = null;
+
+	/** Timestamp (ms) the local player entered this lobby, for dwell analytics. */
+	#enteredLobbyAt: number | null = null;
+
 	// Shared match-redirect guard: LobbyJoined and #tryRejoin both wait for a
 	// MatchStateUpdated frame right after (re)join; only one listener may be
 	// armed at a time so goto("game") fires at most once.
@@ -243,6 +252,16 @@ class StoreLobby implements SessionStore {
 	 */
 	get isInLobby(): boolean {
 		return this.current !== null;
+	}
+
+	/**
+	 * @brief Random per-match analytics join key, or null outside a match.
+	 * Non-identifying and regenerated every match, so match_start/match_end/
+	 * match_saved/match_abandoned can be joined per-match in BigQuery without
+	 * any persistent user identity.
+	 */
+	get matchKey(): string | null {
+		return this.#matchKey;
 	}
 
 	/**
@@ -375,11 +394,24 @@ class StoreLobby implements SessionStore {
 		const s = this.current?.settings;
 		const active_mods = s?.active_mods ?? [];
 		const humanCount = this.current?.members.filter((m) => !m.is_bot).length;
+		this.#matchesStarted += 1;
+		this.#matchKey = makeMatchKey();
 		storeAnalytics.track("match_start", {
+			match_key: this.#matchKey,
 			player_count: humanCount,
 			mod_count: active_mods.length,
 			is_public: s?.is_public
 		});
+		// A second or later start in the same lobby is a "play again" signal.
+		// Host-only, like match_start, since only the host calls startMatch().
+		if (this.#matchesStarted > 1) {
+			storeAnalytics.track("rematch", {
+				match_key: this.#matchKey,
+				match_index: this.#matchesStarted,
+				player_count: humanCount,
+				mod_count: active_mods.length
+			});
+		}
 	}
 
 	/**
@@ -550,6 +582,12 @@ class StoreLobby implements SessionStore {
 	 * @brief Emits a request to leave the current lobby.
 	 */
 	async leave(): Promise<void> {
+		// Capture pre-reset fields for the abandonment signal, then null them.
+		const dwell_ms = this.#enteredLobbyAt !== null ? Date.now() - this.#enteredLobbyAt : undefined;
+		const member_count = this.current?.members.length;
+		const is_host = this.current?.host === storeAuth.username;
+		const had_match = this.#matchesStarted > 0;
+
 		// Optimistic: drop local lobby state and navigate away immediately
 		// rather than waiting for the server's LobbyLeft echo, so the UI
 		// doesn't stall on round-trip latency for an action that's virtually
@@ -558,6 +596,12 @@ class StoreLobby implements SessionStore {
 		storeNavigation.goto("lobbies");
 		storeAudio.playSfx("sfx.lobby.leave");
 		storeAnalytics.track("lobby_leave");
+		// Leaving before the first match abandons the intent to play, distinct
+		// from leaving after a game (a normal end-of-session). Dwell time shows
+		// how long the lobby held them before they gave up.
+		if (!had_match) {
+			storeAnalytics.track("lobby_abandoned", { dwell_ms, member_count, is_host });
+		}
 
 		try {
 			// emit() silently drops frames on a closed socket, reconnect first so
@@ -584,6 +628,7 @@ class StoreLobby implements SessionStore {
 
 			this.current = lobby;
 			localStorage.setItem("lobby_code", lobby.invite_code);
+			if (!alreadyInThisLobby) this.#enteredLobbyAt = Date.now();
 
 			// Deduplicate: OnOpen push + HandleRejoin response both fire this handler.
 			// Only the first arrival does navigation / listener / fetch.
@@ -635,7 +680,20 @@ class StoreLobby implements SessionStore {
 		});
 
 		const handleDisconnection = () => {
+			const dwell_ms =
+				this.#enteredLobbyAt !== null ? Date.now() - this.#enteredLobbyAt : undefined;
+			const member_count = this.current?.members.length;
+			const is_host = this.current?.host === storeAuth.username;
+			const had_match = this.#matchesStarted > 0;
 			this.#reset();
+			if (!had_match) {
+				storeAnalytics.track("lobby_abandoned", {
+					dwell_ms,
+					member_count,
+					is_host,
+					reason: "disconnected"
+				});
+			}
 			storeNavigation.goto("lobbies");
 		};
 
@@ -698,6 +756,7 @@ class StoreLobby implements SessionStore {
 			if (this.current?.invite_code === lobby.invite_code) return;
 
 			this.current = lobby;
+			this.#enteredLobbyAt = Date.now();
 			storeNavigation.goto("lobby");
 		} catch {
 			this.#disarmMatchRedirect();
@@ -710,6 +769,9 @@ class StoreLobby implements SessionStore {
 	 */
 	#reset(): void {
 		this.current = null;
+		this.#matchesStarted = 0;
+		this.#matchKey = null;
+		this.#enteredLobbyAt = null;
 		localStorage.removeItem("lobby_code");
 	}
 
@@ -734,3 +796,17 @@ class StoreLobby implements SessionStore {
 }
 
 export const storeLobby = new StoreLobby();
+
+/**
+ * @brief Mints a random, non-identifying key for one match.
+ *
+ * Used only to join the host's match_start/match_end/match_saved/
+ * match_abandoned analytics events per-match; it is scoped to a single match
+ * and regenerated every time, so it carries no cross-session identity.
+ */
+function makeMatchKey(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
