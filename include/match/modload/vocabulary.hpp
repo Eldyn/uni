@@ -75,6 +75,8 @@ enum class ArgType {
     kPileRef,           /**< draw | discard | @draw_pile | @discard_pile. */
     kComparison,        /**< comparison token (lt/lte/eq/ne/gt/gte). */
     kStackPolicy,       /**< replace|accumulate|independent|cap:N. */
+    kTableRef,          /**< outcome table ref: local id or `namespace:id`. */
+    kBindingName,       /**< frame binding key, e.g. "$last_outcome". */
     kObject,            /**< JSON object. */
     kArray,             /**< JSON array. */
     kAny,               /**< any JSON value. */
@@ -362,6 +364,16 @@ inline const std::vector<OpSignature>& OpCatalog() {
             s.args = {Arg("spec", ArgType::kRollSpec)};
             add(std::move(s));
         }
+        {
+            // INFO: outcome tables. Weighted
+            //       pick on the shared splitmix64 stream; `into` overrides the
+            //       `$last_outcome` frame key the outcome binds under.
+            OpSignature s;
+            s.name = "roll_table";
+            s.args = {Arg("table", ArgType::kTableRef),
+                      Arg("into", ArgType::kBindingName, false)};
+            add(std::move(s));
+        }
 
         // Visibility ops.
         {
@@ -549,6 +561,22 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
             ConditionSignature c;
             c.keyword = "rolled";
             c.args = {Arg("cmp", ArgType::kComparison), IntArg("n", 0, 1000)};
+            add(std::move(c));
+        }
+        {
+            // INFO: outcome accessors. `outcome_is`
+            //       branches on the last `roll_table` key; `outcome_value` on
+            //       its value. Both read `$last_outcome`; absent = false.
+            ConditionSignature c;
+            c.keyword = "outcome_is";
+            c.args = {Arg("key", ArgType::kString)};
+            add(std::move(c));
+        }
+        {
+            ConditionSignature c;
+            c.keyword = "outcome_value";
+            c.args = {Arg("cmp", ArgType::kComparison),
+                      IntArg("n", -1000000, 1000000)};
             add(std::move(c));
         }
         {

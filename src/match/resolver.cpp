@@ -554,6 +554,7 @@ Resolver::WalkCode Resolver::StepOp(WalkState& state,
 
     ops::OpContext ctx(event_bus_, budgets_, *state.frame);
     ctx.registries = registries_;
+    ctx.mod_id = &state.mod_id;
     ops::OpResult result = runtime_.Invoke(op_name, store_, args, ctx);
 
     for (const nlohmann::json& event : result.events) {
@@ -613,6 +614,7 @@ Resolver::WalkCode Resolver::StepBranch(WalkState& state,
                                             : nlohmann::json();
             ops::OpContext ctx(event_bus_, budgets_, *state.frame);
             ctx.registries = registries_;
+            ctx.mod_id = &state.mod_id;
             if (conditions_.Evaluate(store_, when, ctx)) {
                 chosen = branch.value("next", std::string());
                 matched = true;

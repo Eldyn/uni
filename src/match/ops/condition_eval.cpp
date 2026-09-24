@@ -313,6 +313,32 @@ bool EvalRolled(ecs::EntityStore&, const json& args, OpContext& ctx) {
     return CompareArg(args, *total);
 }
 
+/**
+ * @brief The last `roll_table` outcome key equals `key`.
+ *
+ * `key` may be the full `namespace:key` (exact) or a bare local key, which
+ * tail-matches the bound key's `namespace:key` tail — the same resolution rule
+ * kind refs use in card contexts.
+ */
+bool EvalOutcomeIs(ecs::EntityStore&, const json& args, OpContext& ctx) {
+    const std::optional<std::string> key = ArgString(args, "key");
+    const std::optional<std::string> bound = LastOutcomeKey(ctx.frame);
+    if (!key.has_value() || !bound.has_value()) return false;
+    if (*key == *bound) return true;
+    if (key->find(':') != std::string::npos) return false;
+    if (bound->size() <= key->size()) return false;
+    const std::size_t offset = bound->size() - key->size();
+    return (*bound)[offset - 1] == ':'
+        && bound->compare(offset, key->size(), *key) == 0;
+}
+
+/** @brief The last `roll_table` outcome value compared with `cmp`/`n`. */
+bool EvalOutcomeValue(ecs::EntityStore&, const json& args, OpContext& ctx) {
+    const std::optional<int64_t> value = LastOutcomeValue(ctx.frame);
+    if (!value.has_value()) return false;
+    return CompareArg(args, *value);
+}
+
 /** @brief The match direction equals `fwd` / `rev`. */
 bool EvalIsDirection(ecs::EntityStore& store, const json& args, OpContext&) {
     const std::optional<std::string> direction = ArgString(args, "direction");
@@ -378,6 +404,8 @@ void RegisterDefaultConditions(resolver::ConditionRegistry& registry) {
     registry.Register("status_active", &EvalStatusActive);
     registry.Register("draw_debt", &EvalDrawDebt);
     registry.Register("rolled", &EvalRolled);
+    registry.Register("outcome_is", &EvalOutcomeIs);
+    registry.Register("outcome_value", &EvalOutcomeValue);
     registry.Register("is_direction", &EvalIsDirection);
     registry.Register("round", &EvalRound);
     registry.Register("turns_elapsed", &EvalTurnsElapsed);

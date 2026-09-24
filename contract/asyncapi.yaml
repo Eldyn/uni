@@ -109,6 +109,7 @@ components:
     turn_advance: TurnAdvancePayload
     round_advance: RoundAdvancePayload
     roll_result: RollResultPayload
+    outcome_result: OutcomeResultPayload
     signal: SignalPayload
     chain_aborted: ChainAbortedPayload
     mod_disarmed: ModDisarmedPayload
@@ -1561,6 +1562,25 @@ components:
         roll_counter:
           type: integer
           minimum: 0
+
+    OutcomeResultPayload:
+      type: object
+      x-packet-version: "1"
+      required: [table, key, value, counter]
+      properties:
+        table:
+          type: string
+          description: Full outcome table id, already namespaced namespace:id.
+        key:
+          type: string
+          description: Full outcome key, already namespaced namespace:key.
+        value:
+          type: integer
+          description: The picked outcome's value (nested roll total when rolled).
+        counter:
+          type: integer
+          minimum: 0
+          description: The op counter consumed by the table pick.
 
     SignalPayload:
       type: object

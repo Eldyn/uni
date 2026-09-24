@@ -1,0 +1,11 @@
+{
+  "id": "loot",
+  "title": "Test Loot",
+  "description": "Sample outcome table proving ingest, validation and roll_table wiring.",
+  "entries": [
+    { "key": "nothing", "weight": 3, "value": 0 },
+    { "key": "small", "weight": 2, "value": 1 },
+    { "key": "six", "weight": 1, "value": 6 },
+    { "key": "rare", "weight": 1, "roll": { "sides": 20, "count": 1 } }
+  ]
+}

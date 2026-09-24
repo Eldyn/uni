@@ -51,6 +51,16 @@ void LoadCardTags(const std::vector<modload::CardDef>& cards,
                   ops::CardTagTable& out);
 
 /**
+ * @brief Build full-`namespace:id` -> table into `out`.
+ *
+ * Replaces `out` with an entry for every table declared across the loaded
+ * mods, so `roll_table` resolves at runtime. Like `LoadCardTags`, written to
+ * the caller-owned per-match `MatchRegistries::tables`, never a process global.
+ */
+void LoadTables(const std::vector<modload::TableDef>& tables,
+                ops::TableRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

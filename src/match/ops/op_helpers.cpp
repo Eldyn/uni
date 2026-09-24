@@ -1,6 +1,7 @@
 #include <match/ops/op_helpers.hpp>
 
 #include <match/engine/match_assembler.hpp>
+#include <match/resolver.hpp>
 #include <match/rng.hpp>
 
 #include <algorithm>
@@ -330,6 +331,49 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame) {
     return value->get<int64_t>();
 }
 
+void BindLastOutcome(ResolutionFrame& frame,
+                     std::string_view table,
+                     std::string_view key,
+                     int64_t value,
+                     std::string_view into) {
+    frame.BindPromptValue(std::string(into),
+                          nlohmann::json{{"table", std::string(table)},
+                                         {"key", std::string(key)},
+                                         {"value", value}});
+}
+
+const nlohmann::json* LastOutcome(const ResolutionFrame& frame,
+                                  std::string_view into) {
+    return frame.FindPromptValue(into);
+}
+
+std::optional<std::string> LastOutcomeKey(const ResolutionFrame& frame,
+                                          std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("key");
+    if (it == value->end() || !it->is_string()) return std::nullopt;
+    return it->get<std::string>();
+}
+
+std::optional<int64_t> LastOutcomeValue(const ResolutionFrame& frame,
+                                        std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("value");
+    if (it == value->end() || !it->is_number_integer()) return std::nullopt;
+    return it->get<int64_t>();
+}
+
+std::optional<std::string> LastOutcomeTable(const ResolutionFrame& frame,
+                                            std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("table");
+    if (it == value->end() || !it->is_string()) return std::nullopt;
+    return it->get<std::string>();
+}
+
 bool CardHasTag(const engine::MatchRegistries* registries,
                 std::string_view kind_id, std::string_view tag) {
     // INFO: The table is per-match (`MatchRegistries::card_tags`),
@@ -343,6 +387,22 @@ bool CardHasTag(const engine::MatchRegistries* registries,
         if (declared == tag) return true;
     }
     return false;
+}
+
+}  // namespace match::ops
+
+namespace match::ops {
+
+resolver::ConditionRegistry& StoreDefaultConditions() {
+    // INFO: built once via the same registration point the engine uses
+    //       (`RegisterDefaultConditions`), so ops without a Resolver registry
+    //       evaluate exactly the engine's 10.2 semantics.
+    static resolver::ConditionRegistry registry = [] {
+        resolver::ConditionRegistry created;
+        RegisterDefaultConditions(created);
+        return created;
+    }();
+    return registry;
 }
 
 }  // namespace match::ops

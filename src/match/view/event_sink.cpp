@@ -90,6 +90,19 @@ json ProjectRollResult(const json& payload) {
     return out;
 }
 
+json ProjectOutcomeResult(const json& payload) {
+    json out = json::object();
+    // INFO: the engine already carries the fully
+    //       namespaced ids under the wire keys `table`/`key`; `value` is the
+    //       picked (or nested-rolled) outcome value and `counter` the op
+    //       counter the pick consumed.
+    out["table"] = payload.value("table", std::string());
+    out["key"] = payload.value("key", std::string());
+    out["value"] = payload.value("value", 0);
+    out["counter"] = payload.value("counter", 0);
+    return out;
+}
+
 json ProjectChainAborted(const json& payload) {
     // INFO: the resolver emits a flat `{type, mod, node}` descriptor; the
     //       packet adds `reason` (unset at the abort site today).
@@ -279,6 +292,7 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "hands_passed") return ProjectHandsPassed(match, body);
     if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "roll_result") return ProjectRollResult(body);
+    if (type == "outcome_result") return ProjectOutcomeResult(body);
     // INFO: `signal` is NOT `all`-visibility: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder`. It must
     //       not be broadcast from the public projector (review fix 2).

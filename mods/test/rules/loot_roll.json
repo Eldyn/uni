@@ -1,0 +1,31 @@
+{
+  "id": "loot_roll",
+  "title": "Loot Roll",
+  "description": "sample: rolls the loot outcome table on a play. Gated by a condition that never matches shipped content, so it validates the ref + accessor wiring without changing live behavior.",
+  "hooks": [
+    {
+      "on": "after:play",
+      "where": { "outcome_is": { "key": "never" } },
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "roll_table",
+          "args": { "table": "loot" },
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "cases": [
+            { "when": { "outcome_is": { "key": "six" } }, "next": "n3" }
+          ],
+          "else": "n3"
+        },
+        {
+          "id": "n3",
+          "op": "emit_signal",
+          "args": { "name": "loot_rolled", "payload": { "source": "sp0" } }
+        }
+      ]
+    }
+  ]
+}

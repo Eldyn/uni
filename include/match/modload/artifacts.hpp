@@ -253,6 +253,37 @@ struct AssetBundleDef {
 };
 
 /**
+ * @struct TableEntry
+ * @brief One weighted entry of an outcome table.
+ *
+ * `value` and `roll` are mutually exclusive (validator-enforced); a nested
+ * `roll` is a raw roll spec whose total becomes the outcome value.
+ * `where` is a raw 10.2 condition object. All three raw payloads stay verbatim
+ * like the behavior graphs, because the op/condition vocabulary is owned by the
+ * validator/engine, not the loader.
+ */
+struct TableEntry {
+    std::string key;                     /**< Local token `[a-z0-9_]{1,32}`. */
+    int64_t weight = 1;                  /**< Integer >= 1. */
+    std::optional<int64_t> value;        /**< Outcome value (no `roll`). */
+    std::optional<nlohmann::json> roll;  /**< Nested roll spec. */
+    std::optional<nlohmann::json> where; /**< 10.2 condition filter. */
+    nlohmann::json raw;                  /**< Verbatim entry object. */
+};
+
+/**
+ * @struct TableDef
+ * @brief One `tables/<id>.json` outcome table.
+ */
+struct TableDef {
+    std::string id;                      /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;            /**< Owning mod id. */
+    std::string table_id;                /**< Full `namespace:id`. */
+    std::vector<TableEntry> entries;     /**< Sorted by key (deterministic). */
+    nlohmann::json raw;                  /**< Verbatim file object. */
+};
+
+/**
  * @struct SettingDecl
  * @brief A named setting declared by a mod manifest.
  */
@@ -329,6 +360,7 @@ struct LoadedMod {
     std::vector<MutationDef> mutations;
     std::vector<DeckDef> decks;
     std::vector<AssetBundleDef> assets;
+    std::vector<TableDef> tables;
 };
 
 /**

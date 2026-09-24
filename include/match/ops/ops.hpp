@@ -344,6 +344,8 @@ private:
             case modload::ArgType::kPileRef:
             case modload::ArgType::kAspectMask:
             case modload::ArgType::kDuration:
+            case modload::ArgType::kTableRef:
+            case modload::ArgType::kBindingName:
             case modload::ArgType::kAny:
                 return true;
             default:
@@ -412,6 +414,14 @@ struct OpContext {
      *       not assemble a match; an op must then decline to emit identity.
      */
     const engine::MatchRegistries* registries = nullptr;
+
+    /**
+     * INFO: the invoking mod's id, set by the Resolver per invocation so
+     *       an op holding a bare (namespace-less) content ref can scope it to
+     *       the owning mod before falling back to a tail match. Null in
+     *       bare-op tests, where a bare ref may only match unambiguously.
+     */
+    const std::string* mod_id = nullptr;
 };
 
 /**

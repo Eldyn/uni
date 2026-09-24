@@ -124,12 +124,7 @@ bool KindRefMatches(const std::string& kind_id, const std::string& ref) {
  * own registry still governs `branch`/`where`/`veto`.
  */
 resolver::ConditionRegistry& DefaultConditions() {
-    static resolver::ConditionRegistry registry = [] {
-        resolver::ConditionRegistry created;
-        RegisterDefaultConditions(created);
-        return created;
-    }();
-    return registry;
+    return StoreDefaultConditions();
 }
 
 /**

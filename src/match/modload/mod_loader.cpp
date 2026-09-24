@@ -657,6 +657,109 @@ bool ScanMutationsDirectory(const fs::path& dir,
     return ok;
 }
 
+/* INFO: one outcome table per file.
+ *       Structural checks only; schema + semantic checks are the semantic validator's job. */
+bool ParseTableEntry(const nlohmann::json& entry,
+                     const std::string& ns,
+                     TableDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "table.shape", "tables", path,
+                 "table file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    const auto entries = entry.find("entries");
+    if (entries == entry.end() || !entries->is_array()) {
+        AddError(errors, "table.entries", "tables", path,
+                 "table '" + out.id + "' requires an 'entries' array");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.table_id = ns + ":" + out.id;
+    out.raw = entry;
+
+    bool ok = true;
+    for (const auto& raw_entry : *entries) {
+        if (!raw_entry.is_object()) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' has a non-object entry");
+            ok = false;
+            continue;
+        }
+        TableEntry parsed;
+        if (!ParseStringField(raw_entry, "key", parsed.key)
+            || !IsValidLocalId(parsed.key)) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' entry needs a key matching "
+                         "[a-z0-9_]+ (1-32)");
+            ok = false;
+            continue;
+        }
+        const auto weight = raw_entry.find("weight");
+        if (weight == raw_entry.end() || !weight->is_number_integer()) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' entry '" + parsed.key
+                         + "' needs an integer 'weight'");
+            ok = false;
+            continue;
+        }
+        parsed.weight = weight->get<int64_t>();
+        const auto value = raw_entry.find("value");
+        if (value != raw_entry.end() && value->is_number_integer()) {
+            parsed.value = value->get<int64_t>();
+        }
+        const auto roll = raw_entry.find("roll");
+        if (roll != raw_entry.end()) parsed.roll = *roll;
+        const auto where = raw_entry.find("where");
+        if (where != raw_entry.end()) parsed.where = *where;
+        parsed.raw = raw_entry;
+        out.entries.push_back(std::move(parsed));
+    }
+
+    std::sort(out.entries.begin(), out.entries.end(),
+              [](const TableEntry& a, const TableEntry& b) {
+                  return a.key < b.key;
+              });
+    return ok;
+}
+
+bool ScanTablesDirectory(const fs::path& dir,
+                         const std::string& ns,
+                         std::vector<TableDef>& out,
+                         std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "tables", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "tables")) {
+            ok = false;
+            continue;
+        }
+        TableDef table;
+        std::size_t before = errors.size();
+        if (!ParseTableEntry(entry, ns, table, errors, file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "table.id", "tables", file.string(),
+                         "table entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(table.id).second) {
+            AddError(errors, "table.id.duplicate", "tables", file.string(),
+                     "duplicate table id '" + table.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(table));
+    }
+    return ok;
+}
+
 bool ParseDeckFile(const fs::path& path,
                    const std::string& ns,
                    DeckDef& out,
@@ -1102,7 +1205,7 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets"};
+        "assets", "tables"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -1251,6 +1354,10 @@ bool ParseModFolder(const std::string& folder_path,
         ok = false;
     }
     if (!ScanAssetsDirectory(root / "assets", loaded.manifest.id, loaded.assets,
+                             errors)) {
+        ok = false;
+    }
+    if (!ScanTablesDirectory(root / "tables", loaded.manifest.id, loaded.tables,
                              errors)) {
         ok = false;
     }

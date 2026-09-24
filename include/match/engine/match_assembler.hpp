@@ -128,6 +128,15 @@ struct MatchRegistries {
      */
     ops::CardTagTable card_tags;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> outcome table for this match.
+     *
+     * Same per-match rule as `card_tags`: filled once at assembly from the
+     * active mods' `TableDef`s and read-only during play, so concurrent matches
+     * with different content cannot clobber each other's `roll_table` targets.
+     */
+    ops::TableRegistry tables;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 

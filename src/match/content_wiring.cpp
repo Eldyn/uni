@@ -38,4 +38,14 @@ void WireContent(resolver::ConditionRegistry& registry,
     LoadCardTags(cards, out_tags);
 }
 
+void LoadTables(const std::vector<modload::TableDef>& tables,
+                ops::TableRegistry& out) {
+    ops::TableRegistry registry;
+    for (const modload::TableDef& table : tables) {
+        if (table.table_id.empty()) continue;
+        registry[table.table_id] = table;
+    }
+    out = std::move(registry);
+}
+
 }  // namespace match::wiring

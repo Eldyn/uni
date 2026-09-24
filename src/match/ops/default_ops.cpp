@@ -58,7 +58,8 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         {"prompt", &detail::OpPrompt},
         // randomness.
         {"roll", &detail::OpRoll},
-        // visibility ops.
+        {"roll_table", &detail::OpRollTable},
+        // 10.7 visibility ops.
         {"grant_visibility", &detail::OpGrantVisibility},
         {"revoke_visibility", &detail::OpRevokeVisibility},
         // type and restriction ops.

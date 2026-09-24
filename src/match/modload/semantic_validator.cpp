@@ -496,6 +496,7 @@ struct Buckets {
     std::vector<LoadError> conflicts;
     std::vector<LoadError> deck;
     std::vector<LoadError> selector;
+    std::vector<LoadError> tables;
 };
 
 std::string DeckPath(const DeckDef& deck);
@@ -529,6 +530,7 @@ class Checker {
     void Run() {
         CollectDeclarations();
         CheckIds();
+        CheckTables();
         WalkAllGraphs();
         CheckConflicts();
         CheckDeck();
@@ -570,6 +572,9 @@ class Checker {
             for (const auto& mut : mod->mutations) {
                 CollectGraphDecls(mut.replacement, ns, "mutations");
                 mutations_by_target_[mut.target].push_back(&mut);
+            }
+            for (const auto& table : mod->tables) {
+                table_ids_.insert(table.table_id);
             }
         }
     }
@@ -654,6 +659,99 @@ class Checker {
                         "invalid setting id '" + decl.id + "'"));
                 }
             }
+            for (const auto& table : mod->tables) {
+                if (!IsValidLocalId(table.id)) {
+                    buckets_.ids.push_back(Err(
+                        "id.syntax", "tables", mod->path,
+                        "invalid table id '" + table.id + "'"));
+                }
+            }
+        }
+    }
+
+    /* INFO: outcome-table checks. Run after the reference bucket (S13);
+     *       duplicate table ids are reported by the loader's scan. */
+    void CheckTables() {
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& table : mod->tables) {
+                const std::string path =
+                    mod->path + "/tables/" + table.id + ".json";
+                if (table.entries.empty()) {
+                    buckets_.tables.push_back(Err(
+                        "table.entry", "tables", path,
+                        "table '" + table.table_id + "' has no entries"));
+                    continue;
+                }
+                std::set<std::string> keys;
+                for (const auto& entry : table.entries) {
+                    if (!keys.insert(entry.key).second) {
+                        buckets_.tables.push_back(Err(
+                            "table.key.duplicate", "tables", path,
+                            "table '" + table.table_id + "' declares key '"
+                                + entry.key + "' twice"));
+                    }
+                    if (entry.weight < 1 || entry.weight > 1000000) {
+                        buckets_.tables.push_back(Err(
+                            "table.weight", "tables", path,
+                            "table '" + table.table_id + "' entry '"
+                                + entry.key + "' weight must be 1..1000000"));
+                    }
+                    if (entry.value.has_value() && entry.roll.has_value()) {
+                        buckets_.tables.push_back(Err(
+                            "table.value_roll", "tables", path,
+                            "table '" + table.table_id + "' entry '"
+                                + entry.key
+                                + "' declares both 'value' and 'roll'"));
+                    }
+                    if (entry.roll.has_value()) {
+                        CheckNestedRoll(*entry.roll, table, path);
+                    }
+                    if (entry.where.has_value()) {
+                        if (!entry.where->is_object()) {
+                            buckets_.tables.push_back(Err(
+                                "table.condition", "tables", path,
+                                "table '" + table.table_id + "' entry '"
+                                    + entry.key + "' where must be an object"));
+                        } else {
+                            GraphCtx ctx{ns, "tables", path, false, false,
+                                         false, nullptr};
+                            CheckCondition(*entry.where, ctx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void CheckNestedRoll(const nlohmann::json& roll,
+                         const TableDef& table,
+                         const std::string& path) {
+        auto bad = [&]() {
+            buckets_.tables.push_back(Err(
+                "table.roll", "tables", path,
+                "table '" + table.table_id + "' has an invalid nested roll"));
+        };
+        if (!roll.is_object()) {
+            bad();
+            return;
+        }
+        auto sides = roll.find("sides");
+        auto count = roll.find("count");
+        if (sides == roll.end() || !sides->is_number_integer()
+            || sides->get<long long>() < 1
+            || sides->get<long long>() > 1000000
+            || count == roll.end() || !count->is_number_integer()
+            || count->get<long long>() < 1
+            || count->get<long long>() > 1000) {
+            bad();
+            return;
+        }
+        auto keep = roll.find("keep");
+        if (keep != roll.end()
+            && (!keep->is_number_integer() || keep->get<long long>() < 1
+                || keep->get<long long>() > count->get<long long>())) {
+            bad();
         }
     }
 
@@ -1425,6 +1523,34 @@ class Checker {
                     CheckRestrictionRef(value.get<std::string>(), ctx.ns, ctx);
                 }
                 break;
+            case ArgType::kTableRef:
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a table ref"));
+                } else {
+                    CheckTableRef(value.get<std::string>(), ctx.ns, ctx);
+                }
+                break;
+            case ArgType::kBindingName: {
+                // INFO: `^\$?[a-z0-9_]+$`; the leading `$` is
+                //       optional (a bare name is still a frame key, never a
+                //       node id, because node ids are consumed by routing).
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a binding key"));
+                    break;
+                }
+                std::string token = value.get<std::string>();
+                if (!token.empty() && token[0] == '$') token.erase(0, 1);
+                if (token.empty() || !IsValidLocalId(token)) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a `$name` binding key"));
+                }
+                break;
+            }
             case ArgType::kNodeRef:
                 if (!value.is_string()) {
                     buckets_.ops.push_back(Err("op.type", ctx.artifact,
@@ -1787,6 +1913,12 @@ class Checker {
                                         + "'"));
     }
 
+    void CheckTableRef(const std::string& raw,
+                       const std::string& ns,
+                       const GraphCtx& ctx) {
+        CheckReference(raw, ns, table_ids_, "ref.table", "table", ctx);
+    }
+
     void CheckConflicts() {
         for (const auto& [target, list] : mutations_by_target_) {
             const MutationDef* repl = nullptr;
@@ -1984,6 +2116,7 @@ class Checker {
     std::set<std::string> status_ids_;
     std::set<std::string> tags_;
     std::set<std::string> restriction_ids_;
+    std::set<std::string> table_ids_;
     std::vector<std::pair<std::string, std::string>> removed_restrictions_;
     std::map<std::string, std::vector<const MutationDef*>> mutations_by_target_;
 };
@@ -2104,6 +2237,18 @@ std::vector<LoadError> SchemaErrors(
                 compiled, mutations, "mutations", base + "/mutations.json");
             errors.insert(errors.end(), local.begin(), local.end());
         }
+        if (!mod->tables.empty()) {
+            /* INFO: tables are one definition per file; validate
+             *       each entry against the single-table schema and point the
+             *       error at that entry's file. */
+            const auto& compiled = validator.Schema(schema_files::kTables);
+            for (const auto& table : mod->tables) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, table.raw, "tables",
+                    base + "/tables/" + table.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
     }
     for (const DeckDef* deck : decks) {
         const auto& compiled = validator.Schema(schema_files::kDeck);
@@ -2127,7 +2272,8 @@ std::vector<LoadError> SemanticValidator::ValidateMod(
     checker.Run();
     const Buckets& buckets = checker.buckets();
     const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.ops,
+        &buckets.ids,       &buckets.refs,    &buckets.tables,
+        &buckets.ops,
         &buckets.graph,     &buckets.conflicts, &buckets.deck,
         &buckets.selector};
     for (const auto* list : order) {
@@ -2151,7 +2297,8 @@ std::vector<LoadError> SemanticValidator::ValidateMatchSet(
     checker.Run();
     const Buckets& buckets = checker.buckets();
     const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.ops,
+        &buckets.ids,       &buckets.refs,    &buckets.tables,
+        &buckets.ops,
         &buckets.graph,     &buckets.conflicts, &buckets.deck,
         &buckets.selector};
     for (const auto* list : order) {

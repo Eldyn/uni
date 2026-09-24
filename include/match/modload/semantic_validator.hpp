@@ -40,6 +40,7 @@ inline constexpr const char* kCards = "cards.schema.json";
 inline constexpr const char* kRules = "rules.schema.json";
 inline constexpr const char* kMutations = "mutations.schema.json";
 inline constexpr const char* kDeck = "deck.schema.json";
+inline constexpr const char* kTables = "tables.schema.json";
 }  // namespace schema_files
 
 /**

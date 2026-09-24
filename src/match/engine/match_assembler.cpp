@@ -774,7 +774,19 @@ AssemblyResult MatchAssembler::Assemble(
     //       each other's `has_card_tag` / `draw_penalty` / `tag:` semantics.
     wiring::LoadCardTags(active_cards, assembly->registries.card_tags);
 
-    // --- systems: rules then card behaviors, frozen order
+    // INFO: the outcome-table registry is per-match like `card_tags`.
+    //       Flatten every active mod's tables so `roll_table` resolves them.
+    {
+        std::vector<modload::TableDef> active_tables;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::TableDef& table : mod->tables) {
+                active_tables.push_back(table);
+            }
+        }
+        wiring::LoadTables(active_tables, assembly->registries.tables);
+    }
+
+    // --- systems: rules then card behaviors, frozen order -------
     for (const modload::LoadedMod* mod : active) {
         uint32_t registration = 0;
         for (const modload::RuleDef& rule : mod->rules) {
