@@ -5,6 +5,7 @@
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
+	import { EntityRuntime } from "./entity/entityRuntime.svelte";
 	import { createMatchEventBeatController } from "./animation/matchEventController.svelte";
 	import { createMatchIntroController } from "./animation/matchIntroController.svelte";
 	import { shouldStartMatchIntro } from "./animation/matchIntroGate";
@@ -47,7 +48,10 @@
 	import { computeOpponentRingPoses } from "./layout/seatRingPerspective";
 
 	const bus = createCardBus();
-	const cardRegistry = createCardRegistry();
+	// One shared entity runtime: the step renderers spawn into the exact
+	// instance the entity renderer will observe and tick.
+	const entityRuntime = new EntityRuntime();
+	const cardRegistry = createCardRegistry(entityRuntime);
 	const layout = useGameLayoutContext() ?? createGameLayoutContext();
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap

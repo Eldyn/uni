@@ -7,6 +7,7 @@ import {
 	groupStarts,
 	stepPosition
 } from "$components/game/animation/cardRegistry.svelte";
+import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
 import type { AnimationBeat, AnimationStep } from "$components/game/animation/types";
 
 /** Test helper: mirrors the transitional wrapper baseBeats.svelte.ts uses
@@ -486,6 +487,24 @@ describe("CardRegistry register seam and effect handles", () => {
 		await queue.enqueue([[{ op: "emitSound", target: "screen" }]], resolverFor({}));
 
 		expect(completed).toEqual([0]);
+	});
+
+	it("an injected EntityRuntime is the same instance the spawnEntity op spawns into", async () => {
+		const runtime = new EntityRuntime();
+		runtime.define("dice", { components: {} });
+
+		const registry = createCardRegistry(runtime);
+		expect(registry.entityRuntime).toBe(runtime);
+
+		await registry.enqueue(
+			[[{ op: "spawnEntity", target: "screen", payload: { entity: "dice", as: "d1" } }]],
+			resolverFor({})
+		);
+
+		// The shared instance: the future entity renderer observing this
+		// runtime sees exactly what the step renderer spawned.
+		expect(runtime.liveCount).toBe(1);
+		expect(runtime.resolve("entity:d1")).toBeDefined();
 	});
 
 	it("skipCurrent calls every step's skip() before advancing", async () => {

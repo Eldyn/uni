@@ -126,6 +126,14 @@ export class CardRegistry {
 		this.#entityRuntime = entityRuntime;
 	}
 
+	/** The cosmetic entity runtime the entity step renderers act on. Exposed
+	 *  (read-only) so a future entity renderer (`<Entities3D>`) can
+	 *  observe and tick the exact instance the `spawnEntity` op spawns into;
+	 *  injectable via `createCardRegistry(runtime)` so one instance is shared. */
+	get entityRuntime(): EntityRuntime {
+		return this.#entityRuntime;
+	}
+
 	/** Registers (or replaces) a renderer for an op. Unknown ops stay a
 	 *  tolerated no-op in #playBatch — see register's callers (entity ops,
 	 *  future mod ops). */
@@ -782,8 +790,8 @@ export class CardRegistry {
 
 export const CARD_REGISTRY_KEY = Symbol("card-registry");
 
-export function createCardRegistry(): CardRegistry {
-	const queue = new CardRegistry();
+export function createCardRegistry(entityRuntime?: EntityRuntime): CardRegistry {
+	const queue = new CardRegistry(entityRuntime);
 	try {
 		// setContext requires component initialisation; unit tests exercise the
 		// queue directly (via the returned instance) without mounting a
