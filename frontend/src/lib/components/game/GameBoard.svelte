@@ -15,6 +15,7 @@
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeTableSpin, type HandMorph } from "$stores/tableSpin.svelte";
+	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import {
 		resolveViewedPlayer,
 		rotatedOpponentsFor,
@@ -375,6 +376,7 @@
 		onpointerdown={() => {
 			cardRegistry.skipCurrent();
 			storeTableSpin.skip();
+			storeTurnSkip.skip();
 		}}
 		oncontextmenu={(event) => event.preventDefault()}
 	>

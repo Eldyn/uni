@@ -79,7 +79,29 @@ describe("mapMatchEventPacket", () => {
 			from: "alice",
 			to: "bob",
 			direction: 1,
-			deadlineMs: 15000
+			deadlineMs: 15000,
+			skipped: []
+		});
+	});
+
+	it("carries the skipped seats named on turn_advance", () => {
+		const beat = mapMatchEventPacket(
+			frame(10, "turn_advance", {
+				from: "alice",
+				to: "carol",
+				direction: 1,
+				deadline_ms: 15000,
+				skipped: ["bob"]
+			})
+		);
+		expect(beat).toEqual({
+			seq: 10,
+			kind: "turn",
+			from: "alice",
+			to: "carol",
+			direction: 1,
+			deadlineMs: 15000,
+			skipped: ["bob"]
 		});
 	});
 

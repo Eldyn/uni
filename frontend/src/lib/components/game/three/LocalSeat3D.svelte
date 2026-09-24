@@ -8,6 +8,8 @@
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
 	import { loadSilhouette } from "./textures";
+	import { storeTurnSkip } from "$stores/turnSkip.svelte";
+	import SkipMark3D from "./SkipMark3D.svelte";
 
 	let {
 		player,
@@ -62,6 +64,16 @@
 
 	let baseColor = $derived(new Color(color));
 	let effectiveColor = $derived(dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor);
+
+	// Skip mark: the local player can lose a turn too (any seat can be skipped).
+	let skipActive = $derived(storeTurnSkip.marks.includes(player.username));
+	let skipToken = $derived(storeTurnSkip.token);
+	let skipMarkPos = $derived<[number, number, number]>([
+		0,
+		LOCAL_AVATAR_WORLD * 0.7,
+		placement.localAvatarZ
+	]);
+	let skipMarkSize = $derived(LOCAL_AVATAR_WORLD * 1.2);
 </script>
 
 {#if avatarTexture}
@@ -82,3 +94,5 @@
 		/>
 	</T.Mesh>
 {/if}
+
+<SkipMark3D position={skipMarkPos} size={skipMarkSize} active={skipActive} token={skipToken} />

@@ -217,11 +217,15 @@ bool ParseDuration(const json& duration, ecs::DurationSpec& out) {
 
 /** @brief Build the `turn_advance` payload. */
 json TurnAdvancePayload(const std::optional<ecs::Entity>& from,
-                        ecs::Entity to, int direction, int64_t deadline) {
+                        ecs::Entity to, int direction, int64_t deadline,
+                        const std::vector<ecs::Entity>& skipped = {}) {
+    json skipped_json = json::array();
+    for (ecs::Entity player : skipped) skipped_json.push_back(EntityJson(player));
     return json{{"from", from.has_value() ? EntityJson(*from) : json(nullptr)},
                 {"to", EntityJson(to)},
                 {"direction", direction},
-                {"deadline", deadline}};
+                {"deadline", deadline},
+                {"skipped", std::move(skipped_json)}};
 }
 
 }  // namespace
@@ -257,6 +261,7 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     // INFO: with no seated current player this is the first turn; the lowest
     //       seat takes it, independent of direction (there is no "previous").
     int incoming_index = 0;
+    std::vector<ecs::Entity> skipped;
     if (current_index >= 0) {
         ecs::TurnState* current_turn = store.Get<ecs::TurnState>(*from);
         if (current_turn != nullptr && ExtraTurns(*current_turn) > 0u) {
@@ -268,13 +273,16 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
             int chosen = -1;
             // INFO: consume any one-shot skips along the way; bounded by one
             //       full lap so an all-skipped table cannot loop forever (it
-            //       falls back to the current player replaying).
+            //       falls back to the current player replaying). Each consumed
+            //       skip is recorded so the `turn_advance` payload names the
+            //       seats that lost their turn (client X animation).
             for (int tries = 0; tries < count; ++tries) {
                 cursor = PositiveMod(cursor + step, count);
                 ecs::TurnState* candidate = store.Get<ecs::TurnState>(
                     players[static_cast<std::size_t>(cursor)]);
                 if (candidate != nullptr && SkipPending(*candidate)) {
                     ConsumeSkip(*candidate);
+                    skipped.push_back(players[static_cast<std::size_t>(cursor)]);
                     continue;
                 }
                 chosen = cursor;
@@ -303,7 +311,8 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     incoming_turn->turn_deadline_ms = 0;
 
     const json payload = TurnAdvancePayload(from, incoming, step,
-                                            incoming_turn->turn_deadline_ms);
+                                            incoming_turn->turn_deadline_ms,
+                                            skipped);
     OpResult result = OpResult::Resolved(payload);
     result.events.push_back(MakeEvent("turn_advance", payload));
     return result;

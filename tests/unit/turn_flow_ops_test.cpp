@@ -241,6 +241,11 @@ TEST_CASE("turn_flow_ops: skip_turn is consumed by the next advance") {
     const json* first_event = FindEvent(first, "turn_advance");
     REQUIRE(first_event != nullptr);
     CHECK((*first_event)["payload"]["to"]["index"] == p2.index);
+    // INFO: the consumed skip names the stepped-over seat, which the client
+    //       stamps an X over before the turn highlight moves.
+    REQUIRE((*first_event)["payload"]["skipped"].is_array());
+    REQUIRE((*first_event)["payload"]["skipped"].size() == 1);
+    CHECK((*first_event)["payload"]["skipped"][0]["index"] == p1.index);
     CHECK((PendingRaw(h.store, p1) & kSkipFlag) == 0u);
 
     // INFO: the skip was one-shot; the next lap reaches p1 normally.
@@ -271,6 +276,8 @@ TEST_CASE("turn_flow_ops: all-skipped table falls back deterministically") {
     const json* event = FindEvent(result, "turn_advance");
     REQUIRE(event != nullptr);
     CHECK((*event)["payload"]["to"]["index"] == p0.index);
+    REQUIRE((*event)["payload"]["skipped"].is_array());
+    CHECK((*event)["payload"]["skipped"].size() == 2);
 }
 
 TEST_CASE("turn_flow_ops: reverse_direction flips forward and reverse") {

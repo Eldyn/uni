@@ -18,6 +18,7 @@
 	import type { ViewportInfo } from "../layout/seatLayout";
 	import { resolvePovPlayer } from "../layout/spectatorPov";
 	import { storeTableSpin } from "$stores/tableSpin.svelte";
+	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import { storeBoardCamera } from "$stores/boardCamera.svelte";
 	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
@@ -145,7 +146,11 @@
 		)
 	);
 
-	let isLocalTurn = $derived(storeGame.state?.current_turn === povPlayer?.username);
+	// INFO: while a skip presentation is in flight, the board keeps showing the
+	//       outgoing player as current so the X reads before the turn moves on
+	//       (storeTurnSkip is driven by the turn_advance beat's `skipped` list).
+	let presentedTurn = $derived(storeTurnSkip.presentingTurn ?? storeGame.state?.current_turn);
+	let isLocalTurn = $derived(presentedTurn === povPlayer?.username);
 	let localDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && !isLocalTurn);
 
 	// Spectator table spin, first half: the WHOLE TABLE turns as one rigid
@@ -169,9 +174,7 @@
 	// POV change — that unmount was what stranded the outgoing cards' registry
 	// entries.
 	const handPlayer = $derived(storeTableSpin.phase === "spin" ? spinFromPlayer : povPlayer);
-	const handDimmed = $derived(
-		DIM_LOCAL_WHEN_NOT_TURN && storeGame.state?.current_turn !== handPlayer?.username
-	);
+	const handDimmed = $derived(DIM_LOCAL_WHEN_NOT_TURN && presentedTurn !== handPlayer?.username);
 
 	let artLoaded = $state(false);
 
@@ -215,7 +218,7 @@
 				{player}
 				{seat}
 				hasHoldingCard={bus.isHoldingOpponent(player.username)}
-				isTurn={storeGame.state?.current_turn === player.username}
+				isTurn={presentedTurn === player.username}
 				isValidTarget={isChoosePlayerTarget(player.username)}
 				color={colorFor(player.username)}
 				isViewable={storeGame.isSpectator}

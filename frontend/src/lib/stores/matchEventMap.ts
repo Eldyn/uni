@@ -55,6 +55,10 @@ export type MatchEventBeat =
 			to: string;
 			direction: number;
 			deadlineMs: number;
+			/** Seats that lost their turn to a consumed one-shot skip, in
+			 *  stepped-over order. The controller stamps an X over each before
+			 *  presenting the incoming turn. */
+			skipped: string[];
 	  }
 	| {
 			seq: number;
@@ -136,7 +140,8 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				from: parsed.data.from,
 				to: parsed.data.to,
 				direction: parsed.data.direction,
-				deadlineMs: parsed.data.deadline_ms
+				deadlineMs: parsed.data.deadline_ms,
+				skipped: parsed.data.skipped ?? []
 			};
 		}
 		case "status_applied": {

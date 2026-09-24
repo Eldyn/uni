@@ -37,6 +37,7 @@
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import type { HandMorph } from "$stores/tableSpin.svelte";
 	import { gsap } from "gsap";
 	import { loadSilhouette, loadTexture } from "./textures";
@@ -47,6 +48,7 @@
 		seatWorldPerPx
 	} from "./seatLabel";
 	import { RENDER_ORDER } from "./renderOrder";
+	import SkipMark3D from "./SkipMark3D.svelte";
 
 	let {
 		player,
@@ -201,6 +203,11 @@
 			? WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
 			: new Color(color).multiplyScalar(dimmed ? DIM_FACTOR : 1)
 	);
+
+	// Skip mark: this seat is losing its turn, so stamp an X over the avatar.
+	let skipActive = $derived(storeTurnSkip.marks.includes(player.username));
+	let skipToken = $derived(storeTurnSkip.token);
+	let skipMarkSize = $derived(avatarSpriteSize * 1.2);
 
 	$effect(() => {
 		let cancelled = false;
@@ -487,6 +494,8 @@
 			/>
 		</T.Sprite>
 	{/if}
+
+	<SkipMark3D position={arcAnchorPos} size={skipMarkSize} active={skipActive} token={skipToken} />
 
 	{#if labelTexture && labelWorldSize > 0}
 		<T.Sprite

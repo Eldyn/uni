@@ -13,8 +13,10 @@
 
 import { storeGame, type CardType } from "$stores/game.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeTableSpin } from "$stores/tableSpin.svelte";
+import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -595,6 +597,18 @@ export function createMatchEventBeatController(deps: {
 		}
 	}
 
+	/** Presents the skipped-seat X and gates the incoming turn's highlight.
+	 *  The engine silently consumes one-shot skips and names the skipped seats
+	 *  on the `turn_advance` payload; the store holds the outgoing player's
+	 *  highlight until the marks clear (click-to-skip ends it early). A no-op
+	 *  when animations are disabled, so the turn simply moves on. */
+	function handleTurn(beat: Extract<MatchEventBeat, { kind: "turn" }>): void {
+		if (!storeAnimation.enabled) return;
+		if (beat.skipped.length === 0) return;
+		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
+		storeTurnSkip.present(beat.from, beat.skipped, durationMs);
+	}
+
 	function handle(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
@@ -607,9 +621,10 @@ export function createMatchEventBeatController(deps: {
 				handleReshuffle(beat);
 				return;
 			case "turn":
+				handleTurn(beat);
+				return;
 			case "toast":
-				// Turn timer/prompt state live in the store; toast is
-				// map-and-drop.
+				// Toast state lives in the store; map-and-drop.
 				return;
 		}
 	}

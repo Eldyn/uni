@@ -50,6 +50,17 @@ json ProjectTurnAdvance(const match::engine::MatchInstance& match,
     // INFO: the engine descriptor key is `deadline`; the wire key is
     //       `deadline_ms` (generated TurnAdvancePayload).
     out["deadline_ms"] = payload.value("deadline", 0);
+    // INFO: seats that lost their turn to a consumed one-shot skip. Entities
+    //       resolve to usernames; the client stamps an X over each before the
+    //       incoming turn's highlight is presented.
+    json skipped = json::array();
+    if (payload.contains("skipped") && payload["skipped"].is_array()) {
+        for (const json& entry : payload["skipped"]) {
+            const std::string username = UsernameFor(match, entry);
+            if (!username.empty()) skipped.push_back(username);
+        }
+    }
+    out["skipped"] = std::move(skipped);
     return out;
 }
 

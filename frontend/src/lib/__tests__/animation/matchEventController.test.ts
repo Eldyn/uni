@@ -4,6 +4,8 @@ import type { MatchEventBeat } from "$components/game/animation/baseBeats.svelte
 import type { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
+import { storeTurnSkip } from "$stores/turnSkip.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 import type { AnimationBeat } from "$components/game/animation/types";
 
@@ -609,7 +611,15 @@ describe("createMatchEventBeatController", () => {
 
 		h.fire({ seq: 7, kind: "draw", player: "me", count: 1, sourcePile: "draw", cardIds: [] });
 		h.fire({ seq: 8, kind: "reshuffle", drawSize: 10, discardSize: 2 });
-		h.fire({ seq: 9, kind: "turn", from: "me", to: "bob", direction: 1, deadlineMs: 1000 });
+		h.fire({
+			seq: 9,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction: 1,
+			deadlineMs: 1000,
+			skipped: []
+		});
 		h.fire({
 			seq: 10,
 			kind: "toast",
@@ -621,5 +631,48 @@ describe("createMatchEventBeatController", () => {
 		});
 
 		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+	});
+
+	it("stamps an X over each skipped seat and gates the turn", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		const h = harness();
+
+		h.fire({
+			seq: 11,
+			kind: "turn",
+			from: "me",
+			to: "carol",
+			direction: 1,
+			deadlineMs: 1000,
+			skipped: ["bob"]
+		});
+
+		expect(storeTurnSkip.marks).toEqual(["bob"]);
+		expect(storeTurnSkip.presentingTurn).toBe("me");
+		storeTurnSkip.finish();
+		expect(storeTurnSkip.marks).toEqual([]);
+		expect(storeTurnSkip.presentingTurn).toBeNull();
+	});
+
+	it("does not present a skip when the turn carries none", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		const h = harness();
+
+		h.fire({
+			seq: 12,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction: 1,
+			deadlineMs: 1000,
+			skipped: []
+		});
+
+		expect(storeTurnSkip.marks).toEqual([]);
+		expect(storeTurnSkip.presentingTurn).toBeNull();
 	});
 });

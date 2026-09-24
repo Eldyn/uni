@@ -215,13 +215,18 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     const std::optional<json> turn = match::view::ProjectPublicEvent(
         "turn_advance",
         json{{"from", EntityRef(player0)}, {"to", EntityRef(player1)},
-             {"direction", 1}, {"deadline", 1234}},
+             {"direction", 1}, {"deadline", 1234},
+             {"skipped", json::array({EntityRef(player1)})}},
         *engine);
     REQUIRE(turn.has_value());
     CHECK((*turn)["from"] == "player0");
     CHECK((*turn)["to"] == "player1");
     CHECK((*turn)["direction"] == 1);
     CHECK((*turn)["deadline_ms"] == 1234);
+    // INFO: skipped entity handles resolve to usernames for the client X mark.
+    REQUIRE((*turn)["skipped"].is_array());
+    REQUIRE((*turn)["skipped"].size() == 1);
+    CHECK((*turn)["skipped"][0] == "player1");
 
     const std::optional<json> reshuffle = match::view::ProjectPublicEvent(
         "reshuffle", json{{"draw_size", 8}, {"discard_size", 1}}, *engine);
