@@ -209,4 +209,27 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 		expect(storeGame.lastSeq).toBeNull();
 		expect(storeGame.desynced).toBe(false);
 	});
+
+	it("isolates a throwing raw fan-out handler so later handlers still see the frame", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const seen: string[] = [];
+		const unsubscribeThrowing = storeGame.onMatchEvent(() => {
+			throw new Error("subscriber boom");
+		});
+		const unsubscribeCollector = storeGame.onMatchEvent((type) => seen.push(type));
+
+		try {
+			expect(() =>
+				handler("match_event")(frame(1, "reshuffle", { draw_size: 10, discard_size: 2 }))
+			).not.toThrow();
+			// The frame still reached the healthy handler and advanced the watermark.
+			expect(seen).toEqual(["reshuffle"]);
+			expect(storeGame.lastSeq).toBe(1);
+			expect(error).toHaveBeenCalled();
+		} finally {
+			unsubscribeThrowing();
+			unsubscribeCollector();
+			error.mockRestore();
+		}
+	});
 });

@@ -67,6 +67,29 @@ describe("dice acceptance: spawn → systems tick → ttl → despawn", () => {
 		expect(runtime.resolve("entity:dice")).toBeUndefined();
 	});
 
+	it("advances and despawns when one frame delta drives both the registry and the runtime", async () => {
+		const runtime = new EntityRuntime();
+		const registry = createCardRegistry(runtime);
+		runtime.define("dice", { components: DICE_COMPONENTS });
+
+		await playDice(registry, "test:six");
+		expect(runtime.liveCount).toBe(1);
+
+		// Mirrors AllCards3D's useTask: the same frame delta ticks the registry
+		// (card pose composition) and the shared entity runtime (motion + ttl).
+		const driveFrame = (delta: number) => {
+			registry.tick(delta);
+			registry.entityRuntime.tick(delta);
+		};
+
+		driveFrame(0.5);
+		expect(runtime.resolve("entity:dice")?.state.angle).toBeGreaterThan(0);
+
+		driveFrame(3.0);
+		expect(runtime.liveCount).toBe(0);
+		expect(runtime.resolve("entity:dice")).toBeUndefined();
+	});
+
 	it("falls back to the `*` descriptor for an uncovered key", async () => {
 		const runtime = new EntityRuntime();
 		const registry = createCardRegistry(runtime);

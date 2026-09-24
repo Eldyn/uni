@@ -12,9 +12,7 @@ import { moveSystems } from "./systems/move";
 import { motionSystems } from "./systems/motion";
 import { lifetimeSystems } from "./systems/lifetime";
 import { noopEntityRenderer, type EntityRenderer } from "./entityRenderer";
-
-/** Default cap; Task 6's `fxBudget` store injects its own via the constructor. */
-export const DEFAULT_MAX_ENTITIES = 64;
+import { DEFAULT_FX_BUDGET } from "$stores/fxBudget.svelte";
 
 const MOVE_ORDER = ["movement.static", "movement.linear", "movement.arc", "movement.ballistic"];
 const MOTION_ORDER = [
@@ -68,7 +66,7 @@ export class EntityRuntime {
 	#registry: ComponentRegistry;
 
 	constructor(options: EntityRuntimeOptions = {}) {
-		this.#maxEntities = options.maxEntities ?? DEFAULT_MAX_ENTITIES;
+		this.#maxEntities = options.maxEntities ?? DEFAULT_FX_BUDGET.maxEntities;
 		this.#renderer = options.renderer ?? noopEntityRenderer;
 		this.#registry = options.registry ?? defaultRegistry();
 	}

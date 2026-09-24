@@ -25,6 +25,8 @@
  * presentation state never leak into `storeGame.state`.
  */
 
+import { DEFAULT_FX_BUDGET } from "$stores/fxBudget.svelte";
+
 /** How multiple active modifiers of one kind on one target combine. */
 export type MergeMode = "override" | "additive" | "exclusive";
 
@@ -52,17 +54,25 @@ export const KindModes: Record<string, MergeMode> = {
 	"material.param": "override",
 	"screen.effect": "additive",
 	"particles.emitter": "additive",
+	// DEFER(SP3): `audio.loop` composes (exclusive, single-owner per target) but
+	// no consumer drives it — storeAudio has no loop API. Playback is deferred
+	// to a later release. Composing it now keeps
+	// the kind table complete so a later consumer needs no engine change.
 	"audio.loop": "exclusive"
 };
 
-/** Additive budgets; mirror `fxBudget.svelte.ts` defaults. Injectable so tests
- *  and the caller can pin them (the store can override at runtime). */
+/** Additive budgets; default from `fxBudget.svelte.ts` (the single source of
+ *  truth for every budget default). Injectable so tests and the caller can pin
+ *  them (the store can override at runtime). */
 export interface ComposeCaps {
 	maxAfflictions: number;
 	screenStackMax: number;
 }
 
-const DEFAULT_CAPS: ComposeCaps = { maxAfflictions: 8, screenStackMax: 3 };
+const DEFAULT_CAPS: ComposeCaps = {
+	maxAfflictions: DEFAULT_FX_BUDGET.maxAfflictions,
+	screenStackMax: DEFAULT_FX_BUDGET.screenStackMax
+};
 
 /** `screen.effect` stacks share the smaller screen budget; every other additive
  *  kind uses the affliction budget. */

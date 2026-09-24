@@ -21,9 +21,7 @@ import {
 	type ComposeCaps,
 	type MergeMode
 } from "./compose";
-
-const DEFAULT_MAX_AFFLICTIONS = 8;
-const DEFAULT_SCREEN_STACK_MAX = 3;
+import { DEFAULT_FX_BUDGET } from "$stores/fxBudget.svelte";
 
 /** Constructor options; both default to the engine table + budget defaults. */
 export interface AfflictionManagerOptions {
@@ -41,8 +39,8 @@ export class AfflictionManager {
 	constructor(opts: AfflictionManagerOptions = {}) {
 		this.#modes = opts.modes ?? KindModes;
 		this.#caps = {
-			maxAfflictions: opts.caps?.maxAfflictions ?? DEFAULT_MAX_AFFLICTIONS,
-			screenStackMax: opts.caps?.screenStackMax ?? DEFAULT_SCREEN_STACK_MAX
+			maxAfflictions: opts.caps?.maxAfflictions ?? DEFAULT_FX_BUDGET.maxAfflictions,
+			screenStackMax: opts.caps?.screenStackMax ?? DEFAULT_FX_BUDGET.screenStackMax
 		};
 	}
 

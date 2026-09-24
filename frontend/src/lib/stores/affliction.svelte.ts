@@ -29,6 +29,7 @@ import {
 import { CosmeticRng } from "$components/game/affliction/cosmeticRng";
 import { STANDARD_TILE_VALUES } from "$components/game/three/cardFaceAtlas";
 import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
+import { storeFxBudget } from "$stores/fxBudget.svelte";
 
 const COSMETIC_SEED_KEY = "uni:fx:cosmetic-seed";
 
@@ -69,7 +70,12 @@ class ReactiveAfflictionManager extends AfflictionManager {
 }
 
 export class AfflictionStore {
-	#manager = new ReactiveAfflictionManager();
+	#manager = new ReactiveAfflictionManager({
+		caps: {
+			maxAfflictions: storeFxBudget.maxAfflictions,
+			screenStackMax: storeFxBudget.screenStackMax
+		}
+	});
 	#triggers = new PresentationTriggers(this.#manager);
 	#rng = new CosmeticRng(cosmeticSeed());
 	#channel = new OverrideChannel(this.#manager, undefined, (source) => this.#resolveSource(source));

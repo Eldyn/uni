@@ -26,6 +26,11 @@
 
 	useTask((delta) => {
 		cardRegistry.tick(delta);
+		// The shared entity runtime must advance on the same frame deltas as the
+		// card registry, or spawned entities never move and a `lifetime.ttl`
+		// entity never reaches its TTL. the entity renderer will
+		// replace this with its own <Entities3D> tick against the same instance.
+		cardRegistry.entityRuntime.tick(delta);
 	});
 
 	let shadowTexture = $state<import("three").Texture | null>(null);

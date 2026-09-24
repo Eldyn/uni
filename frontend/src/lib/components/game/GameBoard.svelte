@@ -4,6 +4,7 @@
 	import { storeGameLoader } from "$stores/gameLoader.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeAffliction } from "$stores/affliction.svelte";
+	import { storeFxBudget } from "$stores/fxBudget.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
@@ -51,8 +52,9 @@
 
 	const bus = createCardBus();
 	// One shared entity runtime: the step renderers spawn into the exact
-	// instance the entity renderer will observe and tick.
-	const entityRuntime = new EntityRuntime();
+	// instance the entity renderer will observe and tick. Its cap
+	// comes from the runtime budget store, not a hardcoded default.
+	const entityRuntime = new EntityRuntime({ maxEntities: storeFxBudget.maxEntities });
 	const cardRegistry = createCardRegistry(entityRuntime);
 	// the affliction subsystem bootstraps from the `defs` packet's
 	// entities/presentations and drives the read-only face-override channel the

@@ -295,6 +295,10 @@ export default defineConfig(({ mode, command }) => {
 			// affects test resolution, never the production/watch build.
 			conditions: mode === "test" ? ["browser"] : undefined
 		},
+		// Expose the documented `UNI_FX_*` budget vars to the client alongside
+		// Vite's default `VITE_` prefix, so the documented deployment names work
+		// as-is (see `stores/fxBudget.svelte.ts`).
+		envPrefix: ["VITE_", "UNI_FX_"],
 		define: {
 			__APP_VERSION__: JSON.stringify(appVersion),
 			__PUBLIC_ASSET_MANIFEST__: JSON.stringify(publicAssetManifest),

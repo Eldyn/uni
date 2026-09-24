@@ -965,8 +965,14 @@ class StoreGame implements SessionStore {
 		// INFO: raw fan-out for consumers that evaluate their own conditions
 		// (presentation triggers) — runs for every frame type, unknown included,
 		// after the store-specific handling above so they observe settled state.
+		// Each handler is isolated: a throwing subscriber must never abort the
+		// frame and stop later handlers / beat buffering from seeing it.
 		for (const handler of this.#matchEventHandlers) {
-			handler(env.data.type, env.data.payload);
+			try {
+				handler(env.data.type, env.data.payload);
+			} catch (err) {
+				console.error("storeGame: a match_event fan-out handler threw — continuing.", err);
+			}
 		}
 
 		const beat = mapMatchEventPacket(data);
