@@ -290,6 +290,9 @@ class StoreGame implements SessionStore {
 	/** Handlers registered via `onMatchEventBeat` (the animation controller). */
 	#beatHandlers = new Set<(beat: MatchEventBeat) => void>();
 
+	/** Handlers registered via `onMatchEvent` (raw fan-out for presentation triggers). */
+	#matchEventHandlers = new Set<(type: string, payload: unknown) => void>();
+
 	/** Handlers registered via `onDesync` (gap detection). */
 	#desyncHandlers = new Set<() => void>();
 
@@ -522,6 +525,21 @@ class StoreGame implements SessionStore {
 		this.#beatHandlers.add(cb);
 		return () => {
 			this.#beatHandlers.delete(cb);
+		};
+	}
+
+	/**
+	 * @brief Registers a callback for every raw `match_event` frame `(type,
+	 * payload)`. Unlike `onMatchEventBeat` (which carries only the normalized
+	 * beat and is drained after a snapshot), this fires on arrival and passes
+	 * the untouched payload, for consumers that evaluate their own conditions —
+	 * e.g. `PresentationTriggers` (`where` equality against payload fields).
+	 * @returns An unsubscribe function.
+	 */
+	onMatchEvent(cb: (type: string, payload: unknown) => void): () => void {
+		this.#matchEventHandlers.add(cb);
+		return () => {
+			this.#matchEventHandlers.delete(cb);
 		};
 	}
 
@@ -942,6 +960,13 @@ class StoreGame implements SessionStore {
 				}
 				break;
 			}
+		}
+
+		// INFO: raw fan-out for consumers that evaluate their own conditions
+		// (presentation triggers) — runs for every frame type, unknown included,
+		// after the store-specific handling above so they observe settled state.
+		for (const handler of this.#matchEventHandlers) {
+			handler(env.data.type, env.data.payload);
 		}
 
 		const beat = mapMatchEventPacket(data);
