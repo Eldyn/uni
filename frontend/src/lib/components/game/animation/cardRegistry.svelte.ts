@@ -3,6 +3,8 @@ import { SvelteSet } from "svelte/reactivity";
 import { gsap } from "gsap";
 import type { AnimationBeat, AnimationStep } from "./types";
 import { createDefaultFlightPose, type FlightPose, type RenderContext } from "./renderContext";
+import { normalizeStepResult, type EffectHandle, type StepResult } from "./effectHandle";
+import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { moveRenderer } from "./stepRenderers/move";
 import { flipRenderer } from "./stepRenderers/flip";
@@ -10,8 +12,34 @@ import { shakeRenderer } from "./stepRenderers/shake";
 import { screenEffectRenderer } from "./stepRenderers/screenEffect";
 import { materialEffectRenderer } from "./stepRenderers/materialEffect";
 import { impactRenderer } from "./stepRenderers/impact";
+import { spawnEntityRenderer } from "./stepRenderers/spawnEntity";
+import { despawnEntityRenderer } from "./stepRenderers/despawnEntity";
+import { setEntityStateRenderer } from "./stepRenderers/setEntityState";
+import { attachToRenderer } from "./stepRenderers/attachTo";
+import { emitParticlesRenderer } from "./stepRenderers/emitParticles";
+import { emitSoundRenderer } from "./stepRenderers/emitSound";
 
-export type StepRenderer = (step: AnimationStep, ctx: RenderContext) => gsap.core.Timeline;
+export type StepRenderer = (step: AnimationStep, ctx: RenderContext) => StepResult;
+
+/** The shared position of each groupId in a beat: the group's first `atS` (in
+ *  array order, default 0). Steps sharing a groupId are all added at this
+ *  position so a composite effect's sub-steps start together. */
+export function groupStarts(beat: AnimationBeat): Map<string, number> {
+	const starts = new Map<string, number>();
+	for (const step of beat) {
+		if (step.groupId !== undefined && !starts.has(step.groupId)) {
+			starts.set(step.groupId, step.atS ?? 0);
+		}
+	}
+	return starts;
+}
+
+/** A step's position within its beat: the group's shared start when it has a
+ *  groupId, otherwise its own `atS`. */
+export function stepPosition(step: AnimationStep, starts: Map<string, number>): number {
+	if (step.groupId !== undefined) return starts.get(step.groupId) ?? 0;
+	return step.atS ?? 0;
+}
 
 export interface CardDecoration {
 	hovered?: boolean;
@@ -83,8 +111,27 @@ export class CardRegistry {
 		shake: shakeRenderer,
 		screenEffect: screenEffectRenderer,
 		materialEffect: materialEffectRenderer,
-		impact: impactRenderer
+		impact: impactRenderer,
+		spawnEntity: spawnEntityRenderer,
+		despawnEntity: despawnEntityRenderer,
+		setEntityState: setEntityStateRenderer,
+		attachTo: attachToRenderer,
+		emitParticles: emitParticlesRenderer,
+		emitSound: emitSoundRenderer
 	};
+
+	#entityRuntime: EntityRuntime;
+
+	constructor(entityRuntime: EntityRuntime = new EntityRuntime()) {
+		this.#entityRuntime = entityRuntime;
+	}
+
+	/** Registers (or replaces) a renderer for an op. Unknown ops stay a
+	 *  tolerated no-op in #playBatch — see register's callers (entity ops,
+	 *  future mod ops). */
+	register(op: string, renderer: StepRenderer): void {
+		this.#registry[op] = renderer;
+	}
 
 	#cardMeta = new Map<string, CardMeta>();
 	#poses = new Map<string, FlightPose>();
@@ -98,6 +145,9 @@ export class CardRegistry {
 	#pending: PendingBatch[] = [];
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
+	/** The normalized handles for the beat currently playing, so skipCurrent
+	 *  can call each step's skip() before advancing. */
+	#currentStepHandles: EffectHandle[] = [];
 	#playing = false;
 	// Targets handed back to their owner before their beat ended — see
 	// releaseLanded. finishBeat leaves these alone.
@@ -429,6 +479,13 @@ export class CardRegistry {
 	skipCurrent(): void {
 		this.#fastForwardDepth++;
 		try {
+			for (const handle of this.#currentStepHandles) {
+				try {
+					handle.skip();
+				} catch (err) {
+					console.error("CardRegistry: a step handle threw during skip — continuing.", err);
+				}
+			}
 			const finish = this.#finishCurrentBeat;
 			this.#currentTimeline?.progress(1, true);
 			finish?.();
@@ -553,9 +610,12 @@ export class CardRegistry {
 				},
 				resolveAnchor: batch.resolveAnchor,
 				fastForwarding: this.#fastForwardDepth > 0,
-				hitStop: (durationMs, timeScale) => this.#beginHitStop(timeline, durationMs, timeScale)
+				hitStop: (durationMs, timeScale) => this.#beginHitStop(timeline, durationMs, timeScale),
+				entityRuntime: this.#entityRuntime
 			};
 
+			const stepHandles: EffectHandle[] = [];
+			const starts = groupStarts(beat);
 			for (const step of beat) {
 				const renderer = this.#registry[step.op];
 				if (!renderer) {
@@ -565,7 +625,12 @@ export class CardRegistry {
 					continue;
 				}
 				try {
-					timeline.add(renderer(step, ctx), step.atS ?? 0);
+					const handle = normalizeStepResult(renderer(step, ctx));
+					stepHandles.push(handle);
+					// Persistent handles (blocking === null) never enter the
+					// composite timeline; they are not awaited. Grouped steps
+					// share their group's first atS.
+					if (handle.blocking) timeline.add(handle.blocking, stepPosition(step, starts));
 				} catch (err) {
 					console.error(
 						`CardRegistry: renderer for op "${step.op}" target "${step.target}" threw — skipping step.`,
@@ -577,7 +642,11 @@ export class CardRegistry {
 			// takes effect starting the next beat. Acceptable: beats are short
 			// (sub-second), so this isn't a real "changed nothing" bug.
 			timeline.timeScale(storeAnimation.speedMultiplier);
-			this.#currentTimeline = timeline;
+			const hasBlocking = stepHandles.some((handle) => handle.blocking !== null);
+			if (hasBlocking) {
+				this.#currentTimeline = timeline;
+				this.#currentStepHandles = stepHandles;
+			}
 
 			// GSAP's suppressEvents (passed by skipCurrent's progress(1, true)) suppresses
 			// ALL callbacks, including onComplete — confirmed by direct experiment in an
@@ -646,14 +715,29 @@ export class CardRegistry {
 				this.onBeatComplete?.(beatIndex);
 				this.#currentTimeline = null;
 				this.#finishCurrentBeat = null;
+				this.#currentStepHandles = [];
 				this.#playBatch(batch, beatIndex + 1);
 			};
 
 			timeline.eventCallback("onComplete", finishBeat);
-			this.#finishCurrentBeat = finishBeat;
+			if (hasBlocking) this.#finishCurrentBeat = finishBeat;
 
 			if (!storeAnimation.enabled) {
-				timeline.progress(1, true);
+				// The animation toggle is off: no frame is worth animating, so
+				// skip every step (which despawns transient spawned entities and
+				// snaps blocking timelines) and advance immediately.
+				for (const handle of stepHandles) {
+					try {
+						handle.skip();
+					} catch (err) {
+						console.error("CardRegistry: a step handle threw during disabled-skip.", err);
+					}
+				}
+				if (hasBlocking) timeline.progress(1, true);
+				finishBeat();
+			} else if (!hasBlocking) {
+				// Nothing to wait on (all persistent / immediate) — advance now;
+				// an empty composite timeline would otherwise never fire onComplete.
 				finishBeat();
 			}
 		} catch (err) {
@@ -675,6 +759,7 @@ export class CardRegistry {
 			this.#endHitStop();
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
+			this.#currentStepHandles = [];
 			this.#playBatch(batch, beatIndex + 1);
 		}
 	}

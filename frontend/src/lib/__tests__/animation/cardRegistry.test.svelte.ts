@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { flushSync } from "svelte";
-import { createCardRegistry, CardRegistry } from "$components/game/animation/cardRegistry.svelte";
-import type { AnimationBeat } from "$components/game/animation/types";
+import { gsap } from "gsap";
+import {
+	createCardRegistry,
+	CardRegistry,
+	groupStarts,
+	stepPosition
+} from "$components/game/animation/cardRegistry.svelte";
+import type { AnimationBeat, AnimationStep } from "$components/game/animation/types";
 
 /** Test helper: mirrors the transitional wrapper baseBeats.svelte.ts uses
  *  around its own anchors objects (Task A7 Step 5) — turns a plain
@@ -452,5 +458,78 @@ describe("CardRegistry pose providers", () => {
 		registry.setDecoration("42", { pushX: 2 });
 		expect(handleAfter?.decoration?.pushX).toBe(2);
 		expect(handleAfter?.decoration?.hoverSpinDeg).toBeUndefined();
+	});
+});
+
+describe("CardRegistry register seam and effect handles", () => {
+	it("register() adds a renderer that enqueue then runs", async () => {
+		const queue = createCardRegistry();
+		const renderer = vi.fn((_step: AnimationStep) => gsap.timeline());
+		queue.register("spawnEntity", renderer);
+
+		const done = queue.enqueue(
+			[[{ op: "spawnEntity", target: "e1", payload: { entity: "dice" } }]],
+			resolverFor({})
+		);
+
+		expect(renderer).toHaveBeenCalledTimes(1);
+		queue.skipCurrent();
+		await done;
+	});
+
+	it("a persistent, non-blocking handle does not block beat advance", async () => {
+		const queue = createCardRegistry();
+		const completed: number[] = [];
+		queue.onBeatComplete = (index) => completed.push(index);
+		queue.register("emitSound", () => ({ skip() {}, blocking: null, persistent: true }));
+
+		await queue.enqueue([[{ op: "emitSound", target: "screen" }]], resolverFor({}));
+
+		expect(completed).toEqual([0]);
+	});
+
+	it("skipCurrent calls every step's skip() before advancing", async () => {
+		const queue = createCardRegistry();
+		queue.registerCardMeta("card-1", { type: "red", value: "5" });
+		const skipped = vi.fn();
+		queue.register("emitSound", () => ({ skip: skipped, blocking: null, persistent: true }));
+
+		const done = queue.enqueue(
+			[
+				[
+					{ op: "move", target: "card-1", payload: { to: "discard-pile" } },
+					{ op: "emitSound", target: "screen" }
+				]
+			],
+			resolverFor({ "discard-pile": [1, 0, 1] })
+		);
+
+		queue.skipCurrent();
+		await done;
+
+		expect(skipped).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("CardRegistry groupId placement", () => {
+	it("shares a group's first atS across its steps", () => {
+		const beat: AnimationBeat = [
+			{ op: "move", target: "a", atS: 0.4, groupId: "burst" },
+			{ op: "move", target: "b", atS: 0.1, groupId: "burst" },
+			{ op: "move", target: "c", atS: 0.7 }
+		];
+		const starts = groupStarts(beat);
+
+		expect(stepPosition(beat[0], starts)).toBe(0.4);
+		// b's own atS (0.1) is ignored in favour of the group's shared origin.
+		expect(stepPosition(beat[1], starts)).toBe(0.4);
+		// Ungrouped steps keep their own atS.
+		expect(stepPosition(beat[2], starts)).toBe(0.7);
+	});
+
+	it("defaults a grouped step with no group atS to 0", () => {
+		const beat: AnimationBeat = [{ op: "move", target: "a", groupId: "g" }];
+		const starts = groupStarts(beat);
+		expect(stepPosition(beat[0], starts)).toBe(0);
 	});
 });

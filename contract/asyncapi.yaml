@@ -1010,6 +1010,13 @@ components:
           description: >
             Op-specific fields (e.g. move's destination slot, screenEffect's
             effect name and duration).
+        groupId:
+          type: string
+          description: >
+            Optional grouping key. Steps in a beat sharing a groupId are placed
+            at the group's first atS (in array order) and their timelines added
+            at that shared position; absent, each step uses its own atS within
+            the beat.
 
     UserUpdatePrivacyPayload:
       type: object

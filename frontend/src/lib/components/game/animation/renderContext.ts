@@ -60,4 +60,10 @@ export interface RenderContext {
 	/** Slows the current beat's timeline to `timeScale` for `durationMs` of
 	 *  real time, restored when it elapses or the beat ends. */
 	hitStop?(durationMs: number, timeScale: number): void;
+	/** The cosmetic entity runtime the entity step renderers act on. Optional
+	 *  so card-only renderers and unit tests that build a minimal context
+	 *  (e.g. the reserved-stub tests) do not have to supply one; entity ops
+	 *  degrade with a warning when it is absent. CardRegistry always wires the
+	 *  real runtime. */
+	entityRuntime?: import("$components/game/entity/entityRuntime.svelte").EntityRuntime;
 }
