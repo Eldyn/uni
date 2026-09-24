@@ -6,6 +6,7 @@ import { createDefaultFlightPose, type FlightPose, type RenderContext } from "./
 import { normalizeStepResult, type EffectHandle, type StepResult } from "./effectHandle";
 import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
+import { storeFxBudget } from "$stores/fxBudget.svelte";
 import { moveRenderer } from "./stepRenderers/move";
 import { flipRenderer } from "./stepRenderers/flip";
 import { shakeRenderer } from "./stepRenderers/shake";
@@ -156,6 +157,9 @@ export class CardRegistry {
 	/** The normalized handles for the beat currently playing, so skipCurrent
 	 *  can call each step's skip() before advancing. */
 	#currentStepHandles: EffectHandle[] = [];
+	/** The per-beat watchdog timer for the currently-playing blocking beat, or
+	 *  null when nothing is armed. Cleared in finishBeat and on a setup throw. */
+	#watchdogTimer: ReturnType<typeof setTimeout> | null = null;
 	#playing = false;
 	// Targets handed back to their owner before their beat ended — see
 	// releaseLanded. finishBeat leaves these alone.
@@ -170,6 +174,10 @@ export class CardRegistry {
 	} | null = null;
 
 	activeFlights = $state<FlightHandle[]>([]);
+
+	/** Ops a watchdog has disabled for this session: an op whose
+	 *  step blew the per-step timeout is not retried until reload. */
+	readonly sessionDisabledOps = new Set<string>();
 
 	/** Test/observability hook: called with the 0-based index of each beat
 	 *  within its enqueue() batch as it completes (naturally or via skip). */
@@ -481,7 +489,45 @@ export class CardRegistry {
 			}
 			this.#pending.push({ beats, resolveAnchor, beforePlay, resolve });
 			this.#pump();
+
+			// Queue cap: a runaway effect chain must not grow the
+			// backlog without bound. Drop the oldest *waiting* batch — never the
+			// one currently playing (#pending[0]) — resolve it so its caller
+			// doesn't hang, and release the reservations it held.
+			const queueMax = storeFxBudget.queueMax;
+			if (this.#pending.length > queueMax) {
+				const dropIndex = this.#playing ? 1 : 0;
+				if (dropIndex < this.#pending.length) {
+					const [dropped] = this.#pending.splice(dropIndex, 1);
+					console.warn(
+						`CardRegistry: pending queue is at its ${queueMax}-batch cap — dropping the oldest queued batch.`
+					);
+					this.#releaseBatchTargets(dropped.beats);
+					try {
+						dropped.resolve();
+					} catch (err) {
+						console.error("CardRegistry: a dropped batch's resolve threw — continuing.", err);
+					}
+				}
+			}
 		});
+	}
+
+	/** Releases the in-transit reservations a dropped batch held, unless another
+	 *  still-queued batch also needs the target. Without this a dropped batch
+	 *  leaves its cards permanently in-transit and their owners can never
+	 *  re-sync them. */
+	#releaseBatchTargets(beats: AnimationBeat[]): void {
+		for (const beat of beats) {
+			for (const step of beat) {
+				const referenced = this.#pending.some((batch) =>
+					batch.beats.some((laterBeat) =>
+						laterBeat.some((laterStep) => laterStep.target === step.target)
+					)
+				);
+				if (!referenced) this.#inTransitIds.delete(step.target);
+			}
+		}
 	}
 
 	skipCurrent(): void {
@@ -495,7 +541,17 @@ export class CardRegistry {
 				}
 			}
 			const finish = this.#finishCurrentBeat;
-			this.#currentTimeline?.progress(1, true);
+			try {
+				this.#currentTimeline?.progress(1, true);
+			} catch (err) {
+				// A frozen (timeScale(0)/NaN) or corrupt timeline must never wedge the
+				// queue: the watchdog calls skipCurrent precisely to clear that wedge,
+				// so a throw here still has to reach finish() below.
+				console.error(
+					"CardRegistry: failed to fast-forward the current timeline — advancing anyway.",
+					err
+				);
+			}
 			finish?.();
 		} finally {
 			this.#fastForwardDepth--;
@@ -516,6 +572,7 @@ export class CardRegistry {
 	dispose(): void {
 		this.#fastForwardDepth++;
 		try {
+			this.#clearWatchdog();
 			this.#endHitStop();
 			this.#currentTimeline?.kill();
 			this.#currentTimeline = null;
@@ -580,6 +637,31 @@ export class CardRegistry {
 		this.#playBatch(batch, 0);
 	}
 
+	/** Arms the per-beat watchdog. A `setTimeout` runs
+	 *  independently of GSAP's ticker, so it fires even when the composite
+	 *  timeline is frozen by `timeScale(0)`/NaN — the documented permanent
+	 *  wedge. On fire every step is skipped and the offending op is
+	 *  session-disabled, which advances the queue instead of hanging forever. */
+	#armWatchdog(beatIndex: number, beat: AnimationBeat): void {
+		this.#clearWatchdog();
+		const timeoutMs = storeFxBudget.stepTimeoutMs;
+		this.#watchdogTimer = setTimeout(() => {
+			this.#watchdogTimer = null;
+			console.warn(
+				`CardRegistry: beat ${beatIndex} exceeded the ${timeoutMs}ms watchdog — forcing it to completion.`
+			);
+			for (const step of beat) this.sessionDisabledOps.add(step.op);
+			this.skipCurrent();
+		}, timeoutMs);
+	}
+
+	#clearWatchdog(): void {
+		if (this.#watchdogTimer !== null) {
+			clearTimeout(this.#watchdogTimer);
+			this.#watchdogTimer = null;
+		}
+	}
+
 	#playBatch(batch: PendingBatch, beatIndex: number): void {
 		if (beatIndex >= batch.beats.length) {
 			this.#pending.shift();
@@ -632,6 +714,11 @@ export class CardRegistry {
 					);
 					continue;
 				}
+				if (this.sessionDisabledOps.has(step.op)) {
+					// Watchdog-disabled this session: a step whose op
+					// already blew the per-step timeout is not retried.
+					continue;
+				}
 				try {
 					const handle = normalizeStepResult(renderer(step, ctx));
 					stepHandles.push(handle);
@@ -665,6 +752,7 @@ export class CardRegistry {
 			const finishBeat = () => {
 				if (settled) return;
 				settled = true;
+				this.#clearWatchdog();
 				this.#endHitStop();
 				// The owner already took these back and may be tweening them
 				// into a new slot; re-idling them here would snap that tween.
@@ -747,8 +835,11 @@ export class CardRegistry {
 				// Nothing to wait on (all persistent / immediate) — advance now;
 				// an empty composite timeline would otherwise never fire onComplete.
 				finishBeat();
+			} else {
+				this.#armWatchdog(beatIndex, beat);
 			}
 		} catch (err) {
+			this.#clearWatchdog();
 			console.error(
 				`CardRegistry: beat ${beatIndex} failed unexpectedly — advancing past it.`,
 				err
