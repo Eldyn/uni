@@ -111,6 +111,7 @@ From the 2026-09-19 brainstorm. Each row is binding.
 | Q24 | **Rewrite in place**, one release (option a). Zero userbase; nothing wrong with changing the system at once. |
 | Q25 | Conflict presentation phase 1 = gate + reason string. Advisory UI later. |
 | Q26 | Response window timer is **independent of and pauses** the turn timer. |
+| Q27 | **Decks are user-authored content, never server-authored.** A deck is data in the content tree (`mods/<mod>/decks/*.json`, `DeckDef`) or a live, unsaved freestyle-lobby snapshot; the engine only interprets it. The server never hardcodes, generates or rewrites deck composition. Persisted player-built decks are a later Workshop/Decks-UI surface (Q15), not an engine concern. |
 
 ---
 
@@ -1125,6 +1126,6 @@ server to test against). WP15 last.
 
 ---
 
-*End of spec. Owner: Eldyn. Brainstorm session 2026-09-19. Decisions Q1-Q26
+*End of spec. Owner: Eldyn. Brainstorm session 2026-09-19. Decisions Q1-Q27
 on record in section 4; section 10.11 is the expressibility proof obligation
 for the content authoring work package.*
