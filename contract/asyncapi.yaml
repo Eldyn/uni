@@ -1257,7 +1257,11 @@ components:
     DefsPayload:
       type: object
       x-packet-version: "1"
-      required: [defs_digest, mods, kinds, entities, presentations]
+      # INFO: `entities`/`presentations` are deliberately NOT required. They are
+      # additive and the server always emits them, but a client must
+      # tolerate a frame from an engine that predates them (degrade to absent,
+      # never fail validation).
+      required: [defs_digest, mods, kinds]
       properties:
         defs_digest:
           type: string
