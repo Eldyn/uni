@@ -3,7 +3,7 @@
  * @brief Word lists used by the client-side chat censor (see lib/utils/censor.svelte.ts).
  * Source: LDNOOBW "List of Dirty, Naughty, Obscene and Otherwise Bad Words"
  * (https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words),
- * licensed CC BY 4.0, see /credits.html for attribution. Multi-word phrases from
+ * licensed CC BY 4.0, see /blog/credits/ for attribution. Multi-word phrases from
  * the source lists are dropped; the censor only matches single words (see
  * censor.svelte.ts for how repeated concatenation of a single word, e.g.
  * "wordwordword", is still caught without needing multi-word phrases).

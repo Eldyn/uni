@@ -182,19 +182,19 @@
 					class="flex flex-wrap justify-center gap-x-3 gap-y-1 font-tiny text-xs text-text/50"
 					aria-label="Site links"
 				>
-					<a href="/how-to-play.html" class="transition-colors hover:text-accent"
+					<a href="/blog/how-to-play/" class="transition-colors hover:text-accent"
 						>{m.home_footer_how_to_play({}, { locale: storeI18n.locale })}</a
 					>
-					<a href="/faq.html" class="transition-colors hover:text-accent"
+					<a href="/blog/faq/" class="transition-colors hover:text-accent"
 						>{m.home_footer_faq({}, { locale: storeI18n.locale })}</a
 					>
-					<a href="/about.html" class="transition-colors hover:text-accent"
+					<a href="/blog/about/" class="transition-colors hover:text-accent"
 						>{m.home_footer_about({}, { locale: storeI18n.locale })}</a
 					>
-					<a href="/changelog.html" class="transition-colors hover:text-accent"
+					<a href="/blog/changelog/" class="transition-colors hover:text-accent"
 						>{m.home_footer_changelog({}, { locale: storeI18n.locale })}</a
 					>
-					<a href="/credits.html" class="transition-colors hover:text-accent"
+					<a href="/blog/credits/" class="transition-colors hover:text-accent"
 						>{m.home_footer_credits({}, { locale: storeI18n.locale })}</a
 					>
 				</nav>
