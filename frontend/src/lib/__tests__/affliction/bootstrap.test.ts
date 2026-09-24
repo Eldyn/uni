@@ -131,7 +131,41 @@ describe("AfflictionStore: defs bootstrap (ruling 2)", () => {
 		expect(() => feed.emit("defs", { entities: "nope", presentations: [42] })).not.toThrow();
 	});
 
-	it("dispose detaches the subscription and cancels timers", () => {
+	it("is idempotent across a repeated defs frame (no duplicate activations)", () => {
+		const store = new AfflictionStore();
+		const feed = fakeFeed();
+		store.bind(new EntityRuntime(), feed.subscribe);
+
+		const payload = {
+			defs_digest: "same",
+			presentations: [
+				{
+					id: "test:always",
+					target: "card:42",
+					modifiers: [{ kind: "face.override", texture: "bomb" }]
+				},
+				{
+					id: "test:on-play",
+					target: "card:9",
+					modifiers: [{ kind: "face.override", texture: "hit" }],
+					triggers: [{ on: "card_played" }]
+				}
+			]
+		};
+
+		feed.emit("defs", payload);
+		feed.emit("defs", payload);
+
+		// The always-on def activates once, not twice.
+		expect(store.manager.active.filter((a) => a.presentationId === "test:always")).toHaveLength(1);
+
+		// The event def's pending trigger is replaced, not appended: one event
+		// installs exactly one affliction.
+		feed.emit("card_played", {});
+		expect(store.manager.active.filter((a) => a.presentationId === "test:on-play")).toHaveLength(1);
+	});
+
+	it("dispose clears active afflictions, registrations and timers", () => {
 		vi.useFakeTimers();
 		try {
 			const store = new AfflictionStore();
@@ -139,20 +173,37 @@ describe("AfflictionStore: defs bootstrap (ruling 2)", () => {
 			const dispose = store.bind(new EntityRuntime(), feed.subscribe);
 
 			feed.emit("defs", {
+				defs_digest: "d1",
 				presentations: [
 					{
 						id: "test:timed",
 						target: "card:3",
 						modifiers: [{ kind: "face.override", texture: "temp" }],
 						triggers: [{ duration: 5 }]
+					},
+					{
+						id: "test:always",
+						target: "card:4",
+						modifiers: [{ kind: "face.override", texture: "perm" }]
 					}
 				]
 			});
 			expect(store.override("3")).toEqual({ texture: "temp" });
+			expect(store.override("4")).toEqual({ texture: "perm" });
+			expect(store.manager.active).toHaveLength(2);
 
 			dispose();
+
+			// A timed affliction must not be stranded active by its cancelled timer.
+			vi.advanceTimersByTime(60_000);
+			expect(store.manager.active).toHaveLength(0);
+			expect(store.override("3")).toBeUndefined();
+			expect(store.override("4")).toBeUndefined();
+
+			// The subscription is detached: a later defs frame changes nothing.
 			expect(() => feed.emit("defs", defsPayload())).not.toThrow();
 			expect(store.override("42")).toBeUndefined();
+			expect(store.manager.active).toHaveLength(0);
 		} finally {
 			vi.useRealTimers();
 		}

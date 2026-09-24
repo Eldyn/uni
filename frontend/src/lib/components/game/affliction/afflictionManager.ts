@@ -68,6 +68,13 @@ export class AfflictionManager {
 			modifiers: Array.isArray(a.modifiers) ? a.modifiers : []
 		};
 
+		// Re-activating the same presentation replaces its prior instance rather
+		// than stacking a duplicate. A repeated `defs` frame (reconnect or a
+		// duplicate packet) re-installs every always-on presentation, and without
+		// this the active set would grow without bound.
+		const existing = this.#active.findIndex((x) => x.presentationId === norm.presentationId);
+		if (existing !== -1) this.#active.splice(existing, 1);
+
 		const onTarget = this.#active.filter((x) => x.target === norm.target);
 		const group = [...onTarget, norm];
 
@@ -87,6 +94,17 @@ export class AfflictionManager {
 		const before = this.#active.length;
 		this.#active = this.#active.filter((a) => a.presentationId !== presentationId);
 		if (this.#active.length !== before) this.#recompute();
+	}
+
+	/**
+	 * @brief Drop every active affliction and recompute the (now empty)
+	 * composition. Called at match teardown so a finished match's active
+	 * `face.override` (or any other presentation) cannot colour the next match.
+	 */
+	clear(): void {
+		if (this.#active.length === 0) return;
+		this.#active = [];
+		this.#recompute();
 	}
 
 	/** The resolved result for `kindTarget(kind, target)`, or `undefined`. */

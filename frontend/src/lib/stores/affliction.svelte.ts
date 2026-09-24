@@ -135,9 +135,11 @@ export class AfflictionStore {
 		}
 	}
 
-	/** Cancels pending expiry timers and detaches the match-event subscription. */
+	/** Cancels pending expiry timers, drops every registration and clears active
+	 *  afflictions, then detaches the match-event subscription. Idempotent. */
 	dispose(): void {
 		this.#triggers.dispose();
+		this.#manager.clear();
 		this.#unsubscribe?.();
 		this.#unsubscribe = null;
 	}

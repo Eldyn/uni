@@ -180,20 +180,36 @@ export class PresentationTriggers {
 		}
 	}
 
-	/** Cancels every scheduled expiry (match end / despawn). Registrations stay. */
-	dispose(): void {
+	/** Cancel every scheduled expiry and drop every registration. Called before a
+	 *  replacement `defs` set is registered and on match teardown, so a finished
+	 *  match's triggers cannot fire into the next one and a repeated registration
+	 *  cannot accumulate. Registrations are otherwise idempotent per `def.id`. */
+	clear(): void {
 		for (const handle of this.#timers.values()) clearTimeout(handle);
 		this.#timers.clear();
+		this.#eventTriggers.clear();
+		this.#statusTriggers.clear();
+	}
+
+	/** Cancels every scheduled expiry and drops every registration. */
+	dispose(): void {
+		this.clear();
 	}
 
 	#registerEvent(def: PresentationDef, trigger: TriggerDef, type: string): void {
 		this.#push(this.#eventTriggers, type, { def, trigger });
 	}
 
+	/** Appends `entry`, first removing any prior registration for the same
+	 *  presentation def id at this source — a repeated `defs` frame replaces a
+	 *  def's pending trigger instead of duplicating it. */
 	#push(map: Map<string, PendingTrigger[]>, key: string, entry: PendingTrigger): void {
 		const list = map.get(key);
-		if (list) list.push(entry);
-		else map.set(key, [entry]);
+		if (!list) {
+			map.set(key, [entry]);
+			return;
+		}
+		map.set(key, [...list.filter((existing) => existing.def.id !== entry.def.id), entry]);
 	}
 
 	#pickTrigger(def: PresentationDef, kind: TriggerSource["kind"]): TriggerDef | undefined {
