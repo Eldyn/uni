@@ -5,7 +5,9 @@
  */
 
 export function isAllowedAssetUrl(url: string, origin: string): boolean {
-	if (url.startsWith("/") && !url.startsWith("//")) return true;
+	// WHATWG URL treats a backslash as a slash for http(s), so `/\evil.example/x`
+	// is protocol-relative and must not take the same-origin relative fast path.
+	if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) return true;
 	try {
 		return (
 			new URL(url, origin).origin === origin && /^https?:$/.test(new URL(url, origin).protocol)
@@ -15,12 +17,14 @@ export function isAllowedAssetUrl(url: string, origin: string): boolean {
 	}
 }
 
-const HEX_RE = /^[0-9a-f]{64}$/i;
+const HEX_RE = /^[0-9a-f]+$/i;
 const B64URL_RE = /^[A-Za-z0-9_-]{43,44}$/;
 
 /** Normalizes the server's declared hash to lowercase hex for comparison. */
 export function normalizeHash(hash: string): string {
-	if (HEX_RE.test(hash)) return hash.toLowerCase();
+	// The server may declare a truncated digest (e.g. 16 hex chars); accept any
+	// even-length hex prefix up to the full 64 characters.
+	if (HEX_RE.test(hash) && hash.length % 2 === 0 && hash.length <= 64) return hash.toLowerCase();
 	if (B64URL_RE.test(hash)) {
 		const b64 = hash.replace(/-/g, "+").replace(/_/g, "/");
 		const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
@@ -32,7 +36,11 @@ export function normalizeHash(hash: string): string {
 export async function verifyAssetBytes(bytes: ArrayBuffer, declaredHash: string): Promise<boolean> {
 	const digest = await crypto.subtle.digest("SHA-256", bytes);
 	const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-	return hex === normalizeHash(declaredHash);
+	const declared = normalizeHash(declaredHash);
+	// A declared hex hash shorter than the full digest pins a prefix; a full
+	// 64-hex digest (or a decoded base64url digest) must match exactly.
+	if (HEX_RE.test(declared) && declared.length <= hex.length) return hex.startsWith(declared);
+	return hex === declared;
 }
 
 /**

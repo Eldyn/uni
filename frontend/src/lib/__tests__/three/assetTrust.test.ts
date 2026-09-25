@@ -18,6 +18,9 @@ describe("isAllowedAssetUrl", () => {
 		expect(isAllowedAssetUrl("data:image/png;base64,AAAA", "https://playuni.app")).toBe(false);
 		expect(isAllowedAssetUrl("javascript:alert(1)", "https://playuni.app")).toBe(false);
 	});
+	it("rejects a backslash protocol-relative bypass", () => {
+		expect(isAllowedAssetUrl("/\\evil.example/x.png", "https://playuni.app")).toBe(false);
+	});
 });
 
 describe("normalizeHash", () => {
@@ -46,5 +49,15 @@ describe("verifyAssetBytes", () => {
 	it("rejects bytes whose hash does not match", async () => {
 		const bytes = new TextEncoder().encode("hello").buffer;
 		expect(await verifyAssetBytes(bytes, "0".repeat(64))).toBe(false);
+	});
+	it("accepts a truncated 16-hex content hash on a digest prefix", async () => {
+		const bytes = new TextEncoder().encode("hello").buffer;
+		const digest = await crypto.subtle.digest("SHA-256", bytes);
+		const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+		expect(await verifyAssetBytes(bytes, hex.slice(0, 16))).toBe(true);
+	});
+	it("rejects a wrong truncated 16-hex content hash", async () => {
+		const bytes = new TextEncoder().encode("hello").buffer;
+		expect(await verifyAssetBytes(bytes, "0000000000000000")).toBe(false);
 	});
 });
