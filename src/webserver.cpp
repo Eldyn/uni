@@ -434,8 +434,11 @@ void WebServer::RegisterRoutes() {
 }
 
 void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
+    // INFO: req is invalid once ReadBody's async callback runs, so capture the
+    //       cookies it needs by value now.
+    const std::string cookies = std::string(request->getHeader("cookie"));
     try {
-        http::ReadBody(response, 4096, [response, request](const std::string body) {
+        http::ReadBody(response, 4096, [response, cookies](const std::string body) {
             try {
                 json data;
                 try {
@@ -447,8 +450,8 @@ void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
                     return;
                 }
 
-                std::string_view cookies = request->getHeader("cookie");
-                auto token = http::GetCookieValue(cookies, "auth_token");
+                std::string_view cookie_view = cookies;
+                auto token = http::GetCookieValue(cookie_view, "auth_token");
                 auto payload = AuthService::VerifyToken(*token);
 
                 if (!payload) {
