@@ -39,6 +39,7 @@ WORKDIR /app
 
 # Resolve dependencies first so this layer is cached unless deps/profile change.
 COPY conanfile.py ./
+COPY conan.lock ./
 COPY conan/ ./conan/
 RUN conan profile detect \
     && conan install . -pr:a conan/release --build=missing
