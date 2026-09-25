@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <optional>
@@ -148,4 +149,7 @@ private:
     std::unordered_map<std::string, int> next_lobby_id_;
     int                   default_shard_size_;
     RateLimiter           flood_limiter_;
+    /** Last time the flood limiter was swept for idle buckets. */
+    std::chrono::steady_clock::time_point last_flood_evict_{
+        std::chrono::steady_clock::now()};
 };

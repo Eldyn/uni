@@ -16,11 +16,28 @@ bool RateLimiter::AllowAt(const std::string& key, Clock::time_point now) {
     }
     bucket.last = now;
 
-    if (bucket.tokens >= 1.0) {
+    const bool allowed = bucket.tokens >= 1.0;
+    if (allowed) {
         bucket.tokens -= 1.0;
-        return true;
     }
-    return false;
+
+    // INFO: Bound memory under key flooding. Drop idle buckets first, then
+    //       hard-trim arbitrary entries oldest-held (unordered_map iteration
+    //       order is unspecified but bounded here). Done after the token
+    //       decision so erasing the just-inserted bucket cannot dangle
+    //       `bucket`. The idle sweep is throttled to once a minute: an
+    //       unconditional O(n) scan on every over-cap insert would itself be
+    //       a DoS amplifier. Hard-trim runs every time, so the cap holds.
+    if (buckets_.size() > kMaxBuckets) {
+        if (now - last_evict_ >= std::chrono::seconds(60)) {
+            last_evict_ = now;
+            EvictBefore(now, std::chrono::seconds(60));
+        }
+        while (buckets_.size() > kMaxBuckets && !buckets_.empty()) {
+            buckets_.erase(buckets_.begin());
+        }
+    }
+    return allowed;
 }
 
 void RateLimiter::EvictBefore(Clock::time_point now, std::chrono::seconds max_idle) {

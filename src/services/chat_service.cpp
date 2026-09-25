@@ -59,6 +59,11 @@ ChatHistoryPage ChatService::GetGlobalHistoryPage(std::optional<int> before_id, 
 }
 
 bool ChatService::AllowSend(const std::string& username) {
+    const auto now = RateLimiter::Clock::now();
+    if (now - last_flood_evict_ >= std::chrono::seconds(60)) {
+        last_flood_evict_ = now;
+        flood_limiter_.Evict();
+    }
     return flood_limiter_.Allow(username);
 }
 

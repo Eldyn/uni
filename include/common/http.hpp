@@ -3,6 +3,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#ifndef _WIN32
+#include <arpa/inet.h>
+#endif
+#include <cstdint>
+#include <cstdlib>
+#include <common/env.hpp>
 #include <websocket_context.hpp>
 
 /**
@@ -123,34 +129,89 @@ constexpr std::string_view UnwrapIpv4MappedIpv6(std::string_view ip) {
     return ip;
 }
 
+#ifndef _WIN32
+/**
+ * @brief True when `ip` is inside IPv4 `prefix/len`. IPv6 is treated as
+ * untrusted (the deploy proxy is IPv4 on the docker network); unknown input,
+ * malformed CIDRs and non-IPv4 addresses return false.
+ */
+inline bool IpInIpv4Cidr(std::string_view ip, std::string_view cidr) {
+    const auto slash = cidr.find('/');
+    int bits = slash == std::string_view::npos
+                   ? 32
+                   : std::atoi(std::string(cidr.substr(slash + 1)).c_str());
+    const std::string net(cidr.substr(0, slash));
+    struct in_addr a{}, b{};
+    if (inet_pton(AF_INET, std::string(ip).c_str(), &a) != 1) return false;
+    if (inet_pton(AF_INET, net.c_str(), &b) != 1) return false;
+    if (bits <= 0) return true;
+    if (bits > 32) bits = 32;
+    const uint32_t mask = bits == 32 ? 0xFFFFFFFFu : ~((1u << (32 - bits)) - 1u);
+    return (ntohl(a.s_addr) & mask) == (ntohl(b.s_addr) & mask);
+}
+
+/**
+ * @brief Resolve the client IP, honouring XFF only from a trusted proxy.
+ *
+ * `peer_ip` is the direct socket peer (Traefik's container IP). The
+ * `X-Forwarded-For` header is honoured only when that peer falls inside one of
+ * the comma-separated `trusted_cidrs` (e.g. "172.16.0.0/12"); otherwise the
+ * header is client-supplied and spoofable, so the peer address is returned.
+ *
+ * @param peer_ip Direct socket peer address.
+ * @param xff Raw `X-Forwarded-For` value (empty when absent/untrusted).
+ * @param trusted_cidrs Comma-separated proxy CIDR allowlist.
+ * @return std::string The resolved client IP, always plain IPv4 when possible.
+ */
+inline std::string ResolveClientIp(std::string_view peer_ip, std::string_view xff,
+                                   std::string_view trusted_cidrs) {
+    if (!xff.empty() && !trusted_cidrs.empty()) {
+        std::size_t start = 0;
+        while (start <= trusted_cidrs.size()) {
+            const auto comma = trusted_cidrs.find(',', start);
+            auto item = TrimWhitespace(trusted_cidrs.substr(
+                start, comma == std::string_view::npos ? std::string_view::npos
+                                                       : comma - start));
+            if (!item.empty() && IpInIpv4Cidr(peer_ip, item)) {
+                const auto pos = xff.rfind(',');
+                return std::string(UnwrapIpv4MappedIpv6(
+                    TrimWhitespace(xff.substr(pos == std::string_view::npos ? 0 : pos + 1))));
+            }
+            if (comma == std::string_view::npos) break;
+            start = comma + 1;
+        }
+    }
+    return std::string(UnwrapIpv4MappedIpv6(peer_ip));
+}
+#endif  // !_WIN32
+
 /**
  * @brief Resolve the originating client IP for rate-limiting / logging.
  *
- * When `trust_proxy` is true the server is assumed to sit behind a single
- * reverse proxy (e.g. Traefik) that appends the peer address to
- * `X-Forwarded-For`. In that case the **right-most** entry is the address the
- * proxy actually observed and is therefore the trustworthy client IP; entries to
- * its left are client-supplied and spoofable. When `trust_proxy` is false, or the
- * header is absent, the socket peer address is used.
+ * Behind a trusted proxy (e.g. Traefik) `X-Forwarded-For`'s **right-most**
+ * entry is the address the proxy actually observed; entries to its left are
+ * client-supplied and spoofable. The header is honoured only when the socket
+ * peer is inside `TRUSTED_PROXY_CIDRS` (comma list), so a direct connection can
+ * never spoof its own IP. When `trust_proxy` is false, the header is absent, or
+ * the peer is not a trusted proxy, the socket peer address is used.
  *
  * @param res Response, used for the socket peer address fallback.
  * @param req Request, source of the `X-Forwarded-For` header.
- * @param trust_proxy Whether to honour `X-Forwarded-For` (set behind a proxy).
+ * @param trust_proxy Whether to consider `X-Forwarded-For` at all.
  * @return std::string The resolved client IP (may be empty if unavailable). IPv4
  * clients are always reported as plain IPv4, never IPv4-mapped IPv6.
  */
 inline std::string GetClientIp(AppResponse* res, AppRequest* req, bool trust_proxy) {
-    if (trust_proxy) {
-        std::string_view xff = req->getHeader("x-forwarded-for");
-        if (!xff.empty()) {
-            size_t comma = xff.rfind(',');
-            std::string_view last = (comma == std::string_view::npos)
-                                        ? xff
-                                        : xff.substr(comma + 1);
-            return std::string(UnwrapIpv4MappedIpv6(TrimWhitespace(last)));
-        }
-    }
-    return std::string(UnwrapIpv4MappedIpv6(res->getRemoteAddressAsText()));
+    const std::string_view peer = res->getRemoteAddressAsText();
+#ifndef _WIN32
+    const std::string_view xff =
+        trust_proxy ? req->getHeader("x-forwarded-for") : std::string_view{};
+    return ResolveClientIp(peer, xff, Env::Get("TRUSTED_PROXY_CIDRS", ""));
+#else
+    (void)trust_proxy;
+    (void)req;
+    return std::string(UnwrapIpv4MappedIpv6(peer));
+#endif
 }
 
 }

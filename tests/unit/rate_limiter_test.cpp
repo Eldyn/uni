@@ -2,6 +2,7 @@
 #include "common/rate_limiter.hpp"
 
 #include <chrono>
+#include <string>
 
 using Clock = RateLimiter::Clock;
 using namespace std::chrono_literals;
@@ -54,4 +55,12 @@ TEST_CASE("eviction drops idle buckets") {
 
     rl.EvictBefore(t0 + 400s, 300s);  // idle 400s > 300s threshold
     CHECK(rl.Size() == 0);
+}
+
+TEST_CASE("RateLimiter caps tracked buckets") {
+    RateLimiter rl(1.0, 1.0);
+    for (std::size_t i = 0; i < RateLimiter::kMaxBuckets + 1000; ++i) {
+        rl.AllowAt("ip-" + std::to_string(i), RateLimiter::Clock::now());
+    }
+    CHECK(rl.Size() <= RateLimiter::kMaxBuckets);
 }

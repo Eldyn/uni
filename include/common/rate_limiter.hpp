@@ -27,6 +27,9 @@ class RateLimiter {
 public:
     using Clock = std::chrono::steady_clock;
 
+    /** @brief Hard cap on tracked buckets, bounding memory under key flooding. */
+    static constexpr std::size_t kMaxBuckets = 200'000;
+
     /**
      * @param capacity       Maximum burst, i.e. bucket size in tokens.
      * @param refill_per_sec Tokens replenished per second (sustained rate).
@@ -59,4 +62,6 @@ private:
     double capacity_;
     double refill_per_sec_;
     std::unordered_map<std::string, Bucket> buckets_;
+    /** Last time idle buckets were swept, bounding the cap's scan cost. */
+    Clock::time_point last_evict_{};
 };
