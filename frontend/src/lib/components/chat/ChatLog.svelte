@@ -61,13 +61,21 @@
 				</button>
 			{/if}
 			{#each lines as line (line.id)}
-				<p class="break-words px-2 py-1 font-micro text-sm leading-relaxed text-text">
+				<p class="break-words px-2 py-1 text-sm leading-relaxed text-text">
 					<span
 						class="uppercase"
 						style="font-family: var(--pypx); font-weight: 700; color: {line.color};"
 						>{line.username === storeAuth.username ? "You" : censorText(line.username)}:</span
 					>
-					<RichText text={line.text} censor={true} />
+					<!-- Monogram's cap-height is ~0.44em (vs ~1em for Pypx/Habbo), so
+					     the Monogram message body needs a much larger font-size, and
+					     bold/italic faces must then be scaled back down via
+					     --rt-sib-scale to match it. -->
+					<RichText
+						class="font-monogram text-3xl leading-tight [--rt-sib-scale:0.42]"
+						text={line.text}
+						censor={true}
+					/>
 				</p>
 			{/each}
 		</div>

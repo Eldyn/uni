@@ -76,12 +76,14 @@
 	>
 		I
 	</button>
+	<!-- Monogram's cap-height is ~0.44em, so it needs a much larger font-size
+	     than the surrounding UI to read at the same visual size. -->
 	<input
 		bind:this={inputEl}
 		bind:value={text}
 		{onkeydown}
 		oninput={persistDraft}
-		class="min-w-0 flex-1 bg-transparent px-1 font-micro text-sm text-text-h placeholder:text-text/60"
+		class="min-w-0 flex-1 bg-transparent px-1 font-monogram text-3xl text-text-h placeholder:text-text/60"
 		placeholder={m.chat_composer_placeholder({}, { locale: storeI18n.locale })}
 		aria-label={m.chat_composer_aria({}, { locale: storeI18n.locale })}
 	/>

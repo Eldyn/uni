@@ -28,6 +28,34 @@
 
 	const segments = $derived(parseRichText(text, { allowKeywords }));
 
+	function segmentInlineStyle(segment: {
+		bold?: boolean;
+		italic?: boolean;
+		color?: string | null;
+	}): string {
+		const parts: string[] = [];
+		const styled = segment.bold || segment.italic;
+		// Monogram's cap-height is ~0.44em vs ~1em for the Pypx and Monogram-italic
+		// faces, so bold/italic must be scaled down to match a Monogram body.
+		// --rt-sib-scale is set by Monogram-bodied callers (chat) and defaults to 1
+		// so every other RichText context keeps its base size.
+		if (styled) parts.push("font-size: calc(var(--rt-sib-scale, 1) * 1em);");
+		if (segment.bold) {
+			parts.push("font-family: var(--pypx);", "font-weight: 700;");
+		} else if (segment.italic) {
+			parts.push("font-family: var(--monogram);");
+		}
+		if (segment.italic) parts.push("font-style: italic;");
+		if (segment.color) parts.push(`color: ${segment.color};`);
+		return parts.join("");
+	}
+
+	function segmentFont(segment: { bold?: boolean; italic?: boolean }): string {
+		if (segment.bold) return "var(--pypx)";
+		if (segment.italic) return "var(--monogram)";
+		return "";
+	}
+
 	function handleKeywordClick(e: MouseEvent, keyword: string) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -59,9 +87,7 @@
 				type="button"
 				class="glossary-keyword-btn"
 				onclick={(e) => handleKeywordClick(e, segment.keyword!)}
-				style="{segment.bold ? 'font-weight: 800;' : ''}{segment.italic
-					? 'font-style: italic;'
-					: ''}{segment.color ? `color: ${segment.color};` : ''}"
+				style={segmentInlineStyle(segment)}
 			>
 				{#if segment.effect}
 					<TextEffects
@@ -69,7 +95,8 @@
 						effect={segment.effect}
 						color={segment.color ?? "var(--tooltip-link-color, var(--redCard, #bd3130))"}
 						shineBaseColor={segment.color ?? "var(--tooltip-link-color, var(--redCard, #bd3130))"}
-						class="fx-{segment.effect}"
+						font={segmentFont(segment)}
+						class="fx-{segment.effect} {segment.bold || segment.italic ? 'rt-scaled' : ''}"
 					/>
 				{:else}
 					{displayText}
@@ -80,18 +107,13 @@
 				text={displayText}
 				effect={segment.effect}
 				color={segment.color ?? ""}
-				class="fx-{segment.effect}"
+				font={segmentFont(segment)}
+				class="fx-{segment.effect} {segment.bold || segment.italic ? 'rt-scaled' : ''}"
 			/>
 		{:else}
-			<!-- Chat text inherits TinyUnicode (see ChatLog/ChatComposer) for near-
-			     full unicode coverage; bold/italic apply as plain CSS instead of
-			     switching to Pypx/Monogram, which don't cover most alphabets and
-			     would break rendering for players typing in other languages. -->
-			<span
-				style="{segment.bold ? 'font-weight: 800;' : ''}{segment.italic
-					? 'font-style: italic;'
-					: ''}{segment.color ? `color: ${segment.color};` : ''}"
-			>
+			<!-- Bold uses the Pypx bold face and italic the Monogram-italic face,
+			     each scaled by --rt-sib-scale so they match a Monogram body. -->
+			<span style={segmentInlineStyle(segment)}>
 				{displayText}
 			</span>
 		{/if}
@@ -99,6 +121,12 @@
 </span>
 
 <style>
+	/* TextEffects wrappers for bold/italic segments get the same size
+	   compensation as the plain-span path. */
+	:global(.rt-scaled) {
+		font-size: calc(var(--rt-sib-scale, 1) * 1em);
+	}
+
 	.glossary-keyword-btn {
 		/* app.css clips every `button:not(.pixel-bordered)` to the pixel-corner
 		   notch shape by default; this is an inline text link, not a chrome
