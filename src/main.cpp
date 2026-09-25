@@ -1,3 +1,4 @@
+#include <common/boot_config.hpp>
 #include <common/env.hpp>
 #include <common/http.hpp>
 #include <common/ws.hpp>
@@ -39,6 +40,7 @@ int main() {
 #endif
     try {
         Env::Load(".env");
+        ValidateBootConfigOrThrow();
 
         const int         port          = std::stoi(Env::Get("PORT", "9999"));
         const std::string db_path       = Env::Get("DB_PATH", "uni.sqlite");
