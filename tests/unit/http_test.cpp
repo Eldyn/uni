@@ -54,3 +54,46 @@ TEST_CASE("IsAllowedWsOrigin: explicit allowlist is honored") {
 TEST_CASE("IsAllowedWsOrigin: non-browser clients (no Origin) are allowed") {
     CHECK(http::IsAllowedWsOrigin("", "playuni.app", ""));
 }
+
+#ifndef _WIN32
+TEST_CASE("IpInIpv4Cidr matches inside the range and rejects outside") {
+    CHECK(http::IpInIpv4Cidr("172.16.0.1", "172.16.0.0/12"));
+    CHECK(http::IpInIpv4Cidr("172.31.255.254", "172.16.0.0/12"));
+    CHECK_FALSE(http::IpInIpv4Cidr("172.32.0.1", "172.16.0.0/12"));
+    CHECK_FALSE(http::IpInIpv4Cidr("192.168.1.1", "172.16.0.0/12"));
+}
+
+TEST_CASE("IpInIpv4Cidr honours /32 exact matches") {
+    CHECK(http::IpInIpv4Cidr("10.0.0.7", "10.0.0.7/32"));
+    CHECK_FALSE(http::IpInIpv4Cidr("10.0.0.8", "10.0.0.7/32"));
+}
+
+TEST_CASE("IpInIpv4Cidr /0 matches the whole space") {
+    CHECK(http::IpInIpv4Cidr("203.0.113.9", "0.0.0.0/0"));
+}
+
+TEST_CASE("IpInIpv4Cidr fails closed on a malformed prefix") {
+    CHECK_FALSE(http::IpInIpv4Cidr("172.16.0.1", "172.16.0.0/"));
+    CHECK_FALSE(http::IpInIpv4Cidr("172.16.0.1", "172.16.0.0/x"));
+    CHECK_FALSE(http::IpInIpv4Cidr("172.16.0.1", "172.16.0.0/-1"));
+}
+
+TEST_CASE("IpInIpv4Cidr rejects a non-IPv4 address") {
+    CHECK_FALSE(http::IpInIpv4Cidr("2001:db8::1", "172.16.0.0/12"));
+    CHECK_FALSE(http::IpInIpv4Cidr("not-an-ip", "172.16.0.0/12"));
+}
+
+TEST_CASE("ResolveClientIp honours XFF only from a trusted peer") {
+    // Trusted peer: the right-most (proxy-observed) XFF entry wins, trimmed.
+    CHECK(http::ResolveClientIp("172.16.0.5", "203.0.113.7", "172.16.0.0/12") ==
+          "203.0.113.7");
+    CHECK(http::ResolveClientIp("172.16.0.5", "198.51.100.9, 203.0.113.7",
+                                "172.16.0.0/12") == "203.0.113.7");
+    // Untrusted peer, empty allowlist, or malformed CIDR: XFF is ignored.
+    CHECK(http::ResolveClientIp("203.0.113.99", "203.0.113.7", "172.16.0.0/12") ==
+          "203.0.113.99");
+    CHECK(http::ResolveClientIp("172.16.0.5", "203.0.113.7", "") == "172.16.0.5");
+    CHECK(http::ResolveClientIp("172.16.0.5", "203.0.113.7", "172.16.0.0/") ==
+          "172.16.0.5");
+}
+#endif  // !_WIN32

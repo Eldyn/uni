@@ -3,9 +3,11 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <algorithm>
 #ifndef _WIN32
 #include <arpa/inet.h>
 #endif
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <common/env.hpp>
@@ -137,14 +139,34 @@ constexpr std::string_view UnwrapIpv4MappedIpv6(std::string_view ip) {
  */
 inline bool IpInIpv4Cidr(std::string_view ip, std::string_view cidr) {
     const auto slash = cidr.find('/');
-    int bits = slash == std::string_view::npos
-                   ? 32
-                   : std::atoi(std::string(cidr.substr(slash + 1)).c_str());
+    int bits = 32;
+    if (slash != std::string_view::npos) {
+        const std::string_view len = TrimWhitespace(cidr.substr(slash + 1));
+        // INFO: Fail closed on a malformed prefix. Only a non-empty run of
+        //       ASCII digits is accepted; the old std::atoi path turned
+        //       ""/"x"/-1 into 0 and then trusted every peer.
+        if (len.empty() ||
+            !std::all_of(len.begin(), len.end(), [](unsigned char c) {
+                return std::isdigit(c) != 0;
+            })) {
+            return false;
+        }
+        // Bounded parse: saturate above /32 so no shift sees an out-of-range
+        // prefix length (also avoids std::atoi overflow on absurd input).
+        bits = 0;
+        for (const char c : len) {
+            bits = bits * 10 + (c - '0');
+            if (bits > 32) {
+                bits = 32;
+                break;
+            }
+        }
+    }
     const std::string net(cidr.substr(0, slash));
     struct in_addr a{}, b{};
     if (inet_pton(AF_INET, std::string(ip).c_str(), &a) != 1) return false;
     if (inet_pton(AF_INET, net.c_str(), &b) != 1) return false;
-    if (bits <= 0) return true;
+    if (bits == 0) return true;  // /0 intentionally matches the whole space
     if (bits > 32) bits = 32;
     const uint32_t mask = bits == 32 ? 0xFFFFFFFFu : ~((1u << (32 - bits)) - 1u);
     return (ntohl(a.s_addr) & mask) == (ntohl(b.s_addr) & mask);
