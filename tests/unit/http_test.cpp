@@ -55,6 +55,13 @@ TEST_CASE("IsAllowedWsOrigin: non-browser clients (no Origin) are allowed") {
     CHECK(http::IsAllowedWsOrigin("", "playuni.app", ""));
 }
 
+TEST_CASE("HasForbiddenDotSegment allows .well-known but denies other dot paths") {
+    CHECK_FALSE(http::HasForbiddenDotSegment(".well-known/atproto-did"));
+    CHECK(http::HasForbiddenDotSegment(".env"));
+    CHECK(http::HasForbiddenDotSegment("assets/.git/config"));
+    CHECK_FALSE(http::HasForbiddenDotSegment("assets/app.js"));
+}
+
 #ifndef _WIN32
 TEST_CASE("IpInIpv4Cidr matches inside the range and rejects outside") {
     CHECK(http::IpInIpv4Cidr("172.16.0.1", "172.16.0.0/12"));

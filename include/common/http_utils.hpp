@@ -133,4 +133,20 @@ std::string MakeETag(const std::filesystem::path& file);
 bool IsAllowedWsOrigin(std::string_view origin, std::string_view host,
                        std::string_view allowlist);
 
+/**
+ * @brief Whether a request path contains a dot-leading segment that must not
+ *        be served.
+ *
+ * Dotfiles and dot-directories (.env, .git/config, .ssh) are never intended
+ * to be web-reachable; refusing them outright means a stray file dropped into
+ * the served root cannot leak its contents. The sole exemption is the literal
+ * ".well-known/" prefix, which atproto and other standard discovery endpoints
+ * legitimately live under.
+ *
+ * @param relative_path The request path, without the served root.
+ * @return bool True if any path segment other than the allowed .well-known
+ *         prefix starts with '.'.
+ */
+bool HasForbiddenDotSegment(std::string_view relative_path);
+
 }  // namespace http

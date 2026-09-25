@@ -493,6 +493,15 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
 
         std::string url = std::string(req->getUrl());
         std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
+
+        // INFO: Refuse dot-leading path segments (.env, .git/config) so a
+        //       stray file in the served root cannot be fetched. The literal
+        //       .well-known/ prefix stays reachable for discovery endpoints.
+        if (http::HasForbiddenDotSegment(relativePath)) {
+            res->writeStatus("404 Not Found")->end();
+            return;
+        }
+
         std::string if_none_match = std::string(req->getHeader("if-none-match"));
         std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
 
@@ -566,6 +575,14 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
 
         std::string url = std::string(req->getUrl());
         std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
+
+        // INFO: Refuse dot-leading path segments (.env, .git/config) so a
+        //       stray file in the served root cannot be fetched. The literal
+        //       .well-known/ prefix stays reachable for discovery endpoints.
+        if (http::HasForbiddenDotSegment(relativePath)) {
+            res->writeStatus("404 Not Found")->end();
+            return;
+        }
 
         // INFO: Capture the conditional-request header now: uWebSockets recycles
         //       the request object as soon as the response is written, so it
@@ -728,6 +745,10 @@ void WebServer::LoadStaticFileCache() {
 
     for (const auto& entry : fs::recursive_directory_iterator(root, ec)) {
         if (ec) break;
+        // INFO: Never cache symlinks. is_regular_file() follows links, so a
+        //       symlink pointing at a host file (.env, /etc/passwd) would
+        //       otherwise be admitted into the cache and served.
+        if (entry.is_symlink()) continue;
         if (!entry.is_regular_file()) continue;
 
         std::ifstream is(entry.path(), std::ios::binary);

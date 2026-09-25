@@ -117,4 +117,18 @@ bool IsAllowedWsOrigin(std::string_view origin, std::string_view host,
     return origin_host == host;
 }
 
+bool HasForbiddenDotSegment(std::string_view relative_path) {
+    if (relative_path.starts_with(".well-known/")) return false;
+    std::size_t start = 0;
+    while (start <= relative_path.size()) {
+        const auto slash = relative_path.find('/', start);
+        std::string_view seg = relative_path.substr(
+            start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
+        if (!seg.empty() && seg.front() == '.') return true;
+        if (slash == std::string_view::npos) break;
+        start = slash + 1;
+    }
+    return false;
+}
+
 }  // namespace http
