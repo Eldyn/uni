@@ -11,13 +11,20 @@ using json = nlohmann::json;
 namespace {
 
 void WriteError(AppResponse* res, const Error& err) {
+    // INFO: DB/internal failures are logged in full server-side but never
+    //       echoed: err.message can carry SQLite text or env names.
+    const bool internal = err.code == Error::Code::kDatabaseFailure ||
+                          err.code == Error::Code::kInternalError;
+    const std::string message = internal ? "Internal server error" : err.message;
+    if (internal) Logger::Error("[HTTP] internal error: " + err.message);
+
     if (err.code == Error::Code::kTooManyRequests) {
         res->writeStatus(err.HttpStatus())->writeHeader("Retry-After", "60");
     } else {
         res->writeStatus(err.HttpStatus());
     }
     res->writeHeader("Content-Type", "application/json")
-       ->end(json({{"error", err.message}}).dump());
+       ->end(json({{"error", message}}).dump());
 }
 
 constexpr bool IsAllowedLocale(const std::string& locale) {
