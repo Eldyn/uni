@@ -16,7 +16,7 @@ class UniConan(ConanFile):
     generators = "CMakeDeps"
 
     requires = (
-        "openssl/[~3.2]",
+        "openssl/3.2.6",
         "libuv/1.46.0",
         "zlib/1.3.1",
         "uwebsockets/20.48.0",
