@@ -174,89 +174,105 @@ void WebServer::RegisterRoutes() {
     //       returns 404 so the endpoint isn't even discoverable, and Traefik
     //       additionally blocks the /internal prefix on the public router.
     app_.get("/internal/active-games", [this](AppResponse *res, AppRequest *req) {
-        const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
-        if (token.empty() || req->getHeader("x-deploy-token") != token) {
-            res->writeStatus("404 Not Found")->end("File not found");
-            return;
+        try {
+            const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
+            if (token.empty() || req->getHeader("x-deploy-token") != token) {
+                res->writeStatus("404 Not Found")->end("File not found");
+                return;
+            }
+            const std::size_t count = active_match_provider_ ? active_match_provider_() : 0;
+            res->writeHeader("Content-Type", "application/json")
+               ->end(json({{"active_matches", count}}).dump());
+        } catch (const std::exception& e) {
+            Logger::Error("[HTTP] internal active-games: ", e.what());
+            res->writeStatus("500 Internal Server Error")->end();
         }
-        const std::size_t count = active_match_provider_ ? active_match_provider_() : 0;
-        res->writeHeader("Content-Type", "application/json")
-           ->end(json({{"active_matches", count}}).dump());
     });
 
     // INFO: One-time migration email blast endpoint for unverified users.
     //       Re-running re-issues codes and re-sends — intentional (retry mechanism)
     //       but burns Brevo quota, hence token gate and cap.
     app_.post("/internal/verify-blast", [this](AppResponse *res, AppRequest *req) {
-        const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
-        if (token.empty() || req->getHeader("x-deploy-token") != token) {
-            res->writeStatus("404 Not Found")->end("File not found");
-            return;
-        }
-
-        http::ReadBody(res, 4096, [this, res](const std::string& /*body*/) {
-            const int cap = Env::GetInt("BLAST_MAX_RECIPIENTS", 50);
-            auto rows = Database::Get().Query(
-                "SELECT id, username, email, locale FROM users WHERE email_verified = 0;");
-            if (!rows) {
-                Logger::Error("[VerifyBlast] Query failed: " + rows.error().message);
-                res->writeStatus("500 Internal Server Error")->end();
+        try {
+            const std::string token = Env::Get("DEPLOY_STATUS_TOKEN", "");
+            if (token.empty() || req->getHeader("x-deploy-token") != token) {
+                res->writeStatus("404 Not Found")->end("File not found");
                 return;
             }
 
-            if (static_cast<int>(rows->size()) > cap) {
-                res->writeStatus("409 Conflict")
-                   ->writeHeader("Content-Type", "application/json")
-                   ->end(json({{"error", "too many recipients"}}).dump());
-                return;
-            }
-
-            VerificationService verifier(Database::Get());
-            int queued = 0;
-            int skipped = 0;
-
-            for (const auto& row : *rows) {
-                const int user_id = row.Get<int>("id");
-                const std::string username = row.Get<std::string>("username");
-                const std::string email = row.Get<std::string>("email");
-                const std::string locale = row.Get<std::string>("locale");
-
-                if (!email_queue_) {
-                    Logger::Error("[VerifyBlast] No email queue configured; skipping " + username);
-                    ++skipped;
-                    continue;
-                }
-
-                auto issue_res = verifier.IssueCodeForEmail(email);
-                if (!issue_res) {
-                    Logger::Error("[VerifyBlast] Failed to issue code for " + username +
-                                  " (" + email + "): " + issue_res.error().message);
-                    ++skipped;
-                    continue;
-                }
-
+            http::ReadBody(res, 4096, [this, res](const std::string& /*body*/) {
                 try {
-                    auto mail = RenderMigrationEmail(VerifyEmailData{
-                        .username = username,
-                        .code = issue_res->plaintext_code,
-                        .magic_link = BuildVerifyMagicLink(issue_res->plaintext_code),
-                        .locale = locale
-                    });
-                    mail.to_address = email;
+                    const int cap = Env::GetInt("BLAST_MAX_RECIPIENTS", 50);
+                    auto rows = Database::Get().Query(
+                        "SELECT id, username, email, locale FROM users WHERE email_verified = 0;");
+                    if (!rows) {
+                        Logger::Error("[VerifyBlast] Query failed: " + rows.error().message);
+                        res->writeStatus("500 Internal Server Error")->end();
+                        return;
+                    }
 
-                    email_queue_->Enqueue(std::move(mail));
-                    verifier.RecordSend(user_id);
-                    ++queued;
+                    if (static_cast<int>(rows->size()) > cap) {
+                        res->writeStatus("409 Conflict")
+                           ->writeHeader("Content-Type", "application/json")
+                           ->end(json({{"error", "too many recipients"}}).dump());
+                        return;
+                    }
+
+                    VerificationService verifier(Database::Get());
+                    int queued = 0;
+                    int skipped = 0;
+
+                    for (const auto& row : *rows) {
+                        const int user_id = row.Get<int>("id");
+                        const std::string username = row.Get<std::string>("username");
+                        const std::string email = row.Get<std::string>("email");
+                        const std::string locale = row.Get<std::string>("locale");
+
+                        if (!email_queue_) {
+                            Logger::Error("[VerifyBlast] No email queue configured; skipping " +
+                                          username);
+                            ++skipped;
+                            continue;
+                        }
+
+                        auto issue_res = verifier.IssueCodeForEmail(email);
+                        if (!issue_res) {
+                            Logger::Error("[VerifyBlast] Failed to issue code for " + username +
+                                          " (" + email + "): " + issue_res.error().message);
+                            ++skipped;
+                            continue;
+                        }
+
+                        try {
+                            auto mail = RenderMigrationEmail(VerifyEmailData{
+                                .username = username,
+                                .code = issue_res->plaintext_code,
+                                .magic_link = BuildVerifyMagicLink(issue_res->plaintext_code),
+                                .locale = locale
+                            });
+                            mail.to_address = email;
+
+                            email_queue_->Enqueue(std::move(mail));
+                            verifier.RecordSend(user_id);
+                            ++queued;
+                        } catch (const std::exception& e) {
+                            Logger::Error("[VerifyBlast] Failed to send email to " + username +
+                                          ": " + e.what());
+                            ++skipped;
+                        }
+                    }
+
+                    res->writeHeader("Content-Type", "application/json")
+                       ->end(json({{"queued", queued}, {"skipped", skipped}}).dump());
                 } catch (const std::exception& e) {
-                    Logger::Error("[VerifyBlast] Failed to send email to " + username + ": " +
-                                  e.what());
-                    ++skipped;
+                    Logger::Error("[HTTP] internal verify-blast: ", e.what());
+                    res->writeStatus("500 Internal Server Error")->end();
                 }
-            }
-
-            res->writeHeader("Content-Type", "application/json")
-               ->end(json({{"queued", queued}, {"skipped", skipped}}).dump());
-        });
+            });
+        } catch (const std::exception& e) {
+            Logger::Error("[HTTP] internal verify-blast: ", e.what());
+            res->writeStatus("500 Internal Server Error")->end();
+        }
     });
 
     app_.head("/*", [this](AppResponse *res, AppRequest *req) {
@@ -316,70 +332,88 @@ void WebServer::RegisterRoutes() {
         .closeOnBackpressureLimit = true,
         .sendPingsAutomatically = true,
         .upgrade = [this](AppResponse* res, AppRequest*  req, us_socket_context_t* ctx) {
-            std::string_view cookies = req->getHeader("cookie");
-            // INFO: ws_token (SameSite=None) is accepted for cross-origin embeds
-            //       (e.g. itch.io); auth_token (SameSite=Strict) covers direct use.
-            auto token = http::GetCookieValue(cookies, "ws_token");
-            if (!token || token->empty()) token = http::GetCookieValue(cookies, "auth_token");
+            try {
+                std::string_view cookies = req->getHeader("cookie");
+                // INFO: ws_token (SameSite=None) is accepted for cross-origin embeds
+                //       (e.g. itch.io); auth_token (SameSite=Strict) covers direct use.
+                auto token = http::GetCookieValue(cookies, "ws_token");
+                if (!token || token->empty()) token = http::GetCookieValue(cookies, "auth_token");
 
-            // INFO: Capture the IP before upgrade() invalidates the request
-            //       object.
-            const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+                // INFO: Capture the IP before upgrade() invalidates the request
+                //       object.
+                const std::string ip = http::GetClientIp(res, req, trust_proxy_);
 
-            // INFO: CSWSH defence for the SameSite=None ws_token cookie: a
-            //       browser-supplied Origin must be same-origin (empty
-            //       allowlist) or explicitly allowed; non-browser clients
-            //       send no Origin and cannot be CSRF'd.
-            const std::string origin = std::string(req->getHeader("origin"));
-            const std::string host   = std::string(req->getHeader("host"));
-            if (!http::IsAllowedWsOrigin(origin, host, Env::Get("WS_ALLOWED_ORIGINS", ""))) {
-                Logger::Warn("[WS] Rejected upgrade, disallowed origin");
-                res->writeStatus("403 Forbidden")->end();
-                return;
+                // INFO: CSWSH defence for the SameSite=None ws_token cookie: a
+                //       browser-supplied Origin must be same-origin (empty
+                //       allowlist) or explicitly allowed; non-browser clients
+                //       send no Origin and cannot be CSRF'd.
+                const std::string origin = std::string(req->getHeader("origin"));
+                const std::string host   = std::string(req->getHeader("host"));
+                if (!http::IsAllowedWsOrigin(origin, host, Env::Get("WS_ALLOWED_ORIGINS", ""))) {
+                    Logger::Warn("[WS] Rejected upgrade, disallowed origin");
+                    res->writeStatus("403 Forbidden")->end();
+                    return;
+                }
+
+                if (!token || token->empty()) {
+                    Logger::Warn("[WS] Rejected upgrade, missing token ip=" + ip);
+                    res->writeStatus("401 Unauthorized")->end();
+                    return;
+                }
+
+                auto payload = AuthService::VerifyToken(*token);
+
+                if (!payload) {
+                    Logger::Warn("[WS] Rejected upgrade, invalid token ip=" + ip);
+                    res->writeStatus("401 Unauthorized")->end();
+                    return;
+                }
+
+                // INFO: Cap concurrent connections per IP so one host cannot
+                //       exhaust the server's sockets. The counter is incremented
+                //       here and decremented in OnSocketClosed.
+                if (max_conn_per_ip_ > 0 && conn_per_ip_[ip] >= max_conn_per_ip_) {
+                    Logger::Warn("[WS] Rejected upgrade, connection cap reached ip=" + ip);
+                    res->writeStatus("429 Too Many Requests")->end();
+                    return;
+                }
+
+                PerSocketData socket_data;
+                socket_data.username = payload->username;
+                socket_data.ip = ip;
+                ++conn_per_ip_[ip];
+
+                res->upgrade(std::move(socket_data),
+                    req->getHeader("sec-websocket-key"),
+                    req->getHeader("sec-websocket-protocol"),
+                    req->getHeader("sec-websocket-extensions"),
+                    ctx);
+            } catch (const std::exception& e) {
+                Logger::Error("[WS] upgrade handler: ", e.what());
+                res->writeStatus("500 Internal Server Error")->end();
             }
-
-            if (!token || token->empty()) {
-                Logger::Warn("[WS] Rejected upgrade, missing token ip=" + ip);
-                res->writeStatus("401 Unauthorized")->end();
-                return;
-            }
-
-            auto payload = AuthService::VerifyToken(*token);
-
-            if (!payload) {
-                Logger::Warn("[WS] Rejected upgrade, invalid token ip=" + ip);
-                res->writeStatus("401 Unauthorized")->end();
-                return;
-            }
-
-            // INFO: Cap concurrent connections per IP so one host cannot
-            //       exhaust the server's sockets. The counter is incremented
-            //       here and decremented in OnSocketClosed.
-            if (max_conn_per_ip_ > 0 && conn_per_ip_[ip] >= max_conn_per_ip_) {
-                Logger::Warn("[WS] Rejected upgrade, connection cap reached ip=" + ip);
-                res->writeStatus("429 Too Many Requests")->end();
-                return;
-            }
-
-            PerSocketData socket_data;
-            socket_data.username = payload->username;
-            socket_data.ip = ip;
-            ++conn_per_ip_[ip];
-
-            res->upgrade(std::move(socket_data),
-                req->getHeader("sec-websocket-key"),
-                req->getHeader("sec-websocket-protocol"),
-                req->getHeader("sec-websocket-extensions"),
-                ctx);
         },
         .open = [this](AppWebSocket *ws) {
-            OnSocketOpen(ws);
+            try {
+                OnSocketOpen(ws);
+            } catch (const std::exception& e) {
+                Logger::Error("[WS] open handler: ", e.what());
+                ws->close();
+            }
         },
         .message = [this](AppWebSocket *ws, std::string_view message, uWS::OpCode op) {
-            OnSocketMessage(ws, message, op);
+            try {
+                OnSocketMessage(ws, message, op);
+            } catch (const std::exception& e) {
+                Logger::Error("[WS] message handler: ", e.what());
+            }
         },
         .close = [this](AppWebSocket *ws, int code, std::string_view message) {
-            OnSocketClosed(ws);
+            try {
+                OnSocketClosed(ws);
+            } catch (const std::exception& e) {
+                Logger::Error("[WS] close handler: ", e.what());
+            }
         }
     });
 }
@@ -429,67 +463,72 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
     auto is_alive = std::make_shared<bool>(true);
     res->onAborted([is_alive]() { *is_alive = false; });
 
-    if (!*is_alive) return;
+    try {
+        if (!*is_alive) return;
 
-    std::string url = std::string(req->getUrl());
-    std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
-    std::string if_none_match = std::string(req->getHeader("if-none-match"));
-    std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
+        std::string url = std::string(req->getUrl());
+        std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
+        std::string if_none_match = std::string(req->getHeader("if-none-match"));
+        std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
 
-    auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
+        auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
 
-    if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
-        const fs::path& filePath = *resolved;
-        std::string pathStr = filePath.string();
+        if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
+            const fs::path& filePath = *resolved;
+            std::string pathStr = filePath.string();
 
-        // A HEAD must describe exactly the response a GET would produce, so it
-        // has to pick the same encoding and report that variant's ETag/length.
-        fs::path bodyPath = filePath;
-        bool gzipped = false;
-        if (http::AcceptsGzip(accept_encoding)) {
-            if (auto sidecar = http::PrecompressedVariant(filePath)) {
-                bodyPath = *sidecar;
-                gzipped  = true;
+            // A HEAD must describe exactly the response a GET would produce, so it
+            // has to pick the same encoding and report that variant's ETag/length.
+            fs::path bodyPath = filePath;
+            bool gzipped = false;
+            if (http::AcceptsGzip(accept_encoding)) {
+                if (auto sidecar = http::PrecompressedVariant(filePath)) {
+                    bodyPath = *sidecar;
+                    gzipped  = true;
+                }
             }
-        }
 
-        std::string etag = http::MakeETag(bodyPath);
+            std::string etag = http::MakeETag(bodyPath);
 
-        if (!etag.empty() && if_none_match == etag) {
-            res->writeStatus("304 Not Modified")
+            if (!etag.empty() && if_none_match == etag) {
+                res->writeStatus("304 Not Modified")
+                    ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+                    ->writeHeader("Vary", "Accept-Encoding")
+                    ->writeHeader("ETag", etag)
+                    ->end();
+                return;
+            }
+
+            res->writeHeader("Content-Type", http::GetMimeType(pathStr))
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
-                ->writeHeader("ETag", etag)
-                ->end();
-            return;
-        }
-
-        res->writeHeader("Content-Type", http::GetMimeType(pathStr))
-            ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
-            ->writeHeader("Vary", "Accept-Encoding")
-            ->writeHeader("X-Content-Type-Options", "nosniff");
-        if (gzipped) {
-            res->writeHeader("Content-Encoding", "gzip");
-        }
-        if (!etag.empty()) {
-            res->writeHeader("ETag", etag);
-        }
-        res->end();
-    } else if (http::IsClientRoute(relativePath)) {
-        // Mirrors HandleGet's client-route fallback: a HEAD must describe
-        // exactly what the equivalent GET would produce, and that GET serves
-        // the app shell for a client-side route rather than 404ing.
-        auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
-        if (index_resolved && fs::exists(*index_resolved)) {
-            res->writeHeader("Content-Type", http::GetMimeType("index.html"))
-                ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
-                ->writeHeader("X-Content-Type-Options", "nosniff")
-                ->end();
+                ->writeHeader("X-Content-Type-Options", "nosniff");
+            if (gzipped) {
+                res->writeHeader("Content-Encoding", "gzip");
+            }
+            if (!etag.empty()) {
+                res->writeHeader("ETag", etag);
+            }
+            res->end();
+        } else if (http::IsClientRoute(relativePath)) {
+            // Mirrors HandleGet's client-route fallback: a HEAD must describe
+            // exactly what the equivalent GET would produce, and that GET serves
+            // the app shell for a client-side route rather than 404ing.
+            auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
+            if (index_resolved && fs::exists(*index_resolved)) {
+                res->writeHeader("Content-Type", http::GetMimeType("index.html"))
+                    ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
+                    ->writeHeader("X-Content-Type-Options", "nosniff")
+                    ->end();
+            } else {
+                res->writeStatus("404 Not Found")->end();
+            }
         } else {
             res->writeStatus("404 Not Found")->end();
         }
-    } else {
-        res->writeStatus("404 Not Found")->end();
+    } catch (const std::exception& e) {
+        Logger::Error("[HTTP] head handler: ", e.what());
+        res->writeStatus("500 Internal Server Error")->end();
     }
 }
 
@@ -497,90 +536,96 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
     auto is_alive = std::make_shared<bool>(true);
     res->onAborted([is_alive]() {*is_alive = false;});
 
-    if (!*is_alive) return;
+    try {
+        if (!*is_alive) return;
 
-    std::string url = std::string(req->getUrl());
-    std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
+        std::string url = std::string(req->getUrl());
+        std::string relativePath = (url == "/") ? "index.html" : url.substr(1);
 
-    // INFO: Capture the conditional-request header now: uWebSockets recycles
-    //       the request object as soon as the response is written, so it
-    //       cannot be read afterwards.
-    std::string if_none_match = std::string(req->getHeader("if-none-match"));
-    std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
+        // INFO: Capture the conditional-request header now: uWebSockets recycles
+        //       the request object as soon as the response is written, so it
+        //       cannot be read afterwards.
+        std::string if_none_match = std::string(req->getHeader("if-none-match"));
+        std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
 
-    // INFO: Resolve both the served root and the requested file to canonical
-    //       form so that "../" segments and symlinks are collapsed, then
-    //       confirm the result stays inside the root. Without this, a raw
-    //       request such as "GET /../../etc/passwd" would escape
-    //       frontend_path_ and disclose host files.
-    auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
+        // INFO: Resolve both the served root and the requested file to canonical
+        //       form so that "../" segments and symlinks are collapsed, then
+        //       confirm the result stays inside the root. Without this, a raw
+        //       request such as "GET /../../etc/passwd" would escape
+        //       frontend_path_ and disclose host files.
+        auto resolved = http::ResolveSafePath(fs::path(frontend_path_), relativePath);
 
-    if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
-        const fs::path& filePath = *resolved;
-        std::string pathStr = filePath.string();
+        if (resolved && fs::exists(*resolved) && !fs::is_directory(*resolved)) {
+            const fs::path& filePath = *resolved;
+            std::string pathStr = filePath.string();
 
-        // INFO: Prefer the build-time .gz sidecar whenever the client accepts
-        //       it. The bundle carrying three.js/Threlte is why this matters,
-        //       it is by far the heaviest asset we serve, and shipping a
-        //       precompressed body costs no per-request CPU. Content-Type still
-        //       comes from the *uncompressed* name: gzip is transport encoding,
-        //       not the media type.
-        fs::path bodyPath = filePath;
-        bool gzipped = false;
-        if (http::AcceptsGzip(accept_encoding)) {
-            if (auto sidecar = http::PrecompressedVariant(filePath)) {
-                bodyPath = *sidecar;
-                gzipped  = true;
+            // INFO: Prefer the build-time .gz sidecar whenever the client accepts
+            //       it. The bundle carrying three.js/Threlte is why this matters,
+            //       it is by far the heaviest asset served, and shipping a
+            //       precompressed body costs no per-request CPU. Content-Type still
+            //       comes from the *uncompressed* name: gzip is transport encoding,
+            //       not the media type.
+            fs::path bodyPath = filePath;
+            bool gzipped = false;
+            if (http::AcceptsGzip(accept_encoding)) {
+                if (auto sidecar = http::PrecompressedVariant(filePath)) {
+                    bodyPath = *sidecar;
+                    gzipped  = true;
+                }
             }
-        }
 
-        // The two encodings are distinct representations, so they must not
-        // share a validator, MakeETag stats whichever one is actually sent.
-        std::string etag = http::MakeETag(bodyPath);
+            // The two encodings are distinct representations, so they must not
+            // share a validator, MakeETag stats whichever one is actually sent.
+            std::string etag = http::MakeETag(bodyPath);
 
-        // INFO: Conditional request: the client already holds this exact
-        //       version, so skip resending the body. This is what makes
-        //       revalidation of the large unhashed font cheap once its
-        //       max-age lapses, an empty 304 instead of ~1 MB on the wire.
-        if (!etag.empty() && if_none_match == etag) {
-            res->writeStatus("304 Not Modified")
+            // INFO: Conditional request: the client already holds this exact
+            //       version, so skip resending the body. This is what makes
+            //       revalidation of the large unhashed font cheap once its
+            //       max-age lapses, an empty 304 instead of ~1 MB on the wire.
+            if (!etag.empty() && if_none_match == etag) {
+                res->writeStatus("304 Not Modified")
+                    ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
+                    ->writeHeader("Vary", "Accept-Encoding")
+                    ->writeHeader("ETag", etag)
+                    ->end();
+                return;
+            }
+
+            res->writeHeader("Content-Type", http::GetMimeType(pathStr))
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
-                ->writeHeader("ETag", etag)
-                ->end();
-            return;
-        }
-
-        res->writeHeader("Content-Type", http::GetMimeType(pathStr))
-            ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
-            ->writeHeader("Vary", "Accept-Encoding")
-            ->writeHeader("X-Content-Type-Options", "nosniff");
-        if (gzipped) {
-            res->writeHeader("Content-Encoding", "gzip");
-        }
-        if (!etag.empty()) {
-            res->writeHeader("ETag", etag);
-        }
-        res->end(ReadFile(bodyPath.string()));
-    } else if (http::IsClientRoute(relativePath)) {
-        // Not a real file, but shaped like a client-side route (no dot in its
-        // final segment) rather than a missing asset — serve the app shell so
-        // client-side routing can take over. A genuinely missing asset
-        // (favicon.ico, a mistyped .js path) still falls through to 404 below.
-        auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
-        if (index_resolved && fs::exists(*index_resolved)) {
-            res->writeHeader("Content-Type", http::GetMimeType("index.html"))
-                ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
-                ->writeHeader("X-Content-Type-Options", "nosniff")
-                ->end(ReadFile(index_resolved->string()));
+                ->writeHeader("X-Content-Type-Options", "nosniff");
+            if (gzipped) {
+                res->writeHeader("Content-Encoding", "gzip");
+            }
+            if (!etag.empty()) {
+                res->writeHeader("ETag", etag);
+            }
+            res->end(ReadFile(bodyPath.string()));
+        } else if (http::IsClientRoute(relativePath)) {
+            // Not a real file, but shaped like a client-side route (no dot in its
+            // final segment) rather than a missing asset — serve the app shell so
+            // client-side routing can take over. A genuinely missing asset
+            // (favicon.ico, a mistyped .js path) still falls through to 404 below.
+            auto index_resolved = http::ResolveSafePath(fs::path(frontend_path_), "index.html");
+            if (index_resolved && fs::exists(*index_resolved)) {
+                res->writeHeader("Content-Type", http::GetMimeType("index.html"))
+                    ->writeHeader("Cache-Control", http::CacheControlFor("index.html"))
+                    ->writeHeader("X-Content-Type-Options", "nosniff")
+                    ->end(ReadFile(index_resolved->string()));
+            } else {
+                res->writeStatus("404 Not Found")->end("File not found");
+            }
         } else {
+            std::error_code ec;
+            fs::path logged_path =
+                fs::weakly_canonical(fs::path(frontend_path_) / relativePath, ec);
+            Logger::Log("[GET] 404 – ", logged_path.string());
             res->writeStatus("404 Not Found")->end("File not found");
         }
-    } else {
-        std::error_code ec;
-        fs::path logged_path = fs::weakly_canonical(fs::path(frontend_path_) / relativePath, ec);
-        Logger::Log("[GET] 404 – ", logged_path.string());
-        res->writeStatus("404 Not Found")->end("File not found");
+    } catch (const std::exception& e) {
+        Logger::Error("[HTTP] get handler: ", e.what());
+        res->writeStatus("500 Internal Server Error")->end();
     }
 }
 
