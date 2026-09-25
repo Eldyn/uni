@@ -11,6 +11,8 @@
  * No three.js import: it unit-tests without a canvas.
  */
 
+import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
+
 /** @brief Asset quality tiers, richest first. */
 export type QualityTier = "high" | "medium" | "low";
 
@@ -78,10 +80,13 @@ export function defaultKeep(mode: ArtMode): string[] {
 
 function pickFile(
 	variants: readonly FaceSlotVariant[],
-	ceiling: QualityTier
+	ceiling: QualityTier,
+	origin: string
 ): FaceSlotVariant | null {
 	for (const tier of tiersUpTo(ceiling)) {
-		const found = variants.find((v) => v.tier === tier && v.url && v.hash);
+		const found = variants.find(
+			(v) => v.tier === tier && v.url && v.hash && isAllowedAssetUrl(v.url, origin)
+		);
 		if (found) return found;
 	}
 	return null;
@@ -103,7 +108,11 @@ function pickGlyph(
  * @param face The defs face (undefined when the kind has none).
  * @param ceiling The effective tier ceiling.
  */
-export function resolveFace(face: ResolvedFace | undefined, ceiling: QualityTier): FacePlan {
+export function resolveFace(
+	face: ResolvedFace | undefined,
+	ceiling: QualityTier,
+	origin: string = assetOrigin()
+): FacePlan {
 	const mode: ArtMode = face?.art_mode ?? "inset";
 	const fit: ArtFit = face?.art_fit ?? "contain";
 	const keep = face?.keep ?? defaultKeep(mode);
@@ -123,7 +132,7 @@ export function resolveFace(face: ResolvedFace | undefined, ceiling: QualityTier
 	const slots = face.slots ?? {};
 
 	if (face.kind === "image") {
-		const art = pickFile(slots.art ?? [], ceiling);
+		const art = pickFile(slots.art ?? [], ceiling, origin);
 		if (art?.url && art.hash) {
 			return {
 				...base,

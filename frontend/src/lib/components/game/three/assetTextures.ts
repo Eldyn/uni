@@ -8,14 +8,66 @@
  * procedural atlas in `cardFaceAtlas.ts`.
  */
 
-import { CanvasTexture, LinearFilter, SRGBColorSpace, TextureLoader, type Texture } from "three";
+import { CanvasTexture, LinearFilter, SRGBColorSpace, Texture, TextureLoader } from "three";
+import { assetOrigin, isAllowedAssetUrl, verifyAssetBytes } from "./assetTrust";
 
 /** @brief Loader seam so unit tests need no WebGL/canvas. */
 export interface TextureLoaderLike {
-	load(url: string): Texture;
+	load(url: string, hash?: string): Texture;
 }
 
 const GLYPH_PX = 128;
+
+/**
+ * @class TrustedImageLoader
+ * @brief Loads mod art through the trust pipeline: origin allowlist, a
+ * credential-free fetch, and a SHA-256 check against the declared hash before
+ * the bytes are decoded from an object URL.
+ *
+ * `load` keeps the synchronous `TextureLoaderLike` contract by returning a
+ * placeholder `Texture` immediately and filling in its decoded image once the
+ * checks pass; a rejected asset stays blank rather than rendering foreign
+ * bytes. The object URL is revoked on both decode outcomes.
+ */
+export class TrustedImageLoader implements TextureLoaderLike {
+	#loader = new TextureLoader();
+
+	load(url: string, hash?: string): Texture {
+		const texture = new Texture();
+		texture.colorSpace = SRGBColorSpace;
+		void this.#loadVerified(url, hash)
+			.then((loaded) => {
+				texture.image = loaded.image;
+				texture.needsUpdate = true;
+			})
+			.catch(() => {
+				// Fail closed: leave the texture blank.
+			});
+		return texture;
+	}
+
+	async #loadVerified(url: string, hash: string | undefined): Promise<Texture> {
+		if (!isAllowedAssetUrl(url, assetOrigin())) {
+			throw new Error("asset URL origin not allowed");
+		}
+		const res = await fetch(url, { credentials: "omit" });
+		if (!res.ok) throw new Error("asset fetch failed");
+		const bytes = await res.arrayBuffer();
+		if (hash && !(await verifyAssetBytes(bytes, hash))) {
+			throw new Error("asset hash mismatch");
+		}
+		const blobUrl = URL.createObjectURL(
+			new Blob([bytes], { type: res.headers.get("content-type") ?? "application/octet-stream" })
+		);
+		try {
+			return await new Promise<Texture>((resolve, reject) => {
+				this.#loader.load(blobUrl, resolve, undefined, reject);
+			});
+		} finally {
+			URL.revokeObjectURL(blobUrl);
+		}
+	}
+}
 
 function renderGlyphTexture(glyph: string): Texture {
 	const canvas = document.createElement("canvas");
@@ -48,7 +100,7 @@ export class AssetTextureCache {
 	#renderGlyph: (glyph: string) => Texture;
 
 	constructor(
-		loader: TextureLoaderLike = new TextureLoader(),
+		loader: TextureLoaderLike = new TrustedImageLoader(),
 		renderGlyph: (glyph: string) => Texture = renderGlyphTexture
 	) {
 		this.#loader = loader;
@@ -59,7 +111,10 @@ export class AssetTextureCache {
 	getImage(hash: string, url: string): Texture {
 		const cached = this.#images.get(hash);
 		if (cached) return cached;
-		const texture = this.#loader.load(url);
+		if (!isAllowedAssetUrl(url, assetOrigin())) {
+			throw new Error("asset URL origin not allowed");
+		}
+		const texture = this.#loader.load(url, hash);
 		texture.colorSpace = SRGBColorSpace;
 		this.#images.set(hash, texture);
 		return texture;

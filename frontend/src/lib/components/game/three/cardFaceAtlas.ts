@@ -9,6 +9,7 @@
 
 import { CanvasTexture, NearestFilter, SRGBColorSpace, type Texture } from "three";
 import { CARD_COLOR_MAP } from "$lib/palette";
+import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
 
 export interface AtlasEntry {
@@ -416,22 +417,35 @@ async function loadArtImage(url: string): Promise<CanvasImageSource> {
 		return { width: CARD_PX_WIDTH, height: CARD_PX_HEIGHT } as CanvasImageSource;
 	}
 
-	return new Promise<HTMLImageElement>((resolve, reject) => {
-		const img = new Image();
-		img.crossOrigin = "anonymous";
-		img.onload = async () => {
-			if ("decode" in img) {
-				try {
-					await img.decode();
-				} catch {
-					// Fallback if decode rejects
+	if (!isAllowedAssetUrl(url, assetOrigin())) {
+		throw new Error("asset URL origin not allowed");
+	}
+	const res = await fetch(url, { credentials: "omit" });
+	if (!res.ok) throw new Error("asset fetch failed");
+	const bytes = await res.arrayBuffer();
+	const blobUrl = URL.createObjectURL(
+		new Blob([bytes], { type: res.headers.get("content-type") ?? "image/png" })
+	);
+	try {
+		return await new Promise<HTMLImageElement>((resolve, reject) => {
+			const img = new Image();
+			img.crossOrigin = "anonymous";
+			img.onload = async () => {
+				if ("decode" in img) {
+					try {
+						await img.decode();
+					} catch {
+						// Fallback if decode rejects
+					}
 				}
-			}
-			resolve(img);
-		};
-		img.onerror = reject;
-		img.src = url;
-	});
+				resolve(img);
+			};
+			img.onerror = () => reject(new Error("asset image decode failed"));
+			img.src = blobUrl;
+		});
+	} finally {
+		URL.revokeObjectURL(blobUrl);
+	}
 }
 
 let artLoadingPromise: Promise<void> | null = null;
