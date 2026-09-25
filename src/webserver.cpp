@@ -332,6 +332,8 @@ void WebServer::RegisterRoutes() {
         .closeOnBackpressureLimit = true,
         .sendPingsAutomatically = true,
         .upgrade = [this](AppResponse* res, AppRequest*  req, us_socket_context_t* ctx) {
+            std::string ip;
+            bool conn_counted = false;
             try {
                 std::string_view cookies = req->getHeader("cookie");
                 // INFO: ws_token (SameSite=None) is accepted for cross-origin embeds
@@ -341,7 +343,7 @@ void WebServer::RegisterRoutes() {
 
                 // INFO: Capture the IP before upgrade() invalidates the request
                 //       object.
-                const std::string ip = http::GetClientIp(res, req, trust_proxy_);
+                ip = http::GetClientIp(res, req, trust_proxy_);
 
                 // INFO: CSWSH defence for the SameSite=None ws_token cookie: a
                 //       browser-supplied Origin must be same-origin (empty
@@ -382,13 +384,26 @@ void WebServer::RegisterRoutes() {
                 socket_data.username = payload->username;
                 socket_data.ip = ip;
                 ++conn_per_ip_[ip];
+                conn_counted = true;
 
                 res->upgrade(std::move(socket_data),
                     req->getHeader("sec-websocket-key"),
                     req->getHeader("sec-websocket-protocol"),
                     req->getHeader("sec-websocket-extensions"),
                     ctx);
+                conn_counted = false;
             } catch (const std::exception& e) {
+                // INFO: Roll back the per-IP slot if the upgrade threw before a
+                //       socket existed: OnSocketClosed never runs for a failed
+                //       upgrade, so the count would otherwise leak and lock the
+                //       IP out once it reaches the cap.
+                if (conn_counted) {
+                    if (auto it = conn_per_ip_.find(ip); it != conn_per_ip_.end()) {
+                        if (--it->second <= 0) {
+                            conn_per_ip_.erase(it);
+                        }
+                    }
+                }
                 Logger::Error("[WS] upgrade handler: ", e.what());
                 res->writeStatus("500 Internal Server Error")->end();
             }
@@ -419,44 +434,54 @@ void WebServer::RegisterRoutes() {
 }
 
 void WebServer::HandlePost(AppResponse *response, AppRequest *request) {
-    http::ReadBody(response, 4096, [response, request](const std::string body) {
-            json data;
+    try {
+        http::ReadBody(response, 4096, [response, request](const std::string body) {
             try {
-                data = json::parse(body);
-            } catch (...) {
-                response->writeStatus("400 Bad Request")
-                        ->writeHeader("Content-Type", "application/json")
-                        ->end(json({{"error", "Invalid JSON"}}).dump());
-                return;
+                json data;
+                try {
+                    data = json::parse(body);
+                } catch (...) {
+                    response->writeStatus("400 Bad Request")
+                            ->writeHeader("Content-Type", "application/json")
+                            ->end(json({{"error", "Invalid JSON"}}).dump());
+                    return;
+                }
+
+                std::string_view cookies = request->getHeader("cookie");
+                auto token = http::GetCookieValue(cookies, "auth_token");
+                auto payload = AuthService::VerifyToken(*token);
+
+                if (!payload) {
+                    response->writeStatus("401 Unauthorized")->end();
+                    return;
+                }
+
+                std::string topic = data.value("topic", "default");
+                if (topic.empty() || topic.size() > 64) {
+                    response->writeStatus("422 Unprocessable Entity")->end();
+                    return;
+                }
+
+                const bool valid = std::ranges::all_of(topic, [](unsigned char c) {
+                    return std::isalnum(c) || c == '-' || c == '_';
+                });
+
+                if (!valid) {
+                    response->writeStatus("422 Unprocessable Entity")->end();
+                    return;
+                }
+
+                response->writeHeader("Content-Type", "application/json")
+                        ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
+            } catch (const std::exception& e) {
+                Logger::Error("[HTTP] post handler: ", e.what());
+                response->writeStatus("500 Internal Server Error")->end();
             }
-
-            std::string_view cookies = request->getHeader("cookie");
-            auto token = http::GetCookieValue(cookies, "auth_token");
-            auto payload = AuthService::VerifyToken(*token);
-
-            if (!payload) {
-                response->writeStatus("401 Unauthorized")->end();
-                return;
-            }
-
-            std::string topic = data.value("topic", "default");
-            if (topic.empty() || topic.size() > 64) {
-                response->writeStatus("422 Unprocessable Entity")->end();
-                return;
-            }
-
-            const bool valid = std::ranges::all_of(topic, [](unsigned char c) {
-                return std::isalnum(c) || c == '-' || c == '_';
-            });
-
-            if (!valid) {
-                response->writeStatus("422 Unprocessable Entity")->end();
-                return;
-            }
-
-            response->writeHeader("Content-Type", "application/json")
-                    ->end(json({ {"status", "OK"}, {"topic", topic} }).dump());
-    });
+        });
+    } catch (const std::exception& e) {
+        Logger::Error("[HTTP] post handler: ", e.what());
+        response->writeStatus("500 Internal Server Error")->end();
+    }
 }
 
 void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
