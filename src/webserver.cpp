@@ -326,6 +326,18 @@ void WebServer::RegisterRoutes() {
             //       object.
             const std::string ip = http::GetClientIp(res, req, trust_proxy_);
 
+            // INFO: CSWSH defence for the SameSite=None ws_token cookie: a
+            //       browser-supplied Origin must be same-origin (empty
+            //       allowlist) or explicitly allowed; non-browser clients
+            //       send no Origin and cannot be CSRF'd.
+            const std::string origin = std::string(req->getHeader("origin"));
+            const std::string host   = std::string(req->getHeader("host"));
+            if (!http::IsAllowedWsOrigin(origin, host, Env::Get("WS_ALLOWED_ORIGINS", ""))) {
+                Logger::Warn("[WS] Rejected upgrade, disallowed origin");
+                res->writeStatus("403 Forbidden")->end();
+                return;
+            }
+
             if (!token || token->empty()) {
                 Logger::Warn("[WS] Rejected upgrade, missing token ip=" + ip);
                 res->writeStatus("401 Unauthorized")->end();

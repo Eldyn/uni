@@ -116,4 +116,21 @@ std::optional<std::filesystem::path> PrecompressedVariant(const std::filesystem:
  */
 std::string MakeETag(const std::filesystem::path& file);
 
+/**
+ * @brief Whether a WebSocket upgrade from this Origin is acceptable.
+ *
+ * An empty Origin (non-browser client: curl, native, tests) is allowed — such
+ * a client cannot be CSRF'd. A non-empty Origin must either appear verbatim in
+ * the comma-separated @p allowlist, or (when the allowlist is empty) share the
+ * request's Host, i.e. be same-origin. This is the CSWSH defence for the
+ * SameSite=None ws_token cookie.
+ *
+ * @param origin The request's Origin header (may be empty).
+ * @param host The request's Host header, used for the same-origin fallback.
+ * @param allowlist Comma-separated allowed origins; empty selects same-origin.
+ * @return bool True if the upgrade may proceed.
+ */
+bool IsAllowedWsOrigin(std::string_view origin, std::string_view host,
+                       std::string_view allowlist);
+
 }  // namespace http

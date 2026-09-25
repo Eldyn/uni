@@ -1,4 +1,5 @@
 #include <common/http_utils.hpp>
+#include <common/http.hpp>
 
 namespace fs = std::filesystem;
 
@@ -87,6 +88,33 @@ std::string MakeETag(const fs::path& file) {
     if (ec) return "";
     return "W/\"" + std::to_string(size) + "-" +
            std::to_string(mtime.time_since_epoch().count()) + "\"";
+}
+
+bool IsAllowedWsOrigin(std::string_view origin, std::string_view host,
+                       std::string_view allowlist) {
+    if (origin.empty()) return true;
+
+    if (!allowlist.empty()) {
+        std::size_t start = 0;
+        while (start <= allowlist.size()) {
+            const std::size_t comma = allowlist.find(',', start);
+            std::string_view item = TrimWhitespace(
+                allowlist.substr(start, comma == std::string_view::npos
+                                            ? std::string_view::npos
+                                            : comma - start));
+            if (!item.empty() && item == origin) return true;
+            if (comma == std::string_view::npos) break;
+            start = comma + 1;
+        }
+        return false;
+    }
+
+    const std::size_t scheme = origin.find("://");
+    if (scheme == std::string_view::npos) return false;
+    std::string_view origin_host = origin.substr(scheme + 3);
+    const std::size_t slash = origin_host.find('/');
+    if (slash != std::string_view::npos) origin_host = origin_host.substr(0, slash);
+    return origin_host == host;
 }
 
 }  // namespace http

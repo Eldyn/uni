@@ -38,3 +38,19 @@ TEST_CASE("IsClientRoute rejects a path with a dot anywhere in its final segment
 TEST_CASE("IsClientRoute rejects the empty path") {
     CHECK_FALSE(http::IsClientRoute(""));
 }
+
+TEST_CASE("IsAllowedWsOrigin: empty allowlist requires same-origin") {
+    CHECK(http::IsAllowedWsOrigin("https://playuni.app", "playuni.app", ""));
+    CHECK_FALSE(http::IsAllowedWsOrigin("https://evil.example", "playuni.app", ""));
+}
+
+TEST_CASE("IsAllowedWsOrigin: explicit allowlist is honored") {
+    CHECK(http::IsAllowedWsOrigin("https://itch.io", "playuni.app",
+                                  "https://playuni.app,https://itch.io"));
+    CHECK_FALSE(http::IsAllowedWsOrigin("https://evil.example", "playuni.app",
+                                        "https://playuni.app,https://itch.io"));
+}
+
+TEST_CASE("IsAllowedWsOrigin: non-browser clients (no Origin) are allowed") {
+    CHECK(http::IsAllowedWsOrigin("", "playuni.app", ""));
+}
