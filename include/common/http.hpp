@@ -41,6 +41,10 @@ inline void ReadBody(AppResponse* res, size_t max_bytes,
         buffer->append(chunk.data(), chunk.size());
 
         if (buffer->size() > max_bytes) {
+            // INFO: Stop receiving before responding: leaving is_alive true
+            //       lets uWS keep delivering chunks into an abandoned buffer
+            //       and can double-end the response.
+            *is_alive = false;
             res->writeStatus("413 Payload Too Large")->end();
             return;
         }
