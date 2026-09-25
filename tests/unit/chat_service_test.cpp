@@ -344,4 +344,15 @@ TEST_CASE("ClearLobbyHistory: drops the lobby's history and id counter") {
     CHECK(after.messages[0].id == 1);
 }
 
+TEST_CASE("DM decrypt fails if the row is moved to another conversation") {
+    ChatService svc;
+    REQUIRE(svc.SendDirectMessage("aad_a", "aad_b", "hello").has_value());
+    // Simulate a DB-writer relocating the ciphertext row.
+    (void)Database::Get().Exec(
+        "UPDATE chat_dms SET sender = 'aad_x', recipient = 'aad_y' WHERE sender = 'aad_a';");
+    auto history = svc.GetDirectHistory("aad_x", "aad_y");
+    // The AAD is (sender, recipient) from the row, which has changed, so the tag fails.
+    REQUIRE(!history.has_value());
+}
+
 }  // TEST_SUITE

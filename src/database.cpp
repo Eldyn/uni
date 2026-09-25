@@ -155,6 +155,10 @@ static constexpr Migration MIGRATIONS[] = {
     // the current value as a "ver" claim; VerifyToken rejects a token whose
     // claim no longer matches (bumped on password reset and logout).
     { 8, "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;" },
+    // Migration v9: DM rows gain an AAD-version marker. Version 1 binds the
+    // ciphertext to (sender, recipient); legacy rows stay 0 and decrypt without
+    // AAD.
+    { 9, "ALTER TABLE chat_dms ADD COLUMN aad_version INTEGER NOT NULL DEFAULT 0;" },
 };
 
 }  // namespace

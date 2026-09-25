@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstdint>
 #include <openssl/evp.h>
@@ -47,7 +48,8 @@ inline std::vector<uint8_t> LoadKey() {
  * random nonce per call.
  */
 inline Result<EncryptedBlob> Encrypt(const std::string& plaintext,
-                                     const std::vector<uint8_t>& key) {
+                                     const std::vector<uint8_t>& key,
+                                     std::string_view aad = {}) {
     std::vector<uint8_t> nonce(kNonceBytes);
     if (RAND_bytes(nonce.data(), static_cast<int>(kNonceBytes)) != 1) {
         return std::unexpected(Error::Internal("[Crypto] CSPRNG failure: RAND_bytes returned 0"));
@@ -67,10 +69,20 @@ inline Result<EncryptedBlob> Encrypt(const std::string& plaintext,
         EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) == 1 &&
         EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(kNonceBytes),
                             nullptr) == 1 &&
-        EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), nonce.data()) == 1 &&
-        EVP_EncryptUpdate(ctx, ciphertext.data(), &len,
-                          reinterpret_cast<const uint8_t*>(plaintext.data()),
-                          static_cast<int>(plaintext.size())) == 1;
+        EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), nonce.data()) == 1;
+
+    // INFO: Associated data is authenticated but not encrypted; it must be fed
+    // after the key/nonce init and before the plaintext update.
+    if (!aad.empty()) {
+        int aad_len = 0;
+        ok = ok && EVP_EncryptUpdate(ctx, nullptr, &aad_len,
+                                     reinterpret_cast<const uint8_t*>(aad.data()),
+                                     static_cast<int>(aad.size())) == 1;
+    }
+
+    ok = ok && EVP_EncryptUpdate(ctx, ciphertext.data(), &len,
+                                 reinterpret_cast<const uint8_t*>(plaintext.data()),
+                                 static_cast<int>(plaintext.size())) == 1;
     ciphertext_len = len;
 
     ok = ok && EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len) == 1;
@@ -95,7 +107,8 @@ inline Result<EncryptedBlob> Encrypt(const std::string& plaintext,
  * @return Result<std::string> The plaintext, or an Error if the key/nonce is
  * wrong or the ciphertext was tampered with (tag mismatch).
  */
-inline Result<std::string> Decrypt(const EncryptedBlob& blob, const std::vector<uint8_t>& key) {
+inline Result<std::string> Decrypt(const EncryptedBlob& blob, const std::vector<uint8_t>& key,
+                                   std::string_view aad = {}) {
     std::vector<uint8_t> nonce = Base64::Decode(blob.nonce_b64);
     std::vector<uint8_t> data  = Base64::Decode(blob.ciphertext_b64);
     if (nonce.size() != kNonceBytes || data.size() < kTagBytes) {
@@ -118,9 +131,19 @@ inline Result<std::string> Decrypt(const EncryptedBlob& blob, const std::vector<
         EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) == 1 &&
         EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(kNonceBytes),
                             nullptr) == 1 &&
-        EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nonce.data()) == 1 &&
-        EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data(),
-                          static_cast<int>(ciphertext.size())) == 1;
+        EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nonce.data()) == 1;
+
+    // INFO: The same associated data fed at encryption time must be fed here
+    // after key/nonce init and before the ciphertext update, or the tag fails.
+    if (!aad.empty()) {
+        int aad_len = 0;
+        ok = ok && EVP_DecryptUpdate(ctx, nullptr, &aad_len,
+                                     reinterpret_cast<const uint8_t*>(aad.data()),
+                                     static_cast<int>(aad.size())) == 1;
+    }
+
+    ok = ok && EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data(),
+                                 static_cast<int>(ciphertext.size())) == 1;
     plaintext_len = len;
 
     ok = ok && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, static_cast<int>(kTagBytes),

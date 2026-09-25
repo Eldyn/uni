@@ -11,7 +11,7 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 8);
+    CHECK(ver.value()->Get<int>("user_version") == 9);
 }
 
 TEST_CASE("migrations: expected tables exist") {

@@ -17,6 +17,12 @@ int ResolveDefaultShardSize(int default_shard_size) {
                ? default_shard_size
                : Env::GetInt("CHAT_HISTORY_SHARD_SIZE", ChatService::kDefaultShardSizeFallback);
 }
+
+// INFO: Binds a DM's ciphertext to its sender/recipient pair. The 0x1f unit
+// separator is not valid in a username, so the concatenation is unambiguous.
+std::string DmAad(const std::string& sender, const std::string& recipient) {
+    return sender + "\x1f" + recipient;
+}
 }  // namespace
 
 int ChatService::NormalizeShardLimit(int limit) const {
@@ -105,13 +111,15 @@ void ChatService::ClearLobbyHistory(const std::string& lobby_code) {
 VoidResult ChatService::SendDirectMessage(const std::string& sender,
                                           const std::string& recipient,
                                           const std::string& plaintext) {
-    auto blob = Crypto::Encrypt(plaintext, dm_key_);
+    const std::string aad = DmAad(sender, recipient);
+    auto blob = Crypto::Encrypt(plaintext, dm_key_, aad);
     if (!blob) {
         return std::unexpected(blob.error());
     }
 
     auto insert = db_.Exec(
-        "INSERT INTO chat_dms (sender, recipient, nonce, ciphertext) VALUES (?, ?, ?, ?);",
+        "INSERT INTO chat_dms (sender, recipient, nonce, ciphertext, aad_version) "
+        "VALUES (?, ?, ?, ?, 1);",
         {sender, recipient, blob->nonce_b64, blob->ciphertext_b64});
     if (!insert) {
         return std::unexpected(insert.error());
@@ -136,7 +144,7 @@ VoidResult ChatService::SendDirectMessage(const std::string& sender,
 Result<std::vector<ChatMessageEntry>> ChatService::GetDirectHistory(const std::string& user_a,
                                                                     const std::string& user_b) {
     auto rows = db_.Query(
-        "SELECT id, sender, nonce, ciphertext FROM chat_dms WHERE "
+        "SELECT id, sender, recipient, nonce, ciphertext, aad_version FROM chat_dms WHERE "
         "(sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?) "
         "ORDER BY id ASC;",
         {user_a, user_b, user_b, user_a});
@@ -149,11 +157,23 @@ Result<std::vector<ChatMessageEntry>> ChatService::GetDirectHistory(const std::s
     for (const auto& row : rows.value()) {
         Crypto::EncryptedBlob blob{row.Get<std::string>("nonce"),
                                   row.Get<std::string>("ciphertext")};
-        auto plaintext = Crypto::Decrypt(blob, dm_key_);
+
+        const std::string sender_col = row.Get<std::string>("sender");
+        const std::string recipient_col = row.Get<std::string>("recipient");
+        const int aad_version = row.Get<int>("aad_version");
+
+        std::string aad;
+        if (aad_version >= 1) aad = DmAad(sender_col, recipient_col);
+
+        // INFO: Version 0 rows predate AAD and were encrypted with no associated
+        // data, so `aad` stays empty for them and decryption succeeds. Version 1
+        // rows are bound to the *stored* sender/recipient: a relocated row fails
+        // the tag check and is rejected.
+        auto plaintext = Crypto::Decrypt(blob, dm_key_, aad);
         if (!plaintext) {
             return std::unexpected(plaintext.error());
         }
-        history.push_back({row.Get<int>("id"), row.Get<std::string>("sender"), *plaintext});
+        history.push_back({row.Get<int>("id"), sender_col, *plaintext});
     }
     return history;
 }
@@ -167,7 +187,7 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
     if (limit < 0) limit = default_shard_size_;
 
     std::string sql =
-        "SELECT id, sender, nonce, ciphertext FROM chat_dms WHERE "
+        "SELECT id, sender, recipient, nonce, ciphertext, aad_version FROM chat_dms WHERE "
         "((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?))";
     std::vector<DbValue> params = {user_a, user_b, user_b, user_a};
     if (before_id.has_value()) {
@@ -191,11 +211,19 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
         const auto& row = rows->at(i);
         Crypto::EncryptedBlob blob{row.Get<std::string>("nonce"),
                                   row.Get<std::string>("ciphertext")};
-        auto plaintext = Crypto::Decrypt(blob, dm_key_);
+
+        const std::string sender_col = row.Get<std::string>("sender");
+        const std::string recipient_col = row.Get<std::string>("recipient");
+        const int aad_version = row.Get<int>("aad_version");
+
+        std::string aad;
+        if (aad_version >= 1) aad = DmAad(sender_col, recipient_col);
+
+        auto plaintext = Crypto::Decrypt(blob, dm_key_, aad);
         if (!plaintext) {
             return std::unexpected(plaintext.error());
         }
-        page.push_back({row.Get<int>("id"), row.Get<std::string>("sender"), *plaintext});
+        page.push_back({row.Get<int>("id"), sender_col, *plaintext});
     }
     std::reverse(page.begin(), page.end());
     return ChatHistoryPage{page, has_more};
