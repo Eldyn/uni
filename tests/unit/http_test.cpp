@@ -96,4 +96,13 @@ TEST_CASE("ResolveClientIp honours XFF only from a trusted peer") {
     CHECK(http::ResolveClientIp("172.16.0.5", "203.0.113.7", "172.16.0.0/") ==
           "172.16.0.5");
 }
+
+TEST_CASE("ResolveClientIp unwraps a mapped-IPv6 peer before the CIDR check") {
+    // uWS reports IPv4 peers as ::ffff:x.x.x.x on a dual-stack socket; the
+    // mapped form must still match an IPv4 trusted CIDR.
+    CHECK(http::ResolveClientIp("::ffff:172.16.5.5", "203.0.113.7",
+                                "172.16.0.0/12") == "203.0.113.7");
+    CHECK(http::ResolveClientIp("172.16.5.5", "203.0.113.7", "172.16.0.0/12") ==
+          "203.0.113.7");
+}
 #endif  // !_WIN32

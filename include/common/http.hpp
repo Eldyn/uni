@@ -187,6 +187,10 @@ inline bool IpInIpv4Cidr(std::string_view ip, std::string_view cidr) {
  */
 inline std::string ResolveClientIp(std::string_view peer_ip, std::string_view xff,
                                    std::string_view trusted_cidrs) {
+    // INFO: uWS on a dual-stack listener reports IPv4 peers in IPv4-mapped
+    //       form (::ffff:172.x.y.z), which inet_pton(AF_INET) rejects.
+    //       Normalise once so the CIDR check and fallback see plain IPv4.
+    const std::string_view peer = UnwrapIpv4MappedIpv6(peer_ip);
     if (!xff.empty() && !trusted_cidrs.empty()) {
         std::size_t start = 0;
         while (start <= trusted_cidrs.size()) {
@@ -194,7 +198,7 @@ inline std::string ResolveClientIp(std::string_view peer_ip, std::string_view xf
             auto item = TrimWhitespace(trusted_cidrs.substr(
                 start, comma == std::string_view::npos ? std::string_view::npos
                                                        : comma - start));
-            if (!item.empty() && IpInIpv4Cidr(peer_ip, item)) {
+            if (!item.empty() && IpInIpv4Cidr(peer, item)) {
                 const auto pos = xff.rfind(',');
                 return std::string(UnwrapIpv4MappedIpv6(
                     TrimWhitespace(xff.substr(pos == std::string_view::npos ? 0 : pos + 1))));
@@ -203,7 +207,7 @@ inline std::string ResolveClientIp(std::string_view peer_ip, std::string_view xf
             start = comma + 1;
         }
     }
-    return std::string(UnwrapIpv4MappedIpv6(peer_ip));
+    return std::string(peer);
 }
 #endif  // !_WIN32
 
