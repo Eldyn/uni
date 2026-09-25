@@ -11,6 +11,7 @@ import {
 	validateUsername,
 	validatePasswordMatch
 } from "$utils/validation";
+import { safeAvatarUrl } from "$utils/safeUrl";
 import { storeAnalytics } from "./analytics.svelte";
 import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
@@ -316,7 +317,7 @@ class StoreAuth {
 
 	#setLoggedIn(username: string, avatar: string = "", emailVerified: boolean = false): void {
 		this.username = username;
-		this.avatar = avatar;
+		this.avatar = safeAvatarUrl(avatar, window.location.origin);
 		this.emailVerified = emailVerified;
 		this.isLoggedIn = true;
 		this.isGuest = false;
