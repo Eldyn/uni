@@ -27,6 +27,8 @@ public/*
 *.csr
 
 docs/
+# Security policy is intentionally tracked despite the docs/ ignore above.
+!docs/security.md
 frontend/docs
 frontend/src/lib/generated/
 
