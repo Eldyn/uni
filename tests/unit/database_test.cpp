@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <database.hpp>
+#include <algorithm>
 
 TEST_SUITE("Database") {
 
@@ -10,7 +11,7 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 6);
+    CHECK(ver.value()->Get<int>("user_version") == 7);
 }
 
 TEST_CASE("migrations: expected tables exist") {
@@ -46,6 +47,12 @@ TEST_CASE("migrations: expected tables exist") {
         {std::string("email_send_log")});
     REQUIRE(rows.has_value());
     CHECK(rows->size() == 1);
+
+    rows = Database::Get().Query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        {std::string("password_reset_tokens")});
+    REQUIRE(rows.has_value());
+    CHECK(rows->size() == 1);
 }
 
 TEST_CASE("migrations: v2 renamed cards_played_colorswitch to cards_played_jolly") {
@@ -64,6 +71,26 @@ TEST_CASE("migrations: v2 renamed cards_played_colorswitch to cards_played_jolly
     }
     CHECK(has_jolly);
     CHECK_FALSE(has_colorswitch);
+}
+
+TEST_CASE("migrations: v7 creates password_reset_tokens with a unique token index") {
+    auto applied = Database::Get().RunMigrations();
+    REQUIRE(applied.has_value());
+
+    auto cols = Database::Get().Query("PRAGMA table_info(password_reset_tokens);", {});
+    REQUIRE(cols.has_value());
+    std::vector<std::string> names;
+    for (const auto& row : *cols) names.push_back(row.Get<std::string>("name"));
+    CHECK(std::find(names.begin(), names.end(), "user_id") != names.end());
+    CHECK(std::find(names.begin(), names.end(), "token_hash") != names.end());
+    CHECK(std::find(names.begin(), names.end(), "expires_at") != names.end());
+    CHECK(std::find(names.begin(), names.end(), "created_at") != names.end());
+
+    auto idx = Database::Get().QueryOne(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?;",
+        {std::string("idx_password_reset_tokens_hash")});
+    REQUIRE(idx.has_value());
+    REQUIRE(idx->has_value());
 }
 
 TEST_CASE("migrations: re-running RunMigrations is a no-op") {

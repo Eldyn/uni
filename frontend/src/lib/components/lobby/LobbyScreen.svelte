@@ -439,34 +439,34 @@
 							{/if}
 
 							{#if activeMenu === member.username}
-								<div class="absolute right-1 top-1 z-30 min-w-[140px] border-2 border-border bg-bg">
+								<div class="seat-menu">
 									<button
-										class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
-										style="color: lightgoldenrodyellow"
+										class="seat-menu__item seat-menu__item--promote"
 										onclick={() => {
 											storeLobby.promote(member.username);
 											activeMenu = null;
 										}}
 									>
-										{m.lobby_promote({}, { locale: storeI18n.locale })}
+										<i class="pia pixelart-icons-font-crown" aria-hidden="true"></i>
+										<span>{m.lobby_promote({}, { locale: storeI18n.locale })}</span>
 									</button>
 									<button
-										class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
-										style="color: lightsalmon"
+										class="seat-menu__item seat-menu__item--kick"
 										onclick={() => {
 											storeLobby.kick(member.username);
 											activeMenu = null;
 										}}
 									>
-										{m.lobby_kick({}, { locale: storeI18n.locale })}
+										<i class="pia pixelart-icons-font-close" aria-hidden="true"></i>
+										<span>{m.lobby_kick({}, { locale: storeI18n.locale })}</span>
 									</button>
 									{#if isFriend(member.username)}
 										<button
-											class="w-full px-3 py-2.5 text-left text-sm font-bold transition-[background,filter] hover:bg-white/10 hover:shadow-[inset_4px_0_0_var(--accent)]"
-											style="color: lightblue"
+											class="seat-menu__item seat-menu__item--message"
 											onclick={() => openMessage(member.username)}
 										>
-											{m.lobby_message({}, { locale: storeI18n.locale })}
+											<i class="pia pixelart-icons-font-message" aria-hidden="true"></i>
+											<span>{m.lobby_message({}, { locale: storeI18n.locale })}</span>
 										</button>
 									{/if}
 								</div>
@@ -763,5 +763,60 @@
 		display: inline-block;
 		width: 1.2ch;
 		text-align: center;
+	}
+
+	.seat-menu {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		z-index: 30;
+		display: flex;
+		flex-direction: column;
+		min-width: 150px;
+		border: 2px solid var(--border);
+		background: var(--bg);
+		box-shadow: var(--elevation-2);
+	}
+
+	.seat-menu__item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		width: 100%;
+		padding: var(--space-2) var(--space-3);
+		border: none;
+		background: transparent;
+		text-align: left;
+		font-family: var(--pixel);
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--text-h);
+		cursor: pointer;
+		clip-path: none !important;
+		transition:
+			background-color var(--duration-fast) var(--ease-standard),
+			color var(--duration-fast) var(--ease-standard);
+	}
+
+	.seat-menu__item + .seat-menu__item {
+		border-top: 2px solid var(--border);
+	}
+
+	.seat-menu__item:hover {
+		background: var(--accent-bg);
+	}
+
+	.seat-menu__item i {
+		font-size: 14px;
+	}
+
+	.seat-menu__item--promote:hover {
+		color: var(--gold);
+	}
+	.seat-menu__item--kick:hover {
+		color: var(--danger);
+	}
+	.seat-menu__item--message:hover {
+		color: var(--accent);
 	}
 </style>

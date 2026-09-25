@@ -6,6 +6,7 @@
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { ws, ClientAction } from "$stores/ws.svelte";
+	import Divisor from "$components/common/Divisor.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -42,13 +43,21 @@
 	};
 
 	const SOCIAL_LINKS = [
-		{ label: "GitHub", href: "https://github.com/Eldyn/uni" },
-		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e" },
-		{ label: "Bluesky", href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz" },
-		{ label: "X", href: "https://x.com/theunigamee" },
-		{ label: "YouTube", href: "https://youtube.com/@play-uni" },
-		{ label: "Instagram", href: "https://www.instagram.com/the.uni.game/" },
-		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game" }
+		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
+		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e", img: "discord_icon.png" },
+		{
+			label: "Bluesky",
+			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
+			img: "bluesky_icon.png"
+		},
+		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
+		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
+		{
+			label: "Instagram",
+			href: "https://www.instagram.com/the.uni.game/",
+			img: "instagram_icon.png"
+		},
+		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" }
 	];
 
 	const inMatch = $derived(storeGame.state !== null);
@@ -64,16 +73,24 @@
 		}
 		ws.emit(ClientAction.UserUpdatePrivacy, { privacy_mode: v });
 	}
+
+	let logoutPending = $state(false);
+
+	async function handleLogout() {
+		if (logoutPending) return;
+		logoutPending = true;
+		try {
+			await storeAuth.logout();
+		} finally {
+			logoutPending = false;
+		}
+	}
 </script>
 
-{#snippet sectionHeading(text: string)}
-	<h2 class="font-tiny text-sm uppercase tracking-wide text-text-h">{text}</h2>
-{/snippet}
-
-<div class="settings-sections flex flex-col gap-6">
-	<section class="panel settings-panel">
-		{@render sectionHeading(m.settings_audio_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex flex-col gap-4">
+<div class="settings-sections">
+	<section class="settings-block">
+		<Divisor text={m.settings_audio_heading({}, { locale: storeI18n.locale })} />
+		<div class="settings-grid">
 			<Slider
 				id="music-volume"
 				label={m.settings_music_volume({}, { locale: storeI18n.locale })}
@@ -98,9 +115,9 @@
 		</div>
 	</section>
 
-	<section class="panel settings-panel">
-		{@render sectionHeading(m.settings_animation_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex flex-col gap-4">
+	<section class="settings-block">
+		<Divisor text={m.settings_animation_heading({}, { locale: storeI18n.locale })} />
+		<div class="settings-grid">
 			<Toggle
 				label={m.settings_animation_enabled({}, { locale: storeI18n.locale })}
 				checked={storeAnimation.enabled}
@@ -117,23 +134,25 @@
 				oncommit={(v) => storeAnimation.setAlwaysUprightValues(v)}
 			/>
 
-			<Slider
-				id="animation-speed"
-				label={m.settings_animation_speed({}, { locale: storeI18n.locale })}
-				value={Math.round(storeAnimation.speedMultiplier * 100)}
-				min={50}
-				max={300}
-				disabled={!storeAnimation.enabled}
-				live={false}
-				format={(v) => `${(v / 100).toFixed(2)}x`}
-				oncommit={(v) => storeAnimation.setSpeedMultiplier(v / 100)}
-			/>
+			<div class="span-all">
+				<Slider
+					id="animation-speed"
+					label={m.settings_animation_speed({}, { locale: storeI18n.locale })}
+					value={Math.round(storeAnimation.speedMultiplier * 100)}
+					min={50}
+					max={300}
+					disabled={!storeAnimation.enabled}
+					live={false}
+					format={(v) => `${(v / 100).toFixed(2)}x`}
+					oncommit={(v) => storeAnimation.setSpeedMultiplier(v / 100)}
+				/>
+			</div>
 		</div>
 	</section>
 
-	<section class="panel settings-panel">
-		{@render sectionHeading(m.settings_graphics_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex flex-col gap-4">
+	<section class="settings-block">
+		<Divisor text={m.settings_graphics_heading({}, { locale: storeI18n.locale })} />
+		<div class="settings-grid">
 			<Toggle
 				label={m.settings_graphics_draw_pile({}, { locale: storeI18n.locale })}
 				description={m.settings_graphics_draw_pile_description({}, { locale: storeI18n.locale })}
@@ -174,9 +193,9 @@
 		</div>
 	</section>
 
-	<section class="panel settings-panel">
-		{@render sectionHeading(m.settings_language_heading({}, { locale: storeI18n.locale }))}
-		<div class="mt-4 flex flex-wrap gap-3">
+	<section class="settings-block">
+		<Divisor text={m.settings_language_heading({}, { locale: storeI18n.locale })} />
+		<div class="locale-row">
 			{#each storeI18n.locales as locale (locale)}
 				<button
 					class="locale-flag-btn"
@@ -192,26 +211,30 @@
 		</div>
 	</section>
 
-	<section class="panel settings-panel">
-		{@render sectionHeading(m.settings_account_heading({}, { locale: storeI18n.locale }))}
-		<p class="mt-4 font-tiny text-base text-text-h">{storeAuth.username}</p>
+	<section class="settings-block">
+		<Divisor text={m.settings_account_heading({}, { locale: storeI18n.locale })} />
+		<div class="account-row">
+			<span class="account-name">{storeAuth.username}</span>
+			<button class="btn-danger btn-sm logout-btn" disabled={logoutPending} onclick={handleLogout}>
+				<i class="pia pixelart-icons-font-logout" aria-hidden="true"></i>
+				{m.home_logout({}, { locale: storeI18n.locale })}
+			</button>
+		</div>
 	</section>
 
 	{#if showCredits}
-		<section class="panel settings-panel">
-			{@render sectionHeading(m.settings_credits_heading({}, { locale: storeI18n.locale }))}
-			<nav
-				class="mt-4 flex flex-wrap gap-3 font-tiny text-sm text-text/70"
-				aria-label="Credits links"
-			>
+		<section class="settings-block">
+			<Divisor text={m.settings_credits_heading({}, { locale: storeI18n.locale })} />
+			<nav class="social-row" aria-label="Social links">
 				{#each SOCIAL_LINKS as link}
 					<a
 						href={link.href}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="transition-colors hover:text-accent"
+						class="social-icon"
+						aria-label={link.label}
 					>
-						{link.label}
+						<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
 					</a>
 				{/each}
 			</nav>
@@ -222,28 +245,52 @@
 	     header/exit button now (see LobbyScreen), not a destructive one that
 	     belongs here — only quitting an in-progress match still does. -->
 	{#if showDangerZone && inMatch}
-		<section class="panel settings-panel settings-panel--danger">
-			{@render sectionHeading(m.settings_danger_zone_heading({}, { locale: storeI18n.locale }))}
-			<div class="mt-4 flex flex-col gap-2">
-				<button
-					class="btn-secondary px-4 py-2"
-					style="--pc-border: var(--danger); color: var(--danger);"
-					onclick={() => storeGame.returnToLobby()}
-				>
-					{m.settings_quit_match({}, { locale: storeI18n.locale })}
-				</button>
-			</div>
+		<section class="settings-block settings-block--danger">
+			<Divisor text={m.settings_danger_zone_heading({}, { locale: storeI18n.locale })} />
+			<button
+				class="btn-secondary self-start"
+				style="--pc-border: var(--danger); color: var(--danger);"
+				onclick={() => storeGame.returnToLobby()}
+			>
+				{m.settings_quit_match({}, { locale: storeI18n.locale })}
+			</button>
 		</section>
 	{/if}
 </div>
 
 <style>
-	.settings-panel {
-		box-shadow: var(--elevation-1);
-		padding: var(--space-6);
+	.settings-sections {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-6);
 	}
-	.settings-panel--danger {
-		border-color: var(--danger);
+
+	.settings-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.settings-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--space-3) var(--space-5);
+	}
+
+	@media (min-width: 640px) {
+		.settings-grid {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	.span-all {
+		grid-column: 1 / -1;
+	}
+
+	.locale-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 	}
 
 	.locale-flag-btn {
@@ -270,6 +317,43 @@
 	.locale-flag-btn:hover,
 	.locale-flag-btn.active {
 		filter: grayscale(0);
+		opacity: 1;
+	}
+
+	.account-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		flex-wrap: wrap;
+	}
+
+	.account-name {
+		font-family: var(--tiny);
+		font-size: 18px;
+		line-height: 1;
+		color: var(--text-h);
+	}
+
+	.logout-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.social-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-4);
+	}
+
+	.social-icon {
+		opacity: 0.55;
+		image-rendering: pixelated;
+		transition: opacity var(--duration-fast) var(--ease-standard);
+	}
+	.social-icon:hover {
 		opacity: 1;
 	}
 </style>

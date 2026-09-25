@@ -11,6 +11,7 @@
 		label,
 		options,
 		selected,
+		disabled = false,
 		onselect,
 		trigger,
 		option
@@ -21,6 +22,7 @@
 		label: string;
 		options: T[];
 		selected: T;
+		disabled?: boolean;
 		onselect: (value: T) => void;
 		/** Trigger content (chevron is appended automatically). */
 		trigger: Snippet;
@@ -34,6 +36,7 @@
 	let triggerEl = $state<HTMLButtonElement>();
 
 	async function openList() {
+		if (disabled) return;
 		open = true;
 		activeIndex = Math.max(0, options.indexOf(selected));
 		await tick();
@@ -92,8 +95,13 @@
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		aria-controls="{id}-listbox"
-		onclick={() => (open ? close(false) : openList())}
+		aria-disabled={disabled}
+		{disabled}
+		class:opacity-50={disabled}
+		class:cursor-not-allowed={disabled}
+		onclick={() => !disabled && (open ? close(false) : openList())}
 		onkeydown={(e) => {
+			if (disabled) return;
 			if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
 				e.preventDefault();
 				openList();

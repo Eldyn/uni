@@ -9,6 +9,7 @@
 <script lang="ts" generics="T">
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
+	import Listbox from "$components/common/Listbox.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { storeI18n } from "$stores/i18n.svelte";
 
@@ -18,6 +19,7 @@
 		value,
 		options,
 		disabled = false,
+		extraClass = "",
 		oncommit
 	}: {
 		label: string;
@@ -25,16 +27,51 @@
 		value: T;
 		options: EnumOption<T>[];
 		disabled?: boolean;
+		extraClass?: string;
 		oncommit: (value: T) => void;
 	} = $props();
+
+	const id = `enum-${Math.random().toString(36).slice(2, 9)}`;
 
 	let hasFieldDescription = $derived((description?.length ?? 0) > 0);
 	let selectedOption = $derived(options.find((option) => option.value === value));
 	let hasSelectionDescription = $derived((selectedOption?.description?.length ?? 0) > 0);
+	let optionValues = $derived(options.map((option) => option.value));
+	let optionByValue = $derived(new Map(options.map((option) => [option.value, option] as const)));
 </script>
 
+{#snippet trigger()}
+	<span class="sr-only">{label}</span>
+	<span class="enum-trigger-label">{selectedOption?.label ?? ""}</span>
+{/snippet}
+
+{#snippet option(v: T)}
+	{@const opt = optionByValue.get(v)}
+	<span class="enum-option">
+		<span class="enum-option__label">{opt?.label}</span>
+		{#if opt?.description}
+			<span class="enum-option__desc">{opt.description}</span>
+		{/if}
+	</span>
+{/snippet}
+
+{#snippet selectControl()}
+	<div class="enum-listbox {extraClass}">
+		<Listbox
+			{id}
+			{label}
+			options={optionValues}
+			selected={value}
+			{disabled}
+			onselect={(v) => oncommit(v)}
+			{trigger}
+			{option}
+		/>
+	</div>
+{/snippet}
+
 {#snippet selectorControl()}
-	<label class="selector-label" class:disabled>
+	<div class="selector-label" class:disabled>
 		{#if hasFieldDescription}
 			<Tooltip interactive={true} title={label} class="enum-info-tooltip">
 				{#snippet tooltipContent()}
@@ -64,24 +101,7 @@
 		{:else}
 			{@render selectControl()}
 		{/if}
-	</label>
-{/snippet}
-
-{#snippet selectControl()}
-	<select
-		class="enum-selector"
-		{disabled}
-		onchange={(e) => {
-			const target = e.target as HTMLSelectElement;
-			oncommit(options[target.selectedIndex].value);
-		}}
-	>
-		{#each options as option}
-			<option value={String(option.value)} selected={option.value === value}>
-				{option.label}
-			</option>
-		{/each}
-	</select>
+	</div>
 {/snippet}
 
 {@render selectorControl()}
@@ -116,33 +136,45 @@
 		cursor: help;
 		font-size: 18px;
 		line-height: 1;
+		clip-path: none !important;
 	}
 
 	.info-btn:hover {
 		color: var(--text-h);
 	}
 
-	select {
-		padding: 4px 8px;
-		border-radius: 4px;
-		border: 1px solid var(--border-color, #ccc);
-		background: var(--bg-color, #fff);
+	/* Listbox paints its own notched trigger/popup; square them off here so the
+	   enum control matches the plain-square chips and checkboxes. */
+	.enum-listbox {
+		--notch-clip: none;
+	}
+
+	.enum-listbox :global(button[aria-haspopup="listbox"]) {
+		font-family: var(--pixel);
+		font-size: 12px;
 		color: var(--text-h);
-		font-size: 13px;
-		cursor: pointer;
-		outline: none;
-		font-family: "Pixel";
+	}
+
+	.enum-listbox :global([role="listbox"]) {
+		min-width: 100%;
+	}
+
+	.enum-option {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		text-align: left;
+	}
+
+	.enum-option__label {
+		font-family: var(--pixel);
+		font-size: 12px;
+		color: var(--text-h);
+	}
+
+	.enum-option__desc {
 		font-size: 10px;
-		font-weight: 500;
-	}
-
-	select:disabled {
-		cursor: not-allowed;
-	}
-
-	.enum-selector {
 		color: var(--text);
-		background-color: var(--bg);
 	}
 
 	/* Tooltip wraps a single control here, so its default full-width

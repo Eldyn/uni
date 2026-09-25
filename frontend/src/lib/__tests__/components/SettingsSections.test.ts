@@ -101,14 +101,14 @@ describe("SettingsSections", () => {
 		storeRenderSettings.autoScrollOnEdgeCreep = true;
 	});
 
-	it("omits Credits by default", () => {
+	it("omits Find us by default", () => {
 		const { queryByText } = render(SettingsSections);
-		expect(queryByText("Credits")).not.toBeInTheDocument();
+		expect(queryByText("Find us")).not.toBeInTheDocument();
 	});
 
-	it("renders Credits when showCredits is true", () => {
+	it("renders Find us when showCredits is true", () => {
 		const { getByText } = render(SettingsSections, { props: { showCredits: true } });
-		expect(getByText("Credits")).toBeInTheDocument();
+		expect(getByText("Find us")).toBeInTheDocument();
 	});
 
 	it("omits the danger zone when showDangerZone is false", () => {

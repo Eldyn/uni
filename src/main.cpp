@@ -4,6 +4,7 @@
 #include <common/email_queue.hpp>
 #include <common/email_sender.hpp>
 #include <controllers/auth_controller.hpp>
+#include <controllers/password_reset_controller.hpp>
 #include <controllers/chat_controller.hpp>
 #include <controllers/friend_controller.hpp>
 #include <controllers/lobby_controller.hpp>
@@ -48,6 +49,7 @@ int main() {
         EmailQueue       email_queue(MakeEmailSender());
         WebServer server(port, ssl_key, ssl_cert, db_path, frontend_path, &email_queue);
         AuthController   auth(server.GetHTTPRouter(), email_queue);
+        PasswordResetController password_reset(server.GetHTTPRouter(), email_queue);
         PresenceRegistry presence;
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
                                server.GetTimerService(), presence,

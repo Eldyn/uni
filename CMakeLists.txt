@@ -252,15 +252,19 @@ if(UNI_BUILD_TESTS)
         src/controllers/lobby_controller.cpp
         src/controllers/match_controller.cpp
         src/controllers/auth_controller.cpp
+        src/controllers/password_reset_controller.cpp
         src/controllers/stats_controller.cpp
         src/controllers/friend_controller.cpp
         src/controllers/chat_controller.cpp
         src/services/auth_service.cpp
         src/services/verification_service.cpp
+        src/services/password_reset_service.cpp
         src/services/account_reaper.cpp
         src/common/email_sender.cpp
         src/common/email_queue.cpp
         src/common/email_templates.cpp
+        src/common/email_send_log.cpp
+        src/common/crypto_hash.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
         src/services/chat_service.cpp

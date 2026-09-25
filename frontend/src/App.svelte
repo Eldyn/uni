@@ -10,6 +10,7 @@
 	//       AuthScreen is kept separate because it is the only one taking props.
 	const loadAuthScreen = () => import("./lib/components/auth/AuthScreen.svelte");
 	const loadVerifyModal = () => import("./lib/components/auth/VerifyModal.svelte");
+	const loadResetModal = () => import("./lib/components/auth/ResetModal.svelte");
 	const lazyScreens = {
 		lobbies: () => import("./lib/components/lobby/LobbyBrowse.svelte"),
 		lobby: () => import("./lib/components/lobby/LobbyScreen.svelte"),
@@ -78,6 +79,18 @@
 			// Keep pendingVerifyCode so that after login, this effect fires again!
 			storeNavigation.gotoAuth("login");
 		}
+	});
+
+	// Consumes a reset token captured off a deep-linked
+	// `/reset-password/<token>` URL. Unlike verify, NO login is required —
+	// the whole point is recovering access after losing the password.
+	$effect(() => {
+		const token = storeNavigation.pendingResetToken;
+		if (!token) return;
+
+		storeNavigation.pendingResetToken = null;
+		storeNavigation.activeResetToken = token;
+		storeNavigation.openResetModal();
 	});
 
 	onMount(async () => {
@@ -151,6 +164,15 @@
 		storeNavigation.closeAuthModal();
 	}
 
+	// INFO: A successful reset auto-logs-in (the server sets the usual auth
+	//       cookies), so re-run the session check and (re)connect the socket.
+	async function handleResetSuccess() {
+		await storeAuth.checkSession();
+		if (storeAuth.isLoggedIn) {
+			await ws.connect().catch(() => {});
+		}
+	}
+
 	//@ts-ignore
 	declare const __DEV_HARNESS__: boolean;
 </script>
@@ -200,6 +222,12 @@
 	{#if storeNavigation.isVerifyModalOpen}
 		{#await loadVerifyModal() then { default: VerifyModal }}
 			<VerifyModal />
+		{/await}
+	{/if}
+
+	{#if storeNavigation.isResetModalOpen}
+		{#await loadResetModal() then { default: ResetModal }}
+			<ResetModal onResetSuccess={handleResetSuccess} />
 		{/await}
 	{/if}
 </div>

@@ -24,6 +24,17 @@ struct VerifyEmailData {
 };
 
 /**
+ * @struct ResetEmailData
+ * @brief Inputs needed to render the password-reset email. Mirrors
+ * VerifyEmailData but carries only a prebuilt magic link (no numeric code).
+ */
+struct ResetEmailData {
+    std::string username;
+    std::string magic_link;
+    std::string locale;
+};
+
+/**
  * @brief Renders the "verify your email" message: a 6-digit code plus a
  * magic link, in the given locale (falls back to English for unknown
  * locales/keys).
@@ -44,3 +55,18 @@ OutboundEmail RenderMigrationEmail(const VerifyEmailData& data);
  * environment-free (easy to unit test without touching process env vars).
  */
 std::string BuildVerifyMagicLink(const std::string& code);
+
+/**
+ * @brief Renders the "reset your password" message: a magic link to the
+ * set-new-password page, in the given locale (falls back to English for
+ * unknown locales/keys). Reuses the verification email's HTML shell/palette.
+ */
+OutboundEmail RenderResetEmail(const ResetEmailData& data);
+
+/**
+ * @brief Builds the password-reset magic link a caller should put in
+ * `ResetEmailData::magic_link` for the given token:
+ * `Env::Get("EMAIL_VERIFY_BASE_URL", "https://playuni.app") + "/reset-password/" + token`.
+ * Same base URL variable as verification; only the path differs.
+ */
+std::string BuildResetMagicLink(const std::string& token);

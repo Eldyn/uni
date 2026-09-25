@@ -2,6 +2,7 @@
 	import Modal from "$components/common/Modal.svelte";
 	import LoginForm from "./LoginForm.svelte";
 	import RegisterForm from "./RegisterForm.svelte";
+	import ResetRequestForm from "./ResetRequestForm.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -11,7 +12,7 @@
 		initialTab = "login"
 	}: { onAuthSuccess: () => void; initialTab?: "login" | "register" } = $props();
 
-	let activeTab = $state<"login" | "register">(initialTab);
+	let activeTab = $state<"login" | "register" | "reset">(initialTab);
 </script>
 
 <Modal
@@ -50,13 +51,15 @@
 
 	<div class="auth-content">
 		{#if activeTab === "login"}
-			<LoginForm onLoginSuccess={onAuthSuccess} />
-		{:else}
+			<LoginForm onLoginSuccess={onAuthSuccess} onForgotPassword={() => (activeTab = "reset")} />
+		{:else if activeTab === "register"}
 			<RegisterForm
 				onRegisterSuccess={() => {
 					onAuthSuccess();
 				}}
 			/>
+		{:else}
+			<ResetRequestForm onBack={() => (activeTab = "login")} />
 		{/if}
 	</div>
 </Modal>

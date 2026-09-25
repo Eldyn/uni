@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
+	import PixelCheckbox from "$components/common/PixelCheckbox.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { glossaryTag } from "$lib/glossary/glossary";
@@ -36,15 +37,12 @@
 					<RichText text={rule.description} allowKeywords={true} />
 				{/snippet}
 
-				<label class="toggle-label rule-label" class:disabled>
-					<input
-						type="checkbox"
-						checked={rule.enabled}
-						{disabled}
-						onchange={(e) => onrulechange(rule.id, (e.target as HTMLInputElement).checked)}
-					/>
-					<span>{rule.label}</span>
-				</label>
+				<PixelCheckbox
+					label={rule.label}
+					checked={rule.enabled}
+					{disabled}
+					oncommit={(v) => onrulechange(rule.id, v)}
+				/>
 			</Tooltip>
 		{/each}
 	</div>
@@ -67,21 +65,5 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 8px;
-	}
-
-	.toggle-label {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--text-h);
-		cursor: help;
-		user-select: none;
-	}
-
-	.toggle-label.disabled {
-		cursor: not-allowed;
-		opacity: 0.6;
 	}
 </style>

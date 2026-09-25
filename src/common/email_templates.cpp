@@ -49,7 +49,8 @@ std::string BuildHtmlBody(const std::string& heading,
                            const std::string& note,
                            const std::string& link_prompt,
                            const std::string& magic_link,
-                           const std::string& footer) {
+                           const std::string& footer,
+                           const std::string& button_label = "") {
     std::string html;
     html += "<table role=\"presentation\" width=\"100%\" bgcolor=\"#16171d\" "
             "cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
@@ -72,17 +73,21 @@ std::string BuildHtmlBody(const std::string& heading,
     html += HtmlEscape(intro);
     html += "</p>";
 
-    if (!code_label.empty()) {
-        html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;"
-                "margin:0 0 8px 0;\">";
-        html += HtmlEscape(code_label);
+    // INFO: Reset mail carries no numeric code, so the code block is skipped
+    //       when `code` is empty (verify/migration always provide one).
+    if (!code.empty()) {
+        if (!code_label.empty()) {
+            html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;"
+                    "margin:0 0 8px 0;\">";
+            html += HtmlEscape(code_label);
+            html += "</p>";
+        }
+
+        html += "<p style=\"color:#c084fc;font-size:34px;letter-spacing:10px;font-family:monospace;"
+                "text-align:center;margin:8px 0 24px 0;\">";
+        html += HtmlEscape(code);
         html += "</p>";
     }
-
-    html += "<p style=\"color:#c084fc;font-size:34px;letter-spacing:10px;font-family:monospace;"
-            "text-align:center;margin:8px 0 24px 0;\">";
-    html += HtmlEscape(code);
-    html += "</p>";
 
     if (!note.empty()) {
         html += "<p style=\"color:#9ca3af;font-family:sans-serif;font-size:15px;line-height:1.5;"
@@ -102,7 +107,7 @@ std::string BuildHtmlBody(const std::string& heading,
     html += "<a href=\"" + HtmlEscape(magic_link) + "\" "
             "style=\"background:#c084fc;color:#16171d;font-family:sans-serif;font-weight:bold;"
             "font-size:15px;text-decoration:none;padding:12px 28px;display:inline-block;\">";
-    html += HtmlEscape(magic_link);
+    html += HtmlEscape(button_label.empty() ? magic_link : button_label);
     html += "</a></p>";
 
     if (!footer.empty()) {
@@ -134,6 +139,10 @@ std::string BuildTextBody(const std::string& intro,
 
 std::string BuildVerifyMagicLink(const std::string& code) {
     return Env::Get("EMAIL_VERIFY_BASE_URL", "https://playuni.app") + "/profile/verify/" + code;
+}
+
+std::string BuildResetMagicLink(const std::string& token) {
+    return Env::Get("EMAIL_VERIFY_BASE_URL", "https://playuni.app") + "/reset-password/" + token;
 }
 
 OutboundEmail RenderVerifyEmail(const VerifyEmailData& d) {
@@ -170,5 +179,26 @@ OutboundEmail RenderMigrationEmail(const VerifyEmailData& d) {
     mail.html_body = BuildHtmlBody(mail.subject, intro, d.code, code_label, deadline,
                                     link_prompt, d.magic_link, "");
     mail.text_body = BuildTextBody(intro, d.code, deadline, d.magic_link);
+    return mail;
+}
+
+OutboundEmail RenderResetEmail(const ResetEmailData& d) {
+    const std::string& locale = d.locale;
+
+    OutboundEmail mail;
+    mail.to_name = d.username;
+    mail.subject = Copy("email_reset_subject", locale);
+
+    const std::string intro       = Copy("email_reset_body_intro", locale);
+    const std::string instruction = Copy("email_reset_body_instruction", locale);
+    const std::string ignore      = Copy("email_reset_body_ignore", locale);
+    const std::string button      = Copy("email_reset_button_label", locale);
+
+    // BuildHtmlBody(code="", code_label="", note="") renders just the intro,
+    // the link button (labelled), and the ignore footer.
+    mail.html_body = BuildHtmlBody(mail.subject, intro, "", "", "", instruction,
+                                    d.magic_link, ignore, button);
+    mail.text_body = intro + "\n\n" + instruction + "\n\n" + d.magic_link + "\n\n" +
+                     ignore + "\n";
     return mail;
 }

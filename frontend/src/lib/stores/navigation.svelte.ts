@@ -54,6 +54,13 @@ const INVITE_PATH = /^\/invite\/([A-Za-z0-9]{6})$/;
  * (src/common/http_utils.cpp:24-32) — no backend route change needed; don't add a redundant one.
  */
 const VERIFY_PATH = /^\/profile\/verify\/(\d{6})$/;
+
+/**
+ * Matches password-reset magic-link URLs. Like VERIFY_PATH this is a
+ * client-only route served index.html by http::IsClientRoute — no backend
+ * route is registered for it.
+ */
+const RESET_PATH = /^\/reset-password\/([A-Za-z0-9_-]{43})$/;
 /**
  * @typedef HistoryState
  * @brief Shape of the object pushed to `window.history` on every navigation,
@@ -65,6 +72,7 @@ interface HistoryState {
 	authTab: "login" | "register";
 	settingsOpen: boolean;
 	verifyModalOpen?: boolean;
+	resetModalOpen?: boolean;
 }
 
 /**
@@ -128,6 +136,9 @@ export class StoreNavigation {
 	/** Whether the Verification modal is open, overlaid on top of whatever screen is current. */
 	isVerifyModalOpen = $state(false);
 
+	/** Whether the Password-reset modal is open, overlaid on top of whatever screen is current. */
+	isResetModalOpen = $state(false);
+
 	/**
 	 * An invite code captured off a deep-linked `/invite/<code>` URL, waiting
 	 * for a logged-in-or-guest session before it can be consumed (see App.svelte).
@@ -146,6 +157,18 @@ export class StoreNavigation {
 	 * Cleared once the form completes or is dismissed.
 	 */
 	activeVerifyCode = $state<string | null>(null);
+
+	/**
+	 * A password-reset token captured off a deep-linked `/reset-password/<token>` URL.
+	 * Cleared once consumed by App.svelte.
+	 */
+	pendingResetToken = $state<string | null>(null);
+
+	/**
+	 * Password-reset token currently active for the ResetModal. Cleared once
+	 * the form completes or the modal is dismissed.
+	 */
+	activeResetToken = $state<string | null>(null);
 
 	/**
 	 * Set by HomeScreen's "+ Create Lobby" button right before navigating to
@@ -182,6 +205,11 @@ export class StoreNavigation {
 		const verifyMatch = path.match(VERIFY_PATH);
 		if (verifyMatch) {
 			this.pendingVerifyCode = verifyMatch[1];
+		}
+
+		const resetMatch = path.match(RESET_PATH);
+		if (resetMatch) {
+			this.pendingResetToken = resetMatch[1];
 		}
 
 		const deepLinkedScreen = screenForPath(path);
@@ -244,7 +272,8 @@ export class StoreNavigation {
 			authModalOpen: this.isAuthModalOpen,
 			authTab: this.authTab,
 			settingsOpen: this.isSettingsOpen,
-			verifyModalOpen: this.isVerifyModalOpen
+			verifyModalOpen: this.isVerifyModalOpen,
+			resetModalOpen: this.isResetModalOpen
 		};
 	}
 
@@ -288,6 +317,7 @@ export class StoreNavigation {
 		this.authTab = state.authTab;
 		this.isSettingsOpen = state.settingsOpen;
 		this.isVerifyModalOpen = state.verifyModalOpen ?? false;
+		this.isResetModalOpen = state.resetModalOpen ?? false;
 		if (PERSISTED_SCREENS.has(to)) {
 			localStorage.setItem("currentScreen", to);
 		}
@@ -399,6 +429,32 @@ export class StoreNavigation {
 	closeVerifyModal(): void {
 		if (!this.isVerifyModalOpen) return;
 		this.isVerifyModalOpen = false;
+		if (typeof window !== "undefined") {
+			window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
+		}
+	}
+
+	/**
+	 * @brief Opens the Password-reset modal on top of the current screen.
+	 * Pushed as its own `window.history` entry, so a back gesture closes the
+	 * modal instead of leaving the screen underneath it.
+	 */
+	openResetModal(): void {
+		this.isResetModalOpen = true;
+		if (typeof window !== "undefined") {
+			window.history.pushState(this.#historyState, "", pathForScreen(this.current));
+		}
+	}
+
+	/**
+	 * @brief Closes the Password-reset modal, leaving the current screen untouched.
+	 * Replaces (rather than pushes) the `window.history` entry openResetModal
+	 * pushed to open it, so a later back gesture returns to whatever was
+	 * current before the modal opened instead of re-opening it.
+	 */
+	closeResetModal(): void {
+		if (!this.isResetModalOpen) return;
+		this.isResetModalOpen = false;
 		if (typeof window !== "undefined") {
 			window.history.replaceState(this.#historyState, "", pathForScreen(this.current));
 		}

@@ -134,6 +134,23 @@ static constexpr Migration MIGRATIONS[] = {
         CREATE INDEX IF NOT EXISTS idx_email_send_log_user
             ON email_send_log(user_id, sent_at);
     )sql" },
+    // Migration v7: password reset (magic link) schema.
+    // (a) user_id as PRIMARY KEY enforces one-active-token-per-user, mirroring
+    //     email_verification_codes.
+    // (b) token_hash is SHA-256 hex, so a DB read never yields a usable token;
+    //     the unique index makes token->user lookup a point query.
+    // (c) ON DELETE CASCADE plus the reaper's explicit cleanup covers account
+    //     removal even if the foreign_keys pragma is off.
+    { 7, R"sql(
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            token_hash TEXT    NOT NULL,
+            expires_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
+            ON password_reset_tokens(token_hash);
+    )sql" },
 };
 
 }  // namespace

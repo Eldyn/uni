@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Toggle from "./settings/Toggle.svelte";
 	import Slider from "./settings/Slider.svelte";
+	import Divisor from "$components/common/Divisor.svelte";
 	import EnumSelector from "./settings/EnumSelector.svelte";
 	import DeckSelector from "./settings/DeckSelector.svelte";
 	import RulesGrid from "./settings/RulesGrid.svelte";
@@ -103,10 +104,8 @@
 	</h3>
 
 	<!-- General Section -->
-	<section class="settings-section pixel-bordered">
-		<h4 class="section-title">
-			{m.lobby_settings_section_general({}, { locale: storeI18n.locale })}
-		</h4>
+	<section class="settings-section">
+		<Divisor text={m.lobby_settings_section_general({}, { locale: storeI18n.locale })} />
 		<div class="section-content">
 			<Toggle
 				label={m.lobby_settings_public_lobby({}, { locale: storeI18n.locale })}
@@ -132,10 +131,8 @@
 	</section>
 
 	<!-- Deck Section -->
-	<section class="settings-section pixel-bordered">
-		<h4 class="section-title">
-			{m.lobby_settings_section_deck({}, { locale: storeI18n.locale })}
-		</h4>
+	<section class="settings-section">
+		<Divisor text={m.lobby_settings_section_deck({}, { locale: storeI18n.locale })} />
 		<div class="section-content">
 			<DeckSelector
 				value={settings.deck?.id ?? ""}
@@ -148,10 +145,8 @@
 	</section>
 
 	<!-- Game Rules Section -->
-	<section class="settings-section pixel-bordered">
-		<h4 class="section-title">
-			{m.lobby_settings_section_rules({}, { locale: storeI18n.locale })}
-		</h4>
+	<section class="settings-section">
+		<Divisor text={m.lobby_settings_section_rules({}, { locale: storeI18n.locale })} />
 		<div class="section-content">
 			<EnumSelector
 				label={m.lobby_settings_game_mode({}, { locale: storeI18n.locale })}
@@ -172,7 +167,6 @@
 				]}
 				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
 			/>
-			<hr class="settings-divider" />
 			<Slider
 				id="card-count"
 				label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}
@@ -183,7 +177,6 @@
 				format={(v) => m.lobby_settings_cards_format({ count: v }, { locale: storeI18n.locale })}
 				oncommit={(v) => commit("starting_cards", v)}
 			/>
-			<hr class="settings-divider" />
 			<Slider
 				id="turn-timer"
 				label={m.lobby_settings_turn_timer({}, { locale: storeI18n.locale })}
@@ -194,7 +187,6 @@
 				format={(v) => m.lobby_settings_seconds_format({ count: v }, { locale: storeI18n.locale })}
 				oncommit={(v) => commit("turn_time_limit_ms", v * 1000)}
 			/>
-			<hr class="settings-divider" />
 			<Slider
 				id="max-players"
 				label={m.lobby_settings_max_players({}, { locale: storeI18n.locale })}
@@ -209,10 +201,8 @@
 	</section>
 
 	<!-- Bots Section -->
-	<section class="settings-section pixel-bordered">
-		<h4 class="section-title">
-			{m.lobby_settings_section_bots({}, { locale: storeI18n.locale })}
-		</h4>
+	<section class="settings-section">
+		<Divisor text={m.lobby_settings_section_bots({}, { locale: storeI18n.locale })} />
 		<div class="section-content">
 			<Slider
 				id="bot-count"
@@ -223,7 +213,6 @@
 				disabled={!isHost}
 				oncommit={(v) => commit("bot_count", v)}
 			/>
-			<hr class="settings-divider" />
 			<EnumSelector
 				extraClass="bot-mode"
 				label={m.lobby_settings_bot_mode({}, { locale: storeI18n.locale })}
@@ -243,7 +232,6 @@
 				]}
 				oncommit={(v) => commit("bot_mode", v)}
 			/>
-			<hr class="settings-divider" />
 			<Toggle
 				label={m.lobby_settings_players_replace_bots({}, { locale: storeI18n.locale })}
 				description={m.lobby_settings_players_replace_bots_desc({}, { locale: storeI18n.locale })}
@@ -262,10 +250,8 @@
 	</section>
 
 	<!-- Custom Rules Section -->
-	<section class="settings-section pixel-bordered">
-		<h4 class="section-title">
-			{m.lobby_settings_section_custom({}, { locale: storeI18n.locale })}
-		</h4>
+	<section class="settings-section">
+		<Divisor text={m.lobby_settings_section_custom({}, { locale: storeI18n.locale })} />
 		<div class="section-content">
 			<RulesGrid {rules} disabled={!isHost} onrulechange={handleRuleChange} />
 		</div>
@@ -276,7 +262,7 @@
 	.lobby-settings-panel {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: 24px;
 		width: 100%;
 		box-sizing: border-box;
 	}
@@ -292,30 +278,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		padding: 14px 16px;
-		--pc-border: var(--border);
-		--pc-fill: var(--bg);
-	}
-
-	.section-title {
-		margin: 0;
-		font-family: var(--pixel);
-		font-size: 0.85rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--text-h);
 	}
 
 	.section-content {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-	}
-
-	.settings-divider {
-		border: none;
-		border-top: 1px solid var(--border);
-		margin: 0;
-		opacity: 0.5;
 	}
 </style>

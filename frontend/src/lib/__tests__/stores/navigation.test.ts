@@ -61,4 +61,37 @@ describe("StoreNavigation magic link and deep links", () => {
 		nav.closeVerifyModal();
 		expect(nav.isVerifyModalOpen).toBe(false);
 	});
+
+	it("parses a /reset-password/<43-char token> URL into pendingResetToken", () => {
+		const token = "aB_-1234567890abcdefghijklmnopqrstuvwxyzABC"; // 43 chars
+		const nav = new StoreNavigation(`/reset-password/${token}`);
+		expect(nav.pendingResetToken).toBe(token);
+	});
+
+	it("does not parse malformed or short reset tokens", () => {
+		const navShort = new StoreNavigation("/reset-password/abc");
+		expect(navShort.pendingResetToken).toBeNull();
+
+		// 44 chars is too long.
+		const navLong = new StoreNavigation(`/reset-password/${"a".repeat(44)}`);
+		expect(navLong.pendingResetToken).toBeNull();
+
+		// Invalid character (slash would break the segment anyway; use '.').
+		const navInvalid = new StoreNavigation(`/reset-password/${"a".repeat(42)}.`);
+		expect(navInvalid.pendingResetToken).toBeNull();
+
+		const navPlain = new StoreNavigation("/reset-password");
+		expect(navPlain.pendingResetToken).toBeNull();
+	});
+
+	it("opens and closes reset modal", () => {
+		const nav = new StoreNavigation();
+		expect(nav.isResetModalOpen).toBe(false);
+
+		nav.openResetModal();
+		expect(nav.isResetModalOpen).toBe(true);
+
+		nav.closeResetModal();
+		expect(nav.isResetModalOpen).toBe(false);
+	});
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/svelte";
+import { render, screen, fireEvent } from "@testing-library/svelte";
 
 const { updateSettings, decks } = vi.hoisted(() => ({
 	updateSettings: vi.fn(),
@@ -85,29 +85,26 @@ describe("LobbySettings deck picker", () => {
 		decks.length = 0;
 	});
 
-	it("lists every catalogue deck plus a freestyle option", () => {
+	it("lists every catalogue deck plus a freestyle option", async () => {
 		decks.push(
 			{ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] },
 			{ id: "chaos:wild", name: "Wild", namespace: "chaos", mods: ["chaos"] }
 		);
 		render(LobbySettings);
 
-		const select = screen.getByRole("combobox", { name: "Deck" });
-		const options = within(select).getAllByRole("option");
-		expect(options.map((option) => option.textContent?.trim())).toEqual([
-			"Freestyle",
-			"Classic",
-			"Wild"
-		]);
+		await fireEvent.click(screen.getByRole("button", { name: /Deck/ }));
+		const options = screen.getAllByRole("option");
+		expect(
+			options.map((option) => option.querySelector(".enum-option__label")?.textContent?.trim())
+		).toEqual(["Freestyle", "Classic", "Wild"]);
 	});
 
 	it("commits the selected catalogue deck id", async () => {
 		decks.push({ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] });
 		render(LobbySettings);
 
-		const select = screen.getByRole("combobox", { name: "Deck" });
-		select.selectedIndex = 1;
-		await fireEvent.change(select);
+		await fireEvent.click(screen.getByRole("button", { name: /Deck/ }));
+		await fireEvent.click(screen.getByRole("option", { name: /Classic/ }));
 
 		expect(updateSettings).toHaveBeenCalledWith({ deck_id: "vanilla:classic" });
 	});
@@ -116,9 +113,8 @@ describe("LobbySettings deck picker", () => {
 		decks.push({ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] });
 		render(LobbySettings);
 
-		const select = screen.getByRole("combobox", { name: "Deck" });
-		select.selectedIndex = 0;
-		await fireEvent.change(select);
+		await fireEvent.click(screen.getByRole("button", { name: /Deck/ }));
+		await fireEvent.click(screen.getByRole("option", { name: /Freestyle/ }));
 
 		expect(updateSettings).toHaveBeenCalledWith({ deck_id: "" });
 	});
@@ -127,6 +123,6 @@ describe("LobbySettings deck picker", () => {
 		auth.username = "intruder";
 		render(LobbySettings);
 
-		expect(screen.getByRole("combobox", { name: "Deck" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: /Deck/ })).toBeDisabled();
 	});
 });

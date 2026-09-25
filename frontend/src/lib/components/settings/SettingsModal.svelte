@@ -10,7 +10,7 @@
 	open={storeNavigation.isSettingsOpen}
 	onclose={() => storeNavigation.closeSettings()}
 	titleId="settings-title"
-	contentClass="pixel-corners flex max-h-[85vh] w-full max-w-2xl flex-col p-5 sm:p-7 [--pc-border:var(--border)]"
+	contentClass="pixel-corners flex max-h-[85vh] w-full max-w-3xl flex-col p-5 sm:p-7 [--pc-border:var(--border)]"
 >
 	<header class="mb-4 flex shrink-0 items-center justify-between gap-3">
 		<h1 id="settings-title" class="title-screen text-2xl">

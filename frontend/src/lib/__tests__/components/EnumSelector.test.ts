@@ -45,8 +45,8 @@ describe("EnumSelector field and per-selection tooltips", () => {
 	it("shows the current option description on the select", async () => {
 		render(EnumSelector, { props: baseProps() });
 
-		const select = screen.getByRole("combobox");
-		await fireEvent.mouseEnter(select.closest(".tooltip-container")!);
+		const trigger = screen.getByRole("button", { name: /Standard/ });
+		await fireEvent.mouseEnter(trigger.closest(".tooltip-container")!);
 		await act(() => vi.runAllTimers());
 
 		const tooltip = screen.getByRole("tooltip");
@@ -57,11 +57,11 @@ describe("EnumSelector field and per-selection tooltips", () => {
 	it("updates the select tooltip when the selection changes", async () => {
 		const { rerender } = render(EnumSelector, { props: baseProps() });
 
-		const select = screen.getByRole("combobox");
-		await fireEvent.mouseEnter(select.closest(".tooltip-container")!);
-		await act(() => vi.runAllTimers());
-
 		await rerender(baseProps({ value: "elimination" }));
+
+		const trigger = screen.getByRole("button", { name: /Elimination/ });
+		await fireEvent.mouseEnter(trigger.closest(".tooltip-container")!);
+		await act(() => vi.runAllTimers());
 
 		const tooltip = screen.getByRole("tooltip");
 		expect(tooltip.querySelector(".tooltip-title")).toHaveTextContent("Elimination");

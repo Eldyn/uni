@@ -55,6 +55,15 @@ int AccountReaper::SweepAt(std::int64_t now_unix) {
         return 0;
     }
 
+    auto res_resets = db_.Exec(
+        "DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users "
+        "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
+        {static_cast<int>(grace_threshold)});
+    if (!res_resets) {
+        Logger::Error("[Reaper] Failed to delete reset tokens: " + res_resets.error().message);
+        return 0;
+    }
+
     auto res_users = db_.Exec(
         "DELETE FROM users WHERE email_verified = 0 AND created_at > 0 AND created_at < ?;",
         {static_cast<int>(grace_threshold)});

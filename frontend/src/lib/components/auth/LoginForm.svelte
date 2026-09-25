@@ -4,7 +4,10 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
-	let { onLoginSuccess }: { onLoginSuccess: () => void } = $props();
+	let {
+		onLoginSuccess,
+		onForgotPassword
+	}: { onLoginSuccess: () => void; onForgotPassword?: () => void } = $props();
 
 	let email = $state("");
 	let emailError: string | undefined = $state();
@@ -57,6 +60,17 @@
 			? m.auth_logging_in({}, { locale: storeI18n.locale })
 			: m.auth_submit_login({}, { locale: storeI18n.locale })}
 	</button>
+
+	{#if onForgotPassword}
+		<button
+			type="button"
+			class="forgot-link"
+			onclick={() => onForgotPassword?.()}
+			data-testid="forgot-password-link"
+		>
+			{m.auth_forgot_password_link({}, { locale: storeI18n.locale })}
+		</button>
+	{/if}
 </form>
 
 <style>
@@ -64,5 +78,22 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+	}
+
+	.forgot-link {
+		background: none;
+		border: none;
+		color: var(--text);
+		text-decoration: underline;
+		cursor: pointer;
+		font-family: var(--tiny);
+		font-size: 13px;
+		padding: 4px 8px;
+		align-self: center;
+		transition: color 0.15s ease;
+	}
+
+	.forgot-link:hover {
+		color: var(--text-h);
 	}
 </style>

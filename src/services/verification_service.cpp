@@ -1,6 +1,7 @@
 #include <services/verification_service.hpp>
+#include <common/crypto_hash.hpp>
+#include <common/email_send_log.hpp>
 #include <logger.hpp>
-#include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
 #include <chrono>
@@ -40,28 +41,9 @@ Result<std::string> VerificationService::GenerateCode() {
 }
 
 std::string VerificationService::HashCode(const std::string& code) {
-    unsigned char out[EVP_MAX_MD_SIZE];
-    unsigned int  len = 0;
-
-    // EVP_Digest returns 1 on success. A SHA-256 digest of a well-formed,
-    // in-memory input essentially never fails in practice, but the return
-    // value is still checked: on failure we log loudly and return an empty
-    // digest, which ConfirmCode's length check (== 64 hex chars) already
-    // treats as a guaranteed non-match, so this fails closed rather than
-    // silently comparing against garbage.
-    if (EVP_Digest(code.data(), code.size(), out, &len, EVP_sha256(), nullptr) != 1) {
-        Logger::Error("[Verify] EVP_Digest failure while hashing a code");
-        return "";
-    }
-
-    static constexpr char kHexDigits[] = "0123456789abcdef";
-    std::string hex;
-    hex.reserve(static_cast<size_t>(len) * 2);
-    for (unsigned int i = 0; i < len; ++i) {
-        hex.push_back(kHexDigits[(out[i] >> 4) & 0x0F]);
-        hex.push_back(kHexDigits[out[i] & 0x0F]);
-    }
-    return hex;
+    // INFO: Delegates to the shared SHA-256 helper so verification codes and
+    //       password-reset tokens cannot drift apart.
+    return Sha256Hex(code);
 }
 
 namespace {
@@ -210,20 +192,9 @@ VoidResult VerificationService::ConfirmCode(int user_id, const std::string& subm
 }
 
 Result<int> VerificationService::SendsInLast24h(int user_id) {
-    int since = NowSeconds() - 86400;
-    auto row_result = db_.QueryOne(
-        "SELECT COUNT(*) as c FROM email_send_log WHERE user_id = ? AND sent_at > ?;",
-        {user_id, since});
-    if (!row_result) return std::unexpected(row_result.error());
-    return row_result->value().Get<int>("c");
+    return EmailSendLog(db_).SendsInLast24h(user_id);
 }
 
 void VerificationService::RecordSend(int user_id) {
-    auto result = db_.Exec(
-        "INSERT INTO email_send_log (user_id, sent_at) VALUES (?, ?);",
-        {user_id, NowSeconds()});
-    if (!result) {
-        Logger::Error("[Verify] failed to record send for user_id=" + std::to_string(user_id) +
-                      ": " + result.error().message);
-    }
+    EmailSendLog(db_).RecordSend(user_id);
 }

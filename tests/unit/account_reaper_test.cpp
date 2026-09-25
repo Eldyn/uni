@@ -34,6 +34,18 @@ namespace {
         auto res = db.QueryOne("SELECT id FROM email_verification_codes WHERE user_id = ?;", {user_id});
         return res.has_value() && res.value().has_value();
     }
+
+    void IssueTestResetToken(int user_id) {
+        auto& db = Database::Get();
+        auto res = db.Exec("INSERT OR REPLACE INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES (?, 'resethash', 9999999999, 0);", {user_id});
+        if (!res) throw std::runtime_error("IssueTestResetToken failed: " + res.error().message);
+    }
+
+    bool ResetRowExists(int user_id) {
+        auto& db = Database::Get();
+        auto res = db.QueryOne("SELECT user_id FROM password_reset_tokens WHERE user_id = ?;", {user_id});
+        return res.has_value() && res.value().has_value();
+    }
 }
 
 TEST_CASE("SweepAt deletes unverified accounts past grace, keeps others") {
@@ -65,6 +77,24 @@ TEST_CASE("SweepAt cascades to email_verification_codes") {
     IssueTestCode(user_id);
     reaper.SweepAt(now);
     CHECK(!CodeRowExists(user_id));
+}
+
+TEST_CASE("SweepAt deletes reset tokens for reaped accounts, keeps live ones") {
+    AccountReaper reaper(Database::Get(), std::chrono::hours(1), std::chrono::hours(24 * 7));
+    auto now = std::time(nullptr);
+
+    int reap_id = InsertTestUser("reap_reset_reaped", 0, now - 8 * 86400);
+    IssueTestResetToken(reap_id);
+
+    int live_id = InsertTestUser("reap_reset_live", 0, now - 6 * 86400);
+    IssueTestResetToken(live_id);
+
+    reaper.SweepAt(now);
+
+    CHECK(!UserExists("reap_reset_reaped"));
+    CHECK(!ResetRowExists(reap_id));
+    CHECK(UserExists("reap_reset_live"));
+    CHECK(ResetRowExists(live_id));
 }
 
 TEST_CASE("Start/Stop does not hang") {
