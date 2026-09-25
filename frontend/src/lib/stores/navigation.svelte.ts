@@ -104,8 +104,7 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"profile",
 	"stats",
 	"decks",
-	"shop",
-	"settings"
+	"shop"
 ]);
 
 /**

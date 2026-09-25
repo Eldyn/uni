@@ -109,6 +109,20 @@ describe("navigation restore on connect", () => {
 	});
 
 	it("clears a stale 'settings' value from localStorage instead of navigating to it", async () => {
+		// Earlier tests override these two mocks with vi.doMock, which persists
+		// across vi.resetModules(). Re-establish the defaults so this exercises
+		// the localStorage restore path rather than the in-lobby early return.
+		vi.doMock("$lib/stores/lobby.svelte", () => ({
+			storeLobby: {
+				get isInLobby() {
+					return false;
+				},
+				leave: vi.fn()
+			}
+		}));
+		vi.doMock("$lib/stores/auth.svelte", () => ({
+			storeAuth: { isLoggedIn: true, isGuest: false }
+		}));
 		window.localStorage.setItem("currentScreen", "settings");
 		const { storeNavigation } = await import("$lib/stores/navigation.svelte");
 
