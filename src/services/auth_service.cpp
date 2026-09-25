@@ -6,7 +6,7 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <jwt-cpp/jwt.h>
-#include <jwt-cpp/traits/nlohmann-json/traits.h>
+#include <jwt-cpp/traits/nlohmann-json/defaults.h>
 #include <logger.hpp>
 #include <algorithm>
 #include <cctype>
@@ -315,6 +315,13 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
         return std::unexpected(Error::Internal(e.what()));
     }
 
+    // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
+    int version = 0;
+    auto row = Database::Get().QueryOne(
+        "SELECT token_version FROM users WHERE username = ?;", {username});
+    if (!row) return std::unexpected(row.error());
+    if (row->has_value()) version = row->value().Get<int>("token_version");
+
     auto now    = system_clock::now();
     auto expiry = now + hours(24);
 
@@ -326,6 +333,7 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
         .set_subject(username)
         .set_issued_at(now)
         .set_expires_at(expiry)
+        .set_payload_claim("ver", jwt::claim(std::to_string(version)))
         .sign(jwt::algorithm::hs256{secret});
 }
 
@@ -354,6 +362,25 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
         // INFO: This throws if signature is invalid, token is expired, etc.
         verifier.verify(decoded);
 
+        // INFO: Revocation check. A missing "ver" (legacy token) is treated as
+        //       version 0; a user who has since reset their password is at a
+        //       higher version and the token is rejected.
+        int claim_version = 0;
+        if (decoded.has_payload_claim("ver")) {
+            try {
+                claim_version = std::stoi(decoded.get_payload_claim("ver").as_string());
+            } catch (...) {
+                claim_version = -1;  // malformed claim never matches a stored version >= 0
+            }
+        }
+
+        auto row = Database::Get().QueryOne(
+            "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()});
+        if (!row) return std::unexpected(row.error());
+        if (row->has_value() && row->value().Get<int>("token_version") != claim_version) {
+            return std::unexpected(Error::Unauthorised("Session revoked"));
+        }
+
         JwtPayload payload;
         // INFO: get_subject() returns the "sub" claim as std::string.
         payload.username = decoded.get_subject();
@@ -364,4 +391,11 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
         return std::unexpected(Error::Unauthorised(
             std::string("JWT verification failed: ") + e.what()));
     }
+}
+
+VoidResult AuthService::RevokeAllSessions(const std::string& username) {
+    auto res = Database::Get().Exec(
+        "UPDATE users SET token_version = token_version + 1 WHERE username = ?;", {username});
+    if (!res) return std::unexpected(res.error());
+    return {};
 }

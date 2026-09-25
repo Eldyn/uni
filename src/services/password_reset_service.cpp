@@ -129,7 +129,8 @@ Result<std::string> PasswordResetService::ConsumeToken(const std::string& token,
     // INFO: A successful reset also sets email_verified = 1: clicking a link
     //       delivered to the address is the same proof as the verify flow.
     auto update = db_.Exec(
-        "UPDATE users SET pass_hash = ?, salt = ?, email_verified = 1 WHERE id = ?;",
+        "UPDATE users SET pass_hash = ?, salt = ?, email_verified = 1, "
+        "token_version = token_version + 1 WHERE id = ?;",
         {hash_b64, salt_b64, user_id});
     if (!update) return std::unexpected(update.error());
 

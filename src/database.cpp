@@ -151,6 +151,10 @@ static constexpr Migration MIGRATIONS[] = {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
             ON password_reset_tokens(token_hash);
     )sql" },
+    // Migration v8: per-user token version for JWT revocation. IssueToken embeds
+    // the current value as a "ver" claim; VerifyToken rejects a token whose
+    // claim no longer matches (bumped on password reset and logout).
+    { 8, "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;" },
 };
 
 }  // namespace

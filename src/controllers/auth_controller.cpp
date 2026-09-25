@@ -42,6 +42,15 @@ AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
     });
 
     router.Post("/auth/logout", [this](AppResponse* res, AppRequest* req) {
+        std::string_view cookies = req->getHeader("cookie");
+        auto token = http::GetCookieValue(cookies, "auth_token");
+        if (!token || token->empty()) token = http::GetCookieValue(cookies, "ws_token");
+        if (token && !token->empty()) {
+            // INFO: Best-effort: an already-expired/rotated token still clears
+            //       the cookies, it just cannot bump the version.
+            auto payload = AuthService::VerifyToken(*token);
+            if (payload) (void)AuthService::RevokeAllSessions(payload->username);
+        }
         res->writeStatus("200 OK")
            ->writeHeader("Set-Cookie",
                          "auth_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict; Path=/")

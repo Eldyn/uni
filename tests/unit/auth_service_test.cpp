@@ -13,10 +13,12 @@ struct AuthEnvInit {
     }
 } g_auth_env_init;
 
-// auth_test_* usernames/emails avoid colliding with rows other test files insert.
+// auth_test_*/rev_test_* usernames/emails avoid colliding with rows other test
+// files insert.
 void CleanupTestRows() {
     auto result = Database::Get().Exec(
-        "DELETE FROM users WHERE username LIKE 'auth_test_%';");
+        "DELETE FROM users WHERE username LIKE 'auth_test_%' "
+        "OR username LIKE 'rev_test_%';");
     REQUIRE(result.has_value());
 }
 
@@ -209,6 +211,30 @@ TEST_CASE("IsFullMember is false for unverified, true for verified, false for gu
     Database::Get().Exec("UPDATE users SET email_verified = 1 WHERE username = 'auth_test_gateuser';");
     CHECK(AuthService::IsFullMember("auth_test_gateuser") == true);
     CHECK(AuthService::IsFullMember("Guest#ABCDE") == false);
+}
+
+TEST_CASE("token_version: bumping revokes an existing token") {
+    AuthFixture f;
+    AuthService auth;
+    auto reg = auth.Register("rev_test_user", "rev_test_user@example.com", "hunter22");
+    REQUIRE(reg.has_value());
+    auto token = AuthService::IssueToken("rev_test_user");
+    REQUIRE(token.has_value());
+    CHECK(AuthService::VerifyToken(*token).has_value());
+
+    auto revoke = auth.RevokeAllSessions("rev_test_user");
+    REQUIRE(revoke.has_value());
+
+    auto after = AuthService::VerifyToken(*token);
+    REQUIRE(!after.has_value());
+    CHECK(after.error().code == Error::Code::kUnauthorised);
+}
+
+TEST_CASE("token_version: a guest token still verifies (no row)") {
+    AuthFixture f;
+    auto token = AuthService::IssueToken("Guest#ABCDE");
+    REQUIRE(token.has_value());
+    CHECK(AuthService::VerifyToken(*token).has_value());
 }
 
 }  // TEST_SUITE

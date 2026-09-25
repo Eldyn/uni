@@ -188,4 +188,16 @@ TEST_CASE("Invalid token consume leaves no partial password change") {
     CHECK(PasswordMatches("reset_test_user6", "hunter22"));
 }
 
+TEST_CASE("Consume bumps token_version, revoking prior sessions") {
+    ResetFixture f;
+    RegisterResetUser("reset_test_revoke");
+    auto issued = PasswordResetService().IssueTokenForEmail("reset_test_revoke@example.com");
+    REQUIRE(issued.has_value());
+    auto old_token = AuthService::IssueToken("reset_test_revoke");
+    REQUIRE(old_token.has_value());
+
+    REQUIRE(PasswordResetService().ConsumeToken(issued->plaintext_token, "newpassword1").has_value());
+    CHECK_FALSE(AuthService::VerifyToken(*old_token).has_value());
+}
+
 }  // TEST_SUITE

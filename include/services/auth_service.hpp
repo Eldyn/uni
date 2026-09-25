@@ -138,6 +138,13 @@ public:
      */
     static bool IsFullMember(const std::string& username);
 
+    /**
+     * @brief Invalidates every outstanding JWT for this account by bumping the
+     * stored token version. Affects all devices (sessions are otherwise
+     * stateless); a no-op for guests, who have no row.
+     */
+    static VoidResult RevokeAllSessions(const std::string& username);
+
 private:
     Database& db_;
     LoginThrottle login_throttle_;
