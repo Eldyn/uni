@@ -118,13 +118,20 @@ bool IsAllowedWsOrigin(std::string_view origin, std::string_view host,
 }
 
 bool HasForbiddenDotSegment(std::string_view relative_path) {
-    if (relative_path.starts_with(".well-known/")) return false;
     std::size_t start = 0;
     while (start <= relative_path.size()) {
         const auto slash = relative_path.find('/', start);
         std::string_view seg = relative_path.substr(
             start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
-        if (!seg.empty() && seg.front() == '.') return true;
+        // INFO: The .well-known/ discovery prefix is exempt only as the leading
+        //       segment; every other segment, and any "."/".." segment anywhere,
+        //       is refused so canonicalisation cannot collapse a dotfile back in.
+        const bool well_known = start == 0 && seg == ".well-known" &&
+                                slash != std::string_view::npos;
+        if (!well_known) {
+            if (seg == ".." || seg == ".") return true;
+            if (!seg.empty() && seg.front() == '.') return true;
+        }
         if (slash == std::string_view::npos) break;
         start = slash + 1;
     }
