@@ -19,8 +19,8 @@ export function isAllowedAssetUrl(url: string, origin: string): boolean {
 
 const HEX_RE = /^[0-9a-f]+$/i;
 const B64URL_RE = /^[A-Za-z0-9_-]{43,44}$/;
-/** Shortest declared hex prefix accepted for integrity (32 bits of SHA-256). */
-const MIN_HEX_PREFIX = 8;
+/** Shortest declared hex prefix accepted for integrity (64 bits of SHA-256). */
+const MIN_HEX_PREFIX = 16;
 
 /** Normalizes the server's declared hash to lowercase hex for comparison. */
 export function normalizeHash(hash: string): string {
@@ -51,9 +51,10 @@ export async function verifyAssetBytes(bytes: ArrayBuffer, declaredHash: string)
 }
 
 /**
- * The page origin used to resolve and allowlist asset URLs. Empty when there is
- * no DOM (unit tests importing the pure resolver); relative URLs still pass
- * `isAllowedAssetUrl` via its leading-slash short-circuit.
+ * The page origin used to resolve and allowlist asset URLs. Returns "" when
+ * there is no DOM (unit tests importing the pure resolver); since
+ * `isAllowedAssetUrl` always parses, that empty origin makes relative URLs
+ * fail closed.
  */
 export function assetOrigin(): string {
 	return typeof window !== "undefined" ? window.location.origin : "";

@@ -69,5 +69,6 @@ describe("verifyAssetBytes", () => {
 		const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 		expect(await verifyAssetBytes(bytes, hex.slice(0, 2))).toBe(false);
 		expect(await verifyAssetBytes(bytes, hex.slice(0, 7))).toBe(false);
+		expect(await verifyAssetBytes(bytes, hex.slice(0, 8))).toBe(false);
 	});
 });
