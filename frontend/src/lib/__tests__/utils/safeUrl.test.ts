@@ -15,5 +15,13 @@ describe("safeAvatarUrl", () => {
 		expect(safeAvatarUrl("https://evil.example/a.png", "https://playuni.app")).toBe("");
 		expect(safeAvatarUrl("javascript:alert(1)", "https://playuni.app")).toBe("");
 		expect(safeAvatarUrl("x'); background:url(//evil)", "https://playuni.app")).toBe("");
+		expect(safeAvatarUrl("/x'); background:url(//evil)", "https://playuni.app")).toBe("");
+		expect(
+			safeAvatarUrl("https://playuni.app/x'); background:url(//evil)", "https://playuni.app")
+		).toBe("");
+		expect(
+			safeAvatarUrl("data:image/png;base64,AAA'); background:url(//evil)", "https://playuni.app")
+		).toBe("");
+		expect(safeAvatarUrl("/\\evil.example/a.png", "https://playuni.app")).toBe("");
 	});
 });
