@@ -5,13 +5,13 @@
  */
 
 export function isAllowedAssetUrl(url: string, origin: string): boolean {
-	// WHATWG URL treats a backslash as a slash for http(s), so `/\evil.example/x`
-	// is protocol-relative and must not take the same-origin relative fast path.
-	if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) return true;
+	// Always resolve through the URL parser: pre-parse string checks miss
+	// WHATWG normalizations (backslashes, stripped tab/newline) that turn a
+	// relative-looking input into a cross-origin absolute URL. A same-origin
+	// relative path resolves against `origin`, so its origin still matches.
 	try {
-		return (
-			new URL(url, origin).origin === origin && /^https?:$/.test(new URL(url, origin).protocol)
-		);
+		const resolved = new URL(url, origin);
+		return resolved.origin === origin && /^https?:$/.test(resolved.protocol);
 	} catch {
 		return false;
 	}
@@ -19,6 +19,8 @@ export function isAllowedAssetUrl(url: string, origin: string): boolean {
 
 const HEX_RE = /^[0-9a-f]+$/i;
 const B64URL_RE = /^[A-Za-z0-9_-]{43,44}$/;
+/** Shortest declared hex prefix accepted for integrity (32 bits of SHA-256). */
+const MIN_HEX_PREFIX = 8;
 
 /** Normalizes the server's declared hash to lowercase hex for comparison. */
 export function normalizeHash(hash: string): string {
@@ -37,9 +39,14 @@ export async function verifyAssetBytes(bytes: ArrayBuffer, declaredHash: string)
 	const digest = await crypto.subtle.digest("SHA-256", bytes);
 	const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 	const declared = normalizeHash(declaredHash);
-	// A declared hex hash shorter than the full digest pins a prefix; a full
+	// A declared hex hash shorter than the full digest pins a prefix, but only
+	// if it is long enough (and even) to carry meaningful integrity; a full
 	// 64-hex digest (or a decoded base64url digest) must match exactly.
-	if (HEX_RE.test(declared) && declared.length <= hex.length) return hex.startsWith(declared);
+	if (HEX_RE.test(declared) && declared.length <= hex.length) {
+		return (
+			declared.length >= MIN_HEX_PREFIX && declared.length % 2 === 0 && hex.startsWith(declared)
+		);
+	}
 	return hex === declared;
 }
 

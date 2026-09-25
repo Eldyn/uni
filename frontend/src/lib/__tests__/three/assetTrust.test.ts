@@ -18,8 +18,11 @@ describe("isAllowedAssetUrl", () => {
 		expect(isAllowedAssetUrl("data:image/png;base64,AAAA", "https://playuni.app")).toBe(false);
 		expect(isAllowedAssetUrl("javascript:alert(1)", "https://playuni.app")).toBe(false);
 	});
-	it("rejects a backslash protocol-relative bypass", () => {
+	it("rejects backslash and stripped-whitespace protocol-relative bypasses", () => {
 		expect(isAllowedAssetUrl("/\\evil.example/x.png", "https://playuni.app")).toBe(false);
+		expect(isAllowedAssetUrl("/\t/evil.example/x.png", "https://playuni.app")).toBe(false);
+		expect(isAllowedAssetUrl("/\n/evil.example/x.png", "https://playuni.app")).toBe(false);
+		expect(isAllowedAssetUrl("/\r/evil.example/x.png", "https://playuni.app")).toBe(false);
 	});
 });
 
@@ -59,5 +62,12 @@ describe("verifyAssetBytes", () => {
 	it("rejects a wrong truncated 16-hex content hash", async () => {
 		const bytes = new TextEncoder().encode("hello").buffer;
 		expect(await verifyAssetBytes(bytes, "0000000000000000")).toBe(false);
+	});
+	it("rejects a too-short or odd-length declared hex prefix", async () => {
+		const bytes = new TextEncoder().encode("hello").buffer;
+		const digest = await crypto.subtle.digest("SHA-256", bytes);
+		const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+		expect(await verifyAssetBytes(bytes, hex.slice(0, 2))).toBe(false);
+		expect(await verifyAssetBytes(bytes, hex.slice(0, 7))).toBe(false);
 	});
 });
