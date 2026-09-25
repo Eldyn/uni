@@ -42,3 +42,6 @@ frontend/public/assets/audio/**/*.flac
 frontend/public/assets/audio/**/*.aiff
 
 .worktrees/
+
+# Dev-mode rendered transactional email (EMAIL_MODE=dev) — may contain reset tokens.
+email-out/
