@@ -24,6 +24,16 @@ VoidResult AuthService::Register(const std::string& username, const std::string&
         return std::unexpected(Error::InvalidInput("Username must be 3–32 characters"));
     }
 
+    // INFO: Charset allowlist matches the frontend's registration rule. Anything
+    //       else (spaces, control chars, ANSI escapes) would be stored and later
+    //       written into logs/labels.
+    static constexpr char kAllowedUsername[] =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+    if (username.find_first_not_of(kAllowedUsername) != std::string::npos) {
+        return std::unexpected(Error::InvalidInput(
+            "Username can only contain letters, numbers, and underscores"));
+    }
+
     if (password.size() < static_cast<size_t>(contract::kPasswordMin)) {
         return std::unexpected(Error::InvalidInput("Password must be at least 8 characters"));
     }
@@ -122,6 +132,13 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
     }
 
     if (!row_result->has_value()) {
+        // INFO: Spend the same PBKDF2 cost as a real account so response time
+        //       does not disclose whether the email exists. Constant, valid-
+        //       shaped salt:hash (all-zero base64), never compared for equality.
+        static constexpr char kDummyStored[] =
+            "AAAAAAAAAAAAAAAAAAAAAA==:"
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+        (void)VerifyPassword(password, kDummyStored);
         login_throttle_.RecordFailure(throttle_key);
         return std::unexpected(Error::Unauthorised("Invalid credentials"));
     }
@@ -266,8 +283,18 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
     auto colon = stored.find(':');
     if (colon == std::string::npos) return false;
 
-    std::vector<unsigned char> salt      = Base64::Decode(stored.substr(0, colon));
-    std::vector<unsigned char> ref_hash  = Base64::Decode(stored.substr(colon + 1));
+    std::vector<unsigned char> salt;
+    std::vector<unsigned char> ref_hash;
+    try {
+        salt     = Base64::Decode(stored.substr(0, colon));
+        ref_hash = Base64::Decode(stored.substr(colon + 1));
+    } catch (const std::exception&) {
+        return false;  // malformed base64 in the row: never a match
+    }
+    if (salt.size() != static_cast<std::size_t>(kSaltBytes) ||
+        ref_hash.size() != static_cast<std::size_t>(kHashBytes)) {
+        return false;  // truncated/oversized digest would over-read in CRYPTO_memcmp
+    }
 
     std::string pepper        = Env::Get("PASSWORD_PEPPER", "");
     std::string peppered_pass = password + pepper;

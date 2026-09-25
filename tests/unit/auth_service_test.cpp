@@ -237,4 +237,18 @@ TEST_CASE("token_version: a guest token still verifies (no row)") {
     CHECK(AuthService::VerifyToken(*token).has_value());
 }
 
+TEST_CASE("Register rejects usernames with disallowed characters") {
+    AuthService auth;
+    auto bad = auth.Register("bad user\n", "baduser@example.com", "hunter22");
+    REQUIRE(!bad.has_value());
+    CHECK(bad.error().code == Error::Code::kInvalidInput);
+    auto bad2 = auth.Register("bad-user", "baduser2@example.com", "hunter22");
+    CHECK(!bad2.has_value());
+}
+
+TEST_CASE("VerifyPassword rejects a truncated stored hash") {
+    CHECK_FALSE(AuthService::VerifyPassword("hunter22", "AAAA:AAAA"));
+    CHECK_FALSE(AuthService::VerifyPassword("hunter22", "!!!:!!!"));
+}
+
 }  // TEST_SUITE
