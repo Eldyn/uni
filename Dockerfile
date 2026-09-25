@@ -82,4 +82,8 @@ ENV PORT=3000 \
 
 EXPOSE 3000
 
+RUN useradd --system --uid 10001 --create-home --home-dir /app uni \
+    && chown -R uni:uni /app
+USER uni
+
 CMD ["/app/uni_server"]
