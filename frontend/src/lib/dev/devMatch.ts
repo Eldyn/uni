@@ -33,6 +33,9 @@ export function tryStartDevMatch(search: string): boolean {
 	storeAuth.isGuest = true;
 
 	storeGame.state = buildMatchFixture(options);
+	// `&intro=1` forces the match-start cinematic even though the fixture
+	// bypasses the wire (no `match_start` frame sets the pending flag).
+	if (new URLSearchParams(search).get("intro") === "1") storeGame.matchIntroPending = true;
 	storeNavigation.goto("game");
 
 	// `&pointer=touch|mouse` pins the gesture model. An automated browser always

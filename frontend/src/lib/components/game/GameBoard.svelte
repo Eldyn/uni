@@ -5,6 +5,8 @@
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
 	import { createMatchEventBeatController } from "./animation/matchEventController.svelte";
+	import { createMatchIntroController } from "./animation/matchIntroController.svelte";
+	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 	import { createGameLayoutContext, useGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
@@ -236,11 +238,55 @@
 		storeTableSpin.syncTarget(target, order, spinAngle, incoming, outgoing);
 	});
 
+	// Shared animation resolvers — the live event controller and the match-intro
+	// controller both read placement/opponent geometry through these, so a
+	// played card and a dealt card can never disagree about where a seat is.
+	const getPlacement = () => geometry.placement;
+	const getOpponentCardScale = () => geometry.opponentCardScale;
+	const getOpponentSeatRotationDeg = (username: string) => {
+		const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+		const seat = idx === -1 ? undefined : geometry.seats3D[idx];
+		return seat ? (seat.rotationY * 180) / Math.PI : 0;
+	};
+	const getOpponentCardPose = (username: string, cardCount: number, slotIndex: number) => {
+		const idx = mappedOpponents.findIndex((o) => o.player.username === username);
+		if (idx === -1) {
+			return {
+				position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [
+					number,
+					number,
+					number
+				],
+				spinDeg: 0
+			};
+		}
+		const seat = geometry.seats3D[idx];
+		if (!seat) {
+			return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
+		}
+		// Must match PlayerSeat3D's own ring placement exactly, or a card
+		// flying to an opponent's hand lands beside it: same perspective-
+		// solved screen-space ring (seatRingPerspective.ts).
+		const poses = computeOpponentRingPoses(
+			geometry.rig,
+			sceneViewport,
+			seat,
+			geometry.opponentAvatarWorld,
+			geometry.opponentCardScale,
+			cardCount
+		);
+		const pose = poses[Math.min(poses.length - 1, Math.max(0, slotIndex))];
+		if (!pose) {
+			return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
+		}
+		return { position: pose.position, spinDeg: pose.spinDeg };
+	};
+
 	const controller = createMatchEventBeatController({
 		bus,
 		cardRegistry,
-		getPlacement: () => geometry.placement,
-		getOpponentCardScale: () => geometry.opponentCardScale,
+		getPlacement,
+		getOpponentCardScale,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
@@ -252,44 +298,8 @@
 			const seat = geometry.seats3D[idx];
 			return seat ? [seat.x, 0, seat.z] : [0, 0, 0];
 		},
-		getOpponentSeatRotationDeg: (username) => {
-			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
-			const seat = idx === -1 ? undefined : geometry.seats3D[idx];
-			return seat ? (seat.rotationY * 180) / Math.PI : 0;
-		},
-		getOpponentCardPose: (username, cardCount, slotIndex) => {
-			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
-			if (idx === -1) {
-				return {
-					position: [geometry.placement.discardX, 0, geometry.placement.discardZ] as [
-						number,
-						number,
-						number
-					],
-					spinDeg: 0
-				};
-			}
-			const seat = geometry.seats3D[idx];
-			if (!seat) {
-				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
-			}
-			// Must match PlayerSeat3D's own ring placement exactly, or a card
-			// flying to an opponent's hand lands beside it: same perspective-
-			// solved screen-space ring (seatRingPerspective.ts).
-			const poses = computeOpponentRingPoses(
-				geometry.rig,
-				sceneViewport,
-				seat,
-				geometry.opponentAvatarWorld,
-				geometry.opponentCardScale,
-				cardCount
-			);
-			const pose = poses[Math.min(poses.length - 1, Math.max(0, slotIndex))];
-			if (!pose) {
-				return { position: [0, 0, 0] as [number, number, number], spinDeg: 0 };
-			}
-			return { position: pose.position, spinDeg: pose.spinDeg };
-		},
+		getOpponentSeatRotationDeg,
+		getOpponentCardPose,
 		getOpponentFrontPose: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
 			if (idx === -1) {
@@ -311,8 +321,30 @@
 		subscribeBeats: (cb) => storeGame.onMatchEventBeat(cb)
 	});
 
+	const introController = createMatchIntroController({
+		bus,
+		cardRegistry,
+		getPlacement,
+		getOpponentCardScale,
+		getOpponentCardPose,
+		getOpponentSeatRotationDeg
+	});
+
 	const disposeController = controller.dispose;
 	$effect(() => disposeController);
+
+	$effect(() => () => introController.dispose());
+
+	// INFO: a fresh `match_start` sets `matchIntroPending`; consume-and-clear it
+	// here and start the deal cinematic once per match. Cleared unconditionally
+	// before start so a re-run (reactive read) can never start it twice.
+	$effect(() => {
+		const state = storeGame.state;
+		if (state && storeGame.matchIntroPending) {
+			storeGame.matchIntroPending = false;
+			introController.start(state);
+		}
+	});
 
 	// INFO: non-beat state sync (active type, in-flight decoration, initial
 	// discard seed) runs on every snapshot; the beats themselves are drained by
@@ -374,6 +406,10 @@
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
 		onpointerdown={() => {
+			if (storeMatchIntro.active) {
+				introController.skip();
+				return;
+			}
 			cardRegistry.skipCurrent();
 			storeTableSpin.skip();
 			storeTurnSkip.skip();
