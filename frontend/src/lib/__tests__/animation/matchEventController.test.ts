@@ -6,6 +6,7 @@ import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeTurnSkip } from "$stores/turnSkip.svelte";
+import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 import type { AnimationBeat } from "$components/game/animation/types";
 
@@ -19,8 +20,7 @@ const placement: BoardPlacement = {
 	localAvatarZ: 6,
 	drawPileX: -3,
 	drawPileZ: 5,
-	drawPileScale: 1,
-	drawPileBesideHand: true
+	drawPileScale: 1
 };
 
 /** Minimal fake bus recording the calls the play path makes. */
@@ -155,6 +155,7 @@ describe("createMatchEventBeatController", () => {
 	afterEach(() => {
 		storeGame.state = null;
 		storeAuth.username = "";
+		storeMatchIntro.end();
 		vi.restoreAllMocks();
 	});
 
@@ -185,6 +186,19 @@ describe("createMatchEventBeatController", () => {
 		(h.bus as { discardHistory: unknown[] }).discardHistory = discardHistory([9]);
 		h.controller.syncState();
 		expect(h.bus.setDiscardTop).not.toHaveBeenCalled();
+	});
+
+	it("defers the initial discard seed while the match intro is active", () => {
+		storeGame.state = baseState();
+		storeMatchIntro.active = true;
+		const h = harness();
+
+		h.controller.syncState();
+		expect(h.bus.setDiscardTop).not.toHaveBeenCalled();
+
+		storeMatchIntro.end();
+		h.controller.syncState();
+		expect(h.bus.setDiscardTop).toHaveBeenCalledTimes(1);
 	});
 
 	it("syncState is a no-op when no state is hydrated", () => {

@@ -1,5 +1,6 @@
-<!-- Fixed decorative draw-pile stack, anchored just left of the local hand and
-     on the same horizontal (Z) line as it — not floating above.
+<!-- Fixed decorative draw-pile stack. Its world position comes from
+     boardPlacement: left of the discard on the mat's center line in landscape,
+     tucked directly under the discard pile in portrait.
      Tweens its height when reshuffled cards arrive (+1 per landing card) to look fresh. -->
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
@@ -8,6 +9,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
@@ -30,8 +32,14 @@
 	const bus = useCardBus();
 
 	let effectiveRawSize = $derived(
-		bus?.reshuffleDrawPileSize ?? storeGame.state?.draw_pile_size ?? 0
+		storeMatchIntro.drawPileCount ??
+			bus?.reshuffleDrawPileSize ??
+			storeGame.state?.draw_pile_size ??
+			0
 	);
+
+	let pileX = $derived(storeMatchIntro.drawPilePos?.x ?? placement.drawPileX);
+	let pileZ = $derived(storeMatchIntro.drawPilePos?.z ?? placement.drawPileZ);
 
 	let pile = $derived(
 		computeDrawPileCountAndStep(effectiveRawSize, storeRenderSettings.drawPileThickness)
@@ -115,7 +123,9 @@
 	let hoverDipTween = $state<gsap.core.Tween | null>(null);
 
 	let canDraw = $derived(
-		pileVisible && storeGame.state?.current_turn === storeGame.localPlayer?.username
+		pileVisible &&
+			!storeMatchIntro.active &&
+			storeGame.state?.current_turn === storeGame.localPlayer?.username
 	);
 	let hoverDipTarget = $derived(
 		storeAnimation.enabled && drawPileHovered && canDraw ? HOVER_DIP_Z : 0
@@ -166,7 +176,7 @@
 	// plus the peek run) keeps the entire pile tappable.
 	let peekRunZ = $derived((visualCount - 1) * PILE_PEEK_Z * placement.drawPileScale);
 	let clickDepthZ = $derived(CARD_HEIGHT * placement.drawPileScale + peekRunZ);
-	let clickCenterZ = $derived(placement.drawPileZ - peekRunZ / 2);
+	let clickCenterZ = $derived(pileZ - peekRunZ / 2);
 	let clickHeightY = $derived(Math.max(animatedStackHeight, DRAW_PILE_STACK_STEP));
 	let clickCenterY = $derived(PILE_BASE_HEIGHT + clickHeightY / 2 - punchOffset);
 
@@ -181,9 +191,9 @@
 			const key = `pile:draw:${i}`;
 			currentKeys.add(key);
 			cardRegistry.setPoseProvider(key, () => [
-				placement.drawPileX,
+				pileX,
 				PILE_BASE_HEIGHT + i * stepY,
-				placement.drawPileZ - i * PILE_PEEK_Z * placement.drawPileScale
+				pileZ - i * PILE_PEEK_Z * placement.drawPileScale
 			]);
 		}
 
@@ -244,7 +254,7 @@
 			     as the pile hovering above it. Keeping it under the base card
 			     grounds the stack without moving the pile's depth. -->
 			<T.Mesh
-				position={[placement.drawPileX, PILE_BASE_HEIGHT - 0.002, placement.drawPileZ]}
+				position={[pileX, PILE_BASE_HEIGHT - 0.002, pileZ]}
 				rotation.x={-Math.PI / 2}
 				scale={placement.drawPileScale * 1.04}
 			>
@@ -268,9 +278,9 @@
 			{#if i > 0 && silhouetteTexture}
 				<T.Mesh
 					position={[
-						placement.drawPileX,
+						pileX,
 						cardY(i) - 0.001,
-						placement.drawPileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
+						pileZ - ((i - 1) * PILE_PEEK_Z + SHADOW_PEEK_Z) * placement.drawPileScale
 					]}
 					rotation.x={-Math.PI / 2}
 					scale={placement.drawPileScale}
@@ -290,11 +300,9 @@
 				card={{ id: -1, type: "wild", value: "0" }}
 				turned={true}
 				position={[
-					placement.drawPileX,
+					pileX,
 					cardY(i),
-					placement.drawPileZ -
-						i * PILE_PEEK_Z * placement.drawPileScale +
-						(isTopCard ? hoverDipZ : 0)
+					pileZ - i * PILE_PEEK_Z * placement.drawPileScale + (isTopCard ? hoverDipZ : 0)
 				]}
 				scale={placement.drawPileScale}
 				brightness={cardBrightness}
@@ -303,7 +311,7 @@
 
 		{#if pileVisible}
 			<T.Mesh
-				position={[placement.drawPileX, clickCenterY, clickCenterZ]}
+				position={[pileX, clickCenterY, clickCenterZ]}
 				onclick={handleDraw}
 				onpointerenter={() => (drawPileHovered = true)}
 				onpointerleave={() => (drawPileHovered = false)}

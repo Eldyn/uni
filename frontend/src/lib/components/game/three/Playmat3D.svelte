@@ -9,6 +9,7 @@
 	import { T } from "@threlte/core";
 	import type { Texture } from "three";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
 	import type { MatPlacement } from "../layout/playmat";
@@ -45,6 +46,12 @@
 	// holds the last real color instead of flashing neutral mid-turn.
 	let activeTint = $state(FALLBACK_TINT);
 	$effect(() => {
+		// The deal cinematic holds the mat at rebeccapurple regardless of the
+		// running game's colour, then normal tinting resumes once it clears.
+		if (storeMatchIntro.forcePurpleMat) {
+			activeTint = FALLBACK_TINT;
+			return;
+		}
 		const type = storeGame.state?.active_type;
 		if (type && type !== "white") activeTint = TINTS[type] ?? FALLBACK_TINT;
 	});

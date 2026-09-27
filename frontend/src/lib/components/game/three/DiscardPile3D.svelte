@@ -20,6 +20,7 @@
 	import { CARD_WIDTH, CARD_HEIGHT } from "./units";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import { storeCardDetail } from "$stores/cardDetail.svelte";
+	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 
 	let {
 		history,
@@ -90,6 +91,7 @@
 	// LocalHand3D's own registration effect (Task A10) for the exact same
 	// "no separate flight identity" reason.
 	$effect(() => {
+		if (storeMatchIntro.discardHidden) return;
 		for (const [i, entry] of history.entries()) {
 			const idString = String(entry.card.id);
 			const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
@@ -137,7 +139,7 @@
 	});
 </script>
 
-{#if armed}
+{#if armed && !storeMatchIntro.discardHidden}
 	<T.Mesh
 		position.y={CONFIRM_TARGET_Y}
 		rotation.x={-Math.PI / 2}

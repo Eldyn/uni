@@ -32,6 +32,7 @@ import DiscardPile3D from "$components/game/three/DiscardPile3D.svelte";
 import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
 import { CardRegistry, CARD_REGISTRY_KEY } from "$components/game/animation/cardRegistry.svelte";
 import { discardEntryFor } from "$components/game/layout/discardPile";
+import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 import type { Card } from "$stores/game.svelte";
 
@@ -61,6 +62,7 @@ describe("DiscardPile3D resolution change", () => {
 	afterEach(() => {
 		cleanup();
 		gsap.globalTimeline.clear();
+		storeMatchIntro.end();
 	});
 
 	it("re-syncs pose.scale of already-played cards when the placement changes", async () => {
@@ -91,5 +93,27 @@ describe("DiscardPile3D resolution change", () => {
 		// ensureEntry is idempotent, so without an explicit re-sync the pose
 		// would still carry its draw-time scale here.
 		expect(pose!.scale).toBeCloseTo(shortPlacement.centerScale);
+	});
+
+	it("plants no registry entries while the intro hides the pile, then resumes", async () => {
+		const registry = new CardRegistry();
+		const context = new Map<any, any>([[CARD_REGISTRY_KEY, registry]]);
+
+		storeMatchIntro.discardHidden = true;
+		render(DiscardPile3D, { props: propsFor(wide), context });
+		await tick();
+		await tick();
+
+		// The registry is how discard cards actually get rendered, so "renders
+		// nothing" means no entry is planted for any history card.
+		expect(registry.getPose("11")).toBeUndefined();
+		expect(registry.getPose("12")).toBeUndefined();
+
+		storeMatchIntro.discardHidden = false;
+		await tick();
+		await tick();
+
+		expect(registry.getPose("11")).toBeDefined();
+		expect(registry.getPose("12")).toBeDefined();
 	});
 });

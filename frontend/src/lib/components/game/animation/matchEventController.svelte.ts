@@ -17,6 +17,7 @@ import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeTableSpin } from "$stores/tableSpin.svelte";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
+import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -640,7 +641,7 @@ export function createMatchEventBeatController(deps: {
 		// INFO: the watcher used to seed the discard pile on first observation;
 		// without it the first render shows an empty pile. Seed only when
 		// nothing is there yet so a live discard history is never clobbered.
-		if (state.top_card && deps.bus.discardHistory.length === 0) {
+		if (state.top_card && deps.bus.discardHistory.length === 0 && !storeMatchIntro.active) {
 			deps.bus.setDiscardTop(state.top_card);
 		}
 

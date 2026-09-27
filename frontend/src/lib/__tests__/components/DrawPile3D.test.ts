@@ -32,6 +32,8 @@ import { CardBus, CARD_BUS_KEY } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
+import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { PILE_BASE_HEIGHT, PILE_PEEK_Z } from "$components/game/layout/drawPile";
 import { CARD_WIDTH, CARD_HEIGHT } from "$components/game/three/units";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -51,8 +53,7 @@ describe("DrawPile3D", () => {
 		localAvatarZ: 1.2,
 		drawPileX: -2.5,
 		drawPileZ: 0.8,
-		drawPileScale: 0.9,
-		drawPileBesideHand: true
+		drawPileScale: 0.9
 	};
 
 	beforeEach(() => {
@@ -76,6 +77,9 @@ describe("DrawPile3D", () => {
 	afterEach(() => {
 		cleanup();
 		storeGame.state = null;
+		storeAnimation.enabled = true;
+		storeAnimation.speedMultiplier = 1;
+		storeMatchIntro.end();
 	});
 
 	it("renders an invisible hitbox spanning the whole pile and removes onclick from card meshes", () => {
@@ -295,5 +299,80 @@ describe("DrawPile3D", () => {
 			(m) => typeof m.onclick === "function" && Array.isArray(m.position)
 		);
 		expect(hitbox).toBeUndefined();
+	});
+
+	it("uses storeMatchIntro.drawPilePos for the rendered pile and pose providers", () => {
+		const registry = new CardRegistry();
+		storeMatchIntro.drawPilePos = { x: 4.2, z: -1.3 };
+
+		render(DrawPile3D, {
+			props: { placement: defaultPlacement },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		const hitbox = meshInstances.find(
+			(m) => typeof m.onclick === "function" && Array.isArray(m.position)
+		);
+		expect(hitbox).toBeDefined();
+		const peekRun = (6 - 1) * PILE_PEEK_Z * defaultPlacement.drawPileScale;
+		expect(hitbox!.position![0]).toBeCloseTo(4.2);
+		expect(hitbox!.position![2]).toBeCloseTo(-1.3 - peekRun / 2);
+
+		const seed = registry.seedPose("pile:draw:0", {
+			x: 0,
+			y: 0,
+			z: 0,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: 1,
+			turned: false,
+			opacity: 1
+		});
+		registry.applyIdlePoseIfNotInTransit("pile:draw:0");
+		expect(seed.x).toBeCloseTo(4.2);
+		expect(seed.z).toBeCloseTo(-1.3);
+	});
+
+	it("uses storeMatchIntro.drawPileCount over the real draw-pile size", () => {
+		const registry = new CardRegistry();
+		storeRenderSettings.drawPileThickness = "full";
+		storeGame.state!.draw_pile_size = 30;
+		storeMatchIntro.drawPileCount = 3;
+
+		render(DrawPile3D, {
+			props: { placement: defaultPlacement },
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		expect(cardMeshInstances.length).toBe(3);
+	});
+
+	it("withholds the draw hover dip while the intro is active (canDraw false)", async () => {
+		storeAnimation.enabled = true;
+		storeAnimation.speedMultiplier = 3;
+		storeMatchIntro.drawPileCount = 2;
+		const bus = new CardBus();
+		const context = new Map<any, any>([[CARD_BUS_KEY, bus]]);
+
+		render(DrawPile3D, { props: { placement: defaultPlacement }, context });
+		let hitbox = meshInstances.find((m) => typeof m.onpointerenter === "function")!;
+		hitbox.onpointerenter!({});
+		await new Promise((r) => setTimeout(r, 250));
+		const hoveredDip = bus.getDrawPileHoverDipZ();
+
+		cleanup();
+		resetMockState();
+
+		storeMatchIntro.active = true;
+		render(DrawPile3D, { props: { placement: defaultPlacement }, context });
+		hitbox = meshInstances.find((m) => typeof m.onpointerenter === "function")!;
+		hitbox.onpointerenter!({});
+		await new Promise((r) => setTimeout(r, 250));
+		const hoveredNoDip = bus.getDrawPileHoverDipZ();
+
+		// The dip settles at HOVER_DIP_Z (0.14) forward on the top card, and
+		// canDraw gates it off entirely while the intro is running.
+		expect(hoveredDip).toBeCloseTo(0.14);
+		expect(hoveredNoDip).toBe(0);
 	});
 });
