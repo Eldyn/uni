@@ -516,7 +516,7 @@ TEST_CASE("view snapshot: window state is included when open") {
     REQUIRE_FALSE(window.is_null());
     CHECK(window["window_id"]
           == std::to_string(engine->ExportWindow().value("id", 0)));
-    CHECK(window["responders"].size() == 2u);
+    CHECK(window["responders"].size() == 1u);
     CHECK(window["eligible_filter_digest"].is_string());
     CHECK(window["responses"].is_array());
     CHECK(window["responses"].empty());

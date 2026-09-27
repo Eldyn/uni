@@ -51,6 +51,7 @@ struct PlayAttempt {
     std::string player;         /**< acting player identifier. */
     std::string card_kind;      /**< full kind id of the attempted card. */
     bool in_turn = false;       /**< attempt is the acting player's own turn. */
+    bool responding = false;    /**< attempt answers an open response window. */
     nlohmann::json context = nlohmann::json::object();
 };
 

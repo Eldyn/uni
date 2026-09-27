@@ -816,11 +816,15 @@ bool MatchInstance::ResponseEligible(
     if (!respond_with.is_object() || respond_with.empty()) return true;
 
     // INFO: the declared `condition` form is jump_in/no_bluffing eligibility;
-    //       a bare single-keyword play condition is accepted too.
+    //       a bare single-keyword play condition is accepted too. A
+    //       `condition` next to a tag filter must hold as well as the tag.
     const auto condition = respond_with.find("condition");
     if (condition != respond_with.end()) {
-        return assembly_->play_matcher != nullptr
-            && assembly_->play_matcher->Matches(*condition, attempt);
+        if (assembly_->play_matcher == nullptr
+            || !assembly_->play_matcher->Matches(*condition, attempt)) {
+            return false;
+        }
+        if (respond_with.size() == 1) return true;
     }
     if (respond_with.size() == 1
         && modload::IsPlayConditionKeyword(respond_with.begin().key())) {
@@ -1256,8 +1260,8 @@ bool MatchInstance::CanRespondWindow(ecs::Entity player,
 
     const std::optional<ecs::Entity> current = CurrentPlayer();
     const bool in_turn = current.has_value() && (*current == player);
-    const modload::PlayAttempt attempt =
-        BuildPlayAttempt(player, card, in_turn);
+    modload::PlayAttempt attempt = BuildPlayAttempt(player, card, in_turn);
+    attempt.responding = true;
     return CheckPlayRestrictions(attempt).allowed
            && ResponseEligible(pending_window_->request.respond_with, attempt);
 }
@@ -1294,8 +1298,8 @@ bool MatchInstance::RespondWindow(const std::string& username,
 
     const std::optional<ecs::Entity> current = CurrentPlayer();
     const bool in_turn = current.has_value() && (*current == *player);
-    const modload::PlayAttempt attempt =
-        BuildPlayAttempt(*player, card, in_turn);
+    modload::PlayAttempt attempt = BuildPlayAttempt(*player, card, in_turn);
+    attempt.responding = true;
 
     const modload::PlayDecision decision = CheckPlayRestrictions(attempt);
     if (!decision.allowed) {

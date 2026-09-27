@@ -762,7 +762,7 @@ TEST_SUITE("MatchController::WindowResponse") {
 TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window open") {
     MatchFixture f;
     LobbySettings settings;
-    settings.active_mods = {"draw_stacking"};
+    settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
 
     match::engine::MatchInstance& engine = f.Engine();
@@ -821,7 +821,7 @@ TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window o
 TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     MatchFixture f;
     LobbySettings settings;
-    settings.active_mods = {"draw_stacking"};
+    settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
 
     match::engine::MatchInstance& engine = f.Engine();
@@ -848,8 +848,8 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     const std::vector<match::ecs::Entity> green2 = CardsByKind(engine, "vanilla:green_draw2");
     REQUIRE(red2.size() >= 2);
     REQUIRE(green2.size() >= 2);
-    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
-    ForceHand(engine, *engine.FindPlayer(others[1]), {green2[0], green2[1]});
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], green2[0]});
+    ForceHand(engine, *engine.FindPlayer(others[1]), {red2[1], green2[1]});
 
     CHECK(f.router.Dispatch(context_for(current), json{
         {"action", ws::ClientAction::kMatchPlayCard},
@@ -860,14 +860,14 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     const bool handled = f.router.Dispatch(
         context_for(others[1]),
         json{{"action", ws::ClientAction::kMatchWindowResponse},
-             {"card_id", BitsOf(engine, green2[0])}});
+             {"card_id", BitsOf(engine, red2[1])}});
     CHECK(handled);
 
     bool responded = false;
     for (const json& response : engine.ExportWindow()["responses"]) {
         if (response.value("player", std::string()) == others[1]
             && !response.value("pass", true)
-            && response.value("kind", std::string()) == "vanilla:green_draw2") {
+            && response.value("kind", std::string()) == "vanilla:red_draw2") {
             responded = true;
         }
     }
@@ -968,7 +968,7 @@ TEST_CASE("ScheduleWindowTick arms a timeout while a window is open") {
 TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
     MatchFixture f;
     LobbySettings settings;
-    settings.active_mods = {"draw_stacking"};
+    settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
 
     match::engine::MatchInstance& engine = f.Engine();

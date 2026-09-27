@@ -204,6 +204,8 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     CHECK(entries["jump_in:identical_out_of_turn"]
           == "plays_identical_to_top");
     CHECK(entries["no_bluffing:drawn_four"] == "plays_bluffing");
+    CHECK(entries["draw_stacking:stackable_response"]
+          == "plays_stack_response");
 
     /* INFO: seven_zero keys its two after:play hooks on the zero/seven tags
      *       (the `where value=` shorthand has no store predicate). */
@@ -276,7 +278,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                 if (!node.is_object() || !node.contains("window")) continue;
                 const auto& window = node["window"];
                 if (!window.is_object()) continue;
-                if (window.value("responders", "") == "@others"
+                if (window.value("responders", "") == "@next_player"
                     && window.value("duration", "") == "env") {
                     stacking_window = true;
                 }
@@ -319,7 +321,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
         }
     }
     CHECK_MESSAGE(stacking_window,
-                  "draw_stacking window missing @others/env fields");
+                  "draw_stacking window missing @next_player/env fields");
     CHECK_MESSAGE(stacking_reopens,
                   "draw_stacking window does not declare reopen");
     CHECK_MESSAGE(stacking_response_redirects,

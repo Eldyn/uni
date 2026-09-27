@@ -140,7 +140,8 @@ bool NeedsAttemptedFacts(const std::string& keyword) {
     return keyword == "plays_tag" || keyword == "plays_color"
         || keyword == "plays_value" || keyword == "plays_matches_active"
         || keyword == "plays_matches_top" || keyword == "plays_mismatch"
-        || keyword == "plays_identical_to_top" || keyword == "plays_bluffing";
+        || keyword == "plays_identical_to_top" || keyword == "plays_bluffing"
+        || keyword == "plays_stack_response";
 }
 
 }  // namespace
@@ -205,6 +206,17 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         PlayCardFacts top;
         if (!ResolveTop(*attempt, lookup, top)) return false;
         return attempted.color == top.color && attempted.value == top.value;
+    }
+    if (keyword == "plays_stack_response") {
+        // draw_stacking.cpp: only while answering a window, and only the
+        // same draw value as the tagged top (+2 on +2, +4 on +4).
+        if (!attempt->responding) return false;
+        const std::optional<std::string> tag = ArgString(args, "tag");
+        if (!tag.has_value() || !HasTag(attempted.tags, *tag)) return false;
+        PlayCardFacts top;
+        if (!ResolveTop(*attempt, lookup, top)) return false;
+        return HasTag(top.tags, *tag) && !attempted.value.empty()
+            && attempted.value == top.value;
     }
     if (keyword == "plays_mismatch") {
         // standard.cpp:13-36: invalid iff not wild, not active-type match and

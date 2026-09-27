@@ -617,6 +617,9 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
         // no_bluffing.cpp:12-30: playing `value` while holding a card whose
         // colour equals the active type.
         add_play("plays_bluffing", {Arg("value", ArgType::kString)});
+        // draw_stacking.cpp: a window reply laying the same `tag`ged draw
+        // value as the discard top.
+        add_play("plays_stack_response", {Arg("tag", ArgType::kTagRef)});
 
         return out;
     }();

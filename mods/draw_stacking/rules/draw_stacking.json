@@ -1,7 +1,7 @@
 {
   "id": "draw_stacking",
   "title": "Draw Stacking",
-  "description": "MAY-DIFFER (spec 12.4): legacy pending_draws is rebuilt on response windows. A draw-penalty (+2/+4) play opens a window for the other seats (`responders` `@others`, which includes `@next_player`, eligible via the `stackable` tag, env duration). The response route marks the stack and the ENGINE performs the two spec-12.4 halves the DAG cannot express: it appends the response card's own N to the then-target's vanilla:draw_debt status and re-opens the window (`reopen`), so the chain keeps one budget ledger. The default route draws the accumulated debt on the current target (`draw_cards` with `n_from_debt`) and clears the status. The match_start allow rescues the out-of-turn stackable response from vanilla:turn_order (the spec 13.3 deny/allow pattern). The legacy golden must be compared with may_differ honoured. The +2/+4 cards' own immediate draw is removed by this mod's mutations, so the penalty lives only as debt: the engine records it on the seat after whoever laid the card (carrying any earlier debt along), a stacking response redirects the turn to the responder, and the default route has the next player draw the debt, clear it and lose their turn.",
+  "description": "Stack +2 and +4 draw cards to pass the penalty to the next player. A draw-penalty (+2/+4) play records its N as vanilla:draw_debt on the next seat and opens a response window for that victim only (`responders` `@next_player`). The victim may answer with the same draw value as the top (+2 on +2, +4 on +4; `plays_stack_response`): the engine carries the accumulated debt on to the seat after the responder, hands the responder the turn and re-opens the window (`reopen`). When the victim does not stack, the default route has them draw the whole debt, clears it and skips their turn. The match_start allow rescues only such a window reply from vanilla:turn_order; it never makes a +2 playable on an unrelated card. The +2/+4 cards' own immediate draw is removed by this mod's mutations, so the penalty lives only as debt.",
   "hooks": [
     {
       "on": "after:match_start",
@@ -14,7 +14,7 @@
               "id": "draw_stacking:stackable_response",
               "phase": "allow",
               "condition": {
-                "plays_tag": {
+                "plays_stack_response": {
                   "tag": "stackable"
                 }
               }
@@ -34,18 +34,23 @@
         {
           "id": "n1",
           "window": {
-            "responders": "@others",
+            "responders": "@next_player",
             "respond_with": {
               "any_tag": [
                 "stackable"
-              ]
+              ],
+              "condition": {
+                "plays_stack_response": {
+                  "tag": "stackable"
+                }
+              }
             },
             "duration": "env"
           },
           "reopen": true,
           "default": "n2",
           "on_response": {
-            "stackable": "n3"
+            "plays_stack_response": "n3"
           }
         },
         {

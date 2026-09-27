@@ -352,7 +352,7 @@ TEST_CASE("engine window: opens on a draw-penalty (+2/+4) play") {
     const json window = engine->ExportWindow();
     CHECK(window["open"] == true);
     REQUIRE(window["responders"].is_array());
-    CHECK(window["responders"].size() == 2);
+    CHECK(window["responders"].size() == 1);
     CHECK(window["default_route"] == "n2");
     CHECK(engine->PendingWindow().has_value());
 }

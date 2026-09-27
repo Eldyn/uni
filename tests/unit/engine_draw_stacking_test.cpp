@@ -226,7 +226,9 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
 
     const json window = engine->ExportWindow();
     REQUIRE(window["responders"].is_array());
-    CHECK(window["responders"].size() == 2);
+    // INFO: only the victim may stack; the other seats are not responders.
+    REQUIRE(window["responders"].size() == 1);
+    CHECK(window["responders"][0] == "player1");
     CHECK(window["default_route"] == "n2");
 }
 
@@ -249,8 +251,8 @@ TEST_CASE("engine draw_stacking: unanswered +N makes the victim draw and skip") 
     const std::size_t victim_hand = HandSize(*engine, player1);
 
     REQUIRE(engine->PlayCard("player0", *draw2));
+    CHECK_FALSE(engine->PassWindow("player2"));
     REQUIRE(engine->PassWindow("player1"));
-    REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 0);
@@ -287,14 +289,12 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     const uint64_t steps_after_open = engine->Assembly().budget.chain_steps;
     CHECK(CountEvents(*engine, "window_open") == 1);
 
-    // INFO: an out-of-turn stackable response is rescued by the mod's allow;
-    //       the first accepted response wins when the window closes.
+    // INFO: the victim's out-of-turn stack is rescued by the mod's allow and,
+    //       as the only responder, closes the window at once.
     REQUIRE(engine->RespondWindow("player1", *stack2));
-    CHECK(engine->WindowOpen());  // INFO: player2 has not replied yet.
-    REQUIRE(engine->PassWindow("player2"));
 
-    // INFO: close collected player1's response -> route n3 hands player1 the
-    //       turn, the whole debt moves on to player2 -> engine re-opens.
+    // INFO: route n3 hands player1 the turn, the whole debt moves on to
+    //       player2 -> engine re-opens.
     CHECK(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(DebtOf(*engine, player2) == 4);
@@ -305,10 +305,9 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     // INFO: the chain shares one budget ledger (no reset across re-open).
     CHECK(steps_after_reopen > steps_after_open);
 
-    // INFO: the re-opened window has responders @others of player1 = p0, p2.
+    // INFO: the re-opened window's only responder is the new victim.
     const std::size_t victim_hand = HandSize(*engine, player2);
-    REQUIRE(engine->PassWindow("player0"));
-    CHECK(engine->WindowOpen());
+    CHECK_FALSE(engine->PassWindow("player0"));
     REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
@@ -388,7 +387,6 @@ TEST_CASE("engine draw_stacking: a second window over the play records once") {
     REQUIRE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 2);
     REQUIRE(engine->PassWindow("player1"));
-    REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 0);
@@ -412,8 +410,11 @@ TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
     REQUIRE(stack2.has_value());
     REQUIRE(filler0.has_value());
     REQUIRE(filler1.has_value());
+    const std::optional<ecs::Entity> wild4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    REQUIRE(wild4.has_value());
     ForceHand(*engine, player0, {*draw2, *filler0});
-    ForceHand(*engine, player1, {*stack2, *filler1});
+    ForceHand(*engine, player1, {*stack2, *filler1, *wild4});
     engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
         "red";
 
@@ -426,7 +427,46 @@ TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
     CHECK(engine->CanRespondWindow(player1, *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
     CHECK_FALSE(engine->CanRespondWindow(player0, *filler0));
+    // INFO: legacy stacking only matches the same draw value (+4 on +2 no).
+    CHECK_FALSE(engine->CanRespondWindow(player1, *wild4));
 
     REQUIRE(engine->RespondWindow("player1", *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
+}
+
+TEST_CASE("engine draw_stacking: a +N is not playable on an unrelated card") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::optional<ecs::Entity> opener = FindCard(*engine, "blue", "5");
+    const std::optional<ecs::Entity> filler0 = FindCard(*engine, "blue", "6");
+    const std::optional<ecs::Entity> green2 = FindCard(*engine, "green", "+2");
+    const std::optional<ecs::Entity> yellow2 =
+        FindCard(*engine, "yellow", "+2");
+    REQUIRE(opener.has_value());
+    REQUIRE(filler0.has_value());
+    REQUIRE(green2.has_value());
+    REQUIRE(yellow2.has_value());
+    ForceHand(*engine, player0, {*opener, *filler0});
+    ForceHand(*engine, player1, {*green2});
+    ForceHand(*engine, player2, {*yellow2});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "blue";
+
+    REQUIRE(engine->PlayCard("player0", *opener));
+    REQUIRE_FALSE(engine->WindowOpen());
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player1");
+
+    // INFO: neither in turn (colour/value mismatch) nor out of turn (no
+    //       stacking window) may a +2 land on a blue 5.
+    CHECK_FALSE(engine->PlayCard("player1", *green2));
+    CHECK_FALSE(engine->PlayCard("player2", *yellow2));
+    CHECK(HandSize(*engine, player1) == 1);
+    CHECK(HandSize(*engine, player2) == 1);
 }
