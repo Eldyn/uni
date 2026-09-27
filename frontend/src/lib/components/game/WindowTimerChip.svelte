@@ -7,10 +7,6 @@
 	// All players see the countdown chip; only the responders may
 	// answer it, and spectators never may.
 	let activeWindow = $derived(storeGame.activeWindow);
-	let isResponder = $derived(
-		activeWindow !== null && activeWindow.responders.includes(storeGame.localPlayer?.username ?? "")
-	);
-	let canPass = $derived(isResponder && !storeGame.isSpectator);
 </script>
 
 {#if activeWindow}
@@ -25,7 +21,7 @@
 		<span class="window-time" class:urgent={storeGame.windowTimeRemaining <= 5}>
 			{formatTurnTimer(storeGame.windowTimeRemaining)}
 		</span>
-		{#if canPass}
+		{#if storeGame.isWindowResponder}
 			<button
 				type="button"
 				class="btn pixel-corners pass-btn"

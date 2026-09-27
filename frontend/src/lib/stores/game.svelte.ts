@@ -288,6 +288,15 @@ class StoreGame implements SessionStore {
 			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username))
 	);
 
+	/** True while the local player may answer the open response window, even
+	 *  out of turn (a draw-stacking or jump-in reply). */
+	isWindowResponder = $derived(
+		!this.isSpectator &&
+			this.activeWindow !== null &&
+			this.localPlayer !== null &&
+			this.activeWindow.responders.includes(this.localPlayer.username)
+	);
+
 	/** Number of connected spectators in the whole lobby (kept for legacy
 	 *  callers; the HUD now shows the per-player count instead). */
 	spectatorCount = $derived(this.state?.spectator_count ?? 0);
@@ -859,9 +868,7 @@ class StoreGame implements SessionStore {
 	 */
 	passWindow(): void {
 		const window = this.activeWindow;
-		if (!window) return;
-		const username = this.localPlayer?.username;
-		if (!username || !window.responders.includes(username)) return;
+		if (!window || !this.isWindowResponder) return;
 		ws.emit(ClientAction.MatchWindowResponse, { window_id: window.windowId, pass: true });
 	}
 

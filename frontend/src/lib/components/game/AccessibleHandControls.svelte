@@ -154,9 +154,10 @@
 			// autofocuses its own control, and moving hand focus out from
 			// under it would leave Enter playing a card instead of answering
 			// the prompt ("pick a color", "play it", "select a target", ...).
+			// A window's responders keep the hand: answering it is a card play.
 			if (
 				storeGame.activePrompt !== null ||
-				storeGame.activeWindow !== null ||
+				(storeGame.activeWindow !== null && !storeGame.isWindowResponder) ||
 				storeModal.isAnyOpen
 			)
 				return;

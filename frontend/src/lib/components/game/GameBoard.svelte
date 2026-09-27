@@ -60,9 +60,11 @@
 	}
 
 	// Nothing stays picked across a turn boundary; coming back to your turn with a
-	// stale card already armed is how you play a card you never meant to.
+	// stale card already armed is how you play a card you never meant to. A
+	// response window is the exception: its responders act out of turn.
 	$effect(() => {
-		if (storeGame.state?.current_turn !== storeGame.localPlayer?.username) selectedCardId = null;
+		const isLocalTurn = storeGame.state?.current_turn === storeGame.localPlayer?.username;
+		if (!isLocalTurn && !storeGame.isWindowResponder) selectedCardId = null;
 	});
 
 	function play(cardId: number) {
