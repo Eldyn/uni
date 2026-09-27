@@ -292,6 +292,12 @@ public:
         registries_ = registries;
     }
 
+    /**
+     * @brief The seat after `anchor` in the current play direction, the same
+     *        step `@next_player` takes from the current player.
+     */
+    std::optional<ecs::Entity> NextInTurnOrder(ecs::Entity anchor) const;
+
 private:
     enum class WalkCode {
         kContinue,  /**< continuations pushed; keep walking. */
@@ -363,6 +369,7 @@ private:
     std::optional<ecs::Entity> FindPile(ecs::PileKind kind) const;
     std::optional<ecs::Entity> Neighbor(const SelectorContext& context,
                                         int step) const;
+    std::optional<ecs::Entity> SeatStep(ecs::Entity anchor, int step) const;
     int DirectionStep() const;
 
     void AppendEvent(WalkState& state, const nlohmann::json& event);

@@ -259,7 +259,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     REQUIRE(stacking != nullptr);
     bool stacking_window = false;
     bool stacking_reopens = false;
-    bool stacking_response_signal = false;
+    bool stacking_response_redirects = false;
     bool stacking_default_draws_debt = false;
     bool stacking_default_clears = false;
     for (const auto& rule : stacking->rules) {
@@ -290,8 +290,8 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                             by_id.find(it.value().get<std::string>());
                         if (found != by_id.end()
                             && found->second->value("op", "")
-                                   == "emit_signal") {
-                            stacking_response_signal = true;
+                                   == "redirect_turn") {
+                            stacking_response_redirects = true;
                         }
                     }
                 }
@@ -322,8 +322,8 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                   "draw_stacking window missing @others/env fields");
     CHECK_MESSAGE(stacking_reopens,
                   "draw_stacking window does not declare reopen");
-    CHECK_MESSAGE(stacking_response_signal,
-                  "draw_stacking response route is not the stack marker");
+    CHECK_MESSAGE(stacking_response_redirects,
+                  "draw_stacking response route does not hand the turn over");
     CHECK_MESSAGE(stacking_default_draws_debt,
                   "draw_stacking default route does not draw the debt");
     CHECK_MESSAGE(stacking_default_clears,

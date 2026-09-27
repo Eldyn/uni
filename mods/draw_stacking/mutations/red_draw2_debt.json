@@ -1,0 +1,16 @@
+{
+  "id": "red_draw2_debt",
+  "target": "vanilla:red_draw2",
+  "mode": "replace",
+  "replacement": {
+    "nodes": [
+      {
+        "id": "n1",
+        "op": "emit_signal",
+        "args": {
+          "name": "draw_stacking:penalty_pending"
+        }
+      }
+    ]
+  }
+}

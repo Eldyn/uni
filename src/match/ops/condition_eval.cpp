@@ -290,13 +290,18 @@ bool EvalStatusActive(ecs::EntityStore& store, const json& args,
     return false;
 }
 
-/** @brief Target's accumulated draw debt compared with `cmp`/`n`. */
+/**
+ * @brief Target's accumulated draw debt compared with `cmp`/`n`.
+ *
+ * Reads the `vanilla:draw_debt` status the engine records; no
+ * debt compares as 0.
+ */
 bool EvalDrawDebt(ecs::EntityStore& store, const json& args, OpContext& ctx) {
     const std::optional<ecs::Entity> target = TargetEntity(args, ctx);
     if (!target.has_value()) return false;
-    const ecs::DrawDebt* debt = store.Get<ecs::DrawDebt>(*target);
-    if (debt == nullptr) return false;
-    return CompareArg(args, static_cast<int64_t>(debt->count));
+    const ecs::Status* debt = status::Find(store, *target, kDrawDebtStatusId);
+    return CompareArg(args,
+                      debt == nullptr ? 0 : static_cast<int64_t>(debt->magnitude));
 }
 
 /** @brief The most recent roll total compared with `cmp`/`n`. */

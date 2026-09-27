@@ -14,7 +14,6 @@ using match::ecs::ActiveTypeReq;
 using match::ecs::BudgetLedger;
 using match::ecs::CardIdentity;
 using match::ecs::Direction;
-using match::ecs::DrawDebt;
 using match::ecs::Entity;
 using match::ecs::EntityStore;
 using match::ecs::EventBus;
@@ -155,11 +154,9 @@ struct Fixture : Harness {
         AddToPile(store, draw, MakeCard(store, "vanilla:yellow_0", "yellow"));
         AddToPile(store, discard, discard_top);
 
-        DrawDebt debt;
-        debt.count = 2;
-        store.Add(self, debt);
         Status status;
         status.status_id = "vanilla:draw_debt";
+        status.magnitude = 2;
         StatusList statuses;
         statuses.instances.push_back(status);
         store.Add(self, statuses);

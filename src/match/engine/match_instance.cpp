@@ -969,12 +969,16 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     //       recursively open a second window from the same pause.
     pending_window_ = std::move(pause);
 
-    // INFO: A window opened by a draw-penalty play records that
-    //       play's N as debt on the current target; a re-opened window counts
-    //       its response instead (CommitWinningPlay), so it passes false.
+    // INFO: A stacking window opened by a draw-penalty play
+    //       records that play's N as debt; a re-opened window counts its
+    //       response instead (CommitWinningPlay), so it passes false. The
+    //       flag keeps a second window over the same play (e.g. a jump-in
+    //       window deferring this one) from recording it twice.
     if (fresh_situation && last_play_.has_value()
-        && current.has_value()) {
-        RecordDrawPenalty(last_play_->card, *current);
+        && !last_play_->penalty_recorded
+        && WindowStacksPenalty(pending_window_->request, last_play_->card)) {
+        last_play_->penalty_recorded = true;
+        RecordDrawPenalty(last_play_->card, last_play_->player);
     }
 
     json hook_data = json{{"window", body}};
@@ -983,7 +987,8 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     Emit("window_open", body);
 }
 
-void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card) {
+void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
+                                      bool stacks_penalty) {
     ecs::EntityStore& store = assembly_->store;
     if (!store.IsAlive(card)) return;
 
@@ -1022,12 +1027,11 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card) {
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
 
-    // INFO: Each response appends its own N to the debt on the
-    //       then-target. The target is the current turn owner (the player who
-    //       will draw when the chain ends).
-    if (const std::optional<ecs::Entity> target = CurrentPlayer();
-        target.has_value()) {
-        RecordDrawPenalty(card, *target);
+    // INFO: Each response appends its own N to the debt, which
+    //       passes on to the seat after the responder.
+    if (stacks_penalty) {
+        last_play_->penalty_recorded = true;
+        RecordDrawPenalty(card, player);
     }
     // INFO: the winning response's own behavior graph is not re-drained; the
     //       window's `on_response` route is the resolution continuation.
@@ -1040,6 +1044,22 @@ bool MatchInstance::WindowReopens(
     const auto window = request.raw.find("window");
     if (window != request.raw.end() && window->is_object()) {
         return window->value("reopen", false);
+    }
+    return false;
+}
+
+bool MatchInstance::WindowStacksPenalty(
+    const resolver::WindowRequest& request, ecs::Entity card) const {
+    const std::string kind = ops::CardKindId(assembly_->store, card);
+    if (kind.empty() || !request.respond_with.is_object()) return false;
+    const auto tags = request.respond_with.find("any_tag");
+    if (tags == request.respond_with.end() || !tags->is_array()) return false;
+    for (const json& tag : *tags) {
+        if (tag.is_string()
+            && ops::CardHasTag(&assembly_->registries, kind,
+                               tag.get<std::string>())) {
+            return true;
+        }
     }
     return false;
 }
@@ -1068,9 +1088,13 @@ int32_t MatchInstance::DrawPenaltyMagnitude(ecs::Entity card) const {
     return magnitude;
 }
 
-void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity target) {
+void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
     ecs::EntityStore& store = assembly_->store;
-    if (!store.IsAlive(card) || !store.IsAlive(target)) return;
+    if (!store.IsAlive(card) || assembly_->resolver == nullptr) return;
+    const std::optional<ecs::Entity> victim =
+        assembly_->resolver->NextInTurnOrder(player);
+    if (!victim.has_value()) return;
+    const ecs::Entity target = *victim;
 
     const std::string kind = ops::CardKindId(store, card);
     if (kind.empty()
@@ -1081,9 +1105,23 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity target) {
     const int32_t magnitude = DrawPenaltyMagnitude(card);
     if (magnitude <= 0) return;
 
+    int32_t carried = 0;
+    for (ecs::Entity holder : store.EntitiesWith<ecs::PlayerInfo>()) {
+        if (holder == target) continue;
+        for (const ecs::Status& removed :
+             status::Remove(store, holder, ops::kDrawDebtStatusId)) {
+            carried += removed.magnitude;
+            json payload = json{{"target", EntityJson(holder)},
+                                {"status_kind", removed.status_id},
+                                {"instance", removed.instance_id}};
+            events_.push_back(ops::MakeEvent("status_removed", payload));
+            BridgeRunEvent(events_.back());
+        }
+    }
+
     status::ApplyRequest request;
     request.status_id = std::string(ops::kDrawDebtStatusId);
-    request.magnitude = magnitude;
+    request.magnitude = magnitude + carried;
     request.has_stack_policy = true;
     request.stack_policy = ecs::StackPolicy::kAccumulate;
     const status::ApplyResult applied =
@@ -1112,7 +1150,9 @@ void MatchInstance::CloseWindowRoute(const std::string& route,
     // INFO: The first accepted response wins; its card is committed
     //       here. Losers never left their hand ("returned unplayed").
     if (pause.has_winner && store.IsAlive(pause.winner_card)) {
-        CommitWinningPlay(pause.winner, pause.winner_card);
+        CommitWinningPlay(
+            pause.winner, pause.winner_card,
+            WindowStacksPenalty(pause.request, pause.winner_card));
     }
 
     // INFO: `Tick` already closes and resumes on timeout/early close; an

@@ -328,6 +328,7 @@ private:
         ecs::Entity player{};
         ecs::Entity card{};
         uint32_t hand_ordinal = 0;
+        bool penalty_recorded = false; /**< its draw debt is on record. */
     };
 
     /** @brief A paused op awaiting `SubmitInput`. */
@@ -468,27 +469,39 @@ private:
     /**
      * @brief Commit the winning response card: move to discard + zone events.
      *
-     * when the response card is itself a `draw_penalty` card its own
-     * N is appended to the current target's accumulated `vanilla:draw_debt`
-     * status. The window's `on_response` route remains the resolution
-     * continuation; re-opening the window is `CloseWindowRoute`'s.
+     * when `stacks_penalty` (the window stacks draw penalties) its
+     * own N is appended to the accumulated `vanilla:draw_debt`, which moves
+     * onto the seat after the responder. The window's `on_response` route
+     * remains the resolution continuation; re-opening the window is
+     * `CloseWindowRoute`'s.
      */
-    void CommitWinningPlay(ecs::Entity player, ecs::Entity card);
+    void CommitWinningPlay(ecs::Entity player, ecs::Entity card,
+                           bool stacks_penalty);
 
     /** @brief True when the window node declares engine-owned chaining. */
     bool WindowReopens(const resolver::WindowRequest& request) const;
+
+    /**
+     * @brief True when the window's `any_tag` filter would accept `card`, i.e.
+     *        the window answers that draw penalty by stacking onto it.
+     */
+    bool WindowStacksPenalty(const resolver::WindowRequest& request,
+                             ecs::Entity card) const;
 
     /** @brief The draw penalty N encoded by a card's face label, else 0. */
     int32_t DrawPenaltyMagnitude(ecs::Entity card) const;
 
     /**
-     * @brief Append `card`'s draw penalty to `target`'s `vanilla:draw_debt`.
+     * @brief Put `card`'s draw penalty on the seat after `player`.
      *
+     * The victim is the next seat in turn order from the player who laid the
+     * card. Debt already accumulated on any other seat moves onto the victim
+     * with it, so a stacked chain always sits on exactly one player.
      * Fail-safe no-op when the card is dead / not a `draw_penalty` card or its
      * magnitude is 0. Uses `status::Apply` with `accumulate`; emits and bridges
-     * a `status_applied` event.
+     * `status_removed` / `status_applied` events.
      */
-    void RecordDrawPenalty(ecs::Entity card, ecs::Entity target);
+    void RecordDrawPenalty(ecs::Entity card, ecs::Entity player);
 
     /**
      * @brief Close the open window, emit `window_close` and resume the route.

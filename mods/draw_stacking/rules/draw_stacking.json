@@ -1,7 +1,7 @@
 {
   "id": "draw_stacking",
   "title": "Draw Stacking",
-  "description": "MAY-DIFFER (spec 12.4): legacy pending_draws is rebuilt on response windows. A draw-penalty (+2/+4) play opens a window for the other seats (`responders` `@others`, which includes `@next_player`, eligible via the `stackable` tag, env duration). The response route marks the stack and the ENGINE performs the two spec-12.4 halves the DAG cannot express: it appends the response card's own N to the then-target's vanilla:draw_debt status and re-opens the window (`reopen`), so the chain keeps one budget ledger. The default route draws the accumulated debt on the current target (`draw_cards` with `n_from_debt`) and clears the status. The match_start allow rescues the out-of-turn stackable response from vanilla:turn_order (the spec 13.3 deny/allow pattern). The legacy golden must be compared with may_differ honoured.",
+  "description": "MAY-DIFFER (spec 12.4): legacy pending_draws is rebuilt on response windows. A draw-penalty (+2/+4) play opens a window for the other seats (`responders` `@others`, which includes `@next_player`, eligible via the `stackable` tag, env duration). The response route marks the stack and the ENGINE performs the two spec-12.4 halves the DAG cannot express: it appends the response card's own N to the then-target's vanilla:draw_debt status and re-opens the window (`reopen`), so the chain keeps one budget ledger. The default route draws the accumulated debt on the current target (`draw_cards` with `n_from_debt`) and clears the status. The match_start allow rescues the out-of-turn stackable response from vanilla:turn_order (the spec 13.3 deny/allow pattern). The legacy golden must be compared with may_differ honoured. The +2/+4 cards' own immediate draw is removed by this mod's mutations, so the penalty lives only as debt: the engine records it on the seat after whoever laid the card (carrying any earlier debt along), a stacking response redirects the turn to the responder, and the default route has the next player draw the debt, clear it and lose their turn.",
   "hooks": [
     {
       "on": "after:match_start",
@@ -52,7 +52,7 @@
           "id": "n2",
           "op": "draw_cards",
           "args": {
-            "target": "@current_player",
+            "target": "@next_player",
             "n_from_debt": true
           },
           "next": "n2b"
@@ -61,15 +61,23 @@
           "id": "n2b",
           "op": "remove_status",
           "args": {
-            "target": "@current_player",
+            "target": "@next_player",
             "status_kind": "vanilla:draw_debt"
+          },
+          "next": "n2c"
+        },
+        {
+          "id": "n2c",
+          "op": "skip_turn",
+          "args": {
+            "target": "@next_player"
           }
         },
         {
           "id": "n3",
-          "op": "emit_signal",
+          "op": "redirect_turn",
           "args": {
-            "name": "draw_stacking:stacked"
+            "target": "@responder"
           }
         }
       ]

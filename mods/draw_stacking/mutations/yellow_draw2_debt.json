@@ -1,0 +1,16 @@
+{
+  "id": "yellow_draw2_debt",
+  "target": "vanilla:yellow_draw2",
+  "mode": "replace",
+  "replacement": {
+    "nodes": [
+      {
+        "id": "n1",
+        "op": "emit_signal",
+        "args": {
+          "name": "draw_stacking:penalty_pending"
+        }
+      }
+    ]
+  }
+}

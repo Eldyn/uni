@@ -1,0 +1,16 @@
+{
+  "id": "green_draw2_debt",
+  "target": "vanilla:green_draw2",
+  "mode": "replace",
+  "replacement": {
+    "nodes": [
+      {
+        "id": "n1",
+        "op": "emit_signal",
+        "args": {
+          "name": "draw_stacking:penalty_pending"
+        }
+      }
+    ]
+  }
+}

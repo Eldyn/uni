@@ -26,11 +26,14 @@
  *
  * Assembles real `mods/` content (`vanilla` + `draw_stacking`) and asserts the
  * engine-owned debt mechanics that the DAG content cannot express: a
- * draw-penalty play opens the window and records its N as `vanilla:draw_debt`,
- * a stackable response appends its own N and re-opens the window on one budget
- * ledger, the default route draws the accumulated debt with `n_from_debt` and
- * clears it, and a `wild_draw4` prompt and a draw-stacking window in the same
- * dispatch are sequenced (the window is deferred, never dropped).
+ * draw-penalty play opens the window and records its N as `vanilla:draw_debt`
+ * on the seat after the player, a stackable response carries the debt on to
+ * the seat after the responder and re-opens the window on one budget ledger,
+ * the default route makes the victim draw the accumulated debt with
+ * `n_from_debt`, clears it and skips them, a `wild_draw4` prompt and a
+ * draw-stacking window in the same dispatch are sequenced (the window is
+ * deferred, never dropped), and a second window over the same play records
+ * the debt only once.
  */
 
 namespace fs = std::filesystem;
@@ -199,24 +202,60 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
         content, 3, 7, 42, FixedWindow(1000), clock.Fn());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
     const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> filler = FindCard(*engine, "blue", "5");
     REQUIRE(draw2.has_value());
-    ForceHand(*engine, player0, {*draw2});
+    REQUIRE(filler.has_value());
+    ForceHand(*engine, player0, {*draw2, *filler});
     engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
         "red";
+    const std::size_t victim_hand = HandSize(*engine, player1);
 
     REQUIRE(engine->PlayCard("player0", *draw2));
     CHECK(engine->WindowOpen());
     CHECK(engine->PendingWindow().has_value());
     CHECK(FindEvent(*engine, "window_open") != nullptr);
 
-    // INFO: The +2 play records its N as debt on the target.
-    CHECK(DebtOf(*engine, player0) == 2);
+    // INFO: The +2 play records its N as debt on the victim (the
+    //       seat after the player), who draws nothing until the chain ends.
+    CHECK(DebtOf(*engine, player0) == 0);
+    CHECK(DebtOf(*engine, player1) == 2);
+    CHECK(HandSize(*engine, player1) == victim_hand);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
 
     const json window = engine->ExportWindow();
     REQUIRE(window["responders"].is_array());
     CHECK(window["responders"].size() == 2);
     CHECK(window["default_route"] == "n2");
+}
+
+TEST_CASE("engine draw_stacking: unanswered +N makes the victim draw and skip") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> filler = FindCard(*engine, "blue", "5");
+    REQUIRE(draw2.has_value());
+    REQUIRE(filler.has_value());
+    ForceHand(*engine, player0, {*draw2, *filler});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    const std::size_t victim_hand = HandSize(*engine, player1);
+
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+
+    CHECK_FALSE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(HandSize(*engine, player1) == victim_hand + 2);
+    CHECK(engine->GetCurrentPlayerUsername() == "player2");
 }
 
 TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
@@ -228,18 +267,23 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
     const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
     const std::optional<ecs::Entity> stack2 = FindCard(*engine, "green", "+2");
+    const std::optional<ecs::Entity> filler0 = FindCard(*engine, "blue", "5");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
     REQUIRE(draw2.has_value());
     REQUIRE(stack2.has_value());
-    ForceHand(*engine, player0, {*draw2});
-    ForceHand(*engine, player1, {*stack2});
+    REQUIRE(filler0.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2, *filler0});
+    ForceHand(*engine, player1, {*stack2, *filler1});
     engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
         "red";
 
     REQUIRE(engine->PlayCard("player0", *draw2));
     REQUIRE(engine->WindowOpen());
-    CHECK(DebtOf(*engine, player0) == 2);
+    CHECK(DebtOf(*engine, player1) == 2);
     const uint64_t steps_after_open = engine->Assembly().budget.chain_steps;
     CHECK(CountEvents(*engine, "window_open") == 1);
 
@@ -249,9 +293,12 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     CHECK(engine->WindowOpen());  // INFO: player2 has not replied yet.
     REQUIRE(engine->PassWindow("player2"));
 
-    // INFO: close collected player1's response -> route n3 -> engine re-opens.
+    // INFO: close collected player1's response -> route n3 hands player1 the
+    //       turn, the whole debt moves on to player2 -> engine re-opens.
     CHECK(engine->WindowOpen());
-    CHECK(DebtOf(*engine, player0) == 4);
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, player2) == 4);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
     CHECK(CountEvents(*engine, "window_open") == 2);
     CHECK(CountEvents(*engine, "window_close") == 1);
     const uint64_t steps_after_reopen = engine->Assembly().budget.chain_steps;
@@ -259,17 +306,19 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     CHECK(steps_after_reopen > steps_after_open);
 
     // INFO: the re-opened window has responders @others of player1 = p0, p2.
-    const std::size_t hand_before = HandSize(*engine, player0);
+    const std::size_t victim_hand = HandSize(*engine, player2);
     REQUIRE(engine->PassWindow("player0"));
     CHECK(engine->WindowOpen());
     REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
     CHECK(CountEvents(*engine, "window_close") == 2);
-    // INFO: default route draws the accumulated debt on @current_player and
-    //       clears the status.
-    CHECK(DebtOf(*engine, player0) == 0);
-    CHECK(HandSize(*engine, player0) == hand_before + 4);
+    // INFO: default route draws the accumulated debt on the victim, clears the
+    //       status and skips them.
+    CHECK(DebtOf(*engine, player2) == 0);
+    CHECK(HandSize(*engine, player2) == victim_hand + 4);
+    CHECK(HandSize(*engine, player1) == 1);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
 }
 
 TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
@@ -280,10 +329,14 @@ TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
         content, 3, 7, 42, FixedWindow(1000), clock.Fn());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
     const std::optional<ecs::Entity> wild4 =
         FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler = FindCard(*engine, "blue", "5");
     REQUIRE(wild4.has_value());
-    ForceHand(*engine, player0, {*wild4});
+    REQUIRE(filler.has_value());
+    ForceHand(*engine, player0, {*wild4, *filler});
+    const std::size_t victim_hand = HandSize(*engine, player1);
 
     // INFO: the +4's own on_play prompts for a colour before the draw-stacking
     //       rule resolves; the window must be deferred, not dropped.
@@ -296,6 +349,48 @@ TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
     CHECK_FALSE(engine->PendingInput().has_value());
     CHECK(engine->WindowOpen());
     CHECK(FindEvent(*engine, "window_open") != nullptr);
-    // INFO: the deferred window records the +4 play's N as the initial debt.
-    CHECK(DebtOf(*engine, player0) == 4);
+    // INFO: the deferred window records the +4 play's N as the initial debt
+    //       on the victim; the mutated card no longer draws it immediately.
+    CHECK(DebtOf(*engine, player1) == 4);
+    CHECK(HandSize(*engine, player1) == victim_hand);
+    CHECK(engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)
+              ->type
+          == "red");
+}
+
+TEST_CASE("engine draw_stacking: a second window over the play records once") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, {"vanilla", "jump_in", "draw_stacking"}, 3, 7, 42,
+                 FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> filler = FindCard(*engine, "blue", "5");
+    REQUIRE(draw2.has_value());
+    REQUIRE(filler.has_value());
+    ForceHand(*engine, player0, {*draw2, *filler});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    const std::size_t victim_hand = HandSize(*engine, player1);
+
+    // INFO: the jump-in window opens first and defers the stacking window;
+    //       only the stacking window may record the +2 as debt.
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 2);
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+
+    CHECK_FALSE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(HandSize(*engine, player1) == victim_hand + 2);
 }

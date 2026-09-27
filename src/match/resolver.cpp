@@ -356,20 +356,28 @@ int Resolver::DirectionStep() const {
 
 std::optional<ecs::Entity> Resolver::Neighbor(
     const SelectorContext& context, int step) const {
-    std::vector<ecs::Entity> players = PlayersBySeat();
-    if (players.empty()) return std::nullopt;
     std::optional<ecs::Entity> anchor = FindCurrentPlayer();
     if (!anchor.has_value()) anchor = context.self;
     if (!anchor.has_value()) return std::nullopt;
+    return SeatStep(*anchor, step);
+}
 
+std::optional<ecs::Entity> Resolver::SeatStep(ecs::Entity anchor,
+                                              int step) const {
+    std::vector<ecs::Entity> players = PlayersBySeat();
     const int count = static_cast<int>(players.size());
     for (int i = 0; i < count; ++i) {
-        if (!(players[static_cast<std::size_t>(i)] == *anchor)) continue;
+        if (!(players[static_cast<std::size_t>(i)] == anchor)) continue;
         int index = (i + step) % count;
         if (index < 0) index += count;
         return players[static_cast<std::size_t>(index)];
     }
     return std::nullopt;
+}
+
+std::optional<ecs::Entity> Resolver::NextInTurnOrder(
+    ecs::Entity anchor) const {
+    return SeatStep(anchor, DirectionStep());
 }
 
 std::vector<ecs::Entity> Resolver::ResolveSelector(WalkState& state,
