@@ -64,4 +64,10 @@
 		height: 100%;
 		image-rendering: pixelated;
 	}
+	/* TintedSprite defaults to a fixed 32px icon box; the card art must
+	   full-bleed its layer instead (mirrors GameCard.svelte's override). */
+	.layer :global(.tinted-sprite) {
+		width: 100% !important;
+		height: 100% !important;
+	}
 </style>
