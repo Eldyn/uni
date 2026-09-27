@@ -173,6 +173,49 @@ bool MatchInstance::ArmCurrentTurnDeadline(int64_t duration_ms) {
     return timers_.Turn().Arm(*turn, duration_ms);
 }
 
+void MatchInstance::SyncClocks(int64_t duration_ms) {
+    if (!started_ || finished_ || assembly_ == nullptr) return;
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    if (!current.has_value()) return;
+
+    ecs::EntityStore& store = assembly_->store;
+    ecs::TurnState* turn = store.Get<ecs::TurnState>(*current);
+    if (turn == nullptr) {
+        turn = store.Add<ecs::TurnState>(*current, ecs::TurnState{});
+        if (turn == nullptr) return;
+    }
+
+    match::TurnTimer& clock = timers_.Turn();
+    const bool new_owner =
+        !turn_clock_owner_.has_value() || !(*turn_clock_owner_ == *current);
+    const bool unarmed = turn->turn_deadline_ms == 0 && !clock.Suspended();
+    if (new_owner || unarmed) {
+        clock.Reset();
+        clock.Arm(*turn, duration_ms);
+        turn_clock_owner_ = *current;
+    }
+
+    const bool paused = pending_input_.has_value() || WindowOpen();
+    if (paused && !clock.Suspended()) {
+        clock.Suspend(*turn);
+    } else if (!paused && clock.Suspended()) {
+        clock.Resume(*turn);
+    }
+
+    if (pending_input_.has_value() && pending_input_->deadline_ms == 0) {
+        pending_input_->deadline_ms = clock.Now() + duration_ms;
+    }
+}
+
+int64_t MatchInstance::CurrentTurnDeadlineMs() const {
+    if (!started_ || assembly_ == nullptr) return 0;
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    if (!current.has_value()) return 0;
+    const ecs::TurnState* turn =
+        assembly_->store.Get<ecs::TurnState>(*current);
+    return turn == nullptr ? 0 : turn->turn_deadline_ms;
+}
+
 // --- input flow ------------------------------------------------------------
 
 bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
@@ -2161,7 +2204,8 @@ std::optional<nlohmann::json> MatchInstance::PendingInput() const {
     if (!pending_input_.has_value()) return std::nullopt;
     return json{{"kind", pending_input_->kind},
                 {"target", EntityJson(pending_input_->target)},
-                {"payload", pending_input_->payload}};
+                {"payload", pending_input_->payload},
+                {"deadline_ms", pending_input_->deadline_ms}};
 }
 
 std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {

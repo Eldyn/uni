@@ -82,6 +82,27 @@ bool IsAutoActor(const Lobby& lobby, const std::string& username) {
 }
 
 /**
+ * @brief Milliseconds left on the clock the pending human actor races.
+ *
+ * A pending prompt uses its own deadline and a plain turn uses the turn
+ * deadline; a window (or an unarmed clock) falls back to the full limit.
+ * @param session Live match session.
+ * @param time_limit_ms Lobby turn time limit.
+ */
+int64_t ActorTimeLeftMs(const MatchSession& session, int64_t time_limit_ms) {
+    const match::engine::MatchInstance& engine = session.Engine();
+    int64_t deadline_ms = 0;
+    if (const std::optional<json> pending = engine.PendingInput()) {
+        deadline_ms = pending->value("deadline_ms", int64_t{0});
+    } else if (!engine.WindowOpen()) {
+        deadline_ms = engine.CurrentTurnDeadlineMs();
+    }
+    if (deadline_ms == 0) return time_limit_ms;
+    const int64_t now_ms = engine.Timers().Turn().Now();
+    return std::clamp<int64_t>(deadline_ms - now_ms, 0, time_limit_ms);
+}
+
+/**
  * @brief Stable per-lobby, per-player bot seed (replay-deterministic).
  * @param lobby_id Numeric lobby id.
  * @param username Seat the policy decides for.
@@ -482,11 +503,12 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         return;
     }
 
-    // INFO: arm the engine turn deadline on every turn start (and on the
-    //       first turn, since OnGameStarted fires this). The AFK/bot policy
-    //       stays the controller's single-shot `turn_` timer; the engine
-    //       deadline is display/reconnect truth.
-    session.ArmTurnTimer(active_lobby->settings.turn_time_limit_ms);
+    // INFO: The turn clock is armed once per turn and paused while a
+    //       prompt or window is pending; each prompt runs its own clock. The
+    //       AFK/bot policy stays the controller's single-shot `turn_` timer;
+    //       the engine deadlines are display/reconnect truth.
+    const int64_t time_limit_ms = active_lobby->settings.turn_time_limit_ms;
+    session.Engine().SyncClocks(time_limit_ms);
 
     const std::vector<std::string> actors = PendingActors(session);
     std::string auto_actor;
@@ -538,9 +560,12 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         return;
     }
 
-    // INFO: a connected human keeps the full turn-time-limit; if it expires a
-    //       bot answers for them (AFK takeover), mirroring the legacy policy.
-    SetTurnTimer(lobby_id, active_lobby->settings.turn_time_limit_ms,
+    // INFO: a connected human gets whatever is left on the clock they are
+    //       acting against; if it expires a bot answers for them (AFK
+    //       takeover). A window responder is covered by the window tick.
+    const int afk_delay_ms =
+        static_cast<int>(ActorTimeLeftMs(session, time_limit_ms));
+    SetTurnTimer(lobby_id, afk_delay_ms,
                  [this, lobby_id, human_actor]() {
         Lobby* verified_lobby = lobby_store_.GetLobbyById(lobby_id);
         if (verified_lobby == nullptr || !verified_lobby->session) return;

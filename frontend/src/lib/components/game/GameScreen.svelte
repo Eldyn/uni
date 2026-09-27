@@ -9,6 +9,7 @@
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
 	import WindowTimerChip from "./WindowTimerChip.svelte";
+	import PromptTimerChip from "./PromptTimerChip.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -33,6 +34,7 @@
 			<div class="game-controls">
 				<GameHud />
 				<WindowTimerChip />
+				<PromptTimerChip />
 				<PromptRenderer />
 			</div>
 

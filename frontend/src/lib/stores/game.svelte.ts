@@ -228,6 +228,9 @@ class StoreGame implements SessionStore {
 	/** Open op-input prompt for the local viewer, or null when none is live. */
 	activePrompt = $state<PromptOpenPayload | null>(null);
 
+	/** Seconds remaining on the open prompt's own clock, computed locally. */
+	promptTimeRemaining = $state<number>(0);
+
 	/** True once a fresh `match_start` frame has been consumed, until reset. */
 	matchIntroPending = $state(false);
 
@@ -236,6 +239,9 @@ class StoreGame implements SessionStore {
 
 	/** Reference to the browser's native `setInterval` timer for the window countdown. */
 	#windowTimerInterval: number | null = null;
+
+	/** Reference to the browser's native `setInterval` timer for the prompt countdown. */
+	#promptTimerInterval: number | null = null;
 
 	/** Safety timeout that releases isActionPending if the server stops responding. */
 	#pendingSafetyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -393,7 +399,7 @@ class StoreGame implements SessionStore {
 		this.state = null;
 		this.turnTimeRemaining = 0;
 		this.#clearWindowState();
-		this.activePrompt = null;
+		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];
@@ -436,7 +442,7 @@ class StoreGame implements SessionStore {
 
 			this.#clearTimer();
 			this.#clearWindowState();
-			this.activePrompt = null;
+			this.#setActivePrompt(null);
 
 			const duration_seconds =
 				this.#matchStartedAt !== null
@@ -565,6 +571,10 @@ class StoreGame implements SessionStore {
 			// live timer when the snapshot actually carries one.
 			if (typeof stateJson.turn_deadline_ms === "number" && stateJson.turn_deadline_ms > 0) {
 				this.#syncTurnTimer(Math.max(0, stateJson.turn_deadline_ms - Date.now()));
+			} else if (stateJson.turn_deadline_ms === 0) {
+				// INFO: 0 means the turn clock is paused behind a prompt or a
+				// response window; freeze the countdown until it resumes.
+				this.#clearTimer();
 			}
 
 			// INFO: the snapshot window/prompts are reconnect truth
@@ -582,9 +592,9 @@ class StoreGame implements SessionStore {
 			const snapshotPrompts = stateJson.prompts;
 			if (snapshotPrompts && snapshotPrompts.length > 0) {
 				const parsedPrompt = PromptOpenPayloadSchema.safeParse(snapshotPrompts[0]);
-				this.activePrompt = parsedPrompt.success ? parsedPrompt.data : null;
+				this.#setActivePrompt(parsedPrompt.success ? parsedPrompt.data : null);
 			} else {
-				this.activePrompt = null;
+				this.#setActivePrompt(null);
 			}
 
 			// INFO: the snapshot reconciles the packet watermark. The wire value is
@@ -683,13 +693,13 @@ class StoreGame implements SessionStore {
 			}
 			case "prompt_open": {
 				const parsed = PromptOpenPayloadSchema.safeParse(env.data.payload);
-				if (parsed.success) this.activePrompt = parsed.data;
+				if (parsed.success) this.#setActivePrompt(parsed.data);
 				break;
 			}
 			case "prompt_close": {
 				const parsed = PromptClosePayloadSchema.safeParse(env.data.payload);
 				if (parsed.success && this.activePrompt?.prompt_id === parsed.data.prompt_id) {
-					this.activePrompt = null;
+					this.#setActivePrompt(null);
 				}
 				break;
 			}
@@ -733,6 +743,47 @@ class StoreGame implements SessionStore {
 		if (this.#windowTimerInterval !== null) {
 			clearInterval(this.#windowTimerInterval);
 			this.#windowTimerInterval = null;
+		}
+	}
+
+	/**
+	 * @brief Sets the open prompt and runs its own countdown when the server
+	 * has armed a deadline for it.
+	 * @param prompt Open prompt, or null to clear it.
+	 */
+	#setActivePrompt(prompt: PromptOpenPayload | null) {
+		this.activePrompt = prompt;
+		if (prompt === null) {
+			this.#clearPromptTimer();
+			this.promptTimeRemaining = 0;
+			return;
+		}
+		if (prompt.deadline_ms > 0) this.#syncPromptTimer(prompt.deadline_ms);
+	}
+
+	/**
+	 * @brief Starts the prompt countdown from an absolute deadline.
+	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
+	 */
+	#syncPromptTimer(deadlineAt: number) {
+		this.#clearPromptTimer();
+		this.promptTimeRemaining = this.#remainingSeconds(deadlineAt);
+
+		this.#promptTimerInterval = window.setInterval(() => {
+			this.promptTimeRemaining = this.#remainingSeconds(deadlineAt);
+			if (this.promptTimeRemaining <= 0) {
+				this.#clearPromptTimer();
+			}
+		}, 1000);
+	}
+
+	/**
+	 * @brief Cancels the prompt countdown.
+	 */
+	#clearPromptTimer() {
+		if (this.#promptTimerInterval !== null) {
+			clearInterval(this.#promptTimerInterval);
+			this.#promptTimerInterval = null;
 		}
 	}
 
@@ -886,7 +937,7 @@ class StoreGame implements SessionStore {
 		this.isActionPending = false;
 		this.turnTimeRemaining = 15;
 		this.#clearWindowState();
-		this.activePrompt = null;
+		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];

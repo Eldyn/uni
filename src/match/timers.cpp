@@ -98,6 +98,12 @@ bool TurnTimer::Resume(ecs::TurnState& turn) {
     return restored;
 }
 
+void TurnTimer::Reset() {
+    suspended_ = false;
+    has_remaining_ = false;
+    remaining_ms_ = 0;
+}
+
 WindowTimer::WindowTimer(NowMs clock)
     : config_(WindowConfig::FromEnv()), clock_(std::move(clock)) {}
 

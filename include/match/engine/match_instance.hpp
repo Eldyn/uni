@@ -248,6 +248,24 @@ public:
     bool ArmCurrentTurnDeadline(int64_t duration_ms);
 
     /**
+     * @brief Keep the turn and prompt clocks separate for the current state.
+     *
+     * The turn clock is armed once per turn (never re-armed by an action
+     * inside the same turn) and paused while a prompt or a response window
+     * is pending. Each pending prompt gets its own deadline the first time
+     * it is seen. The controller calls this after every state change.
+     *
+     * @param duration_ms Length of a fresh turn and of a fresh prompt.
+     */
+    void SyncClocks(int64_t duration_ms);
+
+    /**
+     * @brief Absolute epoch-ms deadline of the current turn (0 when unarmed
+     *        or paused).
+     */
+    int64_t CurrentTurnDeadlineMs() const;
+
+    /**
      * @brief Advance engine-side counters (round boundary).
      *
      * Turns elapsed seat cycles into `MatchMeta.round` plus a `round_advance`
@@ -353,6 +371,7 @@ private:
         std::string mod_id;
         bool settle_play = false;           /**< settle the play on resume. */
         ecs::Entity actor{};                /**< play actor to settle. */
+        int64_t deadline_ms = 0;            /**< absolute epoch ms; 0 = unarmed. */
     };
 
     /** @brief The open response window's parked resolver continuation (12). */
@@ -698,6 +717,7 @@ private:
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
     match::Scheduler scheduler_;      /**< deferred-graph arm/expiry. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
+    std::optional<ecs::Entity> turn_clock_owner_; /**< player the turn clock was armed for. */
     uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };
 

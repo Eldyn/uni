@@ -158,6 +158,12 @@ public:
      */
     bool Resume(ecs::TurnState& turn);
 
+    /**
+     * @brief Drop any suspension and saved remainder (a fresh turn owns the
+     *        clock).
+     */
+    void Reset();
+
     /** @brief True while the turn clock is suspended. */
     bool Suspended() const { return suspended_; }
 

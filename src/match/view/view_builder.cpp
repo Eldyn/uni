@@ -614,7 +614,7 @@ json BuildPrompts(const match::engine::MatchInstance& match,
         body.is_object() && body.contains("response_schema")
             ? body["response_schema"]
             : json::object();
-    prompt["deadline_ms"] = body.is_object() ? body.value("timeout_ms", 0) : 0;
+    prompt["deadline_ms"] = pending->value("deadline_ms", int64_t{0});
     out.push_back(std::move(prompt));
     return out;
 }
