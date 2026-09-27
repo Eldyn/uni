@@ -1351,6 +1351,87 @@ TEST_CASE("leave: the dropped-from-engine branch also opens the barrier when las
     CHECK(lp->session->ReadyBarrierOpen());
     CHECK_FALSE(f.timers.Has("ready_1"));
 }
+
+TEST_CASE("reconnect: a closed barrier sends players_ready, not match_begin, and is not re-armed") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp != nullptr);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(lp->session->ReadyBarrierOpen());
+    REQUIRE(f.timers.Has("ready_1"));
+
+    // INFO: bob reports loaded so the pending set has alice left; a re-arm
+    //       would reset the seat-ready set and drop the count back to zero.
+    f.router.Dispatch(f.bctx(),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE_FALSE(lp->session->ReadyBarrierComplete());
+    f.bus.Clear();
+
+    // INFO: the real reconnect entry point — LobbyController::OnOpen drives
+    //       SendMatchStateToSocket -> MatchSession::SendSnapshot.
+    f.lobby.OnOpen(f.alice_sock, &f.alice_sd);
+
+    bool alice_saw_players_ready = false;
+    bool alice_saw_match_begin = false;
+    int ready_seen = -1;
+    for (const SentFrame& frame : f.bus.sent) {
+        if (frame.to != f.alice_sock) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) != "match_event") continue;
+        const std::string type = packet.value("type", std::string());
+        if (type == "players_ready") {
+            alice_saw_players_ready = true;
+            ready_seen = packet["payload"].value("ready", -1);
+        }
+        if (type == "match_begin") alice_saw_match_begin = true;
+    }
+    CHECK(alice_saw_players_ready);
+    CHECK_FALSE(alice_saw_match_begin);
+    // INFO: the seat-ready set survived the reconnect (bob is still the only
+    //       ready seat), so BeginReadyBarrier did not run a second time.
+    CHECK(ready_seen == 1);
+    CHECK(f.timers.Has("ready_1"));
+    CHECK_FALSE(lp->session->ReadyBarrierComplete());
+}
+
+TEST_CASE("reconnect: an open barrier sends match_begin") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp != nullptr);
+    REQUIRE(lp->session != nullptr);
+
+    // INFO: expire the barrier deadline the way the 15 s cap would.
+    f.timers.Fire("ready_1");
+    REQUIRE(lp->session->ReadyBarrierOpen());
+    f.bus.Clear();
+
+    f.lobby.OnOpen(f.alice_sock, &f.alice_sd);
+
+    bool alice_saw_match_begin = false;
+    bool alice_saw_players_ready = false;
+    for (const SentFrame& frame : f.bus.sent) {
+        if (frame.to != f.alice_sock) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) != "match_event") continue;
+        const std::string type = packet.value("type", std::string());
+        if (type == "match_begin") alice_saw_match_begin = true;
+        if (type == "players_ready") alice_saw_players_ready = true;
+    }
+    CHECK(alice_saw_match_begin);
+    CHECK_FALSE(alice_saw_players_ready);
+}
 }  // TEST_SUITE("LobbyController::ReadyBarrier")
 
 } // TEST_SUITE
