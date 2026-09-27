@@ -235,6 +235,42 @@ describe("CardRegistry pose providers", () => {
 		});
 	});
 
+	it("releaseLanded hands a landed card back to its owner while the rest of its beat plays", () => {
+		const registry = new CardRegistry();
+		for (const id of ["A", "B"]) {
+			registry.registerCardMeta(id, { type: "red", value: "5" });
+			registry.seedPose(id, {
+				x: 0,
+				y: 0,
+				z: 0,
+				spinDeg: 0,
+				flipDeg: 0,
+				scale: 1,
+				turned: false,
+				opacity: 1
+			});
+		}
+		registry.setPoseProvider("A", () => [4, 0.02, 2]);
+
+		const beat: AnimationBeat = [
+			{ op: "move", target: "A", payload: { to: "slot" } },
+			{ op: "move", target: "B", payload: { to: "slot" }, atS: 0.1 }
+		];
+		const done = registry.enqueue([beat], () => [9, 0, 3]);
+		flushSync();
+
+		registry.releaseLanded("A");
+		expect(registry.isInTransit("A")).toBe(false);
+		expect(registry.isInTransit("B")).toBe(true);
+		expect(registry.getPose("A")!.x).toBeCloseTo(4);
+		expect(registry.getPose("A")!.z).toBeCloseTo(2);
+
+		registry.skipCurrent();
+		return done.then(() => {
+			expect(registry.isInTransit("B")).toBe(false);
+		});
+	});
+
 	it("deletes an anonymous entry (no provider registered) on retire, as before", () => {
 		const registry = new CardRegistry();
 		registry.seedPose("draw:bob:0", {

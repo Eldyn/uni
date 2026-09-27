@@ -76,7 +76,6 @@ export function createMatchEventBeatController(deps: {
 	// only carries ids for the owner, so non-owner viewers get a
 	// client-local id and never learn the real card.
 	let drawIdCounter = 0;
-	const pendingLocalHandSlots = new Map<string, [number, number, number]>();
 	const pendingOpponentSlots = new Map<string, [number, number, number]>();
 	// Ids of local-hand cards currently mid-flight in a multi-card draw, used
 	// to live-refresh their `dimmed` decoration as the turn changes.
@@ -101,6 +100,15 @@ export function createMatchEventBeatController(deps: {
 			storeSpectator.viewedUsername,
 			state.current_turn
 		)?.username;
+	}
+
+	/** Cards LocalHand3D is showing for `username` right now — the same
+	 *  pending-draw/play filter its row applies. */
+	function shownLocalCardCount(username: string): number {
+		const hand = storeGame.state?.players?.find((p) => p.username === username)?.hand ?? [];
+		return hand.filter(
+			(c) => c.id !== deps.bus.pendingLocalPlayDrawnId && !deps.bus.pendingLocalDrawIds.has(c.id)
+		).length;
 	}
 
 	/** One live resolver per beat, shared by every enqueue() call — a function
@@ -149,18 +157,6 @@ export function createMatchEventBeatController(deps: {
 		}
 		if (name.startsWith("opponent-slot:")) {
 			return anchorWithBoardRotation(pendingOpponentSlots.get(name) ?? [0, 0, 0], yaw);
-		}
-		if (
-			name.startsWith("local-slot:") ||
-			name.startsWith("local-hand-slot:") ||
-			name.startsWith("local-draw-slot:")
-		) {
-			const cached = pendingLocalHandSlots.get(name);
-			if (cached) return cached;
-			const slotIndex = Number(name.slice(name.lastIndexOf(":") + 1));
-			const cachedByIndex = pendingLocalHandSlots.get(String(slotIndex));
-			if (cachedByIndex) return cachedByIndex;
-			return [0, 0, placement.localSeatZ];
 		}
 		throw new Error(`matchEventController: no resolver for anchor "${name}"`);
 	}
@@ -308,29 +304,23 @@ export function createMatchEventBeatController(deps: {
 		const placement = deps.getPlacement();
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
 
-		// One anchor PER new card, at its own eventual slot in the final
-		// (post-draw) hand — new ids always append at the end, so the Nth new
-		// card belongs at the Nth-from-last slot. Every card sharing the single
-		// old "rightmost" anchor was the bug: every card in a multi-card draw
-		// converged on the exact same hand slot instead of fanning out.
-		pendingLocalHandSlots.clear();
-		const prevHandCount = localHand.length - newIds.length;
-		const slotAnchorKeys: string[] = [];
-		for (let i = 0; i < newIds.length; i++) {
-			const cardId = newIds[i];
-			const targetSlotIndex = prevHandCount + i;
-			const currentStepHandCount = prevHandCount + i + 1;
-			const slotKey = `local-draw-slot:${cardId}`;
-			slotAnchorKeys.push(slotKey);
-			const targetAnchor = localHandSlotAnchor(
-				currentStepHandCount,
-				targetSlotIndex,
-				placement,
+		// Each landed card rejoins the row at once, so card i lands in the row
+		// as it will stand at that moment: the cards already showing plus the
+		// i drawn ahead of it. Counted from the live state when the beat starts,
+		// not from this snapshot — a queued draw can start after later
+		// snapshots have already reshaped the hand.
+		const slotAnchorKeys = newIds.map((cardId) => `local-draw-slot:${cardId}`);
+		const resolveDrawTarget = (name: string): [number, number, number] => {
+			const drawIndex = slotAnchorKeys.indexOf(name);
+			if (drawIndex === -1) return resolveCardTarget(name);
+			const slotIndex = shownLocalCardCount(beat.player) + drawIndex;
+			return localHandSlotAnchor(
+				slotIndex + 1,
+				slotIndex,
+				deps.getPlacement(),
 				deps.bus.localHandSnapshot
 			);
-			pendingLocalHandSlots.set(slotKey, targetAnchor);
-			pendingLocalHandSlots.set(String(i), targetAnchor);
-		}
+		};
 
 		const isLocalTurn = state.current_turn === beat.player;
 		// INFO: the snapshot is post-draw, so add the drawn count back for the
@@ -380,10 +370,11 @@ export function createMatchEventBeatController(deps: {
 							remainingLocalDraws.delete(id);
 							deps.bus.removePendingLocalDraw(id);
 							localDrawFlightIds.delete(String(id));
+							deps.cardRegistry.releaseLanded(String(id));
 						}
 					}
 				}),
-				resolveCardTarget
+				resolveDrawTarget
 			)
 			.finally(() => {
 				for (const id of remainingLocalDraws) {

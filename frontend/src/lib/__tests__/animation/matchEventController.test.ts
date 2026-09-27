@@ -43,6 +43,8 @@ function fakeBus() {
 		removeInFlightDraw: vi.fn(),
 		addPendingLocalDraw: vi.fn(),
 		removePendingLocalDraw: vi.fn(),
+		pendingLocalDrawIds: new Set<number>(),
+		pendingLocalPlayDrawnId: null,
 		retainTopDiscard: vi.fn()
 	} as unknown as CardBus;
 }

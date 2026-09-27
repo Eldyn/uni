@@ -199,6 +199,7 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 					if (card) {
 						deps.bus.removePendingLocalDraw(card.id);
 						suppressedLocalIds.delete(card.id);
+						deps.cardRegistry.releaseLanded(localCardId(index));
 					} else {
 						const id = localCardId(index);
 						deps.cardRegistry.removeEntry(id);

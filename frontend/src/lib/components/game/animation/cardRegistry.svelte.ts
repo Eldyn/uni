@@ -94,6 +94,9 @@ export class CardRegistry {
 	#currentTimeline: gsap.core.Timeline | null = null;
 	#finishCurrentBeat: (() => void) | null = null;
 	#playing = false;
+	// Targets handed back to their owner before their beat ended — see
+	// releaseLanded. finishBeat leaves these alone.
+	#releasedEarly = new Set<string>();
 
 	activeFlights = $state<FlightHandle[]>([]);
 
@@ -166,6 +169,17 @@ export class CardRegistry {
 		} else {
 			this.#inTransitIds.delete(cardId);
 		}
+	}
+
+	/** Hands a card that has finished its last step back to its owner while
+	 *  the rest of its beat keeps playing. A deal or multi-card draw is ONE
+	 *  beat, so without this every landed card stayed frozen at its landing
+	 *  slot until the final card arrived, while the row grew around it — the
+	 *  landed cards piled up at half spacing, offset to one side. */
+	releaseLanded(cardId: string): void {
+		this.#inTransitIds.delete(cardId);
+		this.#releasedEarly.add(cardId);
+		this.applyIdlePoseIfNotInTransit(cardId);
 	}
 
 	/** Returns the live FlightPose for a card id if registered. */
@@ -250,6 +264,7 @@ export class CardRegistry {
 	 *  cards mid-match, but kept for symmetry/cleanup, e.g. on disconnect). */
 	removeEntry(cardId: string): void {
 		this.#inTransitIds.delete(cardId);
+		this.#releasedEarly.delete(cardId);
 		this.#poseProviders.delete(cardId);
 		this.#decorations.delete(cardId);
 		this.#retireFlight(cardId);
@@ -486,6 +501,11 @@ export class CardRegistry {
 			const finishBeat = () => {
 				if (settled) return;
 				settled = true;
+				// The owner already took these back and may be tweening them
+				// into a new slot; re-idling them here would snap that tween.
+				const releasedTargets = new Set(
+					beat.map((step) => step.target).filter((target) => this.#releasedEarly.has(target))
+				);
 				// A later beat in this SAME batch (e.g. the landing shake queued
 				// right after a play's move+flip beat) can target the very same
 				// card id. Retiring unconditionally here deletes both its pose AND
@@ -503,6 +523,7 @@ export class CardRegistry {
 							console.error(e);
 						}
 					}
+					if (releasedTargets.has(step.target)) continue;
 					const usedLater = batch.beats
 						.slice(beatIndex + 1)
 						.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
@@ -531,6 +552,9 @@ export class CardRegistry {
 						this.#retireFlight(step.target);
 					}
 				}
+				// Every target, not just releasedTargets: a skipped beat fires its
+				// completion callbacks inside the loop above, releasing late.
+				for (const step of beat) this.#releasedEarly.delete(step.target);
 				this.onBeatComplete?.(beatIndex);
 				this.#currentTimeline = null;
 				this.#finishCurrentBeat = null;
