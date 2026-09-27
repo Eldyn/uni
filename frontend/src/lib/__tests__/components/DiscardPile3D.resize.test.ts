@@ -116,4 +116,21 @@ describe("DiscardPile3D resolution change", () => {
 		expect(registry.getPose("11")).toBeDefined();
 		expect(registry.getPose("12")).toBeDefined();
 	});
+
+	it("removes already-planted entries when the intro hides the pile mid-life", async () => {
+		const registry = new CardRegistry();
+		const context = new Map<any, any>([[CARD_REGISTRY_KEY, registry]]);
+
+		render(DiscardPile3D, { props: propsFor(wide), context });
+		await tick();
+		await tick();
+		expect(registry.getPose("11")).toBeDefined();
+		expect(registry.getPose("12")).toBeDefined();
+
+		storeMatchIntro.discardHidden = true;
+		await tick();
+		await tick();
+		expect(registry.getPose("11")).toBeUndefined();
+		expect(registry.getPose("12")).toBeUndefined();
+	});
 });

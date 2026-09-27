@@ -1,6 +1,5 @@
-<!-- Fixed decorative draw-pile stack. Its world position comes from
-     boardPlacement: left of the discard on the mat's center line in landscape,
-     tucked directly under the discard pile in portrait.
+<!-- Fixed decorative draw-pile stack, anchored just left of the local hand and
+     on the same horizontal (Z) line as it — not floating above.
      Tweens its height when reshuffled cards arrive (+1 per landing card) to look fresh. -->
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
@@ -235,6 +234,7 @@
 	});
 
 	function handleDraw() {
+		if (storeMatchIntro.active) return;
 		if (storeGame.state?.current_turn === storeGame.localPlayer?.username) {
 			storeGame.drawCard();
 		}

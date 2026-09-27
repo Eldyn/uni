@@ -90,10 +90,16 @@
 	// jitter/rotation/stack pose whenever it isn't mid-flight — mirrors
 	// LocalHand3D's own registration effect (Task A10) for the exact same
 	// "no separate flight identity" reason.
+	const registeredKeys = new Set<string>();
 	$effect(() => {
-		if (storeMatchIntro.discardHidden) return;
+		if (storeMatchIntro.discardHidden) {
+			for (const key of registeredKeys) cardRegistry.removeEntry(key);
+			registeredKeys.clear();
+			return;
+		}
 		for (const [i, entry] of history.entries()) {
 			const idString = String(entry.card.id);
+			registeredKeys.add(idString);
 			const offset = discardCardOffset(placement.discardX, placement.discardZ, entry, scale);
 			const pose = cardRegistry.ensureEntry(
 				idString,

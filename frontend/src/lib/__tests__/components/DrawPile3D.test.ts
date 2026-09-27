@@ -53,7 +53,8 @@ describe("DrawPile3D", () => {
 		localAvatarZ: 1.2,
 		drawPileX: -2.5,
 		drawPileZ: 0.8,
-		drawPileScale: 0.9
+		drawPileScale: 0.9,
+		drawPileBesideHand: true
 	};
 
 	beforeEach(() => {
@@ -374,5 +375,26 @@ describe("DrawPile3D", () => {
 		// canDraw gates it off entirely while the intro is running.
 		expect(hoveredDip).toBeCloseTo(0.14);
 		expect(hoveredNoDip).toBe(0);
+	});
+
+	it("blocks a tap-to-draw while the intro is active", () => {
+		const registry = new CardRegistry();
+		const context = new Map([[CARD_REGISTRY_KEY, registry]]);
+		const drawSpy = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});
+		drawSpy.mockClear();
+
+		render(DrawPile3D, { props: { placement: defaultPlacement }, context });
+		let hitbox = meshInstances.find((m) => typeof m.onclick === "function")!;
+		hitbox.onclick!({});
+		expect(drawSpy).toHaveBeenCalledTimes(1);
+
+		cleanup();
+		resetMockState();
+
+		storeMatchIntro.active = true;
+		render(DrawPile3D, { props: { placement: defaultPlacement }, context });
+		hitbox = meshInstances.find((m) => typeof m.onclick === "function")!;
+		hitbox.onclick!({});
+		expect(drawSpy).toHaveBeenCalledTimes(1);
 	});
 });
