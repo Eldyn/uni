@@ -33,7 +33,6 @@ function buildArgs(overrides: Partial<BuildDealBeatArgs> = {}): BuildDealBeatArg
 		opponentCardScale: 0.5,
 		handScale: 1.5,
 		drawPileScale: 0.25,
-		takeoffPose: vi.fn(() => [0, 0, 0] as [number, number, number]),
 		onLocalLanded: vi.fn(),
 		onOpponentLanded: vi.fn(),
 		localCardId: (index) => `L${index}`,

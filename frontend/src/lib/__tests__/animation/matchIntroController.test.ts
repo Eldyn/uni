@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createMatchIntroController } from "$components/game/animation/matchIntroController.svelte";
+import { localHandSlotAnchor } from "$components/game/animation/baseBeats.svelte";
 import type { CardBus } from "$components/game/card-bus.svelte";
 import type { CardRegistry } from "$components/game/animation/cardRegistry.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -50,16 +51,17 @@ function fakeBus() {
 	return bus;
 }
 
-/** The deal promise never resolves, so `start` stays parked at the deal beat —
- *  letting the assertions observe the begun state without racing the relocate
- *  and final-discard phases. */
-function fakeRegistry() {
+/** With `resolveEnqueue: false` (default) the enqueue promise never resolves, so
+ *  `start` stays parked at the deal beat — letting a test observe the begun
+ *  state without racing the relocate/final-discard phases. `true` lets the
+ *  whole cinematic run to completion (with a high speed multiplier). */
+function fakeRegistry(resolveEnqueue = false) {
 	return {
 		seedPose: vi.fn(),
 		registerCardMeta: vi.fn(),
 		removeEntry: vi.fn(),
 		clearDecoration: vi.fn(),
-		enqueue: vi.fn(() => new Promise<void>(() => {})),
+		enqueue: vi.fn(() => (resolveEnqueue ? Promise.resolve() : new Promise<void>(() => {}))),
 		flushImmediately: vi.fn()
 	};
 }
@@ -89,9 +91,9 @@ function baseState() {
 	} as never;
 }
 
-function harness() {
+function harness({ resolveEnqueue = false } = {}) {
 	const bus = fakeBus();
-	const cardRegistry = fakeRegistry();
+	const cardRegistry = fakeRegistry(resolveEnqueue);
 	const intro = createMatchIntroController({
 		bus: bus as unknown as CardBus,
 		cardRegistry: cardRegistry as unknown as CardRegistry,
@@ -111,6 +113,7 @@ describe("createMatchIntroController", () => {
 		storeGame.state = null;
 		storeAuth.username = "";
 		storeAnimation.enabled = true;
+		storeAnimation.speedMultiplier = 1;
 		storeMatchIntro.end();
 		vi.restoreAllMocks();
 	});
@@ -162,9 +165,8 @@ describe("createMatchIntroController", () => {
 		expect(storeMatchIntro.drawPileCount).toBe(35);
 
 		// Exactly one beat, carrying both seats' cards (locals flip+move).
-		const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
-			AnimationBeat[]
-		];
+		const [beats, resolver] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+			.calls[0] as [AnimationBeat[], (name: string) => [number, number, number]];
 		expect(beats).toHaveLength(1);
 		const cardIds = beats[0]!.filter((s) => s.op === "move").map((s) => s.target);
 		expect(cardIds).toEqual(["intro:bob:0", "10", "intro:bob:1", "11"]);
@@ -178,12 +180,49 @@ describe("createMatchIntroController", () => {
 			value: "3"
 		});
 
+		// The local row grows one reveal per landing: round r targets a row of
+		// r + 1 cards, NOT the final 2-card row (which would snap on landing).
+		expect(resolver("intro-local:10")).toEqual(
+			localHandSlotAnchor(1, 0, placement, h.bus.localHandSnapshot)
+		);
+		expect(resolver("intro-local:11")).toEqual(
+			localHandSlotAnchor(2, 1, placement, h.bus.localHandSnapshot)
+		);
+
 		// Suppression: bob's dealt cards are hidden, both local ids are pending.
 		expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 2);
 		expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(10);
 		expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(11);
 
 		h.intro.skip();
+	});
+
+	it("runs the relocate and final-discard phases to completion", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		storeAnimation.speedMultiplier = 100;
+		const h = harness({ resolveEnqueue: true });
+
+		await h.intro.start(baseState());
+
+		// Deal + final discard, each one beat.
+		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(2);
+		const discardBeats = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+			.calls[1]![0] as AnimationBeat[];
+		expect(discardBeats).toHaveLength(1);
+		expect(discardBeats[0]!.map((s) => s.op)).toEqual(["flip", "move"]);
+		expect(discardBeats[0]!.find((s) => s.op === "move")!.payload?.to).toBe("discard-pile");
+
+		expect(h.bus.setDiscardTop).toHaveBeenCalledTimes(1);
+		expect((h.bus.setDiscardTop as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
+			id: 2
+		});
+		expect(storeMatchIntro.active).toBe(false);
+		expect(storeMatchIntro.discardHidden).toBe(false);
+		expect(storeMatchIntro.forcePurpleMat).toBe(false);
+		expect(storeMatchIntro.drawPileCount).toBeNull();
+		expect(storeMatchIntro.drawPilePos).toBeNull();
 	});
 
 	it("skip is idempotent and ends the intro with the top card on the discard", async () => {
@@ -206,5 +245,34 @@ describe("createMatchIntroController", () => {
 		expect(h.bus.removeInFlightDraw).toHaveBeenCalledWith("bob", 2);
 		expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith("intro:bob:0");
 		expect(h.cardRegistry.flushImmediately).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not touch the beat queue when skipped or disposed before start", () => {
+		const skipped = harness();
+		skipped.intro.skip();
+		expect(skipped.cardRegistry.flushImmediately).not.toHaveBeenCalled();
+
+		const disposed = harness();
+		disposed.intro.dispose();
+		expect(disposed.cardRegistry.flushImmediately).not.toHaveBeenCalled();
+	});
+
+	it("ignores a second start while the first is still running", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		const h = harness();
+
+		void h.intro.start(baseState());
+		await vi.waitFor(() => expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1));
+
+		// `running` is still true (the deal promise never resolves), so the
+		// re-entrant call returns without re-beginning over the live state.
+		void h.intro.start(baseState());
+		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
+		expect(storeMatchIntro.active).toBe(true);
+		expect(storeMatchIntro.drawPilePos).toEqual({ x: 0, z: 0 });
+
+		h.intro.skip();
 	});
 });

@@ -62,7 +62,6 @@ export interface BuildDealBeatArgs {
 	opponentCardScale: number;
 	handScale: number;
 	drawPileScale: number;
-	takeoffPose: (sizeBefore: number) => [number, number, number];
 	onLocalLanded: (index: number) => void;
 	onOpponentLanded: (username: string, index: number) => void;
 	localCardId: (index: number) => string;

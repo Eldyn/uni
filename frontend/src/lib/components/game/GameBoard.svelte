@@ -342,7 +342,9 @@
 		const state = storeGame.state;
 		if (state && storeGame.matchIntroPending) {
 			storeGame.matchIntroPending = false;
-			introController.start(state);
+			introController.start(state).catch((err) => {
+				console.error("GameBoard: match-intro cinematic failed", err);
+			});
 		}
 	});
 
