@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "랭크",
 	"game_window_time_left": "{seconds}초 안에 응답",
 	"game_window_pass": "패스",
+	"game_loader_title": "로딩 중!",
+	"game_loader_waiting": "플레이어를 기다리는 중… {ready}/{total}",
 	"lobby_settings_game_mode": "게임 모드",
 	"lobby_settings_game_mode_desc": "승리 방식을 선택합니다. 각 모드는 승리 조건을 바꿉니다.",
 	"lobby_mode_standard": "스탠다드",

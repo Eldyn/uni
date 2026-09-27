@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "Clasificado",
 	"game_window_time_left": "{seconds} segundos para responder",
 	"game_window_pass": "Pasar",
+	"game_loader_title": "¡Cargando!",
+	"game_loader_waiting": "Esperando jugadores… {ready}/{total}",
 	"lobby_settings_game_mode": "Modo de juego",
 	"lobby_settings_game_mode_desc": "Elige cómo se gana una partida. Cada modo cambia la condición de victoria.",
 	"lobby_mode_standard": "Estándar",

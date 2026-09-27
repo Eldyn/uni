@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "ランク",
 	"game_window_time_left": "応答まで{seconds}秒",
 	"game_window_pass": "パス",
+	"game_loader_title": "ロード中！",
+	"game_loader_waiting": "プレイヤーを待っています… {ready}/{total}",
 	"lobby_settings_game_mode": "ゲームモード",
 	"lobby_settings_game_mode_desc": "試合の勝ち方を選択します。モードごとに勝利条件が変わります。",
 	"lobby_mode_standard": "スタンダード",

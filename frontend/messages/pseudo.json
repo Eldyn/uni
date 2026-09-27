@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "[Råñkéd ~]",
 	"game_window_time_left": "[{seconds} séçõñds tỏ réspõñd ~~~~~~~~~~]",
 	"game_window_pass": "[Pàss ~]",
+	"game_loader_title": "[Löådîñg ñöw!!]",
+	"game_loader_waiting": "[Wåîtîñg för pläýérs… {ready}/{total} ñöw ~~~~~]",
 	"lobby_settings_game_mode": "[Gåmé Mõdé ~~~]",
 	"lobby_settings_game_mode_desc": "[Chöösé höw å måtch îs wöñ. Éåch mödé chåñgés thé wîññîñg cöñdîtîöñ. ~~~~~~~~~~~~~~~~~~]",
 	"lobby_mode_standard": "[Ståndård ~~~]",

@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "排位",
 	"game_window_time_left": "{seconds} 秒内响应",
 	"game_window_pass": "过牌",
+	"game_loader_title": "加载中！",
+	"game_loader_waiting": "等待玩家… {ready}/{total}",
 	"lobby_settings_game_mode": "游戏模式",
 	"lobby_settings_game_mode_desc": "选择比赛如何分出胜负。每种模式都会改变胜利条件。",
 	"lobby_mode_standard": "标准",

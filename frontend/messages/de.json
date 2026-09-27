@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "Rangliste",
 	"game_window_time_left": "{seconds} Sekunden zum Antworten",
 	"game_window_pass": "Passen",
+	"game_loader_title": "Lädt!",
+	"game_loader_waiting": "Warte auf Spieler… {ready}/{total}",
 	"lobby_settings_game_mode": "Spielmodus",
 	"lobby_settings_game_mode_desc": "Wähle, wie ein Match gewonnen wird. Jeder Modus ändert die Siegbedingung.",
 	"lobby_mode_standard": "Standard",

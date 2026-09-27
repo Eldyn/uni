@@ -4,6 +4,7 @@
 	import TooltipStack from "./lib/components/common/TooltipStack.svelte";
 	import ChatDock from "$components/chat/ChatDock.svelte";
 	import ShellFrame from "./lib/components/shell/ShellFrame.svelte";
+	import GameLoader from "./lib/components/common/loader/GameLoader.svelte";
 
 	// INFO: Screens are lazy-loaded so the site loads fast instead of
 	//       downloading ALL the resources before showing the landing.
@@ -191,6 +192,7 @@
 		{#await lazyScreens.game() then { default: Screen }}
 			<Screen />
 		{/await}
+		<GameLoader />
 	{:else if storeNavigation.current === "main" && !storeAuth.isLoggedIn && !storeAuth.isGuest}
 		<MainScreen />
 	{:else}

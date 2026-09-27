@@ -291,6 +291,8 @@
 	"game_hud_ranked_badge": "Рейтинг",
 	"game_window_time_left": "{seconds} с на відповідь",
 	"game_window_pass": "Пропустити",
+	"game_loader_title": "Завантаження!",
+	"game_loader_waiting": "Чекаємо на гравців… {ready}/{total}",
 	"lobby_settings_game_mode": "Режим гри",
 	"lobby_settings_game_mode_desc": "Виберіть, як виграти матч. Кожен режим змінює умову перемоги.",
 	"lobby_mode_standard": "Стандартний",
