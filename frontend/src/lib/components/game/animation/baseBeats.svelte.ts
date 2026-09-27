@@ -209,12 +209,17 @@ export function opponentFrontAnchorKey(username: string): string {
 /** Visual height offset to lift a drawn card cleanly above the draw pile stack during its flip */
 export const DRAW_HOVER_LIFT = 0.45;
 
-/** Stagger (seconds) between consecutive cards in a multi-card draw:
- *  tight for a +2, slower and more readable for a +4 or worse — a big
- *  penalty draw is the moment a viewer most wants to actually count the
- *  cards landing, not watch them blur past. */
+const DRAW_STAGGER_S = 0.1;
+const DRAW_STAGGER_STEP_S = 0.005;
+const DRAW_STAGGER_MAX_S = 0.13;
+const DRAW_STAGGER_GROWTH_FROM = 4;
+
+/** Stagger (seconds) between consecutive cards in a multi-card draw: one
+ *  constant rhythm for every draw, easing up by a hair per card beyond a +4
+ *  so a huge penalty stays countable without dragging. */
 export function drawStaggerFor(cardCount: number): number {
-	return cardCount >= 4 ? 0.5 : 0.1;
+	const extraCards = Math.max(0, cardCount - DRAW_STAGGER_GROWTH_FROM);
+	return Math.min(DRAW_STAGGER_MAX_S, DRAW_STAGGER_S + extraCards * DRAW_STAGGER_STEP_S);
 }
 
 /** Builds the beat(s) for one or more cards drawn by the same player on the

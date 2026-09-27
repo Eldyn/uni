@@ -22,14 +22,16 @@ const placement: BoardPlacement = {
 };
 
 describe("drawStaggerFor", () => {
-	it("uses the tight stagger for a plain draw or a +2", () => {
+	it("keeps one stagger for every draw up to a +4", () => {
 		expect(drawStaggerFor(1)).toBe(0.1);
 		expect(drawStaggerFor(2)).toBe(0.1);
+		expect(drawStaggerFor(4)).toBe(0.1);
 	});
 
-	it("slows down for a +4 or worse", () => {
-		expect(drawStaggerFor(4)).toBe(0.5);
-		expect(drawStaggerFor(5)).toBe(0.5);
+	it("grows only slightly beyond four cards, capped", () => {
+		expect(drawStaggerFor(5)).toBeCloseTo(0.105);
+		expect(drawStaggerFor(8)).toBeCloseTo(0.12);
+		expect(drawStaggerFor(40)).toBeCloseTo(0.13);
 	});
 });
 
