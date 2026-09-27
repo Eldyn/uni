@@ -17,6 +17,7 @@ import { storeTableSpin } from "./tableSpin.svelte";
 import { storeCardDefs, type KindFace } from "./cardDefs.svelte";
 import {
 	MatchEventPayloadSchema,
+	PlayersReadyPayloadSchema,
 	PromptClosePayloadSchema,
 	PromptOpenPayloadSchema,
 	TurnAdvancePayloadSchema,
@@ -234,6 +235,21 @@ class StoreGame implements SessionStore {
 	/** True once a fresh `match_start` frame has been consumed, until reset. */
 	matchIntroPending = $state(false);
 
+	/** Ready-barrier progress from the last `players_ready` frame, or null. */
+	readyProgress = $state<{ ready: number; total: number } | null>(null);
+
+	/** True once `match_begin` confirms every player has loaded. */
+	matchBegun = $state(false);
+
+	/** True once `match_client_ready` went out for the current match. */
+	clientReadySent = $state(false);
+
+	/** True when the match snapshot is live, the intro is pending and the
+	 *  server has confirmed every player loaded. */
+	get introReady(): boolean {
+		return this.state !== null && this.matchIntroPending && this.matchBegun;
+	}
+
 	/** Reference to the browser's native `setInterval` timer. */
 	#timerInterval: number | null = null;
 
@@ -404,6 +420,9 @@ class StoreGame implements SessionStore {
 		this.desynced = false;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
+		this.readyProgress = null;
+		this.matchBegun = false;
+		this.clientReadySent = false;
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
@@ -662,6 +681,18 @@ class StoreGame implements SessionStore {
 			case "match_start": {
 				storeCardDefs.confirmMatchStart(env.data.payload);
 				this.matchIntroPending = true;
+				this.readyProgress = null;
+				this.matchBegun = false;
+				this.clientReadySent = false;
+				break;
+			}
+			case "players_ready": {
+				const parsed = PlayersReadyPayloadSchema.safeParse(env.data.payload);
+				if (parsed.success) this.readyProgress = parsed.data;
+				break;
+			}
+			case "match_begin": {
+				this.matchBegun = true;
 				break;
 			}
 			case "turn_advance": {
@@ -902,6 +933,18 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Tells the server this client has loaded, once per match.
+	 *
+	 * Spectators never take part in the ready barrier, and a second call within
+	 * the same match is a no-op until the next `match_start` clears the flag.
+	 */
+	sendClientReady(): void {
+		if (this.isSpectator || this.clientReadySent) return;
+		this.clientReadySent = true;
+		ws.emit(ClientAction.MatchClientReady);
+	}
+
+	/**
 	 * @brief Answers the prompt identified by `promptId` with a raw value.
 	 *
 	 * The value is validated server-side against the prompt's response_schema,
@@ -942,6 +985,9 @@ class StoreGame implements SessionStore {
 		this.desynced = false;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
+		this.readyProgress = null;
+		this.matchBegun = false;
+		this.clientReadySent = false;
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
