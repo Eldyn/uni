@@ -1013,5 +1013,44 @@ TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
     CHECK_FALSE(engine.WindowOpen());
     CHECK_FALSE(f.timers.Has("window_1"));
 }
+
+TEST_CASE("ScheduleWindowTick re-arms the turn driver when the window times out") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+
+    engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
+    const std::vector<match::ecs::Entity> red2 =
+        CardsByKind(engine, "vanilla:red_draw2");
+    REQUIRE(red2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+
+    PerSocketData sd;
+    sd.username = current;
+    sd.lobby_id = f.store.lobby.id;
+    WsContext ctx{f.store.lobby.FindMember(current)->socket, &sd, uWS::OpCode::TEXT};
+    REQUIRE(f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}}));
+    REQUIRE(engine.WindowOpen());
+    REQUIRE(f.timers.Has("window_1"));
+
+    // INFO: expire the window on the engine clock, then fire its tick.
+    engine.Store().Get<match::ecs::WindowState>(engine.Registries().match)
+        ->deadline_ms = 1;
+    f.timers.last_timeout_ms.clear();
+    f.timers.Fire("window_1");
+
+    REQUIRE_FALSE(engine.WindowOpen());
+    // INFO: the timeout advanced the turn, so the turn driver must re-arm for
+    //       the new actor instead of leaving the pre-window AFK timer live.
+    CHECK(f.timers.last_timeout_ms.count("turn_1") == 1);
+    CHECK(f.timers.last_timeout_ms["turn_1"] == settings.turn_time_limit_ms);
+}
 }
 

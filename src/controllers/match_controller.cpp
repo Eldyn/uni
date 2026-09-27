@@ -613,8 +613,18 @@ void MatchController::ScheduleWindowTick(Lobby* lobby) {
         if (current->session->Engine().IsMatchOver()) return;
         current->session->Tick();
         current->session->EmitEvents(broadcaster_);
+        if (current->session->Engine().WindowOpen()) {
+            BroadcastMatchState(current);
+            ScheduleWindowTick(current);
+            return;
+        }
+        // INFO: the close resolved the window route and may have advanced the
+        //       turn; re-arm the turn driver for the new actor so the timer
+        //       armed for a window responder cannot fire as a stale AFK
+        //       takeover.
+        ClearTurnTimer(id);
+        OnTurnStarted(current);
         BroadcastMatchState(current);
-        // INFO: reschedule while the window is still open; otherwise cancels.
         ScheduleWindowTick(current);
     });
 }
