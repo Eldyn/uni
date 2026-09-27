@@ -117,6 +117,7 @@ describe("storeGame maps the ECS snapshot shape", () => {
 				},
 				window: null,
 				prompts: [],
+				pending_draws: 4,
 				seq_watermark: 17
 			},
 			action_required: null
@@ -130,7 +131,7 @@ describe("storeGame maps the ECS snapshot shape", () => {
 		expect(state.top_card?.type).toBe("blue");
 		expect(state.top_card?.value).toBe("skip");
 		expect(state.draw_pile_size).toBe(42);
-		expect(state.pending_draws).toBe(0);
+		expect(state.pending_draws).toBe(4);
 		expect(state.placements).toEqual(["carol"]);
 		expect(state.seq_watermark).toBe(17);
 

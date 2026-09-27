@@ -548,7 +548,7 @@ class StoreGame implements SessionStore {
 					...p,
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
-				pending_draws: 0,
+				pending_draws: stateJson.pending_draws,
 				draw_pile_size: stateJson.draw_pile?.count ?? stateJson.draw_pile_size ?? 0,
 				discard_pile_size: stateJson.discard_pile?.count ?? stateJson.discard_pile_size ?? 0,
 				mode: stateJson.mode,
