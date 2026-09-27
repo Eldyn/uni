@@ -32,7 +32,6 @@ function buildArgs(overrides: Partial<BuildDealBeatArgs> = {}): BuildDealBeatArg
 		})),
 		opponentCardScale: 0.5,
 		handScale: 1.5,
-		drawPileScale: 0.25,
 		onLocalLanded: vi.fn(),
 		onOpponentLanded: vi.fn(),
 		localCardId: (index) => `L${index}`,
@@ -188,5 +187,31 @@ describe("buildDealBeat", () => {
 
 		(beat[7].payload?.onComplete as () => void)();
 		expect(args.onLocalLanded).toHaveBeenCalledWith(1);
+	});
+
+	it("omits the local face-up flip when the local hand is not revealed", () => {
+		const args = buildArgs({ revealLocal: false });
+		const { beat, anchors } = buildDealBeat(args);
+
+		expect(beat.filter((s) => s.op === "flip")).toHaveLength(0);
+		expect(beat.filter((s) => s.op === "move").map((s) => s.target)).toEqual([
+			"bob-0",
+			"carol-0",
+			"L0",
+			"bob-1",
+			"carol-1",
+			"L1"
+		]);
+		// The local moves still resolve to their slot anchors and land locally.
+		for (const step of beat.filter((s) => s.op === "move")) {
+			expect(anchors.has(step.payload?.to as string)).toBe(true);
+		}
+		expect((beat[2].payload?.onComplete as () => void)()).toBeUndefined();
+		expect(args.onLocalLanded).toHaveBeenCalledWith(0);
+	});
+
+	it("keeps the local face-up flip by default", () => {
+		const { beat } = buildDealBeat(buildArgs());
+		expect(beat.filter((s) => s.op === "flip")).toHaveLength(2);
 	});
 });

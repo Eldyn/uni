@@ -23,7 +23,7 @@ import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import type { BoardPlacement } from "../layout/boardPlacement";
-import { resolvePovPlayer } from "../layout/spectatorPov";
+import { hiddenBackCountFor, resolvePovPlayer } from "../layout/spectatorPov";
 import { drawPileTopPose } from "../layout/drawPile";
 import { DISCARD_CAP, discardCardOffset, previewDiscardLanding } from "../layout/discardPile";
 import { localHandSlotAnchor } from "./baseBeats.svelte";
@@ -45,7 +45,6 @@ export interface MatchIntroControllerDeps {
 		cardCount: number,
 		slotIndex: number
 	) => { position: [number, number, number]; spinDeg: number };
-	getOpponentSeatRotationDeg: (username: string) => number;
 }
 
 export function createMatchIntroController(deps: MatchIntroControllerDeps): {
@@ -104,7 +103,8 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 				storeSpectator.viewedUsername,
 				state.current_turn
 			)?.username;
-			const localHand = state.players.find((p) => p.username === povUsername)?.hand ?? [];
+			const povPlayer = state.players.find((p) => p.username === povUsername) ?? null;
+			const localHand = povPlayer?.hand ?? [];
 			const dealCount = startingHandCount(localHand.length, state.players);
 			const order = dealOrder(state.players, povUsername);
 			const initialCount = (state.draw_pile_size ?? 0) + order.length * dealCount + 1;
@@ -192,7 +192,7 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 				opponentPose: deps.getOpponentCardPose,
 				opponentCardScale: deps.getOpponentCardScale(),
 				handScale: placement.handScale,
-				drawPileScale: placement.drawPileScale,
+				revealLocal: hiddenBackCountFor(povPlayer) === 0,
 				onLocalLanded: (index) => {
 					if (finished) return;
 					const card = localHand[index];
@@ -229,7 +229,8 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 			if (finished) return;
 
 			// The deal left the pile at its post-deal size plus the still-unplayed
-			// top card; hold it there through the relocation and the final draw.
+			// top card; hold it there through the relocation, then the final draw
+			// drops it to the real size as the top card departs.
 			currentPileCount = (state.draw_pile_size ?? 0) + 1;
 			storeMatchIntro.drawPileCount = currentPileCount;
 
@@ -238,6 +239,10 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 
 			await playFirstDiscard(state, placement);
 		} finally {
+			// A throw anywhere after `begin()` must not leave the board pinned in
+			// the begun state (purple mat, hidden discard, overridden pile, refused
+			// discard seed) with no way back short of a reload.
+			if (!finished) skip();
 			running = false;
 		}
 	}
@@ -283,6 +288,11 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 
 		const mode = storeRenderSettings.drawPileThickness;
 		const cardId = String(topCard.id);
+		// The top card is leaving the pile: drop the decorative count to the real
+		// post-deal size, so the seeded face-up card never sits on a phantom
+		// extra back and the pile is already correct once the flight ends.
+		currentPileCount = state.draw_pile_size ?? 0;
+		storeMatchIntro.drawPileCount = currentPileCount;
 		const [tx, ty, tz] = drawPileTopPose(placement, (state.draw_pile_size ?? 0) + 1, mode);
 		deps.cardRegistry.registerCardMeta(cardId, cardMetaFrom(topCard));
 		deps.cardRegistry.seedPose(cardId, {

@@ -9,6 +9,7 @@ import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
+import { storeSpectator } from "$stores/spectator.svelte";
 
 const placement: BoardPlacement = {
 	mat: {} as never,
@@ -102,8 +103,7 @@ function harness({ resolveEnqueue = false } = {}) {
 		getOpponentCardPose: (_username, _count, slotIndex) => ({
 			position: [slotIndex, 0, 0],
 			spinDeg: slotIndex * 5
-		}),
-		getOpponentSeatRotationDeg: () => 0
+		})
 	});
 	return { bus, cardRegistry, intro };
 }
@@ -112,6 +112,7 @@ describe("createMatchIntroController", () => {
 	afterEach(() => {
 		storeGame.state = null;
 		storeAuth.username = "";
+		storeSpectator.viewedUsername = null;
 		storeAnimation.enabled = true;
 		storeAnimation.speedMultiplier = 1;
 		storeMatchIntro.end();
@@ -274,5 +275,82 @@ describe("createMatchIntroController", () => {
 		expect(storeMatchIntro.drawPilePos).toEqual({ x: 0, z: 0 });
 
 		h.intro.skip();
+	});
+
+	it("recovers the board state when start throws after begin", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		const h = harness();
+		(h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			throw new Error("boom");
+		});
+
+		await expect(h.intro.start(baseState())).rejects.toThrow("boom");
+
+		// The finally's skip() must release every begun override and suppression.
+		expect(storeMatchIntro.active).toBe(false);
+		expect(storeMatchIntro.discardHidden).toBe(false);
+		expect(storeMatchIntro.forcePurpleMat).toBe(false);
+		expect(storeMatchIntro.drawPileCount).toBeNull();
+		expect(storeMatchIntro.drawPilePos).toBeNull();
+		expect(h.bus.setDiscardTop).toHaveBeenCalledTimes(1);
+		expect((h.bus.setDiscardTop as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({
+			id: 2
+		});
+		expect(h.bus.removePendingLocalDraw).toHaveBeenCalledWith(10);
+		expect(h.bus.removeInFlightDraw).toHaveBeenCalledWith("bob", 2);
+		expect(h.cardRegistry.flushImmediately).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the local deal face-down when the POV hand is withheld (spectator)", async () => {
+		storeAuth.username = "watcher";
+		storeSpectator.viewedUsername = "me";
+		storeGame.state = {
+			...baseState(),
+			players: [
+				{ username: "me", card_count: 2, is_bot: false },
+				{ username: "bob", card_count: 2, is_bot: true }
+			]
+		} as never;
+		storeAnimation.enabled = true;
+		const h = harness();
+
+		void h.intro.start(storeGame.state!);
+		await vi.waitFor(() => expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1));
+
+		const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+			AnimationBeat[]
+		];
+		// No face-up flip for the withheld local seat — its synthetic cards are
+		// dealt as backs (move only), never blank wild/0 faces.
+		expect(beats[0]!.filter((s) => s.op === "flip")).toHaveLength(0);
+		expect(beats[0]!.filter((s) => s.op === "move").map((s) => s.target)).toEqual([
+			"intro:bob:0",
+			"intro:local:0",
+			"intro:bob:1",
+			"intro:local:1"
+		]);
+
+		h.intro.skip();
+	});
+
+	it("drops the pile override to the post-deal size as the first discard departs", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeAnimation.enabled = true;
+		storeAnimation.speedMultiplier = 100;
+		const h = harness({ resolveEnqueue: true });
+		const counts: (number | null)[] = [];
+		(h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			counts.push(storeMatchIntro.drawPileCount);
+			return Promise.resolve();
+		});
+
+		await h.intro.start(baseState());
+
+		// Deal holds at 30 + 2*2 + 1 = 35; by the discard flight the pile is the
+		// real post-deal 30, not the phantom +1 that coincided with the seed.
+		expect(counts).toEqual([35, 30]);
 	});
 });

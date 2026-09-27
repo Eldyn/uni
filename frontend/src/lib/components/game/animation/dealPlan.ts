@@ -61,7 +61,9 @@ export interface BuildDealBeatArgs {
 	) => { position: [number, number, number]; spinDeg: number };
 	opponentCardScale: number;
 	handScale: number;
-	drawPileScale: number;
+	/** Emit the local seat's face-up flip only when its hand is revealed;
+	 *  a withheld hand keeps its dealt cards face-down. */
+	revealLocal?: boolean;
 	onLocalLanded: (index: number) => void;
 	onOpponentLanded: (username: string, index: number) => void;
 	localCardId: (index: number) => string;
@@ -77,6 +79,7 @@ export function buildDealBeat(args: BuildDealBeatArgs): {
 } {
 	const order = dealOrder(args.players, args.povUsername);
 	const stagger = dealStaggerFor(args.handCount, order.length);
+	const revealLocal = args.revealLocal ?? true;
 	const anchors = new Map<string, [number, number, number]>();
 	const stepping: AnimationStep[] = [];
 
@@ -91,12 +94,14 @@ export function buildDealBeat(args: BuildDealBeatArgs): {
 				const cardId = args.localCardId(r);
 				const key = `intro-local:${cardId}`;
 				anchors.set(key, args.localSlotPose(r, args.handCount));
-				stepping.push({
-					op: "flip",
-					target: cardId,
-					payload: { turned: false, axis: "x" },
-					atS: departureS
-				});
+				if (revealLocal) {
+					stepping.push({
+						op: "flip",
+						target: cardId,
+						payload: { turned: false, axis: "x" },
+						atS: departureS
+					});
+				}
 				stepping.push({
 					op: "move",
 					target: cardId,

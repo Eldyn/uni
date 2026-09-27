@@ -328,8 +328,7 @@
 		cardRegistry,
 		getPlacement,
 		getOpponentCardScale,
-		getOpponentCardPose,
-		getOpponentSeatRotationDeg
+		getOpponentCardPose
 	});
 
 	const disposeController = controller.dispose;
