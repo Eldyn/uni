@@ -18,6 +18,7 @@ class FakeLobbyStoreForChat : public ILobbyStore {
 public:
     Lobby* GetLobbyById(uint32_t) override { return nullptr; }
     void OnGameStarted(MatchStartedCallback) override {}
+    void OnMatchSeatDisconnected(MatchSeatDisconnectedCallback) override {}
     void OnPlayerReplaced(PlayerReplacedCallback) override {}
     void OnMatchAborted(MatchAbortedCallback) override {}
     void OnLobbyDestroyed(LobbyDestroyedCallback cb) override {

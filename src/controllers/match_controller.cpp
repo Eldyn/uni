@@ -179,14 +179,30 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kMatchClientReady,
+                      [this](WsContext context, const json& message) {
+        HandleClientReady(context, message);
+        return true;
+    });
+
     lobby_store.OnGameStarted([this](Lobby* active_lobby) {
-        // INFO: Publish the content-derived `defs` kind table and
-        //       `match_start` once, before the first engine events / snapshot
-        //       (the lobby fires this hook right after session creation).
-        if (active_lobby != nullptr && active_lobby->session) {
-            active_lobby->session->EmitMatchStart(broadcaster_);
-        }
-        OnTurnStarted(active_lobby);
+        if (active_lobby == nullptr || !active_lobby->session) return;
+        // INFO: `defs` + `match_start` go out once, before any
+        //       engine event; the turn driver then waits for every seated
+        //       client to report loaded.
+        active_lobby->session->EmitMatchStart(broadcaster_);
+        active_lobby->session->BeginReadyBarrier(broadcaster_);
+        const uint32_t lobby_id = active_lobby->id;
+        timer_service_.Schedule("ready_" + std::to_string(lobby_id),
+                                kReadyBarrierTimeoutMs, false, [this, lobby_id]() {
+            Lobby* current = lobby_store_.GetLobbyById(lobby_id);
+            if (current != nullptr) OpenReadyBarrier(current);
+        });
+        TryOpenReadyBarrier(active_lobby);
+    });
+
+    lobby_store.OnMatchSeatDisconnected([this](Lobby* active_lobby) {
+        TryOpenReadyBarrier(active_lobby);
     });
 
     lobby_store.OnPlayerReplaced([this](Lobby* active_lobby) {
@@ -229,6 +245,13 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     // INFO: new-engine path. `card_id` carries the wire
     //       `CompactCardV2.bits`; the session resolves it to an entity.
     if (!active_lobby->session) {
+        return;
+    }
+
+    if (!active_lobby->session->ReadyBarrierOpen()) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
         return;
     }
 
@@ -287,6 +310,13 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
         return;
     }
 
+    if (!active_lobby->session->ReadyBarrierOpen()) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
+        return;
+    }
+
     if (!active_lobby->session->DrawCard(context.socket_data->username)) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kCannotDraw,
@@ -325,6 +355,13 @@ void MatchController::HandleProvideInput(WsContext context, const json& message)
     //       `{prompt_id, value}` and the value is read RAW: the generated
     //       MatchPromptResponsePayload::Value drops the JSON body.
     if (!active_lobby->session) return;
+
+    if (!active_lobby->session->ReadyBarrierOpen()) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
+        return;
+    }
 
     auto prompt_id = ws::Get<std::string>(message, "prompt_id");
     const auto value_it = message.find("value");
@@ -374,6 +411,13 @@ void MatchController::HandleWindowResponse(WsContext context, const json& messag
     }
 
     if (!active_lobby->session) return;
+
+    if (!active_lobby->session->ReadyBarrierOpen()) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
+        return;
+    }
 
     auto payload_res = ws::ParsePayload<ws::MatchWindowResponsePayload>(message);
     if (!payload_res) {
@@ -482,6 +526,40 @@ void MatchController::OnTurnStarted(Lobby* active_lobby) {
 }
 
 /**
+ * @brief Handles a seat's `match_client_ready` report and advances the barrier.
+ * @param context Signaling packet metadata tracking incoming user sockets.
+ * @param message JSON input structure (unused).
+ */
+void MatchController::HandleClientReady(WsContext context, const json&) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (active_lobby == nullptr || !active_lobby->session) return;
+    active_lobby->session->MarkSeatReady(context.socket_data->username, broadcaster_);
+    TryOpenReadyBarrier(active_lobby);
+}
+
+/**
+ * @brief Opens the ready barrier when every pending seat has reported loaded.
+ * @param lobby Target lobby whose session owns the barrier.
+ */
+void MatchController::TryOpenReadyBarrier(Lobby* lobby) {
+    if (lobby == nullptr || !lobby->session) return;
+    if (!lobby->session->ReadyBarrierComplete()) return;
+    OpenReadyBarrier(lobby);
+}
+
+/**
+ * @brief Opens the ready barrier unconditionally and arms the first turn.
+ * @param lobby Target lobby whose session owns the barrier.
+ */
+void MatchController::OpenReadyBarrier(Lobby* lobby) {
+    if (lobby == nullptr || !lobby->session) return;
+    timer_service_.Cancel("ready_" + std::to_string(lobby->id));
+    if (!lobby->session->OpenReadyBarrier(broadcaster_)) return;
+    OnTurnStarted(lobby);
+    BroadcastMatchState(lobby);
+}
+
+/**
  * @brief New-engine turn driver.
  *
  * Replaces the legacy timeout policy with the seam: any bot or
@@ -502,6 +580,10 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         BroadcastMatchState(active_lobby);
         return;
     }
+
+    // INFO: the loading barrier gates the first turn clock; opening it calls
+    //       back into this driver.
+    if (!session.ReadyBarrierOpen()) return;
 
     // INFO: The turn clock is armed once per turn and paused while a
     //       prompt or window is pending; each prompt runs its own clock. The

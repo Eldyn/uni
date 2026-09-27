@@ -112,6 +112,15 @@ public:
     }
 
     /**
+     * @brief Registers a callback to execute when a human match seat disconnects.
+     * Multiple callbacks are supported; all are invoked in registration order.
+     * @param callback The function to invoke.
+     */
+    void OnMatchSeatDisconnected(MatchSeatDisconnectedCallback callback) override {
+        on_match_seat_disconnected_.push_back(std::move(callback));
+    }
+
+    /**
      * @brief Registers a callback to execute when a player is replaced.
      * Multiple callbacks are supported; all are invoked in registration order.
      * @param callback The function to invoke.
@@ -406,6 +415,8 @@ private:
 
     /**< Multicast callbacks for match start. */
     std::vector<MatchStartedCallback>   on_game_started_;
+    /**< Multicast callbacks for a human match-seat disconnect. */
+    std::vector<MatchSeatDisconnectedCallback> on_match_seat_disconnected_;
     /**< Multicast callbacks for player replacement. */
     std::vector<PlayerReplacedCallback> on_player_replaced_;
     /**< Multicast callbacks for aborted matches (< 2 members). */

@@ -671,6 +671,11 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
                     lobby.session->UnbindViewer(sd->username);
                 } else {
                     lobby.session->BindSocket(sd->username, nullptr);
+                    // INFO: a departed human counts as loaded so the ready
+                    //       barrier never waits on a socket that is gone
+                    if (lobby.session->MarkSeatReady(sd->username, broadcaster_)) {
+                        for (auto& cb : on_match_seat_disconnected_) cb(&lobby);
+                    }
                 }
             }
             BroadcastUpdate(lobby);

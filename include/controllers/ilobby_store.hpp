@@ -29,6 +29,12 @@ using MatchAbortedCallback = std::function<void(Lobby*, const std::string& winne
 using LobbyDestroyedCallback = std::function<void(const std::string& lobby_code)>;
 
 /**
+ * @typedef MatchSeatDisconnectedCallback
+ * @brief Callback invoked when a human seat disconnects during a live match.
+ */
+using MatchSeatDisconnectedCallback = std::function<void(Lobby*)>;
+
+/**
  * @class ILobbyStore
  * @brief Interface for lobby lookup and match lifecycle hooks consumed by MatchController.
  * Decouples MatchController from the concrete LobbyController to enable isolated unit tests.
@@ -69,6 +75,13 @@ public:
      * @param cb The function to invoke.
      */
     virtual void OnLobbyDestroyed(LobbyDestroyedCallback cb) = 0;
+
+    /**
+     * @brief Registers a callback invoked when a human seat disconnects during
+     * a live match (the seat is marked ready so the loading barrier can open).
+     * @param cb The function to invoke.
+     */
+    virtual void OnMatchSeatDisconnected(MatchSeatDisconnectedCallback cb) = 0;
 
     /**
      * @brief Notifies the lobby layer that a match has ended normally.

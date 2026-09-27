@@ -89,6 +89,14 @@ private:
      */
     void HandleSpectatorView(WsContext context, const nlohmann::json& message);
 
+    /**
+     * @brief Handles a seat's `match_client_ready` report (the client finished
+     * loading), advancing the ready barrier.
+     * @param context Context of the calling socket.
+     * @param message JSON payload (unused).
+     */
+    void HandleClientReady(WsContext context, const nlohmann::json& message);
+
     // --- Core Match Flow ---
 
     /**
@@ -112,6 +120,23 @@ private:
      * @param current_lobby Pointer to the lobby to update.
      */
     void BroadcastMatchState(Lobby* current_lobby);
+
+    /**
+     * @brief Opens the ready barrier when every pending seat has reported
+     * loaded. No-op while any seated client is still loading.
+     * @param lobby Target lobby whose session owns the barrier.
+     */
+    void TryOpenReadyBarrier(Lobby* lobby);
+
+    /**
+     * @brief Opens the ready barrier unconditionally (timeout / disconnect of
+     * the last pending seat), arming the first turn.
+     * @param lobby Target lobby whose session owns the barrier.
+     */
+    void OpenReadyBarrier(Lobby* lobby);
+
+    /**< Maximum ms a loading match waits before opening the barrier. */
+    static constexpr int kReadyBarrierTimeoutMs = 15000;
 
     // --- Timer Management Helpers ---
 

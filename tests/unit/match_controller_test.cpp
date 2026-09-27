@@ -44,6 +44,10 @@ public:
         game_started_cbs.push_back(std::move(cb));
     }
 
+    void OnMatchSeatDisconnected(MatchSeatDisconnectedCallback cb) override {
+        match_seat_disconnected_cbs.push_back(std::move(cb));
+    }
+
     void OnPlayerReplaced(PlayerReplacedCallback cb) override {
         player_replaced_cbs.push_back(std::move(cb));
     }
@@ -64,7 +68,12 @@ public:
         for (auto& cb : game_started_cbs) cb(&lobby);
     }
 
+    void FireMatchSeatDisconnected() {
+        for (auto& cb : match_seat_disconnected_cbs) cb(&lobby);
+    }
+
     std::vector<MatchStartedCallback>   game_started_cbs;
+    std::vector<MatchSeatDisconnectedCallback> match_seat_disconnected_cbs;
     std::vector<PlayerReplacedCallback> player_replaced_cbs;
     std::vector<MatchAbortedCallback>   match_aborted_cbs;
     std::vector<LobbyDestroyedCallback> lobby_destroyed_cbs;
@@ -76,10 +85,12 @@ public:
 class RecordingTimerService : public FakeTimerService {
 public:
     std::map<std::string, int> last_timeout_ms;
+    std::map<std::string, int> schedule_counts;
 
     void Schedule(const std::string& key, int timeout_ms, bool repeat,
                   std::function<void()> cb) override {
         last_timeout_ms[key] = timeout_ms;
+        ++schedule_counts[key];
         FakeTimerService::Schedule(key, timeout_ms, repeat, std::move(cb));
     }
 };
@@ -219,6 +230,42 @@ struct MatchFixture {
         return store.lobby.session->Engine();
     }
 
+    // Opens the ready barrier the way the timeout (or a full set of
+    // `match_client_ready` reports) would, so pre-barrier tests get a live
+    // match. Only valid after SetupMatch.
+    void OpenBarrierNow() {
+        if (timers.Has("ready_1")) timers.Fire("ready_1");
+    }
+
+    // Stable per-username socket data, so a WsContext can be built for a seat
+    // and dispatched through the router (mirrors LobbyController's own data).
+    std::map<std::string, PerSocketData> socket_data;
+
+    WsContext ContextFor(const std::string& username) {
+        PerSocketData& sd = socket_data[username];
+        sd.username = username;
+        sd.lobby_id = store.lobby.id;
+        LobbyMember* member = store.lobby.FindMember(username);
+        AppWebSocket* sock = member != nullptr ? member->socket : nullptr;
+        return WsContext{sock, &sd, uWS::OpCode::TEXT};
+    }
+
+    // Counts `match_event` frames of a given `type`, optionally scoped to one
+    // recipient socket.
+    std::size_t CountMatchEvents(const std::string& type,
+                                 AppWebSocket* only = nullptr) const {
+        std::size_t n = 0;
+        for (const SentFrame& frame : bus.sent) {
+            if (only != nullptr && frame.to != only) continue;
+            const json packet = json::parse(frame.payload);
+            if (packet.value("action", std::string()) == "match_event"
+                && packet.value("type", std::string()) == type) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
     // Drains the single-shot "turn_1" timer chain until the match ends or the
     // fake timer service no longer has a pending callback for the lobby.
     // FakeTimerService::Fire() does not consume the callback entry (it mimics
@@ -308,6 +355,7 @@ TEST_SUITE("MatchController") {
 TEST_CASE("OnTurnStarted: arms a turn timer as soon as a match starts") {
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     // Under kWaitUntilTurnEnd, a timer is always armed for the current turn:
     // it doubles as the bot-thinking delay for a bot player and as the AFK
@@ -366,6 +414,7 @@ TEST_CASE("Bot-autoplay chain: firing the bot turn timer eventually reaches matc
           "without an infinite loop") {
     MatchFixture f;
     f.SetupMatch(all_bots(4), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     // Every player is a bot, so the turn timer must be armed as soon as the
     // match starts.
@@ -384,6 +433,7 @@ TEST_CASE("Bot-autoplay chain: kPlayInstantly mode still arms one turn timer per
           "and terminates once drained") {
     MatchFixture f;
     f.SetupMatch(all_bots(4), settings_with_mode(BotTakeoverMode::kPlayInstantly));
+    f.OpenBarrierNow();
 
     // Real bot players (regardless of bot_mode) always go through the
     // timer-armed branch of OnTurnStarted; kPlayInstantly only shortens the
@@ -401,6 +451,7 @@ TEST_CASE("Bot-autoplay chain: a connected human's turn ends the automatic chain
           "a single armed timer instead of recursing") {
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     // Regardless of who goes first, exactly one turn timer is armed for the
     // lobby: the chain does not recurse past the point where a response
@@ -461,6 +512,7 @@ TEST_CASE("SetTurnTimer: human turn uses the full turn-time-limit as the AFK tim
     MatchFixture f;
     LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000);
     f.SetupMatch(human_vs_bot(), settings);  // Alice goes first (players[0]).
+    f.OpenBarrierNow();
 
     REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
     REQUIRE_FALSE(f.store.lobby.FindMember("Alice")->is_bot);
@@ -473,6 +525,7 @@ TEST_CASE("SetTurnTimer: firing the human AFK timer under kWaitUntilTurnEnd hand
           "the bot and re-arms without infinite recursion") {
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     REQUIRE(f.timers.Has("turn_1"));
 
@@ -486,6 +539,7 @@ TEST_CASE("ClearTurnTimer: the match reaching a terminal state stops the timer c
           "re-arming") {
     MatchFixture f;
     f.SetupMatch(all_bots(2), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
     REQUIRE(f.timers.Has("turn_1"));
 
     constexpr int kMaxFires = 5000;
@@ -508,6 +562,7 @@ TEST_CASE("Full match: 4 bots with every mod enabled reaches a terminal state "
     settings.active_mods = {"seven_zero", "draw_stacking", "force_play", "jump_in", "progressive"};
 
     f.SetupMatch(all_bots(4), settings);
+    f.OpenBarrierNow();
 
     constexpr int kMaxFires = 20'000;
     int fired = f.DrainTurnTimer(kMaxFires);
@@ -540,6 +595,7 @@ TEST_CASE("Full match: kPlayInstantly mode with all bots and every mod enabled r
     settings.active_mods = {"seven_zero", "draw_stacking", "force_play", "jump_in", "progressive"};
 
     f.SetupMatch(all_bots(3), settings);
+    f.OpenBarrierNow();
     REQUIRE(f.timers.Has("turn_1"));
 
     constexpr int kMaxFires = 20'000;
@@ -560,6 +616,7 @@ TEST_CASE("Full match: mixed bot count (2 to 4 players) with every mod enabled a
                                  "progressive"};
 
         f.SetupMatch(all_bots(player_count), settings);
+        f.OpenBarrierNow();
 
         constexpr int kMaxFires = 20'000;
         int fired = f.DrainTurnTimer(kMaxFires);
@@ -618,6 +675,7 @@ TEST_CASE("A human play that wins the match notifies the lobby store") {
     // INFO: Alice is human and seated first, so she holds the opening turn.
     f.SetupMatch(human_vs_bot(), settings_with_mode(
         BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
     const std::vector<match::ecs::Entity> wilds =
@@ -656,6 +714,7 @@ TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already ove
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), settings_with_mode(
         BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     const std::vector<match::ecs::Entity> wilds =
         CardsByKind(f.Engine(), "vanilla:wild");
@@ -698,6 +757,7 @@ TEST_CASE("Bot timer steps emit match_event frames to the seated sockets") {
     MatchFixture f;
     f.SetupMatch(all_bots(2), settings_with_mode(
         BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
 
     REQUIRE(f.timers.Has("turn_1"));
     const std::uintptr_t socket0 =
@@ -728,6 +788,7 @@ TEST_CASE("AFK takeover timer emits match_event frames") {
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), settings_with_mode(
         BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
     REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
 
     const std::uintptr_t alice_socket =
@@ -764,6 +825,7 @@ TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window o
     LobbySettings settings;
     settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+    f.OpenBarrierNow();
 
     match::engine::MatchInstance& engine = f.Engine();
     const std::string current = engine.GetCurrentPlayerUsername();
@@ -823,6 +885,7 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     LobbySettings settings;
     settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+    f.OpenBarrierNow();
 
     match::engine::MatchInstance& engine = f.Engine();
     const std::string current = engine.GetCurrentPlayerUsername();
@@ -880,6 +943,7 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
 TEST_CASE("match_window_response: neither pass nor card_id is an invalid payload") {
     MatchFixture f;
     f.SetupMatch(human_vs_bot(), LobbySettings{});
+    f.OpenBarrierNow();
 
     PerSocketData sd;
     sd.username = "Alice";
@@ -906,6 +970,7 @@ TEST_CASE("OnTurnStartedSession arms the current player's engine turn deadline")
     MatchFixture f;
     f.SetupMatch(human_vs_bot(),
                  settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd, 15'000));
+    f.OpenBarrierNow();
 
     const std::optional<match::ecs::Entity> current =
         f.Engine().GetCurrentPlayer();
@@ -937,6 +1002,7 @@ TEST_CASE("ScheduleWindowTick arms a timeout while a window is open") {
     LobbySettings settings;
     settings.active_mods = {"draw_stacking"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+    f.OpenBarrierNow();
 
     match::engine::MatchInstance& engine = f.Engine();
     const std::string current = engine.GetCurrentPlayerUsername();
@@ -970,6 +1036,7 @@ TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
     LobbySettings settings;
     settings.active_mods = {"jump_in"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+    f.OpenBarrierNow();
 
     match::engine::MatchInstance& engine = f.Engine();
     const std::string current = engine.GetCurrentPlayerUsername();
@@ -1019,6 +1086,7 @@ TEST_CASE("ScheduleWindowTick re-arms the turn driver when the window times out"
     LobbySettings settings;
     settings.active_mods = {"draw_stacking"};
     f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}}, settings);
+    f.OpenBarrierNow();
 
     match::engine::MatchInstance& engine = f.Engine();
     const std::string current = engine.GetCurrentPlayerUsername();
@@ -1053,4 +1121,110 @@ TEST_CASE("ScheduleWindowTick re-arms the turn driver when the window times out"
     CHECK(f.timers.last_timeout_ms["turn_1"] == settings.turn_time_limit_ms);
 }
 }
+
+// ---------------------------------------------------------------------------
+// Ready barrier: the turn driver and seat actions stay gated
+// until every seated human reports `match_client_ready`, the `ready_` timeout
+// fires, or the last pending seat disconnects.
+// ---------------------------------------------------------------------------
+TEST_SUITE("MatchController::ReadyBarrier") {
+static std::vector<std::pair<std::string, bool>> two_humans() {
+    return {{"Alice", false}, {"Bob", false}};
+}
+
+TEST_CASE("ready barrier: turn timer is not armed before every human is ready") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    CHECK(f.timers.Has("ready_1"));
+    CHECK_FALSE(f.timers.Has("turn_1"));
+    CHECK(f.Engine().CurrentTurnDeadlineMs() == 0);
+}
+
+TEST_CASE("ready barrier: last match_client_ready opens the barrier") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    f.router.Dispatch(f.ContextFor("Alice"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    f.router.Dispatch(f.ContextFor("Bob"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+
+    CHECK(f.CountMatchEvents("match_begin", MatchFixture::SeatSocket(0)) == 1);
+    CHECK(f.CountMatchEvents("match_begin", MatchFixture::SeatSocket(1)) == 1);
+    CHECK_FALSE(f.timers.Has("ready_1"));
+    CHECK(f.timers.Has("turn_1"));
+    CHECK(f.Engine().CurrentTurnDeadlineMs() > 0);
+}
+
+TEST_CASE("ready barrier: timeout opens the barrier with a pending human") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    f.router.Dispatch(f.ContextFor("Alice"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE(f.timers.Has("ready_1"));
+    f.timers.Fire("ready_1");
+
+    CHECK(f.CountMatchEvents("match_begin", MatchFixture::SeatSocket(0)) == 1);
+    CHECK(f.timers.Has("turn_1"));
+}
+
+TEST_CASE("ready barrier: actions are rejected while the barrier is closed") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    const std::string current = f.Engine().GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+    const match::ecs::Entity seat = *f.Engine().FindPlayer(current);
+    const match::ecs::Hand* hand = f.Engine().Store().Get<match::ecs::Hand>(seat);
+    REQUIRE(hand != nullptr);
+    const std::size_t before = hand->cards.size();
+
+    REQUIRE(f.router.Dispatch(f.ContextFor(current),
+                              json{{"action", ws::ClientAction::kMatchDrawCard}}));
+
+    hand = f.Engine().Store().Get<match::ecs::Hand>(seat);
+    REQUIRE(hand != nullptr);
+    CHECK(hand->cards.size() == before);
+    CHECK(f.CountMatchEvents("cards_drawn") == 0);
+}
+
+TEST_CASE("ready barrier: disconnect of last pending seat opens the barrier") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    f.router.Dispatch(f.ContextFor("Alice"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE(f.CountMatchEvents("match_begin") == 0);
+
+    // INFO: mimic LobbyController::OnClose's non-spectator branch: unbind the
+    //       socket, mark the seat ready, then fire the disconnect hooks.
+    f.store.lobby.session->BindSocket("Bob", nullptr);
+    REQUIRE(f.store.lobby.session->MarkSeatReady("Bob", f.bus));
+    f.store.FireMatchSeatDisconnected();
+
+    CHECK(f.CountMatchEvents("match_begin", MatchFixture::SeatSocket(0)) == 1);
+    CHECK_FALSE(f.timers.Has("ready_1"));
+    CHECK(f.timers.Has("turn_1"));
+}
+
+TEST_CASE("ready barrier: match_client_ready after open is ignored") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    f.router.Dispatch(f.ContextFor("Alice"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    f.router.Dispatch(f.ContextFor("Bob"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE(f.CountMatchEvents("match_begin") == 2);
+    const int turn_schedules = f.timers.schedule_counts["turn_1"];
+
+    f.router.Dispatch(f.ContextFor("Alice"),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+
+    CHECK(f.CountMatchEvents("match_begin") == 2);
+    CHECK(f.timers.schedule_counts["turn_1"] == turn_schedules);
+}
+}  // TEST_SUITE("MatchController::ReadyBarrier")
 
