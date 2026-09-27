@@ -107,8 +107,8 @@
 	// value is read by baseBeats at seed time so the departing card's flight
 	// starts from this exact offset pose, continuing the motion instead of
 	// popping back to the pile's resting top first.
-	const HOVER_DIP_Z = 0.06;
-	const HOVER_DIP_DURATION_S = 0.15;
+	const HOVER_DIP_Z = 0.14;
+	const HOVER_DIP_DURATION_S = 0.18;
 
 	let drawPileHovered = $state(false);
 	let hoverDipZ = $state(0);
