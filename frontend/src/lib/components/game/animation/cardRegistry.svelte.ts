@@ -171,6 +171,15 @@ export class CardRegistry {
 		}
 	}
 
+	/** True while a queued or playing beat still owns this card — its
+	 *  in-transit flag is that beat's reservation, not an owner's own tween. */
+	isBeatTarget(cardId: string): boolean {
+		if (this.#releasedEarly.has(cardId)) return false;
+		return this.#pending.some((batch) =>
+			batch.beats.some((beat) => beat.some((step) => step.target === cardId))
+		);
+	}
+
 	/** Hands a card that has finished its last step back to its owner while
 	 *  the rest of its beat keeps playing. A deal or multi-card draw is ONE
 	 *  beat, so without this every landed card stayed frozen at its landing

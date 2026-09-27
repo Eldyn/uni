@@ -258,9 +258,11 @@ describe("CardRegistry pose providers", () => {
 		];
 		const done = registry.enqueue([beat], () => [9, 0, 3]);
 		flushSync();
+		expect(registry.isBeatTarget("A")).toBe(true);
 
 		registry.releaseLanded("A");
 		expect(registry.isInTransit("A")).toBe(false);
+		expect(registry.isBeatTarget("A")).toBe(false);
 		expect(registry.isInTransit("B")).toBe(true);
 		expect(registry.getPose("A")!.x).toBeCloseTo(4);
 		expect(registry.getPose("A")!.z).toBeCloseTo(2);
@@ -268,6 +270,8 @@ describe("CardRegistry pose providers", () => {
 		registry.skipCurrent();
 		return done.then(() => {
 			expect(registry.isInTransit("B")).toBe(false);
+			expect(registry.isBeatTarget("A")).toBe(false);
+			expect(registry.isBeatTarget("B")).toBe(false);
 		});
 	});
 

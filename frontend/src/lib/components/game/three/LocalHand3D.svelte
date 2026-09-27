@@ -262,8 +262,12 @@
 		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
 		for (const id of prevRealIds) {
 			if (liveIds.has(id)) continue;
+			releaseDisplacement(id);
 			if (cardRegistry.isInTransit(id)) continue;
-			if (discardIds.has(id)) continue;
+			if (discardIds.has(id)) {
+				cardRegistry.applyIdlePoseIfNotInTransit(id);
+				continue;
+			}
 			cardRegistry.removeEntry(id);
 		}
 		prevRealIds = [...liveIds];
@@ -311,6 +315,17 @@
 	let dragIndex = 0;
 	let settlingCardId: string | null = null;
 	const displacementTweens = new Map<string, gsap.core.Tween>();
+	// A killed displacement tween never runs the onComplete that clears its
+	// in-transit flag. A card that left the row mid-tween (a backgrounded tab
+	// never finishes one) then stayed "in transit" for good: never retired,
+	// never re-posed by the discard — a ghost frozen at its old hand slot.
+	function releaseDisplacement(cardId: string): void {
+		const tween = displacementTweens.get(cardId);
+		if (!tween) return;
+		tween.kill();
+		displacementTweens.delete(cardId);
+		if (!cardRegistry.isBeatTarget(cardId)) cardRegistry.markInTransit(cardId, false);
+	}
 	let prevOrderIds: number[] = [];
 	let dragLiftTween: gsap.core.Tween | null = null;
 	// Which player's incoming morph the previous effect run saw, and the card
@@ -384,11 +399,8 @@
 		prevMorphUsername = morphUsername;
 
 		const currentCardIdSet = new Set(orderedCards.map((c) => String(c.id)));
-		for (const [id, tween] of displacementTweens.entries()) {
-			if (!currentCardIdSet.has(id)) {
-				tween.kill();
-				displacementTweens.delete(id);
-			}
+		for (const id of [...displacementTweens.keys()]) {
+			if (!currentCardIdSet.has(id)) releaseDisplacement(id);
 		}
 
 		for (const id of prevProviderIds) {
