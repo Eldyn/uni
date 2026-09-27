@@ -266,6 +266,22 @@ struct MatchFixture {
         return n;
     }
 
+    // Counts `error` response frames with a given contract code, optionally
+    // scoped to one recipient socket.
+    std::size_t CountErrorFrames(const std::string& code,
+                                 AppWebSocket* only = nullptr) const {
+        std::size_t n = 0;
+        for (const SentFrame& frame : bus.sent) {
+            if (only != nullptr && frame.to != only) continue;
+            const json packet = json::parse(frame.payload);
+            if (packet.value("action", std::string()) == "error"
+                && packet.value("code", std::string()) == code) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
     // Drains the single-shot "turn_1" timer chain until the match ends or the
     // fake timer service no longer has a pending callback for the lobby.
     // FakeTimerService::Fire() does not consume the callback entry (it mimics
@@ -1188,6 +1204,83 @@ TEST_CASE("ready barrier: actions are rejected while the barrier is closed") {
     REQUIRE(hand != nullptr);
     CHECK(hand->cards.size() == before);
     CHECK(f.CountMatchEvents("cards_drawn") == 0);
+}
+
+TEST_CASE("ready barrier: play_card is rejected while the barrier is closed") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+    const match::ecs::Entity seat = *engine.FindPlayer(current);
+
+    // INFO: park a real playable card in the actor's hand so a rejected play
+    //       would visibly change hand size or the event log if it slipped past
+    //       the barrier gate.
+    const std::vector<match::ecs::Entity> reds =
+        CardsByKind(engine, "vanilla:red_5");
+    REQUIRE_FALSE(reds.empty());
+    ForceHand(engine, seat, {reds.front()});
+
+    const match::ecs::Hand* hand = engine.Store().Get<match::ecs::Hand>(seat);
+    REQUIRE(hand != nullptr);
+    const std::size_t hand_before = hand->cards.size();
+    const std::size_t events_before = engine.Events().size();
+
+    REQUIRE(f.router.Dispatch(
+        f.ContextFor(current),
+        json{{"action", ws::ClientAction::kMatchPlayCard},
+             {"card_id", BitsOf(engine, reds.front())}}));
+
+    hand = engine.Store().Get<match::ecs::Hand>(seat);
+    REQUIRE(hand != nullptr);
+    CHECK(hand->cards.size() == hand_before);
+    CHECK(engine.Events().size() == events_before);
+    CHECK(f.CountMatchEvents("card_played") == 0);
+    CHECK(f.CountErrorFrames("cannot_draw", f.ContextFor(current).socket) == 1);
+}
+
+TEST_CASE("ready barrier: submit_input and prompt_response are rejected while closed") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+    const std::size_t events_before = engine.Events().size();
+
+    const json input = json{{"action", ws::ClientAction::kMatchSubmitInput},
+                            {"prompt_id", "choose_color"},
+                            {"value", "red"}};
+    const json prompt = json{{"action", ws::ClientAction::kMatchPromptResponse},
+                             {"prompt_id", "choose_color"},
+                             {"value", "red"}};
+    REQUIRE(f.router.Dispatch(f.ContextFor(current), input));
+    REQUIRE(f.router.Dispatch(f.ContextFor(current), prompt));
+
+    CHECK(engine.Events().size() == events_before);
+    CHECK(f.CountErrorFrames("cannot_draw", f.ContextFor(current).socket) == 2);
+}
+
+TEST_CASE("ready barrier: window_response is rejected while the barrier is closed") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+    REQUIRE_FALSE(engine.WindowOpen());
+    const std::size_t events_before = engine.Events().size();
+
+    REQUIRE(f.router.Dispatch(
+        f.ContextFor(current),
+        json{{"action", ws::ClientAction::kMatchWindowResponse}, {"pass", true}}));
+
+    CHECK_FALSE(engine.WindowOpen());
+    CHECK(engine.Events().size() == events_before);
+    CHECK(f.CountMatchEvents("window_response") == 0);
+    CHECK(f.CountErrorFrames("cannot_draw", f.ContextFor(current).socket) == 1);
 }
 
 TEST_CASE("ready barrier: disconnect of last pending seat opens the barrier") {
