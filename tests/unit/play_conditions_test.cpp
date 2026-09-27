@@ -223,6 +223,17 @@ TEST_CASE("play_conditions: plays_identical_to_top mirrors jump_in") {
                         Attempt("vanilla:red_7", false)));
 }
 
+TEST_CASE("play_conditions: plays_identical_out_of_turn is the jump-in form") {
+    PlayConditionMatcher matcher(Lookup());
+    CHECK(matcher(Cond("plays_identical_out_of_turn"),
+                  Attempt("vanilla:red_7", false, "red", "vanilla:red_7")));
+    // INFO: an in-turn identical play is ordinary play, not a jump-in.
+    CHECK_FALSE(matcher(Cond("plays_identical_out_of_turn"),
+                        Attempt("vanilla:red_7", true, "red", "vanilla:red_7")));
+    CHECK_FALSE(matcher(Cond("plays_identical_out_of_turn"),
+                        Attempt("vanilla:red_5", false, "", "vanilla:red_7")));
+}
+
 // --- attempted-card identity -----------------------------------------------
 
 TEST_CASE("play_conditions: plays_kind, tag, color and value") {
@@ -380,7 +391,8 @@ TEST_CASE("play_conditions: matcher drives the restriction pipeline") {
     // jump_in: deny out-of-turn, allow identical-to-top (rescues).
     const std::vector<RestrictionEntry> jump_in = {
         {"vanilla:turn_order", "deny", Cond("plays_out_of_turn")},
-        {"jump_in:allow_identical", "allow", Cond("plays_identical_to_top")},
+        {"jump_in:allow_identical", "allow",
+         Cond("plays_identical_out_of_turn")},
     };
     CHECK(EvaluatePlayRestrictions(
               jump_in,
@@ -399,6 +411,17 @@ TEST_CASE("play_conditions: matcher drives the restriction pipeline") {
         matcher);
     CHECK_FALSE(bluff.allowed);
     CHECK(bluff.reason_id == "no_bluffing:no_bluff");
+    // jump_in + no_bluffing: an in-turn +4 on a +4 is not a jump-in, so the
+    // jump-in allow must not rescue the bluff.
+    std::vector<RestrictionEntry> both = no_bluff;
+    both.insert(both.end(), jump_in.begin(), jump_in.end());
+    const auto bluff_on_four = EvaluatePlayRestrictions(
+        both,
+        Attempt("vanilla:white_wild4", true, "red", "vanilla:white_wild4",
+                {"vanilla:white_wild4", "vanilla:red_5"}),
+        matcher);
+    CHECK_FALSE(bluff_on_four.allowed);
+    CHECK(bluff_on_four.reason_id == "no_bluffing:no_bluff");
 }
 
 // --- validator accept / reject ---------------------------------------------
@@ -411,6 +434,7 @@ TEST_CASE("validator: accepts every new play-context keyword") {
         Cond("plays_matches_top"),
         Cond("plays_mismatch"),
         Cond("plays_identical_to_top"),
+        Cond("plays_identical_out_of_turn"),
         Cond("plays_kind", {{"kind", "alpha:c1"}}),
         Cond("plays_tag", {{"tag", "stackable"}}),
         Cond("plays_color", {{"color", "red"}}),
@@ -418,6 +442,7 @@ TEST_CASE("validator: accepts every new play-context keyword") {
         Cond("owns_card"),
         Cond("plays_unowned"),
         Cond("plays_bluffing", {{"value", "jolly_draw4"}}),
+        Cond("plays_stack_response", {{"tag", "stackable"}}),
     };
     SemanticValidator validator(SchemaDir());
     for (const json& condition : accepted) {

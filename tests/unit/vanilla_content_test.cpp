@@ -202,7 +202,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
         }
     }
     CHECK(entries["jump_in:identical_out_of_turn"]
-          == "plays_identical_to_top");
+          == "plays_identical_out_of_turn");
     CHECK(entries["no_bluffing:drawn_four"] == "plays_bluffing");
     CHECK(entries["draw_stacking:stackable_response"]
           == "plays_stack_response");

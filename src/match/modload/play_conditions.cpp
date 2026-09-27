@@ -141,7 +141,8 @@ bool NeedsAttemptedFacts(const std::string& keyword) {
         || keyword == "plays_value" || keyword == "plays_matches_active"
         || keyword == "plays_matches_top" || keyword == "plays_mismatch"
         || keyword == "plays_identical_to_top" || keyword == "plays_bluffing"
-        || keyword == "plays_stack_response";
+        || keyword == "plays_stack_response"
+        || keyword == "plays_identical_out_of_turn";
 }
 
 }  // namespace
@@ -200,8 +201,13 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         // standard.cpp:27-34: played_value == top_value.
         return AttemptedMatchesTop(*attempt, lookup, attempted);
     }
-    if (keyword == "plays_identical_to_top") {
-        // jump_in.cpp:14-15: same type AND same value as the top.
+    if (keyword == "plays_identical_to_top"
+        || keyword == "plays_identical_out_of_turn") {
+        // jump_in.cpp:9-15: same type AND same value as the top; the jump-in
+        // rescue only ever applied to an out-of-turn attempt.
+        if (keyword == "plays_identical_out_of_turn" && attempt->in_turn) {
+            return false;
+        }
         if (attempted.color.empty() || attempted.value.empty()) return false;
         PlayCardFacts top;
         if (!ResolveTop(*attempt, lookup, top)) return false;

@@ -1,7 +1,7 @@
 {
   "id": "jump_in",
   "title": "Jump In",
-  "description": "Transcribed from src/match/rules/jump_in.cpp as spec 13.3 prescribes: a deny on out-of-turn plays (shipped by vanilla as vanilla:turn_order) plus an allow entry rescuing an identical card. The play predicates come from WP7e (plays_identical_to_top = same colour AND value as the discard top). legacy jump_in.cpp:22-31 also makes the jumper the current player, so an accepted identical response redirects the turn to @responder (WP7 10.3 redirect_turn) after the response play resolves. The response is offered through a spec 12.1 window opened after a play; the allow entry above is what makes the out-of-turn response legal.",
+  "description": "Transcribed from src/match/rules/jump_in.cpp:  a deny on out-of-turn plays (shipped by vanilla as vanilla:turn_order) plus an allow entry rescuing an identical card played out of turn (`plays_identical_out_of_turn`; the legacy rule only ever touched out-of-turn attempts, so an in-turn play keeps every other deny, e.g. No Bluffing). The play predicates come from  (plays_identical_to_top = same colour AND value as the discard top). legacy jump_in.cpp:22-31 also makes the jumper the current player, so an accepted identical response redirects the turn to @responder after the response play resolves. The response is offered through a  window opened after a play; the allow entry above is what makes the out-of-turn response legal.",
   "hooks": [
     {
       "on": "after:match_start",
@@ -14,7 +14,7 @@
               "id": "jump_in:identical_out_of_turn",
               "phase": "allow",
               "condition": {
-                "plays_identical_to_top": {}
+                "plays_identical_out_of_turn": {}
               }
             }
           }

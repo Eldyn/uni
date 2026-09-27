@@ -605,6 +605,8 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
         add_play("plays_mismatch");
         // jump_in.cpp:14-15: same type AND same value as the discard top.
         add_play("plays_identical_to_top");
+        // jump_in.cpp:9: the jump-in rescue form, out of turn only.
+        add_play("plays_identical_out_of_turn");
         // Attempted-card identity (seven_zero value=7/0; no_bluffing +4).
         add_play("plays_kind", {Arg("kind", ArgType::kKindRef)});
         add_play("plays_tag", {Arg("tag", ArgType::kTagRef)});
