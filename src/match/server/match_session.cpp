@@ -141,6 +141,7 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     match::ecs::PlayerInfo* info =
         engine_->Store().Get<match::ecs::PlayerInfo>(*player);
     if (info == nullptr) return false;
+    ready_barrier_.Rename(old_username, new_username);
     info->username = new_username;
     info->is_bot = false;
     info->connected = true;
@@ -182,6 +183,7 @@ bool MatchSession::HandSeatToBot(const std::string& old_username,
         if (info != nullptr) info->is_bot = true;
     }
     sockets_[bot_name] = nullptr;
+    ready_barrier_.MarkReady(bot_name);
     return true;
 }
 
@@ -223,6 +225,10 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
                             match::view::Viewer::Player(username), it->second));
+            SendBarrierPacket(
+                broadcaster, socket, it->second,
+                ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
+                ready_barrier_.IsOpen() ? json::object() : ReadyProgressPayload());
             return;
         }
     }
@@ -236,6 +242,10 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
         broadcaster.SendJson(socket,
                              builder_.BuildSnapshot(match::view::Viewer::Spectator(),
                                                     viewer->second));
+        SendBarrierPacket(
+            broadcaster, socket, viewer->second,
+            ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
+            ready_barrier_.IsOpen() ? json::object() : ReadyProgressPayload());
         return;
     }
     match::view::EventSink sink;
@@ -278,6 +288,67 @@ void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
         "defs", match::view::DefsBuilder::Build(engine_->Registries(), mods_));
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
+}
+
+void MatchSession::SendBarrierPacket(IBroadcaster& broadcaster,
+                                     AppWebSocket* socket,
+                                     match::view::EventSink& sink,
+                                     const std::string& type,
+                                     const json& payload) {
+    if (socket == nullptr) return;
+    EnsureDefs(broadcaster, socket, sink);
+    json packet = sink.Wrap(type, payload);
+    packet["action"] = "match_event";
+    broadcaster.SendJson(socket, packet);
+}
+
+void MatchSession::BroadcastBarrierPacket(IBroadcaster& broadcaster,
+                                          const std::string& type,
+                                          const json& payload) {
+    for (const auto& [username, socket] : sockets_) {
+        SendBarrierPacket(broadcaster, socket, sinks_.at(username), type, payload);
+    }
+    for (const auto& [username, socket] : viewers_) {
+        SendBarrierPacket(broadcaster, socket, viewer_sinks_.at(username), type,
+                          payload);
+    }
+}
+
+json MatchSession::ReadyProgressPayload() const {
+    return json{{"ready", ready_barrier_.Ready()},
+                {"total", ready_barrier_.Total()}};
+}
+
+void MatchSession::BeginReadyBarrier(IBroadcaster& broadcaster) {
+    // INFO: only seats holding a live socket at start have a client to wait
+    //       for; bots and already-disconnected humans count as ready.
+    std::vector<std::string> pending;
+    for (const auto& [username, socket] : sockets_) {
+        if (socket != nullptr) pending.push_back(username);
+    }
+    // INFO: `Registries().players` is the seated roster the view layer
+    //       iterates; it includes bots and excludes spectators.
+    ready_barrier_.Arm(pending, engine_->Registries().players.size());
+    BroadcastBarrierPacket(broadcaster, "players_ready", ReadyProgressPayload());
+}
+
+bool MatchSession::MarkSeatReady(const std::string& username,
+                                 IBroadcaster& broadcaster) {
+    if (!ready_barrier_.MarkReady(username)) return false;
+    BroadcastBarrierPacket(broadcaster, "players_ready", ReadyProgressPayload());
+    return true;
+}
+
+bool MatchSession::ReadyBarrierComplete() const {
+    return ready_barrier_.Complete();
+}
+
+bool MatchSession::ReadyBarrierOpen() const { return ready_barrier_.IsOpen(); }
+
+bool MatchSession::OpenReadyBarrier(IBroadcaster& broadcaster) {
+    if (!ready_barrier_.Open()) return false;
+    BroadcastBarrierPacket(broadcaster, "match_begin", json::object());
+    return true;
 }
 
 void MatchSession::EmitEvents(IBroadcaster& broadcaster) {

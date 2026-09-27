@@ -13,6 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -724,5 +725,115 @@ TEST_CASE("match session: a spectator bound after start receives defs") {
     REQUIRE(seated_defs != nullptr);
     CHECK((*defs)["payload"]["defs_digest"]
           == (*seated_defs)["payload"]["defs_digest"]);
+}
+
+namespace {
+
+std::vector<json> EventsOfType(const FakeBroadcaster& broadcaster,
+                               AppWebSocket* socket, const std::string& type) {
+    std::vector<json> out;
+    for (const SentFrame& frame : broadcaster.FramesFor(socket)) {
+        const json packet = json::parse(frame.payload, nullptr, false);
+        if (packet.is_object() && packet.value("action", "") == "match_event" &&
+            packet.value("type", "") == type) {
+            out.push_back(packet);
+        }
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("MatchSession ready barrier: open by default") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    CHECK(session.ReadyBarrierOpen());
+}
+
+TEST_CASE("MatchSession ready barrier: begin broadcasts players_ready") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 3, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+
+    CHECK_FALSE(session.ReadyBarrierOpen());
+    const std::vector<json> packets =
+        EventsOfType(broadcaster, PlayerSocket(1), "players_ready");
+    REQUIRE(packets.size() == 1);
+    CHECK(packets[0]["payload"]["ready"] == 1);   // player2 has no socket (bot)
+    CHECK(packets[0]["payload"]["total"] == 3);
+}
+
+TEST_CASE(
+    "MatchSession ready barrier: all humans ready completes, open sends "
+    "match_begin once") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+
+    CHECK(session.MarkSeatReady("player0", broadcaster));
+    CHECK_FALSE(session.ReadyBarrierComplete());
+    CHECK_FALSE(session.MarkSeatReady("player0", broadcaster));
+    CHECK(session.MarkSeatReady("player1", broadcaster));
+    CHECK(session.ReadyBarrierComplete());
+
+    CHECK(session.OpenReadyBarrier(broadcaster));
+    CHECK_FALSE(session.OpenReadyBarrier(broadcaster));
+    CHECK(EventsOfType(broadcaster, PlayerSocket(1), "match_begin").size() == 1);
+    CHECK(EventsOfType(broadcaster, PlayerSocket(2), "match_begin").size() == 1);
+}
+
+TEST_CASE("MatchSession ready barrier: rebind to bot marks the old seat ready") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+    session.MarkSeatReady("player0", broadcaster);
+
+    REQUIRE(session.HandSeatToBot("player1", "Bot Ada"));
+    CHECK(session.ReadyBarrierComplete());
+}
+
+TEST_CASE("MatchSession ready barrier: snapshot while closed carries players_ready") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+    broadcaster.Clear();
+
+    session.SendSnapshot(broadcaster, PlayerSocket(1), "player0", false);
+    CHECK(EventsOfType(broadcaster, PlayerSocket(1), "players_ready").size() == 1);
+    CHECK(EventsOfType(broadcaster, PlayerSocket(1), "match_begin").empty());
+}
+
+TEST_CASE("MatchSession ready barrier: snapshot after open carries match_begin") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+    session.OpenReadyBarrier(broadcaster);
+    broadcaster.Clear();
+
+    session.SendSnapshot(broadcaster, PlayerSocket(1), "player0", false);
+    CHECK(EventsOfType(broadcaster, PlayerSocket(1), "match_begin").size() == 1);
 }
 

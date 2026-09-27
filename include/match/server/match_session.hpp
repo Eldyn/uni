@@ -2,6 +2,7 @@
 
 #include <match/engine/match_instance.hpp>
 #include <match/modload/artifacts.hpp>
+#include <match/server/ready_barrier.hpp>
 #include <match/view/view_builder.hpp>
 #include <transport/ibroadcaster.hpp>
 
@@ -285,6 +286,42 @@ public:
      */
     bool BroadcastMatchOver(IBroadcaster& broadcaster);
 
+    // --- ready barrier
+
+    /**
+     * @brief Arm the load barrier and broadcast the first `players_ready`.
+     *
+     * Seats with a live socket at start are pending; bots and
+     * already-disconnected humans count as ready. `total` is the seated
+     * player count (bots included, spectators excluded).
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     */
+    void BeginReadyBarrier(IBroadcaster& broadcaster);
+
+    /**
+     * @brief Mark a seated player's client as loaded.
+     *
+     * @param username    Reporting player.
+     * @param broadcaster Transport sink for `SendJson`.
+     * @return true when the ready count changed (packet broadcast).
+     */
+    bool MarkSeatReady(const std::string& username, IBroadcaster& broadcaster);
+
+    /** @brief True when every pending seat has reported. */
+    bool ReadyBarrierComplete() const;
+
+    /** @brief True once the barrier has opened (no more waiting). */
+    bool ReadyBarrierOpen() const;
+
+    /**
+     * @brief Open the barrier and broadcast `match_begin` on first open.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @return true on the first open only.
+     */
+    bool OpenReadyBarrier(IBroadcaster& broadcaster);
+
     // --- introspection (tests / controllers) --------------------------------
 
     /** @brief The owned engine. */
@@ -357,6 +394,18 @@ private:
     void EmitPromptClose(IBroadcaster& broadcaster, const std::string& username,
                          AppWebSocket* socket, const std::string& signature);
 
+    /** @brief Wrap `payload` as `type` into one recipient's persistent sink. */
+    void SendBarrierPacket(IBroadcaster& broadcaster, AppWebSocket* socket,
+                           match::view::EventSink& sink, const std::string& type,
+                           const nlohmann::json& payload);
+
+    /** @brief Send a barrier packet to every seated recipient and spectator. */
+    void BroadcastBarrierPacket(IBroadcaster& broadcaster, const std::string& type,
+                                const nlohmann::json& payload);
+
+    /** @brief `{ready, total}` from the ready barrier. */
+    nlohmann::json ReadyProgressPayload() const;
+
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
@@ -372,6 +421,8 @@ private:
     std::unordered_map<std::string, std::string> prompt_outcome_;
     /** Prompt kind -> validated `response_schema` (mods + built-ins). */
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
+    /** Load barrier: seats pending the client's ready report. */
+    ReadyBarrier ready_barrier_;
     std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
     /** `defs` + `match_start` already emitted for the seated recipients. */
