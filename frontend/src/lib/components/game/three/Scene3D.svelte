@@ -180,11 +180,17 @@
 
 	onMount(() => {
 		let cancelled = false;
-		preloadCardArt().then(() => {
-			if (cancelled) return;
-			artLoaded = true;
-			storeGame.sendClientReady();
-		});
+		preloadCardArt()
+			.then(() => {
+				if (cancelled) return;
+				artLoaded = true;
+				storeGame.sendClientReady();
+			})
+			.catch((err) => {
+				console.error("Scene3D: card art preload failed", err);
+				if (cancelled) return;
+				storeGame.sendClientReady();
+			});
 		return () => {
 			cancelled = true;
 		};

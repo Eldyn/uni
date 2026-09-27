@@ -3,11 +3,13 @@ import MockThrelte from "./MockThrelte.svelte";
 import MockAllCards3D from "./MockAllCards3D.svelte";
 
 let preloadResolve: () => void;
+let preloadReject: (err: unknown) => void;
 let preloadPromise: Promise<void>;
 
 function resetPreload() {
-	preloadPromise = new Promise<void>((resolve) => {
+	preloadPromise = new Promise<void>((resolve, reject) => {
 		preloadResolve = resolve;
+		preloadReject = reject;
 	});
 }
 resetPreload();
@@ -148,6 +150,69 @@ describe("Scene3D card art preloading", () => {
 		await tick();
 
 		// The cancelled guard must win: a torn-down scene never signals ready.
+		expect(readySpy).not.toHaveBeenCalled();
+	});
+
+	it("signals ready even when card art preload rejects", async () => {
+		const readySpy = vi.spyOn(storeGame, "sendClientReady").mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const viewport = { width: 1200, height: 800, aspect: 1.5, orientation: "landscape" as const };
+
+		render(Scene3D, {
+			props: {
+				mappedOpponents: [],
+				viewport,
+				geometry: computeSceneGeometry(viewport, 0),
+				colorFor: () => "#ff0000",
+				selectedId: null,
+				onSelectionChange: vi.fn(),
+				onPlay: vi.fn()
+			},
+			context: new Map<any, any>([
+				[CARD_BUS_KEY, new CardBus()],
+				[CARD_REGISTRY_KEY, new CardRegistry()]
+			])
+		});
+
+		await tick();
+		expect(readySpy).not.toHaveBeenCalled();
+
+		preloadReject(new Error("preload boom"));
+		await tick();
+		await tick();
+
+		// A failed preload must not strand the barrier: ready is still sent.
+		expect(errorSpy).toHaveBeenCalled();
+		expect(readySpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not emit match_client_ready when a rejected preload settles after unmount", async () => {
+		const readySpy = vi.spyOn(storeGame, "sendClientReady").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const viewport = { width: 1200, height: 800, aspect: 1.5, orientation: "landscape" as const };
+
+		const { unmount } = render(Scene3D, {
+			props: {
+				mappedOpponents: [],
+				viewport,
+				geometry: computeSceneGeometry(viewport, 0),
+				colorFor: () => "#ff0000",
+				selectedId: null,
+				onSelectionChange: vi.fn(),
+				onPlay: vi.fn()
+			},
+			context: new Map<any, any>([
+				[CARD_BUS_KEY, new CardBus()],
+				[CARD_REGISTRY_KEY, new CardRegistry()]
+			])
+		});
+
+		unmount();
+		preloadReject(new Error("preload boom"));
+		await tick();
+		await tick();
+
+		// The cancelled guard must win over the rejection path too.
 		expect(readySpy).not.toHaveBeenCalled();
 	});
 });
