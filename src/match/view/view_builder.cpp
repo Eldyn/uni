@@ -6,6 +6,7 @@
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/status.hpp>
 #include <match/view/view_util.hpp>
 
@@ -740,6 +741,17 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         }
     }
     state["turn_deadline_ms"] = turn_deadline_ms;
+
+    // INFO: The outstanding draw-stacking debt; one seat holds it
+    //       at a time, the client renders it as the "+N" stack indicator.
+    int64_t pending_draws = 0;
+    for (ecs::Entity player : registries.players) {
+        if (const ecs::Status* debt = match::status::Find(
+                store, player, match::ops::kDrawDebtStatusId)) {
+            pending_draws += debt->magnitude;
+        }
+    }
+    state["pending_draws"] = pending_draws;
 
     json players = json::array();
     for (ecs::Entity player : registries.players) {

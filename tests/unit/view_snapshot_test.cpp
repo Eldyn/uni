@@ -259,6 +259,25 @@ TEST_CASE("view snapshot: base visibility for a seated player") {
     CHECK(state["prompts"].empty());
 }
 
+TEST_CASE("view snapshot: pending_draws mirrors the draw-stacking debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+
+    CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
+              ["match_state"]["pending_draws"]
+          == 0);
+
+    // INFO: a hidden debt still counts; the "+N" is public table state.
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
+              ["match_state"]["pending_draws"]
+          == 2);
+}
+
 TEST_CASE("view snapshot: no other hand identity without a grant") {
     Content content;
     REQUIRE(LoadContent(content));
