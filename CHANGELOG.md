@@ -11,6 +11,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Match-start cinematic state plumbing**: a new reactive `storeMatchIntro` (`matchIntro.svelte.ts`) holds the board overrides a match-start deal sequence needs — `active`, `drawPileCount`, `drawPilePos`, `discardHidden` and `forcePurpleMat`, driven by `begin()`/`end()` — and `storeGame` now exposes `matchIntroPending`, set when a fresh `match_start` frame arrives and cleared by `reset()`/`returnToLobby()`. Foundation only; no component consumes it yet.
 - **Public online-player count endpoint**: `GET /stats/online` returns `{"online": <n>}`, the live connected-player count from `PresenceRegistry` (unique usernames, aggregate only — no PII), served `no-store` and behind the shared per-IP HTTP limiter. The blog's player-count pill (`playuni.app/blog`) polls it; until this shipped the pill stayed hidden.
 - **Configurable per-lobby player cap**: `LobbySettings.max_players` (default 4, sanitized to `[2, ABSOLUTE_MAX_LOBBY_MEMBERS]`) replaces the flat compile-time `contract::kMaxLobbyMembers` check in `Lobby::AddOrHijack` and bot-sync; the contract ceiling itself was raised and is now broadcast to clients instead of assumed. A new `ABSOLUTE_MAX_LOBBY_MEMBERS` env var (defaulting to the contract ceiling, 16) sets the absolute upper bound.
 - **Starting-hand/deck-size safeguard**: `LobbySettings::Sanitize()` now clamps `starting_cards` down if `starting_cards * max_players` would exceed the generated deck size, so large lobbies can't be configured into an unwinnable deal.

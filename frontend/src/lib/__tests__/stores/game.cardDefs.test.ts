@@ -166,3 +166,36 @@ describe("storeGame consumes defs + match_start", () => {
 		expect(storeCardDefs.lookupByStringId("vanilla:red_5")).toBeUndefined();
 	});
 });
+
+describe("storeGame match-intro trigger", () => {
+	beforeEach(() => {
+		storeGame.reset();
+		storeCardDefs.reset();
+	});
+
+	it("sets matchIntroPending on a match_start frame", () => {
+		expect(storeGame.matchIntroPending).toBe(false);
+
+		handler("match_event")(frame(2, "match_start", matchStart("d1")));
+
+		expect(storeGame.matchIntroPending).toBe(true);
+	});
+
+	it("clears matchIntroPending on reset", () => {
+		handler("match_event")(frame(2, "match_start", matchStart("d1")));
+		expect(storeGame.matchIntroPending).toBe(true);
+
+		storeGame.reset();
+
+		expect(storeGame.matchIntroPending).toBe(false);
+	});
+
+	it("clears matchIntroPending on returnToLobby", () => {
+		handler("match_event")(frame(2, "match_start", matchStart("d1")));
+		expect(storeGame.matchIntroPending).toBe(true);
+
+		storeGame.returnToLobby();
+
+		expect(storeGame.matchIntroPending).toBe(false);
+	});
+});

@@ -228,6 +228,9 @@ class StoreGame implements SessionStore {
 	/** Open op-input prompt for the local viewer, or null when none is live. */
 	activePrompt = $state<PromptOpenPayload | null>(null);
 
+	/** True once a fresh `match_start` frame has been consumed, until reset. */
+	matchIntroPending = $state(false);
+
 	/** Reference to the browser's native `setInterval` timer. */
 	#timerInterval: number | null = null;
 
@@ -385,6 +388,7 @@ class StoreGame implements SessionStore {
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];
+		this.matchIntroPending = false;
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
@@ -638,6 +642,7 @@ class StoreGame implements SessionStore {
 			}
 			case "match_start": {
 				storeCardDefs.confirmMatchStart(env.data.payload);
+				this.matchIntroPending = true;
 				break;
 			}
 			case "turn_advance": {
@@ -878,6 +883,7 @@ class StoreGame implements SessionStore {
 		this.lastSeq = null;
 		this.desynced = false;
 		this.#pendingBeats = [];
+		this.matchIntroPending = false;
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
