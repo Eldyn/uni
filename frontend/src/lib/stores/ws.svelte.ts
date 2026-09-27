@@ -17,7 +17,7 @@ export {
 } from "$lib/generated/schemas";
 
 import type { ClientPayloads, ServerActionType } from "$lib/generated/schemas";
-import { outgoingSchemas } from "$lib/generated/schemas";
+import { ClientAction, outgoingSchemas } from "$lib/generated/schemas";
 import { storeAnalytics } from "./analytics.svelte";
 import { errorText } from "./errors";
 import { z } from "zod";
