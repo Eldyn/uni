@@ -181,7 +181,9 @@
 	onMount(() => {
 		let cancelled = false;
 		preloadCardArt().then(() => {
-			if (!cancelled) artLoaded = true;
+			if (cancelled) return;
+			artLoaded = true;
+			storeGame.sendClientReady();
 		});
 		return () => {
 			cancelled = true;

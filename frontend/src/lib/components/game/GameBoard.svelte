@@ -336,12 +336,13 @@
 
 	$effect(() => () => introController.dispose());
 
-	// INFO: a fresh `match_start` sets `matchIntroPending`; consume-and-clear it
-	// here and start the deal cinematic once per match. Cleared unconditionally
-	// before start so a re-run (reactive read) can never start it twice.
+	// INFO: a fresh `match_start` sets `matchIntroPending`, but the cinematic
+	// only starts once the server's ready barrier opens (`matchBegun`) — the
+	// store's `introReady` combines both. Consume-and-clear the pending flag
+	// here so a re-run (reactive read) can never start it twice.
 	$effect(() => {
 		const state = storeGame.state;
-		if (state && storeGame.matchIntroPending) {
+		if (state && storeGame.introReady) {
 			storeGame.matchIntroPending = false;
 			introController.start(state).catch((err) => {
 				console.error("GameBoard: match-intro cinematic failed", err);
