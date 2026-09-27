@@ -258,6 +258,21 @@ bool EvalDrawnCardPlayable(ecs::EntityStore& store, const json&,
 }
 
 /**
+ * @brief The draw hook's cause (frame fact `draw_cause`) equals `is`.
+ *
+ * The fact is bound by the engine on `draw` / `draw_attempt` dispatches;
+ * fail-safe false when it is absent (non-draw hooks).
+ */
+bool EvalDrawCause(ecs::EntityStore&, const json& args, OpContext& ctx) {
+    const std::optional<std::string> expected = ArgString(args, "is");
+    const json* cause = ctx.frame.FindFact("draw_cause");
+    if (!expected.has_value() || cause == nullptr || !cause->is_string()) {
+        return false;
+    }
+    return cause->get<std::string>() == *expected;
+}
+
+/**
  * @brief Target carries a status of the given kind.
  *
  * Addresses the multi-instance `status_list` container through
@@ -352,6 +367,7 @@ void RegisterDefaultConditions(resolver::ConditionRegistry& registry) {
     registry.Register("active_type_is", &EvalActiveTypeIs);
     registry.Register("top_of_discard", &EvalTopOfDiscard);
     registry.Register("drawn_card_playable", &EvalDrawnCardPlayable);
+    registry.Register("draw_cause", &EvalDrawCause);
     registry.Register("status_active", &EvalStatusActive);
     registry.Register("draw_debt", &EvalDrawDebt);
     registry.Register("rolled", &EvalRolled);

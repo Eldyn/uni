@@ -521,6 +521,16 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
             add(std::move(c));
         }
         {
+            // INFO: why the card on a draw hook was drawn: `action` (the
+            //       player's voluntary draw), `until_playable`
+            //       (draw_until_playable op) or `effect` (any other op,
+            //       e.g. a +2 penalty). Fail-safe false off a draw hook.
+            ConditionSignature c;
+            c.keyword = "draw_cause";
+            c.args = {EnumArg("is", {"action", "effect", "until_playable"})};
+            add(std::move(c));
+        }
+        {
             ConditionSignature c;
             c.keyword = "status_active";
             c.args = {Arg("target", ArgType::kSelector),

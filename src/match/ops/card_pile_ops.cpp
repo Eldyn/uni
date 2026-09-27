@@ -322,7 +322,8 @@ bool EnsureDrawSource(ecs::EntityStore& store, ecs::PileKind kind,
  *
  * Shared by `draw_cards` and `draw_until_playable` so both use the exact same
  * sourcing / reshuffle / hook choreography. `events` receives any `reshuffle`
- * descriptor `EnsureDrawSource` emits.
+ * descriptor `EnsureDrawSource` emits. `cause` rides both hook payloads so
+ * mods can tell an effect draw from a draw-until-playable draw.
  *
  * @return the drawn card, or nullopt when nothing was drawn: the source is
  *         dry, a reshuffle was vetoed, no candidate passes `filter`, or a
@@ -331,7 +332,8 @@ bool EnsureDrawSource(ecs::EntityStore& store, ecs::PileKind kind,
 std::optional<ecs::Entity> DrawOneCard(ecs::EntityStore& store,
                                        ecs::Entity target,
                                        ecs::PileKind source_kind,
-                                       const json* filter, OpContext& ctx,
+                                       const json* filter,
+                                       std::string_view cause, OpContext& ctx,
                                        std::vector<json>& events) {
     if (!EnsureDrawSource(store, source_kind, ctx, events)) {
         return std::nullopt;
@@ -345,13 +347,15 @@ std::optional<ecs::Entity> DrawOneCard(ecs::EntityStore& store,
     ecs::HookPayload attempt;
     attempt.hook = ecs::HookId{"draw_attempt", ecs::HookPhase::kBefore};
     attempt.data = json{{"player", EntityJson(target)},
-                        {"source", std::string(PileToken(source_kind))}};
+                        {"source", std::string(PileToken(source_kind))},
+                        {"cause", std::string(cause)}};
     if (ctx.event_bus.DispatchBefore(attempt.hook, attempt).vetoed) {
         return std::nullopt;
     }
 
     const json draw_data = json{{"card", EntityJson(*candidate)},
-                                {"player", EntityJson(target)}};
+                                {"player", EntityJson(target)},
+                                {"cause", std::string(cause)}};
     ecs::HookPayload draw;
     draw.hook = ecs::HookId{"draw", ecs::HookPhase::kBefore};
     draw.data = draw_data;
@@ -539,7 +543,8 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
         json drawn_cards = json::array();
         for (int64_t i = 0; i < target_n; ++i) {
             const std::optional<ecs::Entity> card =
-                DrawOneCard(store, target, source_kind, filter, ctx, events);
+                DrawOneCard(store, target, source_kind, filter, "effect",
+                            ctx, events);
             if (!card.has_value()) break;
             ++drawn;
             drawn_cards.push_back(EntityJson(*card));
@@ -596,7 +601,8 @@ OpResult OpDrawUntilPlayable(ecs::EntityStore& store, const OpArgs& args,
         json drawn_cards = json::array();
         for (std::size_t i = 0; i < bound; ++i) {
             const std::optional<ecs::Entity> card =
-                DrawOneCard(store, target, source_kind, nullptr, ctx, events);
+                DrawOneCard(store, target, source_kind, nullptr,
+                            "until_playable", ctx, events);
             if (!card.has_value()) break;
             ++drawn;
             drawn_cards.push_back(EntityJson(*card));

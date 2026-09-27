@@ -93,6 +93,8 @@ struct ResolutionFrame {
         selectors;  /**< selector token -> bound entities. */
     std::map<std::string, nlohmann::json, std::less<>>
         prompt_values;  /**< prompt node id -> bound result. */
+    std::map<std::string, nlohmann::json, std::less<>>
+        facts;  /**< engine-bound hook payload facts (e.g. `draw_cause`). */
 
     /** @brief Bound entities for `token`, or nullptr when unbound. */
     const std::vector<ecs::Entity>* FindSelector(
@@ -122,6 +124,17 @@ struct ResolutionFrame {
     /** @brief Bind a prompt result to `node_id`. */
     void BindPromptValue(std::string node_id, nlohmann::json value) {
         prompt_values[std::move(node_id)] = std::move(value);
+    }
+
+    /** @brief Hook payload fact bound under `name`, or nullptr. */
+    const nlohmann::json* FindFact(std::string_view name) const {
+        auto it = facts.find(name);
+        return it == facts.end() ? nullptr : &it->second;
+    }
+
+    /** @brief Bind a hook payload fact (replacing any prior binding). */
+    void BindFact(std::string name, nlohmann::json value) {
+        facts[std::move(name)] = std::move(value);
     }
 };
 

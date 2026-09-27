@@ -384,9 +384,13 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
     //       `card` key; bind it as `@drawn_card` so a rule graph (or its
     //       `where`) can test playability and force-play it. The engine's
     //       `play_card` effect routing is what actually plays it.
+    //       The draw `cause` rides along as the `draw_cause` fact so mods can
+    //       tell a voluntary draw from a penalty or draw-until-playable draw.
     std::optional<ecs::Entity> drawn_card;
+    std::optional<nlohmann::json> draw_cause;
     if (payload.hook.name == "draw" || payload.hook.name == "draw_attempt") {
         drawn_card = PayloadEntity(payload.data, "card");
+        draw_cause = payload.data.value("cause", std::string("effect"));
     }
 
     // INFO: a rule hook's `where` filter decides whether its graph runs
@@ -399,6 +403,9 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
         if (drawn_card.has_value()) {
             where_frame.BindSelector("@drawn_card", {*drawn_card});
         }
+        if (draw_cause.has_value()) {
+            where_frame.BindFact("draw_cause", *draw_cause);
+        }
         if (!conditions.Evaluate(store, *system.where, where_ctx)) return;
     }
 
@@ -408,6 +415,7 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
     if (drawn_card.has_value()) {
         frame.BindSelector("@drawn_card", {*drawn_card});
     }
+    if (draw_cause.has_value()) frame.BindFact("draw_cause", *draw_cause);
     const resolver::ResolveResult result =
         resolver->Resolve(system.graph, system.mod_id, context, frame);
 

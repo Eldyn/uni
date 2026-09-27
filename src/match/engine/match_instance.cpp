@@ -323,7 +323,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     // --- draw_attempt: a before-veto skips this draw ----------------------
     json attempt = json{{"player", EntityJson(*player)},
-                        {"source", "draw_pile"}};
+                        {"source", "draw_pile"},
+                        {"cause", "action"}};
     const bool skip = Before("draw_attempt", attempt);
     After("draw_attempt", attempt);
     if (skip || Paused()) {
@@ -346,7 +347,8 @@ bool MatchInstance::DrawCard(const std::string& username) {
 
     // --- draw: the before-veto is an undo, so it fires before the move ----
     json draw_data = json{{"card", EntityJson(*card)},
-                          {"player", EntityJson(*player)}};
+                          {"player", EntityJson(*player)},
+                          {"cause", "action"}};
     const bool undo = Before("draw", draw_data);
     if (undo) {
         ops::MoveCardToZone(store, *card,

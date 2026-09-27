@@ -7,6 +7,28 @@
       "on": "after:draw",
       "nodes": [
         {
+          "id": "n0",
+          "cases": [
+            {
+              "when": {
+                "draw_cause": {
+                  "is": "action"
+                }
+              },
+              "next": "n1"
+            },
+            {
+              "when": {
+                "draw_cause": {
+                  "is": "until_playable"
+                }
+              },
+              "next": "n1"
+            }
+          ],
+          "else": "skip"
+        },
+        {
           "id": "n1",
           "cases": [
             {
@@ -31,6 +53,13 @@
           "op": "emit_signal",
           "args": {
             "name": "force_play:not_playable"
+          }
+        },
+        {
+          "id": "skip",
+          "op": "emit_signal",
+          "args": {
+            "name": "force_play:effect_draw"
           }
         }
       ]

@@ -5,6 +5,11 @@
   "hooks": [
     {
       "on": "after:draw",
+      "where": {
+        "draw_cause": {
+          "is": "action"
+        }
+      },
       "nodes": [
         {
           "id": "n1",
