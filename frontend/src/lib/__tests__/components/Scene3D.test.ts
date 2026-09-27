@@ -43,12 +43,14 @@ import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
 import { CardBus, CARD_BUS_KEY } from "$components/game/card-bus.svelte";
 import { CardRegistry, CARD_REGISTRY_KEY } from "$components/game/animation/cardRegistry.svelte";
 import { preloadCardArt } from "$components/game/three/cardFaceAtlas";
+import { storeGame } from "$lib/stores/game.svelte";
 import { tick } from "svelte";
 
 describe("Scene3D card art preloading", () => {
 	afterEach(() => {
 		cleanup();
 		resetPreload();
+		vi.restoreAllMocks();
 	});
 
 	it("calls preloadCardArt and only mounts AllCards3D after resolution", async () => {
@@ -84,5 +86,68 @@ describe("Scene3D card art preloading", () => {
 
 		// After resolution, AllCards3D is mounted
 		expect(queryByTestId("all-cards-3d")).not.toBeNull();
+	});
+
+	it("emits match_client_ready once, and only after preload resolves", async () => {
+		const readySpy = vi.spyOn(storeGame, "sendClientReady").mockImplementation(() => {});
+		const bus = new CardBus();
+		const registry = new CardRegistry();
+		const viewport = { width: 1200, height: 800, aspect: 1.5, orientation: "landscape" as const };
+		const geometry = computeSceneGeometry(viewport, 0);
+
+		render(Scene3D, {
+			props: {
+				mappedOpponents: [],
+				viewport,
+				geometry,
+				colorFor: () => "#ff0000",
+				selectedId: null,
+				onSelectionChange: vi.fn(),
+				onPlay: vi.fn()
+			},
+			context: new Map<any, any>([
+				[CARD_BUS_KEY, bus],
+				[CARD_REGISTRY_KEY, registry]
+			])
+		});
+
+		await tick();
+		// The ready signal must wait for card art, not fire on mount.
+		expect(readySpy).not.toHaveBeenCalled();
+
+		preloadResolve();
+		await tick();
+		await tick();
+
+		expect(readySpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not emit match_client_ready when unmounted before preload resolves", async () => {
+		const readySpy = vi.spyOn(storeGame, "sendClientReady").mockImplementation(() => {});
+		const viewport = { width: 1200, height: 800, aspect: 1.5, orientation: "landscape" as const };
+
+		const { unmount } = render(Scene3D, {
+			props: {
+				mappedOpponents: [],
+				viewport,
+				geometry: computeSceneGeometry(viewport, 0),
+				colorFor: () => "#ff0000",
+				selectedId: null,
+				onSelectionChange: vi.fn(),
+				onPlay: vi.fn()
+			},
+			context: new Map<any, any>([
+				[CARD_BUS_KEY, new CardBus()],
+				[CARD_REGISTRY_KEY, new CardRegistry()]
+			])
+		});
+
+		unmount();
+		preloadResolve();
+		await tick();
+		await tick();
+
+		// The cancelled guard must win: a torn-down scene never signals ready.
+		expect(readySpy).not.toHaveBeenCalled();
 	});
 });
