@@ -153,6 +153,20 @@ public:
                       AppWebSocket* socket);
 
     /**
+     * @brief Hand a departing human's engine seat to a named bot.
+     *
+     * Renames the seat like RebindPlayer, flags it as a bot and drops the
+     * departing socket so the leaver stops receiving the match stream and
+     * cannot be re-seated by a username-keyed rejoin.
+     *
+     * @param old_username Departing human's engine username.
+     * @param bot_name     Replacement bot username.
+     * @return false when the old seat does not exist or the names match.
+     */
+    bool HandSeatToBot(const std::string& old_username,
+                       const std::string& bot_name);
+
+    /**
      * @brief Update the socket bound to a seated recipient (reconnect).
      * @param username Seated player username.
      * @param socket   Replacement socket.

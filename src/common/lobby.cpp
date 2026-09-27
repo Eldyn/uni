@@ -125,10 +125,6 @@ void Lobby::SyncBots(std::mt19937& rng) {
 
 MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt19937& rng) {
     MemberRemovalResult result;
-    // INFO: bot-name selection is only needed by SyncBots now; a mid-game
-    //       replacement keeps the departing username so the engine mapping
-    //       survives.
-    (void)rng;
 
     auto member_it = std::ranges::find(members, username, &LobbyMember::username);
     if (member_it == members.end()) return result;
@@ -154,8 +150,15 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
         result.old_username = old_name;
         members.erase(member_it);
     } else if (settings.allow_bot_replacement) {
-        // INFO: keep the seat and username so the engine mapping holds; the
-        //       member flag alone routes the seat through the bot policy.
+        // INFO: the seat moves to a fresh bot name. Keeping the leaver's name
+        //       left their socket bound to the match stream and let a
+        //       username-keyed rejoin pull them straight back into the game.
+        const std::string bot_name = PickBotName(rng);
+        if (session->HandSeatToBot(old_name, bot_name)) {
+            member_it->username = bot_name;
+        } else {
+            session->BindSocket(old_name, nullptr);
+        }
         member_it->is_bot = true;
         member_it->is_connected = true;
         member_it->socket = nullptr;
@@ -163,8 +166,9 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
 
         result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
         result.old_username = old_name;
-        result.new_bot_name = old_name;
+        result.new_bot_name = member_it->username;
     } else {
+        session->BindSocket(old_name, nullptr);
         members.erase(member_it);
 
         result.match_outcome = MemberRemovalOutcome::kPlayerDroppedFromEngine;

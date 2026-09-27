@@ -170,6 +170,21 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     return true;
 }
 
+bool MatchSession::HandSeatToBot(const std::string& old_username,
+                                 const std::string& bot_name) {
+    if (!RebindPlayer(old_username, bot_name, nullptr)) return false;
+
+    const std::optional<match::ecs::Entity> player =
+        engine_->FindPlayer(bot_name);
+    if (player.has_value()) {
+        match::ecs::PlayerInfo* info =
+            engine_->Store().Get<match::ecs::PlayerInfo>(*player);
+        if (info != nullptr) info->is_bot = true;
+    }
+    sockets_[bot_name] = nullptr;
+    return true;
+}
+
 bool MatchSession::BindSocket(const std::string& username,
                               AppWebSocket* socket) {
     auto it = sockets_.find(username);

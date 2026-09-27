@@ -394,6 +394,32 @@ TEST_CASE("lobby: RemoveMember replaces the departing player with a bot") {
     CHECK(bot_present);
 }
 
+TEST_CASE("lobby: a bot replacement renames the seat and unbinds the leaver") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_replacement = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+    auto* leaver_socket = reinterpret_cast<AppWebSocket*>(0x1);
+    REQUIRE(lobby.session->BindSocket("Alice", leaver_socket));
+
+    std::mt19937 rng(42);
+    auto result = lobby.RemoveMember("Alice", rng);
+
+    REQUIRE_EQ(result.match_outcome, MemberRemovalOutcome::kPlayerReplacedByBot);
+    CHECK_NE(result.new_bot_name, "Alice");
+    CHECK(lobby.FindMember("Alice") == nullptr);
+    CHECK_FALSE(lobby.session->Engine().FindPlayer("Alice").has_value());
+    CHECK(lobby.session->Engine().FindPlayer(result.new_bot_name).has_value());
+
+    const auto& sockets = lobby.session->Sockets();
+    CHECK_FALSE(sockets.contains("Alice"));
+    REQUIRE(sockets.contains(result.new_bot_name));
+    CHECK(sockets.at(result.new_bot_name) == nullptr);
+}
+
 TEST_CASE("lobby: RemoveMember replacing the current turn-holder reports was_their_turn") {
     Lobby lobby;
     lobby.id = 1;
