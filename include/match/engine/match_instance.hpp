@@ -212,6 +212,15 @@ public:
     bool WindowOpen() const;
 
     /**
+     * @brief True when `RespondWindow(player, card)` would accept the card.
+     *
+     * Side-effect free: open window, pending responder, card in hand, the
+     * restriction pipeline and the window's `respond_with`. Drives the
+     * snapshot's `can_play` while a window is open.
+     */
+    bool CanRespondWindow(ecs::Entity player, ecs::Entity card) const;
+
+    /**
      * @brief Deterministic response-window state JSON (headless assertions).
      *
      * Shape: `{open, id, responders[], default_route, filter_digest,

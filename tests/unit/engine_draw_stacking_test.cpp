@@ -394,3 +394,39 @@ TEST_CASE("engine draw_stacking: a second window over the play records once") {
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(HandSize(*engine, player1) == victim_hand + 2);
 }
+
+TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> stack2 = FindCard(*engine, "green", "+2");
+    const std::optional<ecs::Entity> filler0 = FindCard(*engine, "blue", "5");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(draw2.has_value());
+    REQUIRE(stack2.has_value());
+    REQUIRE(filler0.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2, *filler0});
+    ForceHand(*engine, player1, {*stack2, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+
+    CHECK_FALSE(engine->CanRespondWindow(player1, *stack2));
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+
+    // INFO: the out-of-turn responder may stack, but only with a +N; the
+    //       player who opened the window is not a responder.
+    CHECK(engine->CanRespondWindow(player1, *stack2));
+    CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
+    CHECK_FALSE(engine->CanRespondWindow(player0, *filler0));
+
+    REQUIRE(engine->RespondWindow("player1", *stack2));
+    CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
+}

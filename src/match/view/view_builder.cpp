@@ -350,14 +350,19 @@ json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
  * Mirrors the engine's restriction pipeline (`BuildPlayAttempt` +
  * `CheckPlayRestrictions`) through public accessors only, because that path
  * is private and the view layer must not modify the engine. Out-of-turn is
- * `false` (the legacy `SerializeHandFor` behaviour). Reuses the engine's frozen
- * `PlayRestriction` entries, `PlayConditionMatcher` and `card_facts`; it adds
- * no second state model.
+ * `false` (the legacy `SerializeHandFor` behaviour) except for a window
+ * responder, which defers to `MatchInstance::CanRespondWindow`. Reuses the
+ * engine's frozen `PlayRestriction` entries, `PlayConditionMatcher` and
+ * `card_facts`; it adds no second state model.
  */
 bool CanPlay(const match::engine::MatchInstance& match, ecs::Entity player,
              ecs::Entity card) {
     const ecs::EntityStore& store = match.Store();
     const match::engine::MatchRegistries& registries = match.Registries();
+    // INFO: While a window is open only its pending responders
+    //       may play, and only cards the window accepts (out of turn too).
+    if (match.WindowOpen()) return match.CanRespondWindow(player, card);
+
     const std::optional<ecs::Entity> current = match.GetCurrentPlayer();
     const bool in_turn = current.has_value() && *current == player;
     if (!in_turn) return false;

@@ -1231,6 +1231,37 @@ void MatchInstance::CloseWindowRoute(const std::string& route,
                  pause.settle_play, pause.actor);
 }
 
+bool MatchInstance::CanRespondWindow(ecs::Entity player,
+                                     ecs::Entity card) const {
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (!pending_window_.has_value()) return false;
+
+    const ecs::EntityStore& store = assembly_->store;
+    const ecs::WindowState* window =
+        store.Get<ecs::WindowState>(assembly_->registries.match);
+    if (window == nullptr || !window->open) return false;
+    if (std::find(window->responders.begin(), window->responders.end(), player)
+        == window->responders.end()) {
+        return false;
+    }
+    for (const ecs::WindowResponse& existing : window->responses) {
+        if (existing.responder == player) return false;
+    }
+    const ecs::Hand* hand = store.Get<ecs::Hand>(player);
+    if (hand == nullptr
+        || std::find(hand->cards.begin(), hand->cards.end(), card)
+               == hand->cards.end()) {
+        return false;
+    }
+
+    const std::optional<ecs::Entity> current = CurrentPlayer();
+    const bool in_turn = current.has_value() && (*current == player);
+    const modload::PlayAttempt attempt =
+        BuildPlayAttempt(player, card, in_turn);
+    return CheckPlayRestrictions(attempt).allowed
+           && ResponseEligible(pending_window_->request.respond_with, attempt);
+}
+
 bool MatchInstance::RespondWindow(const std::string& username,
                                   ecs::Entity card) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
