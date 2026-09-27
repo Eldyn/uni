@@ -63,6 +63,11 @@ describe("dealOrder", () => {
 		expect(dealOrder(roster4, null)).toEqual(["alice", "bob", "carol", "dave"]);
 		expect(dealOrder(roster4, undefined)).toEqual(["alice", "bob", "carol", "dave"]);
 	});
+
+	it("falls back to the raw order for a set-but-unseated POV (no phantom seat)", () => {
+		expect(dealOrder(roster4, "ghost")).toEqual(["alice", "bob", "carol", "dave"]);
+		expect(dealOrder(roster4, "ghost")).not.toContain("ghost");
+	});
 });
 
 describe("startingHandCount", () => {

@@ -21,14 +21,15 @@ const DEAL_STAGGER_MIN_S = 0.05;
 const DEAL_STAGGER_BUDGET_S = 1.6;
 
 /** Seats in deal order: opponents in turn order starting after the POV
- *  player, then the POV player last. An absent POV falls back to the raw
- *  player order (no duplicate appended). */
+ *  player, then the POV player last. An absent — or set-but-not-in-roster —
+ *  POV falls back to the raw player order (no phantom seat appended). */
 export function dealOrder(
 	players: readonly GamePlayer[],
 	povUsername: string | null | undefined
 ): string[] {
 	const opponents = rotatedOpponentsFor(players, povUsername).map((p) => p.username);
-	return povUsername ? [...opponents, povUsername] : opponents;
+	const povIsSeated = povUsername != null && players.some((p) => p.username === povUsername);
+	return povIsSeated ? [...opponents, povUsername] : opponents;
 }
 
 /** Per-player deal count: the local hand's length when known and non-empty,
