@@ -1692,6 +1692,20 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
             broadcaster_.Send(result.socket, response.dump(), uWS::OpCode::TEXT);
         }
 
+        // INFO: an explicit leave / kick during the loading barrier counts the
+        //       seat as loaded so the survivors do not wait out the `ready_`
+        //       timeout. The bot-replacement path has
+        //       already renamed and cleared the pending entry, so drive the
+        //       hook off the barrier's completion, not MarkSeatReady's return.
+        //       The abort path tears the session down instead.
+        if (lobby.session &&
+            result.match_outcome != MemberRemovalOutcome::kMatchAborted) {
+            lobby.session->MarkSeatReady(result.old_username, broadcaster_);
+            if (lobby.session->ReadyBarrierComplete()) {
+                for (auto& cb : on_match_seat_disconnected_) cb(&lobby);
+            }
+        }
+
         switch (result.match_outcome) {
             case MemberRemovalOutcome::kMatchAborted: {
                 Logger::Info("[Match] Human '", result.old_username,

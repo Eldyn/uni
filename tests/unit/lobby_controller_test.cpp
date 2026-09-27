@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <action_router.hpp>
 #include <controllers/lobby_controller.hpp>
+#include <controllers/match_controller.hpp>
 #include <common/ws.hpp>
 #include <database.hpp>
 #include <match/ecs/compact_card.hpp>
@@ -1262,5 +1263,94 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
 
     CleanupUsers({alice, bob});
 }
+
+// ---------------------------------------------------------------------------
+// Review fix (Important): an explicit leave or kick during the loading barrier
+// must count the seat as loaded, so the survivors don't wait out the `ready_`
+// timer. Before the fix, RemoveMember never touched the barrier and a leaver
+// stayed pending until the 15 s timeout. Uses a real LobbyController wired to a
+// real MatchController (the production hook owner).
+// ---------------------------------------------------------------------------
+TEST_SUITE("LobbyController::ReadyBarrier") {
+TEST_CASE("leave: a seated player leaving during the ready barrier opens it") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp != nullptr);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(lp->session->ReadyBarrierOpen());
+
+    // INFO: bob reports loaded; only the leaver (alice) is still pending, so
+    //       the removal must complete and open the barrier.
+    f.router.Dispatch(f.bctx(),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE_FALSE(lp->session->ReadyBarrierComplete());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), leave_msg());
+
+    CHECK(lp->session->ReadyBarrierOpen());
+    CHECK_FALSE(f.timers.Has("ready_1"));
+
+    bool bob_saw_begin = false;
+    for (const SentFrame& frame : f.bus.sent) {
+        if (frame.to != f.bob_sock) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_event"
+            && packet.value("type", std::string()) == "match_begin") {
+            bob_saw_begin = true;
+        }
+    }
+    CHECK(bob_saw_begin);
+}
+
+TEST_CASE("leave: the dropped-from-engine branch also opens the barrier when last") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+
+    std::string code = f.alice_creates();
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp != nullptr);
+    // INFO: force the `kPlayerDroppedFromEngine` outcome instead of bot
+    //       replacement, so this exercises the branch where the barrier entry
+    //       is still pending when RemoveMember runs.
+    lp->settings.allow_bot_replacement = false;
+
+    f.bob_joins(code);
+    // INFO: a third human keeps the lobby above the 2-member abort floor after
+    //       the dropped seat is erased (`CheckMatchIntegrity`).
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    WsContext cctx = make_ctx(carol_sock, &carol_sd);
+    f.router.Dispatch(cctx, join_msg(code));
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(cctx, toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(lp->session->ReadyBarrierOpen());
+    // INFO: bob + carol report loaded; only the leaver (alice) stays pending.
+    f.router.Dispatch(f.bctx(),
+                      json{{"action", ws::ClientAction::kMatchClientReady}});
+    f.router.Dispatch(cctx, json{{"action", ws::ClientAction::kMatchClientReady}});
+    REQUIRE_FALSE(lp->session->ReadyBarrierComplete());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), leave_msg());
+
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->session->ReadyBarrierOpen());
+    CHECK_FALSE(f.timers.Has("ready_1"));
+}
+}  // TEST_SUITE("LobbyController::ReadyBarrier")
 
 } // TEST_SUITE
