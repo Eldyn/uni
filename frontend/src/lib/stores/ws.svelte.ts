@@ -38,7 +38,8 @@ export type MessageHandler = (data: Record<string, unknown>) => void;
  */
 const MULTI_HANDLER_EXEMPT_ACTIONS = new Set<string>([
 	// App.svelte's boot-time analytics/toast handler and chat.svelte.ts's
-	// composer-error handler are both permanent and both register at boot.
+	// composer-error handler are both permanent and both register at boot, as
+	// does game.svelte.ts's action-latch release.
 	"error",
 	// game.svelte.ts's permanent match-state handler and lobby.svelte.ts's
 	// transient #armMatchRedirect handler (rearmed on every rejoin/match start)

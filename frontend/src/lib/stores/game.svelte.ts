@@ -650,6 +650,13 @@ class StoreGame implements SessionStore {
 		// INFO: the single MatchEvent subscription — `ws.on` warns in
 		// DEV for a non-exempt action with more than one handler.
 		ws.on(ServerAction.MatchEvent, (data) => this.#onMatchEventFrame(data));
+
+		// INFO: a rejected play/draw (e.g. an unplayable card) answers with a
+		//       bare error frame and no state update, so without this the
+		//       latch swallows every action until the 3 s safety timer fires.
+		ws.on(ServerAction.Error, () => {
+			if (this.isActionPending) this.#clearActionPending();
+		});
 	}
 
 	/**
