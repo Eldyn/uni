@@ -122,4 +122,79 @@ describe("AmbientDust3D continuous clock", () => {
 		step();
 		expect(material.uniforms.uRippleElapsed.value).toBeCloseTo(0.05, 6);
 	});
+
+	it("retains the wild puff snapshot after the ripple ends so the held impulse never snaps back", async () => {
+		const nowSpy = vi.spyOn(performance, "now");
+		nowSpy.mockReturnValue(1000);
+
+		render(AmbientDust3D, { props: { mat, viewport } });
+		await flush();
+		const material = dustMaterial();
+		const step = latestTaskCallback();
+
+		storeMatRipple.active = true;
+		storeMatRipple.strength = "wild";
+		storeMatRipple.originUv = { u: 0.5, v: 0.5 };
+		storeMatRipple.startTimeMs = 5000;
+		storeMatRipple.durationMs = 480;
+		storeMatRipple.maxRadius = 1;
+
+		nowSpy.mockReturnValue(5480);
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(1);
+
+		// The mat ripple commits and clears, but the dust puff must hold: a
+		// snapshot dropped here would snap every displaced mote back to its
+		// undisplaced position.
+		storeMatRipple.active = false;
+		nowSpy.mockReturnValue(5600);
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(1);
+		expect(material.uniforms.uRippleElapsed.value).toBeCloseTo(0.6, 6);
+
+		// Far past the old 900ms retention window (expiresAtMs = 6380): the
+		// snapshot must still be live for the whole match.
+		nowSpy.mockReturnValue(60000);
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(1);
+		expect(material.uniforms.uRippleElapsed.value).toBeCloseTo(55, 6);
+	});
+
+	it("does not snapshot a normal ripple, and drops the snapshot on unmount", async () => {
+		const nowSpy = vi.spyOn(performance, "now");
+		nowSpy.mockReturnValue(1000);
+
+		render(AmbientDust3D, { props: { mat, viewport } });
+		await flush();
+		let material = dustMaterial();
+		let step = latestTaskCallback();
+
+		// A normal ripple must not trigger the wild puff at all.
+		storeMatRipple.active = true;
+		storeMatRipple.strength = "normal";
+		storeMatRipple.originUv = { u: 0.5, v: 0.5 };
+		storeMatRipple.startTimeMs = 5000;
+		storeMatRipple.durationMs = 480;
+		storeMatRipple.maxRadius = 1;
+		nowSpy.mockReturnValue(5100);
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(0);
+
+		// A wild ripple then takes, proving the snapshot path is live...
+		storeMatRipple.strength = "wild";
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(1);
+
+		// ...and a fresh mount (a new match) starts with no carried snapshot.
+		storeMatRipple.active = false;
+		cleanup();
+		resetMockState();
+		nowSpy.mockReturnValue(70000);
+		render(AmbientDust3D, { props: { mat, viewport } });
+		await flush();
+		material = dustMaterial();
+		step = latestTaskCallback();
+		step();
+		expect(material.uniforms.uRippleWild.value).toBe(0);
+	});
 });

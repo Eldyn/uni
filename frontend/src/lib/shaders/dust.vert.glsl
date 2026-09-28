@@ -9,9 +9,9 @@
 // A second, independent motion layer rides on top: the wild-ripple puff. It
 // doesn't touch aSeed or the drift/bob math above it — near the front it only
 // lifts and pushes motes in world space. The *arrival* test stays step-based
-// (the ripple front it mirrors is stepped at 12fps), but the puff's decay
-// rides uRippleElapsed, so the blow animates smoothly at the frame rate.
-//
+// (the ripple front it mirrors is stepped at 12fps), but the puff's impulse
+// rides uRippleElapsed, so the knock ramps in smoothly at the frame rate.
+
 // highp because uTime is unbounded seconds since mount: at mediump's ~10-bit
 // mantissa the fractional drift/bob motion loses all resolution after a few
 // minutes, and mobile GLSL ES defaults vertex floats to mediump.
@@ -58,14 +58,19 @@ const float DUST_MAX_ALPHA = 0.35;
 // Wild puff: motes within DUST_WILD_PROXIMITY_HEIGHT world units of the mat
 // plane are eligible; a passed mote is lifted DUST_WILD_LIFT world units
 // upward and pushed DUST_WILD_PUSH world units radially outward from the
-// ripple origin, both decaying back to zero over DUST_WILD_LIFT_SECONDS. All
-// WORLD units — the puff is a world-space displacement, not a pixel-grid
-// effect, so it must never be scaled by uBlockWorldSize (one felt art pixel,
-// ~0.03 world units, which shrank the old block-scaled blow to invisibility).
-const float DUST_WILD_LIFT_SECONDS = 0.9;
+// ripple origin. Both are an impulse, not a decay: the offset ramps in over
+// DUST_WILD_IMPULSE_RAMP seconds after the front passes and then HOLDS at
+// full strength (the front carries the gate, so a passed mote stays knocked
+// for as long as the snapshot is retained — see AmbientDust3D.svelte). A
+// decaying offset would read as the mote travelling back toward the origin
+// (inward flow) and as a sustained push. All WORLD units — the puff is a
+// world-space displacement, not a pixel-grid effect, so it must never be
+// scaled by uBlockWorldSize (one felt art pixel, ~0.03 world units, which
+// shrank the old block-scaled blow to invisibility).
+const float DUST_WILD_IMPULSE_RAMP = 0.12;
 const float DUST_WILD_PROXIMITY_HEIGHT = 2.5;
 const float DUST_WILD_LIFT = 1.8;
-const float DUST_WILD_PUSH = 1.3;
+const float DUST_WILD_PUSH = 1.6;
 // The board-wide 12fps pixel-look grid (ripplePlan.ts's AMBIENT_STEP_FPS) —
 // the ripple front advances in these whole steps, not continuously, so the
 // puff's "has the front passed this mote" test below must reason in the same
@@ -120,8 +125,8 @@ void main() {
 	// a step late (or early) relative to the playmat's own sweep. The step
 	// comparison is entirely integer now, so both agree on every step. The
 	// arrival test stays step-based (the front it mirrors has no sub-step
-	// position), but the decay is measured from uRippleElapsed — continuous
-	// seconds since the sweep started — so the lift and push animate smoothly
+	// position), but the impulse is measured from uRippleElapsed — continuous
+	// seconds since the sweep started — so the lift and push ramp in smoothly
 	// at the frame rate instead of jumping once per 12fps step.
 	if (
 		uRippleWild > 0.5 &&
@@ -137,15 +142,15 @@ void main() {
 			arrivalStep = clamp(arrivalStep, 0.0, uRippleTotalSteps - 1.0);
 			if (uRippleStep >= arrivalStep) {
 				float sincePassed = uRippleElapsed - arrivalStep * DUST_STEP_SECONDS;
-				if (sincePassed <= DUST_WILD_LIFT_SECONDS) {
-					float decay =
-						1.0 - clamp(sincePassed, 0.0, DUST_WILD_LIFT_SECONDS) / DUST_WILD_LIFT_SECONDS;
-					basePosition.y += DUST_WILD_LIFT * decay;
-					// Outward from the origin: a blow scatters motes away, not
-					// just up. Guard dist 0 (normalize would divide by a
-					// zero-length vector).
-					basePosition.xz += (toMote / max(dist, 1e-4)) * (DUST_WILD_PUSH * decay);
-				}
+				// Fast ramp 0 -> 1, then held at 1: an impulse, never a
+				// reverse. smoothstep also clamps the sub-step gap on the
+				// arrival frame to 0.
+				float impulse = smoothstep(0.0, DUST_WILD_IMPULSE_RAMP, sincePassed);
+				basePosition.y += DUST_WILD_LIFT * impulse;
+				// Outward from the origin: a blow scatters motes away, not
+				// just up. Guard dist 0 (normalize would divide by a
+				// zero-length vector).
+				basePosition.xz += (toMote / max(dist, 1e-4)) * (DUST_WILD_PUSH * impulse);
 			}
 		}
 	}

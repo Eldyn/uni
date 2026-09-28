@@ -132,23 +132,19 @@
 		};
 	});
 
-	// The wild ripple's uniform data is snapshotted while it runs and kept
-	// alive after storeMatRipple clears, so the puff can finish decaying
-	// (DUST_WILD_LIFT_SECONDS in dust.vert.glsl, whose continuous decay the
-	// last mote only starts at the sweep's final step) instead of snapping
-	// flat the instant `active` flips false. `expiresAtMs` bounds the
-	// retention: sweep end plus the decay window, kept >= the shader's
-	// DUST_WILD_LIFT_SECONDS (0.9s) so the window never truncates a mote
-	// that is still visibly decaying.
-	const DUST_PUFF_DECAY_MS = 900;
-
+	// The wild ripple's uniform data is snapshotted while it runs and then
+	// retained for the rest of the match. The puff impulse (dust.vert.glsl)
+	// HOLDS at full strength once a mote's front has passed rather than
+	// decaying, so dropping the snapshot when the sweep ends would snap every
+	// displaced mote back to its undisplaced position. A newer wild ripple
+	// simply replaces the snapshot; unmounting (the component is remounted per
+	// match) drops it, so it can never leak across matches.
 	interface DustRippleSnapshot {
 		originX: number;
 		originZ: number;
 		startTimeMs: number;
 		maxRadiusWorld: number;
 		totalSteps: number;
-		expiresAtMs: number;
 	}
 
 	// Ripple-relative step, computed on the CPU with the same
@@ -165,7 +161,9 @@
 	// frame invalidates. Scene3D only mounts this component at all when
 	// ambientDustActive is true, which is where the "don't pay for this
 	// otherwise" gating lives. The ripple's arrival test still steps at 12fps
-	// (uRippleStep), but the puff decay rides the continuous uRippleElapsed.
+	// (uRippleStep), but the puff impulse rides the continuous uRippleElapsed.
+	// A retained snapshot keeps uRippleElapsed (and uRippleStep) advancing
+	// past the sweep, which is what holds every passed mote's impulse at 1.
 	useTask(
 		() => {
 			const now = performance.now();
@@ -179,12 +177,8 @@
 					originZ: worldZ,
 					startTimeMs: ripple.startTimeMs,
 					maxRadiusWorld: ripple.maxRadius * worldUnitsPerUv(mat),
-					totalSteps: rippleStepCount(ripple.durationMs),
-					expiresAtMs: ripple.startTimeMs + ripple.durationMs + DUST_PUFF_DECAY_MS
+					totalSteps: rippleStepCount(ripple.durationMs)
 				};
-			}
-			if (rippleSnapshot !== null && now > rippleSnapshot.expiresAtMs) {
-				rippleSnapshot = null;
 			}
 
 			if (rippleSnapshot !== null) {
@@ -203,6 +197,7 @@
 	);
 
 	onDestroy(() => {
+		rippleSnapshot = null;
 		disposeGeometry();
 		material.dispose();
 	});

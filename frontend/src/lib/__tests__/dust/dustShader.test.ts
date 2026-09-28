@@ -57,9 +57,29 @@ describe("buildDustVertexShader", () => {
 		// Eligibility is a bare world-unit comparison, never multiplied back
 		// by uBlockWorldSize.
 		expect(src).toMatch(/abs\(basePosition\.y\)\s*<=\s*DUST_WILD_PROXIMITY_HEIGHT/);
+		// Tightened regression guard: the lift/push must never be scaled back
+		// into block units. `toContain("DUST_WILD_LIFT")` alone was satisfied
+		// by unrelated names like DUST_WILD_LIFT_SECONDS, so it could not
+		// catch the original block-scaling bug that shrank the blow to
+		// invisibility (one block ≈ 0.03 world units).
+		expect(src).not.toMatch(/DUST_WILD_LIFT\s*\*\s*uBlockWorldSize/);
+		expect(src).not.toMatch(/DUST_WILD_PUSH\s*\*\s*uBlockWorldSize/);
 	});
 
-	it("decays the puff from the continuous elapsed clock, not the step grid", () => {
+	it("ramps the wild puff in and holds it, never decaying back toward the origin", () => {
+		const src = buildDustVertexShader();
+		// A fast ramp that stays at 1 after the front passes: no reverse means
+		// no visible travel back toward the origin (the reported inward flow)
+		// and no sustained push window.
+		expect(src).toMatch(/smoothstep\(0\.0,\s*DUST_WILD_IMPULSE_RAMP,\s*sincePassed\)/);
+		expect(src).toMatch(/DUST_WILD_LIFT\s*\*\s*impulse/);
+		expect(src).toMatch(/DUST_WILD_PUSH\s*\*\s*impulse/);
+		// The old decay window (and its cut-off) must be gone entirely.
+		expect(src).not.toContain("DUST_WILD_LIFT_SECONDS");
+		expect(src).not.toMatch(/1\.0\s*-\s*clamp\(sincePassed/);
+	});
+
+	it("measures the puff ramp from the continuous elapsed clock, not the step grid", () => {
 		expect(buildDustVertexShader()).toMatch(
 			/sincePassed\s*=\s*uRippleElapsed\s*-\s*arrivalStep\s*\*\s*DUST_STEP_SECONDS/
 		);
