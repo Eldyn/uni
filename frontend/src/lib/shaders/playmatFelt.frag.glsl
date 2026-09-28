@@ -27,10 +27,14 @@ const float FLASH_LIGHTEN = 0.65;
 void main() {
 	vec4 texel = texture2D(uMap, vUv);
 
-	// One block = one texel of the felt art (uBlockCount is its pixel size),
-	// so the ripple's dithered edge reads as part of the same pixel grid as
-	// the painted felt instead of a smooth vector curve laid over it.
-	float blockSize = 1.0 / max(uBlockCount.x, uBlockCount.y);
+	// One block = one art pixel (uBlockCount is the felt's art-pixel grid
+	// size, not its raw texel size — see FELT_TEXELS_PER_ART_PIXEL in
+	// Playmat3D.svelte), so the ripple's dithered edge reads as part of the
+	// same pixel grid as the painted felt instead of a smooth vector curve
+	// laid over it. Distance (dist, below) is measured in U units, so
+	// blockSize must be in U units too: dividing by uBlockCount.x alone
+	// (not max(x, y)) is what keeps the two consistent.
+	float blockSize = 1.0 / uBlockCount.x;
 	vec2 blockUv = (floor(vUv * uBlockCount) + 0.5) / uBlockCount;
 
 	vec2 delta = blockUv - uOriginUv;

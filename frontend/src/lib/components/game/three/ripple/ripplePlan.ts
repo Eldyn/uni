@@ -16,7 +16,11 @@ import type { MatPlacement } from "../../layout/playmat";
  *  instead of animating continuously. */
 export const AMBIENT_STEP_FPS = 12;
 
-const AMBIENT_STEP_MS = 1000 / AMBIENT_STEP_FPS;
+/** Exported so every consumer that needs to bucket a raw elapsed-ms value
+ *  into the same 12fps grid (Playmat3D's flash gating and step-change
+ *  detection, this file's own frontRadiusAt) divides by the identical
+ *  constant instead of each re-deriving 1000 / AMBIENT_STEP_FPS. */
+export const AMBIENT_STEP_MS = 1000 / AMBIENT_STEP_FPS;
 
 // A sweep needs at least this many steps so the 2-step wild flash (see
 // WILD_FLASH_STEPS below) always fits inside it, even at a speed multiplier
@@ -133,11 +137,22 @@ export function rippleDurationMs(strength: RippleStrength, speedMultiplier: numb
 }
 
 /**
+ * Which whole 12fps step `elapsedMs` falls in, floored to the grid
+ * (AMBIENT_STEP_MS) shared by every consumer that needs to bucket elapsed
+ * time this way: Playmat3D's step-change detection and wild-flash gating,
+ * and frontRadiusAt below. A single shared helper means none of them can
+ * drift out of sync by re-deriving the division separately.
+ */
+export function stepIndexAt(elapsedMs: number): number {
+	return Math.floor(elapsedMs / AMBIENT_STEP_MS);
+}
+
+/**
  * Radius of the ripple's leading edge at `elapsedMs`, stepped down to the
  * pixel-look's 12fps grid (AMBIENT_STEP_FPS) rather than growing
  * continuously. `durationMs` is expected to already be step-aligned (see
  * rippleStepCount) — progress is measured in whole steps completed
- * (floor(elapsedMs / stepMs) + 1) out of the total step count, so the last
+ * (stepIndexAt(elapsedMs) + 1) out of the total step count, so the last
  * visible step before completion shows the full radius rather than falling
  * a fraction of a step short of it. `durationMs <= 0` is treated as an
  * already-complete sweep and returns the full radius immediately.
@@ -146,7 +161,7 @@ export function frontRadiusAt(elapsedMs: number, durationMs: number, maxRadius: 
 	if (durationMs <= 0) return maxRadius;
 	if (elapsedMs < 0) return 0;
 	const totalSteps = rippleStepCount(durationMs);
-	const stepsElapsed = Math.floor(elapsedMs / AMBIENT_STEP_MS) + 1;
+	const stepsElapsed = stepIndexAt(elapsedMs) + 1;
 	const progress = Math.min(1, stepsElapsed / totalSteps);
 	return progress * maxRadius;
 }

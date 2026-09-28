@@ -22,12 +22,12 @@
 	import playmatFeltVertexSource from "$lib/shaders/playmatFelt.vert.glsl?raw";
 	import playmatFeltFragmentSource from "$lib/shaders/playmatFelt.frag.glsl?raw";
 	import {
-		AMBIENT_STEP_FPS,
 		NORMAL_BAND_BLOCKS,
 		WILD_BAND_BLOCKS,
 		WILD_FLASH_STEPS,
 		WILD_FLASH_RADIUS_BLOCKS,
-		frontRadiusAt
+		frontRadiusAt,
+		stepIndexAt
 	} from "./ripple/ripplePlan";
 	import { storeMatRipple, MAT_INITIAL_COLOR } from "./ripple/matRipple.svelte";
 	import type { MatPlacement } from "../layout/playmat";
@@ -59,7 +59,23 @@
 	// three.js needs real values, not the var() references the DOM side uses.
 	const TINTS: Record<string, string> = { ...CARD_COLOR_MAP };
 
-	const ONE_STEP_MS = 1000 / AMBIENT_STEP_FPS;
+	// Both playmat.png and mobile_playmat.png are upscaled pixel art, not
+	// native-resolution textures: a roundtrip downscale/upscale error probe
+	// (crop to the opaque felt bbox, downscale by each candidate factor,
+	// upscale back with nearest-neighbour, compare) found playmat.png's
+	// felt bbox is an exact 4x nearest-neighbour upscale (mean abs error
+	// 0.0000 at scale 4, and only at multiples of 4). mobile_playmat.png's
+	// felt bbox didn't reproduce that clean zero-error result at any integer
+	// scale (best candidate, scale 2, still had a nonzero 0.07 mean abs
+	// error, consistent with its crop/export path re-sampling the same
+	// source art rather than a fresh clean upscale) — so its true block size
+	// can't be independently confirmed the same way. Since both sheets are
+	// the same felt art at the same visual scale, and there's no evidence
+	// mobile_playmat.png's art pixels are actually a different size, this
+	// uses the same, confirmed-for-playmat.png value for both rather than
+	// inventing an unconfirmed per-texture number. If mobile_playmat.png's
+	// source art is ever regenerated cleanly, re-run the same probe.
+	const FELT_TEXELS_PER_ART_PIXEL = 4;
 
 	// Bayer chunk first, our own precision override next (three.js's own
 	// auto-prepended default precision already precedes all of this, but an
@@ -152,12 +168,18 @@
 			if (cancelled) return;
 			matTexture = t;
 			feltUniforms.uMap.value = t;
-			// The felt's own pixel dimensions, so the ripple's blocks align with
-			// the art's pixels instead of an arbitrary grid. Defensive against a
-			// texture without a decoded image (only happens under test mocks).
+			// The felt's own ART-pixel grid, not its raw texel size, so the
+			// ripple's blocks align with the pixel-art look instead of the
+			// texture's upscaled texel grid (see FELT_TEXELS_PER_ART_PIXEL
+			// above — at the raw texel size the band/dither/flash were only a
+			// few screen px wide). Defensive against a texture without a
+			// decoded image (only happens under test mocks).
 			const image = t.image as { width?: number; height?: number } | undefined;
 			if (image?.width && image?.height) {
-				feltUniforms.uBlockCount.value.set(image.width, image.height);
+				feltUniforms.uBlockCount.value.set(
+					image.width / FELT_TEXELS_PER_ART_PIXEL,
+					image.height / FELT_TEXELS_PER_ART_PIXEL
+				);
 			}
 			invalidate();
 		});
@@ -199,7 +221,7 @@
 			}
 
 			const elapsed = performance.now() - ripple.startTimeMs;
-			const stepIndex = Math.floor(elapsed / ONE_STEP_MS);
+			const stepIndex = stepIndexAt(elapsed);
 			if (stepIndex === lastStepIndex) return;
 			lastStepIndex = stepIndex;
 
@@ -208,8 +230,11 @@
 			feltUniforms.uOriginUv.value.set(ripple.originUv.u, ripple.originUv.v);
 			feltUniforms.uBandBlocks.value =
 				ripple.strength === "wild" ? WILD_BAND_BLOCKS : NORMAL_BAND_BLOCKS;
+			// Graded flash: full-bright on the origin step, half on the next,
+			// then off — rather than a flat on/off for the whole
+			// WILD_FLASH_STEPS window, which read as an abrupt cut.
 			feltUniforms.uFlash.value =
-				ripple.strength === "wild" && stepIndex < WILD_FLASH_STEPS ? 1 : 0;
+				ripple.strength === "wild" && stepIndex < WILD_FLASH_STEPS ? 1 - stepIndex * 0.5 : 0;
 			feltUniforms.uActive.value = 1;
 
 			const radius = frontRadiusAt(elapsed, ripple.durationMs, ripple.maxRadius);
