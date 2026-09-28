@@ -12,6 +12,7 @@
  */
 
 import { storeGame, type CardType } from "$stores/game.svelte";
+import { CARD_COLOR_MAP } from "$lib/palette";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -44,6 +45,9 @@ import {
 	type MatchEventBeat
 } from "./baseBeats.svelte";
 import type { AnimationBeat } from "./types";
+import { storeMatRipple, MAT_INITIAL_COLOR } from "../three/ripple/matRipple.svelte";
+import type { MatUv } from "../three/ripple/matRipple.svelte";
+import { originToMatUv, maxRadiusUv } from "../three/ripple/ripplePlan";
 
 type HandSnapshot = { orderIds: number[]; scrollEm: number; maxHalfSpanEm: number };
 
@@ -68,6 +72,11 @@ export function createMatchEventBeatController(deps: {
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
 }): { dispose: () => void; syncState: () => void } {
 	let lastLandingBaseDeg = 0;
+	// A wild landing whose colour choice hasn't arrived yet (active_type still
+	// reads "white" — Playmat3D's own comment on the same field): the ripple's
+	// geometry is fixed at landing, but it can't start until syncState sees the
+	// real colour land in a later snapshot.
+	let pendingWildRipple: { originUv: MatUv; maxRadius: number } | null = null;
 	// Tracks storeGame.isActionPending across snapshots to detect a play
 	// request's round-trip finishing (success OR server rejection) — see the
 	// drag-play recovery check in syncState.
@@ -265,12 +274,41 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		lastLandingBaseDeg = landingBaseDeg;
+
+		const originUv = originToMatUv(placement.discardX, placement.discardZ, placement.mat);
+		const maxRadius = maxRadiusUv(originUv, placement.mat.size[1] / placement.mat.size[0]);
+		const isWild = top.type === "white";
+		const knownWildColor =
+			state.active_type && state.active_type !== "white" ? state.active_type : undefined;
+
+		let ripple: Parameters<typeof buildPlayBeat>[0]["ripple"];
+		if (!isWild) {
+			ripple = {
+				cardColour: CARD_COLOR_MAP[top.type] ?? MAT_INITIAL_COLOR,
+				strength: "normal",
+				originUv,
+				maxRadius
+			};
+		} else if (knownWildColor) {
+			ripple = {
+				cardColour: CARD_COLOR_MAP[knownWildColor] ?? MAT_INITIAL_COLOR,
+				strength: "wild",
+				originUv,
+				maxRadius
+			};
+		} else {
+			// Wild landed but the colour pick hasn't arrived yet — syncState()
+			// resolves this once active_type stops reading "white".
+			pendingWildRipple = { originUv, maxRadius };
+		}
+
 		const playBeat = buildPlayBeat({
 			cardId: String(top.id),
 			playedByMe,
 			placement,
 			localHandSnapshot: deps.bus.localHandSnapshot,
-			landingSpinDeg: landingEntry.rotationDeg
+			landingSpinDeg: landingEntry.rotationDeg,
+			ripple
 		});
 		const shakeBeat: AnimationBeat = [{ op: "shake", target: String(top.id), payload: {} }];
 
@@ -637,6 +675,17 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		deps.bus.setActiveType(state.active_type as CardType);
+
+		if (pendingWildRipple && state.active_type && state.active_type !== "white") {
+			const { originUv, maxRadius } = pendingWildRipple;
+			pendingWildRipple = null;
+			storeMatRipple.startMatRipple(
+				CARD_COLOR_MAP[state.active_type] ?? MAT_INITIAL_COLOR,
+				"wild",
+				originUv,
+				maxRadius
+			);
+		}
 
 		for (const [flightCardId, flightUsername] of opponentDrawFlightOwners) {
 			const flightIsTurn = state.current_turn === flightUsername;

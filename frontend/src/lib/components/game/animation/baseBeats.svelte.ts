@@ -13,6 +13,8 @@ import { handSlotPose } from "../layout/handSlotPose";
 import type { BoardPlacement } from "../layout/boardPlacement";
 import type { DiscardEntry } from "../layout/discardPile";
 import { FLIP_DURATION_S } from "./stepRenderers/flip";
+import { storeMatRipple } from "../three/ripple/matRipple.svelte";
+import type { MatUv, RippleStrength } from "../three/ripple/matRipple.svelte";
 import type { AnimationBeat, AnimationStep } from "./types";
 
 // INFO: re-exported so existing importers (tests, matchEventController) keep
@@ -97,7 +99,25 @@ export function buildPlayBeat(args: {
 	 *  scatter reads as something the card rotates INTO rather than a random
 	 *  angle it teleports to the instant the flight ends. */
 	landingSpinDeg: number;
+	/** Geometry (and resolved colour) for the playmat ripple this landing
+	 *  should sweep — omitted when the caller isn't ready to start one yet
+	 *  (e.g. a wild card whose chosen colour hasn't arrived: the caller
+	 *  starts that ripple itself once the pick lands, see
+	 *  matchEventController.svelte.ts). */
+	ripple?: {
+		cardColour: string;
+		strength: RippleStrength;
+		originUv: MatUv;
+		maxRadius: number;
+	};
 }): AnimationBeat {
+	const onLanded = args.ripple
+		? () => {
+				const { cardColour, strength, originUv, maxRadius } = args.ripple!;
+				storeMatRipple.startMatRipple(cardColour, strength, originUv, maxRadius);
+			}
+		: undefined;
+
 	if (args.playedByMe) {
 		// Value already visible for your own play — a single move step.
 		return [
@@ -107,7 +127,8 @@ export function buildPlayBeat(args: {
 				payload: {
 					to: "discard-pile",
 					toScale: args.placement.centerScale,
-					toSpinDeg: args.landingSpinDeg
+					toSpinDeg: args.landingSpinDeg,
+					onComplete: onLanded
 				}
 			}
 		];
@@ -131,7 +152,8 @@ export function buildPlayBeat(args: {
 			payload: {
 				to: "discard-pile",
 				toScale: args.placement.centerScale,
-				toSpinDeg: args.landingSpinDeg
+				toSpinDeg: args.landingSpinDeg,
+				onComplete: onLanded
 			}
 		},
 		{ op: "flip", target: args.cardId, payload: { turned: false, axis: "y" } }

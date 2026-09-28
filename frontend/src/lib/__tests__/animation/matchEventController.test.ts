@@ -11,7 +11,13 @@ import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 import type { AnimationBeat } from "$components/game/animation/types";
 
 const placement: BoardPlacement = {
-	mat: {} as never,
+	mat: {
+		size: [10, 6],
+		offsetX: 0,
+		offsetZ: 0,
+		quarterTurn: false,
+		bounds: { left: -5, right: 5, far: -3, near: 3 }
+	},
 	handScale: 1,
 	centerScale: 1,
 	discardX: 0,
