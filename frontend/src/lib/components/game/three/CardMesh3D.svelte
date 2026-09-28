@@ -5,6 +5,8 @@
      remains as a separate layer above the card. -->
 <script module lang="ts">
 	import { Vector4, type WebGLProgramParametersWithUniforms } from "three";
+	import cardMeshUniforms from "$lib/shaders/cardMesh/uniforms.frag.glsl?raw";
+	import cardMeshMapFragment from "$lib/shaders/cardMesh/mapFragment.frag.glsl?raw";
 
 	export const CARD_SHADER_PROGRAM_KEY = "CardMesh3D_AtlasShader";
 	export const CARD_ALPHA_TEST = 0.5;
@@ -16,26 +18,11 @@
 		shader.uniforms.uUvRectFront = { value: uniforms.uUvRectFront };
 		shader.uniforms.uUvRectBack = { value: uniforms.uUvRectBack };
 
-		shader.fragmentShader =
-			`
-uniform vec4 uUvRectFront;
-uniform vec4 uUvRectBack;
-` + shader.fragmentShader;
+		shader.fragmentShader = cardMeshUniforms + shader.fragmentShader;
 
 		shader.fragmentShader = shader.fragmentShader.replace(
 			"#include <map_fragment>",
-			`
-#ifdef USE_MAP
-	vec4 rect = gl_FrontFacing ? uUvRectFront : uUvRectBack;
-	vec2 baseUv = vec2(gl_FrontFacing ? vMapUv.x : (1.0 - vMapUv.x), vMapUv.y);
-	vec2 atlasUv = rect.xy + baseUv * rect.zw;
-	vec4 sampledDiffuseColor = texture2D( map, atlasUv );
-	#ifdef DECODE_VIDEO_TEXTURE
-		sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
-	#endif
-	diffuseColor *= sampledDiffuseColor;
-#endif
-`
+			cardMeshMapFragment
 		);
 	}
 </script>
