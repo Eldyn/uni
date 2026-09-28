@@ -33,6 +33,19 @@ export const SEAT_LABEL_BASE_PX_PER_EM = 9;
 /** Smallest font (canvas px) a very long name is allowed to shrink to. */
 export const SEAT_LABEL_MIN_FONT_PX = 5;
 
+/** Rail radius as a fraction of the avatar box width. Kept a pure ratio (no
+ *  px floor) so the label's WORLD size tracks the avatar's at every viewport:
+ *  PlayerSeat3D scales the canvas by avatarWorld/avatarPx, so only a radius
+ *  proportional to avatarPx cancels out. A px floor here (the old
+ *  `Math.max(40, …)`) held the rail at 40px on mobile, where the avatar box is
+ *  only ~20-30px, which blew the name up relative to the avatar it labels. */
+export const SEAT_LABEL_RAIL_RATIO = 0.92;
+
+/** Arc-label rail radius (canvas px) for an avatar box `avatarPx` wide. */
+export function seatOverheadRadiusPx(avatarPx: number): number {
+	return Math.round(avatarPx * SEAT_LABEL_RAIL_RATIO);
+}
+
 /** Names shown on the arc are capped at 16 chars, ellipsized in the middle of
  *  the 16th, so an unwieldy username can't dominate the seat. */
 export function formatSeatName(username: string | undefined | null): string {

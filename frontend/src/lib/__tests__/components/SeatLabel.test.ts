@@ -4,6 +4,7 @@ import {
 	estimateTextUnits,
 	formatSeatName,
 	layoutArcGlyphs,
+	seatOverheadRadiusPx,
 	seatWorldPerPx
 } from "$components/game/three/seatLabel";
 
@@ -88,6 +89,19 @@ describe("layoutArcGlyphs", () => {
 
 		expect(Math.abs(compressed[0].x)).toBeLessThan(Math.abs(wide[0].x));
 		expect(Math.abs(compressed[2].x)).toBeLessThan(Math.abs(wide[2].x));
+	});
+});
+
+describe("seatOverheadRadiusPx", () => {
+	it("scales the rail purely with the avatar box, with no px floor", () => {
+		// Mobile avatar boxes run ~20-30px; a floor at 40 (the old behaviour)
+		// made the label's world size diverge from the avatar's on those sizes.
+		expect(seatOverheadRadiusPx(20)).toBe(18);
+		expect(seatOverheadRadiusPx(56)).toBe(52);
+		expect(seatOverheadRadiusPx(112)).toBe(103);
+		// Doubling the avatar box roughly doubles the rail (rounding aside), so
+		// the label's world size (canvas × avatarWorld/avatarPx) stays constant.
+		expect(seatOverheadRadiusPx(112)).toBeGreaterThan(seatOverheadRadiusPx(56) * 1.9);
 	});
 });
 

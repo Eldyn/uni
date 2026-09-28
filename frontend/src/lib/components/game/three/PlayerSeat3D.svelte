@@ -45,6 +45,7 @@
 		computeSeatLabelLayout,
 		drawSeatLabel,
 		formatSeatName,
+		seatOverheadRadiusPx,
 		seatWorldPerPx
 	} from "./seatLabel";
 	import { RENDER_ORDER } from "./renderOrder";
@@ -189,7 +190,7 @@
 		AVATAR_HEIGHT,
 		markerOffset[1]
 	]);
-	let overheadRadius = $derived(Math.max(40, Math.round(avatarPx * 0.92)));
+	let overheadRadius = $derived(seatOverheadRadiusPx(avatarPx));
 	// The label texture is drawn in CSS px, then scaled into the world through
 	// the same px→world ratio the avatar's frame came from — so it stays
 	// proportional to the avatar at every viewport instead of DOM-CSS-fixed.
