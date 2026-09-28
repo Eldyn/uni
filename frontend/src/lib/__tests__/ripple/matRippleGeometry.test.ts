@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	matUvToWorld,
-	rippleFrontSpeedWorldPerMs,
-	worldUnitsPerUv
-} from "$components/game/three/ripple/matRippleGeometry";
+import { matUvToWorld, worldUnitsPerUv } from "$components/game/three/ripple/matRippleGeometry";
 import { originToMatUv } from "$components/game/three/ripple/ripplePlan";
 import type { MatPlacement } from "$components/game/layout/playmat";
 
@@ -49,17 +45,5 @@ describe("matUvToWorld", () => {
 describe("worldUnitsPerUv", () => {
 	it("equals the mat's own width — one full U unit spans the sheet's width", () => {
 		expect(worldUnitsPerUv(mat({ size: [12, 8] }))).toBe(12);
-	});
-});
-
-describe("rippleFrontSpeedWorldPerMs", () => {
-	it("converts a UV radius over a duration into world units per ms", () => {
-		// radius 0.5 UV units on a 10-wide mat = 5 world units, over 250ms.
-		expect(rippleFrontSpeedWorldPerMs(0.5, 250, mat({ size: [10, 6] }))).toBeCloseTo(0.02, 10);
-	});
-
-	it("returns 0 for a non-positive duration instead of dividing by zero", () => {
-		expect(rippleFrontSpeedWorldPerMs(0.5, 0, mat())).toBe(0);
-		expect(rippleFrontSpeedWorldPerMs(0.5, -10, mat())).toBe(0);
 	});
 });

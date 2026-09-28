@@ -4,17 +4,21 @@
 // instanceMatrix. Each instance's aSeed.xyz is its spawn position in board
 // world space, aSeed.w a random phase in [0, 1) that staggers its cycle so
 // motes don't all fade in/out in lockstep.
-//
-// A second, independent motion layer rides on top: the analytic wild-ripple
-// puff. It doesn't touch aSeed or the drift/bob math above it — it only adds
-// to worldPosition.y for the handful of motes near the felt surface while a
+
+// A second, independent motion layer rides on top: the wild-ripple puff. It
+// doesn't touch aSeed or the drift/bob math above it — it only adds to
+// worldPosition.y for the handful of motes near the felt surface while a
 // wild ripple's front is passing under them.
-precision mediump float;
+//
+// highp because uTime is unbounded seconds since mount: at mediump's ~10-bit
+// mantissa the fractional drift/bob motion loses all resolution after a few
+// minutes, and mobile GLSL ES defaults vertex floats to mediump.
+precision highp float;
 
 uniform float uTime;
 uniform float uBlockWorldSize;
 uniform vec2 uRippleOriginWorld;
-uniform float uRippleStartTime;
+uniform float uRippleStep;
 uniform float uRippleMaxRadius;
 uniform float uRippleTotalSteps;
 uniform float uRippleWild;
@@ -100,28 +104,27 @@ void main() {
 	// Wild ripple puff: "has the front passed this mote yet" is decided with
 	// exactly ripplePlan.ts's frontArrivalStepIndex formula — the step at
 	// which the stepped, clamped front radius (frontRadiusAt) first reaches
-	// this mote's distance from the origin — rather than an analytic
-	// distance/speed crossing against continuous time. That distance/speed
-	// approach used to read the front as passing one 12fps step later than
-	// frontRadiusAt shows it on the playmat itself; this mirrors the same
-	// step semantics so both sweeps agree on every step, not just within one
-	// step's worth of quantization error. Once a mote is known to have been
-	// passed, its decay back down still runs on continuous time, from that
-	// step's own boundary.
+	// this mote's distance from the origin. uRippleStep is the ripple-relative
+	// step, computed on the CPU with the same stepIndexAt(now - startTimeMs)
+	// Playmat3D uses, rather than deriving it here from the global uTime grid
+	// minus a raw start time: those two clock origins disagreed by one step
+	// depending on the start phase, so the dust front could read as arriving
+	// a step late (or early) relative to the playmat's own sweep. The step
+	// comparison is entirely integer now, so both agree on every step. A
+	// passed mote's decay is likewise measured in whole steps (the ripple has
+	// no sub-step front to ride).
 	float liftHeightLimit = DUST_WILD_LIFT_HEIGHT_BLOCKS * uBlockWorldSize;
 	if (uRippleWild > 0.5 && abs(basePosition.y) <= liftHeightLimit && uRippleMaxRadius > 0.0) {
 		vec2 toMote = basePosition.xz - uRippleOriginWorld;
 		float dist = length(toMote);
 		if (dist <= uRippleMaxRadius) {
-			float currentStep = floor((uTime - uRippleStartTime) / DUST_STEP_SECONDS);
 			float arrivalStep = ceil(
 				(uRippleTotalSteps * dist) / uRippleMaxRadius - 1.0 - DUST_STEP_ROUNDING_EPSILON
 			);
 			arrivalStep = clamp(arrivalStep, 0.0, uRippleTotalSteps - 1.0);
-			if (currentStep >= arrivalStep) {
-				float arrivalTime = uRippleStartTime + arrivalStep * DUST_STEP_SECONDS;
-				float sincePassed = uTime - arrivalTime;
-				if (sincePassed >= 0.0 && sincePassed <= DUST_WILD_LIFT_SECONDS) {
+			if (uRippleStep >= arrivalStep) {
+				float sincePassed = (uRippleStep - arrivalStep) * DUST_STEP_SECONDS;
+				if (sincePassed <= DUST_WILD_LIFT_SECONDS) {
 					float lift =
 						(1.0 - sincePassed / DUST_WILD_LIFT_SECONDS) * DUST_WILD_LIFT_BLOCKS * uBlockWorldSize;
 					basePosition.y += lift;

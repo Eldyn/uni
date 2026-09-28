@@ -3,9 +3,9 @@
  * @brief Pure conversions between board world space and the playmat mesh's
  * own UV space, for the current `MatPlacement`. `ripplePlan.ts` already owns
  * origin-in-UV and max-radius-in-UV math; this module adds the inverse (UV ->
- * world) and the UV-to-world unit scale, so ambient dust can place
- * particles on the ripple's front in world space and know how fast that
- * front is moving, without re-deriving Playmat3D's own placement transform.
+ * world) and the UV-to-world unit scale, so the ambient dust can place
+ * particles on the ripple's front in world space without re-deriving
+ * Playmat3D's own placement transform.
  *
  * No Svelte state — everything here is a plain function of its arguments.
  */
@@ -35,20 +35,4 @@ export function matUvToWorld(uv: MatUv, mat: MatPlacement): [number, number] {
  */
 export function worldUnitsPerUv(mat: MatPlacement): number {
 	return mat.size[0];
-}
-
-/**
- * The ripple front's average speed in world units per millisecond, over its
- * full sweep: the world-space radius it covers (`uvRadius` converted via
- * `worldUnitsPerUv`) divided by how long the sweep takes. `durationMs <= 0`
- * is treated as an instant sweep (speed 0 — there's no front left to place
- * anything on).
- */
-export function rippleFrontSpeedWorldPerMs(
-	uvRadius: number,
-	durationMs: number,
-	mat: MatPlacement
-): number {
-	if (durationMs <= 0) return 0;
-	return (uvRadius * worldUnitsPerUv(mat)) / durationMs;
 }

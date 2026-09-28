@@ -7,6 +7,7 @@ import {
 	originToMatUv,
 	rippleDurationMs,
 	rippleStepCount,
+	stepIndexAt,
 	type RippleStrength
 } from "$components/game/three/ripple/ripplePlan";
 import type { MatPlacement } from "$components/game/layout/playmat";
@@ -208,5 +209,26 @@ describe("frontArrivalStepIndex", () => {
 	it("never reports arrival for a positive distance when maxRadius is zero", () => {
 		expect(frontArrivalStepIndex(1, 0, 100)).toBeNull();
 		expect(frontArrivalStepIndex(0, 0, 100)).toBe(0);
+	});
+});
+
+describe("stepIndexAt", () => {
+	it("buckets an elapsed duration from its own origin, not the absolute clock", () => {
+		// The ripple's step must come from (now - startTimeMs) — Playmat3D and
+		// the dust puff both need the same clock origin. Flooring `now` and
+		// `startTimeMs` independently and subtracting (what the puff shader
+		// used to do with its snapped uTime) is a different function and
+		// disagrees by a step whenever the start is not grid-aligned.
+		const start = 37.5; // deliberately off the 12fps grid
+		const now = 500;
+		expect(stepIndexAt(now - start)).toBe(stepIndexAt(462.5));
+		expect(stepIndexAt(now) - stepIndexAt(start)).not.toBe(stepIndexAt(now - start));
+	});
+
+	it("floors to the shared 12fps grid", () => {
+		expect(stepIndexAt(0)).toBe(0);
+		expect(stepIndexAt(STEP_MS - 1e-6)).toBe(0);
+		expect(stepIndexAt(STEP_MS)).toBe(1);
+		expect(stepIndexAt(STEP_MS * 2.9)).toBe(2);
 	});
 });

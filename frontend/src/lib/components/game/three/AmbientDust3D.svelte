@@ -58,7 +58,7 @@
 		uTime: { value: 0 },
 		uBlockWorldSize: { value: 1 },
 		uRippleOriginWorld: { value: new THREE.Vector2(0, 0) },
-		uRippleStartTime: { value: 0 },
+		uRippleStep: { value: 0 },
 		uRippleMaxRadius: { value: 0 },
 		uRippleTotalSteps: { value: 1 },
 		uRippleWild: { value: 0 }
@@ -136,30 +136,87 @@
 		};
 	});
 
+	// The wild ripple's uniform data is snapshotted while it runs and kept
+	// alive after storeMatRipple clears, so the puff can finish decaying
+	// (DUST_WILD_LIFT_SECONDS in dust.vert.glsl, whose step-decayed lift the
+	// last mote only starts at the sweep's final step) instead of snapping
+	// flat the instant `active` flips false. `expiresAtMs` bounds the
+	// retention: sweep end plus the decay window.
+	const DUST_PUFF_DECAY_MS = 800;
+
+	interface DustRippleSnapshot {
+		originX: number;
+		originZ: number;
+		startTimeMs: number;
+		maxRadiusWorld: number;
+		totalSteps: number;
+		expiresAtMs: number;
+	}
+
+	// Ripple-relative step, computed on the CPU with the same
+	// stepIndexAt(now - startTimeMs) Playmat3D uses, then handed to the
+	// shader as uRippleStep. Deriving it in the shader from the global
+	// uTime grid minus a raw start time disagreed by a step depending on the
+	// start phase, since uTime is snapped first and the subtraction happened
+	// second.
+	let rippleSnapshot: DustRippleSnapshot | null = null;
 	let lastStepIndex = -1;
+	let lastRippleStep = -1;
+	let lastWildActive = false;
+	let lastSweepStart = -1;
 
 	// Continuous while mounted: dust always drifts, ripple or not, so this
 	// invalidates every 12fps step regardless of ripple state — Scene3D only
 	// mounts this component at all when ambientDustActive is true, which is
-	// where the "don't pay for this otherwise" gating lives.
+	// where the "don't pay for this otherwise" gating lives. The ripple-relative
+	// step advances on its own clock origin, so it can tick on a frame the
+	// global step doesn't (and vice versa); either change must invalidate.
 	useTask(
 		() => {
-			const stepIndex = stepIndexAt(performance.now());
-			if (stepIndex === lastStepIndex) return;
-			lastStepIndex = stepIndex;
-
+			const now = performance.now();
+			const stepIndex = stepIndexAt(now);
 			uniforms.uTime.value = (stepIndex * AMBIENT_STEP_MS) / 1000;
 
 			const ripple = storeMatRipple;
-			const wild = ripple.active && ripple.strength === "wild";
-			uniforms.uRippleWild.value = wild ? 1 : 0;
-			if (wild) {
+			if (ripple.active && ripple.strength === "wild") {
 				const [worldX, worldZ] = matUvToWorld(ripple.originUv, mat);
-				uniforms.uRippleOriginWorld.value.set(worldX, worldZ);
-				uniforms.uRippleStartTime.value = ripple.startTimeMs / 1000;
-				uniforms.uRippleMaxRadius.value = ripple.maxRadius * worldUnitsPerUv(mat);
-				uniforms.uRippleTotalSteps.value = rippleStepCount(ripple.durationMs);
+				rippleSnapshot = {
+					originX: worldX,
+					originZ: worldZ,
+					startTimeMs: ripple.startTimeMs,
+					maxRadiusWorld: ripple.maxRadius * worldUnitsPerUv(mat),
+					totalSteps: rippleStepCount(ripple.durationMs),
+					expiresAtMs: ripple.startTimeMs + ripple.durationMs + DUST_PUFF_DECAY_MS
+				};
 			}
+			if (rippleSnapshot !== null && now > rippleSnapshot.expiresAtMs) {
+				rippleSnapshot = null;
+			}
+
+			let rippleStep = 0;
+			if (rippleSnapshot !== null) {
+				rippleStep = stepIndexAt(now - rippleSnapshot.startTimeMs);
+				uniforms.uRippleOriginWorld.value.set(rippleSnapshot.originX, rippleSnapshot.originZ);
+				uniforms.uRippleMaxRadius.value = rippleSnapshot.maxRadiusWorld;
+				uniforms.uRippleTotalSteps.value = rippleSnapshot.totalSteps;
+				uniforms.uRippleStep.value = rippleStep;
+			}
+			const wildActive = rippleSnapshot !== null;
+			uniforms.uRippleWild.value = wildActive ? 1 : 0;
+
+			const sweepStart = rippleSnapshot?.startTimeMs ?? -1;
+			if (
+				stepIndex === lastStepIndex &&
+				rippleStep === lastRippleStep &&
+				wildActive === lastWildActive &&
+				sweepStart === lastSweepStart
+			) {
+				return;
+			}
+			lastStepIndex = stepIndex;
+			lastRippleStep = rippleStep;
+			lastWildActive = wildActive;
+			lastSweepStart = sweepStart;
 
 			invalidate();
 		},
