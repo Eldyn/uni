@@ -1,14 +1,16 @@
 // Ambient dust: motes drift on a fixed cycle derived entirely from their own
-// spawn seed and uTime (quantized to 12fps by AmbientDust3D.svelte before it
-// ever reaches this uniform) — no per-frame CPU-side state, no
+// spawn seed and uTime (continuous seconds since mount — AmbientDust3D.svelte
+// feeds the raw frame clock, per the user's 2026-09-28 ruling that dust must
+// not step with the 12fps pixel-look grid) — no per-frame CPU-side state, no
 // instanceMatrix. Each instance's aSeed.xyz is its spawn position in board
 // world space, aSeed.w a random phase in [0, 1) that staggers its cycle so
 // motes don't all fade in/out in lockstep.
 
 // A second, independent motion layer rides on top: the wild-ripple puff. It
-// doesn't touch aSeed or the drift/bob math above it — it only adds to
-// worldPosition.y for the handful of motes near the felt surface while a
-// wild ripple's front is passing under them.
+// doesn't touch aSeed or the drift/bob math above it — near the front it only
+// lifts and pushes motes in world space. The *arrival* test stays step-based
+// (the ripple front it mirrors is stepped at 12fps), but the puff's decay
+// rides uRippleElapsed, so the blow animates smoothly at the frame rate.
 //
 // highp because uTime is unbounded seconds since mount: at mediump's ~10-bit
 // mantissa the fractional drift/bob motion loses all resolution after a few
@@ -19,6 +21,7 @@ uniform float uTime;
 uniform float uBlockWorldSize;
 uniform vec2 uRippleOriginWorld;
 uniform float uRippleStep;
+uniform float uRippleElapsed;
 uniform float uRippleMaxRadius;
 uniform float uRippleTotalSteps;
 uniform float uRippleWild;
@@ -52,12 +55,17 @@ const float DUST_MAX_QUAD_BLOCKS = 2.0;
 // lifecycle fade written to vAlpha).
 const float DUST_MIN_ALPHA = 0.12;
 const float DUST_MAX_ALPHA = 0.35;
-// Wild puff: a lifted mote decays back to its unlifted height over this many
-// seconds after the ripple front has passed it, and only lifts motes within
-// this many blocks of the mat surface (worldPosition.y == 0).
-const float DUST_WILD_LIFT_SECONDS = 0.8;
-const float DUST_WILD_LIFT_HEIGHT_BLOCKS = 3.0;
-const float DUST_WILD_LIFT_BLOCKS = 1.5;
+// Wild puff: motes within DUST_WILD_PROXIMITY_HEIGHT world units of the mat
+// plane are eligible; a passed mote is lifted DUST_WILD_LIFT world units
+// upward and pushed DUST_WILD_PUSH world units radially outward from the
+// ripple origin, both decaying back to zero over DUST_WILD_LIFT_SECONDS. All
+// WORLD units — the puff is a world-space displacement, not a pixel-grid
+// effect, so it must never be scaled by uBlockWorldSize (one felt art pixel,
+// ~0.03 world units, which shrank the old block-scaled blow to invisibility).
+const float DUST_WILD_LIFT_SECONDS = 0.9;
+const float DUST_WILD_PROXIMITY_HEIGHT = 2.5;
+const float DUST_WILD_LIFT = 1.8;
+const float DUST_WILD_PUSH = 1.3;
 // The board-wide 12fps pixel-look grid (ripplePlan.ts's AMBIENT_STEP_FPS) —
 // the ripple front advances in these whole steps, not continuously, so the
 // puff's "has the front passed this mote" test below must reason in the same
@@ -110,11 +118,16 @@ void main() {
 	// minus a raw start time: those two clock origins disagreed by one step
 	// depending on the start phase, so the dust front could read as arriving
 	// a step late (or early) relative to the playmat's own sweep. The step
-	// comparison is entirely integer now, so both agree on every step. A
-	// passed mote's decay is likewise measured in whole steps (the ripple has
-	// no sub-step front to ride).
-	float liftHeightLimit = DUST_WILD_LIFT_HEIGHT_BLOCKS * uBlockWorldSize;
-	if (uRippleWild > 0.5 && abs(basePosition.y) <= liftHeightLimit && uRippleMaxRadius > 0.0) {
+	// comparison is entirely integer now, so both agree on every step. The
+	// arrival test stays step-based (the front it mirrors has no sub-step
+	// position), but the decay is measured from uRippleElapsed — continuous
+	// seconds since the sweep started — so the lift and push animate smoothly
+	// at the frame rate instead of jumping once per 12fps step.
+	if (
+		uRippleWild > 0.5 &&
+		abs(basePosition.y) <= DUST_WILD_PROXIMITY_HEIGHT &&
+		uRippleMaxRadius > 0.0
+	) {
 		vec2 toMote = basePosition.xz - uRippleOriginWorld;
 		float dist = length(toMote);
 		if (dist <= uRippleMaxRadius) {
@@ -123,11 +136,15 @@ void main() {
 			);
 			arrivalStep = clamp(arrivalStep, 0.0, uRippleTotalSteps - 1.0);
 			if (uRippleStep >= arrivalStep) {
-				float sincePassed = (uRippleStep - arrivalStep) * DUST_STEP_SECONDS;
+				float sincePassed = uRippleElapsed - arrivalStep * DUST_STEP_SECONDS;
 				if (sincePassed <= DUST_WILD_LIFT_SECONDS) {
-					float lift =
-						(1.0 - sincePassed / DUST_WILD_LIFT_SECONDS) * DUST_WILD_LIFT_BLOCKS * uBlockWorldSize;
-					basePosition.y += lift;
+					float decay =
+						1.0 - clamp(sincePassed, 0.0, DUST_WILD_LIFT_SECONDS) / DUST_WILD_LIFT_SECONDS;
+					basePosition.y += DUST_WILD_LIFT * decay;
+					// Outward from the origin: a blow scatters motes away, not
+					// just up. Guard dist 0 (normalize would divide by a
+					// zero-length vector).
+					basePosition.xz += (toMote / max(dist, 1e-4)) * (DUST_WILD_PUSH * decay);
 				}
 			}
 		}

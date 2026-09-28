@@ -1,13 +1,14 @@
 <!-- Ambient dust drifting around the table, outside the felt as much as over
      it (dustSeeds.ts thins candidates that land on the mat itself). All
      motion is computed in dust.vert.glsl from each instance's own spawn seed
-     plus a 12fps-quantized uTime — this component only builds the instanced
-     geometry once per placement change and steps that one uniform.
+     plus a continuous uTime — this component builds the instanced geometry
+     once per placement change, advances that uniform from the raw frame
+     clock, and invalidates every frame.
 
      Only mounted by Scene3D while storeRenderSettings.ambientDustActive is
      true; this component itself doesn't gate on that setting, so the
-     continuous 12fps invalidate below is only ever paid for while dust is
-     actually wanted. -->
+     per-frame invalidate below is only ever paid for while dust is actually
+     wanted. -->
 <script lang="ts">
 	import { onDestroy } from "svelte";
 	import { T, useTask, useThrelte } from "@threlte/core";
@@ -21,12 +22,7 @@
 		type DustSpawnBounds,
 		type DustMatFootprint
 	} from "./dust/dustSeeds";
-	import {
-		AMBIENT_STEP_MS,
-		FELT_TEXELS_PER_ART_PIXEL,
-		rippleStepCount,
-		stepIndexAt
-	} from "./ripple/ripplePlan";
+	import { FELT_TEXELS_PER_ART_PIXEL, rippleStepCount, stepIndexAt } from "./ripple/ripplePlan";
 	import { matUvToWorld, worldUnitsPerUv } from "./ripple/matRippleGeometry";
 	import { storeMatRipple } from "./ripple/matRipple.svelte";
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
@@ -58,6 +54,7 @@
 		uBlockWorldSize: { value: 1 },
 		uRippleOriginWorld: { value: new THREE.Vector2(0, 0) },
 		uRippleStep: { value: 0 },
+		uRippleElapsed: { value: 0 },
 		uRippleMaxRadius: { value: 0 },
 		uRippleTotalSteps: { value: 1 },
 		uRippleWild: { value: 0 }
@@ -137,11 +134,13 @@
 
 	// The wild ripple's uniform data is snapshotted while it runs and kept
 	// alive after storeMatRipple clears, so the puff can finish decaying
-	// (DUST_WILD_LIFT_SECONDS in dust.vert.glsl, whose step-decayed lift the
+	// (DUST_WILD_LIFT_SECONDS in dust.vert.glsl, whose continuous decay the
 	// last mote only starts at the sweep's final step) instead of snapping
 	// flat the instant `active` flips false. `expiresAtMs` bounds the
-	// retention: sweep end plus the decay window.
-	const DUST_PUFF_DECAY_MS = 800;
+	// retention: sweep end plus the decay window, kept >= the shader's
+	// DUST_WILD_LIFT_SECONDS (0.9s) so the window never truncates a mote
+	// that is still visibly decaying.
+	const DUST_PUFF_DECAY_MS = 900;
 
 	interface DustRippleSnapshot {
 		originX: number;
@@ -159,22 +158,18 @@
 	// start phase, since uTime is snapped first and the subtraction happened
 	// second.
 	let rippleSnapshot: DustRippleSnapshot | null = null;
-	let lastStepIndex = -1;
-	let lastRippleStep = -1;
-	let lastWildActive = false;
-	let lastSweepStart = -1;
 
-	// Continuous while mounted: dust always drifts, ripple or not, so this
-	// invalidates every 12fps step regardless of ripple state — Scene3D only
-	// mounts this component at all when ambientDustActive is true, which is
-	// where the "don't pay for this otherwise" gating lives. The ripple-relative
-	// step advances on its own clock origin, so it can tick on a frame the
-	// global step doesn't (and vice versa); either change must invalidate.
+	// Continuous while mounted (dust must not step
+	// with the 12fps pixel-look grid — at that rate the screen read as
+	// laggy): uTime comes from the raw performance.now() clock and every
+	// frame invalidates. Scene3D only mounts this component at all when
+	// ambientDustActive is true, which is where the "don't pay for this
+	// otherwise" gating lives. The ripple's arrival test still steps at 12fps
+	// (uRippleStep), but the puff decay rides the continuous uRippleElapsed.
 	useTask(
 		() => {
 			const now = performance.now();
-			const stepIndex = stepIndexAt(now);
-			uniforms.uTime.value = (stepIndex * AMBIENT_STEP_MS) / 1000;
+			uniforms.uTime.value = now / 1000;
 
 			const ripple = storeMatRipple;
 			if (ripple.active && ripple.strength === "wild") {
@@ -192,30 +187,15 @@
 				rippleSnapshot = null;
 			}
 
-			let rippleStep = 0;
 			if (rippleSnapshot !== null) {
-				rippleStep = stepIndexAt(now - rippleSnapshot.startTimeMs);
+				const elapsedMs = now - rippleSnapshot.startTimeMs;
 				uniforms.uRippleOriginWorld.value.set(rippleSnapshot.originX, rippleSnapshot.originZ);
 				uniforms.uRippleMaxRadius.value = rippleSnapshot.maxRadiusWorld;
 				uniforms.uRippleTotalSteps.value = rippleSnapshot.totalSteps;
-				uniforms.uRippleStep.value = rippleStep;
+				uniforms.uRippleStep.value = stepIndexAt(elapsedMs);
+				uniforms.uRippleElapsed.value = Math.max(0, elapsedMs / 1000);
 			}
-			const wildActive = rippleSnapshot !== null;
-			uniforms.uRippleWild.value = wildActive ? 1 : 0;
-
-			const sweepStart = rippleSnapshot?.startTimeMs ?? -1;
-			if (
-				stepIndex === lastStepIndex &&
-				rippleStep === lastRippleStep &&
-				wildActive === lastWildActive &&
-				sweepStart === lastSweepStart
-			) {
-				return;
-			}
-			lastStepIndex = stepIndex;
-			lastRippleStep = rippleStep;
-			lastWildActive = wildActive;
-			lastSweepStart = sweepStart;
+			uniforms.uRippleWild.value = rippleSnapshot !== null ? 1 : 0;
 
 			invalidate();
 		},

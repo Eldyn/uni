@@ -39,4 +39,29 @@ describe("buildDustVertexShader", () => {
 	it("emits no bare-int float const initializer", () => {
 		expect(BARE_INT_FLOAT_CONST.test(buildDustVertexShader())).toBe(false);
 	});
+
+	it("declares the continuous ripple-elapsed uniform the puff decay rides", () => {
+		expect(buildDustVertexShader()).toContain("uniform float uRippleElapsed;");
+	});
+
+	it("sizes the wild puff in world units, not block-scaled ones", () => {
+		const src = buildDustVertexShader();
+		// The world-unit constants replaced the old per-art-pixel block ones
+		// (which scaled the whole blow down to ~0.04 world units and made it
+		// invisible).
+		expect(src).toContain("DUST_WILD_PROXIMITY_HEIGHT");
+		expect(src).toContain("DUST_WILD_LIFT");
+		expect(src).toContain("DUST_WILD_PUSH");
+		expect(src).not.toContain("DUST_WILD_LIFT_HEIGHT_BLOCKS");
+		expect(src).not.toContain("DUST_WILD_LIFT_BLOCKS");
+		// Eligibility is a bare world-unit comparison, never multiplied back
+		// by uBlockWorldSize.
+		expect(src).toMatch(/abs\(basePosition\.y\)\s*<=\s*DUST_WILD_PROXIMITY_HEIGHT/);
+	});
+
+	it("decays the puff from the continuous elapsed clock, not the step grid", () => {
+		expect(buildDustVertexShader()).toMatch(
+			/sincePassed\s*=\s*uRippleElapsed\s*-\s*arrivalStep\s*\*\s*DUST_STEP_SECONDS/
+		);
+	});
 });
