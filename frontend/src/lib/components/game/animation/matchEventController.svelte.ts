@@ -70,13 +70,24 @@ export function createMatchEventBeatController(deps: {
 	/** storeGame.onMatchEventBeat — the store buffers beats and drains them
 	 *  after the next snapshot is applied (the client). */
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
-}): { dispose: () => void; syncState: () => void } {
+}): { dispose: () => void; syncState: () => void; resetPendingWildRipple: () => void } {
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
 	// reads "white" — Playmat3D's own comment on the same field): the ripple's
 	// geometry is fixed at landing, but it can't start until syncState sees the
 	// real colour land in a later snapshot.
 	let pendingWildRipple: { originUv: MatUv; maxRadius: number } | null = null;
+
+	/** Drops any stale pending wild ripple without firing it. Callers must
+	 *  invoke this on a fresh match_start (see GameBoard.svelte's
+	 *  matchIntroPending-consuming effect): the controller is created once and
+	 *  reused across matches on the same mounted GameBoard, and a wild whose
+	 *  colour never resolved before the match ended would otherwise fire a
+	 *  ripple with the previous match's geometry once syncState next observes
+	 *  a real active_type. */
+	function resetPendingWildRipple(): void {
+		pendingWildRipple = null;
+	}
 	// Tracks storeGame.isActionPending across snapshots to detect a play
 	// request's round-trip finishing (success OR server rejection) — see the
 	// drag-play recovery check in syncState.
@@ -280,6 +291,11 @@ export function createMatchEventBeatController(deps: {
 		const isWild = top.type === "white";
 		const knownWildColor =
 			state.active_type && state.active_type !== "white" ? state.active_type : undefined;
+
+		// A new landing always supersedes whatever the previous landing was
+		// still waiting on — an unresolved wild from an earlier play must never
+		// fire against this landing's origin.
+		pendingWildRipple = null;
 
 		let ripple: Parameters<typeof buildPlayBeat>[0]["ripple"];
 		if (!isWild) {
@@ -728,7 +744,7 @@ export function createMatchEventBeatController(deps: {
 	}
 
 	const dispose = deps.subscribeBeats(handle);
-	return { dispose, syncState };
+	return { dispose, syncState, resetPendingWildRipple };
 }
 
 /** Computes the local hand's card-N slot as a world-space anchor — ported

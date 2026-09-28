@@ -344,6 +344,10 @@
 		const state = storeGame.state;
 		if (state && storeGame.introReady) {
 			storeGame.matchIntroPending = false;
+			// A fresh match reuses this same mounted controller — drop any wild
+			// ripple still waiting on a colour pick from the match that just
+			// ended, so it can never fire against the new match's geometry.
+			controller.resetPendingWildRipple();
 			introController.start(state).catch((err) => {
 				console.error("GameBoard: match-intro cinematic failed", err);
 			});
