@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import { storeGame } from "$lib/stores/game.svelte";
+import { storeGameLoader } from "$lib/stores/gameLoader.svelte";
 import { storeNavigation } from "$lib/stores/navigation.svelte";
 import GameLoader, { CYCLE_MS, FADE_MS } from "$lib/components/common/loader/GameLoader.svelte";
 
@@ -26,6 +27,7 @@ describe("GameLoader", () => {
 		storeNavigation.current = "game";
 		storeGame.matchBegun = false;
 		storeGame.readyProgress = null;
+		storeGameLoader.shown = false;
 	});
 	afterEach(() => {
 		vi.useRealTimers();
@@ -36,6 +38,36 @@ describe("GameLoader", () => {
 		render(GameLoader);
 		flushSync();
 		expect(screen.getByTestId("game-loader")).toBeTruthy();
+	});
+
+	it("publishes shown=true to storeGameLoader while the loader covers the board", () => {
+		render(GameLoader);
+		flushSync();
+		expect(storeGameLoader.shown).toBe(true);
+		storeGame.matchBegun = true;
+		flushSync();
+		expect(storeGameLoader.shown).toBe(true);
+	});
+
+	it("publishes shown=false once the loader has hidden", async () => {
+		render(GameLoader);
+		flushSync();
+		storeGame.matchBegun = true;
+		flushSync();
+		await vi.advanceTimersByTimeAsync(CYCLE_MS);
+		await vi.advanceTimersByTimeAsync(FADE_MS);
+		await vi.advanceTimersByTimeAsync(FADE_MS);
+		flushSync();
+		expect(screen.queryByTestId("game-loader")).toBeNull();
+		expect(storeGameLoader.shown).toBe(false);
+	});
+
+	it("clears storeGameLoader.shown when the loader is destroyed", () => {
+		const { unmount } = render(GameLoader);
+		flushSync();
+		expect(storeGameLoader.shown).toBe(true);
+		unmount();
+		expect(storeGameLoader.shown).toBe(false);
 	});
 
 	it("stays for at least one full cycle once shown", async () => {

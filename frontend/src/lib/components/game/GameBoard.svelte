@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { Canvas } from "@threlte/core";
 	import { storeGame, type GamePlayer } from "$stores/game.svelte";
+	import { storeGameLoader } from "$stores/gameLoader.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
 	import { createMatchEventBeatController } from "./animation/matchEventController.svelte";
 	import { createMatchIntroController } from "./animation/matchIntroController.svelte";
+	import { shouldStartMatchIntro } from "./animation/matchIntroGate";
 	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 	import { createGameLayoutContext, useGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
@@ -337,12 +339,23 @@
 	$effect(() => () => introController.dispose());
 
 	// INFO: a fresh `match_start` sets `matchIntroPending`, but the cinematic
-	// only starts once the server's ready barrier opens (`matchBegun`) — the
-	// store's `introReady` combines both. Consume-and-clear the pending flag
-	// here so a re-run (reactive read) can never start it twice.
+	// only starts once the server's ready barrier opens (`matchBegun`) AND the
+	// loading screen has unmounted — the loader keeps covering the board until
+	// its minimum cycle finishes, so starting on `introReady` alone plays the
+	// deal where the player cannot see it. Reading `storeGameLoader.shown`
+	// makes this effect re-run to start the intro once the loader hides.
+	// Consume-and-clear the pending flag here so a re-run can never start it
+	// twice.
 	$effect(() => {
 		const state = storeGame.state;
-		if (state && storeGame.introReady) {
+		if (
+			shouldStartMatchIntro({
+				hasState: state !== null,
+				introReady: storeGame.introReady,
+				loaderShown: storeGameLoader.shown
+			}) &&
+			state
+		) {
 			storeGame.matchIntroPending = false;
 			// A fresh match reuses this same mounted controller — drop any wild
 			// ripple still waiting on a colour pick from the match that just

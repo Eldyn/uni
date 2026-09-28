@@ -11,9 +11,11 @@
 
 <script lang="ts">
 	import { fade } from "svelte/transition";
+	import { onDestroy } from "svelte";
 	import LoaderCard from "./LoaderCard.svelte";
 	import { randomLoaderFaces } from "./loaderFaces";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeGameLoader } from "$stores/gameLoader.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -29,6 +31,16 @@
 	let cycle = $state(0);
 
 	const shown = $derived(visible && (waiting || !cycleDone));
+
+	// Publish visibility so the board can hold the match-start deal cinematic
+	// until this screen is gone; a stale `true` must not outlive the loader.
+	$effect(() => {
+		storeGameLoader.shown = shown;
+	});
+
+	onDestroy(() => {
+		storeGameLoader.shown = false;
+	});
 
 	$effect(() => {
 		if (waiting) visible = true;
