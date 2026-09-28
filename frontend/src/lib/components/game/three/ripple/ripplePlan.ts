@@ -173,3 +173,36 @@ export function frontRadiusAt(elapsedMs: number, durationMs: number, maxRadius: 
 	const progress = Math.min(1, stepsElapsed / totalSteps);
 	return progress * maxRadius;
 }
+
+/**
+ * Exact algebraic inverse of frontRadiusAt: the 12fps step index at which the
+ * ripple front first reaches (or exceeds) `distance`, given the same
+ * step-quantized progression (radius at step k = maxRadius * min(1, (k+1) /
+ * totalSteps)). Any caller comparing "has the front passed this point by
+ * step k" against this function's result agrees with frontRadiusAt for every
+ * step, not just within one step's worth of quantization error — see
+ * ripplePlan.test.ts's cross-check against frontRadiusAt across strengths and
+ * speed multipliers.
+ *
+ * Returns null when `distance` is farther than `maxRadius` — the front never
+ * reaches it within this sweep (dust.vert.glsl's wild puff spawns motes past
+ * the mat's own farthest corner, in the surrounding void, so this is an
+ * expected case there, not an error).
+ */
+export function frontArrivalStepIndex(
+	distance: number,
+	maxRadius: number,
+	durationMs: number
+): number | null {
+	if (maxRadius <= 0) return distance <= 0 ? 0 : null;
+	if (distance <= 0) return 0;
+	if (distance > maxRadius) return null;
+	if (durationMs <= 0) return 0;
+	const totalSteps = rippleStepCount(durationMs);
+	// Same epsilon rippleStepCount uses: a distance that's exactly radius_k
+	// for some step k can land a hair above that value once the division
+	// round-trips through floating point, which would push a bare Math.ceil
+	// up to k+1.
+	const step = Math.ceil((totalSteps * distance) / maxRadius - 1 - STEP_ROUNDING_EPSILON);
+	return Math.max(0, Math.min(totalSteps - 1, step));
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	AMBIENT_STEP_FPS,
+	frontArrivalStepIndex,
 	frontRadiusAt,
 	maxRadiusUv,
 	originToMatUv,
@@ -149,5 +150,63 @@ describe("frontRadiusAt", () => {
 	it("returns the full radius when durationMs is zero or negative", () => {
 		expect(frontRadiusAt(0, 0, 100)).toBe(100);
 		expect(frontRadiusAt(50, -10, 100)).toBe(100);
+	});
+});
+
+describe("frontArrivalStepIndex", () => {
+	const speedMultipliers = [0.5, 1, 3];
+	const strengths: RippleStrength[] = ["normal", "wild"];
+	const maxRadius = 100;
+
+	for (const strength of strengths) {
+		for (const speedMultiplier of speedMultipliers) {
+			it(`agrees with frontRadiusAt's own step at which the front first reaches a distance, for ${strength} at ${speedMultiplier}x`, () => {
+				const duration = rippleDurationMs(strength, speedMultiplier);
+				const totalSteps = duration / STEP_MS;
+
+				for (let step = 0; step < totalSteps; step++) {
+					const radiusAtStep = frontRadiusAt(step * STEP_MS, duration, maxRadius);
+					const arrivalStep = frontArrivalStepIndex(radiusAtStep, maxRadius, duration);
+
+					// The distance the front reaches exactly on `step` must be
+					// reported as arriving on some step k <= step (it may have
+					// arrived earlier, if the sweep's stepped radius plateaus),
+					// and frontRadiusAt at that arrival step must already cover
+					// this distance, while the immediately preceding step must
+					// not (unless it's the very first step).
+					expect(arrivalStep).not.toBeNull();
+					const k = arrivalStep as number;
+					expect(k).toBeLessThanOrEqual(step);
+					expect(frontRadiusAt(k * STEP_MS, duration, maxRadius)).toBeGreaterThanOrEqual(
+						radiusAtStep
+					);
+					if (k > 0) {
+						expect(frontRadiusAt((k - 1) * STEP_MS, duration, maxRadius)).toBeLessThan(
+							radiusAtStep
+						);
+					}
+				}
+			});
+		}
+	}
+
+	it("reports arrival on the very first step for a distance of zero", () => {
+		const duration = rippleDurationMs("normal", 1);
+		expect(frontArrivalStepIndex(0, maxRadius, duration)).toBe(0);
+	});
+
+	it("reports no arrival for a distance beyond maxRadius", () => {
+		const duration = rippleDurationMs("normal", 1);
+		expect(frontArrivalStepIndex(maxRadius + 1, maxRadius, duration)).toBeNull();
+	});
+
+	it("reports immediate arrival everywhere within maxRadius when durationMs is zero or negative", () => {
+		expect(frontArrivalStepIndex(50, maxRadius, 0)).toBe(0);
+		expect(frontArrivalStepIndex(50, maxRadius, -10)).toBe(0);
+	});
+
+	it("never reports arrival for a positive distance when maxRadius is zero", () => {
+		expect(frontArrivalStepIndex(1, 0, 100)).toBeNull();
+		expect(frontArrivalStepIndex(0, 0, 100)).toBe(0);
 	});
 });

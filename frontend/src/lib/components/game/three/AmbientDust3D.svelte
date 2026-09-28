@@ -22,8 +22,13 @@
 		type DustSpawnBounds,
 		type DustMatFootprint
 	} from "./dust/dustSeeds";
-	import { AMBIENT_STEP_MS, FELT_TEXELS_PER_ART_PIXEL, stepIndexAt } from "./ripple/ripplePlan";
-	import { matUvToWorld, rippleFrontSpeedWorldPerMs } from "./ripple/matRippleGeometry";
+	import {
+		AMBIENT_STEP_MS,
+		FELT_TEXELS_PER_ART_PIXEL,
+		rippleStepCount,
+		stepIndexAt
+	} from "./ripple/ripplePlan";
+	import { matUvToWorld, worldUnitsPerUv } from "./ripple/matRippleGeometry";
 	import { storeMatRipple } from "./ripple/matRipple.svelte";
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import type { MatPlacement } from "../layout/playmat";
@@ -54,7 +59,8 @@
 		uBlockWorldSize: { value: 1 },
 		uRippleOriginWorld: { value: new THREE.Vector2(0, 0) },
 		uRippleStartTime: { value: 0 },
-		uRippleSpeed: { value: 0 },
+		uRippleMaxRadius: { value: 0 },
+		uRippleTotalSteps: { value: 1 },
 		uRippleWild: { value: 0 }
 	};
 
@@ -120,21 +126,6 @@
 			nextGeometry.setIndex(new THREE.BufferAttribute(QUAD_INDICES, 1));
 			nextGeometry.setAttribute("aSeed", new THREE.InstancedBufferAttribute(seeds, 4));
 
-			// Fixed bounding sphere covering the whole spawn box, so frustum
-			// culling never has to (and never does) recompute one from the
-			// quad's own tiny local-space vertices.
-			const center = new THREE.Vector3(
-				(bounds.minX + bounds.maxX) / 2,
-				(bounds.minY + bounds.maxY) / 2,
-				(bounds.minZ + bounds.maxZ) / 2
-			);
-			const radius = Math.hypot(
-				(bounds.maxX - bounds.minX) / 2,
-				(bounds.maxY - bounds.minY) / 2,
-				(bounds.maxZ - bounds.minZ) / 2
-			);
-			nextGeometry.boundingSphere = new THREE.Sphere(center, radius);
-
 			disposeGeometry();
 			geometry = nextGeometry;
 			instanceCount = count;
@@ -166,8 +157,8 @@
 				const [worldX, worldZ] = matUvToWorld(ripple.originUv, mat);
 				uniforms.uRippleOriginWorld.value.set(worldX, worldZ);
 				uniforms.uRippleStartTime.value = ripple.startTimeMs / 1000;
-				uniforms.uRippleSpeed.value =
-					rippleFrontSpeedWorldPerMs(ripple.maxRadius, ripple.durationMs, mat) * 1000;
+				uniforms.uRippleMaxRadius.value = ripple.maxRadius * worldUnitsPerUv(mat);
+				uniforms.uRippleTotalSteps.value = rippleStepCount(ripple.durationMs);
 			}
 
 			invalidate();
@@ -182,5 +173,15 @@
 </script>
 
 {#if geometry}
-	<T.InstancedMesh args={[geometry, material, instanceCount]} frustumCulled dispose={false} />
+	<!-- The vertex shader's own drift/respawn/bob/puff-lift math moves
+	     instances well outside the spawn box any bounding volume built from
+	     seed positions alone would cover (drift alone reaches ~4.9 units past
+	     it at the far end of a cycle) — three's frustum test has no way to
+	     see that GPU-side displacement, so it would wrongly cull the whole
+	     draw. Disabling it costs one draw of at most 160 quads. -->
+	<T.InstancedMesh
+		args={[geometry, material, instanceCount]}
+		frustumCulled={false}
+		dispose={false}
+	/>
 {/if}
