@@ -207,4 +207,13 @@ describe("RenderSettings active getters", () => {
 		expect(store.matRippleActive).toBe(false);
 		expect(store.matRipple).toBe(true);
 	});
+
+	it("ambientDustActive is false when animations are disabled", () => {
+		const store = new RenderSettings();
+		store.ambientDust = true;
+		storeAnimation.enabled = false;
+
+		expect(store.ambientDustActive).toBe(false);
+		expect(store.ambientDust).toBe(true);
+	});
 });

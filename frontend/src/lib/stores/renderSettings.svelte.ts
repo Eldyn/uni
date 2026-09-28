@@ -136,10 +136,10 @@ export class RenderSettings {
 		return this.#matRipple && !storeWebglCapability.reducedMotion && storeAnimation.enabled;
 	}
 
-	/** Combines the saved toggle with the reduced-motion runtime gate.
-	 *  Reduced motion never mutates `#ambientDust` itself. */
+	/** Combines the saved toggle with the reduced-motion and animation-enabled
+	 *  runtime gates. Reduced motion never mutates `#ambientDust` itself. */
 	get ambientDustActive(): boolean {
-		return this.#ambientDust && !storeWebglCapability.reducedMotion;
+		return this.#ambientDust && !storeWebglCapability.reducedMotion && storeAnimation.enabled;
 	}
 
 	#persist(): void {
