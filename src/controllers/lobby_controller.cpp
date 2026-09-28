@@ -895,6 +895,24 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
     const std::string& username = ctx.socket_data->username;
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
+        // INFO: a rejoin must rebind the member record and the socket's lobby
+        //       metadata exactly like a fresh open
+        //       (LobbyController::OnOpen). Rebinding only the live session
+        //       leaves `member.socket` and `socket_data->lobby_code` stale, so
+        //       OnClose (which keys off `lobby_code`) can never clear the old
+        //       socket and the next match broadcast sends through a freed
+        //       `AppWebSocket*`.
+        for (auto& member : lobby.members) {
+            if (member.username != username) continue;
+            member.socket          = ctx.socket;
+            member.is_connected    = true;
+            member.disconnected_at = steady_clock::time_point{};
+            break;
+        }
+        ctx.socket_data->lobby_code = lobby.invite_code;
+        ctx.socket_data->lobby_id   = lobby.id;
+        presence_.SetUserLobby(username, lobby.id);
+
         std::string topic = "lobby_" + lobby.invite_code;
         broadcaster_.Subscribe(ctx.socket, topic);
 
