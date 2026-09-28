@@ -21,8 +21,7 @@ export const WILD_FLASH_RADIUS_PLACEHOLDER = "__WILD_FLASH_RADIUS_BLOCKS__";
 export const FELT_PRECISION_PREFIX = "precision highp float;\n\n";
 
 export function buildFeltFragmentShader(): string {
-	return (FELT_PRECISION_PREFIX + bayerDither + playmatFeltFragmentSource).replaceAll(
-		WILD_FLASH_RADIUS_PLACEHOLDER,
-		String(WILD_FLASH_RADIUS_BLOCKS)
-	);
+	return (FELT_PRECISION_PREFIX + bayerDither + playmatFeltFragmentSource)
+		.split(WILD_FLASH_RADIUS_PLACEHOLDER)
+		.join(String(WILD_FLASH_RADIUS_BLOCKS));
 }
