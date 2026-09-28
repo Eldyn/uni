@@ -22,6 +22,14 @@ export const AMBIENT_STEP_FPS = 12;
  *  constant instead of each re-deriving 1000 / AMBIENT_STEP_FPS. */
 export const AMBIENT_STEP_MS = 1000 / AMBIENT_STEP_FPS;
 
+/** The felt art's own upscale factor from playmat.png/mobile_playmat.png's
+ *  raw texels to a single painted "art pixel" — one block in the ripple's
+ *  and the ambient dust's pixel-grid math (see Playmat3D.svelte's probe
+ *  methodology comment for how this was measured). Kept here as the single
+ *  source both Playmat3D.svelte and AmbientDust3D.svelte import, rather than
+ *  each defining (and risking disagreeing on) their own copy. */
+export const FELT_TEXELS_PER_ART_PIXEL = 4;
+
 // A sweep needs at least this many steps so the 2-step wild flash (see
 // WILD_FLASH_STEPS below) always fits inside it, even at a speed multiplier
 // high enough that the raw duration would otherwise round to a single step.

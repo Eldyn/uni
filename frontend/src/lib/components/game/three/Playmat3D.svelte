@@ -26,6 +26,7 @@
 		WILD_BAND_BLOCKS,
 		WILD_FLASH_STEPS,
 		WILD_FLASH_RADIUS_BLOCKS,
+		FELT_TEXELS_PER_ART_PIXEL,
 		frontRadiusAt,
 		stepIndexAt
 	} from "./ripple/ripplePlan";
@@ -75,7 +76,10 @@
 	// uses the same, confirmed-for-playmat.png value for both rather than
 	// inventing an unconfirmed per-texture number. If mobile_playmat.png's
 	// source art is ever regenerated cleanly, re-run the same probe.
-	const FELT_TEXELS_PER_ART_PIXEL = 4;
+	//
+	// FELT_TEXELS_PER_ART_PIXEL itself lives in ./ripple/ripplePlan (the single
+	// source AmbientDust3D also imports), so it is imported above, not
+	// redefined here.
 
 	// Bayer chunk first, our own precision override next (three.js's own
 	// auto-prepended default precision already precedes all of this, but an
