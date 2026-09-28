@@ -21,7 +21,7 @@ varying vec2 vUv;
 // way (ripplePlan.ts's WILD_FLASH_STEPS/WILD_FLASH_RADIUS_BLOCKS) — kept in
 // sync with that constant via a build-time string replace (see Playmat3D.svelte),
 // the same way rippleQuad.frag.glsl's __MAX_RIPPLES__ is resolved.
-const float FLASH_RADIUS_BLOCKS = __WILD_FLASH_RADIUS_BLOCKS__;
+const float FLASH_RADIUS_BLOCKS = float(__WILD_FLASH_RADIUS_BLOCKS__);
 const float FLASH_LIGHTEN = 0.65;
 
 void main() {

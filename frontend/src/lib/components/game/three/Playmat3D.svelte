@@ -18,14 +18,12 @@
 	import { storeMatchIntro } from "$stores/matchIntro.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
-	import bayerDither from "$lib/shaders/chunks/bayerDither.glsl?raw";
 	import playmatFeltVertexSource from "$lib/shaders/playmatFelt.vert.glsl?raw";
-	import playmatFeltFragmentSource from "$lib/shaders/playmatFelt.frag.glsl?raw";
+	import { buildFeltFragmentShader } from "./ripple/feltShader";
 	import {
 		NORMAL_BAND_BLOCKS,
 		WILD_BAND_BLOCKS,
 		WILD_FLASH_STEPS,
-		WILD_FLASH_RADIUS_BLOCKS,
 		FELT_TEXELS_PER_ART_PIXEL,
 		frontRadiusAt,
 		stepIndexAt
@@ -81,19 +79,10 @@
 	// source AmbientDust3D also imports), so it is imported above, not
 	// redefined here.
 
-	// Bayer chunk first, our own precision override next (three.js's own
-	// auto-prepended default precision already precedes all of this, but an
-	// explicit highp here guarantees the pixel-grid math below — snapping to
-	// block centres, gl_FragCoord-driven dithering — doesn't lose integer
-	// accuracy on a mediump default). __WILD_FLASH_RADIUS_BLOCKS__ mirrors
-	// ripplePlan.ts's constant of the same name, the same way
-	// rippleQuad.frag.glsl resolves __MAX_RIPPLES__.
+	// Fragment assembly lives in ./ripple/feltShader so its emitted GLSL is
+	// unit-testable; the placeholder is resolved there.
 	const feltVertexShader = playmatFeltVertexSource;
-	const feltFragmentShader = (
-		"precision highp float;\n\n" +
-		bayerDither +
-		playmatFeltFragmentSource
-	).replaceAll("__WILD_FLASH_RADIUS_BLOCKS__", String(WILD_FLASH_RADIUS_BLOCKS));
+	const feltFragmentShader = buildFeltFragmentShader();
 
 	// Built once and mutated in place from here on — see the frame task below
 	// and the idle-colour effect. Never recreated, so the material identity
