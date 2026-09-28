@@ -25,7 +25,9 @@ import type { ViewportInfo } from "$components/game/layout/seatLayout";
 
 const mat: MatPlacement = {
 	size: [10, 10],
+	offsetX: 0,
 	offsetZ: 0,
+	quarterTurn: false,
 	bounds: { left: -5, right: 5, far: -5, near: 5 }
 };
 

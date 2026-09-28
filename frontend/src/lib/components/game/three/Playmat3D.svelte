@@ -89,28 +89,34 @@
 	});
 </script>
 
-{#if showFelt && matTexture}
-	<T.Mesh position.y={MAT_Y} position.z={mat.offsetZ} rotation.x={-Math.PI / 2}>
-		<T.PlaneGeometry args={mat.size} />
-		<T.MeshBasicMaterial
-			map={matTexture}
-			color={activeTint}
-			transparent
-			depthWrite={false}
-			toneMapped={false}
-		/>
-	</T.Mesh>
-{/if}
+<T.Group
+	position.x={mat.offsetX}
+	position.z={mat.offsetZ}
+	rotation.y={mat.quarterTurn ? Math.PI / 2 : 0}
+>
+	{#if showFelt && matTexture}
+		<T.Mesh position.y={MAT_Y} rotation.x={-Math.PI / 2}>
+			<T.PlaneGeometry args={mat.size} />
+			<T.MeshBasicMaterial
+				map={matTexture}
+				color={activeTint}
+				transparent
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
 
-{#if arrowsTexture}
-	<T.Mesh position.y={ARROWS_Y} position.z={mat.offsetZ} rotation.x={-Math.PI / 2}>
-		<T.PlaneGeometry args={mat.size} />
-		<T.MeshBasicMaterial
-			map={arrowsTexture}
-			color={activeTint}
-			transparent
-			depthWrite={false}
-			toneMapped={false}
-		/>
-	</T.Mesh>
-{/if}
+	{#if arrowsTexture}
+		<T.Mesh position.y={ARROWS_Y} rotation.x={-Math.PI / 2}>
+			<T.PlaneGeometry args={mat.size} />
+			<T.MeshBasicMaterial
+				map={arrowsTexture}
+				color={activeTint}
+				transparent
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	{/if}
+</T.Group>

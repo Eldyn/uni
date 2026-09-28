@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 
 import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
 import { computeCameraRig } from "$components/game/layout/cameraRig";
-import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
+import {
+	computeBoardPlacement,
+	portraitHandStripDepth
+} from "$components/game/layout/boardPlacement";
+import { solvePortraitTable } from "$components/game/layout/portraitTable";
 import { computeSeatPositions3D, ringRadiiFor } from "$components/game/layout/seatLayout3D";
 import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLayout";
 
@@ -20,6 +24,25 @@ describe("computeSceneGeometry", () => {
 
 				const rig = computeCameraRig(viewport, opponents);
 				expect(geometry.rig).toEqual(rig);
+
+				if (viewport.orientation === "portrait") {
+					const table = solvePortraitTable(
+						{
+							halfWidth: rig.halfWidth,
+							halfHeight: rig.halfHeight,
+							centerZ: rig.centerZ,
+							worldPerPx: geometry.worldPerPx
+						},
+						opponents,
+						portraitHandStripDepth(rig.halfWidth)
+					);
+					expect(geometry.seats3D).toEqual(table.seats);
+					expect(geometry.opponentCardScale).toBe(table.fanScale);
+					expect(geometry.placement).toEqual(
+						computeBoardPlacement(viewport, rig, geometry.centerClearanceZ, table)
+					);
+					return;
+				}
 
 				const seats = computeSeatPositions3D(
 					opponents,

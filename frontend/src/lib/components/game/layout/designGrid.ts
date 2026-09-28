@@ -28,6 +28,8 @@
 // for the widest ring so a mid-game join never reframes the whole board.
 import { ringRadiiFor, ringReachFor } from "./seatLayout3D";
 import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLayout";
+import { portraitHandStripDepth } from "./boardPlacement";
+import { portraitCenterZ } from "./portraitTable";
 
 // Re-exported for existing consumers — this module used to own the reach
 // constants outright; they moved to seatLayout3D.ts so ringRadiiFor could use
@@ -39,7 +41,8 @@ export interface DesignGrid {
 	halfWidthUnits: number;
 	/** World units visible from the frustum center to its top/bottom edge. */
 	halfHeightUnits: number;
-	/** World Z the grid is vertically centered on — always the origin. */
+	/** World Z the grid is vertically centered on — the origin, except on a
+	 *  phone, where it slides toward the player (see computeDesignGrid). */
 	centerZ: number;
 }
 
@@ -88,24 +91,26 @@ export function boardExtentsFor(viewport: ViewportInfo): BoardExtents {
  */
 // A portrait frustum is width-bound by a long way — fitting the ring's columns
 // into a 0.46 aspect leaves the vertical axis with far more world than the
-// board's rows need. Split evenly (centerZ 0) that slack lands half above the
-// table, where nothing is drawn, and half below, where the hand already sits
-// flush against the bottom edge; the top half reads as a dead band under the
-// HUD. Pushing the camera toward the near side moves most of it below the
-// table, where the hand row can actually spend it. Not the whole slack: the
-// arch of opponent seats lives above the mat and still needs headroom.
-const PORTRAIT_NEAR_BIAS = 0.55;
-
+// board's rows need. The phone table (portraitTable.ts) fills that depth with
+// the felt, so the camera only has to slide far enough toward the player that
+// the felt, laid out between the HUD's top seat and the local hand strip,
+// comes out centered on the world origin.
 export function computeDesignGrid(viewport: ViewportInfo, zoom: number): DesignGrid {
 	const { columns, rows } = boardExtentsFor(viewport);
 	const aspect = viewport.width / viewport.height;
 	const halfHeightUnits = Math.max(rows / 2, columns / 2 / aspect) / zoom;
+	const halfWidthUnits = halfHeightUnits * aspect;
 
-	const verticalSlack = Math.max(0, halfHeightUnits - rows / 2);
-	const centerZ = viewport.orientation === "portrait" ? verticalSlack * PORTRAIT_NEAR_BIAS : 0;
+	const centerZ =
+		viewport.orientation === "portrait"
+			? portraitCenterZ(
+					(2 * halfWidthUnits) / viewport.width,
+					portraitHandStripDepth(halfWidthUnits)
+				)
+			: 0;
 
 	return {
-		halfWidthUnits: halfHeightUnits * aspect,
+		halfWidthUnits,
 		halfHeightUnits,
 		centerZ
 	};

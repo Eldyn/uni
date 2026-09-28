@@ -42,7 +42,9 @@ describe("DrawPile3D", () => {
 	const defaultPlacement: BoardPlacement = {
 		mat: {
 			size: [10, 10],
+			offsetX: 0,
 			offsetZ: 0,
+			quarterTurn: false,
 			bounds: { left: -5, right: 5, far: -5, near: 5 }
 		},
 		handScale: 1,

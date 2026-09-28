@@ -17,8 +17,10 @@ import {
 	computeBoardPlacement,
 	avatarBoxPx,
 	LOCAL_AVATAR_WORLD,
+	portraitHandStripDepth,
 	type BoardPlacement
 } from "./boardPlacement";
+import { PORTRAIT_SEAT_AVATAR_WORLD, solvePortraitTable } from "./portraitTable";
 import {
 	computeSeatPositions3D,
 	portraitFanCardScaleCap,
@@ -34,13 +36,32 @@ import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLa
 // seat and the icon only has to say who owns it.
 const LANDSCAPE_AVATAR_WORLD = LOCAL_AVATAR_WORLD;
 const AVATAR_CROWD_SHRINK = 0.2;
-const PORTRAIT_AVATAR_WORLD = 0.78;
+const PORTRAIT_AVATAR_WORLD = PORTRAIT_SEAT_AVATAR_WORLD;
 
 // Opponent cards are drawn at a fraction of the size the LAYOUT reserves for
 // them: the seats stay where a full-size ring would have put them, so
 // shrinking the cards opens up the board instead of pulling every seat in
 // behind them. A trial setting — drop it back to 1 to undo.
-const OPPONENT_CARD_DRAW_SCALE = 0.5;
+const OPPONENT_CARD_DRAW_SCALE = 0.65;
+// A short landscape screen (a phone on its side) zooms the board out much
+// further, so its fans are drawn closer to the full reserved size to stay
+// legible. Ramps between these heights, in CSS pixels.
+const SHORT_SCREEN_CARD_DRAW_SCALE = 0.9;
+const SHORT_SCREEN_HEIGHT_PX = 450;
+const TALL_SCREEN_HEIGHT_PX = 900;
+
+function landscapeCardDrawScale(viewportHeight: number): number {
+	const shortness = Math.min(
+		1,
+		Math.max(
+			0,
+			(TALL_SCREEN_HEIGHT_PX - viewportHeight) / (TALL_SCREEN_HEIGHT_PX - SHORT_SCREEN_HEIGHT_PX)
+		)
+	);
+	return (
+		OPPONENT_CARD_DRAW_SCALE + (SHORT_SCREEN_CARD_DRAW_SCALE - OPPONENT_CARD_DRAW_SCALE) * shortness
+	);
+}
 const LANDSCAPE_LABEL_WORLD = 0.4;
 const LABEL_CROWD_SHRINK = 0.1;
 const PORTRAIT_LABEL_WORLD = 0.36;
@@ -115,7 +136,9 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// card size can move without dragging the composition with it. Portrait
 	// additionally caps the DRAWN scale (below) so a full table's fans fit.
 	const opponentCardLayoutScale = (isPortrait ? 0.5 : 0.85 - 0.4 * crowdT) * ringWidthBoost;
-	const desiredCardScale = opponentCardLayoutScale * OPPONENT_CARD_DRAW_SCALE;
+	const desiredCardScale =
+		opponentCardLayoutScale *
+		(isPortrait ? OPPONENT_CARD_DRAW_SCALE : landscapeCardDrawScale(viewport.height));
 
 	// Avatars and labels are sized in WORLD units and only converted to CSS at
 	// the end. Declaring them in pixels is what made the board feel inverted: the
@@ -170,6 +193,46 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	);
 
 	const centerClearanceZ = ringRadii.rz - opponentSeatReach;
+
+	if (isPortrait) {
+		// A phone seats everyone round the felt instead of on an arch over it
+		// (see portraitTable.ts), and the felt, seats and fan size all come from
+		// that one solve.
+		const table = solvePortraitTable(
+			{
+				halfWidth: rig.halfWidth,
+				halfHeight: rig.halfHeight,
+				centerZ: rig.centerZ,
+				worldPerPx
+			},
+			opponentCount,
+			portraitHandStripDepth(rig.halfWidth)
+		);
+		const tableSeatReach = opponentSeatReachWorld(opponentAvatarWorld, table.fanScale);
+		return {
+			rig,
+			ringRadii: {
+				rx: Math.max(0, ...table.seats.map((seat) => Math.abs(seat.x))),
+				rz: Math.max(0, ...table.seats.map((seat) => -seat.z))
+			},
+			seats3D: table.seats,
+			isPortrait,
+			crowdT,
+			ringWidthBoost,
+			opponentCardLayoutScale: table.fanScale / OPPONENT_CARD_DRAW_SCALE,
+			opponentCardScale: table.fanScale,
+			opponentAvatarWorld,
+			opponentLabelWorld,
+			worldPerPx,
+			opponentAvatarPx,
+			localAvatarPx,
+			opponentLabelEm,
+			opponentSeatReach: tableSeatReach,
+			centerClearanceZ: table.feltHalfDepth,
+			placement: computeBoardPlacement(viewport, rig, table.feltHalfDepth, table)
+		};
+	}
+
 	const placement = computeBoardPlacement(viewport, rig, centerClearanceZ);
 
 	return {

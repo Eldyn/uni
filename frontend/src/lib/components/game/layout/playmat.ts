@@ -82,12 +82,18 @@ export function coverSize(
 }
 
 export interface MatPlacement {
-	/** The SHEET's drawn size — what the mesh's plane geometry needs. */
+	/** The SHEET's drawn size — what the mesh's plane geometry needs, in the
+	 *  sheet's own (unrotated) width × height. */
 	size: [number, number];
-	/** World Z the sheet's own center goes to, so the felt inside it lands on
+	/** World X/Z the sheet's own center goes to, so the felt inside it lands on
 	 *  the box this placement was solved for. Zero for the landscape fit, where
 	 *  the sheet is simply centered on the origin like everything else. */
+	offsetX: number;
 	offsetZ: number;
+	/** The sheet is turned a quarter about the table's up axis, so its long
+	 *  side runs away from the player — a landscape painting on a tall table.
+	 *  A rotation, never a mirror: the cw arrows still read clockwise. */
+	quarterTurn: boolean;
 	/** Where the felt itself ends up. */
 	bounds: MatBounds;
 }
@@ -123,7 +129,7 @@ export function landscapeMatPlacement(halfWidth: number, halfHeight: number): Ma
 	// extra hand room this change is for.
 	const baseNear = boundsOf(base, 0).near;
 	const offsetZ = baseNear - (size[1] / 2) * BOTTOM_FRACTION;
-	return { size, offsetZ, bounds: boundsOf(size, offsetZ) };
+	return { size, offsetX: 0, offsetZ, quarterTurn: false, bounds: boundsOf(size, offsetZ) };
 }
 
 /**
@@ -147,7 +153,50 @@ export function portraitMatPlacement(feltWidth: number, farZ: number, nearZ: num
 
 	const size: [number, number] = [feltWidth / FELT_WIDTH_SHARE, feltHeight / FELT_HEIGHT_SHARE];
 	const offsetZ = feltCenterZ - (size[1] / 2) * FELT_CENTER_Z_SHARE;
-	return { size, offsetZ, bounds: boundsOf(size, offsetZ) };
+	return { size, offsetX: 0, offsetZ, quarterTurn: false, bounds: boundsOf(size, offsetZ) };
+}
+
+// Where the felt's own center sits across the sheet's width, as a fraction of
+// the sheet's half-width — only needed once the sheet is turned and that axis
+// becomes the table's depth.
+const FELT_CENTER_X_SHARE = (LEFT_FRACTION + RIGHT_FRACTION) / 2;
+
+/**
+ * Portrait, turned: the felt box is taller than it is wide, and the art is
+ * the other way round, so the sheet is laid down a quarter-turn and stretched
+ * from there — about 1.5× on a phone instead of the 3× an upright sheet needs
+ * to fill the same box. Stretch past MAX_PORTRAIT_STRETCH is refused and the
+ * felt is centered in the box instead.
+ *
+ * Turned by +90° about Y, the sheet's right edge points away from the player
+ * and its top edge points to the table's left.
+ */
+export function turnedPortraitMatPlacement(
+	feltHalfWidth: number,
+	feltHalfDepth: number,
+	feltCenterZ: number
+): MatPlacement {
+	const naturalHalfDepth = feltHalfWidth / ART_ASPECT;
+	const halfDepth = Math.min(feltHalfDepth, naturalHalfDepth * MAX_PORTRAIT_STRETCH);
+
+	const size: [number, number] = [
+		(2 * halfDepth) / FELT_WIDTH_SHARE,
+		(2 * feltHalfWidth) / FELT_HEIGHT_SHARE
+	];
+	const offsetX = -(size[1] / 2) * FELT_CENTER_Z_SHARE;
+	const offsetZ = feltCenterZ + (size[0] / 2) * FELT_CENTER_X_SHARE;
+	return {
+		size,
+		offsetX,
+		offsetZ,
+		quarterTurn: true,
+		bounds: {
+			left: -feltHalfWidth,
+			right: feltHalfWidth,
+			far: feltCenterZ - halfDepth,
+			near: feltCenterZ + halfDepth
+		}
+	};
 }
 
 /** The felt oval's world-space edges inside the given frustum, landscape fit. */

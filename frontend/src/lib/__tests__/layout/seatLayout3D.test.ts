@@ -18,6 +18,7 @@ import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLa
 import { computeCameraRig } from "$components/game/layout/cameraRig";
 import { computeBoardPlacement } from "$components/game/layout/boardPlacement";
 import { computeSceneGeometry } from "$components/game/layout/sceneGeometry";
+import { PORTRAIT_FAN_SCALE_SPARSE } from "$components/game/layout/portraitTable";
 import { CARD_HEIGHT, CARD_WIDTH } from "$components/game/three/units";
 import {
 	computeHandRingSlots,
@@ -193,7 +194,7 @@ describe("computeSeatPositions3D", () => {
 		for (let opponentCount = 4; opponentCount <= MAX_OPPONENTS; opponentCount++) {
 			const geometry = computeSceneGeometry(portrait, opponentCount);
 			// The cap only ever shrinks the trial size, never grows it.
-			expect(geometry.opponentCardScale).toBeLessThanOrEqual(0.25 + 1e-9);
+			expect(geometry.opponentCardScale).toBeLessThanOrEqual(PORTRAIT_FAN_SCALE_SPARSE + 1e-9);
 			expect(geometry.opponentCardScale).toBeGreaterThan(0.15);
 			const fanReach = opponentSeatReachWorld(
 				geometry.opponentAvatarWorld,
