@@ -13,8 +13,7 @@
 	import { T, useTask, useThrelte } from "@threlte/core";
 	import * as THREE from "three";
 	import { loadTexture } from "./textures";
-	import dustVertexSource from "$lib/shaders/dust.vert.glsl?raw";
-	import dustFragmentSource from "$lib/shaders/dust.frag.glsl?raw";
+	import { buildDustVertexShader, buildDustFragmentShader } from "./dust/dustShader";
 	import {
 		generateDustSeeds,
 		DUST_COUNT_HIGH,
@@ -48,8 +47,8 @@
 	const QUAD_POSITIONS = new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]);
 	const QUAD_INDICES = new Uint16Array([0, 1, 2, 0, 2, 3]);
 
-	const dustVertexShader = dustVertexSource;
-	const dustFragmentShader = "precision mediump float;\n\n" + dustFragmentSource;
+	const dustVertexShader = buildDustVertexShader();
+	const dustFragmentShader = buildDustFragmentShader();
 
 	// Built once and mutated in place — never recreated, so the compiled GPU
 	// program stays stable across every seed/geometry rebuild below. Disposed
