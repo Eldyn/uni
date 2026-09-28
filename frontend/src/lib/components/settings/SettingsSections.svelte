@@ -185,6 +185,20 @@
 			/>
 
 			<Toggle
+				label={m.settings_graphics_mat_ripple({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_mat_ripple_description({}, { locale: storeI18n.locale })}
+				checked={storeRenderSettings.matRipple}
+				oncommit={(v) => storeRenderSettings.setMatRipple(v)}
+			/>
+
+			<Toggle
+				label={m.settings_graphics_ambient_dust({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_ambient_dust_description({}, { locale: storeI18n.locale })}
+				checked={storeRenderSettings.ambientDust}
+				oncommit={(v) => storeRenderSettings.setAmbientDust(v)}
+			/>
+
+			<Toggle
 				label={m.game_privacy_mode({}, { locale: storeI18n.locale })}
 				description={m.game_privacy_mode_desc({}, { locale: storeI18n.locale })}
 				checked={privacyMode}
