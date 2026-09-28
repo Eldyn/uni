@@ -173,6 +173,23 @@ describe("StoreMatRipple", () => {
 		expect(store.committedColor).toBe("#0470dd");
 	});
 
+	it("beginPending captures a running sweep's just-committed target, not its stale from-colour", () => {
+		vi.useFakeTimers();
+		const store = new StoreMatRipple(() => 0);
+		store.committedColor = "#bd3130";
+
+		// Sweep A is still running (red -> blue): committedColor is still red.
+		store.startMatRipple("#0470dd", "normal", { u: 0.5, v: 0.5 }, 1);
+		expect(store.active).toBe(true);
+
+		// A second play arrives mid-sweep, then its card lands.
+		store.beginPending();
+		store.startMatRipple("#00aa00", "normal", { u: 0.5, v: 0.5 }, 1);
+
+		expect(store.fromColor).toBe("#0470dd");
+		expect(store.toColor).toBe("#00aa00");
+	});
+
 	it("startMatRipple without a pending hold still sweeps from the committed colour", () => {
 		const store = new StoreMatRipple(() => 0);
 		store.committedColor = "#bd3130";

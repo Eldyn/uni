@@ -92,6 +92,10 @@ export class StoreMatRipple {
 	 */
 	beginPending(): void {
 		if (!storeRenderSettings.matRippleActive) return;
+		// Capture the colour actually displayed: a running sweep finishes
+		// here, advancing committedColor to its target, so the next landing
+		// sweeps from what the player sees rather than the stale from-colour.
+		if (this.active) this.#finish();
 		this.#pendingFromColor = this.committedColor;
 		this.pending = true;
 	}
