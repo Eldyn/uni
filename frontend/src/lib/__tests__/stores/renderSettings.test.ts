@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
 	RenderSettings,
 	SETTINGS_STORAGE_KEY,
 	storeRenderSettings
 } from "$stores/renderSettings.svelte";
+import { storeWebglCapability } from "$stores/webglCapability.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
 
 describe("RenderSettings store", () => {
 	beforeEach(() => {
@@ -18,6 +20,7 @@ describe("RenderSettings store", () => {
 		expect(store.clickToPlay).toBe(true);
 		expect(store.syncCursorOnClick).toBe(true);
 		expect(store.autoScrollOnEdgeCreep).toBe(true);
+		expect(store.matRipple).toBe(true);
 	});
 
 	it("persists updates to localStorage via property assignments", () => {
@@ -41,6 +44,8 @@ describe("RenderSettings store", () => {
 		store.setClickToPlay(false);
 		store.setSyncCursorOnClick(false);
 		store.setAutoScrollOnEdgeCreep(false);
+		store.setMatRipple(false);
+		store.setAmbientDust(true);
 
 		const persisted = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!);
 		expect(persisted).toEqual({
@@ -48,7 +53,9 @@ describe("RenderSettings store", () => {
 			drawPileThickness: "capped",
 			clickToPlay: false,
 			syncCursorOnClick: false,
-			autoScrollOnEdgeCreep: false
+			autoScrollOnEdgeCreep: false,
+			matRipple: false,
+			ambientDust: true
 		});
 	});
 
@@ -61,6 +68,8 @@ describe("RenderSettings store", () => {
 				clickToPlay: false,
 				syncCursorOnClick: false,
 				autoScrollOnEdgeCreep: false,
+				matRipple: false,
+				ambientDust: true,
 				removedSettingKey: "legacy-value"
 			})
 		);
@@ -70,6 +79,8 @@ describe("RenderSettings store", () => {
 		expect(store.clickToPlay).toBe(false);
 		expect(store.syncCursorOnClick).toBe(false);
 		expect(store.autoScrollOnEdgeCreep).toBe(false);
+		expect(store.matRipple).toBe(false);
+		expect(store.ambientDust).toBe(true);
 	});
 
 	it("handles malformed JSON in localStorage gracefully", () => {
@@ -96,5 +107,104 @@ describe("RenderSettings store", () => {
 
 	it("exports a storeRenderSettings singleton instance", () => {
 		expect(storeRenderSettings).toBeInstanceOf(RenderSettings);
+	});
+
+	it("merges matRipple and ambientDust defaults into a saved blob missing those keys", () => {
+		localStorage.setItem(
+			SETTINGS_STORAGE_KEY,
+			JSON.stringify({
+				cardRenderMode: "legacy",
+				drawPileThickness: "capped",
+				clickToPlay: false,
+				syncCursorOnClick: false,
+				autoScrollOnEdgeCreep: false
+			})
+		);
+		const store = new RenderSettings();
+		expect(store.matRipple).toBe(true);
+		expect(typeof store.ambientDust).toBe("boolean");
+	});
+});
+
+describe("RenderSettings tier defaults", () => {
+	const originalHardwareAccelerated = storeWebglCapability.hardwareAccelerated;
+	const originalReducedMotion = storeWebglCapability.reducedMotion;
+
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	afterEach(() => {
+		storeWebglCapability.hardwareAccelerated = originalHardwareAccelerated;
+		storeWebglCapability.reducedMotion = originalReducedMotion;
+	});
+
+	it("defaults ambientDust to true on the high device tier", () => {
+		storeWebglCapability.hardwareAccelerated = true;
+		storeWebglCapability.reducedMotion = false;
+		expect(storeWebglCapability.deviceTier).toBe("high");
+
+		const store = new RenderSettings();
+		expect(store.ambientDust).toBe(true);
+		expect(store.matRipple).toBe(true);
+	});
+
+	it("defaults ambientDust to false on the low device tier", () => {
+		storeWebglCapability.hardwareAccelerated = false;
+		storeWebglCapability.reducedMotion = false;
+		expect(storeWebglCapability.deviceTier).toBe("low");
+
+		const store = new RenderSettings();
+		expect(store.ambientDust).toBe(false);
+		expect(store.matRipple).toBe(true);
+	});
+});
+
+describe("RenderSettings active getters", () => {
+	const originalHardwareAccelerated = storeWebglCapability.hardwareAccelerated;
+	const originalReducedMotion = storeWebglCapability.reducedMotion;
+	const originalAnimationEnabled = storeAnimation.enabled;
+
+	beforeEach(() => {
+		localStorage.clear();
+		storeWebglCapability.hardwareAccelerated = true;
+		storeWebglCapability.reducedMotion = false;
+		storeAnimation.enabled = true;
+	});
+
+	afterEach(() => {
+		storeWebglCapability.hardwareAccelerated = originalHardwareAccelerated;
+		storeWebglCapability.reducedMotion = originalReducedMotion;
+		storeAnimation.enabled = originalAnimationEnabled;
+	});
+
+	it("both active getters are true when toggles are on and no gate is engaged", () => {
+		const store = new RenderSettings();
+		store.matRipple = true;
+		store.ambientDust = true;
+		expect(store.matRippleActive).toBe(true);
+		expect(store.ambientDustActive).toBe(true);
+	});
+
+	it("both active getters are false under reduced motion while saved values stay true", () => {
+		const store = new RenderSettings();
+		store.matRipple = true;
+		store.ambientDust = true;
+
+		storeWebglCapability.reducedMotion = true;
+
+		expect(store.matRippleActive).toBe(false);
+		expect(store.ambientDustActive).toBe(false);
+		expect(store.matRipple).toBe(true);
+		expect(store.ambientDust).toBe(true);
+	});
+
+	it("matRippleActive is false when animations are disabled", () => {
+		const store = new RenderSettings();
+		store.matRipple = true;
+		storeAnimation.enabled = false;
+
+		expect(store.matRippleActive).toBe(false);
+		expect(store.matRipple).toBe(true);
 	});
 });

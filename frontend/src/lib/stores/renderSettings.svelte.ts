@@ -3,6 +3,7 @@
  * @brief Reactive store owning graphics and card rendering settings with localStorage persistence.
  */
 import { storeWebglCapability } from "./webglCapability.svelte";
+import { storeAnimation } from "./animation.svelte";
 
 export const SETTINGS_STORAGE_KEY = "uni:render:settings";
 
@@ -12,6 +13,8 @@ export interface RenderSettingsState {
 	clickToPlay: boolean;
 	syncCursorOnClick: boolean;
 	autoScrollOnEdgeCreep: boolean;
+	matRipple: boolean;
+	ambientDust: boolean;
 }
 
 export class RenderSettings {
@@ -22,6 +25,10 @@ export class RenderSettings {
 	#clickToPlay = $state<boolean>(true);
 	#syncCursorOnClick = $state<boolean>(true);
 	#autoScrollOnEdgeCreep = $state<boolean>(true);
+	#matRipple = $state<boolean>(true);
+	#ambientDust = $state<boolean>(
+		typeof window !== "undefined" && storeWebglCapability.deviceTier === "high"
+	);
 
 	constructor() {
 		try {
@@ -47,6 +54,12 @@ export class RenderSettings {
 				}
 				if (typeof parsed.autoScrollOnEdgeCreep === "boolean") {
 					this.#autoScrollOnEdgeCreep = parsed.autoScrollOnEdgeCreep;
+				}
+				if (typeof parsed.matRipple === "boolean") {
+					this.#matRipple = parsed.matRipple;
+				}
+				if (typeof parsed.ambientDust === "boolean") {
+					this.#ambientDust = parsed.ambientDust;
 				}
 			}
 		} catch {
@@ -99,6 +112,36 @@ export class RenderSettings {
 		this.#persist();
 	}
 
+	get matRipple(): boolean {
+		return this.#matRipple;
+	}
+
+	set matRipple(v: boolean) {
+		this.#matRipple = v;
+		this.#persist();
+	}
+
+	get ambientDust(): boolean {
+		return this.#ambientDust;
+	}
+
+	set ambientDust(v: boolean) {
+		this.#ambientDust = v;
+		this.#persist();
+	}
+
+	/** Combines the saved toggle with the reduced-motion and animation-enabled
+	 *  runtime gates. Reduced motion never mutates `#matRipple` itself. */
+	get matRippleActive(): boolean {
+		return this.#matRipple && !storeWebglCapability.reducedMotion && storeAnimation.enabled;
+	}
+
+	/** Combines the saved toggle with the reduced-motion runtime gate.
+	 *  Reduced motion never mutates `#ambientDust` itself. */
+	get ambientDustActive(): boolean {
+		return this.#ambientDust && !storeWebglCapability.reducedMotion;
+	}
+
 	#persist(): void {
 		try {
 			if (typeof localStorage === "undefined") return;
@@ -107,7 +150,9 @@ export class RenderSettings {
 				drawPileThickness: this.#drawPileThickness,
 				clickToPlay: this.#clickToPlay,
 				syncCursorOnClick: this.#syncCursorOnClick,
-				autoScrollOnEdgeCreep: this.#autoScrollOnEdgeCreep
+				autoScrollOnEdgeCreep: this.#autoScrollOnEdgeCreep,
+				matRipple: this.#matRipple,
+				ambientDust: this.#ambientDust
 			};
 			localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data));
 		} catch {
@@ -133,6 +178,14 @@ export class RenderSettings {
 
 	setAutoScrollOnEdgeCreep(autoScroll: boolean): void {
 		this.autoScrollOnEdgeCreep = autoScroll;
+	}
+
+	setMatRipple(v: boolean): void {
+		this.matRipple = v;
+	}
+
+	setAmbientDust(v: boolean): void {
+		this.ambientDust = v;
 	}
 }
 
