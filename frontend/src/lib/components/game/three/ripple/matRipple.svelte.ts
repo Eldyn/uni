@@ -15,17 +15,18 @@ import { rippleDurationMs, type MatUv, type RippleStrength } from "./ripplePlan"
 export type { MatUv, RippleStrength };
 
 // Rebeccapurple, matching Playmat3D's own FALLBACK_TINT — the colour shown
-// before any real `active_type` has synced in.
-const INITIAL_COLOR = "#663399";
+// before any real `active_type` has synced in. Exported so Playmat3D can
+// import it in place of that separately-defined FALLBACK_TINT.
+export const MAT_INITIAL_COLOR = "#663399";
 
 export class StoreMatRipple {
 	/** Colour the ripple is sweeping away from. */
-	fromColor = $state(INITIAL_COLOR);
+	fromColor = $state(MAT_INITIAL_COLOR);
 	/** Colour the ripple is sweeping toward. */
-	toColor = $state(INITIAL_COLOR);
+	toColor = $state(MAT_INITIAL_COLOR);
 	/** Colour actually committed to the mat outside an active ripple —
 	 *  `fromColor` while sweeping, `toColor` once it finishes. */
-	committedColor = $state(INITIAL_COLOR);
+	committedColor = $state(MAT_INITIAL_COLOR);
 	originUv = $state<MatUv>({ u: 0.5, v: 0.5 });
 	startTimeMs = $state(0);
 	durationMs = $state(0);

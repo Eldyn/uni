@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { StoreMatRipple } from "$components/game/three/ripple/matRipple.svelte";
+import { rippleDurationMs } from "$components/game/three/ripple/ripplePlan";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 
 describe("StoreMatRipple", () => {
@@ -31,7 +32,7 @@ describe("StoreMatRipple", () => {
 		expect(store.startTimeMs).toBe(12345);
 	});
 
-	it("goes active with the given geometry and 450ms duration for a normal play", () => {
+	it("goes active with the given geometry and the step-aligned normal duration", () => {
 		const store = new StoreMatRipple(() => 0);
 
 		store.startMatRipple("#00ff00", "normal", { u: 0.25, v: 0.75 }, 2.5);
@@ -40,7 +41,17 @@ describe("StoreMatRipple", () => {
 		expect(store.toColor).toBe("#00ff00");
 		expect(store.originUv).toEqual({ u: 0.25, v: 0.75 });
 		expect(store.maxRadius).toBe(2.5);
-		expect(store.durationMs).toBe(450);
+		expect(store.durationMs).toBe(rippleDurationMs("normal", 1));
+	});
+
+	it("goes active with the step-aligned wild duration for a wild play", () => {
+		const store = new StoreMatRipple(() => 0);
+
+		store.startMatRipple("#ff00ff", "wild", { u: 0.5, v: 0.5 }, 1);
+
+		expect(store.active).toBe(true);
+		expect(store.strength).toBe("wild");
+		expect(store.durationMs).toBe(rippleDurationMs("wild", 1));
 	});
 
 	it("commits the target colour and clears active once the duration elapses", () => {
@@ -50,10 +61,21 @@ describe("StoreMatRipple", () => {
 		store.startMatRipple("#0000ff", "normal", { u: 0.5, v: 0.5 }, 1);
 		expect(store.active).toBe(true);
 
-		vi.advanceTimersByTime(450);
+		vi.advanceTimersByTime(store.durationMs);
 
 		expect(store.active).toBe(false);
 		expect(store.committedColor).toBe("#0000ff");
+	});
+
+	it("is still active 1ms before the aligned duration completes", () => {
+		vi.useFakeTimers();
+		const store = new StoreMatRipple(() => 0);
+
+		store.startMatRipple("#0000ff", "normal", { u: 0.5, v: 0.5 }, 1);
+		vi.advanceTimersByTime(store.durationMs - 1);
+
+		expect(store.active).toBe(true);
+		expect(store.committedColor).not.toBe("#0000ff");
 	});
 
 	it("finishes an in-flight ripple to its own target before starting the next one", () => {
@@ -61,13 +83,34 @@ describe("StoreMatRipple", () => {
 		const store = new StoreMatRipple(() => 0);
 
 		store.startMatRipple("#111111", "normal", { u: 0.5, v: 0.5 }, 1);
-		vi.advanceTimersByTime(100); // well short of the 450ms duration
+		vi.advanceTimersByTime(100); // well short of the aligned duration
 
 		store.startMatRipple("#222222", "normal", { u: 0.1, v: 0.1 }, 1);
 
 		expect(store.fromColor).toBe("#111111");
 		expect(store.toColor).toBe("#222222");
 		expect(store.active).toBe(true);
+	});
+
+	it("clears the running timer and commits instantly if ripples turn off mid-flight", () => {
+		vi.useFakeTimers();
+		const store = new StoreMatRipple(() => 0);
+
+		store.startMatRipple("#111111", "normal", { u: 0.5, v: 0.5 }, 1);
+		expect(store.active).toBe(true);
+
+		storeRenderSettings.matRipple = false;
+		store.startMatRipple("#333333", "normal", { u: 0.2, v: 0.2 }, 1);
+
+		expect(store.active).toBe(false);
+		expect(store.committedColor).toBe("#333333");
+
+		// The old timer must actually be cleared, not just superseded: advancing
+		// past where it would have fired must not flip active back on or stomp
+		// the instantly-committed colour.
+		vi.advanceTimersByTime(10_000);
+		expect(store.active).toBe(false);
+		expect(store.committedColor).toBe("#333333");
 	});
 
 	it("ignores syncColor while a ripple is active", () => {
@@ -80,7 +123,7 @@ describe("StoreMatRipple", () => {
 
 		expect(store.committedColor).not.toBe("#ffffff");
 
-		vi.advanceTimersByTime(450);
+		vi.advanceTimersByTime(store.durationMs);
 		store.syncColor("#ffffff");
 		expect(store.committedColor).toBe("#ffffff");
 	});

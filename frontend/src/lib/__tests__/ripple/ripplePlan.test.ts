@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
 	AMBIENT_STEP_FPS,
-	NORMAL_RIPPLE_DURATION_MS,
-	WILD_RIPPLE_DURATION_MS,
 	frontRadiusAt,
 	maxRadiusUv,
 	originToMatUv,
-	rippleDurationMs
+	rippleDurationMs,
+	rippleStepCount,
+	type RippleStrength
 } from "$components/game/three/ripple/ripplePlan";
 import type { MatPlacement } from "$components/game/layout/playmat";
 
@@ -61,44 +61,93 @@ describe("maxRadiusUv", () => {
 	});
 });
 
+const STEP_MS = 1000 / AMBIENT_STEP_FPS;
+const MIN_RIPPLE_STEPS = 2;
+
+describe("rippleStepCount", () => {
+	it("rounds a raw duration up to the next whole step", () => {
+		expect(rippleStepCount(STEP_MS * 3.2)).toBe(4);
+	});
+
+	it("leaves an already step-aligned duration alone (no float round-trip drift)", () => {
+		const aligned = 6 * STEP_MS;
+		expect(rippleStepCount(aligned)).toBe(6);
+	});
+
+	it("never returns fewer than MIN_RIPPLE_STEPS", () => {
+		expect(rippleStepCount(1)).toBe(MIN_RIPPLE_STEPS);
+		expect(rippleStepCount(0)).toBe(MIN_RIPPLE_STEPS);
+	});
+});
+
 describe("rippleDurationMs", () => {
-	it("uses the normal base duration at 1x speed", () => {
-		expect(rippleDurationMs("normal", 1)).toBe(NORMAL_RIPPLE_DURATION_MS);
-	});
+	const speedMultipliers = [0.5, 1, 3];
+	const strengths: RippleStrength[] = ["normal", "wild"];
 
-	it("uses the wild base duration at 1x speed", () => {
-		expect(rippleDurationMs("wild", 1)).toBe(WILD_RIPPLE_DURATION_MS);
-	});
+	for (const strength of strengths) {
+		for (const speedMultiplier of speedMultipliers) {
+			it(`is a step multiple of at least ${MIN_RIPPLE_STEPS} steps for ${strength} at ${speedMultiplier}x`, () => {
+				const duration = rippleDurationMs(strength, speedMultiplier);
+				const stepsFloat = duration / STEP_MS;
+				expect(stepsFloat).toBeCloseTo(Math.round(stepsFloat), 6);
+				expect(Math.round(stepsFloat)).toBeGreaterThanOrEqual(MIN_RIPPLE_STEPS);
+			});
+		}
+	}
 
-	it("divides the base duration by the speed multiplier", () => {
-		expect(rippleDurationMs("normal", 2)).toBe(NORMAL_RIPPLE_DURATION_MS / 2);
+	it("divides the base duration by the speed multiplier before aligning", () => {
+		// 2x speed halves the 450ms base to 225ms, which rounds up to 3 steps.
+		expect(rippleDurationMs("normal", 2)).toBeCloseTo(3 * STEP_MS, 6);
 	});
 });
 
 describe("frontRadiusAt", () => {
-	const stepMs = 1000 / AMBIENT_STEP_FPS;
+	const speedMultipliers = [0.5, 1, 3];
+	const strengths: RippleStrength[] = ["normal", "wild"];
 
-	it("starts at zero", () => {
-		expect(frontRadiusAt(0, 450, 100)).toBe(0);
+	for (const strength of strengths) {
+		for (const speedMultiplier of speedMultipliers) {
+			it(`reaches maxRadius a step before the aligned ${strength} duration completes at ${speedMultiplier}x`, () => {
+				const duration = rippleDurationMs(strength, speedMultiplier);
+				const lastStepElapsed = duration - STEP_MS;
+
+				expect(frontRadiusAt(lastStepElapsed, duration, 100)).toBe(100);
+				expect(lastStepElapsed).toBeLessThan(duration);
+			});
+		}
+	}
+
+	it("shows a nonzero radius on the very first step", () => {
+		const duration = rippleDurationMs("normal", 1);
+		expect(frontRadiusAt(0, duration, 100)).toBeGreaterThan(0);
 	});
 
 	it("holds the same radius within a single 12fps step", () => {
-		const early = frontRadiusAt(stepMs * 1.1, 450, 100);
-		const late = frontRadiusAt(stepMs * 1.9, 450, 100);
+		const duration = rippleDurationMs("normal", 1);
+		const early = frontRadiusAt(STEP_MS * 1.1, duration, 100);
+		const late = frontRadiusAt(STEP_MS * 1.9, duration, 100);
 		expect(early).toBe(late);
 	});
 
 	it("advances to the next step's radius once elapsed crosses it", () => {
-		const stepOne = frontRadiusAt(stepMs * 1.9, 450, 100);
-		const stepTwo = frontRadiusAt(stepMs * 2.1, 450, 100);
+		const duration = rippleDurationMs("normal", 1);
+		const stepOne = frontRadiusAt(STEP_MS * 1.9, duration, 100);
+		const stepTwo = frontRadiusAt(STEP_MS * 2.1, duration, 100);
 		expect(stepTwo).toBeGreaterThan(stepOne);
 	});
 
 	it("clamps to maxRadius once elapsed passes the duration", () => {
-		expect(frontRadiusAt(10_000, 450, 100)).toBe(100);
+		const duration = rippleDurationMs("normal", 1);
+		expect(frontRadiusAt(10_000, duration, 100)).toBe(100);
 	});
 
-	it("never goes negative for a zero or negative elapsed time", () => {
-		expect(frontRadiusAt(-50, 450, 100)).toBe(0);
+	it("never goes negative for a negative elapsed time", () => {
+		const duration = rippleDurationMs("normal", 1);
+		expect(frontRadiusAt(-50, duration, 100)).toBe(0);
+	});
+
+	it("returns the full radius when durationMs is zero or negative", () => {
+		expect(frontRadiusAt(0, 0, 100)).toBe(100);
+		expect(frontRadiusAt(50, -10, 100)).toBe(100);
 	});
 });

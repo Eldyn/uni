@@ -18,7 +18,21 @@ export const AMBIENT_STEP_FPS = 12;
 
 const AMBIENT_STEP_MS = 1000 / AMBIENT_STEP_FPS;
 
-/** Base sweep durations, before the caller's speed multiplier is applied. */
+// A sweep needs at least this many steps so the 2-step wild flash (see
+// WILD_FLASH_STEPS below) always fits inside it, even at a speed multiplier
+// high enough that the raw duration would otherwise round to a single step.
+const MIN_RIPPLE_STEPS = 2;
+
+// Floating-point guard: an already step-aligned duration (steps *
+// AMBIENT_STEP_MS) can land a hair above the exact multiple once it's
+// divided back by AMBIENT_STEP_MS, which would push a bare Math.ceil up by a
+// whole spurious step. Subtracting this before ceiling absorbs that without
+// affecting any duration that's genuinely a fraction of a step past a
+// boundary.
+const STEP_ROUNDING_EPSILON = 1e-6;
+
+/** Base sweep durations, before the caller's speed multiplier or step
+ *  alignment are applied. */
 export const NORMAL_RIPPLE_DURATION_MS = 450;
 export const WILD_RIPPLE_DURATION_MS = 350;
 
@@ -68,10 +82,15 @@ export function originToMatUv(discardX: number, discardZ: number, mat: MatPlacem
 
 /**
  * Farthest mat corner from `originUv`, in the same aspect-corrected UV units
- * the shader measures ripple radii in. `aspect` is the mesh's own
- * height/width ratio (`mat.size[1] / mat.size[0]`), applied to the V axis so
- * a radius read off this function traces a circle in world space instead of
- * an ellipse skewed by the mesh's non-square UV domain.
+ * the shader measures ripple radii in. The radius is expressed in
+ * mat-width (U) units: `aspect` is the mesh-local `size[1] / size[0]` ratio
+ * (height over width), used as-is regardless of `quarterTurn` — the mesh's
+ * own local size already reflects any rotation, so this function never needs
+ * to know about it. Applying `aspect` to the V axis's delta before taking the
+ * hypotenuse (`length(vec2(du, dv * aspect))`, exactly mirroring the shader's
+ * own distance calculation) makes a radius read off this function trace a
+ * circle in world space instead of an ellipse skewed by the mesh's
+ * non-square UV domain.
  */
 export function maxRadiusUv(originUv: MatUv, aspect: number): number {
 	const corners: MatUv[] = [
@@ -89,21 +108,45 @@ export function maxRadiusUv(originUv: MatUv, aspect: number): number {
 	return max;
 }
 
+/**
+ * How many whole 12fps steps a raw duration needs, at least MIN_RIPPLE_STEPS
+ * so the 2-step wild flash always fits inside the sweep. Single source of
+ * truth for the step alignment: rippleDurationMs uses it to pick the actual
+ * sweep length, and frontRadiusAt uses it (via that same aligned duration)
+ * to compute progress, so the two can never disagree about when the sweep
+ * ends.
+ */
+export function rippleStepCount(rawDurationMs: number): number {
+	const steps = Math.ceil(rawDurationMs / AMBIENT_STEP_MS - STEP_ROUNDING_EPSILON);
+	return Math.max(MIN_RIPPLE_STEPS, steps);
+}
+
 /** Sweep duration for `strength`, scaled by the caller's speed multiplier
- *  (e.g. storeAnimation.speedMultiplier). */
+ *  (e.g. storeAnimation.speedMultiplier) and aligned up to a whole number of
+ *  12fps steps (rippleStepCount) so frontRadiusAt's stepped progress can
+ *  reach exactly 1 on the sweep's last visible step, before completion
+ *  commits the mat to its new colour. */
 export function rippleDurationMs(strength: RippleStrength, speedMultiplier: number): number {
 	const base = strength === "wild" ? WILD_RIPPLE_DURATION_MS : NORMAL_RIPPLE_DURATION_MS;
-	return base / speedMultiplier;
+	const raw = base / speedMultiplier;
+	return rippleStepCount(raw) * AMBIENT_STEP_MS;
 }
 
 /**
  * Radius of the ripple's leading edge at `elapsedMs`, stepped down to the
  * pixel-look's 12fps grid (AMBIENT_STEP_FPS) rather than growing
- * continuously, then scaled linearly across `durationMs` and clamped to
- * `maxRadius`.
+ * continuously. `durationMs` is expected to already be step-aligned (see
+ * rippleStepCount) — progress is measured in whole steps completed
+ * (floor(elapsedMs / stepMs) + 1) out of the total step count, so the last
+ * visible step before completion shows the full radius rather than falling
+ * a fraction of a step short of it. `durationMs <= 0` is treated as an
+ * already-complete sweep and returns the full radius immediately.
  */
 export function frontRadiusAt(elapsedMs: number, durationMs: number, maxRadius: number): number {
-	const steppedMs = Math.floor(elapsedMs / AMBIENT_STEP_MS) * AMBIENT_STEP_MS;
-	const progress = Math.min(1, Math.max(0, steppedMs / durationMs));
+	if (durationMs <= 0) return maxRadius;
+	if (elapsedMs < 0) return 0;
+	const totalSteps = rippleStepCount(durationMs);
+	const stepsElapsed = Math.floor(elapsedMs / AMBIENT_STEP_MS) + 1;
+	const progress = Math.min(1, stepsElapsed / totalSteps);
 	return progress * maxRadius;
 }
