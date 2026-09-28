@@ -196,6 +196,7 @@
 	"lobby_ready_status": "Listo",
 	"lobby_waiting": "Esperando…",
 	"lobby_promote": "Ascender",
+	"lobby_add_friend": "Añadir amigo",
 	"lobby_kick": "Expulsar",
 	"lobby_message": "Mensaje",
 	"lobby_host_badge_alt": "Anfitrión",

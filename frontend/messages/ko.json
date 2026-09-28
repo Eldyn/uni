@@ -196,6 +196,7 @@
 	"lobby_ready_status": "준비 완료",
 	"lobby_waiting": "대기 중…",
 	"lobby_promote": "승격",
+	"lobby_add_friend": "친구 추가",
 	"lobby_kick": "추방",
 	"lobby_message": "메시지",
 	"lobby_host_badge_alt": "호스트",

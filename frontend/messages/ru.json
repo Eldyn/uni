@@ -196,6 +196,7 @@
 	"lobby_ready_status": "Готов",
 	"lobby_waiting": "Ожидание…",
 	"lobby_promote": "Назначить",
+	"lobby_add_friend": "Добавить в друзья",
 	"lobby_kick": "Кикнуть",
 	"lobby_message": "Сообщение",
 	"lobby_host_badge_alt": "Хост",

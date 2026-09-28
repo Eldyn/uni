@@ -196,6 +196,7 @@
 	"lobby_ready_status": "Ready",
 	"lobby_waiting": "Waiting…",
 	"lobby_promote": "Promote",
+	"lobby_add_friend": "Add friend",
 	"lobby_kick": "Kick",
 	"lobby_message": "Message",
 	"lobby_host_badge_alt": "Host",

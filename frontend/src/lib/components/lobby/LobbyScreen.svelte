@@ -468,6 +468,17 @@
 											<i class="pia pixelart-icons-font-message" aria-hidden="true"></i>
 											<span>{m.lobby_message({}, { locale: storeI18n.locale })}</span>
 										</button>
+									{:else}
+										<button
+											class="seat-menu__item seat-menu__item--add-friend"
+											onclick={() => {
+												void chatStore.requestFriend(member.username);
+												activeMenu = null;
+											}}
+										>
+											<i class="pia pixelart-icons-font-user-plus" aria-hidden="true"></i>
+											<span>{m.lobby_add_friend({}, { locale: storeI18n.locale })}</span>
+										</button>
 									{/if}
 								</div>
 							{/if}
@@ -810,11 +821,27 @@
 		font-size: 14px;
 	}
 
+	.seat-menu__item--promote i {
+		color: var(--yellowCard);
+	}
+	.seat-menu__item--kick i {
+		color: var(--redCard);
+	}
+	.seat-menu__item--add-friend i {
+		color: var(--success);
+	}
+	.seat-menu__item--message i {
+		color: var(--accent);
+	}
+
 	.seat-menu__item--promote:hover {
-		color: var(--gold);
+		color: var(--yellowCard);
 	}
 	.seat-menu__item--kick:hover {
-		color: var(--danger);
+		color: var(--redCard);
+	}
+	.seat-menu__item--add-friend:hover {
+		color: var(--success);
 	}
 	.seat-menu__item--message:hover {
 		color: var(--accent);

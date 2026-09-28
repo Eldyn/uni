@@ -196,6 +196,7 @@
 	"lobby_ready_status": "Готовий",
 	"lobby_waiting": "Очікування…",
 	"lobby_promote": "Підвищити",
+	"lobby_add_friend": "Додати друга",
 	"lobby_kick": "Вигнати",
 	"lobby_message": "Повідомлення",
 	"lobby_host_badge_alt": "Хост",
