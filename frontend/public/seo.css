@@ -4,21 +4,21 @@
 
 @font-face {
 	font-family: "FatPixel";
-	src: url("/fonts/fatpixel.woff2") format("woff2");
+	src: url("/fonts/fatpixel.woff2?v=12") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 }
 @font-face {
 	font-family: "Pixel";
-	src: url("/fonts/pixel.woff2") format("woff2");
+	src: url("/fonts/pixel.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 }
 @font-face {
 	font-family: "text";
-	src: url("/fonts/habbo.woff2") format("woff2");
+	src: url("/fonts/habbo.woff2?v=10") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;

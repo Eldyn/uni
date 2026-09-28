@@ -27,7 +27,7 @@
    avoids a visible flash of a smooth, non-pixelated fallback font. */
 @font-face {
 	font-family: "FatPixel";
-	src: url("/fonts/fatpixel.woff2?v=11") format("woff2");
+	src: url("/fonts/fatpixel.woff2?v=12") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: block;
