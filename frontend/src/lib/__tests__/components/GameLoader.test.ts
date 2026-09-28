@@ -3,11 +3,7 @@ import { render, screen } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import { storeGame } from "$lib/stores/game.svelte";
 import { storeNavigation } from "$lib/stores/navigation.svelte";
-import GameLoader, {
-	SHOW_DELAY_MS,
-	CYCLE_MS,
-	FADE_MS
-} from "$lib/components/common/loader/GameLoader.svelte";
+import GameLoader, { CYCLE_MS, FADE_MS } from "$lib/components/common/loader/GameLoader.svelte";
 
 function setReducedMotion(reduced: boolean) {
 	vi.stubGlobal(
@@ -36,29 +32,14 @@ describe("GameLoader", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("hidden before 200 ms", () => {
+	it("shows immediately while the match is loading, with no delay", () => {
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS - 1);
-		flushSync();
-		expect(screen.queryByTestId("game-loader")).toBeNull();
-		vi.advanceTimersByTime(1);
 		flushSync();
 		expect(screen.getByTestId("game-loader")).toBeTruthy();
 	});
 
-	it("never shows when the match begins within the delay", () => {
-		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS / 2);
-		storeGame.matchBegun = true;
-		flushSync();
-		vi.advanceTimersByTime(SHOW_DELAY_MS * 2);
-		flushSync();
-		expect(screen.queryByTestId("game-loader")).toBeNull();
-	});
-
 	it("stays for at least one full cycle once shown", async () => {
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS);
 		flushSync();
 		storeGame.matchBegun = true;
 		flushSync();
@@ -76,9 +57,21 @@ describe("GameLoader", () => {
 		expect(screen.queryByTestId("game-loader")).toBeNull();
 	});
 
+	it("a fast matchBegun still ends the loader per the cycle rule", async () => {
+		render(GameLoader);
+		flushSync();
+		expect(screen.getByTestId("game-loader")).toBeTruthy();
+		storeGame.matchBegun = true;
+		flushSync();
+		await vi.advanceTimersByTimeAsync(CYCLE_MS);
+		await vi.advanceTimersByTimeAsync(FADE_MS);
+		await vi.advanceTimersByTimeAsync(FADE_MS);
+		flushSync();
+		expect(screen.queryByTestId("game-loader")).toBeNull();
+	});
+
 	it("renders the title and five cards", () => {
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS);
 		flushSync();
 		expect(screen.getByText("Loading!")).toBeTruthy();
 		expect(screen.getAllByTestId("loader-card")).toHaveLength(5);
@@ -86,7 +79,6 @@ describe("GameLoader", () => {
 
 	it("shows waiting text only after a count arrives", () => {
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS);
 		flushSync();
 		expect(screen.queryByTestId("loader-waiting")).toBeNull();
 		storeGame.readyProgress = { ready: 2, total: 4 };
@@ -100,7 +92,6 @@ describe("GameLoader", () => {
 	it("reduced motion disables flip", () => {
 		setReducedMotion(true);
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS);
 		flushSync();
 		expect(screen.getByTestId("game-loader").classList.contains("reduced-motion")).toBe(true);
 	});
@@ -108,7 +99,6 @@ describe("GameLoader", () => {
 	it("does not render off the game screen", () => {
 		storeNavigation.current = "lobby";
 		render(GameLoader);
-		vi.advanceTimersByTime(SHOW_DELAY_MS * 2);
 		flushSync();
 		expect(screen.queryByTestId("game-loader")).toBeNull();
 	});

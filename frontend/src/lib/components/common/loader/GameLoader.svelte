@@ -1,7 +1,6 @@
 <script module lang="ts">
 	import { LOADER_CARD_COUNT } from "./loaderFaces";
 
-	export const SHOW_DELAY_MS = 200;
 	export const CARD_STAGGER_MS = 110;
 	export const CARD_IN_MS = 360;
 	export const HOLD_MS = 420;
@@ -22,18 +21,17 @@
 	const reducedMotion =
 		typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+	const waiting = $derived(storeNavigation.current === "game" && !storeGame.matchBegun);
+
 	let visible = $state(false);
 	let cycleDone = $state(false);
 	let faces = $state(randomLoaderFaces());
 	let cycle = $state(0);
 
-	const waiting = $derived(storeNavigation.current === "game" && !storeGame.matchBegun);
 	const shown = $derived(visible && (waiting || !cycleDone));
 
 	$effect(() => {
-		if (!waiting) return;
-		const showTimer = setTimeout(() => (visible = true), SHOW_DELAY_MS);
-		return () => clearTimeout(showTimer);
+		if (waiting) visible = true;
 	});
 
 	$effect(() => {
