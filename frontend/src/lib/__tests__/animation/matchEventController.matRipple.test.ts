@@ -8,10 +8,14 @@ import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
-const { startMatRipple } = vi.hoisted(() => ({ startMatRipple: vi.fn() }));
+const { startMatRipple, beginPending, clearPending } = vi.hoisted(() => ({
+	startMatRipple: vi.fn(),
+	beginPending: vi.fn(),
+	clearPending: vi.fn()
+}));
 
 vi.mock("$components/game/three/ripple/matRipple.svelte", () => ({
-	storeMatRipple: { startMatRipple },
+	storeMatRipple: { startMatRipple, beginPending, clearPending },
 	MAT_INITIAL_COLOR: "#663399"
 }));
 

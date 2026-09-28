@@ -87,6 +87,7 @@ export function createMatchEventBeatController(deps: {
 	 *  a real active_type. */
 	function resetPendingWildRipple(): void {
 		pendingWildRipple = null;
+		storeMatRipple.clearPending();
 	}
 	// Tracks storeGame.isActionPending across snapshots to detect a play
 	// request's round-trip finishing (success OR server rejection) — see the
@@ -316,6 +317,14 @@ export function createMatchEventBeatController(deps: {
 			// Wild landed but the colour pick hasn't arrived yet — syncState()
 			// resolves this once active_type stops reading "white".
 			pendingWildRipple = { originUv, maxRadius };
+		}
+
+		// INFO: hold the mat's current colour from the moment this landing is
+		// known until the card actually lands — the snapshot has already moved
+		// `active_type` on, and without the hold Playmat3D's syncColor adopts
+		// the new colour early, turning the sweep into a from===to no-op.
+		if (ripple !== undefined || pendingWildRipple !== null) {
+			storeMatRipple.beginPending();
 		}
 
 		const playBeat = buildPlayBeat({
@@ -681,7 +690,12 @@ export function createMatchEventBeatController(deps: {
 	 *  during a staggered multi-card draw. */
 	function syncState(): void {
 		const state = storeGame.state;
-		if (!state) return;
+		if (!state) {
+			// A teardown/returnToLobby clears the match — drop any landing hold
+			// so the mat can't stay wedged on the old colour into the next one.
+			storeMatRipple.clearPending();
+			return;
+		}
 
 		// INFO: the watcher used to seed the discard pile on first observation;
 		// without it the first render shows an empty pile. Seed only when

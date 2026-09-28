@@ -33,9 +33,14 @@ export class StoreMatRipple {
 	maxRadius = $state(0);
 	strength = $state<RippleStrength>("normal");
 	active = $state(false);
+	/** True between a landing becoming known (`beginPending`) and the card
+	 *  actually landing (`startMatRipple`): the mat holds the pre-play colour
+	 *  while the snapshot has already moved `active_type` on. */
+	pending = $state(false);
 
 	#now: () => number;
 	#timer: ReturnType<typeof setTimeout> | null = null;
+	#pendingFromColor: string | null = null;
 
 	constructor(now: () => number = () => performance.now()) {
 		this.#now = now;
@@ -57,6 +62,7 @@ export class StoreMatRipple {
 	): void {
 		if (!storeRenderSettings.matRippleActive) {
 			this.#clearTimer();
+			this.clearPending();
 			this.committedColor = toColor;
 			this.active = false;
 			return;
@@ -64,7 +70,8 @@ export class StoreMatRipple {
 
 		if (this.active) this.#finish();
 
-		this.fromColor = this.committedColor;
+		this.fromColor = this.#pendingFromColor ?? this.committedColor;
+		this.clearPending();
 		this.toColor = toColor;
 		this.strength = strength;
 		this.originUv = originUv;
@@ -76,11 +83,30 @@ export class StoreMatRipple {
 		this.#timer = setTimeout(() => this.#finish(), Math.max(0, this.durationMs));
 	}
 
+	/**
+	 * Begins the "pending landing" hold: captures the current committed
+	 * colour as the from-colour the sweep will use, and blocks `syncColor`
+	 * from adopting the new colour the snapshot has already published while
+	 * the card is still in flight. A no-op when ripples are inactive, so the
+	 * instant-commit path stays instant.
+	 */
+	beginPending(): void {
+		if (!storeRenderSettings.matRippleActive) return;
+		this.#pendingFromColor = this.committedColor;
+		this.pending = true;
+	}
+
+	/** Drops a hold that will never convert into a landing (match reset). */
+	clearPending(): void {
+		this.pending = false;
+		this.#pendingFromColor = null;
+	}
+
 	/** Idle colour sync (reconnect, spectator join, initial deal) — ignored
-	 *  while a ripple is actively sweeping, since it would otherwise stomp
-	 *  the in-flight target. */
+	 *  while a ripple is actively sweeping or a landing is pending, since it
+	 *  would otherwise stomp the in-flight target. */
 	syncColor(color: string): void {
-		if (this.active) return;
+		if (this.active || this.pending) return;
 		this.committedColor = color;
 	}
 
