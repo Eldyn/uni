@@ -127,4 +127,59 @@ describe("StoreMatRipple", () => {
 		store.syncColor("#ffffff");
 		expect(store.committedColor).toBe("#ffffff");
 	});
+
+	it("beginPending holds the committed colour and suppresses syncColor until the landing", () => {
+		vi.useFakeTimers();
+		const store = new StoreMatRipple(() => 0);
+		store.committedColor = "#bd3130";
+
+		store.beginPending();
+		store.syncColor("#0470dd");
+
+		expect(store.pending).toBe(true);
+		expect(store.committedColor).toBe("#bd3130");
+
+		store.startMatRipple("#0470dd", "normal", { u: 0.5, v: 0.5 }, 1);
+
+		expect(store.fromColor).toBe("#bd3130");
+		expect(store.toColor).toBe("#0470dd");
+		expect(store.pending).toBe(false);
+
+		vi.advanceTimersByTime(store.durationMs);
+		expect(store.committedColor).toBe("#0470dd");
+	});
+
+	it("beginPending is a no-op when ripples are inactive, so the colour still commits instantly", () => {
+		storeRenderSettings.matRipple = false;
+		const store = new StoreMatRipple(() => 0);
+		store.committedColor = "#bd3130";
+
+		store.beginPending();
+		store.syncColor("#0470dd");
+
+		expect(store.pending).toBe(false);
+		expect(store.committedColor).toBe("#0470dd");
+	});
+
+	it("clearPending drops the hold so a later syncColor adopts the new colour", () => {
+		const store = new StoreMatRipple(() => 0);
+		store.committedColor = "#bd3130";
+
+		store.beginPending();
+		store.clearPending();
+		store.syncColor("#0470dd");
+
+		expect(store.pending).toBe(false);
+		expect(store.committedColor).toBe("#0470dd");
+	});
+
+	it("startMatRipple without a pending hold still sweeps from the committed colour", () => {
+		const store = new StoreMatRipple(() => 0);
+		store.committedColor = "#bd3130";
+
+		store.startMatRipple("#0470dd", "normal", { u: 0.5, v: 0.5 }, 1);
+
+		expect(store.fromColor).toBe("#bd3130");
+		expect(store.toColor).toBe("#0470dd");
+	});
 });
