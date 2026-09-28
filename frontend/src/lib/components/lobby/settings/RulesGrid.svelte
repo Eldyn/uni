@@ -56,7 +56,8 @@
 	}
 
 	.rules-header {
-		font-size: 13px;
+		font-family: var(--tiny);
+		font-size: 15px;
 		color: var(--text-h);
 		font-weight: 500;
 	}
@@ -64,6 +65,6 @@
 	.rules-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 8px;
+		gap: var(--space-3);
 	}
 </style>

@@ -46,7 +46,10 @@
 
 {#snippet slider()}
 	<div class="slider-row">
-		<label for={id} class="slider-label">{label}</label>
+		<div class="slider-header">
+			<label for={id} class="slider-label">{label}</label>
+			<span class="slider-value">{format(localValue)}</span>
+		</div>
 		<div class="slider-control">
 			<button
 				type="button"
@@ -78,7 +81,6 @@
 				aria-label="{label} +"
 				onclick={() => nudge(1)}>+</button
 			>
-			<span class="slider-value">{format(localValue)}</span>
 		</div>
 	</div>
 {/snippet}
@@ -98,20 +100,29 @@
 	.slider-row {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		gap: var(--space-2);
 		min-width: 0;
 	}
 
+	.slider-header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
 	.slider-label {
-		font-size: 12px;
+		font-family: var(--tiny);
+		font-size: 15px;
 		color: var(--text-h);
 		font-weight: 500;
+		min-width: 0;
 	}
 
 	.slider-control {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--space-3);
 		min-width: 0;
 	}
 
@@ -212,8 +223,6 @@
 
 	.slider-value {
 		flex: 0 0 auto;
-		min-width: 4.5ch;
-		text-align: right;
 		font-family: var(--tiny);
 		font-size: 15px;
 		line-height: 1;

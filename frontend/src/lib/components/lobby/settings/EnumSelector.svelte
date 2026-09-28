@@ -110,8 +110,9 @@
 	.selector-label {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		font-size: 14px;
+		gap: var(--space-3);
+		font-family: var(--tiny);
+		font-size: 15px;
 		font-weight: 500;
 		color: var(--text-h);
 		user-select: none;
@@ -150,8 +151,8 @@
 	}
 
 	.enum-listbox :global(button[aria-haspopup="listbox"]) {
-		font-family: var(--pixel);
-		font-size: 12px;
+		font-family: var(--tiny);
+		font-size: 15px;
 		color: var(--text-h);
 	}
 
@@ -167,13 +168,14 @@
 	}
 
 	.enum-option__label {
-		font-family: var(--pixel);
-		font-size: 12px;
+		font-family: var(--tiny);
+		font-size: 15px;
 		color: var(--text-h);
 	}
 
 	.enum-option__desc {
-		font-size: 10px;
+		font-family: var(--tiny);
+		font-size: 13px;
 		color: var(--text);
 	}
 

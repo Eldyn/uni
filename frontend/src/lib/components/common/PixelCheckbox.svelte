@@ -37,12 +37,16 @@
 	.pixel-check {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--space-3);
 		font-size: 14px;
 		font-weight: 500;
 		color: var(--text-h);
 		cursor: pointer;
 		user-select: none;
+	}
+
+	.pixel-check__label {
+		font-family: var(--tiny);
 	}
 	.pixel-check.disabled {
 		cursor: not-allowed;
