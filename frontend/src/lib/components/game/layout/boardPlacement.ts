@@ -19,10 +19,14 @@ import {
 	landscapeMatPlacement,
 	matBounds,
 	portraitMatPlacement,
+	turnedPortraitMatPlacement,
 	PORTRAIT_MAT_WIDTH_FILL,
 	type MatPlacement
 } from "./playmat";
+import type { PortraitTable } from "./portraitTable";
 import type { ViewportInfo } from "./seatLayout";
+
+type FeltBox = Pick<PortraitTable, "feltHalfWidth" | "feltHalfDepth" | "feltCenterZ">;
 
 export interface BoardPlacement {
 	/** Where the playmat sheet is drawn, and where its felt lands. */
@@ -50,20 +54,16 @@ export interface BoardPlacement {
 	localAvatarZ: number;
 	/** World X of the draw pile's center. On landscape it is the left-hand half
 	 *  of the center pile pair (left of the mat's center line); on portrait it
-	 *  slides in from the left edge to sit beside the hand. */
+	 *  is 0, sharing the discard pile's own center line. */
 	drawPileX: number;
 	/** World Z of the draw pile's center. Zero on landscape (it shares the
-	 *  discard pile's center line); on portrait it equals the hand row's own Z,
-	 *  where the pile sits beside the hand. */
+	 *  discard pile's center line); on portrait it sits just below (+Z of) the
+	 *  discard pile, tucked directly under it. */
 	drawPileZ: number;
 	/** Scale for the draw pile's cards. Matches the discard pile at the center
 	 *  on a wide screen; a fraction of the hand's size on a narrow one, where
-	 *  the pile is a small tap target sharing the hand row. */
+	 *  the pile is a small tap target tucked under the discard. */
 	drawPileScale: number;
-	/** Whether the draw pile shares the hand row (portrait) rather than sitting
-	 *  at the mat's center beside the discard pile (landscape). The hand's own
-	 *  span solver reads this to know whether the pile eats into its width. */
-	drawPileBesideHand: boolean;
 }
 
 // The local avatar's size in WORLD units — the same currency the opponent
@@ -117,18 +117,12 @@ export const MIN_CENTER_SCALE = 0.85;
 // single upright card's half-height; this covers the overhang.
 export const CENTER_RING_MARGIN = 0.35;
 
-// The draw pile's resting place beside the hand on portrait. That X would fall
-// outside a phone's frustum, so it slides inward to sit one card-half plus a
-// margin inside the left edge instead — this is the outward cap it slides in
-// from, never a position it actually reaches on a portrait screen.
-export const DRAW_PILE_HOME_X = -5.5;
-export const DRAW_PILE_EDGE_MARGIN = 0.2;
-
-// Gap left between the two center piles (draw + discard) on a landscape screen.
-// Half a card plus the discard scatter's overhang already separates them; this
-// is the breathing room on top. Sized generously: the discard stack is jittered
-// and rotated, so its real footprint fans out well past a single upright card,
-// and at 0.3 the two piles read as one crowded mass rather than two.
+// Gap left between the draw pile and the discard pile. Half a card plus the
+// discard scatter's overhang already separates them; this is the breathing
+// room on top. Sized generously: the discard stack is jittered and rotated, so
+// its real footprint fans out well past a single upright card, and at 0.3 the
+// two piles read as one crowded mass rather than two. Used both for the
+// landscape side-by-side pair and the portrait stack-under-discard layout.
 export const CENTER_PILE_GAP = 0.9;
 
 // Clearance kept between the DISCARD pile's own scattered footprint and the
@@ -148,9 +142,9 @@ export const CENTER_DISCARD_MARGIN = 1.9;
 // them into each other.
 export const CENTER_PILE_MIN_SPREAD = 1.5;
 
-// Small tap target: on a narrow screen the pile shares the hand row but at a
-// fraction of its size, since there it's a target to tap rather than a stack
-// to read.
+// Small tap target: on a narrow screen the pile is tucked under the discard
+// pile at a fraction of the hand's card size, since there it's a target to tap
+// rather than a stack to read.
 export const PORTRAIT_DRAW_PILE_SCALE = 0.6;
 
 // How much of the frustum's width the hand row may span, and how many cards
@@ -172,16 +166,99 @@ export const PORTRAIT_MAT_LOCAL_GAP = 0.25;
 // total width is therefore one full card plus one spacing per further card.
 export const HAND_SPACING_RATIO = 0.8;
 
+// A phone's hand shows one more card than the width floor above would: at five
+// the row's cards are a third of the screen tall and the row still scrolls by
+// the second draw.
+export const PORTRAIT_HAND_MIN_VISIBLE_CARDS = 6;
+
+// Clearance kept between the center piles' scattered footprint and the felt's
+// painted edge on a phone, across and along the table.
+export const PORTRAIT_PILE_FELT_MARGIN = 0.35;
+
+/** The phone hand's card scale — width-bound, so a function of the frustum's
+ *  width alone. */
+export function portraitHandScale(halfWidth: number): number {
+	const rowWidth = 2 * halfWidth * HAND_WIDTH_FILL;
+	const widthCap =
+		rowWidth / (CARD_WIDTH * (1 + (PORTRAIT_HAND_MIN_VISIBLE_CARDS - 1) * HAND_SPACING_RATIO));
+	return Math.min(MAX_HAND_SCALE, Math.max(MIN_HAND_SCALE, widthCap));
+}
+
+/** Depth from the screen's bottom edge up to the phone felt's near edge: the
+ *  bottom margin, the hand row, the gap, the local avatar and its gap to the
+ *  felt. */
+export function portraitHandStripDepth(halfWidth: number): number {
+	return (
+		HAND_BOTTOM_MARGIN +
+		CARD_HEIGHT * portraitHandScale(halfWidth) +
+		LOCAL_SEAT_GAP +
+		LOCAL_AVATAR_WORLD +
+		PORTRAIT_MAT_LOCAL_GAP
+	);
+}
+
+/**
+ * The phone board: the felt box comes from portraitTable.ts, and both center
+ * piles stack on its center line — discard toward the opponents, draw toward
+ * the player — at the hand's own card size unless the felt is too narrow or
+ * too short for it.
+ */
+function portraitTablePlacement(rig: CameraRig, table: FeltBox): BoardPlacement {
+	const handScale = portraitHandScale(rig.halfWidth);
+	const nearEdgeZ = rig.centerZ + rig.halfHeight;
+	const localSeatZ = nearEdgeZ - (CARD_HEIGHT * handScale) / 2 - HAND_BOTTOM_MARGIN;
+	const localAvatarZ = localSeatZ - (CARD_HEIGHT * handScale) / 2 - LOCAL_SEAT_GAP;
+
+	const mat = turnedPortraitMatPlacement(
+		table.feltHalfWidth,
+		table.feltHalfDepth,
+		table.feltCenterZ
+	);
+	const feltHalfWidth = mat.bounds.right - PORTRAIT_PILE_FELT_MARGIN;
+	const feltHalfDepth = (mat.bounds.near - mat.bounds.far) / 2 - PORTRAIT_PILE_FELT_MARGIN;
+
+	// Per unit of card scale: how far the scatter reaches across and along the
+	// table past its own center.
+	const jitter = MAX_JITTER_EM * EM_TO_WORLD;
+	const reachX = CARD_WIDTH / 2 + jitter;
+	const reachZ = CARD_HEIGHT / 2 + jitter;
+	const widthFit = feltHalfWidth / reachX;
+	// Two stacked piles span four reaches plus the gap between them.
+	const depthFit = (2 * feltHalfDepth - CENTER_PILE_GAP) / (4 * reachZ);
+	const centerScale = Math.max(MIN_CENTER_SCALE, Math.min(handScale, widthFit, depthFit));
+
+	const pileSpreadZ = reachZ * centerScale + CENTER_PILE_GAP / 2;
+	const feltCenterZ = (mat.bounds.far + mat.bounds.near) / 2;
+
+	return {
+		mat,
+		discardX: 0,
+		discardZ: feltCenterZ - pileSpreadZ,
+		handScale,
+		centerScale,
+		localSeatZ,
+		localAvatarZ,
+		drawPileX: 0,
+		drawPileZ: feltCenterZ + pileSpreadZ,
+		drawPileScale: centerScale
+	};
+}
+
 /**
  * @param centerClearanceZ World-space depth available between the mat's center
  * and the nearest opponent seat's outermost card (see handRing.ts's
  * opponentSeatReachWorld). Omit it to leave the center pile at its full size.
+ * @param table The phone felt box solved by portraitTable.ts; when given on a
+ * portrait viewport, it replaces the arch-derived composition below.
  */
 export function computeBoardPlacement(
 	viewport: ViewportInfo,
 	rig: CameraRig,
-	centerClearanceZ: number = Infinity
+	centerClearanceZ: number = Infinity,
+	table?: FeltBox
 ): BoardPlacement {
+	if (table && viewport.orientation === "portrait") return portraitTablePlacement(rig, table);
+
 	// Solve the strip below the felt for the card height that fills it:
 	//   avatarFarEdge == feltNearEdge, where the avatar sits one SEAT_GAP plus
 	//   one full card height above the bottom margin, and its own far edge is
@@ -221,10 +298,9 @@ export function computeBoardPlacement(
 	// Landscape puts BOTH communal piles side by side on the felt's center line
 	// — draw on the left, discard on the right — so the middle of the mat carries
 	// the whole play area and a spectator spin can pivot around it without a
-	// pile to look after. The draw pile therefore no longer shares the hand row
-	// (which is what frees the hand to span the full width). Portrait keeps the
-	// compact beside-the-hand layout, where there is no room at center.
-	const drawPileBesideHand = isPortrait;
+	// pile to look after. Portrait instead tucks the (smaller) draw pile
+	// directly under the discard pile, on the same center line, so the two
+	// communal piles read as one cluster and the hand keeps the full width.
 	const drawPileScale = isPortrait ? handScale * PORTRAIT_DRAW_PILE_SCALE : handScale;
 	// The felt: covering the frustum in landscape (zoomed up a touch, see
 	// playmat.ts), and in portrait filling the band between the opponents' arch
@@ -247,12 +323,18 @@ export function computeBoardPlacement(
 		MAX_JITTER_EM * EM_TO_WORLD * pileCardScale +
 		CENTER_PILE_GAP;
 
-	const drawPileX = isPortrait
-		? Math.max(
-				DRAW_PILE_HOME_X,
-				-(rig.halfWidth - (CARD_WIDTH * drawPileScale) / 2 - DRAW_PILE_EDGE_MARGIN)
-			)
-		: -pileSpread;
+	const discardZ = isPortrait ? (mat.bounds.far + mat.bounds.near) / 2 : 0;
+	// How far the discard scatter reaches past its own centre along Z. The draw
+	// pile's far (pile-peek) edge has to clear that by the same pile gap, so the
+	// two stacks never merge into one mass.
+	const discardReachZ =
+		(CARD_HEIGHT * pileCardScale) / 2 + MAX_JITTER_EM * EM_TO_WORLD * pileCardScale;
+
+	const drawPileX = isPortrait ? 0 : -pileSpread;
+	const drawPileZ = isPortrait
+		? discardZ + discardReachZ + (CARD_HEIGHT * drawPileScale) / 2 + CENTER_PILE_GAP
+		: 0;
+
 	// The discard pile is clamped against the MAT's right edge, not mirrored to
 	// the draw pile's X. The two piles are deliberately not centred as a pair:
 	// the discard's cards are randomly jittered and rotated, so their real
@@ -270,8 +352,6 @@ export function computeBoardPlacement(
 	const discardX = isPortrait
 		? 0
 		: Math.max(CENTER_PILE_MIN_SPREAD, Math.min(pileSpread, discardMaxX));
-	const discardZ = isPortrait ? (mat.bounds.far + mat.bounds.near) / 2 : 0;
-	const drawPileZ = isPortrait ? localSeatZ : 0;
 
 	return {
 		mat,
@@ -283,7 +363,6 @@ export function computeBoardPlacement(
 		localAvatarZ,
 		drawPileX,
 		drawPileZ,
-		drawPileScale,
-		drawPileBesideHand
+		drawPileScale
 	};
 }

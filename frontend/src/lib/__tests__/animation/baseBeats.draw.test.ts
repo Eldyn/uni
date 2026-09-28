@@ -17,8 +17,7 @@ const placement: BoardPlacement = {
 	localAvatarZ: 6,
 	drawPileX: -3,
 	drawPileZ: 5,
-	drawPileScale: 1,
-	drawPileBesideHand: true
+	drawPileScale: 1
 };
 
 describe("drawStaggerFor", () => {

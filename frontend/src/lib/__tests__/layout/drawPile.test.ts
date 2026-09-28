@@ -25,8 +25,7 @@ const placement: BoardPlacement = {
 	localAvatarZ: 6,
 	drawPileX: -3,
 	drawPileZ: 5,
-	drawPileScale: 0.8,
-	drawPileBesideHand: true
+	drawPileScale: 0.8
 };
 
 describe("visibleDrawPileStackSize", () => {

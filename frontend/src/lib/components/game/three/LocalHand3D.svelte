@@ -121,11 +121,6 @@
 	// The pick planes float above every card (including a lifted/dragged one, at
 	// DRAG_LIFT) so they always win the raycast.
 	const HIT_PLANE_Y = 1;
-	// The row grows symmetrically from center, so its left edge heads for the
-	// draw pile: cap the span where the leftmost card's edge would reach the
-	// pile's right edge (pile half-width + card half-width) plus a small gap.
-	// The pile is drawn at its own scale, smaller than the hand in portrait.
-	const HAND_PILE_GAP = 0.25;
 	// The fade reads off the actual screen, not the layout's own span cap: the
 	// draw pile pins maxHalfSpanEm well inside the true frustum edge (see
 	// maxHalfSpanEm below), so keying the fade off THAT used to fade a normal
@@ -153,8 +148,6 @@
 	const WHEEL_STEP_PX = 60;
 	// Red, Green, Blue, Yellow, then wilds last (they have no color of their own).
 	const RGBY_TYPE_ORDER = ["red", "green", "blue", "yellow", "white"];
-	// Gap between the draw pile's own left edge and the sort button beside it.
-	const SORT_BUTTON_GAP_EM = 3.2;
 	// make room for it, in em, tapering off exponentially so only the
 	// handful of cards nearest the active one actually move — the ends of
 	// a long hand shouldn't shuffle just because something near the middle
@@ -188,33 +181,16 @@
 	// The placement's hand scale also scales the slot spacing and lift push so
 	// the row's overlap proportions stay the same at any card size.
 	let handEmToWorld = $derived(EM_TO_WORLD * placement.handScale);
-	// Two limits, whichever is tighter: the draw pile on the left, the frustum's
-	// own edge on the right (the row is centered on x=0, so the tighter of the
-	// two bounds both sides). Once the pile has moved up onto the mat
-	// (boardPlacement.ts's drawPileBesideHand) it no longer shares the row's
-	// line, so only the frustum edge is left — which is the whole point of
-	// moving it there.
+	// The draw pile no longer shares the hand's row in any orientation (it sits
+	// on the mat, its own placement clear of the row), so the row's span is
+	// bounded only by the frustum's own edge — the row is centered on x=0, so
+	// the tighter of the two bounds applies to both sides.
 	let edgeHalfSpan = $derived(rig.halfWidth - (CARD_WIDTH * placement.handScale) / 2);
-	let maxHalfSpanEm = $derived(
-		(placement.drawPileBesideHand
-			? Math.min(
-					Math.abs(placement.drawPileX) -
-						(CARD_WIDTH * (placement.handScale + placement.drawPileScale)) / 2 -
-						HAND_PILE_GAP,
-					edgeHalfSpan
-				)
-			: edgeHalfSpan) / handEmToWorld
-	);
+	let maxHalfSpanEm = $derived(edgeHalfSpan / handEmToWorld);
 
-	// The sort button tucks against the draw pile while the pile shares the hand
-	// row. Once the pile moves onto the mat there is nothing to tuck against, so
-	// the button takes the row's own left end — mirroring the overflow hint on
-	// the right rather than floating in the gap the pile left behind.
-	let sortButtonX = $derived(
-		placement.drawPileBesideHand
-			? placement.drawPileX - SORT_BUTTON_GAP_EM * handEmToWorld
-			: -((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3)
-	);
+	// With nothing in the row to tuck against, the button takes the row's own
+	// left end — mirroring the overflow hint on the right.
+	let sortButtonX = $derived(-((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3));
 
 	let handCards = $derived(handPlayer?.hand ?? []);
 	// A spectator viewing a player whose hand the server withheld (privacy_mode)

@@ -8,7 +8,6 @@ import {
 	MAX_HAND_SCALE,
 	MIN_HAND_SCALE,
 	HAND_BOTTOM_MARGIN,
-	DRAW_PILE_HOME_X,
 	HAND_WIDTH_FILL,
 	HAND_MIN_VISIBLE_CARDS,
 	HAND_SPACING_RATIO,
@@ -45,19 +44,21 @@ describe("computeBoardPlacement", () => {
 
 		it(`keeps the draw pile fully on screen (${name})`, () => {
 			const { rig, placement } = placementFor(viewport);
-			// Never further out than the frustum's left edge, never further in than
-			// its home X — it only ever gets pulled toward the center, never past it.
+			if (viewport.orientation === "portrait") {
+				// Tucked on the discard's own center line, under it.
+				expect(placement.drawPileX, name).toBeCloseTo(0, 5);
+				return;
+			}
+			// Landscape: never further out than the frustum's left edge.
 			const pileLeftX = placement.drawPileX - (CARD_WIDTH * placement.drawPileScale) / 2;
-			expect(pileLeftX).toBeGreaterThanOrEqual(-rig.halfWidth - 1e-6);
-			expect(placement.drawPileX).toBeGreaterThanOrEqual(DRAW_PILE_HOME_X - 1e-6);
-			expect(placement.drawPileX).toBeLessThan(0);
+			expect(pileLeftX, name).toBeGreaterThanOrEqual(-rig.halfWidth - 1e-6);
+			expect(placement.drawPileX, name).toBeLessThan(0);
 		});
 	}
 
 	it("puts both center piles side by side on the mat's center line (landscape)", () => {
 		for (const [name, viewport] of Object.entries({ landscape, wide })) {
 			const { placement } = placementFor(viewport);
-			expect(placement.drawPileBesideHand, name).toBe(false);
 			expect(placement.drawPileZ, name).toBeCloseTo(0, 5);
 			expect(placement.discardZ, name).toBeCloseTo(0, 5);
 			// Draw on the left, discard on the right.
@@ -86,12 +87,21 @@ describe("computeBoardPlacement", () => {
 		}
 	});
 
-	it("keeps the draw pile beside the hand row only in portrait, smaller there", () => {
+	it("tucks the draw pile under the discard pile in portrait, smaller there", () => {
 		for (const [name, viewport] of Object.entries({ portrait, narrowPortrait })) {
 			const { placement } = placementFor(viewport);
-			expect(placement.drawPileBesideHand, name).toBe(true);
-			expect(placement.drawPileZ, name).toBeCloseTo(placement.localSeatZ, 5);
+			// Same center line as the discard, and below it (down-screen, +Z).
+			expect(placement.drawPileX, name).toBeCloseTo(0, 5);
+			expect(placement.drawPileZ, name).toBeGreaterThan(placement.discardZ);
+			// A small tap target: smaller than the hand's own cards.
 			expect(placement.drawPileScale, name).toBeLessThan(placement.handScale);
+			// Clear of the discard's scatter above it and of the hand row below it.
+			const pileFarZ = placement.drawPileZ - (CARD_HEIGHT * placement.drawPileScale) / 2;
+			const discardNearZ = placement.discardZ + (CARD_HEIGHT * placement.centerScale) / 2;
+			expect(pileFarZ, name).toBeGreaterThan(discardNearZ);
+			const pileNearZ = placement.drawPileZ + (CARD_HEIGHT * placement.drawPileScale) / 2;
+			const handFarZ = placement.localSeatZ - (CARD_HEIGHT * placement.handScale) / 2;
+			expect(pileNearZ, name).toBeLessThan(handFarZ);
 		}
 		const { placement: landscapePlacement } = placementFor(landscape);
 		expect(landscapePlacement.drawPileScale).toBeCloseTo(landscapePlacement.handScale, 5);
