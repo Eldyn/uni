@@ -108,7 +108,7 @@
 	}
 	.title {
 		margin: 0;
-		font-family: var(--pixel);
+		font-family: var(--heading);
 		font-size: clamp(2rem, 6vw, 4rem);
 		color: var(--white, #fff);
 		text-shadow: 0.08em 0.08em 0 var(--pixel-shadow);
@@ -142,7 +142,7 @@
 	}
 	.waiting {
 		margin: 0;
-		font-family: var(--pixel);
+		font-family: var(--tiny);
 		font-size: clamp(0.9rem, 2.2vw, 1.25rem);
 		color: var(--white, #fff);
 		text-shadow: 1px 1px 0 var(--pixel-shadow);
