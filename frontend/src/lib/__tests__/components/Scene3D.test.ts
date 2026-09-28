@@ -22,7 +22,7 @@ vi.mock("@threlte/core", () => ({
 		}
 	),
 	useTask: vi.fn(),
-	useThrelte: () => ({ camera: { current: {} } })
+	useThrelte: () => ({ camera: { current: {} }, invalidate: vi.fn() })
 }));
 
 vi.mock("@threlte/extras", () => ({
