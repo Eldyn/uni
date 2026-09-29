@@ -211,6 +211,36 @@ const json* FindPlayerState(const json& match_state,
     return nullptr;
 }
 
+/** @brief The hand entry whose compact id is `bits`, or nullptr. */
+const json* EntryWithBits(const json& hand, uint32_t bits) {
+    for (const json& entry : hand) {
+        if (entry.value("card", 0u) == bits) return &entry;
+    }
+    return nullptr;
+}
+
+/**
+ * @brief Snapshot-scoped PlayEvaluator verdict for `player`/`card`.
+ *
+ * Independent oracle: one evaluator built from the match, routed exactly as
+ * `BuildHand` must route (`CanRespond` while a window is open, else
+ * `CanPlayInTurn`).
+ */
+bool EvaluatorVerdict(const MatchInstance& engine, ecs::Entity player,
+                      ecs::Entity card) {
+    const PlayEvaluator evaluator = engine.MakePlayEvaluator();
+    if (!engine.WindowOpen()) return evaluator.CanPlayInTurn(player, card);
+    const ecs::WindowState* window =
+        engine.Store().Get<ecs::WindowState>(engine.Registries().match);
+    const std::optional<match::resolver::WindowRequest> pending =
+        engine.PendingWindow();
+    REQUIRE(window != nullptr);
+    REQUIRE(pending.has_value());
+    const PlayEvaluator::WindowView view{window->responders, window->responses,
+                                         pending->respond_with};
+    return evaluator.CanRespond(view, player, card);
+}
+
 }  // namespace
 
 TEST_CASE("view snapshot: base visibility for a seated player") {
@@ -520,6 +550,135 @@ TEST_CASE("view snapshot: window state is included when open") {
     CHECK(window["eligible_filter_digest"].is_string());
     CHECK(window["responses"].is_array());
     CHECK(window["responses"].empty());
+}
+
+TEST_CASE("view snapshot: own-hand can_play equals PlayEvaluator verdicts") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> red2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> blue5 = FindCard(*engine, "blue", "5");
+    REQUIRE(red2.has_value());
+    REQUIRE(blue5.has_value());
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    ForceHand(*engine, player0, {*red2, *blue5});
+    REQUIRE(*engine->GetCurrentPlayer() == player0);
+
+    // INFO: in turn, no window - every own-hand entry carries the evaluator's
+    //       CanPlayInTurn verdict; the red +2 matches the active type, the
+    //       blue 5 does not.
+    EventSink in_turn_sink;
+    const json in_turn =
+        builder.BuildSnapshot(Viewer::Player("player0"), in_turn_sink);
+    const json* own = FindPlayerState(in_turn["match_state"], "player0");
+    REQUIRE(own != nullptr);
+    REQUIRE(own->contains("hand"));
+    REQUIRE((*own)["hand"].size() == 2u);
+    const ecs::Hand* hand0 = engine->Store().Get<ecs::Hand>(player0);
+    REQUIRE(hand0->cards.size() == 2u);
+    for (const json& entry : (*own)["hand"]) {
+        const ecs::Entity card = entry["card"] ==
+                                         engine->Registries().CardId(*red2)->bits
+                                     ? *red2
+                                     : *blue5;
+        CHECK(entry["can_play"].get<bool>()
+              == EvaluatorVerdict(*engine, player0, card));
+    }
+    CHECK(EntryWithBits((*own)["hand"], engine->Registries().CardId(*red2)->bits)
+              ->at("can_play")
+          == true);
+    CHECK(EntryWithBits((*own)["hand"], engine->Registries().CardId(*blue5)->bits)
+              ->at("can_play")
+          == false);
+
+    // INFO: out of turn, no window - the verdict is false and still equals the
+    //       evaluator.
+    ForceHand(*engine, player1, {*red2});
+    EventSink out_sink;
+    const json out =
+        builder.BuildSnapshot(Viewer::Player("player1"), out_sink);
+    const json* other = FindPlayerState(out["match_state"], "player1");
+    REQUIRE(other != nullptr);
+    REQUIRE(other->contains("hand"));
+    REQUIRE((*other)["hand"].size() == 1u);
+    CHECK((*other)["hand"][0]["can_play"] == false);
+    CHECK_FALSE(EvaluatorVerdict(*engine, player1, *red2));
+}
+
+TEST_CASE("view snapshot: own-hand can_play uses CanRespond in a window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeWindowEngine(content);
+    ViewBuilder builder(*engine, content.mods);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> opener = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> filler0 = FindCard(*engine, "blue", "5");
+    const std::optional<ecs::Entity> stack = FindCard(*engine, "green", "+2");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(opener.has_value());
+    REQUIRE(filler0.has_value());
+    REQUIRE(stack.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*opener, *filler0});
+    ForceHand(*engine, player1, {*stack, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    REQUIRE(engine->PlayCard("player0", *opener));
+    REQUIRE(engine->WindowOpen());
+
+    // INFO: the responder's own hand is lit only for the +2 the window
+    //       accepts; the verdict comes from the evaluator's CanRespond.
+    EventSink responder_sink;
+    const json responder =
+        builder.BuildSnapshot(Viewer::Player("player1"), responder_sink);
+    const json* row1 = FindPlayerState(responder["match_state"], "player1");
+    REQUIRE(row1 != nullptr);
+    REQUIRE(row1->contains("hand"));
+    REQUIRE((*row1)["hand"].size() == 2u);
+    CHECK(EntryWithBits((*row1)["hand"], engine->Registries().CardId(*stack)->bits)
+              ->at("can_play")
+          == true);
+    CHECK(EntryWithBits((*row1)["hand"],
+                        engine->Registries().CardId(*filler1)->bits)
+              ->at("can_play")
+          == false);
+    CHECK(EvaluatorVerdict(*engine, player1, *stack));
+    CHECK_FALSE(EvaluatorVerdict(*engine, player1, *filler1));
+
+    // INFO: the actor opened the window but is not a responder, so its own hand
+    //       is dimmed during the window.
+    EventSink actor_sink;
+    const json actor =
+        builder.BuildSnapshot(Viewer::Player("player0"), actor_sink);
+    const json* row0 = FindPlayerState(actor["match_state"], "player0");
+    REQUIRE(row0 != nullptr);
+    REQUIRE(row0->contains("hand"));
+    for (const json& entry : (*row0)["hand"]) {
+        CHECK(entry["can_play"] == false);
+        const ecs::Entity card =
+            entry["card"] == engine->Registries().CardId(*opener)->bits
+                ? *opener
+                : *filler0;
+        CHECK_FALSE(EvaluatorVerdict(*engine, player0, card));
+    }
+
+    // INFO: spectators and other seats' hands never carry can_play.
+    EventSink spec_sink;
+    const json spectator =
+        builder.BuildSnapshot(Viewer::Spectator(), spec_sink);
+    for (const json& player : spectator["match_state"]["players"]) {
+        REQUIRE(player.contains("hand"));
+        for (const json& entry : player["hand"]) {
+            CHECK_FALSE(entry.contains("can_play"));
+        }
+    }
 }
 
 TEST_CASE("view snapshot: seq watermark tracks the viewer stream") {

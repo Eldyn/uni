@@ -3,6 +3,7 @@
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
+#include <match/engine/play_evaluator.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
@@ -345,80 +346,24 @@ json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
 }
 
 /**
- * @brief True when `card` is legally playable by `player` right now.
+ * @brief One card's `can_play` verdict from the snapshot's PlayEvaluator.
  *
- * Mirrors the engine's restriction pipeline (`BuildPlayAttempt` +
- * `CheckPlayRestrictions`) through public accessors only, because that path
- * is private and the view layer must not modify the engine. Out-of-turn is
- * `false` (the legacy `SerializeHandFor` behaviour) except for a window
- * responder, which defers to `MatchInstance::CanRespondWindow`. Reuses the
- * engine's frozen `PlayRestriction` entries, `PlayConditionMatcher` and
- * `card_facts`; it adds no second state model.
+ * The single legality authority owns the decision: while a
+ * window is open the evaluator answers through `CanRespond`, otherwise
+ * through `CanPlayInTurn`. `window` and `pending` are the live window state,
+ * null when no window is open.
  */
-bool CanPlay(const match::engine::MatchInstance& match, ecs::Entity player,
-             ecs::Entity card) {
-    const ecs::EntityStore& store = match.Store();
-    const match::engine::MatchRegistries& registries = match.Registries();
-    // INFO: While a window is open only its pending responders
-    //       may play, and only cards the window accepts (out of turn too).
-    if (match.WindowOpen()) return match.CanRespondWindow(player, card);
-
-    const std::optional<ecs::Entity> current = match.GetCurrentPlayer();
-    const bool in_turn = current.has_value() && *current == player;
-    if (!in_turn) return false;
-
-    modload::PlayAttempt attempt;
-    const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(player);
-    attempt.player = info == nullptr ? std::string() : info->username;
-    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
-    attempt.card_kind = identity == nullptr ? std::string() : identity->kind_id;
-    attempt.in_turn = in_turn;
-
-    json context = json::object();
-    const ecs::PileContents* discard =
-        store.Get<ecs::PileContents>(registries.discard_pile);
-    if (discard != nullptr && !discard->cards.empty()) {
-        const ecs::CardIdentity* top =
-            store.Get<ecs::CardIdentity>(discard->cards.back());
-        if (top != nullptr) context["top_kind"] = top->kind_id;
+bool EvaluatorCanPlay(const match::engine::PlayEvaluator& evaluator,
+                      ecs::Entity player, ecs::Entity card,
+                      const ecs::WindowState* window,
+                      const match::resolver::WindowRequest* pending) {
+    if (window == nullptr || pending == nullptr) {
+        return evaluator.CanPlayInTurn(player, card);
     }
-    const ecs::ActiveTypeReq* active =
-        store.Get<ecs::ActiveTypeReq>(registries.match);
-    context["active_type"] = (active != nullptr && active->type.has_value())
-                                 ? json(*active->type)
-                                 : json(std::string());
-    json hand_kinds = json::array();
-    if (const ecs::Hand* hand = store.Get<ecs::Hand>(player)) {
-        for (ecs::Entity held : hand->cards) {
-            const ecs::CardIdentity* held_id =
-                store.Get<ecs::CardIdentity>(held);
-            if (held_id != nullptr) hand_kinds.push_back(held_id->kind_id);
-        }
-    }
-    context["hand"] = std::move(hand_kinds);
-    attempt.context = std::move(context);
-
-    std::vector<modload::RestrictionEntry> entries;
-    if (const ecs::PlayRestriction* pipeline =
-            store.Get<ecs::PlayRestriction>(registries.match)) {
-        entries.reserve(pipeline->entries.size());
-        for (const ecs::RestrictionEntry& entry : pipeline->entries) {
-            modload::RestrictionEntry converted;
-            converted.id = entry.id;
-            converted.phase =
-                entry.phase == ecs::RestrictionPhase::kAllow ? "allow" : "deny";
-            converted.condition = entry.condition;
-            entries.push_back(std::move(converted));
-        }
-    }
-    const modload::PlayConditionMatcher* matcher =
-        match.Assembly().play_matcher.get();
-    modload::ConditionMatcher condition =
-        [matcher](const json& value, const modload::PlayAttempt& a) {
-            return matcher != nullptr && matcher->Matches(value, a);
-        };
-    return modload::EvaluatePlayRestrictions(entries, attempt, condition)
-        .allowed;
+    return evaluator.CanRespond(
+        match::engine::PlayEvaluator::WindowView{
+            window->responders, window->responses, pending->respond_with},
+        player, card);
 }
 
 /**
@@ -430,6 +375,7 @@ bool CanPlay(const match::engine::MatchInstance& match, ecs::Entity player,
  * each card's own grants, so a `choose_card` reveal survives the snapshot).
  */
 std::optional<json> BuildHand(const match::engine::MatchInstance& match,
+                              const match::engine::PlayEvaluator& evaluator,
                               const Viewer& viewer,
                               const SnapshotOptions& options,
                               ecs::Entity player,
@@ -452,6 +398,15 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
         hand_mask = GrantMask(match, player, *viewer_entity);
     }
 
+    // INFO: `can_play` is own-hand only. While a window is open the
+    //       window state is resolved once for the whole hand, not per card.
+    const ecs::WindowState* window = nullptr;
+    std::optional<match::resolver::WindowRequest> pending;
+    if (own && match.WindowOpen()) {
+        window = match.Store().Get<ecs::WindowState>(match.Registries().match);
+        pending = match.PendingWindow();
+    }
+
     json out = json::array();
     for (ecs::Entity card : hand->cards) {
         uint32_t mask = hand_mask;
@@ -459,7 +414,10 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
             mask |= GrantMask(match, card, *viewer_entity);
         }
         if (!HasAspect(mask, kCardAspects)) continue;
-        const bool playable = own && CanPlay(match, player, card);
+        const bool playable =
+            own
+            && EvaluatorCanPlay(evaluator, player, card, window,
+                                pending.has_value() ? &*pending : nullptr);
         out.push_back(CardEntry(match, card, mask, playable, own));
     }
     if (own || !out.empty()) return out;
@@ -500,6 +458,7 @@ json BuildStatuses(const ViewBuilder& builder,
 /** @brief One player row: identity, public counters, hand + statuses. */
 json BuildPlayer(const ViewBuilder& builder,
                  const match::engine::MatchInstance& match,
+                 const match::engine::PlayEvaluator& evaluator,
                  const Viewer& viewer, const SnapshotOptions& options,
                  ecs::Entity player,
                  std::optional<ecs::Entity> viewer_entity) {
@@ -519,7 +478,7 @@ json BuildPlayer(const ViewBuilder& builder,
     const auto watchers = options.spectator_counts.find(username);
     entry["spectator_count"] = watchers == options.spectator_counts.end() ? 0 : watchers->second;
     const std::optional<json> hand_json =
-        BuildHand(match, viewer, options, player, viewer_entity);
+        BuildHand(match, evaluator, viewer, options, player, viewer_entity);
     if (hand_json.has_value()) entry["hand"] = *hand_json;
     entry["statuses"] =
         BuildStatuses(builder, match, viewer, options, player, viewer_entity);
@@ -758,10 +717,14 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     }
     state["pending_draws"] = pending_draws;
 
+    // INFO: one legality authority per snapshot; `can_play` is derived from it
+    //replacing the deleted view-local copy.
+    const match::engine::PlayEvaluator evaluator = match.MakePlayEvaluator();
+
     json players = json::array();
     for (ecs::Entity player : registries.players) {
-        players.push_back(BuildPlayer(*this, match, viewer, options, player,
-                                      viewer_entity));
+        players.push_back(BuildPlayer(*this, match, evaluator, viewer, options,
+                                      player, viewer_entity));
     }
     state["players"] = std::move(players);
     state["draw_pile"] =

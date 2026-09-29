@@ -132,6 +132,17 @@ std::optional<json> WrapOne(const ViewBuilder& builder, const Viewer& viewer,
     return builder.Wrap(event, viewer, sink);
 }
 
+/** @brief The card entity whose compact id is `bits`, or nullopt. */
+std::optional<ecs::Entity> FindByBits(const MatchInstance& engine,
+                                      uint32_t bits) {
+    for (ecs::Entity card : engine.Registries().cards) {
+        const std::optional<ecs::CompactCardV2> id =
+            engine.Registries().CardId(card);
+        if (id.has_value() && id->bits == bits) return card;
+    }
+    return std::nullopt;
+}
+
 /** @brief A loaded-mod stub declaring a hidden status. */
 LoadedMod HiddenStatusMod() {
     LoadedMod mod;
@@ -552,6 +563,53 @@ TEST_CASE("view filter: seq stays gap-free for a filtered viewer") {
     CHECK(visible[0]["seq"] == 0u);
     CHECK(visible[1]["seq"] == 1u);
     CHECK(sink.NextSeq() == 2u);
+}
+
+TEST_CASE("view filter: can_play is own hand only and matches the evaluator") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    REQUIRE(*engine->GetCurrentPlayer() != player1);
+
+    // INFO: a viewer's own hand carries a can_play verdict per card equal to
+    //       the snapshot evaluator's CanPlayInTurn; every other hand is
+    //       count-only (no grant), so it carries none.
+    EventSink own_sink;
+    const json own = builder.BuildSnapshot(Viewer::Player("player1"), own_sink);
+    const PlayEvaluator evaluator = engine->MakePlayEvaluator();
+    bool own_hand_seen = false;
+    for (const json& player : own["match_state"]["players"]) {
+        const std::string username = player.value("username", std::string());
+        if (username != "player1") {
+            CHECK_FALSE(player.contains("hand"));
+            continue;
+        }
+        own_hand_seen = true;
+        REQUIRE(player.contains("hand"));
+        for (const json& entry : player["hand"]) {
+            REQUIRE(entry.contains("can_play"));
+            const std::optional<ecs::Entity> card =
+                FindByBits(*engine, entry["card"].get<uint32_t>());
+            REQUIRE(card.has_value());
+            CHECK(entry["can_play"].get<bool>()
+                  == evaluator.CanPlayInTurn(player1, *card));
+        }
+    }
+    CHECK(own_hand_seen);
+
+    // INFO: a spectator sees every hand in full but never a can_play flag.
+    EventSink spec_sink;
+    const json spectator =
+        builder.BuildSnapshot(Viewer::Spectator(), spec_sink);
+    for (const json& player : spectator["match_state"]["players"]) {
+        REQUIRE(player.contains("hand"));
+        for (const json& entry : player["hand"]) {
+            CHECK_FALSE(entry.contains("can_play"));
+        }
+    }
 }
 
 TEST_CASE("view filter: pending prompt reaches only its target") {
