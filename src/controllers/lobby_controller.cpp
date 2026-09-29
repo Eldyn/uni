@@ -1085,8 +1085,8 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     //       rather than the legacy in-process RuleRegistry. `vanilla` is the
     //       always-on base mod, so it is not offered as a toggleable rule.
     json available_rules = json::array();
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    const match::modload::LoadResult& loaded = snapshot->loaded;
     if (loaded.fatal()) {
         Logger::Warn("[Lobby] Metadata: mods root unreadable for '", mods_root_,
                      "'");
@@ -1226,12 +1226,11 @@ bool LobbyController::UserInOtherLobby(const std::string& username, uint32_t exc
 }
 
 void LobbyController::ApplyFirstDeck(LobbySettings& settings) {
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
-    if (loaded.fatal()) return;
-    for (const auto& mod : loaded.mods) {
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    if (snapshot->loaded.fatal()) return;
+    for (const auto& mod : snapshot->loaded.mods) {
         if (mod.decks.empty()) continue;
-        ApplyDeckSnapshot(settings, loaded.mods, mod.decks.front().deck_id);
+        ApplyDeckSnapshot(settings, snapshot->loaded.mods, mod.decks.front().deck_id);
         return;
     }
 }
