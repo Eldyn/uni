@@ -1,6 +1,24 @@
 #include <transport/uws_timer_service.hpp>
 
+#include <logger.hpp>
 #include <utility>
+
+namespace {
+
+// INFO: Timer callbacks run engine and lobby code outside any WS handler, so
+//       nothing above them catches. An escaped exception would reach
+//       std::terminate and take every lobby down; log it and keep the loop.
+void RunGuarded(const std::string& key, const std::function<void()>& callback) {
+    try {
+        callback();
+    } catch (const std::exception& e) {
+        Logger::Error("[Timer] Exception in callback '", key, "': ", e.what());
+    } catch (...) {
+        Logger::Error("[Timer] Unknown exception in callback '", key, "'");
+    }
+}
+
+}  // namespace
 
 UwsTimerService::~UwsTimerService() {
     for (auto& [key, data] : timers_) {
@@ -21,7 +39,7 @@ void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
         auto* d = *reinterpret_cast<TimerData**>(us_timer_ext(t));
 
         if (d->repeat) {
-            d->callback();
+            RunGuarded(d->key, d->callback);
             return;
         }
 
@@ -37,7 +55,7 @@ void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
         }
         auto cb = std::move(d->callback);
         us_timer_close(t);
-        if (cb) cb();
+        if (cb) RunGuarded(owned ? owned->key : std::string(), cb);
     }, ms, repeat ? ms : 0);
 
     timers_[key] = std::move(data);
