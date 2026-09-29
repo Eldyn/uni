@@ -54,6 +54,7 @@ describe("Playmat3D match-intro tint", () => {
 
 	afterEach(() => {
 		cleanup();
+		vi.restoreAllMocks();
 		storeGame.state = null;
 		storeMatchIntro.end();
 		storeMatRipple.active = false;
@@ -71,7 +72,12 @@ describe("Playmat3D match-intro tint", () => {
 		expect(tints()).not.toContain(CARD_COLOR_MAP.red);
 	});
 
-	it("resumes normal tinting once the intro clears", async () => {
+	it("ripples from the forced purple into the first real colour when the intro clears", async () => {
+		const start = vi.spyOn(storeMatRipple, "startMatRipple").mockImplementation((color: string) => {
+			storeMatRipple.committedColor = color;
+			storeMatRipple.active = false;
+		});
+
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
 		expect(tints()).toContain(CARD_COLOR_MAP.red);
@@ -83,6 +89,13 @@ describe("Playmat3D match-intro tint", () => {
 
 		storeMatchIntro.forcePurpleMat = false;
 		await flush();
+		// The release sweeps from the mat's centre rather than snapping.
+		expect(start).toHaveBeenCalledWith(
+			CARD_COLOR_MAP.red,
+			"normal",
+			{ u: 0.5, v: 0.5 },
+			expect.any(Number)
+		);
 		// The felt plane is now a ShaderMaterial (its colour lives in uniforms,
 		// not a recordable `color` prop), so only the arrows plane still pushes
 		// through MockTintMaterial — one entry per change, not two.

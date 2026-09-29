@@ -12,6 +12,7 @@
      turns that state into shader uniforms every 12fps step. -->
 <script lang="ts">
 	import { T, useTask, useThrelte } from "@threlte/core";
+	import { onDestroy, untrack } from "svelte";
 	import * as THREE from "three";
 	import type { Texture } from "three";
 	import { storeGame } from "$stores/game.svelte";
@@ -26,6 +27,7 @@
 		WILD_FLASH_STEPS,
 		FELT_TEXELS_PER_ART_PIXEL,
 		frontRadiusAt,
+		maxRadiusUv,
 		stepIndexAt
 	} from "./ripple/ripplePlan";
 	import { storeMatRipple, MAT_INITIAL_COLOR } from "./ripple/matRipple.svelte";
@@ -105,18 +107,47 @@
 
 	const { invalidate } = useThrelte();
 
+	// A colour change that isn't a card landing has no landing point to sweep
+	// from, so it sweeps out of the mat's centre and settles the whole felt.
+	const MAT_CENTRE_UV = { u: 0.5, v: 0.5 };
+
+	// The deal cinematic holds the mat at rebeccapurple; when it releases, the
+	// first real colour ripples out from the purple instead of snapping to it.
+	// Every later idle sync (reconnect, spectator join) stays instant.
+	let wasForcedPurple = false;
+
 	// active_type reads "white" while a wild is still being resolved; the mat
 	// holds the last real color instead of flashing neutral mid-turn.
 	$effect(() => {
-		// The deal cinematic holds the mat at rebeccapurple regardless of the
-		// running game's colour, then normal tinting resumes once it clears.
 		if (storeMatchIntro.forcePurpleMat) {
+			// A ripple or hold left over from the previous match would block
+			// syncColor and make the release snap instead of sweeping.
+			if (!wasForcedPurple) untrack(() => storeMatRipple.reset());
+			wasForcedPurple = true;
 			storeMatRipple.syncColor(MAT_INITIAL_COLOR);
 			return;
 		}
+		const releasing = wasForcedPurple;
+		wasForcedPurple = false;
 		const type = storeGame.state?.active_type;
-		if (type && type !== "white") storeMatRipple.syncColor(TINTS[type] ?? MAT_INITIAL_COLOR);
+		if (!type || type === "white") return;
+		const color = TINTS[type] ?? MAT_INITIAL_COLOR;
+		if (releasing) {
+			if (!storeMatRipple.active && !storeMatRipple.pending) {
+				const aspect = mat.size[1] / mat.size[0];
+				storeMatRipple.startMatRipple(
+					color,
+					"normal",
+					MAT_CENTRE_UV,
+					maxRadiusUv(MAT_CENTRE_UV, aspect)
+				);
+				return;
+			}
+		}
+		storeMatRipple.syncColor(color);
 	});
+
+	onDestroy(() => storeMatRipple.reset());
 
 	// The arrows plane isn't shader-driven, so it needs a plain reactive
 	// colour Svelte can bind straight into MeshBasicMaterial's `color` prop.
