@@ -356,7 +356,9 @@ json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
 bool EvaluatorCanPlay(const match::engine::PlayEvaluator& evaluator,
                       ecs::Entity player, ecs::Entity card,
                       const ecs::WindowState* window,
-                      const std::vector<json>& filters) {
+                      const std::vector<
+                          match::engine::PlayEvaluator::WindowView::Member>&
+                          filters) {
     if (window == nullptr || filters.empty()) {
         return evaluator.CanPlayInTurn(player, card);
     }
@@ -401,7 +403,7 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
     // INFO: `can_play` is own-hand only. While a window is open the
     //       window state is resolved once for the whole hand, not per card.
     const ecs::WindowState* window = nullptr;
-    std::vector<json> filters;
+    std::vector<match::engine::PlayEvaluator::WindowView::Member> filters;
     if (own && match.WindowOpen()) {
         window = match.Store().Get<ecs::WindowState>(match.Registries().match);
         filters = match.WindowFilters();

@@ -546,6 +546,91 @@ TEST_CASE("engine merge: a jump-in winner skips the stacking default draw") {
     CHECK(engine.GetCurrentPlayerUsername() == "player0");
     CHECK(HandSize(engine, table.player1) == table.victim_hand);
     CHECK(CountNoJumpSignals(engine) == 0);
+    // INFO: the superseded play's recorded debt is cleared, not left stale.
+    CHECK(DebtOf(engine, table.player0) == 0);
+    CHECK(DebtOf(engine, table.player1) == 0);
+    CHECK(DebtOf(engine, table.player2) == 0);
+}
+
+TEST_CASE("engine merge: a later penalty play is not inflated by stale debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    MergedTable table = SetUpMergedTable(
+        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+    MatchInstance& engine = *table.engine;
+
+    REQUIRE(engine.PlayCard("player0", table.draw2));
+    REQUIRE(engine.RespondWindow("player2", table.identical2));
+    clock.now = kStackingWindowMs;
+    engine.Tick();
+    REQUIRE_FALSE(engine.WindowOpen());
+    REQUIRE(engine.GetCurrentPlayerUsername() == "player0");
+
+    const std::optional<ecs::Entity> next2 = FindCard(engine, "yellow", "+2");
+    REQUIRE(next2.has_value());
+    ForceHand(engine, table.player0, {*next2, table.filler0});
+    REQUIRE(engine.PlayCard("player0", *next2));
+
+    // INFO: only this play's own N is owed by the seat after player0.
+    CHECK(DebtOf(engine, table.player1) == 2);
+}
+
+TEST_CASE("engine merge: a member's responders scope its accepted cards") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    MergedTable table = SetUpMergedTable(
+        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+    MatchInstance& engine = *table.engine;
+    const std::optional<ecs::Entity> stack_card =
+        FindCard(engine, "yellow", "+2");
+    REQUIRE(stack_card.has_value());
+    ForceHand(engine, table.player2, {*stack_card, table.identical2});
+
+    REQUIRE(engine.PlayCard("player0", table.draw2));
+    REQUIRE(engine.WindowOpen());
+
+    // INFO: player2 is a responder of jump_in only, so draw_stacking's stack
+    //       filter must not admit a non-identical +2 from them.
+    CHECK_FALSE(engine.CanRespondWindow(table.player2, *stack_card));
+    CHECK_FALSE(engine.RespondWindow("player2", *stack_card));
+    CHECK(engine.ExportWindow()["responses"].empty());
+    CHECK(engine.CanRespondWindow(table.player2, table.identical2));
+    CHECK(engine.RespondWindow("player2", table.identical2));
+    // INFO: the victim, a stacking responder, may still stack.
+    CHECK(engine.CanRespondWindow(table.player1, table.stack2));
+}
+
+TEST_CASE("engine merge: a wild +4 prompt then one merged group") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, {"vanilla", "jump_in", "draw_stacking"}, 3, 7, 42,
+                 FixedWindow(kStackingWindowMs), clock.Fn());
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> wild4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler = FindCard(*engine, "blue", "5");
+    REQUIRE(wild4.has_value());
+    REQUIRE(filler.has_value());
+    ForceHand(*engine, player0, {*wild4, *filler});
+
+    REQUIRE(engine->PlayCard("player0", *wild4));
+    REQUIRE(engine->PendingInput().has_value());
+    CHECK_FALSE(engine->WindowOpen());
+    REQUIRE(engine->SubmitInput("player0", "red"));
+
+    // INFO: both windows deferred behind the prompt open as one group.
+    REQUIRE(engine->WindowOpen());
+    CHECK(CountEvents(*engine, "window_open") == 1);
+    const json* opened = FindEvent(*engine, "window_open");
+    REQUIRE(opened != nullptr);
+    CHECK((*opened)["payload"]["duration_ms"] == kStackingWindowMs);
+    CHECK((*opened)["payload"]["kind"] == "jump_in");
+    CHECK(DebtOf(*engine, player1) == 4);
 }
 
 TEST_CASE("engine merge: a stack response still stacks and re-opens") {

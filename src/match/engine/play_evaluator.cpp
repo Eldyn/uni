@@ -238,8 +238,13 @@ bool PlayEvaluator::CanRespond(const WindowView& window, ecs::Entity player,
     }
     const modload::PlayAttempt attempt =
         BuildAttempt(player, card, in_turn, /*responding=*/true);
-    for (const nlohmann::json& filter : window.respond_with) {
-        if (IsEligible(filter, attempt)) return true;
+    for (const WindowView::Member& member : window.members) {
+        if (std::find(member.responders.begin(), member.responders.end(),
+                      player)
+            == member.responders.end()) {
+            continue;
+        }
+        if (IsEligible(member.respond_with, attempt)) return true;
     }
     return false;
 }

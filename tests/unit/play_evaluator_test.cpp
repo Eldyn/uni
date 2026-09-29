@@ -337,7 +337,7 @@ TEST_CASE("play_evaluator: CanRespond matches the expected responder oracle") {
         engine->Registries().match);
     REQUIRE(window != nullptr);
     REQUIRE(window->open);
-    const std::vector<nlohmann::json> filters = engine->WindowFilters();
+    const auto filters = engine->WindowFilters();
     REQUIRE_FALSE(filters.empty());
 
     const PlayEvaluator evaluator = engine->MakePlayEvaluator();

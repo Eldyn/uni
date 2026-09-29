@@ -1093,6 +1093,24 @@ int32_t MatchInstance::DrawPenaltyMagnitude(ecs::Entity card) const {
     return magnitude;
 }
 
+int32_t MatchInstance::RemoveDrawDebt(std::optional<ecs::Entity> keep) {
+    ecs::EntityStore& store = assembly_->store;
+    int32_t removed_total = 0;
+    for (ecs::Entity holder : store.EntitiesWith<ecs::PlayerInfo>()) {
+        if (keep.has_value() && holder == *keep) continue;
+        for (const ecs::Status& removed :
+             status::Remove(store, holder, ops::kDrawDebtStatusId)) {
+            removed_total += removed.magnitude;
+            json payload = json{{"target", EntityJson(holder)},
+                                {"status_kind", removed.status_id},
+                                {"instance", removed.instance_id}};
+            events_.push_back(ops::MakeEvent("status_removed", payload));
+            BridgeRunEvent(events_.back());
+        }
+    }
+    return removed_total;
+}
+
 void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
     ecs::EntityStore& store = assembly_->store;
     if (!store.IsAlive(card) || assembly_->resolver == nullptr) return;
@@ -1110,19 +1128,7 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
     const int32_t magnitude = DrawPenaltyMagnitude(card);
     if (magnitude <= 0) return;
 
-    int32_t carried = 0;
-    for (ecs::Entity holder : store.EntitiesWith<ecs::PlayerInfo>()) {
-        if (holder == target) continue;
-        for (const ecs::Status& removed :
-             status::Remove(store, holder, ops::kDrawDebtStatusId)) {
-            carried += removed.magnitude;
-            json payload = json{{"target", EntityJson(holder)},
-                                {"status_kind", removed.status_id},
-                                {"instance", removed.instance_id}};
-            events_.push_back(ops::MakeEvent("status_removed", payload));
-            BridgeRunEvent(events_.back());
-        }
-    }
+    const int32_t carried = RemoveDrawDebt(target);
 
     status::ApplyRequest request;
     request.status_id = std::string(ops::kDrawDebtStatusId);
@@ -1154,10 +1160,15 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     // INFO: The first accepted response wins; its card is committed
     //       here. Losers never left their hand ("returned unplayed").
     if (group.has_winner && store.IsAlive(group.winner_card)) {
-        CommitWinningPlay(
-            group.winner, group.winner_card,
-            WindowStacksPenalty(group.Member(group.winner_member).request,
-                                group.winner_card));
+        const bool stacks = WindowStacksPenalty(
+            group.Member(group.winner_member).request, group.winner_card);
+        // INFO: a win that does not stack supersedes the play, so the debt
+        //       the group recorded for it is stale and must not linger.
+        if (!stacks && last_play_.has_value()
+            && last_play_->penalty_recorded) {
+            RemoveDrawDebt(std::nullopt);
+        }
+        CommitWinningPlay(group.winner, group.winner_card, stacks);
     }
 
     // INFO: a winning response supersedes the play: only its owning member
@@ -1309,7 +1320,7 @@ bool MatchInstance::CanRespondWindow(ecs::Entity player,
         store.Get<ecs::WindowState>(assembly_->registries.match);
     if (window == nullptr || !window->open) return false;
 
-    const std::vector<json> filters = WindowFilters();
+    const auto filters = WindowFilters();
     const PlayEvaluator::WindowView view{window->responders,
                                          window->responses, filters};
     return MakePlayEvaluator().CanRespond(view, player, card);
@@ -1362,9 +1373,12 @@ bool MatchInstance::RespondWindow(const std::string& username,
     std::optional<std::size_t> owner;
     for (std::size_t member = 0; member < pending_window_->MemberCount();
          ++member) {
-        if (evaluator.IsEligible(
-                pending_window_->Member(member).request.respond_with,
-                attempt)) {
+        const resolver::WindowRequest& request =
+            pending_window_->Member(member).request;
+        if (std::find(request.responders.begin(), request.responders.end(),
+                      *player)
+                != request.responders.end()
+            && evaluator.IsEligible(request.respond_with, attempt)) {
             owner = member;
             break;
         }
@@ -1862,11 +1876,17 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
 
 bool MatchInstance::OpenDeferredWindow(bool settle_play, ecs::Entity actor) {
     if (Paused() || finished_ || deferred_windows_.empty()) return false;
-    WindowPause next = std::move(deferred_windows_.front());
-    deferred_windows_.erase(deferred_windows_.begin());
-    next.settle_play = settle_play;
-    next.actor = actor;
-    OpenWindow(std::move(next), /*fresh_situation=*/true);
+    // INFO: windows deferred behind one parked input belong to one play and
+    //       open as a single merged group.
+    std::vector<WindowPause> windows = std::move(deferred_windows_);
+    deferred_windows_.clear();
+    WindowPause group = std::move(windows.front());
+    for (std::size_t index = 1; index < windows.size(); ++index) {
+        group.followers.push_back(std::move(windows[index]));
+    }
+    group.settle_play = settle_play;
+    group.actor = actor;
+    OpenWindow(std::move(group), /*fresh_situation=*/true);
     return true;
 }
 
@@ -2257,12 +2277,15 @@ std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {
                : std::nullopt;
 }
 
-std::vector<nlohmann::json> MatchInstance::WindowFilters() const {
-    std::vector<json> filters;
+std::vector<PlayEvaluator::WindowView::Member> MatchInstance::WindowFilters()
+    const {
+    std::vector<PlayEvaluator::WindowView::Member> filters;
     if (!pending_window_.has_value()) return filters;
     for (std::size_t member = 0; member < pending_window_->MemberCount();
          ++member) {
-        filters.push_back(pending_window_->Member(member).request.respond_with);
+        const resolver::WindowRequest& request =
+            pending_window_->Member(member).request;
+        filters.push_back({request.responders, request.respond_with});
     }
     return filters;
 }

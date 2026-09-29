@@ -335,12 +335,13 @@ public:
     std::optional<resolver::WindowRequest> PendingWindow() const;
 
     /**
-     * @brief Every member's `respond_with` filter of the open window group.
+     * @brief Every member's responders and `respond_with` of the open group.
      *
-     * A response is accepted when any of them accepts it (member order = mod
-     * load order). Empty when no window is parked.
+     * A response is accepted when a member whose own responders include the
+     * player has a filter accepting it (member order = mod load order).
+     * Empty when no window is parked.
      */
-    std::vector<nlohmann::json> WindowFilters() const;
+    std::vector<PlayEvaluator::WindowView::Member> WindowFilters() const;
 
     // --- event stream ------------------------------------------------------
 
@@ -555,6 +556,14 @@ private:
      */
     void CommitWinningPlay(ecs::Entity player, ecs::Entity card,
                            bool stacks_penalty);
+
+    /**
+     * @brief Remove every seat's `vanilla:draw_debt`, emitting removals.
+     *
+     * @param keep Seat whose debt is left alone (may be empty).
+     * @return the summed magnitude removed.
+     */
+    int32_t RemoveDrawDebt(std::optional<ecs::Entity> keep);
 
     /** @brief True when the window node declares engine-owned chaining. */
     bool WindowReopens(const resolver::WindowRequest& request) const;

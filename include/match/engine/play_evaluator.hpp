@@ -42,10 +42,16 @@ public:
      * @brief The live window state `CanRespond` reasons over.
      */
     struct WindowView {
+        /** One merged window member: its own responders and filter. */
+        struct Member {
+            std::vector<ecs::Entity> responders;
+            nlohmann::json respond_with;
+        };
+
         const std::vector<ecs::Entity>& responders;
         const std::vector<ecs::WindowResponse>& responses;
-        /** One filter per merged member; any accepting filter admits. */
-        const std::vector<nlohmann::json>& respond_with;
+        /** A member admits a card only for a player in its own responders. */
+        const std::vector<Member>& members;
     };
 
     /**
