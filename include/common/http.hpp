@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
+#include <nlohmann/json.hpp>
 #include <common/env.hpp>
 #include <websocket_context.hpp>
 
@@ -57,7 +58,15 @@ inline void ReadBody(AppResponse* res, size_t max_bytes,
             return;
         }
 
-        if (isLast) callback(*buffer);
+        if (!isLast) return;
+        try {
+            callback(*buffer);
+        } catch (const nlohmann::json::exception&) {
+            // INFO: Wrong-typed JSON field (value() throws type_error) must
+            // not unwind into uWS; answer 400 instead of terminating.
+            *is_alive = false;
+            res->writeStatus("400 Bad Request")->end();
+        }
     });
 }
 
