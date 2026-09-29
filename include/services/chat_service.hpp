@@ -83,9 +83,13 @@ public:
     ChatHistoryPage GetGlobalHistoryPage(std::optional<int> before_id, int limit) const;
 
     /**
+    /** @brief True when a registered account named `username` exists. */
+    bool UserExists(const std::string& username);
+
      * @brief Encrypts and persists a DM from `sender` to `recipient`, then
      * prunes the pair's history down to the most recent `kDmHistoryLimit`
      * messages.
+     *
      */
     VoidResult SendDirectMessage(const std::string& sender, const std::string& recipient,
                                  const std::string& plaintext);

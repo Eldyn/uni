@@ -39,6 +39,17 @@ void CleanupDmTestRows() {
         "DELETE FROM chat_dms WHERE sender LIKE 'chat_ctrl_test_%' "
         "OR recipient LIKE 'chat_ctrl_test_%';");
     REQUIRE(result.has_value());
+    auto users = Database::Get().Exec(
+        "DELETE FROM users WHERE username = 'chat_ctrl_test_bob';");
+    REQUIRE(users.has_value());
+}
+
+// DM targets must be registered (or online), so history tests need a real row.
+void InsertDmRecipient() {
+    auto result = Database::Get().Exec(
+        "INSERT INTO users (username, pass_hash, salt, email, email_verified, created_at) "
+        "VALUES ('chat_ctrl_test_bob', 'hash', 'salt', 'chat_ctrl_test_bob@example.com', 1, 0);");
+    REQUIRE(result.has_value());
 }
 
 static AppWebSocket* fake_sock(PerSocketData& sd) {
@@ -60,6 +71,7 @@ struct ChatControllerFixture {
         sd.username = "chat_ctrl_test_alice";
         REQUIRE(Database::Get().RunMigrations().has_value());
         CleanupDmTestRows();
+        InsertDmRecipient();
     }
 
     ~ChatControllerFixture() { CleanupDmTestRows(); }
@@ -138,6 +150,23 @@ TEST_CASE("returns prior DM history for the pair, oldest message first") {
     CHECK(resp["messages"][0]["username"] == "chat_ctrl_test_alice");
     CHECK(resp["messages"][0]["message"] == "hi bob");
     CHECK(resp["messages"][0].contains("id"));
+}
+
+TEST_CASE("DM to an unknown user or to oneself is rejected") {
+    ChatControllerFixture f;
+
+    f.Dispatch({{"action", "chat_send"}, {"channel", "dm"},
+                {"target", "chat_ctrl_test_nobody"}, {"message", "hi"}});
+    f.Dispatch({{"action", "chat_send"}, {"channel", "dm"},
+                {"target", "chat_ctrl_test_alice"}, {"message", "hi me"}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 2);
+    for (const auto& frame : frames) {
+        auto resp = json::parse(frame.payload);
+        CHECK(resp["action"] == "error");
+        CHECK(resp["code"] == "invalid_payload");
+    }
 }
 
 TEST_CASE("missing target field yields an invalid_payload error, not a crash") {

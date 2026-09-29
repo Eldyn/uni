@@ -141,6 +141,13 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
 
         broadcaster_.SendJson(ctx.socket, resp);
 
+        const bool recipient_known = presence_.GetSocket(recipient) != nullptr ||
+                                     chat_service_.UserExists(recipient);
+        if (recipient == username || !recipient_known) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                                   request_id, "Invalid DM target");
+            return;
+        }
         AppWebSocket* recipient_socket = presence_.GetSocket(recipient);
         if (recipient_socket != nullptr) {
             broadcaster_.SendJson(recipient_socket, resp);

@@ -108,6 +108,11 @@ void ChatService::ClearLobbyHistory(const std::string& lobby_code) {
     next_lobby_id_.erase(lobby_code);
 }
 
+bool ChatService::UserExists(const std::string& username) {
+    auto rows = db_.Query("SELECT 1 FROM users WHERE username = ?;", {username});
+    return rows && !rows->empty();
+}
+
 VoidResult ChatService::SendDirectMessage(const std::string& sender,
                                           const std::string& recipient,
                                           const std::string& plaintext) {
