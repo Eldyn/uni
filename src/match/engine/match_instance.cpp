@@ -826,90 +826,17 @@ modload::PlayAttempt MatchInstance::BuildPlayAttempt(ecs::Entity player,
 
 modload::PlayDecision MatchInstance::CheckPlayRestrictions(
     const modload::PlayAttempt& attempt) const {
-    ecs::EntityStore& store = assembly_->store;
-    const MatchRegistries& registries = assembly_->registries;
+    return MakePlayEvaluator().Check(attempt);
+}
 
-    std::vector<modload::RestrictionEntry> entries;
-    if (const ecs::PlayRestriction* pipeline =
-            store.Get<ecs::PlayRestriction>(registries.match)) {
-        entries.reserve(pipeline->entries.size());
-        for (const ecs::RestrictionEntry& entry : pipeline->entries) {
-            modload::RestrictionEntry converted;
-            converted.id = entry.id;
-            converted.phase = entry.phase == ecs::RestrictionPhase::kAllow
-                                  ? "allow"
-                                  : "deny";
-            converted.condition = entry.condition;
-            entries.push_back(std::move(converted));
-        }
-    }
-
-    modload::ConditionMatcher matcher =
-        [this](const json& condition, const modload::PlayAttempt& a) {
-            return assembly_->play_matcher != nullptr
-                && assembly_->play_matcher->Matches(condition, a);
-        };
-    return modload::EvaluatePlayRestrictions(entries, attempt, matcher);
+PlayEvaluator MatchInstance::MakePlayEvaluator() const {
+    return PlayEvaluator(*this);
 }
 
 bool MatchInstance::ResponseEligible(
     const nlohmann::json& respond_with,
     const modload::PlayAttempt& attempt) const {
-    if (respond_with.is_null()) return true;
-    if (!respond_with.is_object() || respond_with.empty()) return true;
-
-    // INFO: the declared `condition` form is jump_in/no_bluffing eligibility;
-    //       a bare single-keyword play condition is accepted too. A
-    //       `condition` next to a tag filter must hold as well as the tag.
-    const auto condition = respond_with.find("condition");
-    if (condition != respond_with.end()) {
-        if (assembly_->play_matcher == nullptr
-            || !assembly_->play_matcher->Matches(*condition, attempt)) {
-            return false;
-        }
-        if (respond_with.size() == 1) return true;
-    }
-    if (respond_with.size() == 1
-        && modload::IsPlayConditionKeyword(respond_with.begin().key())) {
-        return assembly_->play_matcher != nullptr
-            && assembly_->play_matcher->Matches(respond_with, attempt);
-    }
-
-    const auto facts_it = assembly_->card_facts.find(attempt.card_kind);
-    if (facts_it == assembly_->card_facts.end()) return false;
-    const modload::PlayCardFacts& facts = facts_it->second;
-
-    const auto any_tag = respond_with.find("any_tag");
-    if (any_tag != respond_with.end()) {
-        if (any_tag->is_string()) {
-            const std::string tag = any_tag->get<std::string>();
-            return std::find(facts.tags.begin(), facts.tags.end(), tag)
-                != facts.tags.end();
-        }
-        if (any_tag->is_array()) {
-            for (const json& tag : *any_tag) {
-                if (tag.is_string()
-                    && std::find(facts.tags.begin(), facts.tags.end(),
-                                 tag.get<std::string>())
-                           != facts.tags.end()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    const auto tag = respond_with.find("tag");
-    if (tag != respond_with.end() && tag->is_string()) {
-        const std::string wanted = tag->get<std::string>();
-        return std::find(facts.tags.begin(), facts.tags.end(), wanted)
-            != facts.tags.end();
-    }
-    const auto kind = respond_with.find("kind");
-    if (kind != respond_with.end() && kind->is_string()) {
-        return attempt.card_kind == kind->get<std::string>();
-    }
-    // WARN: an unrecognized filter admits nothing rather than everything.
-    return false;
+    return MakePlayEvaluator().IsEligible(respond_with, attempt);
 }
 
 std::string MatchInstance::ResponseDigest(ecs::Entity card) const {
@@ -1287,26 +1214,11 @@ bool MatchInstance::CanRespondWindow(ecs::Entity player,
     const ecs::WindowState* window =
         store.Get<ecs::WindowState>(assembly_->registries.match);
     if (window == nullptr || !window->open) return false;
-    if (std::find(window->responders.begin(), window->responders.end(), player)
-        == window->responders.end()) {
-        return false;
-    }
-    for (const ecs::WindowResponse& existing : window->responses) {
-        if (existing.responder == player) return false;
-    }
-    const ecs::Hand* hand = store.Get<ecs::Hand>(player);
-    if (hand == nullptr
-        || std::find(hand->cards.begin(), hand->cards.end(), card)
-               == hand->cards.end()) {
-        return false;
-    }
 
-    const std::optional<ecs::Entity> current = CurrentPlayer();
-    const bool in_turn = current.has_value() && (*current == player);
-    modload::PlayAttempt attempt = BuildPlayAttempt(player, card, in_turn);
-    attempt.responding = true;
-    return CheckPlayRestrictions(attempt).allowed
-           && ResponseEligible(pending_window_->request.respond_with, attempt);
+    const PlayEvaluator::WindowView view{
+        window->responders, window->responses,
+        pending_window_->request.respond_with};
+    return MakePlayEvaluator().CanRespond(view, player, card);
 }
 
 bool MatchInstance::RespondWindow(const std::string& username,
@@ -1344,13 +1256,15 @@ bool MatchInstance::RespondWindow(const std::string& username,
     modload::PlayAttempt attempt = BuildPlayAttempt(*player, card, in_turn);
     attempt.responding = true;
 
-    const modload::PlayDecision decision = CheckPlayRestrictions(attempt);
+    const PlayEvaluator evaluator = MakePlayEvaluator();
+    const modload::PlayDecision decision = evaluator.Check(attempt);
     if (!decision.allowed) {
         Emit("play_rejected",
              json{{"player", username}, {"reason_id", decision.reason_id}});
         return false;
     }
-    if (!ResponseEligible(pending_window_->request.respond_with, attempt)) {
+    if (!evaluator.IsEligible(pending_window_->request.respond_with,
+                              attempt)) {
         return false;
     }
 

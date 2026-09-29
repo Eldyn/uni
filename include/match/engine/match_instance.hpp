@@ -4,6 +4,7 @@
 #include <match/ecs/entity_store.hpp>
 #include <match/ecs/hooks.hpp>
 #include <match/engine/match_assembler.hpp>
+#include <match/engine/play_evaluator.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
 #include <match/scheduler.hpp>
@@ -219,6 +220,16 @@ public:
      * snapshot's `can_play` while a window is open.
      */
     bool CanRespondWindow(ecs::Entity player, ecs::Entity card) const;
+
+    /**
+     * @brief Build the single play-legality authority for this state.
+     *
+     * Captures the restriction pipeline, the discard top, the active type and
+     * the current player once; `CheckPlayRestrictions`, `CanRespondWindow` and
+     * `ResponseEligible` delegate to it. The evaluator borrows the match and
+     * must not outlive it.
+     */
+    PlayEvaluator MakePlayEvaluator() const;
 
     /**
      * @brief Deterministic response-window state JSON (headless assertions).
