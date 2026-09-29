@@ -717,6 +717,8 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     Lobby built = Lobby::Create(id, username, ctx.socket,
         payload_res->is_public.value_or(false), payload_res->name.value_or(username + "'s lobby"),
         Env::GetInt("DEFAULT_TURN_TIME_MS", LobbySettings{}.turn_time_limit_ms),
+    if (!match::modload::IsDevContentAllowed()) ApplyFirstDeck(lobby.settings);
+
         Env::GetInt("DEFAULT_STARTING_CARDS", LobbySettings{}.starting_cards),
         [this](const std::string& c) { return code_to_id_.count(c) > 0; },
         absolute_max_lobby_members_);
@@ -1153,7 +1155,36 @@ bool LobbyController::ApplyDeckSnapshot(
     return true;
 }
 
+std::shared_ptr<const LobbyController::ModsSnapshot>
+LobbyController::HttpModsSnapshot() {
+    constexpr auto kTtl = std::chrono::seconds(5);
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> guard(mods_snapshot_mutex_);
+    if (mods_snapshot_ && now - mods_snapshot_->built_at < kTtl) {
+    auto index = match::modload::AssetIndex::Build(loaded);
+    mods_snapshot_ = std::make_shared<const ModsSnapshot>(
+        ModsSnapshot{std::move(loaded), std::move(index), now});
+    return mods_snapshot_;
+}
+
+void LobbyController::ApplyFirstDeck(LobbySettings& settings) {
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (loaded.fatal()) return;
+    for (const auto& mod : loaded.mods) {
+        if (mod.decks.empty()) continue;
+        ApplyDeckSnapshot(settings, loaded.mods, mod.decks.front().deck_id);
+        return;
+    }
+}
+
 void LobbyController::HandleListDecks(AppResponse* res) {
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    const match::modload::LoadResult& loaded = snapshot->loaded;
+        return mods_snapshot_;
+    }
+    // INFO: unauthenticated routes share one short-lived scan so request rate
+    //       cannot drive filesystem parsing and validation.
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
     if (loaded.fatal()) {
@@ -1169,8 +1200,8 @@ void LobbyController::HandleListDecks(AppResponse* res) {
 }
 
 void LobbyController::HandleListMods(AppResponse* res) {
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    const match::modload::LoadResult& loaded = snapshot->loaded;
     if (loaded.fatal()) {
         Logger::Error("[Mods] Mods root unreadable for '", mods_root_, "'");
         res->writeStatus("500 Internal Server Error")
@@ -1190,8 +1221,8 @@ void LobbyController::HandleAsset(AppResponse* res, AppRequest* req) {
     const std::string tier(req->getParameter(3));
     const std::string hash(req->getParameter(4));
 
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    const match::modload::LoadResult& loaded = snapshot->loaded;
     if (loaded.fatal()) {
         res->writeStatus("500 Internal Server Error")
            ->writeHeader("Content-Type", "application/json")
@@ -1199,11 +1230,9 @@ void LobbyController::HandleAsset(AppResponse* res, AppRequest* req) {
         return;
     }
 
-    // INFO: the index is rebuilt per request in phase 1 (the mods tree is
-    //       small and static); only indexed id+hash tuples can ever resolve,
-    //       so no path is reachable from the URL.
-    const match::modload::AssetIndex index =
-        match::modload::AssetIndex::Build(loaded);
+    // INFO: only indexed id+hash tuples can ever resolve, so no path is
+    //       reachable from the URL.
+    const match::modload::AssetIndex& index = snapshot->index;
     const match::modload::AssetEntry* entry =
         index.Resolve(mod_id, bundle_id, slot, tier, hash);
     if (entry == nullptr || entry->content_type.empty()) {
@@ -1369,9 +1398,17 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     if (ctx.socket_data->username != lobby.host) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotHost, request_id);
+    const bool freestyle_allowed = match::modload::IsDevContentAllowed();
         return;
     }
 
+            if (!freestyle_allowed) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInvalidPayload, request_id,
+                    "a deck is required");
+                return;
+            }
     // INFO: A `deck_id` selects a whole snapshot at once (mods + cards +
     //       settings). Resolve it against the mods folder before the
     //       generic merge; an empty string clears the selection (freestyle).
@@ -1402,6 +1439,9 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     // INFO: Strip envelope fields then apply the patch. Fields not present
     //       in the message are left unchanged; unknown fields are ignored by
+    // INFO: the deck snapshot is server-authored (see `deck_id` above); a raw
+    //       `deck` patch would bypass the catalogue and the prod freestyle gate.
+    patch.erase("deck");
     //       nlohmann when deserializing back into LobbySettings, so the
     //       struct is always correct.
     json patch = message;

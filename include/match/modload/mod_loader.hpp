@@ -33,6 +33,12 @@ namespace match::modload {
 LoadResult ScanModsDirectory(const std::string& root);
 
 /**
+ * @brief False in production builds (UNI_PROD_BUILD or UNI_ENV=production):
+ *        dev-only mods and freestyle lobbies must not be reachable.
+ */
+bool IsDevContentAllowed();
+
+/**
  * @brief Reads the `UNI_MODS_DIR` env var (default `mods/`) and scans it.
  */
 LoadResult LoadModsFromEnv();

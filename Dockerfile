@@ -51,8 +51,16 @@ RUN conan profile detect \
 ARG UNI_ENABLE_SSL=OFF
 COPY . .
 RUN cmake --preset conan-release -DUNI_ENABLE_SSL=${UNI_ENABLE_SSL} \
+    -DUNI_PROD_BUILD=ON \
     && cmake --build --preset release
 # → /app/build/Release/uni_server
+
+# Strip dev-only mods (mod.json "dev_only": true, e.g. the test/bombs mod) so
+# neither their content nor their assets reach the shipped image. The loader
+# also skips them at runtime under UNI_PROD_BUILD; stripping them here keeps the
+# bytes out of the image entirely.
+RUN grep -rlE '"dev_only"[[:space:]]*:[[:space:]]*true' /app/mods/*/mod.json 2>/dev/null \
+    | xargs -r -n1 dirname | xargs -r rm -rf
 
 # =============================================================================
 # Stage 3, Runtime: pristine Ubuntu with only the binary + static frontend.
@@ -69,6 +77,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY --from=backend  /app/build/Release/uni_server  /app/uni_server
+# Mod content is served from the image (no bind mount in prod); dev-only mods
+# were stripped in the backend stage above.
+COPY --from=backend  /app/mods                      /app/mods
 COPY --from=frontend /app/public                    /app/public
 
 # Mount points for the SQLite database and TLS certificates (see compose volumes).

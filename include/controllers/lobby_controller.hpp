@@ -1,10 +1,14 @@
 #pragma once
 #include <controllers/ilobby_store.hpp>
 #include <match/modload/artifacts.hpp>
+#include <match/modload/asset_index.hpp>
 #include <common/lobby.hpp>
 #include <common/ws.hpp>
 #include <http_router.hpp>
 #include <atomic>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -221,7 +225,20 @@ public:
 
     /**
      * @brief Loads one deck snapshot (mod list + card multiset + typed
-     * settings bag) into `settings.deck` atomically.
+    /** Mods scan plus asset index shared by the public HTTP routes. */
+    struct ModsSnapshot {
+        match::modload::LoadResult loaded;
+        match::modload::AssetIndex index;
+        std::chrono::steady_clock::time_point built_at;
+    };
+
+    /** @brief Returns the cached snapshot, rescanning once it is older than the TTL. */
+    std::shared_ptr<const ModsSnapshot> HttpModsSnapshot();
+
+    /** @brief Seeds `settings.deck` with the first catalogue deck (prod has no freestyle). */
+    void ApplyFirstDeck(LobbySettings& settings);
+
+     * settings bag) into `settings.deck` atomically (spec,.
      * * Stores the schema-shaped object (`id`, `name`, `namespace`, `mods`,
      * `cards`, `settings`) verbatim; the new engine consumes it at the
      * controller. The legacy scalar settings are deliberately left alone so
@@ -231,6 +248,7 @@ public:
      * @param deck_id  Full `namespace:id` (or bare local id) of the deck.
      * @return true when a matching deck was found and applied, false otherwise
      *         (settings left untouched).
+     *
      */
     static bool ApplyDeckSnapshot(
         LobbySettings& settings,
@@ -393,6 +411,8 @@ private:
     /**
      * @brief Removes a member from the lobby. Destroys the lobby if it becomes empty.
      * @param lobby_id ID of the lobby.
+    std::mutex mods_snapshot_mutex_;
+    std::shared_ptr<const ModsSnapshot> mods_snapshot_;
      * @param username Username of the player to remove.
      * @param explicit_leave True if the user left voluntarily.
      * @param request_id ID of the request (optional, for tracking).

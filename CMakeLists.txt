@@ -15,6 +15,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #   cmake --preset conan-release -DUNI_ENABLE_SSL=OFF
 option(UNI_ENABLE_SSL "Build the server with TLS (uWS::SSLApp)" ON)
 
+# Exclude dev-only content (e.g. mods/test) from the build. The Docker image
+# configures this ON so test content never reaches production.
+option(UNI_PROD_BUILD "Exclude dev-only content from the build" OFF)
+if(UNI_PROD_BUILD)
+    add_compile_definitions(UNI_PROD_BUILD)
+endif()
+
 # --- Contract code generation (hatchbed/asyncapi_gencpp) ---
 # Fetches the generator at configure time, then runs it as a pre-build step.
 # Source of truth: contract/asyncapi.yaml

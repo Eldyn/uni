@@ -113,7 +113,10 @@ export default defineConfig(({ mode }) => {
 			// dynamic import and the harness never ships. `import.meta.env.DEV`
 			// cannot be used here: it is false for *any* `vite build`, including
 			// `--mode development`.
-			__DEV_HARNESS__: JSON.stringify(isDev)
+			__DEV_HARNESS__: JSON.stringify(isDev),
+			// Dev-only content (e.g. the freestyle deck entry) is kept out of the
+			// production bundle but stays available in dev and under test.
+			__DEV_CONTENT__: JSON.stringify(isDev || mode === "test")
 		},
 		base: "/",
 		build: {

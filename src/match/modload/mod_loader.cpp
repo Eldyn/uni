@@ -53,6 +53,18 @@ bool DepthGuardCallback(int depth, nlohmann::json::parse_event_t,
     return true;
 }
 
+/* INFO: dev-only mods (manifest "dev_only": true) carry test content that must
+ *       never ship. A production build defines UNI_PROD_BUILD, and
+ *       UNI_ENV=production also excludes them, so a stray test mod cannot
+ *       reach a release even when only one of the two is set. */
+bool DevContentAllowed() {
+#ifdef UNI_PROD_BUILD
+    return false;
+#else
+    return Env::Get("UNI_ENV", "development") != "production";
+#endif
+}
+
 /* INFO: loader errors are collected, never thrown, so a bad folder yields a
  *       structured report instead of aborting the whole scan. */
 void AddError(std::vector<LoadError>& errors,
@@ -325,6 +337,7 @@ bool ParseManifest(const fs::path& path,
     (void)ParseStringField(json, "api", out.api);
     (void)ParseStringField(json, "description", out.description);
     (void)ParseStringField(json, "author", out.author);
+    out.dev_only = json.value("dev_only", false);
     ParseSettingsDecls(json, out);
     auto prompts = json.find("prompts");
     if (prompts != json.end()) out.prompts = *prompts;
@@ -1105,6 +1118,8 @@ bool ValidateModContent(const LoadedMod& mod,
 
 }  // namespace
 
+bool IsDevContentAllowed() { return DevContentAllowed(); }
+
 std::string ToString(FaceKind kind) {
     switch (kind) {
         case FaceKind::kText: return "text";
@@ -1276,6 +1291,9 @@ LoadResult ScanModsDirectory(const std::string& root) {
         std::vector<LoadWarning> warnings;
         bool ok = ParseModFolder(folder.string(), folder.filename().string(),
                                  mod, errors);
+        if (ok && mod.manifest.dev_only && !DevContentAllowed()) {
+            continue;
+        }
         if (ok) {
             report.mod_id = mod.manifest.id;
             if (!seen_ids.insert(mod.manifest.id).second) {

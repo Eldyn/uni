@@ -4,6 +4,9 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
+	//@ts-ignore
+	declare const __DEV_CONTENT__: boolean;
+
 	let {
 		value,
 		disabled = false,
@@ -15,20 +18,29 @@
 	} = $props();
 
 	// INFO: The empty value is freestyle (no deck snapshot); every catalogue
-	// deck commits its full id.
+	// deck commits its full id. Freestyle is a dev-only entry.
 	let options = $derived([
-		{ value: "", label: m.lobby_settings_deck_freestyle({}, { locale: storeI18n.locale }) },
+		...(__DEV_CONTENT__
+			? [{ value: "", label: m.lobby_settings_deck_freestyle({}, { locale: storeI18n.locale }) }]
+			: []),
 		...storeDeckCatalog.decks.map((deck) => ({
 			value: deck.id,
 			label: deck.name,
 			description: deck.namespace
 		}))
 	]);
+
+	// A lobby created without a deck snapshot still reports an empty id; in
+	// production, where freestyle is hidden, show the first catalogue deck
+	// rather than an empty trigger.
+	let selected = $derived(
+		options.some((option) => option.value === value) ? value : (options[0]?.value ?? value)
+	);
 </script>
 
 <EnumSelector
 	label={m.lobby_settings_deck({}, { locale: storeI18n.locale })}
-	{value}
+	value={selected}
 	{options}
 	{disabled}
 	{oncommit}

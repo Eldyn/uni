@@ -32,6 +32,10 @@
     "author": {
       "type": "string"
     },
+    "dev_only": {
+      "type": "boolean",
+      "description": "When true the loader omits this mod from production builds (UNI_PROD_BUILD or UNI_ENV=production)."
+    },
     "settings": {
       "type": "array",
       "description": "Named settings this mod declares, validated against deck settings values.",
