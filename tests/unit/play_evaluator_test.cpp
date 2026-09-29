@@ -309,7 +309,7 @@ TEST_CASE("play_evaluator: CanPlayInTurn mirrors PlayCard for in-hand cards") {
     }
 }
 
-TEST_CASE("play_evaluator: CanRespond mirrors CanRespondWindow") {
+TEST_CASE("play_evaluator: CanRespond matches the expected responder oracle") {
     Content content;
     REQUIRE(LoadContent(content));
     FakeClock clock;
@@ -345,24 +345,27 @@ TEST_CASE("play_evaluator: CanRespond mirrors CanRespondWindow") {
     const PlayEvaluator::WindowView view{
         window->responders, window->responses, pending->respond_with};
 
+    // INFO: independent oracle: the synthetic window admits any card from a
+    //       responder (empty respond_with) and AllowAllPlays rescues the
+    //       out-of-turn deny. Hard-coded expectations, not CanRespondWindow,
+    //       so this test can fail if the evaluator regresses.
     struct Probe {
         ecs::Entity player;
         ecs::Entity card;
+        bool expected;
     };
     const std::vector<Probe> probes = {
-        {player1, others[0]},  // responder, legal card
-        {player1, others[1]},  // responder, legal card
-        {player2, others[2]},  // responder, legal card
-        {player1, opener[0]},  // responder, card not held
-        {player2, others[0]},  // responder, card held by another seat
-        {player0, opener[1]},  // not a responder
+        {player1, others[0], true},   // responder, card in hand
+        {player1, others[1], true},   // responder, card in hand
+        {player2, others[2], true},   // responder, card in hand
+        {player1, opener[0], false},  // responder, card not held
+        {player2, others[0], false},  // responder, card held by another seat
+        {player0, opener[1], false},  // not a responder
     };
 
     for (const Probe& probe : probes) {
         const bool got = evaluator.CanRespond(view, probe.player, probe.card);
-        const bool expected =
-            engine->CanRespondWindow(probe.player, probe.card);
-        CHECK(got == expected);
+        CHECK(got == probe.expected);
     }
 }
 
