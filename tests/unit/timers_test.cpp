@@ -7,6 +7,7 @@
 #include <match/timers.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 using match::MatchTimerTick;
@@ -175,6 +176,38 @@ TEST_CASE("timers: half_turn caps the window at half the remaining turn") {
     duration = half.Open(window, 0, false);  // no turn basis -> fixed
     CHECK(duration.duration_ms == 7000);
     CHECK(!duration.turn_remaining_known);
+}
+
+TEST_CASE("timers: duration override replaces UNI_WINDOW_MS") {
+    Harness h;
+    WindowState& window = h.Window();
+    WindowDuration duration = h.window_timer.Open(window, 1000, true, 800);
+    CHECK(duration.duration_ms == 800);
+    CHECK(window.deadline_ms == h.now + 800);
+
+    duration = h.window_timer.Open(window, 1000, true, std::nullopt);
+    CHECK(duration.duration_ms == 7000);
+}
+
+TEST_CASE("timers: half_turn takes min(override, half remaining turn)") {
+    Harness h;
+    const WindowTimer half{WindowConfig{7000, WindowMode::kHalfTurn},
+                           [&h]() { return h.now; }};
+    WindowState& window = h.Window();
+
+    CHECK(half.Open(window, 2000, true, 800).duration_ms == 800);
+    CHECK(half.Open(window, 1000, true, 800).duration_ms == 500);
+    CHECK(half.Open(window, 0, false, 800).duration_ms == 800);
+}
+
+TEST_CASE("timers: coordinator forwards the window duration override") {
+    Harness h;
+    h.Turn();
+    WindowState& window = h.Window();
+    const WindowDuration duration =
+        h.timers.OpenWindow(h.store, h.match, h.player, 800);
+    CHECK(duration.duration_ms == 800);
+    CHECK(window.deadline_ms == h.now + 800);
 }
 
 TEST_CASE("timers: early close when every responder passed or acted") {

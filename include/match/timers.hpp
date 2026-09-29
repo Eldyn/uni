@@ -5,6 +5,7 @@
 #include <match/ecs/entity_store.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -215,8 +216,9 @@ public:
      * is supplied (`has_remaining == false`) it falls back to `UNI_WINDOW_MS`
      * rather than arming a zero-length window.
      */
-    int64_t ComputeDurationMs(int64_t remaining_turn_ms,
-                              bool has_remaining) const;
+    int64_t ComputeDurationMs(
+        int64_t remaining_turn_ms, bool has_remaining,
+        std::optional<int64_t> override_ms = std::nullopt) const;
 
     /**
      * @brief Open `window`: clear stale responses, set the absolute deadline
@@ -224,10 +226,13 @@ public:
      *
      * @param remaining_turn_ms Turn clock remainder used by `half_turn`.
      * @param has_remaining     False when there is no active turn deadline.
+     * @param override_ms       Per-window length replacing `UNI_WINDOW_MS`.
      * @return The chosen duration and its inputs.
      */
-    WindowDuration Open(ecs::WindowState& window, int64_t remaining_turn_ms,
-                        bool has_remaining) const;
+    WindowDuration Open(
+        ecs::WindowState& window, int64_t remaining_turn_ms,
+        bool has_remaining,
+        std::optional<int64_t> override_ms = std::nullopt) const;
 
     /**
      * @brief True when an open window's deadline has been reached.
@@ -316,8 +321,10 @@ public:
      * `filter_digest` first. Returns a zeroed `WindowDuration` when `match`
      * has no `WindowState`.
      */
-    WindowDuration OpenWindow(ecs::EntityStore& store, ecs::Entity match,
-                              ecs::Entity current_player);
+    WindowDuration OpenWindow(
+        ecs::EntityStore& store, ecs::Entity match,
+        ecs::Entity current_player,
+        std::optional<int64_t> override_ms = std::nullopt);
 
     /**
      * @brief Close the window and resume the turn clock.

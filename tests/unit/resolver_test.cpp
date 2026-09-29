@@ -434,6 +434,57 @@ TEST_CASE("resolver: window node returns a request and resumes on a route") {
     CHECK(TagString(timed_out) == "DEFAULT");
 }
 
+TEST_CASE("resolver: window duration accepts an integer override") {
+    EntityStore store;
+    Entity self = AddPlayer(store, "self", 0);
+    AddPlayer(store, "left", 1);
+
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    SelectorContext context;
+    context.self = self;
+
+    const auto pause_with = [&](const json& duration) {
+        ResolutionFrame frame;
+        BehaviorGraph graph = MakeGraph(json::array({
+            {{"id", "n0"},
+             {"window",
+              {{"responders", "@others"}, {"duration", duration}}},
+             {"default", "n0"}},
+        }));
+        return resolver.Resolve(graph, "m", context, frame);
+    };
+
+    ResolveResult integer = pause_with(800);
+    REQUIRE(integer.window.has_value());
+    CHECK(integer.window->duration_ms == 800);
+
+    ResolveResult zero = pause_with(0);
+    REQUIRE(zero.window.has_value());
+    CHECK(zero.window->duration_ms == 0);
+
+    ResolveResult env = pause_with("env");
+    REQUIRE(env.window.has_value());
+    CHECK(env.window->duration == "env");
+    CHECK_FALSE(env.window->duration_ms.has_value());
+
+    ResolveResult negative = pause_with(-5);
+    REQUIRE(negative.window.has_value());
+    CHECK_FALSE(negative.window->duration_ms.has_value());
+
+    ResolveResult fractional = pause_with(1.5);
+    REQUIRE(fractional.window.has_value());
+    CHECK_FALSE(fractional.window->duration_ms.has_value());
+
+    ResolveResult boolean = pause_with(true);
+    REQUIRE(boolean.window.has_value());
+    CHECK_FALSE(boolean.window->duration_ms.has_value());
+}
+
 TEST_CASE("resolver: schedule node returns its request and fires later") {
     EntityStore store;
     BudgetLedger ledger;

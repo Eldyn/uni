@@ -925,7 +925,8 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     //       duration; the turn remainder is restored on close.
     const std::optional<ecs::Entity> current = CurrentPlayer();
     const match::WindowDuration duration = timers_.OpenWindow(
-        store, match, current.value_or(ecs::Entity{}));
+        store, match, current.value_or(ecs::Entity{}),
+        pause.request.duration_ms);
 
     json responders = json::array();
     for (ecs::Entity responder : window->responders) {

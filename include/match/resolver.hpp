@@ -127,6 +127,8 @@ struct WindowRequest {
     std::string resume_node;        /**< fallback continuation node id. */
     std::map<std::string, std::string, std::less<>> on_response;
     std::string duration;           /**< `env` or a duration token. */
+    /** Integer `duration` in ms; absent for `env` or an invalid value. */
+    std::optional<int64_t> duration_ms;
     nlohmann::json raw = nlohmann::json::object(); /**< verbatim node. */
 };
 

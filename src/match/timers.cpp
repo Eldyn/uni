@@ -110,24 +110,28 @@ WindowTimer::WindowTimer(NowMs clock)
 WindowTimer::WindowTimer(WindowConfig config, NowMs clock)
     : config_(config), clock_(std::move(clock)) {}
 
-int64_t WindowTimer::ComputeDurationMs(int64_t remaining_turn_ms,
-                                       bool has_remaining) const {
-    if (config_.mode != WindowMode::kHalfTurn) return config_.window_ms;
-    if (!has_remaining) return config_.window_ms;
+int64_t WindowTimer::ComputeDurationMs(
+    int64_t remaining_turn_ms, bool has_remaining,
+    std::optional<int64_t> override_ms) const {
+    const int64_t base = override_ms.value_or(config_.window_ms);
+    if (config_.mode != WindowMode::kHalfTurn) return base;
+    if (!has_remaining) return base;
     int64_t half = remaining_turn_ms / 2;
     if (half < 0) half = 0;
-    return std::min<int64_t>(config_.window_ms, half);
+    return std::min<int64_t>(base, half);
 }
 
 WindowDuration WindowTimer::Open(ecs::WindowState& window,
                                  int64_t remaining_turn_ms,
-                                 bool has_remaining) const {
+                                 bool has_remaining,
+                                 std::optional<int64_t> override_ms) const {
     WindowDuration result;
     result.window_ms = config_.window_ms;
     result.mode = config_.mode;
     result.remaining_turn_ms = remaining_turn_ms;
     result.turn_remaining_known = has_remaining;
-    result.duration_ms = ComputeDurationMs(remaining_turn_ms, has_remaining);
+    result.duration_ms =
+        ComputeDurationMs(remaining_turn_ms, has_remaining, override_ms);
 
     window.responses.clear();
     window.deadline_ms = clock_() + result.duration_ms;
@@ -168,7 +172,8 @@ MatchTimers::MatchTimers(WindowConfig config, NowMs clock)
 
 WindowDuration MatchTimers::OpenWindow(ecs::EntityStore& store,
                                        ecs::Entity match,
-                                       ecs::Entity current_player) {
+                                       ecs::Entity current_player,
+                                       std::optional<int64_t> override_ms) {
     ecs::WindowState* window = store.Get<ecs::WindowState>(match);
     if (window == nullptr) return WindowDuration{};
 
@@ -179,7 +184,7 @@ WindowDuration MatchTimers::OpenWindow(ecs::EntityStore& store,
         remaining = turn_.Suspend(*turn);
         has_remaining = turn_.HasRemaining();
     }
-    return window_.Open(*window, remaining, has_remaining);
+    return window_.Open(*window, remaining, has_remaining, override_ms);
 }
 
 bool MatchTimers::CloseWindow(ecs::EntityStore& store, ecs::Entity match,

@@ -252,11 +252,12 @@ bool HasSignal(const MatchInstance& engine, const std::string& name) {
 
 /** @brief Behaviour graph: window node `n1` with `emit_signal` routes. */
 BehaviorGraph WindowGraph(const json& respond_with,
-                          const std::string& filter_digest) {
+                          const std::string& filter_digest,
+                          const json& duration = json("env")) {
     BehaviorGraph graph;
     json window = json{{"responders", "@others"},
                        {"respond_with", respond_with},
-                       {"duration", "env"}};
+                       {"duration", duration}};
     if (!filter_digest.empty()) window["filter_digest"] = filter_digest;
     const json node =
         json{{"id", "n1"},
@@ -580,4 +581,49 @@ TEST_CASE("engine turn deadline: a returning player's stale deadline never skips
     engine->Tick();
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
     CHECK(CountEvents(*engine, "turn_advance") == advances_before + 1);
+}
+
+TEST_CASE("engine window: integer duration overrides UNI_WINDOW_MS") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 3, 7, 42, FixedWindow(7000), clock.Fn());
+    AttachWindowSystem(*engine,
+                       WindowGraph(json::object(), "any", json(800)));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+    REQUIRE(engine->WindowOpen());
+    REQUIRE(engine->PendingWindow().has_value());
+    CHECK(engine->PendingWindow()->duration_ms == 800);
+    const json* open = FindEvent(*engine, "window_open");
+    REQUIRE(open != nullptr);
+    CHECK((*open)["payload"]["duration_ms"] == 800);
+    CHECK((*open)["payload"]["deadline_ms"] == 800);
+}
+
+TEST_CASE("engine window: env duration keeps the configured window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 3, 7, 42, FixedWindow(7000), clock.Fn());
+    AttachWindowSystem(*engine, WindowGraph(json::object(), "any"));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+    REQUIRE(engine->WindowOpen());
+    CHECK_FALSE(engine->PendingWindow()->duration_ms.has_value());
+    const json* open = FindEvent(*engine, "window_open");
+    REQUIRE(open != nullptr);
+    CHECK((*open)["payload"]["duration_ms"] == 7000);
 }

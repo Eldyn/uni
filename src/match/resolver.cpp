@@ -648,6 +648,30 @@ Resolver::WalkCode Resolver::StepFork(WalkState& state,
     return WalkCode::kContinue;
 }
 
+namespace {
+
+// INFO: `env` (or absent) keeps the configured window; a non-negative
+//       integer is a per-window override in ms; anything else warns and
+//       falls back to `env` rather than throwing.
+void ReadWindowDuration(const nlohmann::json& holder, WindowRequest& request) {
+    const auto found = holder.find("duration");
+    if (found == holder.end()) return;
+    const nlohmann::json& value = *found;
+    if (value.is_string()) {
+        request.duration = value.get<std::string>();
+        return;
+    }
+    if (value.is_number_integer() && value.get<int64_t>() >= 0) {
+        request.duration_ms = value.get<int64_t>();
+        return;
+    }
+    Logger::Warn("[Resolver] window duration ", value.dump(),
+                 " is not a non-negative integer or \"env\"; using env");
+    request.duration = "env";
+}
+
+}  // namespace
+
 Resolver::WalkCode Resolver::StepWindow(WalkState& state,
                                         const nlohmann::json& node,
                                         std::vector<std::string>& stack) {
@@ -665,7 +689,7 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
         if (window->contains("respond_with")) {
             request.respond_with = (*window)["respond_with"];
         }
-        request.duration = window->value("duration", std::string());
+        ReadWindowDuration(*window, request);
         request.filter_digest = window->value("filter_digest", std::string());
     }
     if (request.responders_selector.empty()) {
@@ -675,8 +699,8 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
     if (request.respond_with.is_null() && node.contains("respond_with")) {
         request.respond_with = node["respond_with"];
     }
-    if (request.duration.empty()) {
-        request.duration = node.value("duration", std::string());
+    if (request.duration.empty() && !request.duration_ms.has_value()) {
+        ReadWindowDuration(node, request);
     }
     request.default_route = node.value("default", std::string());
     if (request.default_route.empty() && window != nullptr) {
