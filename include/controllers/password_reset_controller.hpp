@@ -4,6 +4,7 @@
 #include <services/auth_service.hpp>
 #include <common/email_send_log.hpp>
 #include <common/email_queue.hpp>
+#include <common/rate_limiter.hpp>
 
 /**
  * @file password_reset_controller.hpp
@@ -44,4 +45,5 @@ private:
     PasswordResetService reset_service_;
     EmailSendLog         email_send_log_;
     EmailQueue&          email_queue_;
+    RateLimiter          request_limiter_;  /**< Per-IP throttle on `/auth/reset/request`. */
 };

@@ -35,7 +35,10 @@ constexpr bool IsAllowedLocale(const std::string& locale) {
 }  // namespace
 
 PasswordResetController::PasswordResetController(HttpRouter& router, EmailQueue& email_queue)
-    : email_queue_(email_queue) {
+    : trust_proxy_(Env::Get("TRUST_PROXY", "0") != "0"),
+      email_queue_(email_queue),
+      request_limiter_(std::stod(Env::Get("RATE_RESET_BURST", "3")),
+                       std::stod(Env::Get("RATE_RESET_RPS", "0.05"))) {
     router.Post("/auth/reset/request", [this](AppResponse* res, AppRequest* req) {
         HandleRequest(res, req);
     });
@@ -46,9 +49,11 @@ PasswordResetController::PasswordResetController(HttpRouter& router, EmailQueue&
 }
 
 void PasswordResetController::HandleRequest(AppResponse* res, AppRequest* req) {
-    (void)req;
+    // INFO: Resolve the IP synchronously: req is invalid once ReadBody's
+    //       async callback runs.
+    const std::string ip = http::GetClientIp(res, req, trust_proxy_);
 
-    http::ReadBody(res, kMaxBodyBytes, [this, res](const std::string& body) {
+    http::ReadBody(res, kMaxBodyBytes, [this, res, ip](const std::string& body) {
         json data = json::object();
         if (!body.empty()) {
             try {
@@ -75,6 +80,14 @@ void PasswordResetController::HandleRequest(AppResponse* res, AppRequest* req) {
         };
 
         if (email.empty()) {
+            respond_queued();
+            return;
+        }
+
+        // INFO: Over-limit callers get the same 202 so the throttle leaks
+        //       nothing, but never reach the account lookup or the send cap.
+        request_limiter_.Evict();
+        if (!request_limiter_.Allow(ip)) {
             respond_queued();
             return;
         }
