@@ -743,13 +743,13 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     Lobby built = Lobby::Create(id, username, ctx.socket,
         payload_res->is_public.value_or(false), payload_res->name.value_or(username + "'s lobby"),
         Env::GetInt("DEFAULT_TURN_TIME_MS", LobbySettings{}.turn_time_limit_ms),
-    if (!match::modload::IsDevContentAllowed()) ApplyFirstDeck(lobby.settings);
-
         Env::GetInt("DEFAULT_STARTING_CARDS", LobbySettings{}.starting_cards),
         [this](const std::string& c) { return code_to_id_.count(c) > 0; },
         absolute_max_lobby_members_);
 
     Lobby& lobby = lobbies_.emplace(id, std::move(built)).first->second;
+
+    if (!match::modload::IsDevContentAllowed()) ApplyFirstDeck(lobby.settings);
 
     code_to_id_[lobby.invite_code] = id;
     ctx.socket_data->lobby_code = lobby.invite_code;
@@ -1205,6 +1205,12 @@ LobbyController::HttpModsSnapshot() {
     const auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> guard(mods_snapshot_mutex_);
     if (mods_snapshot_ && now - mods_snapshot_->built_at < kTtl) {
+        return mods_snapshot_;
+    }
+    // INFO: unauthenticated routes share one short-lived scan so request rate
+    //       cannot drive filesystem parsing and validation.
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
     auto index = match::modload::AssetIndex::Build(loaded);
     mods_snapshot_ = std::make_shared<const ModsSnapshot>(
         ModsSnapshot{std::move(loaded), std::move(index), now});
@@ -1238,12 +1244,6 @@ void LobbyController::ApplyFirstDeck(LobbySettings& settings) {
 void LobbyController::HandleListDecks(AppResponse* res) {
     const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
     const match::modload::LoadResult& loaded = snapshot->loaded;
-        return mods_snapshot_;
-    }
-    // INFO: unauthenticated routes share one short-lived scan so request rate
-    //       cannot drive filesystem parsing and validation.
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
     if (loaded.fatal()) {
         Logger::Error("[Deck] Mods root unreadable for '", mods_root_, "'");
         res->writeStatus("500 Internal Server Error")
@@ -1455,17 +1455,9 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
 
     if (ctx.socket_data->username != lobby.host) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kNotHost, request_id);
-    const bool freestyle_allowed = match::modload::IsDevContentAllowed();
         return;
     }
 
-            if (!freestyle_allowed) {
-                broadcaster_.SendError(
-                    ctx.socket, ctx.op_code,
-                    contract::ErrorCode::kInvalidPayload, request_id,
-                    "a deck is required");
-                return;
-            }
     // INFO: Every change is built on copies and committed at the end, so a
     //       frame that fails validation or deserialization leaves the lobby
     //       untouched instead of half-applied.

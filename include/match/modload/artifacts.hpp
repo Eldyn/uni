@@ -261,8 +261,6 @@ struct SettingDecl {
     std::string type;                   /**< int|number|bool|string. */
     nlohmann::json default_value;
     std::optional<nlohmann::json> range;
-    /**< When true the loader omits this mod from production builds. */
-    bool dev_only = false;
     std::string description;
     nlohmann::json raw;
 };
@@ -279,6 +277,8 @@ struct ModManifest {
     std::string description;
     std::string author;
     std::vector<SettingDecl> settings;
+    /**< When true the loader omits this mod from production builds. */
+    bool dev_only = false;
     nlohmann::json prompts = nlohmann::json::array();
     nlohmann::json signals = nlohmann::json::array();
     nlohmann::json raw;

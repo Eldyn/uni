@@ -141,6 +141,13 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
         }
 
         const std::string recipient = *payload_res->target;
+        const bool recipient_known = presence_.GetSocket(recipient) != nullptr ||
+                                     chat_service_.UserExists(recipient);
+        if (recipient == username || !recipient_known) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                                   request_id, "Invalid DM target");
+            return;
+        }
         auto send_result = chat_service_.SendDirectMessage(username, recipient,
                                                             payload_res->message);
         if (!send_result) {
@@ -157,13 +164,6 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
 
         broadcaster_.SendJson(ctx.socket, resp);
 
-        const bool recipient_known = presence_.GetSocket(recipient) != nullptr ||
-                                     chat_service_.UserExists(recipient);
-        if (recipient == username || !recipient_known) {
-            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
-                                   request_id, "Invalid DM target");
-            return;
-        }
         AppWebSocket* recipient_socket = presence_.GetSocket(recipient);
         if (recipient_socket != nullptr) {
             broadcaster_.SendJson(recipient_socket, resp);

@@ -225,6 +225,23 @@ public:
 
     /**
      * @brief Loads one deck snapshot (mod list + card multiset + typed
+     * settings bag) into `settings.deck` atomically.
+     * * Stores the schema-shaped object (`id`, `name`, `namespace`, `mods`,
+     * `cards`, `settings`) verbatim; the new engine consumes it at the
+     * controller. The legacy scalar settings are deliberately left alone so
+     * freestyle editing remains fully additive during the coexistence phase.
+     * @param settings Target lobby settings, mutated in place.
+     * @param mods     Every loaded mod to search for `deck_id`.
+     * @param deck_id  Full `namespace:id` (or bare local id) of the deck.
+     * @return true when a matching deck was found and applied, false otherwise
+     *         (settings left untouched).
+     */
+    static bool ApplyDeckSnapshot(
+        LobbySettings& settings,
+        const std::vector<match::modload::LoadedMod>& mods,
+        const std::string& deck_id);
+
+private:
     /** Mods scan plus asset index shared by the public HTTP routes. */
     struct ModsSnapshot {
         match::modload::LoadResult loaded;
@@ -244,24 +261,6 @@ public:
     /** @brief Seeds `settings.deck` with the first catalogue deck (prod has no freestyle). */
     void ApplyFirstDeck(LobbySettings& settings);
 
-     * settings bag) into `settings.deck` atomically (spec,.
-     * * Stores the schema-shaped object (`id`, `name`, `namespace`, `mods`,
-     * `cards`, `settings`) verbatim; the new engine consumes it at the
-     * controller. The legacy scalar settings are deliberately left alone so
-     * freestyle editing remains fully additive during the coexistence phase.
-     * @param settings Target lobby settings, mutated in place.
-     * @param mods     Every loaded mod to search for `deck_id`.
-     * @param deck_id  Full `namespace:id` (or bare local id) of the deck.
-     * @return true when a matching deck was found and applied, false otherwise
-     *         (settings left untouched).
-     *
-     */
-    static bool ApplyDeckSnapshot(
-        LobbySettings& settings,
-        const std::vector<match::modload::LoadedMod>& mods,
-        const std::string& deck_id);
-
-private:
     /**
      * @brief Verifies the integrity of the current match data (e.g. host realignment).
      * @param lobby The lobby to verify.
@@ -417,8 +416,6 @@ private:
     /**
      * @brief Removes a member from the lobby. Destroys the lobby if it becomes empty.
      * @param lobby_id ID of the lobby.
-    std::mutex mods_snapshot_mutex_;
-    std::shared_ptr<const ModsSnapshot> mods_snapshot_;
      * @param username Username of the player to remove.
      * @param explicit_leave True if the user left voluntarily.
      * @param request_id ID of the request (optional, for tracking).
@@ -456,6 +453,8 @@ private:
     PresenceRegistry& presence_;    /**< Connection registry; also indexes username -> lobby ID. */
     /**< Mods folder scanned to resolve deck snapshots (env: UNI_MODS_DIR). */
     std::string mods_root_;
+    std::mutex mods_snapshot_mutex_;
+    std::shared_ptr<const ModsSnapshot> mods_snapshot_;
 
     std::unordered_map<uint32_t, Lobby> lobbies_;        /**< Primary storage of the lobbies. */
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */
