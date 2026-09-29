@@ -1467,23 +1467,52 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
                     "a deck is required");
                 return;
             }
+    // INFO: Every change is built on copies and committed at the end, so a
+    //       frame that fails validation or deserialization leaves the lobby
+    //       untouched instead of half-applied.
+    std::optional<std::string> new_name;
+    if (message.contains("name")) {
+        const json& name_value = message["name"];
+        if (!name_value.is_string() || name_value.get_ref<const std::string&>().empty() ||
+            name_value.get_ref<const std::string&>().size() >
+                static_cast<size_t>(contract::kLobbyNameMax)) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                                   request_id, "invalid lobby name");
+            return;
+        }
+        new_name = name_value.get<std::string>();
+    }
+
+    LobbySettings new_settings = lobby.settings;
+
     // INFO: A `deck_id` selects a whole snapshot at once (mods + cards +
-    //       settings). Resolve it against the mods folder before the
-    //       generic merge; an empty string clears the selection (freestyle).
+    //       settings). Resolve it against the mods folder before the generic
+    //       merge; an empty string clears the selection (freestyle, dev only).
     if (message.contains("deck_id")) {
-        const std::string deck_id = message.value("deck_id", "");
+        if (!message["deck_id"].is_string()) {
+            broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                                   request_id, "invalid deck_id");
+            return;
+        }
+        const std::string deck_id = message["deck_id"].get<std::string>();
         if (deck_id.empty()) {
-            lobby.settings.deck = json::object();
+            if (!match::modload::IsDevContentAllowed()) {
+                broadcaster_.SendError(
+                    ctx.socket, ctx.op_code,
+                    contract::ErrorCode::kInvalidPayload, request_id,
+                    "a deck is required");
+                return;
+            }
+            new_settings.deck = json::object();
         } else {
-            match::modload::LoadResult loaded =
-                match::modload::ScanModsDirectory(mods_root_);
-            if (loaded.fatal()) {
+            const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+            if (snapshot->loaded.fatal()) {
                 broadcaster_.SendError(
                     ctx.socket, ctx.op_code,
                     contract::ErrorCode::kInternalError, request_id);
                 return;
             }
-            if (!ApplyDeckSnapshot(lobby.settings, loaded.mods, deck_id)) {
+            if (!ApplyDeckSnapshot(new_settings, snapshot->loaded.mods, deck_id)) {
                 broadcaster_.SendError(
                     ctx.socket, ctx.op_code,
                     contract::ErrorCode::kInvalidPayload, request_id,
@@ -1493,29 +1522,35 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         }
     }
 
-    int old_bot_count = lobby.settings.bot_count;
+    const int old_bot_count = lobby.settings.bot_count;
+    const int old_max_players = lobby.settings.max_players;
 
     // INFO: Strip envelope fields then apply the patch. Fields not present
     //       in the message are left unchanged; unknown fields are ignored by
-    // INFO: the deck snapshot is server-authored (see `deck_id` above); a raw
-    //       `deck` patch would bypass the catalogue and the prod freestyle gate.
-    patch.erase("deck");
     //       nlohmann when deserializing back into LobbySettings, so the
     //       struct is always correct.
     json patch = message;
     patch.erase("action");
     patch.erase("request_id");
     patch.erase("deck_id");
+    // INFO: the deck snapshot is server-authored (see `deck_id` above); a raw
+    //       `deck` patch would bypass the catalogue and the prod freestyle gate.
+    patch.erase("deck");
+    patch.erase("name");  // name lives on Lobby, not LobbySettings
 
-    if (patch.contains("name")) {
-        lobby.name = patch.value("name", lobby.name);
-        patch.erase("name");  // name lives on Lobby, not LobbySettings
-    }
-
-    json current_settings = lobby.settings;
+    json current_settings = new_settings;
     current_settings.merge_patch(patch);
-    lobby.settings = current_settings.get<LobbySettings>();
-    lobby.settings.Sanitize(absolute_max_lobby_members_);
+    try {
+        new_settings = current_settings.get<LobbySettings>();
+    } catch (const json::exception&) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, "invalid settings");
+        return;
+    }
+    new_settings.Sanitize(absolute_max_lobby_members_);
+
+    lobby.settings = std::move(new_settings);
+    if (new_name) lobby.name = std::move(*new_name);
 
     if (old_bot_count != lobby.settings.bot_count) {
         lobby.SyncBots(rng_);

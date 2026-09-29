@@ -1508,6 +1508,43 @@ TEST_CASE("close: unbinds the member even when the socket's lobby_code has drift
     CHECK_FALSE(lobby->members.front().is_connected);
 }
 
+TEST_CASE("settings: an over-long or non-string lobby name is rejected") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby);
+    const std::string original_name = lobby->name;
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "r1"},
+                                     {"name", std::string(51, 'x')}});
+    CHECK(LastErrorCode(f.bus, f.alice_sock) == "invalid_payload");
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "r2"},
+                                     {"name", 42}});
+    CHECK(LastErrorCode(f.bus, f.alice_sock) == "invalid_payload");
+    CHECK(lobby->name == original_name);
+}
+
+TEST_CASE("settings: a frame that fails to deserialize applies nothing") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby);
+    const std::string original_name = lobby->name;
+    const int original_bots = lobby->settings.bot_count;
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "r3"},
+                                     {"name", "renamed"},
+                                     {"bot_count", "many"}});
+
+    CHECK(LastErrorCode(f.bus, f.alice_sock) == "invalid_payload");
+    CHECK(lobby->name == original_name);
+    CHECK(lobby->settings.bot_count == original_bots);
+}
+
 TEST_CASE("payloads: ParsePayload enforces the contract limits") {
     CHECK_FALSE(ws::ParsePayload<ws::LobbyCreatePayload>(
                     json{{"name", std::string(51, 'a')}}).has_value());
