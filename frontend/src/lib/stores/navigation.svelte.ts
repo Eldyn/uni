@@ -292,8 +292,9 @@ export class StoreNavigation {
 		// not just a client-side jump to whatever the game screen sits on top
 		// of in the lobby/lobbies stack.
 		if (from === "game" && to === "lobby") {
-			if (storeGame.state !== null) {
-				storeLobby.leave();
+			const matchRunning = storeGame.state !== null && !storeGame.state.is_over;
+			if (matchRunning) {
+				storeGame.quitMatch();
 			} else {
 				storeGame.returnToLobby();
 			}
