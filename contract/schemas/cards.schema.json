@@ -143,7 +143,15 @@
               "type": "object"
             },
             "duration": {
-              "type": "string"
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              ]
             },
             "on_response": {
               "type": "string"

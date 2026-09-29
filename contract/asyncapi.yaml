@@ -1254,6 +1254,15 @@ components:
       x-packet-version: "1"
       required: [deadline_ms, responders, eligible_filter_digest, window_id]
       properties:
+        kind:
+          type: string
+          pattern: "^[a-z0-9_:.-]{1,32}$"
+          default: generic
+          description: >
+            Presentation tag declared by the window node (for example
+            `jump_in`); `generic` when the node declares none. Identical for
+            every viewer, spectators included. The snapshot's `window` object
+            in `match_state` carries the same field.
         deadline_ms:
           type: integer
           minimum: 0

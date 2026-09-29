@@ -213,6 +213,15 @@ std::size_t CountEvents(const MatchInstance& engine,
     return count;
 }
 
+const json* FindEvent(const MatchInstance& engine, const std::string& type) {
+    for (const json& event : engine.Events()) {
+        if (event.is_object() && event.value("type", "") == type) {
+            return &event;
+        }
+    }
+    return nullptr;
+}
+
 }  // namespace
 
 TEST_CASE("engine jump_in: out-of-turn identical PlayCard wins (no window)") {
@@ -270,4 +279,30 @@ TEST_CASE("engine jump_in: non-identical out-of-turn PlayCard is refused") {
     CHECK(CountEvents(*engine, "play_rejected") == rejected_before + 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
     CHECK_FALSE(engine->WindowOpen());
+}
+
+TEST_CASE("engine jump_in: gate window is kind jump_in and 800 ms") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeJumpInEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> identical = FindDuplicateOfTop(*engine);
+    REQUIRE(identical.has_value());
+    ForceHand(*engine, player1, {*identical});
+    REQUIRE(engine->PlayCard("player1", *identical));
+    REQUIRE(engine->WindowOpen());
+
+    // INFO: the mod's integer `duration` overrides the 1000 ms env window.
+    const json* opened = FindEvent(*engine, "window_open");
+    REQUIRE(opened != nullptr);
+    CHECK((*opened)["payload"]["duration_ms"] == 800);
+    CHECK((*opened)["payload"]["kind"] == "jump_in");
+    CHECK(engine->ExportWindow()["kind"] == "jump_in");
+    CHECK(engine->ExportWindow()["deadline_ms"] == 800);
+    for (const json& name : engine->ExportWindow()["responders"]) {
+        CHECK(name != "player1");
+    }
 }

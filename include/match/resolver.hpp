@@ -129,6 +129,8 @@ struct WindowRequest {
     std::string duration;           /**< `env` or a duration token. */
     /** Integer `duration` in ms; absent for `env` or an invalid value. */
     std::optional<int64_t> duration_ms;
+    /** Presentation tag (`^[a-z0-9_:.-]{1,32}$`); `generic` when unset. */
+    std::string kind = "generic";
     nlohmann::json raw = nlohmann::json::object(); /**< verbatim node. */
 };
 

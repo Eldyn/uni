@@ -116,6 +116,7 @@ json ProjectWindowOpen(const json& payload) {
                             : json::array();
     out["eligible_filter_digest"] = payload.value("filter_digest", "");
     out["window_id"] = std::to_string(payload.value("id", 0));
+    out["kind"] = payload.value("kind", std::string("generic"));
     return out;
 }
 

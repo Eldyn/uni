@@ -551,6 +551,7 @@ json BuildWindow(const match::engine::MatchInstance& match) {
                 {"responders", window.value("responders", json::array())},
                 {"eligible_filter_digest",
                  window.value("filter_digest", std::string())},
+                {"kind", window.value("kind", std::string("generic"))},
                 {"responses", std::move(responses)}};
 }
 

@@ -230,6 +230,12 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
     REQUIRE(window["responders"].size() == 1);
     CHECK(window["responders"][0] == "player1");
     CHECK(window["default_route"] == "n2");
+    // INFO: a window that declares no kind stays generic on the env duration.
+    CHECK(window["kind"] == "generic");
+    const json* opened = FindEvent(*engine, "window_open");
+    REQUIRE(opened != nullptr);
+    CHECK((*opened)["payload"]["kind"] == "generic");
+    CHECK((*opened)["payload"]["duration_ms"] == 1000);
 }
 
 TEST_CASE("engine draw_stacking: unanswered +N makes the victim draw and skip") {

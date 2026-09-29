@@ -485,6 +485,45 @@ TEST_CASE("resolver: window duration accepts an integer override") {
     CHECK_FALSE(boolean.window->duration_ms.has_value());
 }
 
+TEST_CASE("resolver: window kind is carried, defaulted and validated") {
+    EntityStore store;
+    Entity self = AddPlayer(store, "self", 0);
+    AddPlayer(store, "left", 1);
+
+    BudgetLedger ledger;
+    EventBus bus({"m"});
+    ConditionRegistry conditions;
+    OpRuntime runtime;
+    Resolver resolver(store, runtime, bus, ledger, conditions,
+                      ResolverConfig{});
+    SelectorContext context;
+    context.self = self;
+
+    const auto kind_of = [&](const json& window) {
+        ResolutionFrame frame;
+        BehaviorGraph graph = MakeGraph(json::array({
+            {{"id", "n0"}, {"window", window}, {"default", "n0"}},
+        }));
+        ResolveResult result = resolver.Resolve(graph, "m", context, frame);
+        REQUIRE(result.window.has_value());
+        return result.window->kind;
+    };
+
+    CHECK(kind_of({{"responders", "@others"}, {"kind", "jump_in"}})
+          == "jump_in");
+    CHECK(kind_of({{"responders", "@others"}}) == "generic");
+    CHECK(kind_of({{"responders", "@others"}, {"kind", "Bad Kind"}})
+          == "generic");
+    CHECK(kind_of({{"responders", "@others"}, {"kind", ""}}) == "generic");
+    CHECK(kind_of({{"responders", "@others"}, {"kind", 5}}) == "generic");
+    CHECK(kind_of({{"responders", "@others"},
+                   {"kind", std::string(33, 'a')}})
+          == "generic");
+    CHECK(kind_of({{"responders", "@others"},
+                   {"kind", std::string(32, 'a')}})
+          == std::string(32, 'a'));
+}
+
 TEST_CASE("resolver: schedule node returns its request and fires later") {
     EntityStore store;
     BudgetLedger ledger;

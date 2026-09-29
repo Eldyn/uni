@@ -935,6 +935,47 @@ TEST_CASE("validator: window duration must be env or a duration unit") {
     CHECK(HasCheck(errors, "op.type"));
 }
 
+namespace {
+
+std::vector<LoadError> ValidateWindowNode(const json& window) {
+    LoadedMod mod = ValidMod();
+    mod.cards[0].behaviors[0].graph = MakeGraph(
+        {json{{"id", "w1"}, {"window", window}, {"default", "n2"}},
+         Op("n2", "advance_turn", json::object())});
+    mod.cards[0].raw["behavior"] = json{
+        {"on_play", mod.cards[0].behaviors[0].graph.raw}};
+    SemanticValidator v(SchemaDir());
+    return v.ValidateMod(mod);
+}
+
+}  // namespace
+
+TEST_CASE("validator: window duration accepts a non-negative integer") {
+    CHECK(ValidateWindowNode({{"responders", "@others"}, {"duration", 800}})
+              .empty());
+    CHECK(ValidateWindowNode({{"responders", "@others"}, {"duration", 0}})
+              .empty());
+    CHECK(HasCheck(ValidateWindowNode(
+                       {{"responders", "@others"}, {"duration", -1}}),
+                   "op.type"));
+    CHECK(HasCheck(ValidateWindowNode(
+                       {{"responders", "@others"}, {"duration", 1.5}}),
+                   "op.type"));
+}
+
+TEST_CASE("validator: window kind must match the wire pattern") {
+    CHECK(ValidateWindowNode({{"responders", "@others"},
+                              {"duration", "env"},
+                              {"kind", "jump_in"}})
+              .empty());
+    CHECK(HasCheck(ValidateWindowNode({{"responders", "@others"},
+                                       {"kind", "Bad Kind"}}),
+                   "op.type"));
+    CHECK(HasCheck(ValidateWindowNode({{"responders", "@others"},
+                                       {"kind", 7}}),
+                   "op.type"));
+}
+
 TEST_CASE("validator: window with declared fields validates clean") {
     LoadedMod mod = ValidMod();
     mod.cards[0].behaviors[0].graph = MakeGraph(

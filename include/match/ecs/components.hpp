@@ -337,6 +337,7 @@ struct WindowState {
     int64_t deadline_ms = 0;
     std::string default_route;
     std::string filter_digest;
+    std::string kind = "generic";  /**< wire tag; see WindowRequest::kind. */
     std::vector<WindowResponse> responses;
 };
 

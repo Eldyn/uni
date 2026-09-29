@@ -33,7 +33,8 @@
                 "plays_identical_to_top": {}
               }
             },
-            "duration": "env"
+            "duration": 800,
+            "kind": "jump_in"
           },
           "default": "n2",
           "on_response": {

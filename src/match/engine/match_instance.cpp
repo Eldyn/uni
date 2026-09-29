@@ -920,6 +920,7 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     window->responders = pause.request.responders;
     window->default_route = pause.request.default_route;
     window->filter_digest = pause.request.filter_digest;
+    window->kind = pause.request.kind;
 
     // INFO: Opening suspends the turn clock and arms the window
     //       duration; the turn remainder is restored on close.
@@ -939,7 +940,8 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
                      {"default_route", window->default_route},
                      {"filter_digest", window->filter_digest},
                      {"deadline_ms", window->deadline_ms},
-                     {"duration_ms", duration.duration_ms}};
+                     {"duration_ms", duration.duration_ms},
+                     {"kind", window->kind}};
     // INFO: park before dispatching `window_open` so a hook that pauses cannot
     //       recursively open a second window from the same pause.
     pending_window_ = std::move(pause);
@@ -1393,6 +1395,7 @@ nlohmann::json MatchInstance::ExportWindow() const {
                 {"responders", std::move(responders)},
                 {"default_route", window->default_route},
                 {"filter_digest", window->filter_digest},
+                {"kind", window->kind},
                 {"deadline_ms", window->deadline_ms},
                 {"respond_with", pending_window_->request.respond_with},
                 {"responses", std::move(responses)}};

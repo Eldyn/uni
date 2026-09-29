@@ -18,6 +18,12 @@ namespace match::modload {
 
 namespace {
 
+bool IsValidWindowKind(const nlohmann::json& kind) {
+    static const std::regex pattern("^[a-z0-9_:.-]{1,32}$");
+    return kind.is_string()
+           && std::regex_match(kind.get<std::string>(), pattern);
+}
+
 LoadError Err(const std::string& check,
               const std::string& artifact,
               const std::string& path,
@@ -1103,9 +1109,23 @@ class Checker {
             }
         }
 
+        const nlohmann::json* kind = field("kind");
+        if (kind != nullptr
+            && !IsValidWindowKind(*kind)) {
+            buckets_.ops.push_back(Err(
+                "op.type", ctx.artifact, ctx.path,
+                "window kind must match ^[a-z0-9_:.-]{1,32}$"));
+        }
+
         const nlohmann::json* duration = field("duration");
         if (duration != nullptr) {
-            if (!duration->is_string()) {
+            if (duration->is_number_integer()) {
+                if (duration->get<int64_t>() < 0) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        "window duration must not be negative"));
+                }
+            } else if (!duration->is_string()) {
                 buckets_.ops.push_back(Err(
                     "op.type", ctx.artifact, ctx.path,
                     "window duration must be 'env' or a duration unit"));

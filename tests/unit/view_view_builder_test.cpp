@@ -313,7 +313,8 @@ TEST_CASE("view filter: window packets are uniform and public") {
                                json::array({"player1", "player2"})},
                               {"filter_digest", "digest-abc"},
                               {"deadline_ms", 999999},
-                              {"duration_ms", 7000}}}};
+                              {"duration_ms", 7000},
+                              {"kind", "jump_in"}}}};
 
     const std::optional<json> p0 =
         WrapOne(builder, Viewer::Player("player0"), open);
@@ -326,6 +327,12 @@ TEST_CASE("view filter: window packets are uniform and public") {
     CHECK((*p0)["payload"]["eligible_filter_digest"] == "digest-abc");
     CHECK((*p0)["payload"]["window_id"] == "7");
     CHECK((*p0)["payload"]["deadline_ms"] == 7000);
+    CHECK((*p0)["payload"]["kind"] == "jump_in");
+    const json bare =
+        json{{"type", "window_open"},
+             {"payload", json{{"id", 8}, {"deadline_ms", 5}}}};
+    CHECK((*WrapOne(builder, Viewer::Spectator(), bare))["payload"]["kind"]
+          == "generic");
     CHECK((*p0)["payload"]["responders"].size() == 2);
     CHECK(WrapOne(builder, Viewer::Spectator(), open).has_value());
 

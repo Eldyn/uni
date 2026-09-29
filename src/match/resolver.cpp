@@ -670,6 +670,29 @@ void ReadWindowDuration(const nlohmann::json& holder, WindowRequest& request) {
     request.duration = "env";
 }
 
+bool IsValidWindowKind(const std::string& kind) {
+    if (kind.empty() || kind.size() > 32) return false;
+    for (const char c : kind) {
+        const bool allowed = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                             || c == '_' || c == ':' || c == '.' || c == '-';
+        if (!allowed) return false;
+    }
+    return true;
+}
+
+// INFO: an absent or malformed `kind` keeps `generic`; it is a presentation
+//       tag only, so a bad value must not break the window.
+void ReadWindowKind(const nlohmann::json& holder, WindowRequest& request) {
+    const auto found = holder.find("kind");
+    if (found == holder.end()) return;
+    if (found->is_string() && IsValidWindowKind(found->get<std::string>())) {
+        request.kind = found->get<std::string>();
+        return;
+    }
+    Logger::Warn("[Resolver] window kind ", found->dump(),
+                 " does not match ^[a-z0-9_:.-]{1,32}$; using generic");
+}
+
 }  // namespace
 
 Resolver::WalkCode Resolver::StepWindow(WalkState& state,
@@ -690,6 +713,7 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
             request.respond_with = (*window)["respond_with"];
         }
         ReadWindowDuration(*window, request);
+        ReadWindowKind(*window, request);
         request.filter_digest = window->value("filter_digest", std::string());
     }
     if (request.responders_selector.empty()) {
@@ -702,6 +726,7 @@ Resolver::WalkCode Resolver::StepWindow(WalkState& state,
     if (request.duration.empty() && !request.duration_ms.has_value()) {
         ReadWindowDuration(node, request);
     }
+    if (request.kind == "generic") ReadWindowKind(node, request);
     request.default_route = node.value("default", std::string());
     if (request.default_route.empty() && window != nullptr) {
         request.default_route =
