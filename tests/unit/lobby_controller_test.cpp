@@ -2,6 +2,7 @@
 #include <action_router.hpp>
 #include <controllers/lobby_controller.hpp>
 #include <controllers/match_controller.hpp>
+#include <common/payloads.hpp>
 #include <common/ws.hpp>
 #include <database.hpp>
 #include <match/ecs/compact_card.hpp>
@@ -1435,3 +1436,20 @@ TEST_CASE("reconnect: an open barrier sends match_begin") {
 }  // TEST_SUITE("LobbyController::ReadyBarrier")
 
 } // TEST_SUITE
+
+TEST_SUITE("LobbyController::Hardening") {
+
+static std::string LastErrorCode(FakeBroadcaster& bus, AppWebSocket* sock) {
+    auto frames = bus.FramesFor(sock);
+    REQUIRE(!frames.empty());
+    return json::parse(frames.back().payload).value("code", "");
+}
+
+TEST_CASE("payloads: ParsePayload enforces the contract limits") {
+    CHECK_FALSE(ws::ParsePayload<ws::LobbyCreatePayload>(
+                    json{{"name", std::string(51, 'a')}}).has_value());
+    CHECK_FALSE(ws::ParsePayload<ws::LobbyCreatePayload>(json{{"name", 5}}).has_value());
+    CHECK(ws::ParsePayload<ws::LobbyCreatePayload>(json{{"name", "ok"}}).has_value());
+}
+
+}  // TEST_SUITE("LobbyController::Hardening")
