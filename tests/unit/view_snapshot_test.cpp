@@ -232,12 +232,11 @@ bool EvaluatorVerdict(const MatchInstance& engine, ecs::Entity player,
     if (!engine.WindowOpen()) return evaluator.CanPlayInTurn(player, card);
     const ecs::WindowState* window =
         engine.Store().Get<ecs::WindowState>(engine.Registries().match);
-    const std::optional<match::resolver::WindowRequest> pending =
-        engine.PendingWindow();
+    const std::vector<nlohmann::json> filters = engine.WindowFilters();
     REQUIRE(window != nullptr);
-    REQUIRE(pending.has_value());
+    REQUIRE_FALSE(filters.empty());
     const PlayEvaluator::WindowView view{window->responders, window->responses,
-                                         pending->respond_with};
+                                         filters};
     return evaluator.CanRespond(view, player, card);
 }
 

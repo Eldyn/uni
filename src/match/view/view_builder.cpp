@@ -350,19 +350,19 @@ json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
  *
  * The single legality authority owns the decision: while a
  * window is open the evaluator answers through `CanRespond`, otherwise
- * through `CanPlayInTurn`. `window` and `pending` are the live window state,
- * null when no window is open.
+ * through `CanPlayInTurn`. `window` is the live window state (null when no
+ * window is open) and `filters` are its members' `respond_with` filters.
  */
 bool EvaluatorCanPlay(const match::engine::PlayEvaluator& evaluator,
                       ecs::Entity player, ecs::Entity card,
                       const ecs::WindowState* window,
-                      const match::resolver::WindowRequest* pending) {
-    if (window == nullptr || pending == nullptr) {
+                      const std::vector<json>& filters) {
+    if (window == nullptr || filters.empty()) {
         return evaluator.CanPlayInTurn(player, card);
     }
     return evaluator.CanRespond(
         match::engine::PlayEvaluator::WindowView{
-            window->responders, window->responses, pending->respond_with},
+            window->responders, window->responses, filters},
         player, card);
 }
 
@@ -401,10 +401,10 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
     // INFO: `can_play` is own-hand only. While a window is open the
     //       window state is resolved once for the whole hand, not per card.
     const ecs::WindowState* window = nullptr;
-    std::optional<match::resolver::WindowRequest> pending;
+    std::vector<json> filters;
     if (own && match.WindowOpen()) {
         window = match.Store().Get<ecs::WindowState>(match.Registries().match);
-        pending = match.PendingWindow();
+        filters = match.WindowFilters();
     }
 
     json out = json::array();
@@ -416,8 +416,7 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
         if (!HasAspect(mask, kCardAspects)) continue;
         const bool playable =
             own
-            && EvaluatorCanPlay(evaluator, player, card, window,
-                                pending.has_value() ? &*pending : nullptr);
+            && EvaluatorCanPlay(evaluator, player, card, window, filters);
         out.push_back(CardEntry(match, card, mask, playable, own));
     }
     if (own || !out.empty()) return out;

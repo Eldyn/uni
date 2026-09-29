@@ -337,13 +337,12 @@ TEST_CASE("play_evaluator: CanRespond matches the expected responder oracle") {
         engine->Registries().match);
     REQUIRE(window != nullptr);
     REQUIRE(window->open);
-    const std::optional<match::resolver::WindowRequest> pending =
-        engine->PendingWindow();
-    REQUIRE(pending.has_value());
+    const std::vector<nlohmann::json> filters = engine->WindowFilters();
+    REQUIRE_FALSE(filters.empty());
 
     const PlayEvaluator evaluator = engine->MakePlayEvaluator();
     const PlayEvaluator::WindowView view{
-        window->responders, window->responses, pending->respond_with};
+        window->responders, window->responses, filters};
 
     // INFO: independent oracle: the synthetic window admits any card from a
     //       responder (empty respond_with) and AllowAllPlays rescues the

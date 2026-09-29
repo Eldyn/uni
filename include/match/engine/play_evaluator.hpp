@@ -44,7 +44,8 @@ public:
     struct WindowView {
         const std::vector<ecs::Entity>& responders;
         const std::vector<ecs::WindowResponse>& responses;
-        const nlohmann::json& respond_with;
+        /** One filter per merged member; any accepting filter admits. */
+        const std::vector<nlohmann::json>& respond_with;
     };
 
     /**

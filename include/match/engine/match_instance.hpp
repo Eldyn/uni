@@ -334,6 +334,14 @@ public:
      */
     std::optional<resolver::WindowRequest> PendingWindow() const;
 
+    /**
+     * @brief Every member's `respond_with` filter of the open window group.
+     *
+     * A response is accepted when any of them accepts it (member order = mod
+     * load order). Empty when no window is parked.
+     */
+    std::vector<nlohmann::json> WindowFilters() const;
+
     // --- event stream ------------------------------------------------------
 
     /**
@@ -385,7 +393,13 @@ private:
         int64_t deadline_ms = 0;            /**< absolute epoch ms; 0 = unarmed. */
     };
 
-    /** @brief The open response window's parked resolver continuation (12). */
+    /**
+     * @brief The open response window's parked resolver continuation (12).
+     *
+     * A window group holds one pause per concurrent window: this pause is the
+     * first member (mod load order) and owns the group's collection state;
+     * `followers` are the members merged into the group after it.
+     */
     struct WindowPause {
         resolver::WindowRequest request;
         resolver::ResolveResult pause;
@@ -401,6 +415,21 @@ private:
         uint64_t next_arrival = 0;   /**< server arrival counter. */
         bool settle_play = false;  /**< settle the interrupted play on close. */
         ecs::Entity actor{};       /**< play actor to settle. */
+        /** Members merged into this group's window, in mod load order. */
+        std::vector<WindowPause> followers;
+        /** Member (0 = this pause) owning the winning response. */
+        std::size_t winner_member = 0;
+
+        std::size_t MemberCount() const { return followers.size() + 1; }
+        const WindowPause& Member(std::size_t index) const {
+            return index == 0 ? *this : followers[index - 1];
+        }
+    };
+
+    /** @brief A window member's route waiting to resume after a close. */
+    struct QueuedRoute {
+        WindowPause member;  /**< one member; `followers` empty. */
+        std::string route;   /**< node id to resume. */
     };
 
     /** @brief A `play_card` effect request queued from a drained op graph. */
@@ -477,6 +506,14 @@ private:
     void OpenWindow(WindowPause pause, bool fresh_situation = true);
 
     /**
+     * @brief Merge windows collected in one dispatch into a single group.
+     *
+     * The first window (mod load order) becomes the group's pause and the rest
+     * its `followers`; the group then opens as one window.
+     */
+    void OpenWindowGroup(std::vector<WindowPause> windows);
+
+    /**
      * @brief Build the `PlayAttempt` for `card` by `player`.
      *
      * Mirrors the state the pipeline reads: `in_turn`, the discard top kind,
@@ -500,10 +537,12 @@ private:
      * filter's condition keyword / matched tag, else the sole `on_response`
      * key. Returns empty when no digest can be derived.
      */
-    std::string ResponseDigest(ecs::Entity card) const;
+    std::string ResponseDigest(const resolver::WindowRequest& request,
+                               ecs::Entity card) const;
 
-    /** @brief Route node for the collected winner, else `default_route`. */
-    std::string WinningRoute(const ecs::WindowState& window) const;
+    /** @brief Route of `request` for a winning `card`, else `default_route`. */
+    std::string WinningRoute(const resolver::WindowRequest& request,
+                             ecs::Entity card) const;
 
     /**
      * @brief Commit the winning response card: move to discard + zone events.
@@ -543,12 +582,25 @@ private:
     void RecordDrawPenalty(ecs::Entity card, ecs::Entity player);
 
     /**
-     * @brief Close the open window, emit `window_close` and resume the route.
+     * @brief Close the open window group, emit one `window_close` and resume.
      *
-     * @param route   Resolver node id to resume (`ResumeWindow`).
+     * With a winning response only the owning member's `on_response` route
+     * runs; otherwise every member runs its `default_route` in member order.
+     *
      * @param outcome `timeout` / `all_pass` / `response` (event payload).
      */
-    void CloseWindowRoute(const std::string& route, const std::string& outcome);
+    void CloseWindowRoute(const std::string& outcome);
+
+    /**
+     * @brief Resume the queued member routes in order.
+     *
+     * The last route settles the interrupted play; a route that parks a new
+     * pause leaves the rest queued for `AppendResult` to continue.
+     */
+    void RunGroupRoutes(bool settle_play, ecs::Entity actor);
+
+    /** @brief True when any group member's window stacks `card`'s penalty. */
+    bool GroupStacksPenalty(const WindowPause& group, ecs::Entity card) const;
 
     // --- the engine hook / resolver path
     // ---------------------------------------
@@ -723,6 +775,8 @@ private:
     std::optional<InputPause> pending_input_;
     std::optional<WindowPause> pending_window_;
     std::vector<WindowPause> deferred_windows_;  /**< queued. */
+    /** Member routes still to resume after a group close (merged windows). */
+    std::vector<QueuedRoute> group_routes_;
     /** Elapsed schedules parked behind a pause. */
     std::vector<nlohmann::json> deferred_scheduled_;
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */

@@ -238,7 +238,10 @@ bool PlayEvaluator::CanRespond(const WindowView& window, ecs::Entity player,
     }
     const modload::PlayAttempt attempt =
         BuildAttempt(player, card, in_turn, /*responding=*/true);
-    return IsEligible(window.respond_with, attempt);
+    for (const nlohmann::json& filter : window.respond_with) {
+        if (IsEligible(filter, attempt)) return true;
+    }
+    return false;
 }
 
 }  // namespace match::engine
