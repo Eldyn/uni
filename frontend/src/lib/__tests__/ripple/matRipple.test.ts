@@ -199,4 +199,19 @@ describe("StoreMatRipple", () => {
 		expect(store.fromColor).toBe("#bd3130");
 		expect(store.toColor).toBe("#0470dd");
 	});
+
+	it("reset drops a running sweep and a pending hold so syncColor applies again", () => {
+		vi.useFakeTimers();
+		const store = new StoreMatRipple(() => 0);
+		store.startMatRipple("#ff0000", "normal", { u: 0.5, v: 0.5 }, 1);
+		store.beginPending();
+
+		store.reset();
+		store.syncColor("#00ff00");
+
+		expect(store.active).toBe(false);
+		expect(store.pending).toBe(false);
+		expect(store.committedColor).toBe("#00ff00");
+		expect(vi.getTimerCount()).toBe(0);
+	});
 });

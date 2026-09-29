@@ -114,6 +114,17 @@ export class StoreMatRipple {
 		this.committedColor = color;
 	}
 
+	/** Drops any running sweep or pending hold and returns the mat to its
+	 *  initial colour, e.g. when a match starts or the playmat unmounts. */
+	reset(): void {
+		this.#clearTimer();
+		this.clearPending();
+		this.active = false;
+		this.fromColor = MAT_INITIAL_COLOR;
+		this.toColor = MAT_INITIAL_COLOR;
+		this.committedColor = MAT_INITIAL_COLOR;
+	}
+
 	#finish(): void {
 		this.#clearTimer();
 		this.committedColor = this.toColor;
