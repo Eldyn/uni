@@ -36,7 +36,7 @@
 	let triggerEl = $state<HTMLButtonElement>();
 
 	async function openList() {
-		if (disabled) return;
+		if (disabled || options.length === 0) return;
 		open = true;
 		activeIndex = Math.max(0, options.indexOf(selected));
 		await tick();
@@ -53,6 +53,7 @@
 	}
 
 	function moveTo(index: number) {
+		if (options.length === 0) return;
 		activeIndex = (index + options.length) % options.length;
 		focusActive();
 	}
