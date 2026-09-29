@@ -14,6 +14,15 @@ using json = nlohmann::json;
 
 namespace {
 constexpr const char* kGlobalChatTopic = "global";
+constexpr size_t kMaxChatMessageChars = 512;
+
+size_t CountUtf8CodePoints(const std::string& text) {
+    size_t count = 0;
+    for (unsigned char byte : text) {
+        if ((byte & 0xC0) != 0x80) ++count;
+    }
+    return count;
+}
 
 /** Builds a `chat_history` frame from one shard, oldest message first. */
 json MakeChatHistoryResponse(const std::string& request_id, const std::string& channel,
@@ -82,6 +91,13 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
     }
 
     const std::string& username = ctx.socket_data->username;
+
+    const size_t message_chars = CountUtf8CodePoints(payload_res->message);
+    if (message_chars == 0 || message_chars > kMaxChatMessageChars) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
+                               request_id, "message must be 1-512 characters");
+        return;
+    }
 
     if (!chat_service_.AllowSend(username)) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kRateLimited,

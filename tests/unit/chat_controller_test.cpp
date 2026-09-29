@@ -169,6 +169,20 @@ TEST_CASE("DM to an unknown user or to oneself is rejected") {
     }
 }
 
+TEST_CASE("chat_send rejects empty and over-512-character messages") {
+    ChatControllerFixture f;
+
+    f.Dispatch({{"action", "chat_send"}, {"channel", "global"}, {"message", ""}});
+    f.Dispatch({{"action", "chat_send"}, {"channel", "global"},
+                {"message", std::string(513, 'x')}});
+
+    auto frames = f.broadcaster.FramesFor(f.sock);
+    REQUIRE(frames.size() == 2);
+    for (const auto& frame : frames) {
+        CHECK(json::parse(frame.payload)["code"] == "invalid_payload");
+    }
+}
+
 TEST_CASE("missing target field yields an invalid_payload error, not a crash") {
     ChatControllerFixture f;
 
