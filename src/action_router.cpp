@@ -47,8 +47,10 @@ bool ActionRouter::Dispatch(WsContext ctx, const json& msg) const {
         Logger::Warn("[ActionRouter] Exception handling action '", action, "': ", e.what());
         if (ctx.socket) {
             const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
+            // INFO: the exception text is logged above, never echoed: it can
+            //       carry library internals.
             ws::SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kInvalidPayload,
-                          request_id, e.what());
+                          request_id, "Malformed request");
         }
     }
     return true;
