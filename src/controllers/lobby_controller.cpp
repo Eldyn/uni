@@ -648,14 +648,29 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
  * @param sd Socket data structure tracking current connection information.
  */
 void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
-    if (sd->lobby_code.empty()) return;
+    // INFO: Sweep every lobby for a member bound to this socket instead of
+    //       trusting `sd->lobby_code`: the code can name a different lobby
+    //       than the one holding the raw pointer, and a member left bound to a
+    //       closed socket is sent to through freed memory. Ids are collected
+    //       first because the seat-disconnect callbacks may touch `lobbies_`.
+    std::vector<uint32_t> bound_lobby_ids;
+    for (const auto& [lobby_id, lobby] : lobbies_) {
+        for (const auto& member : lobby.members) {
+            if (member.username == sd->username && member.socket == ws) {
+                bound_lobby_ids.push_back(lobby_id);
+                break;
+            }
+        }
+    }
 
-    Lobby* lobby_ptr = GetLobbyByCode(sd->lobby_code);
-    if (!lobby_ptr) return;
-    Lobby& lobby = *lobby_ptr;
+    for (const uint32_t lobby_id : bound_lobby_ids) {
+        const auto lobby_it = lobbies_.find(lobby_id);
+        if (lobby_it == lobbies_.end()) continue;
+        Lobby& lobby = lobby_it->second;
 
-    for (auto& member : lobby.members) {
-        if (member.username == sd->username && member.socket == ws) {
+        for (auto& member : lobby.members) {
+            if (member.username != sd->username || member.socket != ws) continue;
+
             Logger::Log("[Lobby] Disconnect: ", sd->username, " in lobby ", lobby.id,
                         ", grace window open");
             member.is_connected    = false;
@@ -673,13 +688,14 @@ void LobbyController::OnClose(AppWebSocket* ws, PerSocketData* sd) {
                     lobby.session->BindSocket(sd->username, nullptr);
                     // INFO: a departed human counts as loaded so the ready
                     //       barrier never waits on a socket that is gone
+                    //.
                     if (lobby.session->MarkSeatReady(sd->username, broadcaster_)) {
                         for (auto& cb : on_match_seat_disconnected_) cb(&lobby);
                     }
                 }
             }
             BroadcastUpdate(lobby);
-            return;
+            break;
         }
     }
 }
@@ -700,6 +716,16 @@ void LobbyController::HandleCreate(WsContext ctx, const json& message) {
     }
 
     if (!ctx.socket_data->lobby_code.empty()) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
+                               request_id);
+        return;
+    }
+
+    // INFO: The socket check above is per connection, but an account can hold
+    //       several sockets. One lobby per username keeps the member/socket
+    //       bindings and the username->lobby mapping consistent, and caps a
+    //       single account's share of MAX_LOBBIES.
+    if (UserInOtherLobby(username, 0)) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
                                request_id);
         return;
@@ -781,6 +807,12 @@ void LobbyController::HandleJoin(WsContext ctx, const json& message) {
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyMember,
+                               request_id);
+        return;
+    }
+
+    if (UserInOtherLobby(username, lobby.id)) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
                                request_id);
         return;
     }
@@ -895,6 +927,18 @@ void LobbyController::HandleRejoin(WsContext ctx, const json& message) {
     }
     Lobby& lobby = *lobby_ptr;
     const std::string& username = ctx.socket_data->username;
+
+    // INFO: a rejoin only reattaches a seat the user already holds. Letting a
+    //       socket that sits in lobby Y rebind lobby X overwrote its
+    //       `lobby_code`, so OnClose never cleared Y's member and the session
+    //       kept a freed `AppWebSocket*`.
+    const bool socket_in_other_lobby = !ctx.socket_data->lobby_code.empty() &&
+                                       ctx.socket_data->lobby_code != lobby.invite_code;
+    if (socket_in_other_lobby || UserInOtherLobby(username, lobby.id)) {
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kAlreadyInLobby,
+                               request_id);
+        return;
+    }
 
     if (std::ranges::contains(lobby.members, username, &LobbyMember::username)) {
         // INFO: a rejoin must rebind the member record and the socket's lobby
@@ -1165,6 +1209,20 @@ LobbyController::HttpModsSnapshot() {
     mods_snapshot_ = std::make_shared<const ModsSnapshot>(
         ModsSnapshot{std::move(loaded), std::move(index), now});
     return mods_snapshot_;
+}
+
+bool LobbyController::UserInOtherLobby(const std::string& username, uint32_t except_lobby_id) {
+    const uint32_t lobby_id = presence_.GetUserLobbyId(username);
+    if (lobby_id == 0) return false;
+
+    const auto it = lobbies_.find(lobby_id);
+    if (it == lobbies_.end() || it->second.FindMember(username) == nullptr) {
+        // INFO: stale mapping (lobby gone or seat removed): drop it so the
+        //       user is not locked out of creating or joining.
+        presence_.ClearUserLobby(username);
+        return false;
+    }
+    return lobby_id != except_lobby_id;
 }
 
 void LobbyController::ApplyFirstDeck(LobbySettings& settings) {

@@ -1445,6 +1445,69 @@ static std::string LastErrorCode(FakeBroadcaster& bus, AppWebSocket* sock) {
     return json::parse(frames.back().payload).value("code", "");
 }
 
+TEST_CASE("create: a second socket of the same account cannot open another lobby") {
+    LobbyFixture f;
+    f.alice_creates();
+
+    PerSocketData second_sd;
+    second_sd.username = "alice";
+    AppWebSocket* second_sock = fake_sock(second_sd);
+    f.router.Dispatch(make_ctx(second_sock, &second_sd), create_msg());
+
+    CHECK(LastErrorCode(f.bus, second_sock) == "already_in_lobby");
+    CHECK(second_sd.lobby_code.empty());
+}
+
+TEST_CASE("join: an account seated in one lobby cannot join another from a second socket") {
+    LobbyFixture f;
+    f.alice_creates();
+
+    PerSocketData carol_sd;
+    carol_sd.username = "carol";
+    AppWebSocket* carol_sock = fake_sock(carol_sd);
+    f.router.Dispatch(make_ctx(carol_sock, &carol_sd), create_msg());
+    auto carol_resp = json::parse(f.bus.FramesFor(carol_sock).back().payload);
+    const std::string carol_code = carol_resp["lobby"]["invite_code"].get<std::string>();
+
+    PerSocketData second_sd;
+    second_sd.username = "alice";
+    AppWebSocket* second_sock = fake_sock(second_sd);
+    f.bus.Clear();
+    f.router.Dispatch(make_ctx(second_sock, &second_sd), join_msg(carol_code));
+
+    CHECK(LastErrorCode(f.bus, second_sock) == "already_in_lobby");
+}
+
+TEST_CASE("rejoin: a socket seated in one lobby cannot rebind another") {
+    LobbyFixture f;
+    const std::string alice_code = f.alice_creates();
+    f.router.Dispatch(f.bctx(), create_msg());
+    const std::string bob_code = f.bob_sd.lobby_code;
+    REQUIRE(!bob_code.empty());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.bctx(), json{{"action", ws::ClientAction::kLobbyRejoin},
+                                     {"request_id", "req-rj"},
+                                     {"code", alice_code}});
+
+    CHECK(LastErrorCode(f.bus, f.bob_sock) == "already_in_lobby");
+    CHECK(f.bob_sd.lobby_code == bob_code);
+}
+
+TEST_CASE("close: unbinds the member even when the socket's lobby_code has drifted") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    f.alice_sd.lobby_code.clear();
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby);
+    REQUIRE(!lobby->members.empty());
+    CHECK(lobby->members.front().socket == nullptr);
+    CHECK_FALSE(lobby->members.front().is_connected);
+}
+
 TEST_CASE("payloads: ParsePayload enforces the contract limits") {
     CHECK_FALSE(ws::ParsePayload<ws::LobbyCreatePayload>(
                     json{{"name", std::string(51, 'a')}}).has_value());

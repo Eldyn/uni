@@ -235,6 +235,12 @@ public:
     /** @brief Returns the cached snapshot, rescanning once it is older than the TTL. */
     std::shared_ptr<const ModsSnapshot> HttpModsSnapshot();
 
+    /**
+     * @brief True when `username` already holds a seat in a lobby other than
+     * `except_lobby_id` (0 = any lobby). Clears a stale username->lobby mapping.
+     */
+    bool UserInOtherLobby(const std::string& username, uint32_t except_lobby_id);
+
     /** @brief Seeds `settings.deck` with the first catalogue deck (prod has no freestyle). */
     void ApplyFirstDeck(LobbySettings& settings);
 
