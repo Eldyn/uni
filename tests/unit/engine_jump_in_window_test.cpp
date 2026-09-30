@@ -306,3 +306,39 @@ TEST_CASE("engine jump_in: gate window is kind jump_in and 800 ms") {
         CHECK(name != "player1");
     }
 }
+
+TEST_CASE("engine jump_in: a timeout with a winner resolves once") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeJumpInEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+
+    const std::optional<ecs::Entity> twin = FindDuplicateOfTop(*engine);
+    REQUIRE(twin.has_value());
+    ForceHand(*engine, player1, {*twin});
+    REQUIRE(engine->PlayCard("player1", *twin));
+    REQUIRE(engine->WindowOpen());
+    const std::optional<ecs::Entity> jumper_card = FindDuplicateOfTop(*engine);
+    REQUIRE(jumper_card.has_value());
+    ForceHand(*engine, player2, {*jumper_card});
+
+    // INFO: player0 has not answered, so the solo window stays open with the
+    //       winner recorded until its 800 ms duration elapses.
+    REQUIRE(engine->RespondWindow("player2", *jumper_card));
+    CHECK(engine->WindowOpen());
+    CHECK(CountEvents(*engine, "window_close") == 0);
+
+    clock.now = 800;
+    engine->Tick();
+    CHECK_FALSE(engine->WindowOpen());
+    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(engine->GetCurrentPlayerUsername() == "player2");
+
+    engine->Tick();
+    engine->Tick();
+    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(engine->GetCurrentPlayerUsername() == "player2");
+}

@@ -290,6 +290,7 @@ struct Plus4Table {
     ecs::Entity player2{};
     std::size_t victim_hand = 0;
     std::size_t bystander_hand = 0;
+    ecs::Entity wild4{};
 };
 
 Plus4Table OpenPlus4Group(Content& content,
@@ -312,6 +313,7 @@ Plus4Table OpenPlus4Group(Content& content,
     REQUIRE(filler0.has_value());
     REQUIRE(filler1.has_value());
     REQUIRE(filler2.has_value());
+    table.wild4 = *wild4;
     ForceHand(engine, table.player0, {*wild4, *filler0});
     ForceHand(engine, table.player1, {*filler1});
     ForceHand(engine, table.player2, {*filler2});
@@ -570,6 +572,296 @@ TEST_CASE("engine merge: CanRespondWindow accepts any member's filter") {
     CHECK_FALSE(engine.CanRespondWindow(table.player0, table.filler0));
 }
 
+namespace {
+
+/** @brief Seat state the jump-in / stack chains are compared on. */
+struct ChainOutcome {
+    std::vector<int64_t> debts;
+    std::vector<std::size_t> hands;
+    std::string current;
+    std::size_t opens = 0;
+    std::size_t closes = 0;
+    bool window_open = false;
+
+    bool operator==(const ChainOutcome& other) const = default;
+};
+
+ChainOutcome SnapshotChain(MatchInstance& engine,
+                           const std::vector<ecs::Entity>& seats) {
+    ChainOutcome outcome;
+    for (ecs::Entity seat : seats) {
+        outcome.debts.push_back(DebtOf(engine, seat));
+        outcome.hands.push_back(HandSize(engine, seat));
+    }
+    outcome.current = engine.GetCurrentPlayerUsername();
+    outcome.opens = CountEvents(engine, "window_open");
+    outcome.closes = CountEvents(engine, "window_close");
+    outcome.window_open = engine.WindowOpen();
+    return outcome;
+}
+
+/** @brief A +4 group whose bystander (player2) also holds a wild +4. */
+Plus4Table OpenPlus4JumpTable(Content& content,
+                              const std::vector<std::string>& mods,
+                              FakeClock& clock, ecs::Entity& jump4) {
+    Plus4Table table = OpenPlus4Group(content, mods, clock);
+    MatchInstance& engine = *table.engine;
+    const std::optional<ecs::Entity> twin =
+        FindOtherCard(engine, "white", "jolly_draw4", table.wild4);
+    const std::optional<ecs::Entity> filler2 = FindCard(engine, "blue", "7");
+    REQUIRE(twin.has_value());
+    REQUIRE(filler2.has_value());
+    jump4 = *twin;
+    ForceHand(engine, table.player2, {jump4, *filler2});
+    table.bystander_hand = HandSize(engine, table.player2);
+    return table;
+}
+
+}  // namespace
+
+TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        ecs::Entity jump4{};
+        Plus4Table table = OpenPlus4JumpTable(content, mods, clock, jump4);
+        MatchInstance& engine = *table.engine;
+
+        REQUIRE(engine.CanRespondWindow(table.player2, jump4));
+        REQUIRE(engine.RespondWindow("player2", jump4));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+
+        // INFO: the jump-in resolved as a stack response by the jumper: the
+        //       debt moved on to the jumper's next opponent (player0), the
+        //       turn is the jumper's and a new window is open over their card.
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(engine.WindowOpen());
+        CHECK(DebtOf(engine, table.player0) == 8);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(DebtOf(engine, table.player2) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand);
+        CHECK(HandSize(engine, table.player2) == table.bystander_hand - 1);
+        CHECK(engine.GetCurrentPlayerUsername() == "player2");
+        CHECK(CountNoJumpSignals(engine) == 0);
+        const json window = engine.ExportWindow();
+        CHECK(window["responders"] == json::array({"player0"}));
+
+        // INFO: the new victim draws the whole 8 when the window lapses and
+        //       the turn resumes after them.
+        const std::size_t player0_hand = HandSize(engine, table.player0);
+        clock.now = 2 * kStackingWindowMs;
+        engine.Tick();
+        CHECK_FALSE(engine.WindowOpen());
+        CHECK(CountEvents(engine, "window_close") == 2);
+        CHECK(DebtOf(engine, table.player0) == 0);
+        CHECK(HandSize(engine, table.player0) == player0_hand + 8);
+        CHECK(engine.GetCurrentPlayerUsername() == "player1");
+    }
+}
+
+TEST_CASE("engine jump_in debt: a victim pass with a winner keeps the debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::vector<ChainOutcome> outcomes;
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        ecs::Entity jump4{};
+        Plus4Table table = OpenPlus4JumpTable(content, mods, clock, jump4);
+        MatchInstance& engine = *table.engine;
+        const std::vector<ecs::Entity> seats = {table.player0, table.player1,
+                                                table.player2};
+
+        REQUIRE(engine.RespondWindow("player2", jump4));
+        clock.now = kJumpInHoldMs;
+        REQUIRE(engine.PassWindow("player1"));
+
+        // INFO: the pass closes on the winner's route, not the draw default.
+        CHECK(DebtOf(engine, table.player0) == 8);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand);
+        outcomes.push_back(SnapshotChain(engine, seats));
+    }
+    REQUIRE(outcomes.size() == 2);
+    CHECK(outcomes[0] == outcomes[1]);
+}
+
+TEST_CASE("engine jump_in debt: +2 jump-in then a victim stack is 2/4/6") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::vector<ChainOutcome> outcomes;
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+        const std::vector<ecs::Entity> seats = {table.player0, table.player1,
+                                                table.player2};
+        const std::optional<ecs::Entity> yellow2 =
+            FindCard(engine, "yellow", "+2");
+        REQUIRE(yellow2.has_value());
+
+        REQUIRE(engine.PlayCard("player0", table.draw2));
+        CHECK(DebtOf(engine, table.player1) == 2);
+
+        REQUIRE(engine.RespondWindow("player2", table.identical2));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+        CHECK(DebtOf(engine, table.player0) == 4);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(DebtOf(engine, table.player2) == 0);
+        REQUIRE(engine.WindowOpen());
+
+        ForceHand(engine, table.player0, {*yellow2, table.filler0});
+        // INFO: player0 is the lone responder, so the response closes it.
+        REQUIRE(engine.RespondWindow("player0", *yellow2));
+        CHECK(DebtOf(engine, table.player0) == 0);
+        CHECK(DebtOf(engine, table.player1) == 6);
+        CHECK(DebtOf(engine, table.player2) == 0);
+        CHECK(engine.WindowOpen());
+        CHECK(engine.GetCurrentPlayerUsername() == "player0");
+
+        outcomes.push_back(SnapshotChain(engine, seats));
+    }
+    REQUIRE(outcomes.size() == 2);
+    CHECK(outcomes[0] == outcomes[1]);
+}
+
+TEST_CASE("engine jump_in debt: a victim's identical card is load-order safe") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::vector<ChainOutcome> outcomes;
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+        const std::vector<ecs::Entity> seats = {table.player0, table.player1,
+                                                table.player2};
+
+        // INFO: the victim holds an identical red +2, acceptable to both the
+        //       jump-in and the stacking member; whichever loads first owns
+        //       it, and the result must be the same stack response.
+        ForceHand(engine, table.player1, {table.identical2, table.filler1});
+        REQUIRE(engine.PlayCard("player0", table.draw2));
+        REQUIRE(engine.RespondWindow("player1", table.identical2));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+
+        CHECK(DebtOf(engine, table.player0) == 0);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(DebtOf(engine, table.player2) == 4);
+        CHECK(engine.GetCurrentPlayerUsername() == "player1");
+        CHECK(engine.WindowOpen());
+        outcomes.push_back(SnapshotChain(engine, seats));
+    }
+    REQUIRE(outcomes.size() == 2);
+    CHECK(outcomes[0] == outcomes[1]);
+}
+
+TEST_CASE("engine jump_in debt: a jump-in with no debt only redirects") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::vector<ChainOutcome> outcomes;
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+        const std::vector<ecs::Entity> seats = {table.player0, table.player1,
+                                                table.player2};
+        const std::optional<ecs::Entity> first5 = FindCard(engine, "red", "5");
+        REQUIRE(first5.has_value());
+        const std::optional<ecs::Entity> second5 =
+            FindOtherCard(engine, "red", "5", *first5);
+        REQUIRE(second5.has_value());
+        ForceHand(engine, table.player0, {*first5, table.filler0});
+        ForceHand(engine, table.player2, {*second5, table.filler2});
+
+        REQUIRE(engine.PlayCard("player0", *first5));
+        REQUIRE(engine.WindowOpen());
+        REQUIRE(engine.RespondWindow("player2", *second5));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+
+        CHECK_FALSE(engine.WindowOpen());
+        CHECK(CountEvents(engine, "window_open") == 1);
+        CHECK(CountEvents(engine, "window_close") == 1);
+        for (ecs::Entity seat : seats) CHECK(DebtOf(engine, seat) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand);
+        CHECK(CountNoJumpSignals(engine) == 0);
+        CHECK(engine.GetCurrentPlayerUsername() == "player0");
+        outcomes.push_back(SnapshotChain(engine, seats));
+    }
+    REQUIRE(outcomes.size() == 2);
+    CHECK(outcomes[0] == outcomes[1]);
+}
+
+TEST_CASE("engine jump_in debt: a later play after a chain owns its debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        REQUIRE(engine.PlayCard("player0", table.draw2));
+        REQUIRE(engine.RespondWindow("player2", table.identical2));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+        clock.now = 2 * kStackingWindowMs;
+        engine.Tick();
+        REQUIRE_FALSE(engine.WindowOpen());
+        REQUIRE(engine.GetCurrentPlayerUsername() == "player1");
+        for (ecs::Entity seat : {table.player0, table.player1, table.player2}) {
+            REQUIRE(DebtOf(engine, seat) == 0);
+        }
+
+        const std::optional<ecs::Entity> next2 =
+            FindCard(engine, "yellow", "+2");
+        REQUIRE(next2.has_value());
+        engine.Store().Get<ecs::ActiveTypeReq>(engine.Registries().match)
+            ->type = "yellow";
+        ForceHand(engine, table.player1, {*next2, table.filler1});
+        REQUIRE(engine.PlayCard("player1", *next2));
+
+        // INFO: only this play's own N is owed, and it opens its own group.
+        CHECK(DebtOf(engine, table.player2) == 2);
+        CHECK(DebtOf(engine, table.player0) == 0);
+        CHECK(engine.WindowOpen());
+    }
+}
+
+TEST_CASE("engine jump_in debt: a timeout with a winner resolves once") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        ecs::Entity jump4{};
+        Plus4Table table = OpenPlus4JumpTable(content, mods, clock, jump4);
+        MatchInstance& engine = *table.engine;
+        const std::vector<ecs::Entity> seats = {table.player0, table.player1,
+                                                table.player2};
+
+        REQUIRE(engine.RespondWindow("player2", jump4));
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+        const ChainOutcome resolved = SnapshotChain(engine, seats);
+        engine.Tick();
+        engine.Tick();
+
+        CHECK(SnapshotChain(engine, seats) == resolved);
+        CHECK(resolved.closes == 1);
+        CHECK(resolved.debts == std::vector<int64_t>{8, 0, 0});
+    }
+}
+
 TEST_CASE("engine merge: a jump-in winner skips the stacking default draw") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -579,50 +871,15 @@ TEST_CASE("engine merge: a jump-in winner skips the stacking default draw") {
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
-    REQUIRE(engine.WindowOpen());
     REQUIRE(engine.RespondWindow("player2", table.identical2));
-    CHECK(engine.WindowOpen());
-
     clock.now = kStackingWindowMs;
     engine.Tick();
 
-    // INFO: jump_in's on_response routed the winner (turn goes to player2)
-    //       and the stacking member's default draw did not run. The turn
-    //       continues after the jumper (player0), not after the victim.
-    CHECK_FALSE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
-    CHECK(CountEvents(engine, "window_close") == 1);
-    CHECK(engine.GetCurrentPlayerUsername() == "player0");
+    // INFO: nobody drew: the carried debt now sits on player0 and the
+    //       victim's default draw did not run.
     CHECK(HandSize(engine, table.player1) == table.victim_hand);
     CHECK(CountNoJumpSignals(engine) == 0);
-    // INFO: the superseded play's recorded debt is cleared, not left stale.
-    CHECK(DebtOf(engine, table.player0) == 0);
-    CHECK(DebtOf(engine, table.player1) == 0);
-    CHECK(DebtOf(engine, table.player2) == 0);
-}
-
-TEST_CASE("engine merge: a later penalty play is not inflated by stale debt") {
-    Content content;
-    REQUIRE(LoadContent(content));
-    FakeClock clock;
-    MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
-    MatchInstance& engine = *table.engine;
-
-    REQUIRE(engine.PlayCard("player0", table.draw2));
-    REQUIRE(engine.RespondWindow("player2", table.identical2));
-    clock.now = kStackingWindowMs;
-    engine.Tick();
-    REQUIRE_FALSE(engine.WindowOpen());
-    REQUIRE(engine.GetCurrentPlayerUsername() == "player0");
-
-    const std::optional<ecs::Entity> next2 = FindCard(engine, "yellow", "+2");
-    REQUIRE(next2.has_value());
-    ForceHand(engine, table.player0, {*next2, table.filler0});
-    REQUIRE(engine.PlayCard("player0", *next2));
-
-    // INFO: only this play's own N is owed by the seat after player0.
-    CHECK(DebtOf(engine, table.player1) == 2);
+    CHECK(DebtOf(engine, table.player0) == 4);
 }
 
 TEST_CASE("engine merge: a member's responders scope its accepted cards") {

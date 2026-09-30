@@ -610,6 +610,8 @@ private:
      *
      * With a winning response only the owning member's `on_response` route
      * runs; otherwise every member runs its `default_route` in member order.
+     * A response on a debt-carrying play is owned by the group's stacking
+     * member whichever member accepted it, so a jump-in accumulates the debt.
      *
      * @param outcome `timeout` / `all_pass` / `pass` / `response` (event
      *                payload).
@@ -626,6 +628,13 @@ private:
      * pause leaves the rest queued for `AppendResult` to continue.
      */
     void RunGroupRoutes(bool settle_play, ecs::Entity actor);
+
+    /**
+     * @brief First member (mod load order) whose window stacks `card`'s
+     *        penalty and re-opens, i.e. the member that resolves a stack.
+     */
+    std::optional<std::size_t> StackingMember(const WindowPause& group,
+                                              ecs::Entity card) const;
 
     /** @brief True when any group member's window stacks `card`'s penalty. */
     bool GroupStacksPenalty(const WindowPause& group, ecs::Entity card) const;

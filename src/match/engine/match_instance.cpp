@@ -1060,6 +1060,17 @@ bool MatchInstance::GroupStacksPenalty(const WindowPause& group,
     return false;
 }
 
+std::optional<std::size_t> MatchInstance::StackingMember(
+    const WindowPause& group, ecs::Entity card) const {
+    for (std::size_t member = 0; member < group.MemberCount(); ++member) {
+        if (WindowStacksPenalty(group.Member(member).request, card)
+            && WindowReopens(group.Member(member).request)) {
+            return member;
+        }
+    }
+    return std::nullopt;
+}
+
 bool MatchInstance::WindowStacksPenalty(
     const resolver::WindowRequest& request, ecs::Entity card) const {
     const std::string kind = ops::CardKindId(assembly_->store, card);
@@ -1164,24 +1175,31 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     ecs::WindowState* window = store.Get<ecs::WindowState>(match);
     const uint32_t window_id = window == nullptr ? 0 : window->window_id;
 
-    // INFO: The first accepted response wins; its card is committed
-    //       here. Losers never left their hand ("returned unplayed").
+    // INFO: a response on a debt-carrying play is resolved as
+    //       a stack response by the responder, whichever member accepted it
+    //       (a jump-in included): the stacking member owns the route, so the
+    //       carried debt accumulates, the turn is redirected and the window
+    //       re-opens. Any other winner supersedes the play instead.
+    std::size_t route_member = group.winner_member;
+    bool stacks = false;
     if (group.has_winner && store.IsAlive(group.winner_card)) {
-        const bool stacks = WindowStacksPenalty(
-            group.Member(group.winner_member).request, group.winner_card);
-        // INFO: a win that does not stack supersedes the play, so the debt
-        //       the group recorded for it is stale and must not linger.
-        if (!stacks && last_play_.has_value()
-            && last_play_->penalty_recorded) {
-            RemoveDrawDebt(std::nullopt);
-        }
+        const bool debt_pending =
+            last_play_.has_value() && last_play_->penalty_recorded;
+        const std::optional<std::size_t> stacker =
+            StackingMember(group, group.winner_card);
+        if (debt_pending && stacker.has_value()) route_member = *stacker;
+        stacks = WindowStacksPenalty(group.Member(route_member).request,
+                                     group.winner_card);
+        // INFO: a non-stacking win supersedes the play, so the debt the group
+        //       recorded for it is stale and must not linger. No jump-in on a
+        //       debt-carrying play reaches this: it stacks above.
+        if (!stacks && debt_pending) RemoveDrawDebt(std::nullopt);
         CommitWinningPlay(group.winner, group.winner_card, stacks);
     }
 
     // INFO: a winning response supersedes the play: only its owning member
-    //       routes (`on_response`), so a jump-in never also runs the stacking
-    //       member's default draw. Without a winner every member runs its
-    //       `default_route` in member order.
+    //       routes (`on_response`). Without a winner every member runs its
+    //       `default_route` in member order (the debt victim draws).
     std::vector<QueuedRoute> routes;
     const auto queue_member = [&](std::size_t index, const std::string& route) {
         QueuedRoute queued{group.Member(index), route};
@@ -1194,8 +1212,8 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
         routes.push_back(std::move(queued));
     };
     if (group.has_winner) {
-        const WindowPause& owner = group.Member(group.winner_member);
-        queue_member(group.winner_member,
+        const WindowPause& owner = group.Member(route_member);
+        queue_member(route_member,
                      WinningRoute(owner.request, group.winner_card));
     } else {
         for (std::size_t index = 0; index < group.MemberCount(); ++index) {
