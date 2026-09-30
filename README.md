@@ -149,6 +149,16 @@ the backend compiles, so the two sides of the wire cannot drift.
   and deck contents where the rules require — so every client sees only what it
   is entitled to and replays share one canonical transcript.
 
+### Response windows (mod authoring)
+
+Graph `window` nodes open a response window after a play. Fields:
+
+- `duration`: an integer in milliseconds (`>= 0`) or `"env"` (the server default). A `half_turn` window uses `min(duration, remaining turn / 2)`. A negative integer or any non-integer, non-string value (fractional, boolean) is rejected at mod load; the resolver's fallback to `"env"` with a warning is a runtime backstop only. Integer `duration` is available on graph window nodes; card-level `window.when_played.duration` remains a string.
+- `kind`: optional string matching `^[a-z0-9_:.-]{1,32}$`, default `generic`. A value that does not match is rejected at mod load (the resolver's fallback to `generic` is a runtime backstop). It is declared on the node (not derived from its id) and appears in the `window_open` payload and the snapshot window. Windows of kind `jump_in` accept no passes: `PassWindow` is refused and the gate runs its full duration (the bundled `jump_in` mod uses 800 ms).
+- Eligible cards are highlighted automatically for responders through `can_play`, computed by the engine's `PlayEvaluator` over the responder's own hand. Mods declare nothing for this.
+- `window_open`/`window_close` hooks fire once per window group. Windows opened in the same situation form one group: one `window_open` and one `window_close` per group, not per member. Duration is the longest member's, responders are the union, and the group kind is the first member's in mod load order. A member without its own `duration` counts as the env default when the longest is computed. Because the kind is the first member's, a group whose first member is not `jump_in` stays passable even if a later member is `jump_in`; with `jump_in` first, the victim cannot pass early and the gate lasts the longest duration.
+- A response is accepted for a member only if the player is in that member's own `responders` and its `respond_with` accepts the card. The first accepting member (load order) owns the response and supplies `on_response`. At close, if a response won, only the owner's route runs and the other members' defaults are skipped; with no winner every member runs its default in load order. A non-stacking win clears the recorded draw debt. Windows deferred behind a parked input prompt (for example a wild +4) merge into one group too.
+
 The engine is the subject of the design record at
 [`docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md`](docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md).
 
