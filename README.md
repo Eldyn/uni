@@ -151,13 +151,63 @@ the backend compiles, so the two sides of the wire cannot drift.
 
 ### Response windows (mod authoring)
 
-Graph `window` nodes open a response window after a play. Fields:
+A behavior graph opens a response window with a `window` node. Two optional
+fields on that node shape it:
 
-- `duration`: an integer in milliseconds (`>= 0`) or `"env"` (the server default). A `half_turn` window uses `min(duration, remaining turn / 2)`. A negative integer or any non-integer, non-string value (fractional, boolean) is rejected at mod load; the resolver's fallback to `"env"` with a warning is a runtime backstop only. Integer `duration` is available on graph window nodes; card-level `window.when_played.duration` remains a string.
-- `kind`: optional string matching `^[a-z0-9_:.-]{1,32}$`, default `generic`. A value that does not match is rejected at mod load (the resolver's fallback to `generic` is a runtime backstop). It is declared on the node (not derived from its id) and appears in the `window_open` payload and the snapshot window. Windows of kind `jump_in` accept no passes: `PassWindow` is refused and the gate runs its full duration (the bundled `jump_in` mod uses 800 ms).
-- Eligible cards are highlighted automatically for responders through `can_play`, computed by the engine's `PlayEvaluator` over the responder's own hand. Mods declare nothing for this.
-- `window_open`/`window_close` hooks fire once per window group. Windows opened in the same situation form one group: one `window_open` and one `window_close` per group, not per member. Duration is the longest member's, responders are the union, and the group kind is the first member's in mod load order. A member without its own `duration` counts as the env default when the longest is computed. Because the kind is the first member's, a group whose first member is not `jump_in` stays passable even if a later member is `jump_in`; with `jump_in` first, the victim cannot pass early and the gate lasts the longest duration.
-- A response is accepted for a member only if the player is in that member's own `responders` and its `respond_with` accepts the card. The first accepting member (load order) owns the response and supplies `on_response`. At close, if a response won, only the owner's route runs and the other members' defaults are skipped; with no winner every member runs its default in load order. A non-stacking win clears the recorded draw debt. Windows deferred behind a parked input prompt (for example a wild +4) merge into one group too.
+- **`duration`**: an integer number of milliseconds (`>= 0`) or `"env"` (the
+  server's configured window length, `UNI_WINDOW_MS`). Negative, fractional or
+  boolean values are rejected when the mod loads. Under
+  `UNI_WINDOW_MODE=half_turn` the window lasts `min(duration, remaining turn
+  time / 2)`. The card-level `window.when_played.duration` stays a string.
+- **`kind`**: a presentation tag matching `^[a-z0-9_:.-]{1,32}$`, default
+  `generic`, declared on the node (it is not derived from the node id). An
+  invalid `kind` is a load error. `jump_in` is the one kind the engine acts on:
+  it makes the window a hold (below).
+
+Windows opened in the same situation form **one group**: responders are the
+union, the duration is the longest member's, and the engine emits one
+`window_open` and one `window_close` per group (a mod that hooks them per
+member gets them once per group). A response is accepted for a member only if
+the player is in that member's own `responders` and its `respond_with` accepts
+the card; the first accepting member in load order owns the response and
+supplies its `on_response` route. With no response, every member runs its
+`default` route in member order. Windows deferred behind a parked input prompt
+(a wild +4) merge the same way. The group's `kind` is its first member's.
+
+**Hold and pass.** A group with a `jump_in` member holds for that member's
+`duration` (800 ms in the shipped `jump_in` mod, capped at the group duration).
+During the hold nobody may pass. After it, only the draw-debt victim may pass,
+and a pass draws the debt immediately and closes the group; the timer ending
+gives the same result. A `jump_in`-only window has no pass and closes at its
+duration. Windows with no hold (`draw_stacking` alone, generic mod windows)
+keep the plain pass: any responder may pass, and all responders passing closes
+the window early. A victim's pass while a jump-in winner is already recorded
+does not draw, because the debt has moved on.
+
+**Jump-in keeps and accumulates debt.** An identical card jumped in over a
+debt-carrying play is resolved like a stack response by the jumper: the debt
+accumulates, lands on the jumper's next opponent, and the turn continues from
+there. With no debt a jump-in only redirects the turn. The window re-opened
+over the jumper's card holds only `draw_stacking` (no `jump_in` member, no
+hold), so that card cannot itself be jumped into; the next card played opens its
+own full group.
+
+**Eligible cards.** While a window is open, `can_play` in a responder's own
+snapshot follows the window (via `PlayEvaluator`), and the board highlights
+those cards automatically.
+
+**Wire and UI.** `window_open` carries `kinds` (member order), `kind`
+(`kinds[0]`), `hold_ms` (omitted when 0) and `duration_ms`; its `deadline_ms`
+is the time remaining, whereas the snapshot's `window.deadline_ms` and
+`prompts[].deadline_ms` are absolute epoch ms, paired with `server_now_ms` so
+the client can correct clock skew. `prompt_open.duration_ms`, the public
+snapshot `prompt_wait {deadline_ms, duration_ms}` and `players_ready.timeout_ms`
+give the other player-facing waits the same shape. The client draws one fuse
+line along the bottom edge for whichever timer is active: the window group
+(hold as a hatched segment), a prompt (observers included), the ready barrier
+or the turn clock, and gates the victim's Draw action on the hold. A label
+listing the window kinds appears beside it only with `?debug` in the URL or
+`localStorage` `uni:debug=1`; it is not localised.
 
 The engine is the subject of the design record at
 [`docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md`](docs/superpowers/specs/2026-09-19-card-engine-ecs-rewrite-design.md).
