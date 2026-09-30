@@ -326,6 +326,9 @@ struct WindowResponse {
     uint64_t arrival_seq = 0;  /**< server arrival order for tie-breaks. */
 };
 
+/** @brief Window kind tag of a jump_in member; its duration is the hold. */
+inline constexpr const char* kJumpInWindowKind = "jump_in";
+
 /**
  * @struct WindowState
  * @brief Open response window on the match entity.
@@ -338,6 +341,9 @@ struct WindowState {
     std::string default_route;
     std::string filter_digest;
     std::string kind = "generic";  /**< wire tag; see WindowRequest::kind. */
+    int64_t opened_ms = 0;  /**< absolute epoch ms the group opened. */
+    /** @brief Hold: the jump_in members' duration; 0 = no hold. */
+    int64_t hold_ms = 0;
     std::vector<WindowResponse> responses;
 };
 

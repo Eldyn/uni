@@ -3,6 +3,8 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/ops/op_helpers.hpp>
+#include <match/timers.hpp>
 #include <match/server/bot_policy.hpp>
 #include <match/server/match_session.hpp>
 #include <match/view/view_util.hpp>
@@ -47,6 +49,8 @@ using match::server::BotView;
 using match::server::HeuristicBotPolicy;
 using match::server::MatchSession;
 using nlohmann::json;
+namespace ecs = match::ecs;
+namespace ops = match::ops;
 
 namespace {
 
@@ -323,4 +327,228 @@ TEST_CASE("bot policy: window response is deterministic and ~20%") {
     // INFO: a non-responder never offers anything.
     view.is_responder = false;
     CHECK(policy.ChooseWindowResponses(view).empty());
+}
+
+namespace {
+
+constexpr int64_t kJumpInHoldMs = 800;
+constexpr int64_t kStackingWindowMs = 7000;
+
+/** @brief Deterministic engine clock so the hold can be stepped through. */
+struct StepClock {
+    int64_t now = 0;
+
+    match::NowMs Fn() {
+        return [this]() { return now; };
+    }
+};
+
+/** @brief Offers the whole hand (or nothing) to every window. */
+class ScriptedWindowPolicy : public match::server::IBotPolicy {
+public:
+    explicit ScriptedWindowPolicy(bool offer_hand) : offer_hand_(offer_hand) {}
+
+    std::optional<uint32_t> ChoosePlay(const BotView&) override {
+        return std::nullopt;
+    }
+    json ChoosePrompt(const BotView&) override { return nullptr; }
+    std::vector<uint32_t> ChooseWindowResponses(const BotView& view) override {
+        std::vector<uint32_t> bits;
+        if (!offer_hand_) return bits;
+        for (const BotHandCard& card : view.hand) bits.push_back(card.bits);
+        return bits;
+    }
+
+private:
+    bool offer_hand_;
+};
+
+std::optional<ecs::Entity> FindCardByFace(MatchInstance& engine,
+                                          const std::string& color,
+                                          const std::string& label,
+                                          std::optional<ecs::Entity> skip) {
+    for (ecs::Entity card : engine.Registries().cards) {
+        if (skip.has_value() && card == *skip) continue;
+        const ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card);
+        if (face != nullptr && face->color == color && face->label == label) {
+            return card;
+        }
+    }
+    return std::nullopt;
+}
+
+void SetHand(MatchInstance& engine, ecs::Entity player,
+             const std::vector<ecs::Entity>& cards) {
+    ecs::Hand* hand = engine.Store().Get<ecs::Hand>(player);
+    REQUIRE(hand != nullptr);
+    const std::vector<ecs::Entity> existing = hand->cards;
+    for (ecs::Entity card : existing) {
+        ops::MoveCardToZone(engine.Store(), card,
+                            ecs::ZoneRef{ecs::ZoneKind::kDrawPile,
+                                         ecs::Entity{}});
+    }
+    for (ecs::Entity card : cards) {
+        ops::MoveCardToZone(engine.Store(), card,
+                            ecs::ZoneRef{ecs::ZoneKind::kHand, player});
+    }
+}
+
+std::size_t HandCount(MatchInstance& engine, const std::string& username) {
+    const ecs::Hand* hand =
+        engine.Store().Get<ecs::Hand>(*engine.FindPlayer(username));
+    return hand == nullptr ? 0 : hand->cards.size();
+}
+
+/** @brief bot0 played a +2 into a jump_in + draw_stacking group. */
+struct DebtGroup {
+    Content content;
+    StepClock clock;
+    std::unique_ptr<MatchSession> session;
+    std::size_t victim_hand = 0;
+};
+
+bool OpenDebtGroup(DebtGroup& group) {
+    if (!LoadContent(group.content)) return false;
+    group.content.classic.mods = {"vanilla", "jump_in", "draw_stacking"};
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int index = 0; index < 3; ++index) {
+        MatchPlayerSpec spec;
+        spec.username = "bot" + std::to_string(index);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result = MatchAssembler::Assemble(
+        group.content.mods, group.content.classic, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    auto engine = std::make_unique<MatchInstance>(std::move(result.assembly),
+                                                  group.clock.Fn());
+    MatchInstance& raw = *engine;
+
+    const std::optional<ecs::Entity> draw2 =
+        FindCardByFace(raw, "red", "+2", std::nullopt);
+    const std::optional<ecs::Entity> filler =
+        FindCardByFace(raw, "blue", "5", std::nullopt);
+    const std::optional<ecs::Entity> victim_card =
+        FindCardByFace(raw, "blue", "6", std::nullopt);
+    const std::optional<ecs::Entity> bystander_card =
+        FindCardByFace(raw, "blue", "7", std::nullopt);
+    if (!draw2 || !filler || !victim_card || !bystander_card) return false;
+    SetHand(raw, *raw.FindPlayer("bot0"), {*draw2, *filler});
+    SetHand(raw, *raw.FindPlayer("bot1"), {*victim_card});
+    SetHand(raw, *raw.FindPlayer("bot2"), {*bystander_card});
+    raw.Store().Get<ecs::ActiveTypeReq>(raw.Registries().match)->type = "red";
+    group.victim_hand = HandCount(raw, "bot1");
+    if (!raw.PlayCard("bot0", *draw2) || !raw.WindowOpen()) return false;
+
+    group.session = std::make_unique<MatchSession>(
+        std::move(engine), std::move(group.content.mods),
+        MatchSession::SocketMap{{"bot0", PlayerSocket(0)},
+                                {"bot1", PlayerSocket(1)},
+                                {"bot2", PlayerSocket(2)}});
+    return true;
+}
+
+}  // namespace
+
+TEST_CASE("bot policy: a victim with nothing to stack passes after the hold") {
+    DebtGroup group;
+    REQUIRE(OpenDebtGroup(group));
+    ScriptedWindowPolicy declines(false);
+    MatchInstance& engine = group.session->Engine();
+
+    group.clock.now = kJumpInHoldMs - 1;
+    CHECK_FALSE(BotStep(*group.session, declines, "bot1"));
+    CHECK(engine.WindowOpen());
+    CHECK(HandCount(engine, "bot1") == group.victim_hand);
+
+    group.clock.now = kJumpInHoldMs;
+    CHECK(BotStep(*group.session, declines, "bot1"));
+    CHECK_FALSE(engine.WindowOpen());
+    CHECK(HandCount(engine, "bot1") == group.victim_hand + 2);
+}
+
+TEST_CASE("bot policy: a non-victim bot never passes a debt group") {
+    DebtGroup group;
+    REQUIRE(OpenDebtGroup(group));
+    ScriptedWindowPolicy declines(false);
+    MatchInstance& engine = group.session->Engine();
+
+    for (int64_t now : {int64_t{0}, kJumpInHoldMs, kStackingWindowMs - 1}) {
+        group.clock.now = now;
+        CHECK_FALSE(BotStep(*group.session, declines, "bot2"));
+    }
+    CHECK(engine.WindowOpen());
+    CHECK(engine.ExportWindow()["responses"].empty());
+}
+
+TEST_CASE("bot policy: a jump-in candidate is still played in the hold") {
+    DebtGroup group;
+    REQUIRE(OpenDebtGroup(group));
+    ScriptedWindowPolicy stacks(true);
+    MatchInstance& engine = group.session->Engine();
+    const ecs::Entity bot2 = *engine.FindPlayer("bot2");
+    const std::optional<ecs::Entity> identical = [&]() {
+        const ecs::PileContents* discard =
+            engine.Store().Get<ecs::PileContents>(
+                engine.Registries().discard_pile);
+        return FindCardByFace(engine, "red", "+2", discard->cards.back());
+    }();
+    REQUIRE(identical.has_value());
+    SetHand(engine, bot2, {*identical});
+
+    group.clock.now = 100;
+    CHECK(BotStep(*group.session, stacks, "bot2"));
+    const json responses = engine.ExportWindow()["responses"];
+    REQUIRE(responses.size() == 1);
+    CHECK(responses[0]["player"] == "bot2");
+    CHECK(responses[0]["pass"] == false);
+}
+
+TEST_CASE("bot policy: nobody passes a jump_in-only window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    content.classic.mods = {"vanilla", "jump_in"};
+    StepClock clock;
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int index = 0; index < 3; ++index) {
+        MatchPlayerSpec spec;
+        spec.username = "bot" + std::to_string(index);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, content.classic, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    auto engine =
+        std::make_unique<MatchInstance>(std::move(result.assembly), clock.Fn());
+    MatchInstance& raw = *engine;
+
+    const ecs::PileContents* discard = raw.Store().Get<ecs::PileContents>(
+        raw.Registries().discard_pile);
+    REQUIRE(discard != nullptr);
+    const ecs::Entity top = discard->cards.back();
+    const ecs::FaceSpec* top_face = raw.Store().Get<ecs::FaceSpec>(top);
+    REQUIRE(top_face != nullptr);
+    const std::optional<ecs::Entity> twin =
+        FindCardByFace(raw, top_face->color, top_face->label, top);
+    REQUIRE(twin.has_value());
+    SetHand(raw, *raw.FindPlayer("bot1"), {*twin});
+    REQUIRE(raw.PlayCard("bot1", *twin));
+    REQUIRE(raw.WindowOpen());
+
+    MatchSession session(
+        std::move(engine), std::move(content.mods),
+        MatchSession::SocketMap{{"bot0", PlayerSocket(0)},
+                                {"bot1", PlayerSocket(1)},
+                                {"bot2", PlayerSocket(2)}});
+    ScriptedWindowPolicy declines(false);
+    for (int64_t now : {int64_t{0}, kJumpInHoldMs - 1}) {
+        clock.now = now;
+        CHECK_FALSE(BotStep(session, declines, "bot0"));
+        CHECK_FALSE(BotStep(session, declines, "bot2"));
+    }
+    CHECK(session.Engine().WindowOpen());
+    CHECK(session.Engine().ExportWindow()["responses"].empty());
 }

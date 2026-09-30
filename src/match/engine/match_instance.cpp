@@ -924,19 +924,26 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     // INFO: Opening suspends the turn clock and arms the window
     //       duration; the turn remainder is restored on close.
     const std::optional<ecs::Entity> current = CurrentPlayer();
-    // INFO: a merged group lasts as long as its longest member.
+    // INFO: a merged group lasts as long as its longest member, and holds for
+    //       its shortest jump_in member.
+    const int64_t default_window_ms = timers_.Window().Config().window_ms;
     std::optional<int64_t> duration_override = pause.request.duration_ms;
-    if (!pause.followers.empty()) {
-        int64_t longest = 0;
-        for (std::size_t member = 0; member < pause.MemberCount(); ++member) {
-            longest = std::max(
-                longest, pause.Member(member).request.duration_ms.value_or(
-                             timers_.Window().Config().window_ms));
+    int64_t longest = 0;
+    std::optional<int64_t> hold;
+    for (std::size_t member = 0; member < pause.MemberCount(); ++member) {
+        const resolver::WindowRequest& request = pause.Member(member).request;
+        const int64_t member_ms =
+            request.duration_ms.value_or(default_window_ms);
+        longest = std::max(longest, member_ms);
+        if (request.kind == ecs::kJumpInWindowKind) {
+            hold = hold.has_value() ? std::min(*hold, member_ms) : member_ms;
         }
-        duration_override = longest;
     }
+    if (!pause.followers.empty()) duration_override = longest;
     const match::WindowDuration duration = timers_.OpenWindow(
         store, match, current.value_or(ecs::Entity{}), duration_override);
+    window->opened_ms = Now();
+    window->hold_ms = std::min(hold.value_or(0), duration.duration_ms);
 
     json responders = json::array();
     for (ecs::Entity responder : window->responders) {
@@ -1442,6 +1449,16 @@ bool MatchInstance::PassWindow(const std::string& username) {
         if (existing.responder == *player) return false;
     }
 
+    // INFO: a held group (it has a jump_in member) is passable only by the
+    //       debt victim and only once the hold has elapsed; the rule keys on
+    //       the hold and the victim, never on the group kind. The pass closes
+    //       the group at once, so the default routes draw the recorded debt
+    //       exactly as a timeout would.
+    const bool held = window->hold_ms > 0;
+    if (held && (!HoldsDrawDebt(*player) || !WindowHoldElapsed())) {
+        return false;
+    }
+
     ecs::WindowResponse response;
     response.responder = *player;
     response.pass = true;
@@ -1452,11 +1469,32 @@ bool MatchInstance::PassWindow(const std::string& username) {
                                  {"pass", true},
                                  {"outcome", "pass"}});
 
-    if (timers_.Window().AllResponded(*window)) {
+    if (held || timers_.Window().AllResponded(*window)) {
         CloseWindowRoute(pending_window_->has_winner ? "response"
+                         : held                      ? "pass"
                                                      : "all_pass");
     }
     return true;
+}
+
+bool MatchInstance::HoldsDrawDebt(ecs::Entity player) const {
+    const ecs::Status* debt =
+        status::Find(assembly_->store, player, ops::kDrawDebtStatusId);
+    return debt != nullptr && debt->magnitude > 0;
+}
+
+int64_t MatchInstance::WindowHoldMs() const {
+    if (!WindowOpen()) return 0;
+    return assembly_->store.Get<ecs::WindowState>(assembly_->registries.match)
+        ->hold_ms;
+}
+
+bool MatchInstance::WindowHoldElapsed() const {
+    const int64_t hold_ms = WindowHoldMs();
+    if (hold_ms == 0) return true;
+    const ecs::WindowState* window =
+        assembly_->store.Get<ecs::WindowState>(assembly_->registries.match);
+    return Now() - window->opened_ms >= hold_ms;
 }
 
 bool MatchInstance::WindowOpen() const {

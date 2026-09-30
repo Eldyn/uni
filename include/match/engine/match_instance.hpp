@@ -205,12 +205,27 @@ public:
      * replied. The window closes early once every responder has replied; a
      * window with no accepted response routes its default route.
      *
+     * A window with a hold (`WindowHoldMs() > 0`) has no pass for anyone but
+     * the draw-debt victim, and none for them before the hold elapses; that
+     * pass closes the group at once and the defaults draw the debt.
+     *
      * @return true when the pass was recorded; false otherwise.
      */
     bool PassWindow(const std::string& username);
 
     /** @brief True while a response window is open on the match entity. */
     bool WindowOpen() const;
+
+    /**
+     * @brief The open group's hold in ms; 0 when none is open or held.
+     *
+     * The hold is the duration of the group's `jump_in`-kind member(s) (the
+     * shortest one), capped at the group's own duration.
+     */
+    int64_t WindowHoldMs() const;
+
+    /** @brief True when no window is open, it has no hold, or it elapsed. */
+    bool WindowHoldElapsed() const;
 
     /**
      * @brief True when `RespondWindow(player, card)` would accept the card.
@@ -596,9 +611,13 @@ private:
      * With a winning response only the owning member's `on_response` route
      * runs; otherwise every member runs its `default_route` in member order.
      *
-     * @param outcome `timeout` / `all_pass` / `response` (event payload).
+     * @param outcome `timeout` / `all_pass` / `pass` / `response` (event
+     *                payload).
      */
     void CloseWindowRoute(const std::string& outcome);
+
+    /** @brief True when `player` carries a positive `vanilla:draw_debt`. */
+    bool HoldsDrawDebt(ecs::Entity player) const;
 
     /**
      * @brief Resume the queued member routes in order.

@@ -193,6 +193,7 @@ std::size_t CountEvents(const MatchInstance& engine,
 }
 
 constexpr int64_t kStackingWindowMs = 7000;
+constexpr int64_t kJumpInHoldMs = 800;
 
 /** @brief Three seats set up for a jump_in + draw_stacking +2 play. */
 struct MergedTable {
@@ -274,6 +275,54 @@ std::size_t CountNoJumpSignals(const MatchInstance& engine) {
         if (event["payload"].value("name", "") == "jump_in:no_jump") ++count;
     }
     return count;
+}
+
+/** @brief Mod load orders of the merged pair; outcomes must not differ. */
+const std::vector<std::vector<std::string>> kMergedLoadOrders = {
+    {"vanilla", "jump_in", "draw_stacking"},
+    {"vanilla", "draw_stacking", "jump_in"}};
+
+/** @brief Three seats after player0 played a wild +4 into a merged group. */
+struct Plus4Table {
+    std::unique_ptr<MatchInstance> engine;
+    ecs::Entity player0{};
+    ecs::Entity player1{};
+    ecs::Entity player2{};
+    std::size_t victim_hand = 0;
+    std::size_t bystander_hand = 0;
+};
+
+Plus4Table OpenPlus4Group(Content& content,
+                          const std::vector<std::string>& mods,
+                          FakeClock& clock) {
+    Plus4Table table;
+    table.engine = Assemble(content, mods, 3, 7, 42,
+                            FixedWindow(kStackingWindowMs), clock.Fn());
+    MatchInstance& engine = *table.engine;
+    table.player0 = *engine.FindPlayer("player0");
+    table.player1 = *engine.FindPlayer("player1");
+    table.player2 = *engine.FindPlayer("player2");
+
+    const std::optional<ecs::Entity> wild4 =
+        FindCard(engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler0 = FindCard(engine, "blue", "5");
+    const std::optional<ecs::Entity> filler1 = FindCard(engine, "blue", "6");
+    const std::optional<ecs::Entity> filler2 = FindCard(engine, "blue", "7");
+    REQUIRE(wild4.has_value());
+    REQUIRE(filler0.has_value());
+    REQUIRE(filler1.has_value());
+    REQUIRE(filler2.has_value());
+    ForceHand(engine, table.player0, {*wild4, *filler0});
+    ForceHand(engine, table.player1, {*filler1});
+    ForceHand(engine, table.player2, {*filler2});
+    table.victim_hand = HandSize(engine, table.player1);
+    table.bystander_hand = HandSize(engine, table.player2);
+
+    REQUIRE(engine.PlayCard("player0", *wild4));
+    REQUIRE(engine.SubmitInput("player0", "red"));
+    REQUIRE(engine.WindowOpen());
+    REQUIRE(DebtOf(engine, table.player1) == 4);
+    return table;
 }
 
 }  // namespace
@@ -710,14 +759,186 @@ TEST_CASE("engine merge: the group kind follows the first member") {
     CHECK(CountEvents(engine, "window_open") == 1);
     CHECK(engine.ExportWindow()["kind"] == "generic");
 
-    // INFO: a generic group may be passed; everybody passing closes it early
-    //       and runs both defaults.
+    // INFO: passability keys on the hold, not the kind: the victim passes
+    //       once it has elapsed and the pass draws the debt and closes.
+    clock.now = kJumpInHoldMs;
+    CHECK_FALSE(engine.PassWindow("player2"));
     REQUIRE(engine.PassWindow("player1"));
-    REQUIRE(engine.PassWindow("player2"));
     CHECK_FALSE(engine.WindowOpen());
     CHECK(CountEvents(engine, "window_close") == 1);
     CHECK(CountNoJumpSignals(engine) == 1);
     CHECK(HandSize(engine, table.player1) == table.victim_hand + 2);
+}
+
+TEST_CASE("engine hold: the victim passes at the hold boundary, not before") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        Plus4Table table = OpenPlus4Group(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        CHECK(engine.WindowHoldMs() == kJumpInHoldMs);
+        clock.now = kJumpInHoldMs - 1;
+        CHECK_FALSE(engine.WindowHoldElapsed());
+        CHECK_FALSE(engine.PassWindow("player1"));
+        CHECK(engine.WindowOpen());
+        CHECK(engine.ExportWindow()["responses"].empty());
+        CHECK(DebtOf(engine, table.player1) == 4);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand);
+        CHECK(CountEvents(engine, "window_close") == 0);
+
+        clock.now = kJumpInHoldMs;
+        CHECK(engine.WindowHoldElapsed());
+        REQUIRE(engine.PassWindow("player1"));
+        CHECK_FALSE(engine.WindowOpen());
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
+        CHECK(HandSize(engine, table.player2) == table.bystander_hand);
+        CHECK(engine.GetCurrentPlayerUsername() == "player2");
+    }
+}
+
+TEST_CASE("engine hold: a non-victim can never pass a debt group") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        Plus4Table table = OpenPlus4Group(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        for (int64_t now : {int64_t{0}, kJumpInHoldMs - 1, kJumpInHoldMs,
+                            kStackingWindowMs - 1}) {
+            clock.now = now;
+            CHECK_FALSE(engine.PassWindow("player2"));
+            CHECK_FALSE(engine.PassWindow("player0"));
+        }
+        CHECK(engine.WindowOpen());
+        CHECK(engine.ExportWindow()["responses"].empty());
+        CHECK(HandSize(engine, table.player2) == table.bystander_hand);
+        CHECK(DebtOf(engine, table.player1) == 4);
+    }
+}
+
+TEST_CASE("engine hold: timer expiry draws the same cards as a pass") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        Plus4Table table = OpenPlus4Group(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+
+        CHECK_FALSE(engine.WindowOpen());
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
+        CHECK(engine.GetCurrentPlayerUsername() == "player2");
+    }
+}
+
+TEST_CASE("engine hold: a pass then a tick never draws twice") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        Plus4Table table = OpenPlus4Group(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        clock.now = kJumpInHoldMs;
+        REQUIRE(engine.PassWindow("player1"));
+        const std::size_t drawn_hand = HandSize(engine, table.player1);
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+        engine.Tick();
+
+        CHECK_FALSE(engine.PassWindow("player1"));
+        CHECK(HandSize(engine, table.player1) == drawn_hand);
+        CHECK(drawn_hand == table.victim_hand + 4);
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_open") == 1);
+    }
+}
+
+TEST_CASE("engine hold: a play after a pass opens a jumpable group") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+        const std::optional<ecs::Entity> first5 = FindCard(engine, "red", "5");
+        REQUIRE(first5.has_value());
+        const std::optional<ecs::Entity> second5 =
+            FindOtherCard(engine, "red", "5", *first5);
+        REQUIRE(second5.has_value());
+
+        REQUIRE(engine.PlayCard("player0", table.draw2));
+        clock.now = kJumpInHoldMs;
+        REQUIRE(engine.PassWindow("player1"));
+        REQUIRE_FALSE(engine.WindowOpen());
+        REQUIRE(engine.GetCurrentPlayerUsername() == "player2");
+
+        ForceHand(engine, table.player2, {*first5, table.filler2});
+        ForceHand(engine, table.player0, {*second5, table.filler0});
+        REQUIRE(engine.PlayCard("player2", *first5));
+        REQUIRE(engine.WindowOpen());
+        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(engine.CanRespondWindow(table.player0, *second5));
+        CHECK(engine.RespondWindow("player0", *second5));
+    }
+}
+
+TEST_CASE("engine hold: a jump_in-only window has no pass at all") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, {"vanilla", "jump_in"}, 3, 7, 42,
+                 FixedWindow(kStackingWindowMs), clock.Fn());
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> top = [&]() {
+        const ecs::PileContents* discard =
+            engine->Store().Get<ecs::PileContents>(
+                engine->Registries().discard_pile);
+        return discard == nullptr || discard->cards.empty()
+                   ? std::optional<ecs::Entity>()
+                   : std::optional<ecs::Entity>(discard->cards.back());
+    }();
+    REQUIRE(top.has_value());
+    const ecs::FaceSpec* top_face = engine->Store().Get<ecs::FaceSpec>(*top);
+    REQUIRE(top_face != nullptr);
+    const std::optional<ecs::Entity> twin =
+        FindOtherCard(*engine, top_face->color, top_face->label, *top);
+    REQUIRE(twin.has_value());
+    ForceHand(*engine, player1, {*twin});
+    REQUIRE(engine->PlayCard("player1", *twin));
+    REQUIRE(engine->WindowOpen());
+
+    for (int64_t now : {int64_t{0}, kJumpInHoldMs - 1}) {
+        clock.now = now;
+        for (const char* seat : {"player0", "player1", "player2"}) {
+            CHECK_FALSE(engine->PassWindow(seat));
+        }
+    }
+    CHECK(engine->WindowOpen());
+    CHECK(engine->ExportWindow()["responses"].empty());
+
+    clock.now = kJumpInHoldMs;
+    for (const char* seat : {"player0", "player1", "player2"}) {
+        CHECK_FALSE(engine->PassWindow(seat));
+    }
+    engine->Tick();
+    CHECK_FALSE(engine->WindowOpen());
+    CHECK(CountEvents(*engine, "window_close") == 1);
 }
 
 TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {

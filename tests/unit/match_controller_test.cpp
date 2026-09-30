@@ -7,6 +7,7 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
+#include <match/duration.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/server/match_session.hpp>
 #include <common/lobby.hpp>
@@ -156,6 +157,10 @@ struct MatchFixture {
     FakeLobbyStore   store;
     MatchController  match_ctrl{router, bus, timers, store};
 
+    // INFO: fake timers fire instantly, so engine time is the wall clock plus
+    //       a skew that tests advance to model elapsed real time.
+    int64_t clock_skew_ms = 0;
+
     // INFO: an opaque per-seat socket key; the FakeBroadcaster stores but
     //       never dereferences it, so EmitEvents/BroadcastSnapshot reach it.
     static AppWebSocket* SeatSocket(int index) {
@@ -213,8 +218,11 @@ struct MatchFixture {
             result.error.has_value() ? result.error->message
                                      : std::string("assembly failed");
         REQUIRE_MESSAGE(result.ok(), assembly_error);
+        const match::NowMs skewed_clock = [this]() {
+            return match::DefaultNowMs()() + clock_skew_ms;
+        };
         auto engine = std::make_unique<match::engine::MatchInstance>(
-            std::move(result.assembly));
+            std::move(result.assembly), skewed_clock);
 
         match::server::MatchSession::SocketMap sockets;
         for (const auto& member : store.lobby.members) {
@@ -292,6 +300,7 @@ struct MatchFixture {
         int fired = 0;
         while (!Engine().IsMatchOver() && fired < max_fires) {
             if (!timers.Has("turn_1")) break;
+            clock_skew_ms += timers.last_timeout_ms["turn_1"];
             timers.Fire("turn_1");
             ++fired;
         }
@@ -836,7 +845,7 @@ TEST_CASE("AFK takeover timer emits match_event frames") {
 TEST_SUITE("MatchController::WindowResponse") {
 // INFO: open a real draw_stacking window on a 3-human match: the current
 //       player plays a +2, which leaves the other two seats as responders.
-TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window open") {
+TEST_CASE("match_window_response: a jump_in-only window refuses a pass") {
     MatchFixture f;
     LobbySettings settings;
     settings.active_mods = {"jump_in"};
@@ -879,10 +888,9 @@ TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window o
     }
     REQUIRE_FALSE(responder.empty());
 
-    const bool handled = f.router.Dispatch(
+    f.router.Dispatch(
         context_for(responder),
         json{{"action", ws::ClientAction::kMatchWindowResponse}, {"pass", true}});
-    CHECK(handled);
 
     bool responder_passed = false;
     for (const json& response : engine.ExportWindow()["responses"]) {
@@ -891,9 +899,66 @@ TEST_CASE("match_window_response: pass reaches PassWindow and keeps the window o
             responder_passed = true;
         }
     }
-    // INFO: PassWindow recorded the pass; another responder is still pending.
-    CHECK(responder_passed);
+    // INFO: with no debt there is nothing to pass on; the window stays open.
+    CHECK_FALSE(responder_passed);
     CHECK(engine.WindowOpen());
+}
+
+// INFO: jump_in + draw_stacking on a +2: the victim's pass is refused inside
+//       the 800 ms hold and draws the debt once it has elapsed.
+TEST_CASE("match_window_response: the victim passes only after the hold") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"jump_in", "draw_stacking"};
+    f.SetupMatch({{"Alice", false}, {"Bob", false}, {"Carol", false}},
+                 settings);
+    f.OpenBarrierNow();
+
+    match::engine::MatchInstance& engine = f.Engine();
+    const std::string current = engine.GetCurrentPlayerUsername();
+    REQUIRE_FALSE(current.empty());
+    engine.Store()
+        .Get<match::ecs::ActiveTypeReq>(engine.Registries().match)
+        ->type = "red";
+    const std::vector<match::ecs::Entity> red2 =
+        CardsByKind(engine, "vanilla:red_draw2");
+    REQUIRE(red2.size() >= 2);
+    ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
+    REQUIRE(f.router.Dispatch(f.ContextFor(current), json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", BitsOf(engine, red2[0])}}));
+    REQUIRE(engine.WindowOpen());
+
+    const std::vector<std::string> names = {"Alice", "Bob", "Carol"};
+    const auto seat_after = [&](const std::string& name) {
+        const auto found = std::find(names.begin(), names.end(), name);
+        return names[(found - names.begin() + 1) % names.size()];
+    };
+    const std::string victim = seat_after(current);
+    const std::string bystander = seat_after(victim);
+    const auto pass_as = [&](const std::string& name) {
+        f.router.Dispatch(
+            f.ContextFor(name),
+            json{{"action", ws::ClientAction::kMatchWindowResponse},
+                 {"pass", true}});
+    };
+    const auto hand_size = [&](const std::string& name) {
+        return f.Engine().Store().Get<match::ecs::Hand>(
+            *f.Engine().FindPlayer(name))->cards.size();
+    };
+    const std::size_t victim_hand = hand_size(victim);
+
+    pass_as(victim);
+    pass_as(bystander);
+    CHECK(engine.WindowOpen());
+    CHECK(hand_size(victim) == victim_hand);
+
+    f.clock_skew_ms += 800;
+    pass_as(bystander);
+    CHECK(engine.WindowOpen());
+    pass_as(victim);
+    CHECK_FALSE(engine.WindowOpen());
+    CHECK(hand_size(victim) == victim_hand + 2);
 }
 
 TEST_CASE("match_window_response: card_id reaches RespondWindow") {
@@ -1012,6 +1077,46 @@ TEST_CASE("OnTurnStartedSession arms the current player's engine turn deadline")
 }
 }
 
+TEST_SUITE("MatchController::JumpInBots") {
+// INFO: the mod's gate lasts 800 ms; a bot thinking for the default
+//       500-3500 ms spread could never jump in, so a held window pulls the
+//       reaction delay to 150..599 ms.
+TEST_CASE("bot responders react inside the hold") {
+    constexpr int kReactionMinMs = 150;
+    constexpr int kReactionMaxMs = 599;
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"jump_in"};
+    f.SetupMatch(all_bots(3), settings);
+    f.OpenBarrierNow();
+
+    int windows_seen = 0;
+    for (int fires = 0; fires < 200 && windows_seen < 10; ++fires) {
+        if (f.Engine().IsMatchOver() || !f.timers.Has("turn_1")) break;
+        f.clock_skew_ms += f.timers.last_timeout_ms["turn_1"];
+        f.timers.Fire("turn_1");
+        if (f.Engine().WindowHoldMs() == 0) continue;
+        ++windows_seen;
+        CHECK(f.timers.last_timeout_ms["turn_1"] >= kReactionMinMs);
+        CHECK(f.timers.last_timeout_ms["turn_1"] <= kReactionMaxMs);
+    }
+    CHECK(windows_seen > 0);
+}
+
+TEST_CASE("all-bot match with jump_in and draw_stacking completes") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"jump_in", "draw_stacking"};
+    f.SetupMatch(all_bots(4), settings);
+    f.OpenBarrierNow();
+
+    constexpr int kMaxFires = 20000;
+    const int fired = f.DrainTurnTimer(kMaxFires);
+    CHECK(f.Engine().IsMatchOver());
+    CHECK(fired < kMaxFires);
+}
+}
+
 TEST_SUITE("MatchController::WindowTick") {
 TEST_CASE("ScheduleWindowTick arms a timeout while a window is open") {
     MatchFixture f;
@@ -1086,12 +1191,11 @@ TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
     }
     REQUIRE(responders.size() == 2);
 
-    for (const std::string& responder : responders) {
-        REQUIRE(f.router.Dispatch(
-            context_for(responder),
-            json{{"action", ws::ClientAction::kMatchWindowResponse},
-                 {"pass", true}}));
-    }
+    // INFO: a jump_in-only window cannot be passed, so it closes only when
+    //       its clock runs out.
+    constexpr int64_t kJumpInHoldMs = 800;
+    f.clock_skew_ms += kJumpInHoldMs;
+    f.timers.Fire("window_1");
 
     CHECK_FALSE(engine.WindowOpen());
     CHECK_FALSE(f.timers.Has("window_1"));

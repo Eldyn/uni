@@ -25,6 +25,13 @@ namespace {
 using match::server::MatchSession;
 
 /**
+ * INFO: a held window lasts 800 ms, so bots must decide inside it: they react
+ *       on a short jitter that ends well before the hold does.
+ */
+constexpr int kBotHoldReactionMinMs = 150;
+constexpr int kBotHoldReactionMaxMs = 600;
+
+/**
  * @brief Resolve the players that must act right now, in priority order.
  *
  * A parked op-input prompt comes first (only its target may answer), then any
@@ -593,15 +600,17 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
     session.Engine().SyncClocks(time_limit_ms);
 
     const std::vector<std::string> actors = PendingActors(session);
-    std::string auto_actor;
+    std::vector<std::string> auto_actors;
     std::string human_actor;
     for (const std::string& actor : actors) {
         if (IsAutoActor(*active_lobby, actor)) {
-            auto_actor = actor;
-            break;
+            auto_actors.push_back(actor);
+            continue;
         }
         if (human_actor.empty()) human_actor = actor;
     }
+    const std::string auto_actor =
+        auto_actors.empty() ? std::string() : auto_actors.front();
 
     const uint32_t lobby_id = active_lobby->id;
 
@@ -610,23 +619,32 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         const bool disconnected_human =
             actor_member != nullptr && !actor_member->is_bot;
         int delay_ms;
-        if (disconnected_human ||
-            active_lobby->settings.bot_mode ==
-                BotTakeoverMode::kPlayInstantly) {
+        if (session.Engine().WindowHoldMs() > 0) {
+            delay_ms = std::uniform_int_distribution<int>(
+                kBotHoldReactionMinMs, kBotHoldReactionMaxMs - 1)(rng_);
+        } else if (disconnected_human ||
+                   active_lobby->settings.bot_mode ==
+                       BotTakeoverMode::kPlayInstantly) {
             delay_ms = bot_instant_delay_ms_;
         } else {
             delay_ms = std::uniform_int_distribution<int>(
                 bot_wait_min_ms_, bot_wait_max_ms_ - 1)(rng_);
         }
 
-        SetTurnTimer(lobby_id, delay_ms, [this, lobby_id, auto_actor]() {
+        SetTurnTimer(lobby_id, delay_ms, [this, lobby_id, auto_actors]() {
             Lobby* verified_lobby = lobby_store_.GetLobbyById(lobby_id);
             if (verified_lobby == nullptr || !verified_lobby->session) return;
             if (verified_lobby->session->Engine().IsMatchOver()) return;
-            match::server::HeuristicBotPolicy policy(
-                BotSeed(lobby_id, auto_actor));
-            match::server::BotStep(*verified_lobby->session, policy,
-                                   auto_actor);
+            // INFO: a window responder that cannot act yet (a non-victim, or
+            //       the victim inside the hold) must not starve the others.
+            for (const std::string& actor : auto_actors) {
+                match::server::HeuristicBotPolicy policy(
+                    BotSeed(lobby_id, actor));
+                if (match::server::BotStep(*verified_lobby->session, policy,
+                                           actor)) {
+                    break;
+                }
+            }
             verified_lobby->session->Tick();
             // INFO: Flush the bot step's engine events before
             //       the snapshot; otherwise an all-bot match emits no
