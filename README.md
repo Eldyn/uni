@@ -155,7 +155,8 @@ A behavior graph opens a response window with a `window` node. Two optional
 fields on that node shape it:
 
 - **`duration`**: an integer number of milliseconds (`>= 0`) or `"env"` (the
-  server's configured window length, `UNI_WINDOW_MS`). Negative, fractional or
+  server's configured window length, `UNI_WINDOW_MS`). A duration-unit string
+  such as `"5s"` passes load validation but is treated as `env` at runtime. Negative, fractional or
   boolean values are rejected when the mod loads. Under
   `UNI_WINDOW_MODE=half_turn` the window lasts `min(duration, remaining turn
   time / 2)`. The card-level `window.when_played.duration` stays a string.
@@ -172,17 +173,18 @@ the player is in that member's own `responders` and its `respond_with` accepts
 the card; the first accepting member in load order owns the response and
 supplies its `on_response` route. With no response, every member runs its
 `default` route in member order. Windows deferred behind a parked input prompt
-(a wild +4) merge the same way. The group's `kind` is its first member's.
+(a wild +4) merge the same way.
 
 **Hold and pass.** A group with a `jump_in` member holds for that member's
 `duration` (800 ms in the shipped `jump_in` mod, capped at the group duration).
 During the hold nobody may pass. After it, only the draw-debt victim may pass,
 and a pass draws the debt immediately and closes the group; the timer ending
-gives the same result. A `jump_in`-only window has no pass and closes at its
-duration. Windows with no hold (`draw_stacking` alone, generic mod windows)
-keep the plain pass: any responder may pass, and all responders passing closes
-the window early. A victim's pass while a jump-in winner is already recorded
-does not draw, because the debt has moved on.
+gives the same result. Once a response has been accepted in a held group the
+outcome is decided, so the group closes at the hold end (immediately if the
+hold has already elapsed) rather than at its full duration. A `jump_in`-only
+window has no pass and closes at its duration. Windows with no hold
+(`draw_stacking` alone, generic mod windows) are unchanged: any responder may
+pass, and all responders passing closes the window early.
 
 **Jump-in keeps and accumulates debt.** An identical card jumped in over a
 debt-carrying play is resolved like a stack response by the jumper: the debt
@@ -197,12 +199,13 @@ snapshot follows the window (via `PlayEvaluator`), and the board highlights
 those cards automatically.
 
 **Wire and UI.** `window_open` carries `kinds` (member order), `kind`
-(`kinds[0]`), `hold_ms` (omitted when 0) and `duration_ms`; its `deadline_ms`
+(`kinds[0]`, the first member's), `hold_ms` (omitted when 0) and `duration_ms`; its `deadline_ms`
 is the time remaining, whereas the snapshot's `window.deadline_ms` and
 `prompts[].deadline_ms` are absolute epoch ms, paired with `server_now_ms` so
 the client can correct clock skew. `prompt_open.duration_ms`, the public
 snapshot `prompt_wait {deadline_ms, duration_ms}` and `players_ready.timeout_ms`
-give the other player-facing waits the same shape. The client draws one fuse
+give the other player-facing waits the same shape (`players_ready.timeout_ms`
+is the milliseconds remaining, not a total plus an absolute deadline). The client draws one fuse
 line along the bottom edge for whichever timer is active: the window group
 (hold as a hatched segment), a prompt (observers included), the ready barrier
 or the turn clock, and gates the victim's Draw action on the hold. A label
