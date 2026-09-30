@@ -36,6 +36,7 @@ import { storeAnimation } from "$stores/animation.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { PILE_BASE_HEIGHT, PILE_PEEK_Z } from "$components/game/layout/drawPile";
 import { CARD_WIDTH, CARD_HEIGHT } from "$components/game/three/units";
+import { debtDustMoteCount } from "$components/game/animation/debtIntensity";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 describe("DrawPile3D", () => {
@@ -398,5 +399,37 @@ describe("DrawPile3D", () => {
 		hitbox = meshInstances.find((m) => typeof m.onclick === "function")!;
 		hitbox.onclick!({});
 		expect(drawSpy).toHaveBeenCalledTimes(1);
+	});
+	describe("draw debt reaction", () => {
+		const moteCount = () => meshInstances.filter((m) => m.name === "debt-mote").length;
+		const renderPile = () =>
+			render(DrawPile3D, {
+				props: { placement: defaultPlacement },
+				context: new Map([[CARD_REGISTRY_KEY, new CardRegistry()]])
+			});
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it("sheds no dust at tier 0", () => {
+			vi.spyOn(storeRenderSettings, "ambientDustActive", "get").mockReturnValue(true);
+			renderPile();
+			expect(moteCount()).toBe(0);
+		});
+
+		it("sheds dust scaled by the debt tier when ambient dust is active", () => {
+			vi.spyOn(storeRenderSettings, "ambientDustActive", "get").mockReturnValue(true);
+			storeGame.state!.pending_draws = 9;
+			renderPile();
+			expect(moteCount()).toBe(debtDustMoteCount(3));
+		});
+
+		it("sheds no dust when ambient dust is inactive", () => {
+			vi.spyOn(storeRenderSettings, "ambientDustActive", "get").mockReturnValue(false);
+			storeGame.state!.pending_draws = 9;
+			renderPile();
+			expect(moteCount()).toBe(0);
+		});
 	});
 });

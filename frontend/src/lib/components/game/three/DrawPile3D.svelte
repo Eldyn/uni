@@ -9,6 +9,12 @@
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeMatchIntro } from "$stores/matchIntro.svelte";
+	import {
+		debtIntensity,
+		debtTremorOffset,
+		debtDustMoteCount,
+		debtMotePose
+	} from "../animation/debtIntensity";
 	import { useCardRegistry } from "../animation/cardRegistry.svelte";
 	import { useCardBus } from "../card-bus.svelte";
 	import CardMesh3D from "./CardMesh3D.svelte";
@@ -155,6 +161,29 @@
 		});
 	});
 
+	// Draw debt makes the pile shake and shed dust. The tremor is gated on
+	// animations being enabled; the motes on ambientDustActive, which already
+	// folds in the dust toggle, reduced motion and animations.
+	const MOTE_SIZE = 0.035;
+	let debtTier = $derived(debtIntensity(storeGame.state?.pending_draws ?? 0));
+	let tremorActive = $derived(storeAnimation.enabled && debtTier > 0);
+	let moteCount = $derived(storeRenderSettings.ambientDustActive ? debtDustMoteCount(debtTier) : 0);
+	let debtClockSeconds = $state(0);
+
+	$effect(() => {
+		if (!tremorActive && moteCount === 0) {
+			debtClockSeconds = 0;
+			return;
+		}
+		const tick = () => {
+			debtClockSeconds = gsap.ticker.time;
+		};
+		gsap.ticker.add(tick);
+		return () => gsap.ticker.remove(tick);
+	});
+
+	let tremorX = $derived(tremorActive ? debtTremorOffset(debtTier, debtClockSeconds) : 0);
+
 	onDestroy(() => {
 		heightTween?.kill();
 		punchTween?.kill();
@@ -300,13 +329,36 @@
 				card={{ id: -1, type: "wild", value: "0" }}
 				turned={true}
 				position={[
-					pileX,
+					pileX + tremorX,
 					cardY(i),
 					pileZ - i * PILE_PEEK_Z * placement.drawPileScale + (isTopCard ? hoverDipZ : 0)
 				]}
 				scale={placement.drawPileScale}
 				brightness={cardBrightness}
 			/>
+		{/each}
+
+		{#each Array.from({ length: moteCount }) as _, moteIndex (moteIndex)}
+			{@const mote = debtMotePose(moteIndex, debtClockSeconds)}
+			<T.Mesh
+				name="debt-mote"
+				position={[
+					pileX + mote.offsetX,
+					PILE_BASE_HEIGHT + animatedStackHeight + mote.offsetY,
+					pileZ + mote.offsetZ
+				]}
+				rotation.x={-Math.PI / 2}
+				scale={MOTE_SIZE}
+			>
+				<T.PlaneGeometry args={[1, 1]} />
+				<T.MeshBasicMaterial
+					color="#ffb347"
+					transparent
+					depthWrite={false}
+					opacity={mote.opacity}
+					toneMapped={false}
+				/>
+			</T.Mesh>
 		{/each}
 
 		{#if pileVisible}
