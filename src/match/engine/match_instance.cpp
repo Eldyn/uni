@@ -549,6 +549,14 @@ void MatchInstance::Tick() {
     //       deadline is checked.
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value()) return;
+    // INFO: a held group with a recorded winner closes at the hold end; the
+    //       first response already decided the outcome, so waiting longer
+    //       would be a hidden stall.
+    if (WindowWinnerReady()) {
+        CloseWindowRoute("response");
+        ExecuteScheduled(scheduler_.Tick(store, registries.match, Now()));
+        return;
+    }
     const match::MatchTimerTick tick =
         timers_.Tick(store, registries.match, *current);
     if (tick.window_timeout) {
@@ -1200,8 +1208,9 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
         stacks = WindowStacksPenalty(group.Member(route_member).request,
                                      group.winner_card);
         // INFO: a non-stacking win supersedes the play, so the debt the group
-        //       recorded for it is stale and must not linger. No jump-in on a
-        //       debt-carrying play reaches this: it stacks above.
+        //       recorded for it is stale and must not linger. With the shipped
+        //       mods no jump-in on a debt-carrying play reaches this: it
+        //       stacks above.
         if (!stacks && debt_pending) RemoveDrawDebt(std::nullopt);
         CommitWinningPlay(group.winner, group.winner_card, stacks);
     }
@@ -1450,7 +1459,7 @@ bool MatchInstance::RespondWindow(const std::string& username,
               {"pass", false},
               {"outcome", winning ? "winning" : "lost"}});
 
-    if (timers_.Window().AllResponded(*window)) {
+    if (timers_.Window().AllResponded(*window) || WindowWinnerReady()) {
         CloseWindowRoute("response");
     }
     return true;
@@ -1502,6 +1511,11 @@ bool MatchInstance::PassWindow(const std::string& username) {
                                                      : "all_pass");
     }
     return true;
+}
+
+bool MatchInstance::WindowWinnerReady() const {
+    return WindowOpen() && pending_window_->has_winner
+           && WindowHoldMs() > 0 && WindowHoldElapsed();
 }
 
 bool MatchInstance::HoldsDrawDebt(ecs::Entity player) const {

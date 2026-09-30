@@ -1103,6 +1103,30 @@ TEST_CASE("bot responders react inside the hold") {
     CHECK(windows_seen > 0);
 }
 
+TEST_CASE("a bot-only window closes on its own tick when the line ends") {
+    MatchFixture f;
+    LobbySettings settings;
+    settings.active_mods = {"jump_in", "draw_stacking"};
+    f.SetupMatch(all_bots(3), settings);
+    f.OpenBarrierNow();
+
+    bool opened = false;
+    for (int fires = 0; fires < 500 && !opened; ++fires) {
+        if (f.Engine().IsMatchOver() || !f.timers.Has("turn_1")) break;
+        f.clock_skew_ms += f.timers.last_timeout_ms["turn_1"];
+        f.timers.Fire("turn_1");
+        opened = f.Engine().WindowOpen();
+    }
+    REQUIRE(opened);
+
+    // INFO: no bot wake is needed: the window has its own armed tick.
+    REQUIRE(f.timers.Has("window_1"));
+    const int64_t duration = f.Engine().ExportWindow()["duration_ms"];
+    f.clock_skew_ms += duration;
+    f.timers.Fire("window_1");
+    CHECK_FALSE(f.Engine().WindowOpen());
+}
+
 TEST_CASE("all-bot match with jump_in and draw_stacking completes") {
     MatchFixture f;
     LobbySettings settings;

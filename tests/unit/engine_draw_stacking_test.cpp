@@ -631,7 +631,7 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
 
         REQUIRE(engine.CanRespondWindow(table.player2, jump4));
         REQUIRE(engine.RespondWindow("player2", jump4));
-        clock.now = kStackingWindowMs;
+        clock.now = kJumpInHoldMs;
         engine.Tick();
 
         // INFO: the jump-in resolved as a stack response by the jumper: the
@@ -951,7 +951,7 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     REQUIRE(engine.WindowOpen());
     REQUIRE(engine.RespondWindow("player1", table.stack2));
 
-    clock.now = kStackingWindowMs;
+    clock.now = kJumpInHoldMs;
     engine.Tick();
 
     // INFO: draw_stacking's on_response owns the reply: the debt moves on to
@@ -1097,6 +1097,108 @@ TEST_CASE("engine hold: timer expiry draws the same cards as a pass") {
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
         CHECK(engine.GetCurrentPlayerUsername() == "player2");
+    }
+}
+
+TEST_CASE("engine hold: a jump-in closes the group at the hold end") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        ecs::Entity jump4{};
+        Plus4Table table = OpenPlus4JumpTable(content, mods, clock, jump4);
+        MatchInstance& engine = *table.engine;
+
+        clock.now = 200;
+        REQUIRE(engine.RespondWindow("player2", jump4));
+        clock.now = kJumpInHoldMs - 1;
+        engine.Tick();
+        CHECK(CountEvents(engine, "window_close") == 0);
+        CHECK(DebtOf(engine, table.player1) == 4);
+
+        clock.now = kJumpInHoldMs;
+        engine.Tick();
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(DebtOf(engine, table.player0) == 8);
+        CHECK(DebtOf(engine, table.player1) == 0);
+        CHECK(HandSize(engine, table.player1) == table.victim_hand);
+        engine.Tick();
+        CHECK(CountEvents(engine, "window_close") == 1);
+    }
+}
+
+TEST_CASE("engine hold: a jump-in after the hold closes immediately") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        ecs::Entity jump4{};
+        Plus4Table table = OpenPlus4JumpTable(content, mods, clock, jump4);
+        MatchInstance& engine = *table.engine;
+
+        clock.now = 1500;
+        REQUIRE(engine.RespondWindow("player2", jump4));
+        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(DebtOf(engine, table.player0) == 8);
+        CHECK(engine.GetCurrentPlayerUsername() == "player2");
+    }
+}
+
+TEST_CASE("engine hold: a victim stack closes at the hold end or at once") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        {
+            FakeClock clock;
+            MergedTable table = SetUpMergedTable(content, mods, clock);
+            MatchInstance& engine = *table.engine;
+            REQUIRE(engine.PlayCard("player0", table.draw2));
+            clock.now = 200;
+            REQUIRE(engine.RespondWindow("player1", table.stack2));
+            clock.now = kJumpInHoldMs - 1;
+            engine.Tick();
+            CHECK(CountEvents(engine, "window_close") == 0);
+            clock.now = kJumpInHoldMs;
+            engine.Tick();
+            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(DebtOf(engine, table.player2) == 4);
+        }
+        {
+            FakeClock clock;
+            MergedTable table = SetUpMergedTable(content, mods, clock);
+            MatchInstance& engine = *table.engine;
+            REQUIRE(engine.PlayCard("player0", table.draw2));
+            clock.now = 1500;
+            REQUIRE(engine.RespondWindow("player1", table.stack2));
+            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(DebtOf(engine, table.player2) == 4);
+        }
+    }
+}
+
+TEST_CASE("engine hold: no winner still runs to the timeout and draws") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        Plus4Table table = OpenPlus4Group(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        clock.now = kJumpInHoldMs;
+        engine.Tick();
+        CHECK(engine.WindowOpen());
+        clock.now = kStackingWindowMs - 1;
+        engine.Tick();
+        CHECK(engine.WindowOpen());
+        clock.now = kStackingWindowMs;
+        engine.Tick();
+        CHECK_FALSE(engine.WindowOpen());
+        CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
+        CHECK(CountEvents(engine, "window_close") == 1);
     }
 }
 

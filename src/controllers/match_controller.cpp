@@ -654,6 +654,9 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
             OnTurnStarted(verified_lobby);
             BroadcastMatchState(verified_lobby);
         });
+        // INFO: bot wakes are sparse, so the window also gets its own tick to
+        //       close the group when its line runs out.
+        ScheduleWindowTick(active_lobby);
         return;
     }
 
@@ -726,8 +729,20 @@ void MatchController::ScheduleWindowTick(Lobby* lobby) {
     const int64_t upper     = std::max<int64_t>(
         100, static_cast<int64_t>(lobby->settings.turn_time_limit_ms));
     const int64_t now       = session.Engine().Timers().Turn().Now();
-    const int64_t deadline  =
-        session.Engine().ExportWindow().value("deadline_ms", int64_t{0});
+    const json window = session.Engine().ExportWindow();
+    int64_t deadline = window.value("deadline_ms", int64_t{0});
+    // INFO: a recorded winner closes a held group at the hold end, so the
+    //       tick targets that instant instead of the full duration.
+    const int64_t hold_ms = window.value("hold_ms", int64_t{0});
+    const bool has_winner = std::any_of(
+        window["responses"].begin(), window["responses"].end(),
+        [](const json& response) { return !response.value("pass", false); });
+    if (hold_ms > 0 && has_winner && deadline > 0) {
+        const int64_t hold_end =
+            deadline - window.value("duration_ms", int64_t{0}) + hold_ms;
+        if (hold_end > now) deadline = hold_end;
+        else deadline = now;
+    }
     const int64_t remaining =
         std::clamp<int64_t>(deadline > 0 ? deadline - now : 0, 100, upper);
 

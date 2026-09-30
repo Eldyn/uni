@@ -226,6 +226,8 @@ public:
 
     /** @brief True when no window is open, it has no hold, or it elapsed. */
     bool WindowHoldElapsed() const;
+    /** @brief True when a held group has a winner and its hold is over. */
+    bool WindowWinnerReady() const;
 
     /**
      * @brief True when `RespondWindow(player, card)` would accept the card.
