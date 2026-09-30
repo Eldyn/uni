@@ -49,4 +49,32 @@ describe("TopBar", () => {
 		render(TopBar);
 		expect(screen.getByText(/0\s*\/\s*2/)).toBeInTheDocument();
 	});
+
+	it("shows a green ready check in the chip when the local player is ready", () => {
+		lobbyState.current = {
+			invite_code: "ABCD",
+			members: [
+				{ username: "eldyn", is_connected: true, is_host: true, is_bot: false, is_ready: true },
+				{ username: "rival", is_connected: true, is_host: false, is_bot: false, is_ready: false }
+			]
+		};
+		const { container } = render(TopBar);
+		const glyph = container.querySelector(".pixelart-icons-font-check");
+		expect(glyph).toBeInTheDocument();
+		expect(glyph).toHaveClass("text-success");
+	});
+
+	it("shows a yellow clock in the chip when the local player is not ready", () => {
+		lobbyState.current = {
+			invite_code: "ABCD",
+			members: [
+				{ username: "eldyn", is_connected: true, is_host: true, is_bot: false, is_ready: false },
+				{ username: "rival", is_connected: true, is_host: false, is_bot: false, is_ready: true }
+			]
+		};
+		const { container } = render(TopBar);
+		const glyph = container.querySelector(".pixelart-icons-font-clock");
+		expect(glyph).toBeInTheDocument();
+		expect(glyph).toHaveClass("text-gold");
+	});
 });

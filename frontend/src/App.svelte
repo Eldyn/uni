@@ -51,6 +51,15 @@
 		if (storeNavigation.current === "lobby") lazyScreens.game();
 	});
 
+	// Ready tracks the lobby screen: a member who navigates away from the lobby
+	// UI is auto un-readied (so the host can't start with someone who has walked
+	// off), and is re-readied when they come back. The server owns the flag; this
+	// only nudges it toward the state the current screen implies.
+	$effect(() => {
+		if (!storeLobby.isInLobby) return;
+		storeLobby.setReadyToScreen(storeNavigation.current === "lobby");
+	});
+
 	// Consumes an invite code captured off a deep-linked `/invite/<code>` URL
 	// (see navigation.svelte.ts). Held until a session exists (guest or
 	// logged-in) since joining requires an authenticated WS connection —

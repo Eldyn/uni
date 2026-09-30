@@ -246,6 +246,12 @@ class StoreLobby implements SessionStore {
 	#matchRedirectUnsub: (() => void) | null = null;
 	#matchRedirectTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// Ready-on-screen sync: a member is only kept ready while the lobby screen
+	// is showing. Serialized through a single pending-desired slot so a fast
+	// leave→return settles on the latest value instead of racing toggles.
+	#readySyncRunning = false;
+	#readySyncDesired: boolean | null = null;
+
 	/**
 	 * @brief Derived property to quickly check whether the user is in a lobby.
 	 * @returns True if the user is in a lobby, false otherwise.
@@ -349,6 +355,44 @@ class StoreLobby implements SessionStore {
 	 */
 	async toggleReady(): Promise<void> {
 		await ws.emitAndWait(ClientAction.LobbyToggleReady, undefined, 5000);
+	}
+
+	/**
+	 * @brief Idempotently drives the local player's ready flag toward the
+	 * state the screen implies: ready only while the lobby screen is showing.
+	 *
+	 * The server owns `is_ready`, so this compares against the last broadcast
+	 * and emits a toggle only when it disagrees. Calls are serialized through
+	 * a shared pending-desired slot: while one toggle is in flight, further
+	 * requests just overwrite the target, and the loop converges on the latest
+	 * value once each round-trip (broadcast-before-ack) lands.
+	 * @param wantsReady Whether the local player should currently be ready.
+	 */
+	async setReadyToScreen(wantsReady: boolean): Promise<void> {
+		this.#readySyncDesired = wantsReady;
+		if (this.#readySyncRunning) return;
+		this.#readySyncRunning = true;
+		try {
+			while (this.#readySyncDesired !== null) {
+				const target = this.#readySyncDesired;
+				this.#readySyncDesired = null;
+
+				const self = this.current?.members.find((member) => member.username === storeAuth.username);
+				if (!self || self.is_bot) continue;
+				if (self.is_ready === target) continue;
+
+				try {
+					await this.toggleReady();
+				} catch {
+					// Socket dropped mid-flight; let the next screen change or
+					// the reconnect broadcast re-sync instead of spinning.
+					this.#readySyncDesired = null;
+					break;
+				}
+			}
+		} finally {
+			this.#readySyncRunning = false;
+		}
 	}
 
 	/**
@@ -640,13 +684,9 @@ class StoreLobby implements SessionStore {
 
 			storeNavigation.goto("lobby");
 
-			// Ready up automatically the moment the player actually enters this
-			// lobby (fresh join/create), not on every re-render of the lobby
-			// screen from switching screens back and forth within the app.
-			const self = lobby.members.find((member) => member.username === storeAuth.username);
-			if (self && !self.is_bot && !self.is_ready) {
-				this.toggleReady();
-			}
+			// Ready state is owned by the screen-sync effect (App.svelte):
+			// landing on the lobby screen readies the player. Doing it here too
+			// would double-toggle them straight back to not-ready.
 		});
 
 		ws.on(ServerAction.LobbyUpdated, (data) => {
@@ -772,6 +812,7 @@ class StoreLobby implements SessionStore {
 		this.#matchesStarted = 0;
 		this.#matchKey = null;
 		this.#enteredLobbyAt = null;
+		this.#readySyncDesired = null;
 		localStorage.removeItem("lobby_code");
 	}
 

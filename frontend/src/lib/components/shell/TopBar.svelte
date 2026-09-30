@@ -33,6 +33,12 @@
 			: 0
 	);
 	const memberCount = $derived(storeLobby.current?.members.length ?? 0);
+	// The chip's status glyph mirrors the lobby seat badge: a green check while
+	// the local player is ready, a yellow clock otherwise.
+	const selfReady = $derived(
+		storeLobby.current?.members.find((member) => member.username === storeAuth.username)
+			?.is_ready ?? false
+	);
 
 	function openLobby() {
 		storeNavigation.goto("lobby");
@@ -68,7 +74,12 @@
 			>
 				<i class="pia pixelart-icons-font-users text-sm" aria-hidden="true"></i>
 				<span class="opacity-60">{readyCount}/{memberCount}</span>
-				<i class="pia pixelart-icons-font-check text-sm" aria-hidden="true"></i>
+				<i
+					class="pia {selfReady
+						? 'pixelart-icons-font-check text-success'
+						: 'pixelart-icons-font-clock text-gold'} text-sm"
+					aria-hidden="true"
+				></i>
 			</button>
 		{/if}
 		{#if storeLobby.isInLobby && !isLobbyScreen}
