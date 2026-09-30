@@ -19,7 +19,23 @@ const RICH_EFFECTS: readonly RichEffect[] = ["shake", "undulate", "shine"];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 const KEYWORD_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
+export const LOG_ESCAPE_CHAR = "\\";
+export const LOG_ESCAPABLE_CHARS: readonly string[] = [LOG_ESCAPE_CHAR, "[", "*"];
+
+/** Card palette CSS variables (app.css) addressable by name in log markup. */
+const LOG_COLOR_VARS: Readonly<Record<string, string>> = {
+	red: "var(--redCard)",
+	yellow: "var(--yellowCard)",
+	green: "var(--greenCard)",
+	blue: "var(--blueCard)"
+};
+
 export interface ParseRichTextOptions {
+	/**
+	 * Trusted log lines only: enables named palette colours ([c=red]) and a
+	 * backslash escape (\[ \* \\) so interpolated player names stay literal.
+	 */
+	allowLogTags?: boolean;
 	/** Whether keyword markup [k=id]...[/k] should be parsed into interactive keyword segments. */
 	allowKeywords?: boolean;
 }
@@ -37,7 +53,7 @@ type Token =
 	| { kind: "text"; value: string }
 	| { kind: "bold" }
 	| { kind: "italic" }
-	| { kind: "openColor"; value: string }
+	| { kind: "openColor"; value: string; source?: string }
 	| { kind: "closeColor" }
 	| { kind: "openFx"; value: string }
 	| { kind: "closeFx" }
@@ -47,19 +63,23 @@ type Token =
 const TOKEN_RE =
 	/(\*\*)|(\*)|\[c=([^\]]+)\]|\[\/c\]|\[fx=([^\]]+)\]|\[\/fx\]|\[k=([^\]]+)\]|\[\/k\]/g;
 
+const ESCAPE_TOKEN_RE = new RegExp(`${TOKEN_RE.source}|\\${LOG_ESCAPE_CHAR}([\\\\\\[*])`, "g");
+
 function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 	const tokens: Token[] = [];
 	let lastIndex = 0;
 	let match: RegExpExecArray | null;
 
-	TOKEN_RE.lastIndex = 0;
-	while ((match = TOKEN_RE.exec(input)) !== null) {
+	const tokenRe = options.allowLogTags ? ESCAPE_TOKEN_RE : TOKEN_RE;
+	tokenRe.lastIndex = 0;
+	while ((match = tokenRe.exec(input)) !== null) {
 		if (match.index > lastIndex) {
 			tokens.push({ kind: "text", value: input.slice(lastIndex, match.index) });
 		}
 
-		const [full, bold, italic, colorValue, fxValue, keywordValue] = match;
-		if (bold) tokens.push({ kind: "bold" });
+		const [full, bold, italic, colorValue, fxValue, keywordValue, escapedChar] = match;
+		if (escapedChar !== undefined) tokens.push({ kind: "text", value: escapedChar });
+		else if (bold) tokens.push({ kind: "bold" });
 		else if (italic) tokens.push({ kind: "italic" });
 		else if (colorValue !== undefined) {
 			// Interpolated straight into a CSS `style` attribute by RichText/
@@ -67,9 +87,14 @@ function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 			// vector once chat carries real, other-user-authored text:
 			// reject anything that isn't a plain hex color, degrading to
 			// literal text like any other malformed tag.
+			const cssColor = HEX_COLOR_RE.test(colorValue)
+				? colorValue
+				: options.allowLogTags
+					? LOG_COLOR_VARS[colorValue]
+					: undefined;
 			tokens.push(
-				HEX_COLOR_RE.test(colorValue)
-					? { kind: "openColor", value: colorValue }
+				cssColor
+					? { kind: "openColor", value: cssColor, source: colorValue }
 					: { kind: "text", value: full }
 			);
 		} else if (full === "[/c]") tokens.push({ kind: "closeColor" });
@@ -94,7 +119,7 @@ function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 			}
 		}
 
-		lastIndex = TOKEN_RE.lastIndex;
+		lastIndex = tokenRe.lastIndex;
 	}
 	if (lastIndex < input.length) {
 		tokens.push({ kind: "text", value: input.slice(lastIndex) });
@@ -110,7 +135,7 @@ function literalOf(token: Token): string {
 		case "italic":
 			return "*";
 		case "openColor":
-			return `[c=${token.value}]`;
+			return `[c=${token.source ?? token.value}]`;
 		case "closeColor":
 			return "[/c]";
 		case "openFx":

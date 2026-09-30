@@ -153,6 +153,12 @@
 		animation-delay: calc(var(--i) * 0.05s);
 	}
 
+	@media (prefers-reduced-motion: reduce) {
+		.shake-char {
+			animation: none;
+		}
+	}
+
 	@keyframes shake {
 		0% {
 			transform: translate(0, 0);

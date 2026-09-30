@@ -4,19 +4,23 @@
 	import { censorText, loadCensorData } from "$utils/censor.svelte";
 	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 	import { hasGlossaryKeyword } from "$lib/glossary/glossary";
+	import { storeAnimation } from "$stores/animation.svelte";
 
 	let {
 		text,
 		class: className = "",
 		allowKeywords = false,
 		tooltipParentId = null,
-		censor = false
+		censor = false,
+		logTags = false
 	}: {
 		text: string;
 		class?: string;
 		allowKeywords?: boolean;
 		tooltipParentId?: string | null;
 		censor?: boolean;
+		/** Trusted log lines only: named palette colours and escapes; never set for player chat. */
+		logTags?: boolean;
 	} = $props();
 
 	// Kicks off lazy load of profanity word data only when censoring is enabled
@@ -26,7 +30,13 @@
 		}
 	});
 
-	const segments = $derived(parseRichText(text, { allowKeywords }));
+	const segments = $derived(
+		parseRichText(text, { allowKeywords, allowLogTags: logTags }).map((segment) =>
+			segment.effect === "shake" && !storeAnimation.enabled
+				? { ...segment, effect: undefined }
+				: segment
+		)
+	);
 
 	function segmentInlineStyle(segment: {
 		bold?: boolean;
