@@ -23,6 +23,7 @@
 	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
 	import AmbientDust3D from "./AmbientDust3D.svelte";
+	import DirectionRing3D from "./DirectionRing3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
 	import LocalHand3D from "./LocalHand3D.svelte";
@@ -219,6 +220,7 @@
      furniture, and always stays upright at the bottom of the screen. -->
 <T.Group rotation.y={storeTableSpin.boardRotationY}>
 	<Playmat3D mat={placement.mat} showFelt={true} {viewport} />
+	<DirectionRing3D mat={placement.mat} />
 
 	{#if storeRenderSettings.ambientDustActive}
 		<AmbientDust3D mat={placement.mat} {viewport} />

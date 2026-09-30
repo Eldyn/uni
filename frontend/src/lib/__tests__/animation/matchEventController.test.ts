@@ -6,6 +6,7 @@ import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeTurnCue } from "$stores/turnCue.svelte";
+import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { storeTurnSkip } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -707,6 +708,32 @@ describe("createMatchEventBeatController", () => {
 			skipped: []
 		});
 		expect(storeTurnCue.token).toBe(token + 1);
+	});
+
+	it("queues one ring flip per reverse, reading direction from each beat", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		const h = harness();
+		const turnBeat = (seq: number, direction: number): MatchEventBeat => ({
+			seq,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction,
+			deadlineMs: 1,
+			skipped: []
+		});
+
+		h.fire(turnBeat(30, 1));
+		expect(storeDirectionRing.token).toBe(0);
+		h.fire(turnBeat(31, -1));
+		h.fire(turnBeat(32, 1));
+		h.fire(turnBeat(33, 1));
+
+		expect(storeDirectionRing.token).toBe(2);
+		expect(storeDirectionRing.takeFlips()).toEqual([-1, 1]);
+		expect(storeDirectionRing.sign).toBe(1);
 	});
 
 	it("does not present a skip when the turn carries none", () => {

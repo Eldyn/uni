@@ -18,6 +18,7 @@ import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeTableSpin } from "$stores/tableSpin.svelte";
 import { storeTurnCue } from "$stores/turnCue.svelte";
+import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
@@ -667,6 +668,7 @@ export function createMatchEventBeatController(deps: {
 			isSpectator: storeGame.isSpectator
 		});
 		if (cueFires) storeTurnCue.fire();
+		storeDirectionRing.reverseTo(beat.direction);
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
