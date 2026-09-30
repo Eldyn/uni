@@ -99,7 +99,8 @@ const PROMPT_OPEN = {
 	kind: "choose_color",
 	payload: { options: ["red", "blue"] },
 	response_schema: { type: "string", enum: ["red", "blue"] },
-	deadline_ms: 15000
+	duration_ms: 15000,
+	deadline_ms: 0
 };
 
 describe("storeGame turn/window/prompt state", () => {
@@ -130,13 +131,13 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.activeWindow).toEqual({
 			windowId: "42",
 			deadlineAt: now + 5000,
+			durationMs: 5000,
+			holdMs: 0,
+			kinds: [],
 			responders: ["alice", "bob"],
 			eligibleFilterDigest: "digest-1"
 		});
-		expect(storeGame.windowTimeRemaining).toBe(5);
-
-		vi.advanceTimersByTime(1000);
-		expect(storeGame.windowTimeRemaining).toBe(4);
+		expect(storeGame.activeTimer?.deadlineAt).toBe(now + 5000);
 	});
 
 	it("closes the response window on window_close", () => {
@@ -145,10 +146,6 @@ describe("storeGame turn/window/prompt state", () => {
 		onEvent(frame(2, "window_close", { outcome: "passed" }));
 
 		expect(storeGame.activeWindow).toBeNull();
-		expect(storeGame.windowTimeRemaining).toBe(0);
-
-		vi.advanceTimersByTime(2000);
-		expect(storeGame.windowTimeRemaining).toBe(0);
 	});
 
 	it("sets the active prompt on prompt_open and clears it only on a matching prompt_close", () => {
@@ -163,7 +160,7 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.activePrompt).toBeNull();
 	});
 
-	it("hydrates the absolute snapshot window deadline and prompt, then counts down", () => {
+	it("hydrates the absolute snapshot window deadline and prompt", () => {
 		const now = Date.now();
 		handler("match_state_updated")(
 			snapshot({
@@ -189,14 +186,13 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.activeWindow).toEqual({
 			windowId: "9",
 			deadlineAt: now + 3000,
+			durationMs: 3000,
+			holdMs: 0,
+			kinds: [],
 			responders: ["alice"],
 			eligibleFilterDigest: "digest-9"
 		});
-		expect(storeGame.windowTimeRemaining).toBe(3);
 		expect(storeGame.activePrompt?.prompt_id).toBe("choose_player");
-
-		vi.advanceTimersByTime(1000);
-		expect(storeGame.windowTimeRemaining).toBe(2);
 	});
 
 	it("clears window and prompt when the snapshot reports none", () => {
@@ -207,11 +203,10 @@ describe("storeGame turn/window/prompt state", () => {
 		handler("match_state_updated")(snapshot({ window: null, prompts: [] }));
 
 		expect(storeGame.activeWindow).toBeNull();
-		expect(storeGame.windowTimeRemaining).toBe(0);
 		expect(storeGame.activePrompt).toBeNull();
 	});
 
-	it("clears window, prompt and the window countdown on reset", () => {
+	it("clears window and prompt on reset", () => {
 		const onEvent = handler("match_event");
 		onEvent(frame(1, "window_open", WINDOW_OPEN));
 		onEvent(frame(2, "prompt_open", PROMPT_OPEN));
@@ -220,10 +215,6 @@ describe("storeGame turn/window/prompt state", () => {
 
 		expect(storeGame.activeWindow).toBeNull();
 		expect(storeGame.activePrompt).toBeNull();
-		expect(storeGame.windowTimeRemaining).toBe(0);
-
-		vi.advanceTimersByTime(2000);
-		expect(storeGame.windowTimeRemaining).toBe(0);
 	});
 
 	it("clears window and prompt on returnToLobby", () => {
@@ -235,6 +226,5 @@ describe("storeGame turn/window/prompt state", () => {
 
 		expect(storeGame.activeWindow).toBeNull();
 		expect(storeGame.activePrompt).toBeNull();
-		expect(storeGame.windowTimeRemaining).toBe(0);
 	});
 });

@@ -83,18 +83,21 @@ describe("storeGame keeps the turn and prompt clocks separate", () => {
 					kind: "choose_color",
 					payload: {},
 					response_schema: {},
+					duration_ms: 15_000,
 					deadline_ms: NOW + 3_000 + 15_000
 				}
 			]
 		});
-		expect(storeGame.promptTimeRemaining).toBe(15);
+		expect(storeGame.activeTimer).toMatchObject({
+			source: "prompt",
+			deadlineAt: NOW + 3_000 + 15_000
+		});
 
 		vi.advanceTimersByTime(4_000);
-		expect(storeGame.promptTimeRemaining).toBe(11);
 		expect(storeGame.turnTimeRemaining).toBe(12);
 
 		sendSnapshot({ turn_deadline_ms: 0, prompts: [] });
 		expect(storeGame.activePrompt).toBeNull();
-		expect(storeGame.promptTimeRemaining).toBe(0);
+		expect(storeGame.activeTimer).toBeNull();
 	});
 });

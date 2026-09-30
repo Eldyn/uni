@@ -27,6 +27,7 @@
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
+	import { isHandCardDimmed } from "../layout/handCardDimming";
 	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry, cardMetaFrom } from "../animation/cardRegistry.svelte";
@@ -540,7 +541,11 @@
 				pushX: neighborPush * handEmToWorld,
 				hoverSpinDeg: isDragging ? dragTiltDeg : lifted ? tiltTowardPileDeg(slot.x) : 0,
 				opacity: isSelected ? 1 : fade,
-				dimmed,
+				dimmed: isHandCardDimmed({
+					handDimmed: dimmed,
+					isWindowResponder: storeGame.isWindowResponder,
+					canPlay: card.can_play
+				}),
 				shadow: shadowTexture
 					? {
 							texture: shadowTexture,

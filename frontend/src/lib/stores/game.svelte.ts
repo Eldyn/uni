@@ -77,6 +77,7 @@ const RawGameStateSchema = z.object({
 	window: z.unknown().optional(),
 	prompts: z.array(z.unknown()).optional(),
 	turn_deadline_ms: z.number().optional(),
+	server_now_ms: z.number().optional(),
 	seq_watermark: z.number().int().optional()
 });
 
@@ -117,6 +118,8 @@ export interface GamePlayer {
 	/** How many connected spectators are watching THIS player's POV. Absent on
 	 *  older state payloads; treated as 0. */
 	spectator_count?: number;
+	/** Visible statuses of the player, as sent by the snapshot. */
+	statuses?: unknown[];
 }
 
 /**
@@ -185,10 +188,59 @@ export interface ActiveWindow {
 	windowId: string;
 	/** Absolute deadline on the client clock (epoch ms). */
 	deadlineAt: number;
+	/** Total length of the group's clock in ms. */
+	durationMs: number;
+	/** Length of the hold from the open in ms; 0 when the group has none. */
+	holdMs: number;
+	/** Kind of every member of the merged group, in member order. */
+	kinds: string[];
 	/** Usernames eligible to respond. */
 	responders: string[];
 	/** Digest of the engine-side eligibility filter. */
 	eligibleFilterDigest: string;
+}
+
+/** Which countdown the fuse line is currently draining. */
+export type FuseTimerSource = "window" | "prompt" | "ready" | "turn";
+
+/**
+ * @interface ActiveTimer
+ * @brief The one countdown the fuse line shows, normalised onto the client
+ * clock so consumers never see the wire's mixed deadline conventions.
+ */
+export interface ActiveTimer {
+	source: FuseTimerSource;
+	/** Total length of the clock in ms. */
+	durationMs: number;
+	/** Absolute deadline on the client clock (epoch ms). */
+	deadlineAt: number;
+	/** Hold from the start of the clock in ms; 0 unless a held window. */
+	holdMs: number;
+	/** Window member kinds in member order; empty for every other source. */
+	kinds: string[];
+}
+
+/** The window control the local player is offered, if any. */
+export interface WindowAction {
+	/** `draw` takes the debt at once; `pass` is the legacy any-responder pass. */
+	kind: "draw" | "pass";
+	enabled: boolean;
+}
+
+const DRAW_DEBT_STATUS_ID = "vanilla:draw_debt";
+
+interface ClockSpan {
+	durationMs: number;
+	deadlineAt: number;
+}
+
+/** True when the player carries a positive `vanilla:draw_debt` status. */
+function holdsDrawDebt(player: { statuses?: unknown[] } | null): boolean {
+	return (player?.statuses ?? []).some((status) => {
+		if (typeof status !== "object" || status === null) return false;
+		const { status_kind, magnitude } = status as Record<string, unknown>;
+		return status_kind === DRAW_DEBT_STATUS_ID && typeof magnitude === "number" && magnitude > 0;
+	});
 }
 
 /**
@@ -223,14 +275,20 @@ class StoreGame implements SessionStore {
 	/** Open response window mirrored from a `window_open` packet or snapshot. */
 	activeWindow = $state<ActiveWindow | null>(null);
 
-	/** Seconds remaining before the open response window closes, computed locally. */
-	windowTimeRemaining = $state<number>(0);
-
 	/** Open op-input prompt for the local viewer, or null when none is live. */
 	activePrompt = $state<PromptOpenPayload | null>(null);
 
-	/** Seconds remaining on the open prompt's own clock, computed locally. */
-	promptTimeRemaining = $state<number>(0);
+	/** Clock of the open prompt on the client clock, or null when it has none. */
+	#promptClock = $state<ClockSpan | null>(null);
+
+	/** Clock of the turn on the client clock, or null while it is suspended. */
+	#turnClock = $state<ClockSpan | null>(null);
+
+	/** Clock of the ready barrier on the client clock, or null when unarmed. */
+	#readyClock = $state<ClockSpan | null>(null);
+
+	/** Client clock minus server clock, refreshed by every snapshot. */
+	#serverClockOffsetMs = 0;
 
 	/** True once a fresh `match_start` frame has been consumed, until reset. */
 	matchIntroPending = $state(false);
@@ -252,12 +310,6 @@ class StoreGame implements SessionStore {
 
 	/** Reference to the browser's native `setInterval` timer. */
 	#timerInterval: number | null = null;
-
-	/** Reference to the browser's native `setInterval` timer for the window countdown. */
-	#windowTimerInterval: number | null = null;
-
-	/** Reference to the browser's native `setInterval` timer for the prompt countdown. */
-	#promptTimerInterval: number | null = null;
 
 	/** Safety timeout that releases isActionPending if the server stops responding. */
 	#pendingSafetyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -318,6 +370,35 @@ class StoreGame implements SessionStore {
 			this.localPlayer !== null &&
 			this.activeWindow.responders.includes(this.localPlayer.username)
 	);
+
+	/** True while the local player holds draw debt: the only seat that may
+	 *  pass (draw) inside a held window. */
+	isDebtVictim = $derived(holdsDrawDebt(this.localPlayer));
+
+	/** The single countdown the fuse line drains: the open window group, else
+	 *  the open prompt, else the ready barrier, else the turn clock. */
+	activeTimer = $derived.by((): ActiveTimer | null => {
+		const window = this.activeWindow;
+		if (window !== null) {
+			return {
+				source: "window",
+				durationMs: window.durationMs,
+				deadlineAt: window.deadlineAt,
+				holdMs: window.holdMs,
+				kinds: window.kinds
+			};
+		}
+		if (this.activePrompt !== null && this.#promptClock !== null) {
+			return { source: "prompt", ...this.#promptClock, holdMs: 0, kinds: [] };
+		}
+		if (!this.matchBegun && this.#readyClock !== null) {
+			return { source: "ready", ...this.#readyClock, holdMs: 0, kinds: [] };
+		}
+		if (this.#turnClock !== null && !this.state?.is_over) {
+			return { source: "turn", ...this.#turnClock, holdMs: 0, kinds: [] };
+		}
+		return null;
+	});
 
 	/** Number of connected spectators in the whole lobby (kept for legacy
 	 *  callers; the HUD now shows the per-player count instead). */
@@ -421,6 +502,8 @@ class StoreGame implements SessionStore {
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
 		this.readyProgress = null;
+		this.#readyClock = null;
+		this.#serverClockOffsetMs = 0;
 		this.matchBegun = false;
 		this.clientReadySent = false;
 		storeSpectator.reset();
@@ -544,6 +627,9 @@ class StoreGame implements SessionStore {
 				return;
 			}
 			const stateJson = parsed.data;
+			if (typeof stateJson.server_now_ms === "number") {
+				this.#serverClockOffsetMs = Date.now() - stateJson.server_now_ms;
+			}
 
 			const currentTurn = stateJson.current_player;
 			const previousTurn = this.state?.current_turn;
@@ -585,11 +671,13 @@ class StoreGame implements SessionStore {
 				turn_deadline_ms: stateJson.turn_deadline_ms
 			};
 
-			// INFO: the snapshot deadline is absolute epoch ms and is the
-			// reconnect-safe source for the turn countdown; only clobber a
+			// INFO: the snapshot deadline is absolute server-clock epoch ms and is
+			// the reconnect-safe source for the turn countdown; only clobber a
 			// live timer when the snapshot actually carries one.
 			if (typeof stateJson.turn_deadline_ms === "number" && stateJson.turn_deadline_ms > 0) {
-				this.#syncTurnTimer(Math.max(0, stateJson.turn_deadline_ms - Date.now()));
+				this.#syncTurnTimer(
+					Math.max(0, this.#toClientClock(stateJson.turn_deadline_ms) - Date.now())
+				);
 			} else if (stateJson.turn_deadline_ms === 0) {
 				// INFO: 0 means the turn clock is paused behind a prompt or a
 				// response window; freeze the countdown until it resumes.
@@ -601,9 +689,11 @@ class StoreGame implements SessionStore {
 			const snapshotWindow =
 				stateJson.window == null ? null : WindowOpenPayloadSchema.safeParse(stateJson.window);
 			if (snapshotWindow?.success) {
-				// INFO: the snapshot window deadline is already absolute epoch ms.
-				this.#setActiveWindow(snapshotWindow.data, snapshotWindow.data.deadline_ms);
-				this.#syncWindowTimer(snapshotWindow.data.deadline_ms);
+				// INFO: the snapshot window deadline is absolute server-clock epoch ms.
+				this.#setActiveWindow(
+					snapshotWindow.data,
+					this.#toClientClock(snapshotWindow.data.deadline_ms)
+				);
 			} else {
 				this.#clearWindowState();
 			}
@@ -611,7 +701,13 @@ class StoreGame implements SessionStore {
 			const snapshotPrompts = stateJson.prompts;
 			if (snapshotPrompts && snapshotPrompts.length > 0) {
 				const parsedPrompt = PromptOpenPayloadSchema.safeParse(snapshotPrompts[0]);
-				this.#setActivePrompt(parsedPrompt.success ? parsedPrompt.data : null);
+				// INFO: the snapshot prompt deadline is absolute server-clock epoch ms.
+				this.#setActivePrompt(
+					parsedPrompt.success ? parsedPrompt.data : null,
+					parsedPrompt.success && parsedPrompt.data.deadline_ms > 0
+						? this.#toClientClock(parsedPrompt.data.deadline_ms)
+						: null
+				);
 			} else {
 				this.#setActivePrompt(null);
 			}
@@ -689,17 +785,25 @@ class StoreGame implements SessionStore {
 				storeCardDefs.confirmMatchStart(env.data.payload);
 				this.matchIntroPending = true;
 				this.readyProgress = null;
+				this.#readyClock = null;
 				this.matchBegun = false;
 				this.clientReadySent = false;
 				break;
 			}
 			case "players_ready": {
 				const parsed = PlayersReadyPayloadSchema.safeParse(env.data.payload);
-				if (parsed.success) this.readyProgress = parsed.data;
+				if (parsed.success) {
+					this.readyProgress = { ready: parsed.data.ready, total: parsed.data.total };
+					const { timeout_ms } = parsed.data;
+					if (timeout_ms !== undefined && timeout_ms > 0) {
+						this.#readyClock = { durationMs: timeout_ms, deadlineAt: Date.now() + timeout_ms };
+					}
+				}
 				break;
 			}
 			case "match_begin": {
 				this.matchBegun = true;
+				this.#readyClock = null;
 				break;
 			}
 			case "turn_advance": {
@@ -709,7 +813,9 @@ class StoreGame implements SessionStore {
 				// engine emits the incoming player's not-yet-armed deadline as
 				// 0, so never clobber a good countdown with it.
 				if (parsed.success && parsed.data.deadline_ms > 0) {
-					this.#syncTurnTimer(Math.max(0, parsed.data.deadline_ms - Date.now()));
+					this.#syncTurnTimer(
+						Math.max(0, this.#toClientClock(parsed.data.deadline_ms) - Date.now())
+					);
 				}
 				break;
 			}
@@ -720,7 +826,6 @@ class StoreGame implements SessionStore {
 				if (parsed.success) {
 					const deadlineAt = Date.now() + parsed.data.deadline_ms;
 					this.#setActiveWindow(parsed.data, deadlineAt);
-					this.#syncWindowTimer(deadlineAt);
 				}
 				break;
 			}
@@ -731,7 +836,12 @@ class StoreGame implements SessionStore {
 			}
 			case "prompt_open": {
 				const parsed = PromptOpenPayloadSchema.safeParse(env.data.payload);
-				if (parsed.success) this.#setActivePrompt(parsed.data);
+				if (parsed.success) {
+					// INFO: the packet deadline_ms is only the op's declared timeout;
+					// the enforced clock length is duration_ms, armed at emission.
+					const durationMs = parsed.data.duration_ms ?? 0;
+					this.#setActivePrompt(parsed.data, durationMs > 0 ? Date.now() + durationMs : null);
+				}
 				break;
 			}
 			case "prompt_close": {
@@ -768,6 +878,7 @@ class StoreGame implements SessionStore {
 	 * @brief Cancels and destroys the currently running turn timer.
 	 */
 	#clearTimer() {
+		this.#turnClock = null;
 		if (this.#timerInterval !== null) {
 			clearInterval(this.#timerInterval);
 			this.#timerInterval = null;
@@ -775,54 +886,17 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
-	 * @brief Cancels and destroys the currently running response-window timer.
-	 */
-	#clearWindowTimer() {
-		if (this.#windowTimerInterval !== null) {
-			clearInterval(this.#windowTimerInterval);
-			this.#windowTimerInterval = null;
-		}
-	}
-
-	/**
-	 * @brief Sets the open prompt and runs its own countdown when the server
-	 * has armed a deadline for it.
+	 * @brief Sets the open prompt and the clock the server enforces on it.
 	 * @param prompt Open prompt, or null to clear it.
+	 * @param deadlineAt Absolute deadline on the client clock, or null when the
+	 * prompt carries no clock.
 	 */
-	#setActivePrompt(prompt: PromptOpenPayload | null) {
+	#setActivePrompt(prompt: PromptOpenPayload | null, deadlineAt: number | null = null) {
 		this.activePrompt = prompt;
-		if (prompt === null) {
-			this.#clearPromptTimer();
-			this.promptTimeRemaining = 0;
-			return;
-		}
-		if (prompt.deadline_ms > 0) this.#syncPromptTimer(prompt.deadline_ms);
-	}
-
-	/**
-	 * @brief Starts the prompt countdown from an absolute deadline.
-	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
-	 */
-	#syncPromptTimer(deadlineAt: number) {
-		this.#clearPromptTimer();
-		this.promptTimeRemaining = this.#remainingSeconds(deadlineAt);
-
-		this.#promptTimerInterval = window.setInterval(() => {
-			this.promptTimeRemaining = this.#remainingSeconds(deadlineAt);
-			if (this.promptTimeRemaining <= 0) {
-				this.#clearPromptTimer();
-			}
-		}, 1000);
-	}
-
-	/**
-	 * @brief Cancels the prompt countdown.
-	 */
-	#clearPromptTimer() {
-		if (this.#promptTimerInterval !== null) {
-			clearInterval(this.#promptTimerInterval);
-			this.#promptTimerInterval = null;
-		}
+		this.#promptClock =
+			prompt !== null && deadlineAt !== null
+				? { durationMs: prompt.duration_ms ?? Math.max(0, deadlineAt - Date.now()), deadlineAt }
+				: null;
 	}
 
 	/**
@@ -833,42 +907,24 @@ class StoreGame implements SessionStore {
 		this.activeWindow = {
 			windowId: windowPayload.window_id,
 			deadlineAt,
+			durationMs: windowPayload.duration_ms ?? Math.max(0, deadlineAt - Date.now()),
+			holdMs: windowPayload.hold_ms ?? 0,
+			kinds: windowPayload.kinds ?? (windowPayload.kind ? [windowPayload.kind] : []),
 			responders: windowPayload.responders,
 			eligibleFilterDigest: windowPayload.eligible_filter_digest
 		};
 	}
 
 	/**
-	 * @brief Clears the open response window and stops its countdown.
+	 * @brief Clears the open response window.
 	 */
 	#clearWindowState() {
-		this.#clearWindowTimer();
 		this.activeWindow = null;
-		this.windowTimeRemaining = 0;
 	}
 
-	/**
-	 * @brief Starts the response-window countdown from an absolute deadline,
-	 * recomputing the remaining seconds each tick so the value cannot drift.
-	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
-	 */
-	#syncWindowTimer(deadlineAt: number) {
-		this.#clearWindowTimer();
-		this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
-
-		this.#windowTimerInterval = window.setInterval(() => {
-			this.windowTimeRemaining = this.#remainingSeconds(deadlineAt);
-			if (this.windowTimeRemaining <= 0) {
-				this.#clearWindowTimer();
-			}
-		}, 1000);
-	}
-
-	/**
-	 * @brief Whole seconds from now until `deadlineAt`, floored at zero.
-	 */
-	#remainingSeconds(deadlineAt: number): number {
-		return Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+	/** Maps a server-clock epoch-ms value onto the client clock. */
+	#toClientClock(serverMs: number): number {
+		return serverMs + this.#serverClockOffsetMs;
 	}
 
 	/**
@@ -879,6 +935,11 @@ class StoreGame implements SessionStore {
 	#syncTurnTimer(remainingMs: number) {
 		this.#clearTimer();
 		this.turnTimeRemaining = Math.ceil(remainingMs / 1000);
+		const turnLimitMs = storeLobby.current?.settings?.turn_time_limit_ms ?? 0;
+		this.#turnClock = {
+			durationMs: Math.max(turnLimitMs, remainingMs),
+			deadlineAt: Date.now() + remainingMs
+		};
 
 		this.#timerInterval = window.setInterval(() => {
 			if (this.turnTimeRemaining <= 0) {
@@ -974,6 +1035,22 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief The window control offered to the local player at `now`.
+	 *
+	 * A held group (it has a hold) offers only the debt victim a draw, enabled
+	 * once the hold has elapsed; a group without a hold keeps the legacy pass
+	 * for every responder.
+	 */
+	windowActionState(now: number): WindowAction | null {
+		const window = this.activeWindow;
+		if (window === null || !this.isWindowResponder) return null;
+		if (window.holdMs === 0) return { kind: "pass", enabled: true };
+		if (!this.isDebtVictim) return null;
+		const holdEndsAt = window.deadlineAt - window.durationMs + window.holdMs;
+		return { kind: "draw", enabled: now >= holdEndsAt };
+	}
+
+	/**
 	 * @brief Clears session-scoped match state.
 	 *
 	 * `turnTimeRemaining` returns to its constructed default rather than zero, so
@@ -993,6 +1070,8 @@ class StoreGame implements SessionStore {
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
 		this.readyProgress = null;
+		this.#readyClock = null;
+		this.#serverClockOffsetMs = 0;
 		this.matchBegun = false;
 		this.clientReadySent = false;
 		storeSpectator.reset();
