@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "랭크",
 	"game_fuse_window": "응답 창",
 	"game_fuse_prompt": "선택에 제한 시간이 있습니다",
+	"game_fuse_prompt_observer": "플레이어의 선택을 기다리는 중",
 	"game_fuse_ready": "플레이어 로딩을 기다리는 중",
 	"game_fuse_turn": "턴 제한 시간",
 	"game_fuse_draw": "뽑기",

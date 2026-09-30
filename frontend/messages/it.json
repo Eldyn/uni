@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "Classificata",
 	"game_fuse_window": "Finestra di risposta",
 	"game_fuse_prompt": "La tua scelta è a tempo",
+	"game_fuse_prompt_observer": "In attesa della scelta di un giocatore",
 	"game_fuse_ready": "In attesa che i giocatori carichino",
 	"game_fuse_turn": "Tempo del turno",
 	"game_fuse_draw": "Pesca",

@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "排位",
 	"game_fuse_window": "响应窗口",
 	"game_fuse_prompt": "此选择有时间限制",
+	"game_fuse_prompt_observer": "正在等待玩家做出选择",
 	"game_fuse_ready": "正在等待玩家加载",
 	"game_fuse_turn": "回合计时",
 	"game_fuse_draw": "抽牌",

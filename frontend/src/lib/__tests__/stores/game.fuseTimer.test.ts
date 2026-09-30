@@ -319,6 +319,88 @@ describe("storeGame activeTimer normalisation", () => {
 	});
 });
 
+describe("storeGame observed prompt clock", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+		storeAuth.username = "alice";
+		storeLobby.current = null;
+		storeGame.reset();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	const PROMPT_WAIT = { deadline_ms: 500_000 + 6000, duration_ms: 9000 };
+
+	it("gives an observer a prompt timer from prompt_wait", () => {
+		snapshot({ server_now_ms: 500_000, turn_deadline_ms: 0, prompt_wait: PROMPT_WAIT });
+
+		expect(storeGame.activePrompt).toBeNull();
+		expect(storeGame.activeTimer).toEqual({
+			source: "prompt",
+			durationMs: 9000,
+			deadlineAt: NOW + 6000,
+			holdMs: 0,
+			kinds: [],
+			observer: true
+		});
+	});
+
+	it("keeps the local prompt authoritative over prompt_wait", () => {
+		snapshot({
+			server_now_ms: 500_000,
+			prompt_wait: PROMPT_WAIT,
+			prompts: [
+				{
+					prompt_id: "p",
+					kind: "k",
+					payload: {},
+					response_schema: {},
+					duration_ms: 9000,
+					deadline_ms: 500_000 + 3000
+				}
+			]
+		});
+
+		expect(storeGame.activeTimer?.deadlineAt).toBe(NOW + 3000);
+		expect(storeGame.activeTimer?.observer).toBeUndefined();
+	});
+
+	it("keeps window over observed prompt over ready over turn", () => {
+		snapshot({ turn_deadline_ms: NOW + 12_000 });
+		handler("match_event")(frame(1, "players_ready", { ready: 1, total: 3, timeout_ms: 15_000 }));
+		expect(storeGame.activeTimer?.source).toBe("ready");
+
+		snapshot({ server_now_ms: 500_000, prompt_wait: PROMPT_WAIT });
+		expect(storeGame.activeTimer).toMatchObject({ source: "prompt", observer: true });
+
+		handler("match_event")(frame(2, "window_open", HELD_WINDOW));
+		expect(storeGame.activeTimer?.source).toBe("window");
+	});
+
+	it("drops the observed timer when the snapshot has no prompt_wait", () => {
+		snapshot({ server_now_ms: 500_000, prompt_wait: PROMPT_WAIT });
+		snapshot({ server_now_ms: 500_100 });
+
+		expect(storeGame.activeTimer).toBeNull();
+	});
+
+	it("draws nothing for a prompt_wait without a clock", () => {
+		snapshot({ prompt_wait: { deadline_ms: 0, duration_ms: 0 } });
+
+		expect(storeGame.activeTimer).toBeNull();
+	});
+
+	it("clears the observed timer on reset", () => {
+		snapshot({ server_now_ms: 500_000, prompt_wait: PROMPT_WAIT });
+		storeGame.reset();
+
+		expect(storeGame.activeTimer).toBeNull();
+	});
+});
+
 describe("storeGame windowActionState", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();

@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "Clasificado",
 	"game_fuse_window": "Ventana de respuesta",
 	"game_fuse_prompt": "Tu elección tiene tiempo límite",
+	"game_fuse_prompt_observer": "Esperando la elección de un jugador",
 	"game_fuse_ready": "Esperando a que carguen los jugadores",
 	"game_fuse_turn": "Tiempo de turno",
 	"game_fuse_draw": "Robar",

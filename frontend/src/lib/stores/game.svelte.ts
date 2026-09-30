@@ -78,6 +78,7 @@ const RawGameStateSchema = z.object({
 	prompts: z.array(z.unknown()).optional(),
 	turn_deadline_ms: z.number().optional(),
 	server_now_ms: z.number().optional(),
+	prompt_wait: z.object({ deadline_ms: z.number(), duration_ms: z.number() }).optional(),
 	seq_watermark: z.number().int().optional()
 });
 
@@ -218,6 +219,8 @@ export interface ActiveTimer {
 	holdMs: number;
 	/** Window member kinds in member order; empty for every other source. */
 	kinds: string[];
+	/** Set on a prompt timer the local player does not own (they only wait). */
+	observer?: true;
 }
 
 /** The window control the local player is offered, if any. */
@@ -280,6 +283,9 @@ class StoreGame implements SessionStore {
 
 	/** Clock of the open prompt on the client clock, or null when it has none. */
 	#promptClock = $state<ClockSpan | null>(null);
+
+	/** Clock of a prompt another seat is resolving, from the public snapshot. */
+	#observedPromptClock = $state<ClockSpan | null>(null);
 
 	/** Clock of the turn on the client clock, or null while it is suspended. */
 	#turnClock = $state<ClockSpan | null>(null);
@@ -390,6 +396,15 @@ class StoreGame implements SessionStore {
 		}
 		if (this.activePrompt !== null && this.#promptClock !== null) {
 			return { source: "prompt", ...this.#promptClock, holdMs: 0, kinds: [] };
+		}
+		if (this.activePrompt === null && this.#observedPromptClock !== null) {
+			return {
+				source: "prompt",
+				...this.#observedPromptClock,
+				holdMs: 0,
+				kinds: [],
+				observer: true
+			};
 		}
 		if (!this.matchBegun && this.#readyClock !== null) {
 			return { source: "ready", ...this.#readyClock, holdMs: 0, kinds: [] };
@@ -503,6 +518,7 @@ class StoreGame implements SessionStore {
 		this.matchIntroPending = false;
 		this.readyProgress = null;
 		this.#readyClock = null;
+		this.#observedPromptClock = null;
 		this.#serverClockOffsetMs = 0;
 		this.matchBegun = false;
 		this.clientReadySent = false;
@@ -697,6 +713,17 @@ class StoreGame implements SessionStore {
 			} else {
 				this.#clearWindowState();
 			}
+
+			// INFO: prompt_wait is the public prompt clock (timer only), so seats
+			// that do not own the prompt still see the wait.
+			const promptWait = stateJson.prompt_wait;
+			this.#observedPromptClock =
+				promptWait !== undefined && promptWait.duration_ms > 0 && promptWait.deadline_ms > 0
+					? {
+							durationMs: promptWait.duration_ms,
+							deadlineAt: this.#toClientClock(promptWait.deadline_ms)
+						}
+					: null;
 
 			const snapshotPrompts = stateJson.prompts;
 			if (snapshotPrompts && snapshotPrompts.length > 0) {
@@ -1071,6 +1098,7 @@ class StoreGame implements SessionStore {
 		this.matchIntroPending = false;
 		this.readyProgress = null;
 		this.#readyClock = null;
+		this.#observedPromptClock = null;
 		this.#serverClockOffsetMs = 0;
 		this.matchBegun = false;
 		this.clientReadySent = false;

@@ -18,6 +18,13 @@
 	};
 
 	let timer = $derived(storeGame.activeTimer);
+	let statusLabel = $derived(
+		timer === null
+			? ""
+			: timer.observer
+				? m.game_fuse_prompt_observer({}, { locale: storeI18n.locale })
+				: sourceLabels[timer.source]()
+	);
 	let reducedMotion = $derived(storeWebglCapability.reducedMotion);
 	let now = $state(Date.now());
 
@@ -65,7 +72,7 @@
 		data-motion={reducedMotion ? "reduced" : "smooth"}
 		data-urgent={remainingFraction <= URGENT_FRACTION}
 	>
-		<span class="visually-hidden" role="status">{sourceLabels[timer.source]()}</span>
+		<span class="visually-hidden" role="status">{statusLabel}</span>
 
 		{#if action || debugKinds}
 			<div class="fuse-controls">

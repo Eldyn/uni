@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "Рейтинг",
 	"game_fuse_window": "Окно ответа",
 	"game_fuse_prompt": "На выбор отведено время",
+	"game_fuse_prompt_observer": "Ожидание выбора игрока",
 	"game_fuse_ready": "Ожидание загрузки игроков",
 	"game_fuse_turn": "Время хода",
 	"game_fuse_draw": "Взять",

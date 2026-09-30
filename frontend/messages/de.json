@@ -296,6 +296,7 @@
 	"game_hud_ranked_badge": "Rangliste",
 	"game_fuse_window": "Antwortfenster",
 	"game_fuse_prompt": "Deine Wahl läuft auf Zeit",
+	"game_fuse_prompt_observer": "Warten auf die Wahl eines Spielers",
 	"game_fuse_ready": "Warten, bis alle Spieler geladen sind",
 	"game_fuse_turn": "Zugzeit",
 	"game_fuse_draw": "Ziehen",

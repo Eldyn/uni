@@ -310,6 +310,37 @@ describe("FuseLine", () => {
 			).toBe("true");
 		});
 
+		it("tells observers they wait on another player's choice", () => {
+			snapshot({
+				server_now_ms: 900_000,
+				prompt_wait: { deadline_ms: 900_000 + 5000, duration_ms: 9000 }
+			});
+			const { container } = render(FuseLine);
+
+			expect(container.querySelector('[data-source="prompt"]')).not.toBeNull();
+			expect(container.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+				"Waiting for a player's choice"
+			);
+		});
+
+		it("keeps the own-choice label for the prompt owner", () => {
+			handler("match_event")(
+				frame(1, "prompt_open", {
+					prompt_id: "p",
+					kind: "k",
+					payload: {},
+					response_schema: {},
+					duration_ms: 8000,
+					deadline_ms: 0
+				})
+			);
+			const { container } = render(FuseLine);
+
+			expect(container.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+				"Your choice is on a timer"
+			);
+		});
+
 		it("names each audited timer", () => {
 			snapshot({ turn_deadline_ms: NOW + 10_000 });
 			const { container } = render(FuseLine);
