@@ -305,7 +305,11 @@ components:
               deadlines are measured on (`turn_deadline_ms`, `window.deadline_ms`,
               `prompts[].deadline_ms`); `window` has the `WindowOpenPayload`
               shape plus `responses`, and `prompts[]` the `PromptOpenPayload`
-              shape (with `duration_ms`).
+              shape (with `duration_ms`). `prompt_wait` ({deadline_ms,
+              duration_ms}, same absolute convention as `prompts[]`) is sent to
+              EVERY viewer while any prompt is pending and carries only the
+              clock, never the payload or target; it is omitted when no
+              prompt is pending. Observers draw the wait from it.
           action_required:
             type: integer
             description: >

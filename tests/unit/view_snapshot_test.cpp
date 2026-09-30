@@ -985,3 +985,53 @@ TEST_CASE("view prompt: prompt_open carries the enforced clock length") {
     CHECK((*open)["payload"]["duration_ms"] == 15000);
     CHECK((*open)["payload"]["deadline_ms"] == 0);
 }
+
+TEST_CASE("view snapshot: prompt_wait exposes only the pending prompt clock") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    clock.now = 1000;
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 4; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, content.classic, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    MatchInstance engine(std::move(result.assembly), FixedWindow(1000),
+                         clock.Fn());
+    ViewBuilder builder(engine, content.mods);
+
+    EventSink idle_sink;
+    const json idle =
+        builder.BuildSnapshot(Viewer::Player("player1"), idle_sink);
+    CHECK_FALSE(idle["match_state"].contains("prompt_wait"));
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    REQUIRE_FALSE(wilds.empty());
+    ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
+    REQUIRE(engine.PlayCard("player0", wilds[0]));
+    REQUIRE(engine.PendingInput().has_value());
+    engine.SyncClocks(15000);
+
+    const json expected = {{"deadline_ms", 16000}, {"duration_ms", 15000}};
+    const Viewer viewers[] = {Viewer::Player("player0"),
+                              Viewer::Player("player1"),
+                              Viewer::Spectator()};
+    for (const Viewer& viewer : viewers) {
+        EventSink sink;
+        const json state =
+            builder.BuildSnapshot(viewer, sink)["match_state"];
+        REQUIRE(state.contains("prompt_wait"));
+        CHECK(state["prompt_wait"] == expected);
+    }
+
+    EventSink other_sink;
+    const json other =
+        builder.BuildSnapshot(Viewer::Player("player1"), other_sink);
+    CHECK(other["match_state"]["prompts"].empty());
+}

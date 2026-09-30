@@ -588,6 +588,20 @@ json BuildPrompts(const match::engine::MatchInstance& match,
     return out;
 }
 
+/**
+ * @brief The pending prompt's clock, visible to every viewer.
+ *
+ * Only the timer (same absolute convention as `prompts[]`), never the payload
+ * or the target, so observers can see a wait they cannot answer. Null when no
+ * prompt is pending.
+ */
+json BuildPromptWait(const match::engine::MatchInstance& match) {
+    const std::optional<json> pending = match.PendingInput();
+    if (!pending.has_value() || !pending->is_object()) return json();
+    return json{{"deadline_ms", pending->value("deadline_ms", int64_t{0})},
+                {"duration_ms", pending->value("duration_ms", int64_t{0})}};
+}
+
 }  // namespace
 
 ViewBuilder::ViewBuilder(
@@ -749,6 +763,9 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         BuildPile(match, viewer, registries.discard_pile, viewer_entity, true);
     state["window"] = BuildWindow(match);
     state["prompts"] = BuildPrompts(match, viewer);
+    if (json prompt_wait = BuildPromptWait(match); !prompt_wait.is_null()) {
+        state["prompt_wait"] = std::move(prompt_wait);
+    }
     // INFO: lobby-owned total; the client HUD reads the per-player counts off
     //       `players[]` for the POV-aware eye count.
     state["spectator_count"] = options.spectator_count;
