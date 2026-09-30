@@ -2,9 +2,16 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { flushSync } from "svelte";
 import MockThrelte from "./MockThrelte.svelte";
 import MockThrelteMesh from "./MockThrelteMesh.svelte";
+import MockThrelteGroup from "./MockThrelteGroup.svelte";
 
 vi.mock("@threlte/core", () => ({
-	T: new Proxy({}, { get: (_, key) => (key === "Mesh" ? MockThrelteMesh : MockThrelte) }),
+	T: new Proxy(
+		{},
+		{
+			get: (_, key) =>
+				key === "Mesh" ? MockThrelteMesh : key === "Group" ? MockThrelteGroup : MockThrelte
+		}
+	),
 	useTask: vi.fn(),
 	useThrelte: () => ({ invalidate: vi.fn() })
 }));
@@ -19,7 +26,7 @@ import DirectionRing3D from "$components/game/three/DirectionRing3D.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
 
-const mat = { size: [16, 9] } as never;
+const mat = { size: [16, 9], offsetX: 0, offsetZ: 0, quarterTurn: false } as never;
 
 describe("DirectionRing3D", () => {
 	beforeEach(() => {
@@ -37,6 +44,17 @@ describe("DirectionRing3D", () => {
 		render(DirectionRing3D, { props: { mat } });
 		flushSync();
 		expect(screen.getByTestId("direction-ring")).toBeTruthy();
+	});
+
+	it("follows the mat's offset and quarter turn like the felt", () => {
+		const offsetMat = { size: [16, 9], offsetX: -2.5, offsetZ: 1.25, quarterTurn: true } as never;
+		render(DirectionRing3D, { props: { mat: offsetMat } });
+		flushSync();
+		const frame = screen.getByTestId("direction-ring-frame");
+		expect(frame.dataset.x).toBe("-2.5");
+		expect(frame.dataset.z).toBe("1.25");
+		expect(Number(frame.dataset.rotationY)).toBeCloseTo(Math.PI / 2);
+		expect(frame.contains(screen.getByTestId("direction-ring"))).toBe(true);
 	});
 
 	it("does not tween under reduced motion", () => {

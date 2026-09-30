@@ -132,21 +132,28 @@
 </script>
 
 {#if texture}
-	<T.Mesh
-		position.y={RING_Y}
-		rotation={[-Math.PI / 2, 0, spin]}
-		scale.x={mirror}
-		data-testid="direction-ring"
+	<T.Group
+		position.x={mat.offsetX}
+		position.z={mat.offsetZ}
+		rotation.y={mat.quarterTurn ? Math.PI / 2 : 0}
+		data-testid="direction-ring-frame"
 	>
-		<T.PlaneGeometry args={[ringSize, ringSize]} />
-		<T.MeshBasicMaterial
-			map={texture}
-			color={RING_TINT}
-			transparent
-			{opacity}
-			side={DoubleSide}
-			depthWrite={false}
-			toneMapped={false}
-		/>
-	</T.Mesh>
+		<T.Mesh
+			position.y={RING_Y}
+			rotation={[-Math.PI / 2, 0, spin]}
+			scale.x={mirror}
+			data-testid="direction-ring"
+		>
+			<T.PlaneGeometry args={[ringSize, ringSize]} />
+			<T.MeshBasicMaterial
+				map={texture}
+				color={RING_TINT}
+				transparent
+				{opacity}
+				side={DoubleSide}
+				depthWrite={false}
+				toneMapped={false}
+			/>
+		</T.Mesh>
+	</T.Group>
 {/if}
