@@ -198,7 +198,8 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         //       engine event; the turn driver then waits for every seated
         //       client to report loaded.
         active_lobby->session->EmitMatchStart(broadcaster_);
-        active_lobby->session->BeginReadyBarrier(broadcaster_);
+        active_lobby->session->BeginReadyBarrier(broadcaster_,
+                                                    kReadyBarrierTimeoutMs);
         const uint32_t lobby_id = active_lobby->id;
         timer_service_.Schedule("ready_" + std::to_string(lobby_id),
                                 kReadyBarrierTimeoutMs, false, [this, lobby_id]() {

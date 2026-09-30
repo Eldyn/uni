@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -296,8 +297,10 @@ public:
      * player count (bots included, spectators excluded).
      *
      * @param broadcaster Transport sink for `SendJson`.
+     * @param timeout_ms Barrier timeout the controller arms; `players_ready`
+     *        reports what is left of it (0 = none, field omitted).
      */
-    void BeginReadyBarrier(IBroadcaster& broadcaster);
+    void BeginReadyBarrier(IBroadcaster& broadcaster, int64_t timeout_ms = 0);
 
     /**
      * @brief Mark a seated player's client as loaded.
@@ -423,6 +426,9 @@ private:
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
     /** Load barrier: seats pending the client's ready report. */
     ReadyBarrier ready_barrier_;
+    /** Barrier timeout armed by the controller (0 = none) and its start. */
+    int64_t barrier_timeout_ms_ = 0;
+    std::chrono::steady_clock::time_point barrier_armed_at_{};
     std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
     /** `defs` + `match_start` already emitted for the seated recipients. */

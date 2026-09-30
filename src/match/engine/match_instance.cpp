@@ -204,6 +204,7 @@ void MatchInstance::SyncClocks(int64_t duration_ms) {
 
     if (pending_input_.has_value() && pending_input_->deadline_ms == 0) {
         pending_input_->deadline_ms = clock.Now() + duration_ms;
+        pending_input_->duration_ms = duration_ms;
     }
 }
 
@@ -944,10 +945,15 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
         store, match, current.value_or(ecs::Entity{}), duration_override);
     window->opened_ms = Now();
     window->hold_ms = std::min(hold.value_or(0), duration.duration_ms);
+    window->duration_ms = duration.duration_ms;
 
     json responders = json::array();
     for (ecs::Entity responder : window->responders) {
         responders.push_back(PlayerUsername(store, responder));
+    }
+    json kinds = json::array();
+    for (std::size_t member = 0; member < pause.MemberCount(); ++member) {
+        kinds.push_back(pause.Member(member).request.kind);
     }
     json body = json{{"id", window->window_id},
                      {"node", pause.request.node_id},
@@ -957,7 +963,9 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
                      {"filter_digest", window->filter_digest},
                      {"deadline_ms", window->deadline_ms},
                      {"duration_ms", duration.duration_ms},
-                     {"kind", window->kind}};
+                     {"kind", window->kind},
+                     {"kinds", std::move(kinds)}};
+    if (window->hold_ms > 0) body["hold_ms"] = window->hold_ms;
     // INFO: park before dispatching `window_open` so a hook that pauses cannot
     //       recursively open a second window from the same pause.
     pending_window_ = std::move(pause);
@@ -1560,15 +1568,25 @@ nlohmann::json MatchInstance::ExportWindow() const {
         responses.push_back(std::move(entry));
     }
 
-    return json{{"open", window->open},
-                {"id", window->window_id},
-                {"responders", std::move(responders)},
-                {"default_route", window->default_route},
-                {"filter_digest", window->filter_digest},
-                {"kind", window->kind},
-                {"deadline_ms", window->deadline_ms},
-                {"respond_with", pending_window_->request.respond_with},
-                {"responses", std::move(responses)}};
+    json kinds = json::array();
+    for (std::size_t member = 0; member < pending_window_->MemberCount();
+         ++member) {
+        kinds.push_back(pending_window_->Member(member).request.kind);
+    }
+    json exported = json{{"open", window->open},
+                         {"id", window->window_id},
+                         {"responders", std::move(responders)},
+                         {"default_route", window->default_route},
+                         {"filter_digest", window->filter_digest},
+                         {"kind", window->kind},
+                         {"kinds", std::move(kinds)},
+                         {"deadline_ms", window->deadline_ms},
+                         {"duration_ms", window->duration_ms},
+                         {"respond_with",
+                          pending_window_->request.respond_with},
+                         {"responses", std::move(responses)}};
+    if (window->hold_ms > 0) exported["hold_ms"] = window->hold_ms;
+    return exported;
 }
 
 // --- the engine hook / resolver path
@@ -2323,7 +2341,8 @@ std::optional<nlohmann::json> MatchInstance::PendingInput() const {
     return json{{"kind", pending_input_->kind},
                 {"target", EntityJson(pending_input_->target)},
                 {"payload", pending_input_->payload},
-                {"deadline_ms", pending_input_->deadline_ms}};
+                {"deadline_ms", pending_input_->deadline_ms},
+                {"duration_ms", pending_input_->duration_ms}};
 }
 
 std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {

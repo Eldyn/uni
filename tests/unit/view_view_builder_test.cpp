@@ -300,6 +300,34 @@ TEST_CASE("view filter: hidden statuses are owner only") {
               .has_value());
 }
 
+TEST_CASE("view filter: window_open projects kinds and hold_ms") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json merged =
+        json{{"type", "window_open"},
+             {"payload", json{{"id", 3},
+                              {"duration_ms", 7000},
+                              {"hold_ms", 800},
+                              {"kind", "jump_in"},
+                              {"kinds", json::array({"jump_in", "generic"})}}}};
+    const json out =
+        (*WrapOne(builder, Viewer::Spectator(), merged))["payload"];
+    CHECK(out["kinds"] == json::array({"jump_in", "generic"}));
+    CHECK(out["kind"] == "jump_in");
+    CHECK(out["hold_ms"] == 800);
+    CHECK(out["duration_ms"] == 7000);
+
+    const json bare = json{{"type", "window_open"},
+                           {"payload", json{{"id", 4}, {"deadline_ms", 5}}}};
+    const json plain =
+        (*WrapOne(builder, Viewer::Spectator(), bare))["payload"];
+    CHECK(plain["kinds"] == json::array({"generic"}));
+    CHECK_FALSE(plain.contains("hold_ms"));
+}
+
 TEST_CASE("view filter: window packets are uniform and public") {
     Content content;
     REQUIRE(LoadContent(content));

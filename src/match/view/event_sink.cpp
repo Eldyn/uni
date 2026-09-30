@@ -116,7 +116,18 @@ json ProjectWindowOpen(const json& payload) {
                             : json::array();
     out["eligible_filter_digest"] = payload.value("filter_digest", "");
     out["window_id"] = std::to_string(payload.value("id", 0));
-    out["kind"] = payload.value("kind", std::string("generic"));
+    const std::string kind = payload.value("kind", std::string("generic"));
+    out["kind"] = kind;
+    // INFO: `kinds` lists every member's kind in member order; a bare packet
+    //       (replay, older engine) is a single-member group.
+    out["kinds"] = payload.contains("kinds") && payload["kinds"].is_array()
+                       ? payload["kinds"]
+                       : json::array({kind});
+    out["duration_ms"] = payload.value(
+        "duration_ms", out["deadline_ms"].get<int64_t>());
+    if (payload.value("hold_ms", int64_t{0}) > 0) {
+        out["hold_ms"] = payload["hold_ms"];
+    }
     return out;
 }
 

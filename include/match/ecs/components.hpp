@@ -344,6 +344,7 @@ struct WindowState {
     int64_t opened_ms = 0;  /**< absolute epoch ms the group opened. */
     /** @brief Hold: the jump_in members' duration; 0 = no hold. */
     int64_t hold_ms = 0;
+    int64_t duration_ms = 0;  /**< group length armed at open. */
     std::vector<WindowResponse> responses;
 };
 

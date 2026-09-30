@@ -407,6 +407,7 @@ private:
         bool settle_play = false;           /**< settle the play on resume. */
         ecs::Entity actor{};                /**< play actor to settle. */
         int64_t deadline_ms = 0;            /**< absolute epoch ms; 0 = unarmed. */
+        int64_t duration_ms = 0;            /**< armed clock length. */
     };
 
     /**

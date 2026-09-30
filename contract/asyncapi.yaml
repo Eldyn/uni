@@ -301,6 +301,11 @@ components:
             description: >
               Opaque per-player serialized match state produced by
               MatchInstance::SerializePlayerState(). Structure owned by the match engine.
+              Timer fields: `server_now_ms` is the server clock the absolute
+              deadlines are measured on (`turn_deadline_ms`, `window.deadline_ms`,
+              `prompts[].deadline_ms`); `window` has the `WindowOpenPayload`
+              shape plus `responses`, and `prompts[]` the `PromptOpenPayload`
+              shape (with `duration_ms`).
           action_required:
             type: integer
             description: >
@@ -1145,6 +1150,12 @@ components:
       properties:
         ready: { type: integer, minimum: 0 }
         total: { type: integer, minimum: 0 }
+        timeout_ms:
+          type: integer
+          minimum: 0
+          description: >
+            Milliseconds left before the server opens the barrier regardless
+            of stragglers. Omitted when no timeout is armed.
 
     MatchBeginPayload:
       type: object
@@ -1262,10 +1273,39 @@ components:
             Presentation tag declared by the window node (for example
             `jump_in`); `generic` when the node declares none. Identical for
             every viewer, spectators included. The snapshot's `window` object
-            in `match_state` carries the same field.
+            in `match_state` carries the same field. Equals `kinds[0]`.
+        kinds:
+          type: array
+          description: >
+            Kind of every member of the merged window group, in member order
+            (`kind` is the first). A single window is `["generic"]` or its own
+            kind. Identical for every viewer. The snapshot's `window` object
+            carries the same field.
+          items:
+            type: string
+            pattern: "^[a-z0-9_:.-]{1,32}$"
+        hold_ms:
+          type: integer
+          minimum: 0
+          description: >
+            Length of the group's hold in ms, measured from the open (the fuse
+            line's hold segment). While it runs only the debt victim may pass,
+            and only by drawing. Omitted (or 0) when the group has no hold.
+            Also carried by the snapshot's `window` object.
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: >
+            Total length of the group's clock in ms. In `window_open` it
+            equals `deadline_ms`; the snapshot's `window` object carries it
+            too because there `deadline_ms` is absolute.
         deadline_ms:
           type: integer
           minimum: 0
+          description: >
+            In the `window_open` packet: ms REMAINING at the open. In the
+            snapshot's `window` object: ABSOLUTE epoch ms on the server clock
+            (`match_state.server_now_ms`).
         responders:
           type: array
           items:
@@ -1318,6 +1358,15 @@ components:
       x-packet-version: "1"
       required: [prompt_id, kind, payload, response_schema, deadline_ms]
       properties:
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: >
+            Length of the prompt's clock in ms, present in the snapshot's
+            `prompts` entries (armed by the server). There `deadline_ms` is
+            ABSOLUTE epoch ms on the server clock; on the `prompt_open` packet
+            `deadline_ms` is the op's declared timeout and `duration_ms` is
+            absent, so the snapshot that follows is authoritative.
         prompt_id:
           type: string
         kind:

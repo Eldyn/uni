@@ -8,6 +8,8 @@
 #include <logger.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <chrono>
 #include <optional>
 #include <set>
 #include <string>
@@ -315,11 +317,21 @@ void MatchSession::BroadcastBarrierPacket(IBroadcaster& broadcaster,
 }
 
 json MatchSession::ReadyProgressPayload() const {
-    return json{{"ready", ready_barrier_.Ready()},
-                {"total", ready_barrier_.Total()}};
+    json payload = json{{"ready", ready_barrier_.Ready()},
+                        {"total", ready_barrier_.Total()}};
+    if (barrier_timeout_ms_ > 0) {
+        const int64_t elapsed_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - barrier_armed_at_)
+                .count();
+        payload["timeout_ms"] =
+            std::max<int64_t>(0, barrier_timeout_ms_ - elapsed_ms);
+    }
+    return payload;
 }
 
-void MatchSession::BeginReadyBarrier(IBroadcaster& broadcaster) {
+void MatchSession::BeginReadyBarrier(IBroadcaster& broadcaster,
+                                     int64_t timeout_ms) {
     // INFO: only seats holding a live socket at start have a client to wait
     //       for; bots and already-disconnected humans count as ready.
     std::vector<std::string> pending;
@@ -329,6 +341,8 @@ void MatchSession::BeginReadyBarrier(IBroadcaster& broadcaster) {
     // INFO: `Registries().players` is the seated roster the view layer
     //       iterates; it includes bots and excludes spectators.
     ready_barrier_.Arm(pending, engine_->Registries().players.size());
+    barrier_timeout_ms_ = timeout_ms;
+    barrier_armed_at_ = std::chrono::steady_clock::now();
     BroadcastBarrierPacket(broadcaster, "players_ready", ReadyProgressPayload());
 }
 

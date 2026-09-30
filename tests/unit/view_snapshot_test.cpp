@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -701,4 +702,245 @@ TEST_CASE("view snapshot: seq watermark tracks the viewer stream") {
         builder.BuildSnapshot(Viewer::Player("player0"), sink);
     CHECK(snapshot["match_state"]["seq_watermark"] == sink.NextSeq());
     CHECK(sink.NextSeq() == 2u);
+}
+
+namespace {
+
+/** @brief A card matching `color` + `label` other than `excluded`. */
+std::optional<ecs::Entity> FindOtherCard(MatchInstance& engine,
+                                         const std::string& color,
+                                         const std::string& label,
+                                         ecs::Entity excluded) {
+    for (ecs::Entity card : engine.Registries().cards) {
+        if (card == excluded) continue;
+        const ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card);
+        if (face != nullptr && face->color == color && face->label == label) {
+            return card;
+        }
+    }
+    return std::nullopt;
+}
+
+constexpr int64_t kGroupWindowMs = 7000;
+constexpr int64_t kGroupHoldMs = 800;
+
+/** @brief Three seats with a jump_in + draw_stacking group just opened. */
+std::unique_ptr<MatchInstance> OpenMergedGroup(
+    Content& content, const std::vector<std::string>& mods,
+    FakeClock& clock) {
+    DeckDef deck = content.classic;
+    deck.mods = mods;
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 3; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, deck, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    std::unique_ptr<MatchInstance> engine = std::make_unique<MatchInstance>(
+        std::move(result.assembly), FixedWindow(kGroupWindowMs), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    REQUIRE(draw2.has_value());
+    const std::optional<ecs::Entity> twin =
+        FindOtherCard(*engine, "red", "+2", *draw2);
+    REQUIRE(twin.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    ForceHand(*engine, *engine->FindPlayer("player2"), {*twin});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    return engine;
+}
+
+/** @brief The first packet of `type` a viewer's stream carries, or null. */
+json PacketOfType(const ViewBuilder& builder, const Viewer& viewer,
+                  const std::string& type) {
+    for (const json& packet : builder.BuildPackets(viewer)) {
+        if (packet.value("type", std::string()) == type) return packet;
+    }
+    return json(nullptr);
+}
+
+const std::vector<std::string> kGroupMods = {"vanilla", "jump_in",
+                                             "draw_stacking"};
+
+}  // namespace
+
+TEST_CASE("view window: a merged group exposes kinds and hold live") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        OpenMergedGroup(content, kGroupMods, clock);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json open =
+        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+    REQUIRE_FALSE(open.is_null());
+    const json& payload = open["payload"];
+    REQUIRE(payload["kinds"].is_array());
+    REQUIRE(payload["kinds"].size() == 2u);
+    CHECK(payload["kind"] == payload["kinds"][0]);
+    std::vector<std::string> sorted = {payload["kinds"][0].get<std::string>(),
+                                       payload["kinds"][1].get<std::string>()};
+    std::sort(sorted.begin(), sorted.end());
+    CHECK(sorted == std::vector<std::string>{"generic", "jump_in"});
+    CHECK(payload["hold_ms"] == kGroupHoldMs);
+    CHECK(payload["duration_ms"] == kGroupWindowMs);
+    CHECK(payload["deadline_ms"] == kGroupWindowMs);
+}
+
+TEST_CASE("view window: kinds follow member order, kind stays the first") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    const std::vector<std::vector<std::string>> load_orders = {
+        {"vanilla", "jump_in", "draw_stacking"},
+        {"vanilla", "draw_stacking", "jump_in"}};
+    for (const std::vector<std::string>& mods : load_orders) {
+        FakeClock clock;
+        std::unique_ptr<MatchInstance> engine =
+            OpenMergedGroup(content, mods, clock);
+        ViewBuilder builder(*engine, content.mods);
+        const json open =
+            PacketOfType(builder, Viewer::Player("player0"), "window_open");
+        REQUIRE_FALSE(open.is_null());
+        const json members = engine->ExportWindow()["kinds"];
+        CHECK(open["payload"]["kinds"] == members);
+        CHECK(open["payload"]["kind"] == members[0]);
+    }
+}
+
+TEST_CASE("view window: viewers and spectators see the same group") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        OpenMergedGroup(content, kGroupMods, clock);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json base =
+        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+    REQUIRE_FALSE(base.is_null());
+    for (const Viewer& viewer :
+         {Viewer::Player("player1"), Viewer::Player("player2"),
+          Viewer::Spectator()}) {
+        CHECK(PacketOfType(builder, viewer, "window_open")["payload"]
+              == base["payload"]);
+        EventSink sink;
+        const json window =
+            builder.BuildSnapshot(viewer, sink)["match_state"]["window"];
+        CHECK(window["kinds"] == base["payload"]["kinds"]);
+        CHECK(window["hold_ms"] == base["payload"]["hold_ms"]);
+    }
+}
+
+TEST_CASE("view window: the snapshot mid-group equals the live payload") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        OpenMergedGroup(content, kGroupMods, clock);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json live =
+        PacketOfType(builder, Viewer::Player("player1"), "window_open")
+            ["payload"];
+    clock.now = 300;
+    EventSink sink;
+    const json window = builder.BuildSnapshot(Viewer::Player("player1"), sink)
+                            ["match_state"]["window"];
+    REQUIRE_FALSE(window.is_null());
+    for (const char* field :
+         {"window_id", "kind", "kinds", "hold_ms", "duration_ms", "responders",
+          "eligible_filter_digest"}) {
+        CHECK_MESSAGE(window[field] == live[field], field);
+    }
+    // INFO: the snapshot deadline is absolute; the live one is remaining.
+    CHECK(window["deadline_ms"] == kGroupWindowMs);
+    CHECK(live["deadline_ms"] == kGroupWindowMs);
+}
+
+TEST_CASE("view window: a single generic window has no hold") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeWindowEngine(content);
+    ViewBuilder builder(*engine, content.mods);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    REQUIRE(draw2.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+
+    const json open =
+        PacketOfType(builder, Viewer::Spectator(), "window_open");
+    REQUIRE_FALSE(open.is_null());
+    CHECK(open["payload"]["kinds"] == json::array({"generic"}));
+    CHECK_FALSE(open["payload"].contains("hold_ms"));
+    EventSink sink;
+    const json window = builder.BuildSnapshot(Viewer::Spectator(), sink)
+                            ["match_state"]["window"];
+    CHECK(window["kinds"] == json::array({"generic"}));
+    CHECK_FALSE(window.contains("hold_ms"));
+    CHECK(window["duration_ms"] == 1000);
+}
+
+TEST_CASE("view snapshot: server_now_ms carries the engine clock") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    clock.now = 4242;
+    std::unique_ptr<MatchInstance> engine =
+        OpenMergedGroup(content, kGroupMods, clock);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+    const json snapshot =
+        builder.BuildSnapshot(Viewer::Player("player0"), sink);
+    CHECK(snapshot["match_state"]["server_now_ms"] == 4242);
+}
+
+TEST_CASE("view snapshot: an armed prompt reports its clock length") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    clock.now = 1000;
+    DeckDef deck = content.classic;
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 4; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, deck, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    MatchInstance engine(std::move(result.assembly), FixedWindow(1000),
+                         clock.Fn());
+    ViewBuilder builder(engine, content.mods);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    REQUIRE_FALSE(wilds.empty());
+    ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
+    REQUIRE(engine.PlayCard("player0", wilds[0]));
+    REQUIRE(engine.PendingInput().has_value());
+    engine.SyncClocks(15000);
+
+    EventSink sink;
+    const json prompt =
+        builder.BuildSnapshot(Viewer::Player("player0"), sink)["match_state"]
+                                                              ["prompts"][0];
+    CHECK(prompt["deadline_ms"] == 16000);
+    CHECK(prompt["duration_ms"] == 15000);
 }

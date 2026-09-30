@@ -547,13 +547,20 @@ json BuildWindow(const match::engine::MatchInstance& match) {
             responses.push_back(std::move(entry));
         }
     }
-    return json{{"window_id", std::to_string(window.value("id", 0))},
-                {"deadline_ms", window.value("deadline_ms", 0)},
-                {"responders", window.value("responders", json::array())},
-                {"eligible_filter_digest",
-                 window.value("filter_digest", std::string())},
-                {"kind", window.value("kind", std::string("generic"))},
-                {"responses", std::move(responses)}};
+    json out =
+        json{{"window_id", std::to_string(window.value("id", 0))},
+             {"deadline_ms", window.value("deadline_ms", 0)},
+             {"duration_ms", window.value("duration_ms", 0)},
+             {"responders", window.value("responders", json::array())},
+             {"eligible_filter_digest",
+              window.value("filter_digest", std::string())},
+             {"kind", window.value("kind", std::string("generic"))},
+             {"kinds", window.value("kinds", json::array({"generic"}))},
+             {"responses", std::move(responses)}};
+    if (window.value("hold_ms", int64_t{0}) > 0) {
+        out["hold_ms"] = window["hold_ms"];
+    }
+    return out;
 }
 
 /** @brief The viewer's own open op-input prompt, if any (target only). */
@@ -576,6 +583,7 @@ json BuildPrompts(const match::engine::MatchInstance& match,
             ? body["response_schema"]
             : json::object();
     prompt["deadline_ms"] = pending->value("deadline_ms", int64_t{0});
+    prompt["duration_ms"] = pending->value("duration_ms", int64_t{0});
     out.push_back(std::move(prompt));
     return out;
 }
@@ -707,6 +715,9 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         }
     }
     state["turn_deadline_ms"] = turn_deadline_ms;
+    // INFO: the engine clock the absolute deadlines are measured on, so a
+    //       client can correct its own clock skew.
+    state["server_now_ms"] = match.Timers().Turn().Now();
 
     // INFO: The outstanding draw-stacking debt; one seat holds it
     //       at a time, the client renders it as the "+N" stack indicator.

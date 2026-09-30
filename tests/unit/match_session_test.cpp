@@ -837,3 +837,40 @@ TEST_CASE("MatchSession ready barrier: snapshot after open carries match_begin")
     CHECK(EventsOfType(broadcaster, PlayerSocket(1), "match_begin").size() == 1);
 }
 
+
+TEST_CASE("MatchSession ready barrier: players_ready reports the time left") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster, 15000);
+
+    const std::vector<json> begun =
+        EventsOfType(broadcaster, PlayerSocket(1), "players_ready");
+    REQUIRE(begun.size() == 1);
+    CHECK(begun[0]["payload"]["timeout_ms"].get<int64_t>() <= 15000);
+    CHECK(begun[0]["payload"]["timeout_ms"].get<int64_t>() > 14000);
+
+    broadcaster.Clear();
+    session.SendSnapshot(broadcaster, PlayerSocket(1), "player0", false);
+    const std::vector<json> resent =
+        EventsOfType(broadcaster, PlayerSocket(1), "players_ready");
+    REQUIRE(resent.size() == 1);
+    CHECK(resent[0]["payload"]["timeout_ms"].get<int64_t>() > 0);
+}
+
+TEST_CASE("MatchSession ready barrier: no timeout omits timeout_ms") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    match::server::MatchSession session(
+        MakeEngine(content, 2, 1), content.mods,
+        {{"player0", PlayerSocket(1)}, {"player1", PlayerSocket(2)}});
+    FakeBroadcaster broadcaster;
+    session.BeginReadyBarrier(broadcaster);
+    const std::vector<json> packets =
+        EventsOfType(broadcaster, PlayerSocket(1), "players_ready");
+    REQUIRE(packets.size() == 1);
+    CHECK_FALSE(packets[0]["payload"].contains("timeout_ms"));
+}
