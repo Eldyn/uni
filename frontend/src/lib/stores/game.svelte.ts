@@ -1066,12 +1066,15 @@ class StoreGame implements SessionStore {
 	 *
 	 * A held group (it has a hold) offers only the debt victim a draw, enabled
 	 * once the hold has elapsed; a group without a hold keeps the legacy pass
-	 * for every responder.
+	 * for every responder, labelled draw for the debt victim (passing draws
+	 * the whole debt).
 	 */
 	windowActionState(now: number): WindowAction | null {
 		const window = this.activeWindow;
 		if (window === null || !this.isWindowResponder) return null;
-		if (window.holdMs === 0) return { kind: "pass", enabled: true };
+		if (window.holdMs === 0) {
+			return { kind: this.isDebtVictim ? "draw" : "pass", enabled: true };
+		}
 		if (!this.isDebtVictim) return null;
 		const holdEndsAt = window.deadlineAt - window.durationMs + window.holdMs;
 		return { kind: "draw", enabled: now >= holdEndsAt };

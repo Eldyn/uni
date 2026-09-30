@@ -461,6 +461,22 @@ describe("storeGame windowActionState", () => {
 		expect(storeGame.windowActionState(NOW)).toEqual({ kind: "pass", enabled: true });
 	});
 
+	it("labels a hold-less window action draw for the debt victim", () => {
+		snapshot({}, [DEBT_STATUS]);
+		handler("match_event")(
+			frame(1, "window_open", {
+				window_id: "3",
+				kinds: ["draw_stacking"],
+				duration_ms: 5000,
+				deadline_ms: 5000,
+				responders: ["alice", "carol"],
+				eligible_filter_digest: "d"
+			})
+		);
+
+		expect(storeGame.windowActionState(NOW)).toEqual({ kind: "draw", enabled: true });
+	});
+
 	it("gives spectators no action", () => {
 		snapshot({}, [DEBT_STATUS]);
 		storeAuth.username = "zed";
