@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLogLine } from "../../chat/playLog/logBuilder";
+import { buildLogLine, LOG_RULES } from "../../chat/playLog/logBuilder";
 import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
 
 const streak = (overrides: Partial<StreakInfo> = {}): StreakInfo => ({
@@ -61,5 +61,30 @@ describe("buildLogLine", () => {
 
 	it("returns null for events without a log rule", () => {
 		expect(buildLogLine({ kind: "play", player: "Ann" }, streak())).toBeNull();
+	});
+});
+
+describe("buildLogLine variant selection", () => {
+	it("picks the highest matching minRun regardless of array order", () => {
+		const unsorted = {
+			run: (s: StreakInfo) => s.skipRun,
+			variants: [
+				{ minRun: 3, key: "third" },
+				{ minRun: 1, key: "first" },
+				{ minRun: 2, key: "second" }
+			],
+			params: () => ({})
+		};
+		const original = LOG_RULES.skip;
+		Object.assign(LOG_RULES, { skip: unsorted });
+		try {
+			const line = buildLogLine(
+				{ kind: "skip", player: "Ann" },
+				{ skipRun: 2, reverseRun: 0, stackedDebt: 0 }
+			);
+			expect(line).toMatchObject({ key: "second", tier: 1 });
+		} finally {
+			Object.assign(LOG_RULES, { skip: original });
+		}
 	});
 });

@@ -9,23 +9,18 @@ export const REVERSE_AGAIN_RUN = 3;
 
 type Params = Record<string, string | number>;
 
-export type LogRule = {
+export type LogRule<E extends LogEvent = LogEvent> = {
 	run: (streak: StreakInfo) => number;
 	variants: { minRun: number; key: string }[];
-	params: (event: never) => Params;
+	// INFO: method syntax keeps params bivariant so a narrow rule fits LogRule
+	params(event: E): Params;
 };
 
-type RuleFor<K extends LogEvent["kind"]> = {
-	run: (streak: StreakInfo) => number;
-	variants: { minRun: number; key: string }[];
-	params: (event: Extract<LogEvent, { kind: K }>) => Params;
-};
+type RuleKind = Exclude<LogEvent["kind"], "play">;
 
 const SINGLE_RUN = () => 1;
 
-export const LOG_RULES: {
-	[K in Exclude<LogEvent["kind"], "play">]: RuleFor<K>;
-} = {
+export const LOG_RULES = {
 	skip: {
 		run: (streak) => streak.skipRun,
 		variants: [
@@ -59,20 +54,23 @@ export const LOG_RULES: {
 		variants: [{ minRun: 1, key: "log_wild" }],
 		params: (event) => ({ name: event.player, color: event.color })
 	}
-};
+} satisfies { [K in RuleKind]: LogRule<Extract<LogEvent, { kind: K }>> };
+
+const RULES_BY_KIND: Partial<Record<string, LogRule>> = LOG_RULES;
 
 export function buildLogLine(event: LogEvent, streak: StreakInfo): LogLine | null {
-	const rule = (LOG_RULES as Record<string, LogRule | undefined>)[event.kind];
+	const rule = RULES_BY_KIND[event.kind];
 	if (!rule) return null;
 	const run = rule.run(streak);
+	const ascending = [...rule.variants].sort((a, b) => a.minRun - b.minRun);
 	let tier = 0;
-	rule.variants.forEach((variant, index) => {
+	ascending.forEach((variant, index) => {
 		if (run >= variant.minRun) tier = index;
 	});
 	return {
 		kind: "log",
-		key: rule.variants[tier].key,
-		params: rule.params(event as never),
+		key: ascending[tier].key,
+		params: rule.params(event),
 		tier
 	};
 }
