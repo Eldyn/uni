@@ -17,6 +17,8 @@ import { storeSpectator } from "$stores/spectator.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { storeTableSpin } from "$stores/tableSpin.svelte";
+import { storeTurnCue } from "$stores/turnCue.svelte";
+import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { CardBus } from "../card-bus.svelte";
@@ -658,6 +660,13 @@ export function createMatchEventBeatController(deps: {
 	 *  highlight until the marks clear (click-to-skip ends it early). A no-op
 	 *  when animations are disabled, so the turn simply moves on. */
 	function handleTurn(beat: Extract<MatchEventBeat, { kind: "turn" }>): void {
+		const cueFires = shouldFireTurnCue({
+			previousTurn: beat.from || null,
+			currentTurn: beat.to,
+			localPlayerId: storeGame.localPlayer?.username ?? "",
+			isSpectator: storeGame.isSpectator
+		});
+		if (cueFires) storeTurnCue.fire();
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);

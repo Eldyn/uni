@@ -5,6 +5,7 @@ import type { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
+import { storeTurnCue } from "$stores/turnCue.svelte";
 import { storeTurnSkip } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
@@ -677,6 +678,35 @@ describe("createMatchEventBeatController", () => {
 		storeTurnSkip.finish();
 		expect(storeTurnSkip.marks).toEqual([]);
 		expect(storeTurnSkip.presentingTurn).toBeNull();
+	});
+
+	it("raises the turn cue only when the beat hands the turn to the local player", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		const h = harness();
+		const token = storeTurnCue.token;
+
+		h.fire({
+			seq: 20,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction: 1,
+			deadlineMs: 1,
+			skipped: []
+		});
+		expect(storeTurnCue.token).toBe(token);
+
+		h.fire({
+			seq: 21,
+			kind: "turn",
+			from: "bob",
+			to: "me",
+			direction: 1,
+			deadlineMs: 1,
+			skipped: []
+		});
+		expect(storeTurnCue.token).toBe(token + 1);
 	});
 
 	it("does not present a skip when the turn carries none", () => {

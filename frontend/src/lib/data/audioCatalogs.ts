@@ -72,7 +72,13 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 };
 
 // INFO: All PLACEHOLDER-SFX for now, no real SFX files exist yet.
-export const SFX_CATALOG: Record<string, SfxDef> = {};
+export const SFX_CATALOG: Record<string, SfxDef> = {
+	"sfx.turn.start": {
+		id: "sfx.turn.start",
+		variants: ["PLACEHOLDER-SFX"],
+		minIntervalMs: 300
+	}
+};
 
 // INFO: Plays on every screen except "game", the match itself gets its own
 //       music/atmosphere later; no entry here means resolveMusicForContext()

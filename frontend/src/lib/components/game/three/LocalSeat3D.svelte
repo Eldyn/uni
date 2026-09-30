@@ -7,7 +7,13 @@
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
+	import { onDestroy } from "svelte";
+	import { gsap } from "gsap";
 	import { loadSilhouette } from "./textures";
+	import { turnRimTexture } from "./turnRimTexture";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
+	import { storeTurnCue } from "$stores/turnCue.svelte";
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import SkipMark3D from "./SkipMark3D.svelte";
 
@@ -16,7 +22,8 @@
 		color,
 		placement,
 		avatarPx,
-		dimmed = false
+		dimmed = false,
+		isTurn = false
 	}: {
 		player: GamePlayer;
 		color: string;
@@ -25,6 +32,8 @@
 		avatarPx?: number;
 		/** Darkens the avatar when it isn't this player's turn. */
 		dimmed?: boolean;
+		/** Holds the faint steady rim while it is this player's turn. */
+		isTurn?: boolean;
 	} = $props();
 
 	// Sits below cards (y >= 0) and above playmat/arrows (y <= -0.01)
@@ -33,6 +42,18 @@
 	const FRAME_DURATION = 0.12;
 	// 96 / 68 ratio matches AVATAR_SPRITE_FILL so the figure is LOCAL_AVATAR_WORLD tall
 	const AVATAR_MESH_SIZE = LOCAL_AVATAR_WORLD * (96 / 68);
+
+	const TURN_PULSE_SECONDS = 0.6;
+	const TURN_PULSE_PEAK_OPACITY = 0.95;
+	const TURN_PULSE_PEAK_SCALE = 1.25;
+	const TURN_STEADY_OPACITY = 0.3;
+	const TURN_RIM_SIZE = AVATAR_MESH_SIZE * 1.3;
+
+	const rimTexture = turnRimTexture();
+	let rimOpacity = $state(0);
+	let rimScale = $state(1);
+	let pulseTween: gsap.core.Tween | null = null;
+	let lastCueToken = storeTurnCue.token;
 
 	let avatarTexture = $state<Texture | null>(null);
 	let currentFrame = 0;
@@ -73,6 +94,46 @@
 		LOCAL_AVATAR_WORLD * 0.7,
 		placement.localAvatarZ
 	]);
+	let steadyOpacity = $derived(isTurn ? TURN_STEADY_OPACITY : 0);
+
+	$effect(() => {
+		const token = storeTurnCue.token;
+		if (token === lastCueToken) return;
+		lastCueToken = token;
+		pulseTween?.kill();
+		pulseTween = null;
+		if (!storeAnimation.enabled) return;
+
+		storeAudio.playSfx("sfx.turn.start");
+		const duration = TURN_PULSE_SECONDS / Math.max(0.1, storeAnimation.speedMultiplier);
+		const pulse = { progress: 0 };
+		pulseTween = gsap.to(pulse, {
+			progress: 1,
+			duration,
+			ease: "power2.out",
+			onUpdate: () => {
+				const fade = 1 - pulse.progress;
+				rimOpacity = Math.max(steadyOpacity, TURN_PULSE_PEAK_OPACITY * fade);
+				rimScale = 1 + (TURN_PULSE_PEAK_SCALE - 1) * pulse.progress;
+			},
+			onComplete: () => {
+				pulseTween = null;
+				rimScale = 1;
+			}
+		});
+	});
+
+	$effect(() => {
+		if (pulseTween) return;
+		rimOpacity = steadyOpacity;
+		rimScale = 1;
+	});
+
+	onDestroy(() => {
+		pulseTween?.kill();
+		pulseTween = null;
+	});
+
 	let skipMarkSize = $derived(LOCAL_AVATAR_WORLD * 1.2);
 </script>
 
@@ -89,6 +150,27 @@
 			color={effectiveColor}
 			transparent
 			alphaTest={0.05}
+			depthWrite={false}
+			toneMapped={false}
+		/>
+	</T.Mesh>
+{/if}
+
+{#if rimTexture && rimOpacity > 0.01}
+	<T.Mesh
+		position.x={0}
+		position.y={AVATAR_Y - 0.002}
+		position.z={placement.localAvatarZ}
+		rotation.x={-Math.PI / 2}
+		scale={rimScale}
+		data-testid="turn-rim"
+	>
+		<T.PlaneGeometry args={[TURN_RIM_SIZE, TURN_RIM_SIZE]} />
+		<T.MeshBasicMaterial
+			map={rimTexture}
+			color={baseColor}
+			transparent
+			opacity={rimOpacity}
 			depthWrite={false}
 			toneMapped={false}
 		/>

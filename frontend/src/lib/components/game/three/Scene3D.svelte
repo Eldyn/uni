@@ -257,6 +257,7 @@
 			{placement}
 			avatarPx={localAvatarPx}
 			dimmed={localDimmed}
+			isTurn={isLocalTurn}
 		/>
 	{/if}
 
