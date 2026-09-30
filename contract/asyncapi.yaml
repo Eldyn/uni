@@ -1362,11 +1362,12 @@ components:
           type: integer
           minimum: 0
           description: >
-            Length of the prompt's clock in ms, present in the snapshot's
-            `prompts` entries (armed by the server). There `deadline_ms` is
-            ABSOLUTE epoch ms on the server clock; on the `prompt_open` packet
-            `deadline_ms` is the op's declared timeout and `duration_ms` is
-            absent, so the snapshot that follows is authoritative.
+            Length of the prompt clock the server enforces, in ms. Present on
+            the `prompt_open` packet and on the snapshot's `prompts` entries.
+            On `prompt_open`, `deadline_ms` is only the op's declared timeout
+            (usually 0, and not what is enforced); the snapshot's
+            `deadline_ms` is ABSOLUTE epoch ms on the server clock. Draw the
+            wait from `duration_ms`.
         prompt_id:
           type: string
         kind:

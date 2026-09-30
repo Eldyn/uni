@@ -788,10 +788,7 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     REQUIRE(payload["kinds"].is_array());
     REQUIRE(payload["kinds"].size() == 2u);
     CHECK(payload["kind"] == payload["kinds"][0]);
-    std::vector<std::string> sorted = {payload["kinds"][0].get<std::string>(),
-                                       payload["kinds"][1].get<std::string>()};
-    std::sort(sorted.begin(), sorted.end());
-    CHECK(sorted == std::vector<std::string>{"generic", "jump_in"});
+    CHECK(payload["kinds"] == json::array({"jump_in", "generic"}));
     CHECK(payload["hold_ms"] == kGroupHoldMs);
     CHECK(payload["duration_ms"] == kGroupWindowMs);
     CHECK(payload["deadline_ms"] == kGroupWindowMs);
@@ -800,20 +797,28 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
 TEST_CASE("view window: kinds follow member order, kind stays the first") {
     Content content;
     REQUIRE(LoadContent(content));
-    const std::vector<std::vector<std::string>> load_orders = {
-        {"vanilla", "jump_in", "draw_stacking"},
-        {"vanilla", "draw_stacking", "jump_in"}};
-    for (const std::vector<std::string>& mods : load_orders) {
+    struct Order {
+        std::vector<std::string> mods;
+        json kinds;
+    };
+    const std::vector<Order> orders = {
+        {{"vanilla", "jump_in", "draw_stacking"},
+         json::array({"jump_in", "generic"})},
+        {{"vanilla", "draw_stacking", "jump_in"},
+         json::array({"generic", "jump_in"})}};
+    for (const Order& order : orders) {
         FakeClock clock;
         std::unique_ptr<MatchInstance> engine =
-            OpenMergedGroup(content, mods, clock);
+            OpenMergedGroup(content, order.mods, clock);
         ViewBuilder builder(*engine, content.mods);
         const json open =
             PacketOfType(builder, Viewer::Player("player0"), "window_open");
         REQUIRE_FALSE(open.is_null());
-        const json members = engine->ExportWindow()["kinds"];
-        CHECK(open["payload"]["kinds"] == members);
-        CHECK(open["payload"]["kind"] == members[0]);
+        CHECK(open["payload"]["kinds"] == order.kinds);
+        CHECK(open["payload"]["kind"] == order.kinds[0]);
+        EventSink sink;
+        CHECK(builder.BuildSnapshot(Viewer::Spectator(), sink)["match_state"]
+                                  ["window"]["kinds"] == order.kinds);
     }
 }
 
@@ -943,4 +948,40 @@ TEST_CASE("view snapshot: an armed prompt reports its clock length") {
                                                               ["prompts"][0];
     CHECK(prompt["deadline_ms"] == 16000);
     CHECK(prompt["duration_ms"] == 15000);
+}
+
+TEST_CASE("view prompt: prompt_open carries the enforced clock length") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    clock.now = 1000;
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 4; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, content.classic, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    MatchInstance engine(std::move(result.assembly), FixedWindow(1000),
+                         clock.Fn());
+    ViewBuilder builder(engine, content.mods);
+
+    // INFO: the controller arms the clocks at turn start, before any play.
+    engine.SyncClocks(15000);
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    REQUIRE_FALSE(wilds.empty());
+    ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
+    REQUIRE(engine.PlayCard("player0", wilds[0]));
+    REQUIRE(engine.PendingInput().has_value());
+
+    EventSink sink;
+    const std::optional<json> open =
+        builder.BuildPendingPrompt(Viewer::Player("player0"), sink);
+    REQUIRE(open.has_value());
+    CHECK((*open)["payload"]["duration_ms"] == 15000);
+    CHECK((*open)["payload"]["deadline_ms"] == 0);
 }

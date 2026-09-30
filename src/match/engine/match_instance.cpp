@@ -175,6 +175,7 @@ bool MatchInstance::ArmCurrentTurnDeadline(int64_t duration_ms) {
 
 void MatchInstance::SyncClocks(int64_t duration_ms) {
     if (!started_ || finished_ || assembly_ == nullptr) return;
+    clock_duration_ms_ = duration_ms;
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value()) return;
 
@@ -2342,7 +2343,9 @@ std::optional<nlohmann::json> MatchInstance::PendingInput() const {
                 {"target", EntityJson(pending_input_->target)},
                 {"payload", pending_input_->payload},
                 {"deadline_ms", pending_input_->deadline_ms},
-                {"duration_ms", pending_input_->duration_ms}};
+                {"duration_ms", pending_input_->duration_ms > 0
+                                    ? pending_input_->duration_ms
+                                    : clock_duration_ms_}};
 }
 
 std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {

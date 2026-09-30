@@ -820,6 +820,8 @@ private:
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
     match::Scheduler scheduler_;      /**< deferred-graph arm/expiry. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
+    /** Length the controller last armed the turn/prompt clocks with. */
+    int64_t clock_duration_ms_ = 0;
     std::optional<ecs::Entity> turn_clock_owner_; /**< player the turn clock was armed for. */
     uint32_t next_window_id_ = 0;     /**< monotonic window id. */
 };

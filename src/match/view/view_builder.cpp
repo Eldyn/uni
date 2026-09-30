@@ -660,6 +660,9 @@ std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
             : json::object();
     out["deadline_ms"] =
         body.is_object() ? body.value("timeout_ms", 0) : 0;
+    // INFO: the prompt clock the server enforces, known even though the
+    //       packet leaves before the deadline is armed.
+    out["duration_ms"] = pending->value("duration_ms", int64_t{0});
     return sink.Wrap("prompt_open", out);
 }
 
