@@ -5,6 +5,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { censorText } from "$utils/censor.svelte";
 	import { resolveLogText } from "$lib/chat/playLog/logText";
+	import { storeI18n } from "$stores/i18n.svelte";
 
 	let { channel }: { channel: ChatChannel } = $props();
 
@@ -63,7 +64,9 @@
 			{/if}
 			{#each lines as line (line.id)}
 				{#if line.kind === "log"}
-					{@const logText = resolveLogText(line.logKey ?? "", line.logParams ?? {})}
+					{@const logText = resolveLogText(line.logKey ?? "", line.logParams ?? {}, {
+						locale: storeI18n.locale
+					})}
 					{#if logText}
 						<p class="break-words px-2 py-0.5 text-sm leading-snug text-text/55">
 							<RichText
