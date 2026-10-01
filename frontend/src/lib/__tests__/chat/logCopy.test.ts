@@ -17,8 +17,7 @@ const SAMPLE_EVENTS: { [K in keyof typeof LOG_RULES]: Extract<LogEvent, { kind: 
 	skip: { kind: "skip", player: "Ann" },
 	reverse: { kind: "reverse" },
 	draw_stack: { kind: "draw_stack", player: "Ann", victim: "Bob", amount: 4, total: 8 },
-	wild: { kind: "wild", player: "Ann", color: "red" },
-	play: { kind: "play", player: "Ann", color: "red", value: "5" }
+	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" }
 };
 
 const ruleCases = Object.entries(LOG_RULES).flatMap(([kind, rule]) =>

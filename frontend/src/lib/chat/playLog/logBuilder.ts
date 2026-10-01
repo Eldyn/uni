@@ -58,15 +58,10 @@ export const LOG_RULES = {
 			total: event.total
 		})
 	},
-	wild: {
-		run: SINGLE_RUN,
-		variants: [{ minRun: 1, key: "log_wild" }],
-		params: (event) => ({ name: event.player, color: event.color })
-	},
 	play: {
 		run: SINGLE_RUN,
 		variants: [{ minRun: 1, key: "log_play" }],
-		params: (event) => ({ name: event.player, color: event.color, value: event.value })
+		params: (event) => ({ name: event.player, kind: event.cardKind, color: event.color })
 	}
 } satisfies { [K in RuleKind]: LogRule<Extract<LogEvent, { kind: K }>> };
 

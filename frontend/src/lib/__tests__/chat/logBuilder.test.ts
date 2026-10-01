@@ -68,18 +68,15 @@ describe("buildLogLine", () => {
 		});
 	});
 
-	it("builds the wild line with the chosen colour", () => {
-		const line = buildLogLine({ kind: "wild", player: "Ann", color: "red" }, streak());
-		expect(line?.key).toBe("log_wild");
-		expect(line?.params).toEqual({ name: "Ann", color: "red" });
-	});
-
-	it("builds the play line with the card colour and value", () => {
-		const line = buildLogLine({ kind: "play", player: "Ann", color: "blue", value: "5" }, streak());
+	it("builds the play line with the card kind and colour", () => {
+		const line = buildLogLine(
+			{ kind: "play", seq: 10, player: "Ann", cardKind: "vanilla:blue_5", color: "blue" },
+			streak()
+		);
 		expect(line).toEqual({
 			kind: "log",
 			key: "log_play",
-			params: { name: "Ann", color: "blue", value: "5" },
+			params: { name: "Ann", kind: "vanilla:blue_5", color: "blue" },
 			tier: 0
 		});
 	});

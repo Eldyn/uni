@@ -1,15 +1,15 @@
 export type LogEvent =
-	| { kind: "skip"; player: string }
-	| { kind: "reverse" }
+	| { kind: "play"; seq: number; player: string; cardKind: string; color: string }
+	| { kind: "skip"; seq: number; player: string }
+	| { kind: "reverse"; seq: number }
 	| {
 			kind: "draw_stack";
+			seq: number;
 			player: string;
 			victim: string;
 			amount: number;
 			total: number;
-	  }
-	| { kind: "wild"; player: string; color: string }
-	| { kind: "play"; player: string; color: string; value: string };
+	  };
 
 export type StreakInfo = {
 	skipRun: number;
