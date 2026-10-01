@@ -23,12 +23,12 @@ export const LOG_ESCAPE_CHAR = "\\";
 export const LOG_ESCAPABLE_CHARS: readonly string[] = [LOG_ESCAPE_CHAR, "[", "*"];
 
 /** Card palette CSS variables (app.css) addressable by name in log markup. */
-const LOG_COLOR_VARS: Readonly<Record<string, string>> = {
-	red: "var(--redCard)",
-	yellow: "var(--yellowCard)",
-	green: "var(--greenCard)",
-	blue: "var(--blueCard)"
-};
+const LOG_COLOR_VARS: ReadonlyMap<string, string> = new Map([
+	["red", "var(--redCard)"],
+	["yellow", "var(--yellowCard)"],
+	["green", "var(--greenCard)"],
+	["blue", "var(--blueCard)"]
+]);
 
 export interface ParseRichTextOptions {
 	/**
@@ -90,9 +90,7 @@ function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 			const cssColor = HEX_COLOR_RE.test(colorValue)
 				? colorValue
 				: options.allowLogTags
-					? Object.hasOwn(LOG_COLOR_VARS, colorValue)
-						? LOG_COLOR_VARS[colorValue]
-						: undefined
+					? LOG_COLOR_VARS.get(colorValue)
 					: undefined;
 			tokens.push(
 				cssColor
