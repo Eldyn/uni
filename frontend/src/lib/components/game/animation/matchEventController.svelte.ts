@@ -75,7 +75,7 @@ export function createMatchEventBeatController(deps: {
 		spinDeg: number;
 	};
 	/** storeGame.onMatchEventBeat — the store buffers beats and drains them
-	 *  after the next snapshot is applied (the client). */
+	 *  after the next snapshot is applied. */
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
 	/** storeGame.onDesync — a seq gap makes the play-log streaks untrustworthy. */
 	subscribeDesync?: (cb: () => void) => () => void;
@@ -84,6 +84,8 @@ export function createMatchEventBeatController(deps: {
 	syncState: () => void;
 	resetPendingWildRipple: () => void;
 	resetPlayLog: () => void;
+	settleBoardAnimations: (playDirection: number) => void;
+	resetTurnMotion: () => void;
 } {
 	const playLog = createPlayLogEmitter((line) => chatStore.appendLocalLog(line));
 	let lastLandingBaseDeg = 0;
@@ -124,6 +126,27 @@ export function createMatchEventBeatController(deps: {
 	// updates it AFTER the store drains the current snapshot's beats
 	//so `handle` still sees the pre-reshuffle value.
 	let prevDrawPileSize: number | null = null;
+	// INFO: turn beats drain on packet arrival, synchronously after the
+	// snapshot, while the play that caused them is still flying. Each turn's
+	// cue and ring flip is deferred onto the last play's landing so they play
+	// with the beat rather than ahead of it. `turnMotionGeneration` drops
+	// motion deferred across a settle/desync/reset: the board was flushed, so
+	// the cue must not replay once it lands.
+	let lastLanding: Promise<unknown> = Promise.resolve();
+	let turnMotionGeneration = 0;
+
+	/** Chains `action` after the last play's landing, in order with any other
+	 *  deferred turn motion. Skipped when a settle/desync/reset bumped the
+	 *  generation while it waited. */
+	function deferTurnMotion(action: () => void): void {
+		const generation = turnMotionGeneration;
+		lastLanding = lastLanding
+			.catch(() => undefined)
+			.then(() => {
+				if (generation !== turnMotionGeneration) return;
+				action();
+			});
+	}
 
 	/** The POV player's username. "local" means the player whose POV is
 	 *  rendered (the viewed player while spectating), matching Scene3D and the
@@ -198,7 +221,7 @@ export function createMatchEventBeatController(deps: {
 	}
 
 	/** Ports the watcher's `processPlay` (baseBeats.svelte.ts:478-633): the
-	 *  beat's player replaces `last_play`, and post-event state (R
+	 *  beat's player replaces `last_play`, and post-event state (the store
 	 *  guarantees the snapshot is applied) supplies the top card. */
 	function handlePlay(beat: Extract<MatchEventBeat, { kind: "play" }>): void {
 		const state = storeGame.state;
@@ -361,6 +384,7 @@ export function createMatchEventBeatController(deps: {
 			deps.bus.addInFlightPlay(beat.player);
 		}
 		const landed = deps.cardRegistry.enqueue([playBeat, shakeBeat], resolveCardTarget);
+		lastLanding = landed;
 		landed.then(() => {
 			deps.bus.setDiscardTop(top, landingBaseDeg);
 			if (!playedByMe) {
@@ -368,9 +392,13 @@ export function createMatchEventBeatController(deps: {
 			}
 		});
 		playLog.notePlay(
-			{ player: beat.player, type: top.type, value: top.value },
+			{
+				player: beat.player,
+				kind: kindOf(top),
+				color: top.type === "white" ? (knownWildColor ?? "white") : top.type
+			},
 			landed,
-			knownWildColor
+			{ seq: beat.seq }
 		);
 	}
 
@@ -690,13 +718,34 @@ export function createMatchEventBeatController(deps: {
 			localPlayerId: storeGame.localPlayer?.username ?? "",
 			isSpectator: storeGame.isSpectator
 		});
-		if (cueFires) storeTurnCue.fire();
-		storeDirectionRing.reverseTo(beat.direction);
+		deferTurnMotion(() => {
+			if (cueFires) storeTurnCue.fire();
+			storeDirectionRing.reverseTo(beat.direction);
+		});
 		playLog.noteTurn({ skipped: beat.skipped, direction: beat.direction });
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
 		storeTurnSkip.present(beat.from, beat.skipped, durationMs);
+	}
+
+	/** Snaps every board animation to its end state and drops turn motion still
+	 *  deferred behind a landing (tab return, desync). `playDirection` resyncs
+	 *  the ring with the server's live direction rather than the last one it
+	 *  animated. */
+	function settleBoardAnimations(playDirection: number): void {
+		turnMotionGeneration += 1;
+		lastLanding = Promise.resolve();
+		deps.cardRegistry.flushImmediately();
+		storeDirectionRing.settle(playDirection);
+		storeTurnCue.settle();
+	}
+
+	/** Drops turn motion still deferred behind a landing when a fresh match
+	 *  starts on this reused board; the caller re-seeds the ring from state. */
+	function resetTurnMotion(): void {
+		turnMotionGeneration += 1;
+		lastLanding = Promise.resolve();
 	}
 
 	function handle(beat: MatchEventBeat): void {
@@ -714,7 +763,7 @@ export function createMatchEventBeatController(deps: {
 				handleTurn(beat);
 				return;
 			case "toast":
-				// Toast state lives in the store; map-and-drop.
+				// Toast state lives in the store; map-and-drop per
 				if (beat.statusKind === DRAW_DEBT_STATUS_KIND) {
 					playLog.noteDebt(beat.target, beat.magnitude);
 				}
@@ -803,7 +852,27 @@ export function createMatchEventBeatController(deps: {
 		unsubscribeBeats();
 		unsubscribeDesync?.();
 	};
-	return { dispose, syncState, resetPendingWildRipple, resetPlayLog: playLog.reset };
+	return {
+		dispose,
+		syncState,
+		resetPendingWildRipple,
+		resetPlayLog: playLog.reset,
+		settleBoardAnimations,
+		resetTurnMotion
+	};
+}
+
+const VALUE_SLUG: Record<string, string> = {
+	"+2": "draw2",
+	jolly: "wild",
+	jolly_draw4: "wild_draw4"
+};
+
+function kindOf(card: { type: string; value: string; kind?: string }): string {
+	if (card.kind) return card.kind;
+	const slug = VALUE_SLUG[card.value] ?? card.value;
+	const wild = card.type === "white";
+	return wild ? `vanilla:${slug}` : `vanilla:${card.type}_${slug}`;
 }
 
 /** Computes the local hand's card-N slot as a world-space anchor — ported

@@ -159,7 +159,7 @@ describe("matchEventController play log", () => {
 
 		land();
 		await flush();
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["log_play", "log_skip"]);
 	});
 
 	it("escalates a repeated skip, and a desync resets the streak (Review Focus 5)", async () => {
@@ -203,6 +203,19 @@ describe("matchEventController play log", () => {
 		expect(String(line.logParams?.name)).toContain("\\[");
 	});
 
+	it("logs the played card's kind from the snapshot", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "skip" });
+		storeGame.state.top_card.kind = "vanilla:red_skip";
+		const h = harness();
+
+		h.fire({ seq: 7, kind: "play", player: "me", cardId: 2, auto: false });
+		await flush();
+
+		const [line] = chatStore.linesFor("party");
+		expect(line.logKey).toBe("log_play");
+		expect(line.logParams).toMatchObject({ kind: "vanilla:red_skip", color: "red" });
+	});
+
 	it("logs a draw stack from a +2 play and its debt toast", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "+2" });
 		const h = harness();
@@ -219,7 +232,8 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		const [line] = chatStore.linesFor("party");
+		expect(partyKeys()).toEqual(["log_play", "log_draw_stack"]);
+		const line = chatStore.linesFor("party")[1];
 		expect(line.logKey).toBe("log_draw_stack");
 		expect(line.logParams).toMatchObject({ amount: 2, total: 4 });
 	});
