@@ -67,6 +67,20 @@ describe("escapeLogText", () => {
 	);
 });
 
+describe("RichText logTags prop prototype keys", () => {
+	it.each(["constructor", "__proto__", "toString"])(
+		"renders [c=%s] literally with no colour",
+		(name) => {
+			const markup = `[c=${name}]x[/c]`;
+			const { container } = render(RichText, { props: { text: markup, logTags: true } });
+			expect(container.textContent).toBe(markup);
+			expect(container.querySelector("[style*='color']")).toBeNull();
+			const segments = parseRichText(markup, logOptions);
+			expect(segments.some((segment) => segment.color)).toBe(false);
+		}
+	);
+});
+
 describe("RichText logTags prop", () => {
 	it("renders no shake or colour for a hostile name in a log line", () => {
 		const hostileName = "[fx=shake][c=red]x";

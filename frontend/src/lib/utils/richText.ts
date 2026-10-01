@@ -90,7 +90,9 @@ function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 			const cssColor = HEX_COLOR_RE.test(colorValue)
 				? colorValue
 				: options.allowLogTags
-					? LOG_COLOR_VARS[colorValue]
+					? Object.hasOwn(LOG_COLOR_VARS, colorValue)
+						? LOG_COLOR_VARS[colorValue]
+						: undefined
 					: undefined;
 			tokens.push(
 				cssColor
