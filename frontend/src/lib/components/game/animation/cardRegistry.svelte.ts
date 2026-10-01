@@ -9,6 +9,7 @@ import { flipRenderer } from "./stepRenderers/flip";
 import { shakeRenderer } from "./stepRenderers/shake";
 import { screenEffectRenderer } from "./stepRenderers/screenEffect";
 import { materialEffectRenderer } from "./stepRenderers/materialEffect";
+import { impactRenderer } from "./stepRenderers/impact";
 
 export type StepRenderer = (step: AnimationStep, ctx: RenderContext) => gsap.core.Timeline;
 
@@ -78,7 +79,8 @@ export class CardRegistry {
 		flip: flipRenderer,
 		shake: shakeRenderer,
 		screenEffect: screenEffectRenderer,
-		materialEffect: materialEffectRenderer
+		materialEffect: materialEffectRenderer,
+		impact: impactRenderer
 	};
 
 	#cardMeta = new Map<string, CardMeta>();
@@ -97,6 +99,14 @@ export class CardRegistry {
 	// Targets handed back to their owner before their beat ended — see
 	// releaseLanded. finishBeat leaves these alone.
 	#releasedEarly = new Set<string>();
+	// Nesting depth of skipCurrent/flushImmediately: beats built while this is
+	// non-zero are being fast-forwarded and skip their screen-level extras.
+	#fastForwardDepth = 0;
+	#hitStop: {
+		timeline: gsap.core.Timeline;
+		restoreTimeScale: number;
+		release: gsap.core.Tween;
+	} | null = null;
 
 	activeFlights = $state<FlightHandle[]>([]);
 
@@ -412,9 +422,14 @@ export class CardRegistry {
 	}
 
 	skipCurrent(): void {
-		const finish = this.#finishCurrentBeat;
-		this.#currentTimeline?.progress(1, true);
-		finish?.();
+		this.#fastForwardDepth++;
+		try {
+			const finish = this.#finishCurrentBeat;
+			this.#currentTimeline?.progress(1, true);
+			finish?.();
+		} finally {
+			this.#fastForwardDepth--;
+		}
 	}
 
 	/** Fast-forwards every beat currently playing AND every batch still
@@ -424,11 +439,36 @@ export class CardRegistry {
 	 *  silently just to replay it all at once the moment the tab comes back is
 	 *  worse than snapping straight to the final state now. */
 	flushImmediately(): void {
-		let guard = 0;
-		while ((this.#currentTimeline || this.#pending.length > 0) && guard++ < 10_000) {
-			if (this.#currentTimeline) this.skipCurrent();
-			else this.#pump();
+		this.#fastForwardDepth++;
+		try {
+			let guard = 0;
+			while ((this.#currentTimeline || this.#pending.length > 0) && guard++ < 10_000) {
+				if (this.#currentTimeline) this.skipCurrent();
+				else this.#pump();
+			}
+		} finally {
+			this.#fastForwardDepth--;
 		}
+	}
+
+	/** Slows `timeline` for a real-time hold. GSAP callbacks have no
+	 *  `finally`, so #endHitStop runs both from the delayed release and from
+	 *  the beat's own finish (natural or skipped). */
+	#beginHitStop(timeline: gsap.core.Timeline, durationMs: number, timeScale: number): void {
+		if (this.#fastForwardDepth > 0 || !storeAnimation.enabled) return;
+		this.#endHitStop();
+		const restoreTimeScale = timeline.timeScale();
+		timeline.timeScale(timeScale);
+		const release = gsap.delayedCall(durationMs / 1000, () => this.#endHitStop());
+		this.#hitStop = { timeline, restoreTimeScale, release };
+	}
+
+	#endHitStop(): void {
+		const hitStop = this.#hitStop;
+		if (!hitStop) return;
+		this.#hitStop = null;
+		hitStop.release.kill();
+		hitStop.timeline.timeScale(hitStop.restoreTimeScale);
 	}
 
 	#pump(): void {
@@ -474,7 +514,9 @@ export class CardRegistry {
 					}
 					return pose;
 				},
-				resolveAnchor: batch.resolveAnchor
+				resolveAnchor: batch.resolveAnchor,
+				fastForwarding: this.#fastForwardDepth > 0,
+				hitStop: (durationMs, timeScale) => this.#beginHitStop(timeline, durationMs, timeScale)
 			};
 
 			const timeline = gsap.timeline();
@@ -510,6 +552,7 @@ export class CardRegistry {
 			const finishBeat = () => {
 				if (settled) return;
 				settled = true;
+				this.#endHitStop();
 				// The owner already took these back and may be tweening them
 				// into a new slot; re-idling them here would snap that tween.
 				const releasedTargets = new Set(
@@ -593,6 +636,7 @@ export class CardRegistry {
 					.some((laterBeat) => laterBeat.some((laterStep) => laterStep.target === step.target));
 				if (!usedLater) this.#inTransitIds.delete(step.target);
 			}
+			this.#endHitStop();
 			this.#currentTimeline = null;
 			this.#finishCurrentBeat = null;
 			this.#playBatch(batch, beatIndex + 1);

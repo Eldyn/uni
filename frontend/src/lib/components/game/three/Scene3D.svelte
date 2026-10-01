@@ -20,6 +20,8 @@
 	import { storeTableSpin } from "$stores/tableSpin.svelte";
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import { storeBoardCamera } from "$stores/boardCamera.svelte";
+	import { storeCameraOffset } from "$stores/cameraOffset.svelte";
+	import { offsetCameraPosition } from "../layout/cameraRig";
 	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
 	import AmbientDust3D from "./AmbientDust3D.svelte";
@@ -92,6 +94,10 @@
 	// this (its `left/right/top/bottom` already encoded the aspect), so switching
 	// to perspective has to wire it up explicitly.
 	let aspect = $derived(viewport.width / viewport.height);
+
+	// The landing impact's punch rides on top of the rig's base position. It
+	// only moves along the view axis, so the lookAt below stays valid.
+	let cameraPosition = $derived(offsetCameraPosition(rig, storeCameraOffset.offset));
 
 	let camRef = $state<PerspectiveCamera>();
 	$effect(() => {
@@ -203,7 +209,7 @@
 	makeDefault
 	manual
 	bind:ref={camRef}
-	position={rig.position}
+	position={cameraPosition}
 	fov={rig.fov}
 	{aspect}
 	near={rig.near}

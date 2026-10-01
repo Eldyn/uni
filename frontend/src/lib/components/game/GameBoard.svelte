@@ -13,6 +13,7 @@
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
+	import { resetImpactEffects } from "./animation/impactReset";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
@@ -396,6 +397,9 @@
 		window.addEventListener("keydown", onWindowKeydown);
 		return () => window.removeEventListener("keydown", onWindowKeydown);
 	});
+
+	// INFO: a board torn down mid-impact must not leave the camera punched.
+	$effect(() => resetImpactEffects);
 
 	// A backgrounded tab still receives state updates (and so still queues
 	// beats) while nobody is watching. Flush on both transitions: hiding

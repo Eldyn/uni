@@ -54,4 +54,10 @@ export interface RenderContext {
 	 *  [x, y, z] world position. Populated per-beat by baseBeats.ts
 	 *  from the existing pure layout functions — never a DOM measurement. */
 	resolveAnchor(name: string): [number, number, number];
+	/** True while the queue is skipping or flushing: screen-level extras
+	 *  (hit-stop, camera punch) must not play at all. */
+	fastForwarding?: boolean;
+	/** Slows the current beat's timeline to `timeScale` for `durationMs` of
+	 *  real time, restored when it elapses or the beat ends. */
+	hitStop?(durationMs: number, timeScale: number): void;
 }

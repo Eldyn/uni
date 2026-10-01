@@ -2,7 +2,7 @@ import { gsap } from "gsap";
 import type { AnimationStep } from "../types";
 import type { RenderContext } from "../renderContext";
 
-const SHAKE_DURATION_S = 0.135;
+export const SHAKE_DURATION_S = 0.135;
 const SHAKE_MAGNITUDE = 0.06;
 
 export function shakeRenderer(step: AnimationStep, ctx: RenderContext): gsap.core.Timeline {

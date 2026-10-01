@@ -141,3 +141,32 @@ export function computeCameraRig(
 		far: distance + FAR_MARGIN
 	};
 }
+
+/** A transient world-space nudge on top of the rig's base camera position. */
+export interface CameraOffset {
+	x: number;
+	y: number;
+	z: number;
+}
+
+export const ZERO_CAMERA_OFFSET: Readonly<CameraOffset> = Object.freeze({ x: 0, y: 0, z: 0 });
+
+/** The rig's camera position moved by `offset`. Orientation is untouched, so
+ *  an offset along the view axis dollies without re-aiming the camera. */
+export function offsetCameraPosition(
+	rig: CameraRig,
+	offset: Readonly<CameraOffset>
+): [number, number, number] {
+	return [rig.position[0] + offset.x, rig.position[1] + offset.y, rig.position[2] + offset.z];
+}
+
+/** An offset of `distance` world units along the view axis, toward the table.
+ *  The axis only depends on the fixed tilt, never on the viewport. */
+export function cameraPunchOffset(distance: number): CameraOffset {
+	const tiltRad = (CAMERA_TILT_DEG * Math.PI) / 180;
+	return {
+		x: 0,
+		y: -Math.cos(tiltRad) * distance,
+		z: -Math.sin(tiltRad) * distance
+	};
+}

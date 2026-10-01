@@ -16,6 +16,8 @@ import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import { storeMatRipple } from "../three/ripple/matRipple.svelte";
 import type { MatUv, RippleStrength } from "../three/ripple/matRipple.svelte";
 import type { AnimationBeat, AnimationStep } from "./types";
+import type { ImpactProfile } from "./impactProfile";
+import { resetImpactEffects } from "./impactReset";
 
 // INFO: re-exported so existing importers (tests, matchEventController) keep
 // their `$components/game/animation/baseBeats.svelte` import path.
@@ -157,6 +159,26 @@ export function buildPlayBeat(args: {
 			}
 		},
 		{ op: "flip", target: args.cardId, payload: { turned: false, axis: "y" } }
+	];
+}
+
+/** The beat right after a play lands: the card's landing shake, plus, for a
+ *  special card, the screen-level impact (hit-stop, camera punch) running
+ *  alongside it. The impact always resets the camera when the beat ends,
+ *  skipped or not. */
+export function buildLandingImpactBeat(
+	cardId: string,
+	impact: ImpactProfile | null
+): AnimationBeat {
+	const shake: AnimationStep = { op: "shake", target: cardId, payload: {} };
+	if (!impact) return [shake];
+	return [
+		shake,
+		{
+			op: "impact",
+			target: "screen",
+			payload: { profile: impact, _onCompleteSafe: resetImpactEffects }
+		}
 	];
 }
 

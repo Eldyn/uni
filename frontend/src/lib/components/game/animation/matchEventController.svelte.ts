@@ -39,8 +39,11 @@ import {
 	previewDiscardLanding,
 	type DiscardEntry
 } from "../layout/discardPile";
+import { storeWebglCapability } from "$stores/webglCapability.svelte";
+import { impactProfileFor } from "./impactProfile";
 import {
 	buildDrawBeats,
+	buildLandingImpactBeat,
 	buildPlayBeat,
 	buildReshuffleBeat,
 	DRAW_HOVER_LIFT,
@@ -49,7 +52,6 @@ import {
 	opponentSlotAnchorKey,
 	type MatchEventBeat
 } from "./baseBeats.svelte";
-import type { AnimationBeat } from "./types";
 import { storeMatRipple, MAT_INITIAL_COLOR } from "../three/ripple/matRipple.svelte";
 import type { MatUv } from "../three/ripple/matRipple.svelte";
 import { originToMatUv, maxRadiusUv } from "../three/ripple/ripplePlan";
@@ -348,7 +350,12 @@ export function createMatchEventBeatController(deps: {
 			landingSpinDeg: landingEntry.rotationDeg,
 			ripple
 		});
-		const shakeBeat: AnimationBeat = [{ op: "shake", target: String(top.id), payload: {} }];
+		// INFO: reduced motion is strict here: no hit-stop or punch.
+		const impactAllowed = storeAnimation.enabled && !storeWebglCapability.reducedMotion;
+		const shakeBeat = buildLandingImpactBeat(
+			String(top.id),
+			impactAllowed ? impactProfileFor(top) : null
+		);
 
 		if (!playedByMe) {
 			deps.bus.addInFlightPlay(beat.player);
