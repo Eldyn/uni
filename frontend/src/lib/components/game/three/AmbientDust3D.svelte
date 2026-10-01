@@ -27,7 +27,7 @@
 	import { storeMatRipple } from "./ripple/matRipple.svelte";
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import type { MatPlacement } from "../layout/playmat";
-	import type { ViewportInfo } from "../layout/seatLayout";
+	import { isPhoneLayout, type ViewportInfo } from "../layout/seatLayout";
 
 	let { mat, viewport }: { mat: MatPlacement; viewport: ViewportInfo } = $props();
 
@@ -80,7 +80,7 @@
 	}
 
 	let matSrc = $derived(
-		viewport.orientation === "portrait" ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
+		isPhoneLayout(viewport) ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
 	);
 
 	// Rebuilds the instanced geometry whenever the mat's own placement or art

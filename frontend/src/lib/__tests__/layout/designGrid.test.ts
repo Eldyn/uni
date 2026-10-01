@@ -6,6 +6,9 @@ import { MAX_OPPONENTS, type ViewportInfo } from "$components/game/layout/seatLa
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
+// Roomy portrait (8:10, e.g. a tablet): geometrically portrait, but not
+// phone-shaped, so it must frame like landscape.
+const portraitTablet: ViewportInfo = { width: 816, height: 1000, orientation: "portrait" };
 const square: ViewportInfo = { width: 800, height: 800, orientation: "landscape" };
 
 describe("computeDesignGrid", () => {
@@ -41,6 +44,10 @@ describe("computeDesignGrid", () => {
 		const { centerZ, halfHeightUnits } = computeDesignGrid(portrait, 1);
 		expect(centerZ).toBeGreaterThan(0);
 		expect(centerZ).toBeLessThan(halfHeightUnits - boardExtentsFor(portrait).rows / 2 + 1e-6);
+	});
+
+	it("frames a roomy portrait viewport (8:10) on the world origin, not the phone composition", () => {
+		expect(computeDesignGrid(portraitTablet, 1).centerZ).toBe(0);
 	});
 
 	it("sizes the board from the opponent ring alone, symmetric about the origin", () => {

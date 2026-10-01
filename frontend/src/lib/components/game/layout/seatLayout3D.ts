@@ -15,6 +15,7 @@
 import {
 	computeSeatAngles,
 	CROSS_OPPONENT_COUNT,
+	isPhoneLayout,
 	MAX_OPPONENTS,
 	type ArcWarp,
 	type ViewportInfo
@@ -102,7 +103,7 @@ export function ringReachFor(
 	viewport: ViewportInfo,
 	opponentCount: number = MAX_OPPONENTS
 ): number {
-	if (viewport.orientation === "portrait") return PORTRAIT_OPPONENT_RING_REACH;
+	if (isPhoneLayout(viewport)) return PORTRAIT_OPPONENT_RING_REACH;
 	const t = Math.min(
 		1,
 		Math.max(0, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
@@ -155,7 +156,7 @@ export function ringRadiiFor(
 	frustumHalfWidth?: number,
 	maxRz?: number
 ): { rx: number; rz: number } {
-	if (viewport.orientation === "portrait") {
+	if (isPhoneLayout(viewport)) {
 		const t = Math.min(
 			1,
 			Math.max(0, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
@@ -273,8 +274,7 @@ export function computeSeatPositions3D(
 	frustumHalfHeight?: number
 ): SeatPosition3D[] {
 	const { rx, rz } = ringRadiiFor(viewport, opponentCount, frustumHalfWidth, frustumHalfHeight);
-	const xExponent =
-		viewport.orientation === "portrait" ? PORTRAIT_RING_X_EXPONENT : LANDSCAPE_RING_X_EXPONENT;
+	const xExponent = isPhoneLayout(viewport) ? PORTRAIT_RING_X_EXPONENT : LANDSCAPE_RING_X_EXPONENT;
 	const warp = arcLengthWarp(rx, rz, xExponent);
 	return computeSeatAngles(opponentCount, viewport, warp).map((angleDeg) => {
 		const { x, z } = archPoint(angleDeg, rx, rz, xExponent);
@@ -291,7 +291,7 @@ export const PORTRAIT_FAN_CLEARANCE = 0.02;
 
 /** Smallest world gap between any two adjacent portrait seats, at full size. */
 export function portraitMinAdjacentGap(opponentCount: number, viewport: ViewportInfo): number {
-	if (viewport.orientation !== "portrait") return Infinity;
+	if (!isPhoneLayout(viewport)) return Infinity;
 	const seats = computeSeatPositions3D(opponentCount, viewport);
 	let min = Infinity;
 	for (let i = 1; i < seats.length; i++) {
@@ -317,7 +317,7 @@ export function portraitFanCardScaleCap(
 	avatarWorld: number,
 	desiredCardScale: number
 ): number {
-	if (viewport.orientation !== "portrait") return desiredCardScale;
+	if (!isPhoneLayout(viewport)) return desiredCardScale;
 	const gap = portraitMinAdjacentGap(opponentCount, viewport);
 	if (!Number.isFinite(gap)) return desiredCardScale;
 	const reachAtZero = opponentSeatReachWorld(avatarWorld, 0);

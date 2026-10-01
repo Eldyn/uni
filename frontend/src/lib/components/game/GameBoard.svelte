@@ -15,6 +15,7 @@
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { resetImpactEffects } from "./animation/impactReset";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
+	import { isPhoneLayout } from "./layout/seatLayout";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -186,19 +187,19 @@
 	// syncTarget effect below turns the resulting renderPov commit into a no-op.
 	let guardRosterKey = "";
 	let guardSeatCount = 0;
-	let guardOrientation = sceneViewport.orientation;
+	let guardPhoneLayout = isPhoneLayout(sceneViewport);
 	$effect(() => {
 		const players = storeGame.state?.players ?? [];
 		const rosterKey = players.map((p) => p.username).join("\u0000");
 		const seatCount = players.length;
-		const orientation = sceneViewport.orientation;
+		const phoneLayout = isPhoneLayout(sceneViewport);
 		const changed =
 			rosterKey !== guardRosterKey ||
 			seatCount !== guardSeatCount ||
-			orientation !== guardOrientation;
+			phoneLayout !== guardPhoneLayout;
 		guardRosterKey = rosterKey;
 		guardSeatCount = seatCount;
-		guardOrientation = orientation;
+		guardPhoneLayout = phoneLayout;
 		if (changed && storeTableSpin.active) storeTableSpin.cancelAndCommit();
 	});
 
@@ -431,7 +432,7 @@
 	/>
 {/if}
 
-<div class="game-field" class:portrait={layout.viewport.orientation === "portrait"}>
+<div class="game-field" class:portrait={isPhoneLayout(layout.viewport)}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="scene-layer"

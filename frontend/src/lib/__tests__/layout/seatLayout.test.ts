@@ -3,11 +3,47 @@ import { describe, it, expect } from "vitest";
 import {
 	computeSeatAngles,
 	computeSeatPositions,
+	isPhoneLayout,
+	PHONE_MAX_ASPECT,
 	type ViewportInfo
 } from "$components/game/layout/seatLayout";
 
 const landscape: ViewportInfo = { width: 1200, height: 800, orientation: "landscape" };
 const portrait: ViewportInfo = { width: 400, height: 800, orientation: "portrait" };
+
+describe("isPhoneLayout", () => {
+	it("treats a phone-shaped portrait viewport as phone layout", () => {
+		expect(isPhoneLayout({ width: 390, height: 844, orientation: "portrait" })).toBe(true);
+		expect(isPhoneLayout({ width: 360, height: 800, orientation: "portrait" })).toBe(true);
+	});
+
+	it("keeps a roomy portrait viewport like 8:10 on the desktop layout", () => {
+		expect(isPhoneLayout({ width: 816, height: 1000, orientation: "portrait" })).toBe(false);
+	});
+
+	it("still treats a genuinely tall portrait (e.g. 820x1180, 0.69) as phone-shaped", () => {
+		expect(isPhoneLayout({ width: 820, height: 1180, orientation: "portrait" })).toBe(true);
+	});
+
+	it("never treats a landscape viewport as phone layout", () => {
+		expect(isPhoneLayout(landscape)).toBe(false);
+	});
+
+	it("switches exactly at the aspect boundary", () => {
+		const below: ViewportInfo = {
+			width: PHONE_MAX_ASPECT * 1000 - 1,
+			height: 1000,
+			orientation: "portrait"
+		};
+		const at: ViewportInfo = {
+			width: PHONE_MAX_ASPECT * 1000,
+			height: 1000,
+			orientation: "portrait"
+		};
+		expect(isPhoneLayout(below)).toBe(true);
+		expect(isPhoneLayout(at)).toBe(false);
+	});
+});
 
 describe("computeSeatPositions", () => {
 	it("returns no seats for zero opponents", () => {

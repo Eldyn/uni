@@ -27,7 +27,12 @@
 // ringRadiiFor's count default is MAX_OPPONENTS — the frustum is always sized
 // for the widest ring so a mid-game join never reframes the whole board.
 import { ringRadiiFor, ringReachFor } from "./seatLayout3D";
-import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLayout";
+import {
+	CROSS_OPPONENT_COUNT,
+	isPhoneLayout,
+	MAX_OPPONENTS,
+	type ViewportInfo
+} from "./seatLayout";
 import { portraitHandStripDepth } from "./boardPlacement";
 import { portraitCenterZ } from "./portraitTable";
 
@@ -101,13 +106,9 @@ export function computeDesignGrid(viewport: ViewportInfo, zoom: number): DesignG
 	const halfHeightUnits = Math.max(rows / 2, columns / 2 / aspect) / zoom;
 	const halfWidthUnits = halfHeightUnits * aspect;
 
-	const centerZ =
-		viewport.orientation === "portrait"
-			? portraitCenterZ(
-					(2 * halfWidthUnits) / viewport.width,
-					portraitHandStripDepth(halfWidthUnits)
-				)
-			: 0;
+	const centerZ = isPhoneLayout(viewport)
+		? portraitCenterZ((2 * halfWidthUnits) / viewport.width, portraitHandStripDepth(halfWidthUnits))
+		: 0;
 
 	return {
 		halfWidthUnits,

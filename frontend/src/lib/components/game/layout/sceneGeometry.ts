@@ -28,7 +28,12 @@ import {
 	type SeatPosition3D
 } from "./seatLayout3D";
 import { opponentSeatReachWorld } from "./handRing";
-import { CROSS_OPPONENT_COUNT, MAX_OPPONENTS, type ViewportInfo } from "./seatLayout";
+import {
+	CROSS_OPPONENT_COUNT,
+	isPhoneLayout,
+	MAX_OPPONENTS,
+	type ViewportInfo
+} from "./seatLayout";
 
 // Opponent avatar/label sizes, in WORLD units, from an empty table down to a
 // full 16-seat arch. Landscape's empty-table avatar is a little over one ring
@@ -75,7 +80,7 @@ export interface SceneGeometry {
 	rig: CameraRig;
 	ringRadii: { rx: number; rz: number };
 	seats3D: SeatPosition3D[];
-	isPortrait: boolean;
+	isPhone: boolean;
 	crowdT: number;
 	ringWidthBoost: number;
 	opponentCardLayoutScale: number;
@@ -112,7 +117,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// Opponent presentation shrinks smoothly as the landscape table fills; on
 	// portrait the card fans stay full-size (they're the seat's focus) while
 	// the avatar and name drop to small markers so the fans stay readable.
-	const isPortrait = viewport.orientation === "portrait";
+	const isPhone = isPhoneLayout(viewport);
 	const crowdT = Math.min(
 		1,
 		Math.max(0, (opponentCount - CROSS_OPPONENT_COUNT) / (MAX_OPPONENTS - CROSS_OPPONENT_COUNT))
@@ -123,7 +128,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// the seats and cards can grow with it instead of staying pinned to the
 	// crowd-only size a narrower window would've forced. Capped well under the
 	// full ratio so an emptied-out table doesn't blow the avatars up.
-	const ringWidthBoost = isPortrait
+	const ringWidthBoost = isPhone
 		? 1
 		: Math.min(1.15, ringWidth.rx / ringRadiiFor(viewport, opponentCount).rx);
 
@@ -135,10 +140,10 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// how much room the discard pile has — is measured off this one so the trial
 	// card size can move without dragging the composition with it. Portrait
 	// additionally caps the DRAWN scale (below) so a full table's fans fit.
-	const opponentCardLayoutScale = (isPortrait ? 0.5 : 0.85 - 0.4 * crowdT) * ringWidthBoost;
+	const opponentCardLayoutScale = (isPhone ? 0.5 : 0.85 - 0.4 * crowdT) * ringWidthBoost;
 	const desiredCardScale =
 		opponentCardLayoutScale *
-		(isPortrait ? OPPONENT_CARD_DRAW_SCALE : landscapeCardDrawScale(viewport.height));
+		(isPhone ? OPPONENT_CARD_DRAW_SCALE : landscapeCardDrawScale(viewport.height));
 
 	// Avatars and labels are sized in WORLD units and only converted to CSS at
 	// the end. Declaring them in pixels is what made the board feel inverted: the
@@ -150,7 +155,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// opponent icon is meant to be exactly the local player's own icon, and a
 	// few percent of ring slack is not a reason for the seat across the table to
 	// be drawn bigger than the seat you're sitting in.
-	const opponentAvatarWorld = isPortrait
+	const opponentAvatarWorld = isPhone
 		? PORTRAIT_AVATAR_WORLD
 		: LANDSCAPE_AVATAR_WORLD - AVATAR_CROWD_SHRINK * crowdT;
 
@@ -160,7 +165,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// drawn bounding radius (opponentSeatReachWorld — ring radius plus a card's
 	// half-diagonal) fits inside half the gap to the next seat. Without this the
 	// neighbours' fans visibly interleave from ~12 opponents up.
-	const opponentCardScale = isPortrait
+	const opponentCardScale = isPhone
 		? portraitFanCardScaleCap(opponentCount, viewport, opponentAvatarWorld, desiredCardScale)
 		: desiredCardScale;
 
@@ -169,7 +174,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 	// empty table otherwise turns every name into a headline sized to match the
 	// biggest icon, and a zoomed-out one into unreadable specks.
 	const opponentLabelWorld =
-		(isPortrait ? PORTRAIT_LABEL_WORLD : LANDSCAPE_LABEL_WORLD - LABEL_CROWD_SHRINK * crowdT) *
+		(isPhone ? PORTRAIT_LABEL_WORLD : LANDSCAPE_LABEL_WORLD - LABEL_CROWD_SHRINK * crowdT) *
 		ringWidthBoost;
 
 	// How far a seat's outermost card sits from the seat itself — the margin the
@@ -194,7 +199,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 
 	const centerClearanceZ = ringRadii.rz - opponentSeatReach;
 
-	if (isPortrait) {
+	if (isPhone) {
 		// A phone seats everyone round the felt instead of on an arch over it
 		// (see portraitTable.ts), and the felt, seats and fan size all come from
 		// that one solve.
@@ -216,7 +221,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 				rz: Math.max(0, ...table.seats.map((seat) => -seat.z))
 			},
 			seats3D: table.seats,
-			isPortrait,
+			isPhone,
 			crowdT,
 			ringWidthBoost,
 			opponentCardLayoutScale: table.fanScale / OPPONENT_CARD_DRAW_SCALE,
@@ -239,7 +244,7 @@ export function computeSceneGeometry(viewport: ViewportInfo, opponentCount: numb
 		rig,
 		ringRadii,
 		seats3D,
-		isPortrait,
+		isPhone,
 		crowdT,
 		ringWidthBoost,
 		opponentCardLayoutScale,

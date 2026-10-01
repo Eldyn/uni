@@ -134,6 +134,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **The untinted sliver around player avatars**: `.avatar-box img` and its `.tint` overlay now both set `image-rendering: pixelated` (`LocalSeat3D.svelte`, `PlayerSeat3D.svelte`). The avatar is small pixel art upscaled to 30–56px, so smooth interpolation gave it a soft, partially-transparent edge — and multiplying through a mask with that same partial alpha only partly tinted it, leaving a visible fringe of untinted sprite.
 - **The draw reshuffle no longer recycles the discard's top card**: the ops-layer reshuffle (`card_pile_ops.cpp` `EnsureDrawSource`, used by `draw_cards` and `draw_until_playable`) moved the *entire* discard into the draw pile, unlike `MatchInstance::ReshuffleDiscardIntoDraw`, which keeps the top. In a long game that could empty the discard completely — leaving no active pile to match and deadlocking the all-mods bot simulation. The ops path now keeps the top too.
+- **Roomy portrait viewports keep the desktop board**: the phone board composition (felt-rail seats, stacked piles, mobile playmat, `.portrait` styles) keyed off `height > width`, so a tablet-sized window such as 816x1000 was drawn as a phone. A new `isPhoneLayout(viewport)` in `layout/seatLayout.ts` switches on the aspect ratio instead (narrower than 3:4), while `orientation` stays a pure geometric fact.
 
 ### Security
 

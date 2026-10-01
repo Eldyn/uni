@@ -24,7 +24,7 @@ import {
 	type MatPlacement
 } from "./playmat";
 import type { PortraitTable } from "./portraitTable";
-import type { ViewportInfo } from "./seatLayout";
+import { isPhoneLayout, type ViewportInfo } from "./seatLayout";
 
 type FeltBox = Pick<PortraitTable, "feltHalfWidth" | "feltHalfDepth" | "feltCenterZ">;
 
@@ -257,7 +257,7 @@ export function computeBoardPlacement(
 	centerClearanceZ: number = Infinity,
 	table?: FeltBox
 ): BoardPlacement {
-	if (table && viewport.orientation === "portrait") return portraitTablePlacement(rig, table);
+	if (table && isPhoneLayout(viewport)) return portraitTablePlacement(rig, table);
 
 	// Solve the strip below the felt for the card height that fills it:
 	//   avatarFarEdge == feltNearEdge, where the avatar sits one SEAT_GAP plus
@@ -266,7 +266,7 @@ export function computeBoardPlacement(
 	// The near (bottom) edge of the frustum in world terms. Portrait pushes the
 	// camera toward the player, so the edge is no longer at +halfHeight.
 	const nearEdgeZ = rig.centerZ + rig.halfHeight;
-	const isPortrait = viewport.orientation === "portrait";
+	const isPhone = isPhoneLayout(viewport);
 	const strip =
 		nearEdgeZ -
 		HAND_BOTTOM_MARGIN -
@@ -285,7 +285,7 @@ export function computeBoardPlacement(
 		rowWidth / (CARD_WIDTH * (1 + (HAND_MIN_VISIBLE_CARDS - 1) * HAND_SPACING_RATIO));
 	const handScale = Math.min(
 		MAX_HAND_SCALE,
-		Math.max(MIN_HAND_SCALE, isPortrait ? widthCap : Math.min(strip / CARD_HEIGHT, widthCap))
+		Math.max(MIN_HAND_SCALE, isPhone ? widthCap : Math.min(strip / CARD_HEIGHT, widthCap))
 	);
 
 	const centerScale = Math.min(
@@ -301,12 +301,12 @@ export function computeBoardPlacement(
 	// pile to look after. Portrait instead tucks the (smaller) draw pile
 	// directly under the discard pile, on the same center line, so the two
 	// communal piles read as one cluster and the hand keeps the full width.
-	const drawPileScale = isPortrait ? handScale * PORTRAIT_DRAW_PILE_SCALE : handScale;
+	const drawPileScale = isPhone ? handScale * PORTRAIT_DRAW_PILE_SCALE : handScale;
 	// The felt: covering the frustum in landscape (zoomed up a touch, see
 	// playmat.ts), and in portrait filling the band between the opponents' arch
 	// and the local player's own avatar, so there is no background showing
 	// between the table and either seat.
-	const mat = isPortrait
+	const mat = isPhone
 		? portraitMatPlacement(
 				2 * rig.halfWidth * PORTRAIT_MAT_WIDTH_FILL,
 				rig.centerZ - rig.halfHeight + PORTRAIT_MAT_TOP_MARGIN,
@@ -323,15 +323,15 @@ export function computeBoardPlacement(
 		MAX_JITTER_EM * EM_TO_WORLD * pileCardScale +
 		CENTER_PILE_GAP;
 
-	const discardZ = isPortrait ? (mat.bounds.far + mat.bounds.near) / 2 : 0;
+	const discardZ = isPhone ? (mat.bounds.far + mat.bounds.near) / 2 : 0;
 	// How far the discard scatter reaches past its own centre along Z. The draw
 	// pile's far (pile-peek) edge has to clear that by the same pile gap, so the
 	// two stacks never merge into one mass.
 	const discardReachZ =
 		(CARD_HEIGHT * pileCardScale) / 2 + MAX_JITTER_EM * EM_TO_WORLD * pileCardScale;
 
-	const drawPileX = isPortrait ? 0 : -pileSpread;
-	const drawPileZ = isPortrait
+	const drawPileX = isPhone ? 0 : -pileSpread;
+	const drawPileZ = isPhone
 		? discardZ + discardReachZ + (CARD_HEIGHT * drawPileScale) / 2 + CENTER_PILE_GAP
 		: 0;
 
@@ -349,7 +349,7 @@ export function computeBoardPlacement(
 	// A floor on the spread keeps the two piles from ever crowding each other if
 	// a very narrow felt clamps the discard hard inward; the clamp still wins
 	// over symmetry, it just can't pull the pair into overlap.
-	const discardX = isPortrait
+	const discardX = isPhone
 		? 0
 		: Math.max(CENTER_PILE_MIN_SPREAD, Math.min(pileSpread, discardMaxX));
 

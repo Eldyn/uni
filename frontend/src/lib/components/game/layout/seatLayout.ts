@@ -16,6 +16,19 @@ export interface ViewportInfo {
 	orientation: Orientation;
 }
 
+// The board only takes the portrait/phone composition when the viewport is
+// genuinely phone-shaped. A tablet or a slightly-tall desktop window (e.g.
+// 816x1000, ratio 0.82) has room for the landscape board, but the old binary
+// `orientation === "portrait"` test sent it down the phone path and stranded
+// the felt on a narrow rail. `orientation` stays a pure geometric fact (which
+// axis is longer); this is the separate layout decision.
+export const PHONE_MAX_ASPECT = 0.75;
+
+/** True only for a genuinely phone-shaped viewport (narrower than 3:4). */
+export function isPhoneLayout(viewport: ViewportInfo): boolean {
+	return viewport.width / viewport.height < PHONE_MAX_ASPECT;
+}
+
 export interface SeatPosition {
 	/** Center point of the seat within the game field, in percent (0-100). */
 	xPct: number;
@@ -199,9 +212,9 @@ export function computeSeatAngles(
 	warp?: ArcWarp
 ): number[] {
 	if (opponentCount <= 0) return [];
-	const isPortrait = viewport.orientation === "portrait";
-	const baseHalfSpan = isPortrait ? PORTRAIT_BASE_HALF_SPAN_DEG : LANDSCAPE_BASE_HALF_SPAN_DEG;
-	const maxHalfSpan = isPortrait ? PORTRAIT_MAX_HALF_SPAN_DEG : landscapeMaxHalfSpanFor(viewport);
+	const isPhone = isPhoneLayout(viewport);
+	const baseHalfSpan = isPhone ? PORTRAIT_BASE_HALF_SPAN_DEG : LANDSCAPE_BASE_HALF_SPAN_DEG;
+	const maxHalfSpan = isPhone ? PORTRAIT_MAX_HALF_SPAN_DEG : landscapeMaxHalfSpanFor(viewport);
 	const halfSpan = halfSpanFor(opponentCount, baseHalfSpan, maxHalfSpan);
 
 	if (opponentCount <= CROSS_OPPONENT_COUNT) return CROSS_ANGLES_BY_COUNT[opponentCount];
@@ -213,13 +226,13 @@ export function computeSeatPositions(
 	viewport: ViewportInfo
 ): SeatPosition[] {
 	if (opponentCount <= 0) return [];
-	const isPortrait = viewport.orientation === "portrait";
-	const scale = scaleFor(opponentCount) * (isPortrait ? PORTRAIT_SCALE_MULTIPLIER : 1);
-	const rx = isPortrait ? PORTRAIT_RING_RX : LANDSCAPE_RING_RX;
-	const ry = isPortrait ? PORTRAIT_RING_RY : LANDSCAPE_RING_RY;
+	const isPhone = isPhoneLayout(viewport);
+	const scale = scaleFor(opponentCount) * (isPhone ? PORTRAIT_SCALE_MULTIPLIER : 1);
+	const rx = isPhone ? PORTRAIT_RING_RX : LANDSCAPE_RING_RX;
+	const ry = isPhone ? PORTRAIT_RING_RY : LANDSCAPE_RING_RY;
 
 	return computeSeatAngles(opponentCount, viewport).map((angleDeg) =>
-		buildSeat(angleDeg, rx, ry, scale, isPortrait)
+		buildSeat(angleDeg, rx, ry, scale, isPhone)
 	);
 }
 
@@ -228,7 +241,7 @@ function buildSeat(
 	rx: number,
 	ry: number,
 	scale: number,
-	isPortrait: boolean
+	isPhone: boolean
 ): SeatPosition {
 	const angleRad = (angleDeg * Math.PI) / 180;
 	const isTop = Math.abs(angleDeg - 90) <= TOP_ARC_HALF_WIDTH_DEG;
@@ -237,19 +250,19 @@ function buildSeat(
 		xPct: 50 + rx * Math.cos(angleRad),
 		yPct: 50 - ry * Math.sin(angleRad),
 		scale,
-		handTransform: handTransform(angleDeg, isTop, isPortrait),
+		handTransform: handTransform(angleDeg, isTop, isPhone),
 		isTop,
 		...outwardPositions(angleDeg, isTop)
 	};
 }
 
-function handTransform(angleDeg: number, isTop: boolean, isPortrait: boolean): string {
+function handTransform(angleDeg: number, isTop: boolean, isPhone: boolean): string {
 	if (isTop) return "translate(-50%, -75%) scaleY(-1)";
 	// Mobile rails only ever run down the left or right edge (never near
 	// top), so the hand stays fully vertical regardless of exactly where
 	// along the rail a seat sits — a partial rotation would tilt cards
 	// toward the HUD instead of reading as a clean left/right column.
-	const rotateDeg = isPortrait
+	const rotateDeg = isPhone
 		? angleDeg < 90
 			? -HAND_ROTATE_CLAMP_DEG
 			: HAND_ROTATE_CLAMP_DEG

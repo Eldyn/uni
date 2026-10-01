@@ -32,7 +32,7 @@
 	} from "./ripple/ripplePlan";
 	import { storeMatRipple, MAT_INITIAL_COLOR } from "./ripple/matRipple.svelte";
 	import type { MatPlacement } from "../layout/playmat";
-	import type { ViewportInfo } from "../layout/seatLayout";
+	import { isPhoneLayout, type ViewportInfo } from "../layout/seatLayout";
 
 	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
 	 *  sized against the felt this draws and all three have to agree on it. The
@@ -182,7 +182,7 @@
 	let arrowsTexture = $state<Texture | null>(null);
 
 	let matSrc = $derived(
-		viewport.orientation === "portrait" ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
+		isPhoneLayout(viewport) ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
 	);
 
 	$effect(() => {
