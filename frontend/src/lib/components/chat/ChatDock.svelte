@@ -5,12 +5,14 @@
 	import FriendsList from "$components/chat/FriendsList.svelte";
 	import { chatStore } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let showFriendsList = $state(false);
 	let panelHeight = $state(0);
+	const inGame = $derived(storeNavigation.current === "game");
 
 	const unreadBadge = $derived(
 		chatStore.totalUnread > 9
@@ -64,6 +66,7 @@
 		</div>
 	{:else}
 		<button
+			class:chat-launcher-in-game={inGame}
 			class="chat-launcher pixel-corners fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
 			title={m.chat_dock_open({}, { locale: storeI18n.locale })}
 			aria-label={m.chat_dock_open({}, { locale: storeI18n.locale })}
@@ -101,6 +104,13 @@
 		.chat-launcher {
 			bottom: 1rem;
 		}
+	}
+
+	/* The match board owns the bottom edge (hand row, piles) and the top-left
+	   (HUD), so the launcher sits in the free top-right corner instead. */
+	.chat-launcher.chat-launcher-in-game {
+		top: 1rem;
+		bottom: auto;
 	}
 
 	/* Mobile landscape: a rotated phone is wide enough to match `md:`, so the

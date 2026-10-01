@@ -384,6 +384,7 @@
 	// Escape toggles the mini settings modal from the gamescreen.
 	$effect(() => {
 		function onWindowKeydown(event: KeyboardEvent) {
+			if (event.target instanceof HTMLInputElement) return;
 			if (event.key === "Escape") {
 				if (storeNavigation.isSettingsOpen) {
 					storeNavigation.closeSettings();

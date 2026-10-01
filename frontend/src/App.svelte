@@ -190,12 +190,7 @@
 <div id="svelte-root">
 	<Toast />
 	<TooltipStack />
-	<!-- Both sit in the match board's own bottom-left corner, which the local
-	     hand row now reaches into on every viewport — the stamp is reference
-	     information, not something worth printing over the player's cards. -->
-	{#if storeNavigation.current !== "game"}
-		<ChatDock />
-	{/if}
+	<ChatDock />
 
 	{#if storeNavigation.current === "game"}
 		{#await lazyScreens.game() then { default: Screen }}
