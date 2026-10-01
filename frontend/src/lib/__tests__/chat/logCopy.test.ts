@@ -60,6 +60,20 @@ describe("play log copy renders for every LOG_RULES variant", () => {
 		expect(text).toContain(`[c=${color}]`);
 		expect(resolveLogText(`log_color_${color}`, {})?.trim()).toBeTruthy();
 	});
+
+	it("keeps a colorName the caller already supplied", () => {
+		const text = resolveLogText("log_wild", { name: "Ann", color: "red", colorName: "crimson" });
+		expect(text).toContain("[c=red]crimson[/c]");
+	});
+
+	it("falls back to the raw id for an unknown colour", () => {
+		const text = resolveLogText("log_wild", { name: "Ann", color: "purple" });
+		expect(text).toContain("[c=purple]purple[/c]");
+	});
+
+	it("returns null for a key the catalog lacks", () => {
+		expect(resolveLogText("log_does_not_exist", {})).toBeNull();
+	});
 });
 
 describe("play log copy in every locale", () => {

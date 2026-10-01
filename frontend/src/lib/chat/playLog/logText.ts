@@ -16,11 +16,11 @@ const COLOR_NAME_KEY_PREFIX = "log_color_";
  */
 function withColorName(params: LogLine["params"]): LogLine["params"] {
 	const colorId = params[COLOR_PARAM];
-	if (typeof colorId !== "string") return params;
+	if (typeof colorId !== "string" || COLOR_NAME_PARAM in params) return params;
 	const colorName = catalog[`${COLOR_NAME_KEY_PREFIX}${colorId}`];
 	return {
-		...params,
-		[COLOR_NAME_PARAM]: typeof colorName === "function" ? colorName({}) : colorId
+		[COLOR_NAME_PARAM]: typeof colorName === "function" ? colorName({}) : colorId,
+		...params
 	};
 }
 
