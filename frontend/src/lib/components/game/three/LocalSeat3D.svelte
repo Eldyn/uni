@@ -7,7 +7,7 @@
 	import type { GamePlayer } from "$stores/game.svelte";
 	import type { BoardPlacement } from "../layout/boardPlacement";
 	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
-	import { onDestroy } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import { gsap } from "gsap";
 	import { loadSilhouette } from "./textures";
 	import { turnRimTexture } from "./turnRimTexture";
@@ -54,6 +54,7 @@
 	let rimScale = $state(1);
 	let pulseTween: gsap.core.Tween | null = null;
 	let lastCueToken = storeTurnCue.token;
+	let lastSettleToken = storeTurnCue.settleToken;
 
 	let avatarTexture = $state<Texture | null>(null);
 	let currentFrame = 0;
@@ -131,6 +132,18 @@
 		if (pulseTween) return;
 		rimOpacity = steady;
 		rimScale = 1;
+	});
+
+	$effect(() => {
+		const token = storeTurnCue.settleToken;
+		if (token === lastSettleToken) return;
+		lastSettleToken = token;
+		pulseTween?.kill();
+		pulseTween = null;
+		untrack(() => {
+			rimOpacity = steadyOpacity;
+			rimScale = 1;
+		});
 	});
 
 	onDestroy(() => {

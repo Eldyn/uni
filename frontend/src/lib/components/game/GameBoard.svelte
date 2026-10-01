@@ -21,6 +21,8 @@
 	import { storeSpectator } from "$stores/spectator.svelte";
 	import { storeTableSpin, type HandMorph } from "$stores/tableSpin.svelte";
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
+	import { storeDirectionRing } from "$stores/directionRing.svelte";
+	import { storeTurnCue } from "$stores/turnCue.svelte";
 	import {
 		resolveViewedPlayer,
 		rotatedOpponentsFor,
@@ -409,6 +411,8 @@
 	$effect(() => {
 		function onVisibilityChange() {
 			cardRegistry.flushImmediately();
+			storeDirectionRing.settle();
+			storeTurnCue.settle();
 		}
 		document.addEventListener("visibilitychange", onVisibilityChange);
 		return () => document.removeEventListener("visibilitychange", onVisibilityChange);

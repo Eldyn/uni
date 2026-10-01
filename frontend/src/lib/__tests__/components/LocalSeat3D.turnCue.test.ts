@@ -117,6 +117,24 @@ describe("LocalSeat3D turn cue", () => {
 		}
 	});
 
+	it("ends a pulse queued while the tab was hidden instead of playing it", async () => {
+		storeAnimation.enabled = true;
+		const tweenSpy = vi.spyOn(gsap, "to");
+		const seat = mountSeat(false);
+		storeTurnCue.fire();
+		flushSync();
+		await seat.rerender({ isTurn: true });
+		const pulses = tweenSpy.mock.results;
+		const stalePulse = pulses[pulses.length - 1].value as gsap.core.Tween;
+		await seat.rerender({ isTurn: false });
+
+		storeTurnCue.settle();
+		flushSync();
+
+		expect(gsap.getTweensOf(stalePulse.targets())).toHaveLength(0);
+		expect(screen.queryByTestId("turn-rim")).toBeNull();
+	});
+
 	it("does not restart the pulse on unrelated changes", async () => {
 		storeAnimation.enabled = true;
 		const tweenSpy = vi.spyOn(gsap, "to");

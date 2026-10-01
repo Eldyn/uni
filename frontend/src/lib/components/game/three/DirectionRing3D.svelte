@@ -45,6 +45,7 @@
 	const pendingFlips: DirectionSign[] = [];
 	let activeTween: gsap.core.Tween | null = null;
 	let lastCueToken = storeDirectionRing.token;
+	let lastSettleToken = storeDirectionRing.settleToken;
 	let lastSpinStep = -1;
 
 	function stepped(progress: number, steps: number): number {
@@ -109,6 +110,13 @@
 			pendingFlips.push(...flips);
 			runNextFlip();
 		});
+	});
+
+	$effect(() => {
+		const token = storeDirectionRing.settleToken;
+		if (token === lastSettleToken) return;
+		lastSettleToken = token;
+		untrack(() => settle(storeDirectionRing.sign));
 	});
 
 	useTask(

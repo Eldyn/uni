@@ -85,4 +85,26 @@ describe("DirectionRing3D", () => {
 		firstTween.progress(1);
 		expect(tweenSpy).toHaveBeenCalledTimes(2);
 	});
+
+	it("snaps to the current direction on tab return without replaying flips", () => {
+		const tweenSpy = vi.spyOn(gsap, "to");
+		render(DirectionRing3D, { props: { mat } });
+		// INFO: while the tab is hidden GSAP does not tick, so the first flip
+		// sits at progress 0 and the rest wait in the queue.
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		storeDirectionRing.reverseTo(1);
+		flushSync();
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		const hiddenTweens = tweenSpy.mock.results.map((r) => r.value as gsap.core.Tween);
+
+		storeDirectionRing.settle();
+		flushSync();
+
+		expect(screen.getByTestId("direction-ring").dataset.scaleX).toBe("-1");
+		expect(hiddenTweens.length).toBeGreaterThan(0);
+		for (const tween of hiddenTweens) expect(gsap.getTweensOf(tween.targets())).toHaveLength(0);
+		expect(tweenSpy).toHaveBeenCalledTimes(hiddenTweens.length);
+	});
 });

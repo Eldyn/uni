@@ -6,9 +6,16 @@
 
 class StoreTurnCue {
 	token = $state(0);
+	settleToken = $state(0);
 
 	fire(): void {
 		this.token += 1;
+	}
+
+	/** Ends a running pulse at the steady rim (tab return), as
+	 *  cardRegistry.flushImmediately does for card beats. */
+	settle(): void {
+		this.settleToken += 1;
 	}
 
 	reset(): void {

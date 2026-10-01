@@ -17,6 +17,7 @@ import {
 class StoreDirectionRing {
 	sign = $state<DirectionSign>(1);
 	token = $state(0);
+	settleToken = $state(0);
 	#pendingFlips: DirectionSign[] = [];
 
 	/** Sets the resting direction without animating (mount, new match). */
@@ -32,6 +33,13 @@ class StoreDirectionRing {
 		this.#pendingFlips.push(this.sign);
 		this.token += 1;
 		return true;
+	}
+
+	/** Drops queued flips so the ring snaps to `sign` without a tween, as
+	 *  cardRegistry.flushImmediately does for card beats (tab return). */
+	settle(): void {
+		this.#pendingFlips = [];
+		this.settleToken += 1;
 	}
 
 	takeFlips(): DirectionSign[] {
