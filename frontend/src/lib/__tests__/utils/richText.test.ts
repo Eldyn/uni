@@ -124,4 +124,16 @@ describe("parseRichText", () => {
 			{ text: " step", keyword: "turn" }
 		]);
 	});
+
+	it("parses namespaced keyword ids", () => {
+		expect(parseRichText("[k=vanilla:draw_pile]pile[/k]", { allowKeywords: true })).toEqual([
+			{ text: "pile", keyword: "vanilla:draw_pile" }
+		]);
+	});
+
+	it("rejects a keyword id with more than one colon", () => {
+		expect(parseRichText("[k=a:b:c]x[/k]", { allowKeywords: true })).toEqual([
+			{ text: "[k=a:b:c]x[/k]" }
+		]);
+	});
 });

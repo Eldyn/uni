@@ -17,7 +17,7 @@ export type RichEffect = "shake" | "undulate" | "shine";
 
 const RICH_EFFECTS: readonly RichEffect[] = ["shake", "undulate", "shine"];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
-const KEYWORD_ID_RE = /^[a-zA-Z0-9_-]+$/;
+const KEYWORD_ID_RE = /^[a-z0-9_-]+(:[a-z0-9_-]+)?$/i;
 
 export const LOG_ESCAPE_CHAR = "\\";
 export const LOG_ESCAPABLE_CHARS: readonly string[] = [LOG_ESCAPE_CHAR, "[", "*"];
