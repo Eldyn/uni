@@ -82,4 +82,54 @@ describe("LocalSeat3D turn cue", () => {
 		flushSync();
 		expect(screen.queryByTestId("turn-rim")).toBeNull();
 	});
+
+	function finishPulse(tweenSpy: ReturnType<typeof vi.spyOn>): void {
+		const pulse = tweenSpy.mock.results.at(-1)?.value as gsap.core.Tween;
+		pulse.progress(1);
+		flushSync();
+	}
+
+	it("drops the rim once the turn passes after a pulse", async () => {
+		storeAnimation.enabled = true;
+		const tweenSpy = vi.spyOn(gsap, "to");
+		const seat = mountSeat(false);
+		storeTurnCue.fire();
+		flushSync();
+		await seat.rerender({ isTurn: true });
+		finishPulse(tweenSpy);
+		expect(screen.queryByTestId("turn-rim")).not.toBeNull();
+
+		await seat.rerender({ isTurn: false });
+		expect(screen.queryByTestId("turn-rim")).toBeNull();
+	});
+
+	it("keeps following the turn across several turns", async () => {
+		storeAnimation.enabled = true;
+		const tweenSpy = vi.spyOn(gsap, "to");
+		const seat = mountSeat(false);
+		for (let turn = 0; turn < 3; turn++) {
+			storeTurnCue.fire();
+			flushSync();
+			await seat.rerender({ isTurn: true });
+			finishPulse(tweenSpy);
+			await seat.rerender({ isTurn: false });
+			expect(screen.queryByTestId("turn-rim")).toBeNull();
+		}
+	});
+
+	it("does not restart the pulse on unrelated changes", async () => {
+		storeAnimation.enabled = true;
+		const tweenSpy = vi.spyOn(gsap, "to");
+		const seat = mountSeat(true);
+		storeTurnCue.fire();
+		flushSync();
+		finishPulse(tweenSpy);
+		await seat.rerender({ color: "#ff0000", dimmed: true });
+		storeAnimation.speedMultiplier = 2;
+		flushSync();
+		storeAnimation.speedMultiplier = 1;
+		flushSync();
+		expect(tweenSpy).toHaveBeenCalledTimes(1);
+		expect(screen.queryByTestId("turn-rim")).not.toBeNull();
+	});
 });

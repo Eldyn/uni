@@ -118,14 +118,18 @@
 			},
 			onComplete: () => {
 				pulseTween = null;
+				rimOpacity = steadyOpacity;
 				rimScale = 1;
 			}
 		});
 	});
 
+	// INFO: read steadyOpacity before the pulse guard; pulseTween is not
+	// reactive, so an early return here would drop the only dependency.
 	$effect(() => {
+		const steady = steadyOpacity;
 		if (pulseTween) return;
-		rimOpacity = steadyOpacity;
+		rimOpacity = steady;
 		rimScale = 1;
 	});
 
