@@ -70,7 +70,7 @@
 			class="chat-launcher pixel-corners fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center bg-accent text-white"
 			title={m.chat_dock_open({}, { locale: storeI18n.locale })}
 			aria-label={m.chat_dock_open({}, { locale: storeI18n.locale })}
-			aria-keyshortcuts={acceleratorKey("chat")}
+			aria-keyshortcuts={inGame ? undefined : acceleratorKey("chat")}
 			onclick={open}
 		>
 			<svg viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="currentColor" aria-hidden="true"

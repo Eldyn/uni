@@ -57,11 +57,19 @@ describe("App chat dock", () => {
 		expect(launcher.classList.contains("chat-launcher-in-game")).toBe(true);
 	});
 
+	it("advertises no keyboard shortcut during a match, where it does nothing", async () => {
+		storeNavigation.current = "game";
+		const { findByLabelText } = render(App);
+		const launcher = await findByLabelText(m.chat_dock_open({}));
+		expect(launcher.hasAttribute("aria-keyshortcuts")).toBe(false);
+	});
+
 	it("keeps the launcher on the bottom edge outside a match", async () => {
 		storeNavigation.current = "main";
 		const { findByLabelText } = render(App);
 		const launcher = await findByLabelText(m.chat_dock_open({}));
 		expect(launcher.classList.contains("chat-launcher-in-game")).toBe(false);
+		expect(launcher.hasAttribute("aria-keyshortcuts")).toBe(true);
 	});
 
 	it("does not mount the dock for a logged-out visitor", async () => {
