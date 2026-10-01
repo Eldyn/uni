@@ -57,7 +57,7 @@ describe("createPlayLogEmitter", () => {
 	it("holds a play's lines until its card has landed", async () => {
 		let land!: () => void;
 		const landed = new Promise<void>((resolve) => (land = resolve));
-		emitter.notePlay({ player: "Ann", type: "blue", value: "5" }, landed);
+		emitter.notePlay({ player: "Ann", kind: "vanilla:blue_5", color: "blue" }, landed, { seq: 1 });
 		emitter.noteTurn(turn(["Bob"]));
 		await flush();
 		expect(lines).toEqual([]);
@@ -69,62 +69,81 @@ describe("createPlayLogEmitter", () => {
 
 	it("a plain play between skips breaks the skip run", async () => {
 		emitter.noteTurn(turn(["Ann"]));
-		emitter.notePlay({ player: "Bob", type: "red", value: "3" }, Promise.resolve());
+		emitter.notePlay({ player: "Bob", kind: "vanilla:red_3", color: "red" }, Promise.resolve(), {
+			seq: 2
+		});
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_play", "log_skip"]);
 	});
 
-	it("the skip card itself does not break its own run", async () => {
-		emitter.notePlay({ player: "Bob", type: "red", value: "skip" }, Promise.resolve());
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.notePlay({ player: "Cy", type: "red", value: "skip" }, Promise.resolve());
-		emitter.noteTurn(turn(["Ann"]));
+	it("logs every play, including specials", async () => {
+		emitter.notePlay({ player: "Ann", kind: "vanilla:red_skip", color: "red" }, Promise.resolve(), {
+			seq: 1
+		});
+		emitter.notePlay(
+			{ player: "Bob", kind: "vanilla:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 2 }
+		);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again"]);
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_play"]);
+		expect(lines[1].params).toEqual({
+			name: "Bob",
+			kind: "vanilla:green_draw2",
+			color: "green"
+		});
 	});
 
-	it("logs a wild with the chosen colour", async () => {
-		emitter.notePlay({ player: "Ann", type: "white", value: "jolly" }, Promise.resolve(), "red");
+	it("logs a wild once its colour is already known", async () => {
+		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "red" }, Promise.resolve(), {
+			seq: 4
+		});
 		await flush();
-		expect(lines).toEqual([
-			{ kind: "log", key: "log_wild", params: { name: "Ann", color: "red" }, tier: 0 }
-		]);
+		expect(lines.map((line) => line.key)).toEqual(["log_play"]);
+		expect(lines[0].params).toEqual({ name: "Ann", kind: "vanilla:wild", color: "red" });
 	});
 
-	it("logs a pending wild once its colour arrives", async () => {
-		emitter.notePlay({ player: "Ann", type: "white", value: "jolly" }, Promise.resolve());
+	it("logs a play for a wild once its colour arrives", async () => {
+		let land!: () => void;
+		const landed = new Promise<void>((resolve) => (land = resolve));
+		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "white" }, landed, { seq: 3 });
 		await flush();
 		expect(lines).toEqual([]);
 
-		emitter.noteWildColor("blue");
+		emitter.noteWildColor("red");
+		land();
 		await flush();
-		expect(lines.map((line) => line.params)).toEqual([{ name: "Ann", color: "blue" }]);
+		expect(lines.map((line) => line.params)).toEqual([
+			{ name: "Ann", kind: "vanilla:wild", color: "red" }
+		]);
 	});
 
 	it("logs a draw stack from a +N play followed by the debt status", async () => {
-		emitter.notePlay({ player: "Ann", type: "green", value: "+2" }, Promise.resolve());
+		emitter.notePlay(
+			{ player: "Ann", kind: "vanilla:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 5 }
+		);
 		emitter.noteDebt("Bob", 6);
 		await flush();
-		expect(lines).toEqual([
-			{
-				kind: "log",
-				key: "log_draw_stack",
-				params: { name: "Ann", victim: "Bob", amount: 2, total: 6 },
-				tier: 0
-			}
-		]);
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_draw_stack"]);
+		expect(lines[1].params).toEqual({ name: "Ann", victim: "Bob", amount: 2, total: 6 });
 	});
 
 	it("reads the debt magnitude as the running total across a stacked +2 then +4", async () => {
 		// INFO: the engine applies magnitude + carried debt, so the status_applied
 		// magnitude is already the running total on the new victim.
-		emitter.notePlay({ player: "Ann", type: "green", value: "+2" }, Promise.resolve());
+		emitter.notePlay(
+			{ player: "Ann", kind: "vanilla:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 5 }
+		);
 		emitter.noteDebt("Bob", 2);
 		emitter.notePlay(
-			{ player: "Bob", type: "blue", value: "jolly_draw4" },
+			{ player: "Bob", kind: "vanilla:wild_draw4", color: "red" },
 			Promise.resolve(),
-			"red"
+			{ seq: 6 }
 		);
 		emitter.noteDebt("Cy", 6);
 		await flush();
@@ -144,7 +163,11 @@ describe("createPlayLogEmitter", () => {
 
 	it("escapes hostile names so they cannot inject markup (Review Focus 1)", async () => {
 		emitter.noteTurn(turn(["[fx=shake]x[/fx]"]));
-		emitter.notePlay({ player: "[c=red]Ann", type: "green", value: "+2" }, Promise.resolve());
+		emitter.notePlay(
+			{ player: "[c=red]Ann", kind: "vanilla:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 5 }
+		);
 		emitter.noteDebt("[b]Bob", 4);
 		await flush();
 
@@ -154,7 +177,7 @@ describe("createPlayLogEmitter", () => {
 				expect(value).not.toMatch(/(^|[^\\])\[/);
 			}
 		}
-		expect(lines).toHaveLength(2);
+		expect(lines).toHaveLength(3);
 	});
 
 	it("a reset mid-streak makes the next skip a first skip (Review Focus 5)", async () => {
@@ -171,7 +194,7 @@ describe("createPlayLogEmitter", () => {
 		let land!: () => void;
 		const landed = new Promise<void>((resolve) => (land = resolve));
 		emitter.noteTurn(turn([], 1));
-		emitter.notePlay({ player: "Ann", type: "red", value: "skip" }, landed);
+		emitter.notePlay({ player: "Ann", kind: "vanilla:red_skip", color: "red" }, landed, { seq: 1 });
 		emitter.noteTurn(turn(["Bob"]));
 		emitter.reset();
 		land();
