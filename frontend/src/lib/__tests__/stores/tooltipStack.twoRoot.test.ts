@@ -29,9 +29,9 @@ describe("storeTooltipStack: two children from the same root anchor", () => {
 		card.getBoundingClientRect = () => rect(100, 300, 200, 120);
 		document.body.appendChild(card);
 
-		const a = storeTooltipStack.open("play", card, null)!;
+		const a = storeTooltipStack.open("vanilla:play", card, null)!;
 		storeTooltipStack.measureAndReposition(a.id, { width: 260, height: 140 });
-		const b = storeTooltipStack.open("draw", card, null)!;
+		const b = storeTooltipStack.open("vanilla:draw", card, null)!;
 		storeTooltipStack.measureAndReposition(b.id, { width: 260, height: 140 });
 
 		expect(storeTooltipStack.stack).toHaveLength(2);
@@ -43,9 +43,9 @@ describe("storeTooltipStack: two children from the same root anchor", () => {
 		card.getBoundingClientRect = () => rect(100, 4, 200, 100);
 		document.body.appendChild(card);
 
-		const a = storeTooltipStack.open("play", card, null)!;
+		const a = storeTooltipStack.open("vanilla:play", card, null)!;
 		storeTooltipStack.measureAndReposition(a.id, { width: 260, height: 140 });
-		const b = storeTooltipStack.open("draw", card, null)!;
+		const b = storeTooltipStack.open("vanilla:draw", card, null)!;
 		storeTooltipStack.measureAndReposition(b.id, { width: 260, height: 140 });
 
 		expect(storeTooltipStack.stack).toHaveLength(2);

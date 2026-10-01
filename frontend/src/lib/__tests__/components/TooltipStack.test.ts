@@ -20,17 +20,17 @@ describe("TooltipStack component", () => {
 	it("renders root tooltip and spawns child tooltip when clicking [k=id] keyword button", async () => {
 		render(TooltipStack);
 
-		storeTooltipStack.open("draw");
+		storeTooltipStack.open("vanilla:draw");
 		expect(storeTooltipStack.stack).toHaveLength(1);
 
-		// "draw" description contains "[k=draw_pile]draw pile[/k]"
+		// "draw" description contains "[k=vanilla:draw_pile]draw pile[/k]"
 		const drawPileBtn = await screen.findByRole("button", { name: "draw pile" });
 		expect(drawPileBtn).toBeInTheDocument();
 
 		await fireEvent.click(drawPileBtn);
 
 		expect(storeTooltipStack.stack).toHaveLength(2);
-		expect(storeTooltipStack.stack[1].keyword).toBe("draw_pile");
+		expect(storeTooltipStack.stack[1].keyword).toBe("vanilla:draw_pile");
 
 		const childTitle = await screen.findByText("Draw Pile");
 		expect(childTitle).toBeInTheDocument();
@@ -39,7 +39,7 @@ describe("TooltipStack component", () => {
 	it("renders backdrop and popovers at elevated z-index above modal and tooltips", async () => {
 		render(TooltipStack);
 
-		storeTooltipStack.open("draw");
+		storeTooltipStack.open("vanilla:draw");
 		const dialog = await screen.findByRole("dialog");
 		expect(dialog).toBeInTheDocument();
 		expect(dialog.style.zIndex).toBe("20000");
@@ -75,7 +75,7 @@ describe("TooltipStack component", () => {
 		});
 		document.body.appendChild(dummyBtn);
 
-		const entry = storeTooltipStack.open("draw_stacking", dummyBtn);
+		const entry = storeTooltipStack.open("vanilla:draw_stacking", dummyBtn);
 		expect(entry).toBeTruthy();
 		expect(entry!.triggerRect.left).toBe(200);
 
@@ -91,17 +91,17 @@ describe("TooltipStack component", () => {
 
 	it("stacks multiple siblings of the same parent vertically without overlapping", () => {
 		// Open parent
-		const parent = storeTooltipStack.open("turn", null, null);
+		const parent = storeTooltipStack.open("vanilla:turn", null, null);
 		expect(parent).not.toBeNull();
 
 		// Open first child of turn
-		const playChild = storeTooltipStack.open("play", null, parent!.id);
+		const playChild = storeTooltipStack.open("vanilla:play", null, parent!.id);
 		expect(playChild).not.toBeNull();
 		expect(playChild!.parentId).toBe(parent!.id);
 		expect(playChild!.x).toBeGreaterThan(parent!.x);
 
 		// Open second child of turn (sibling of play)
-		const drawChild = storeTooltipStack.open("draw", null, parent!.id);
+		const drawChild = storeTooltipStack.open("vanilla:draw", null, parent!.id);
 		expect(drawChild).not.toBeNull();
 		expect(drawChild!.parentId).toBe(parent!.id);
 		// Same x as play, but stacked vertically below play
@@ -110,7 +110,7 @@ describe("TooltipStack component", () => {
 	});
 
 	it("renders TooltipCard without close button and closes when card is clicked", async () => {
-		storeTooltipStack.open("turn");
+		storeTooltipStack.open("vanilla:turn");
 		render(TooltipStack);
 
 		expect(screen.queryByRole("button", { name: "✕" })).not.toBeInTheDocument();
@@ -124,8 +124,8 @@ describe("TooltipStack component", () => {
 	it("keeps tree open when cursor moves between tooltip items before the debounce elapses", async () => {
 		render(TooltipStack);
 
-		const parent = storeTooltipStack.open("turn", null, null);
-		const child = storeTooltipStack.open("play", null, parent!.id);
+		const parent = storeTooltipStack.open("vanilla:turn", null, null);
+		const child = storeTooltipStack.open("vanilla:play", null, parent!.id);
 		await act(() => {});
 
 		const parentItem = document.getElementById(parent!.id)!;
@@ -144,7 +144,7 @@ describe("TooltipStack component", () => {
 	it("closes the tree via debounce when the cursor leaves the last item with no re-entry", async () => {
 		render(TooltipStack);
 
-		const parent = storeTooltipStack.open("turn", null, null);
+		const parent = storeTooltipStack.open("vanilla:turn", null, null);
 		await act(() => {});
 
 		const parentItem = document.getElementById(parent!.id)!;

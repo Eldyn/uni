@@ -24,16 +24,16 @@ describe("cardDescriptions", () => {
 
 	it("contains keyword markup in action card descriptions", () => {
 		const skipDesc = getCardDescription("skip", "en");
-		expect(skipDesc).toContain("[k=skip]");
-		expect(skipDesc).toContain("[k=turn]");
+		expect(skipDesc).toContain("[k=vanilla:skip]");
+		expect(skipDesc).toContain("[k=vanilla:turn]");
 
 		const draw2Desc = getCardDescription("+2", "en");
-		expect(draw2Desc).toContain("[k=draw]");
-		expect(draw2Desc).toContain("[k=draw_pile]");
+		expect(draw2Desc).toContain("[k=vanilla:draw]");
+		expect(draw2Desc).toContain("[k=vanilla:draw_pile]");
 
 		const wildDesc = getCardDescription("jolly", "en");
-		expect(wildDesc).toContain("[k=wild]");
-		expect(wildDesc).toContain("[k=color]");
+		expect(wildDesc).toContain("[k=vanilla:wild]");
+		expect(wildDesc).toContain("[k=vanilla:color]");
 	});
 
 	it("returns formatted title for colored and wild cards", () => {

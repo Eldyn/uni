@@ -123,7 +123,7 @@ describe("Tooltip static pixel popover", () => {
 		expect(screen.getByRole("tooltip")).toBeInTheDocument();
 
 		// Simulate a child item opened in storeTooltipStack (e.g. glossary keyword click)
-		storeTooltipStack.open("turn");
+		storeTooltipStack.open("vanilla:turn");
 		await act(() => vi.runAllTimers());
 
 		// Root tooltip must remain open!
@@ -144,7 +144,7 @@ describe("Tooltip static pixel popover", () => {
 
 		// A glossary keyword inside the tooltip content spawns a child tooltip,
 		// portaled elsewhere in the DOM by TooltipStack.
-		await act(() => storeTooltipStack.open("turn"));
+		await act(() => storeTooltipStack.open("vanilla:turn"));
 
 		// The pointer leaves this tooltip's own DOM to move onto the (separately
 		// portaled) child — its mouseleave fires even though the user never

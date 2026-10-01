@@ -30,7 +30,7 @@ describe("root tooltip with two keywords", () => {
 		await act(() => vi.runAllTimers());
 
 		expect(storeTooltipStack.stack).toHaveLength(1);
-		expect(storeTooltipStack.stack[0].keyword).toBe("play");
+		expect(storeTooltipStack.stack[0].keyword).toBe("vanilla:play");
 
 		// Click "draw" keyword inside the SAME root popover
 		const drawBtn = screen.getByRole("button", { name: "draw" });
@@ -39,7 +39,7 @@ describe("root tooltip with two keywords", () => {
 
 		// BOTH children should be open as siblings, stacked apart (not overlapping).
 		const keywords = storeTooltipStack.stack.map((s) => s.keyword);
-		expect(keywords).toEqual(["play", "draw"]);
+		expect(keywords).toEqual(["vanilla:play", "vanilla:draw"]);
 		const play = storeTooltipStack.stack[0];
 		const draw = storeTooltipStack.stack[1];
 		expect(draw.depth).toBe(0);

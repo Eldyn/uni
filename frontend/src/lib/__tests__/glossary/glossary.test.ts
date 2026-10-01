@@ -10,7 +10,7 @@ describe("namespaced glossary", () => {
 	it("resolves a vanilla card kind from the card info index", () => {
 		const entry = getGlossaryEntry("vanilla:red_draw2", "en");
 		expect(entry?.title).toBeTruthy();
-		expect(entry?.description).toContain("[k=draw]");
+		expect(entry?.description).toContain("[k=vanilla:draw]");
 	});
 
 	it("returns null for an unknown keyword", () => {

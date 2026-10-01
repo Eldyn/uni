@@ -6,7 +6,7 @@ describe("RichText keyword effects and styling", () => {
 	it("renders keyword with TextEffects when segment has effect", () => {
 		render(RichText, {
 			props: {
-				text: "Check [k=turn][fx=shine]turn[/fx][/k] now",
+				text: "Check [k=vanilla:turn][fx=shine]turn[/fx][/k] now",
 				allowKeywords: true
 			}
 		});
@@ -20,7 +20,7 @@ describe("RichText keyword effects and styling", () => {
 	it("applies red card color and underline styling to keyword button", () => {
 		render(RichText, {
 			props: {
-				text: "Check [k=turn]turn[/k]",
+				text: "Check [k=vanilla:turn]turn[/k]",
 				allowKeywords: true
 			}
 		});

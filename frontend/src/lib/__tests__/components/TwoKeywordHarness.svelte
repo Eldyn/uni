@@ -16,7 +16,7 @@
 <Tooltip {openDelay} {closeDelay} {interactive} title="Turn">
 	{#snippet tooltipContent()}
 		<RichText
-			text="A player's opportunity to [k=play]play[/k] a valid card or [k=draw]draw[/k]."
+			text="A player's opportunity to [k=vanilla:play]play[/k] a valid card or [k=vanilla:draw]draw[/k]."
 			allowKeywords={true}
 		/>
 	{/snippet}

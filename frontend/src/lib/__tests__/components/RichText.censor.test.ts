@@ -22,7 +22,7 @@ describe("RichText censoring behavior", () => {
 	it("preserves 'pass' when keywords are allowed in tooltips and descriptions", () => {
 		render(RichText, {
 			props: {
-				text: "You can [k=play]pass[/k] your [k=turn]turn[/k].",
+				text: "You can [k=vanilla:play]pass[/k] your [k=vanilla:turn]turn[/k].",
 				allowKeywords: true
 			}
 		});
