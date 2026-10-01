@@ -19,7 +19,7 @@ export type LogRule<E extends LogEvent = LogEvent> = {
 	params(event: E): Params;
 };
 
-type RuleKind = Exclude<LogEvent["kind"], "play">;
+type RuleKind = LogEvent["kind"];
 
 const SINGLE_RUN = () => 1;
 
@@ -62,6 +62,11 @@ export const LOG_RULES = {
 		run: SINGLE_RUN,
 		variants: [{ minRun: 1, key: "log_wild" }],
 		params: (event) => ({ name: event.player, color: event.color })
+	},
+	play: {
+		run: SINGLE_RUN,
+		variants: [{ minRun: 1, key: "log_play" }],
+		params: (event) => ({ name: event.player, color: event.color, value: event.value })
 	}
 } satisfies { [K in RuleKind]: LogRule<Extract<LogEvent, { kind: K }>> };
 

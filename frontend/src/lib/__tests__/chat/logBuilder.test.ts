@@ -74,8 +74,14 @@ describe("buildLogLine", () => {
 		expect(line?.params).toEqual({ name: "Ann", color: "red" });
 	});
 
-	it("returns null for events without a log rule", () => {
-		expect(buildLogLine({ kind: "play", player: "Ann" }, streak())).toBeNull();
+	it("builds the play line with the card colour and value", () => {
+		const line = buildLogLine({ kind: "play", player: "Ann", color: "blue", value: "5" }, streak());
+		expect(line).toEqual({
+			kind: "log",
+			key: "log_play",
+			params: { name: "Ann", color: "blue", value: "5" },
+			tier: 0
+		});
 	});
 });
 

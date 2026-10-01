@@ -65,7 +65,10 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 				enqueue(() => undefined, landed);
 			}
 		} else if (!NON_PLAIN_VALUES.has(value)) {
-			enqueue(() => emit({ kind: "play", player: escapeLogText(player) }), landed);
+			enqueue(
+				() => emit({ kind: "play", player: escapeLogText(player), color: type, value }),
+				landed
+			);
 		} else {
 			// INFO: logs nothing itself, but later lines must still wait for it.
 			enqueue(() => undefined, landed);

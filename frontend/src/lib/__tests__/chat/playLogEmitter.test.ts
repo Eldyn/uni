@@ -64,7 +64,7 @@ describe("createPlayLogEmitter", () => {
 
 		land();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_skip"]);
 	});
 
 	it("a plain play between skips breaks the skip run", async () => {
@@ -72,7 +72,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.notePlay({ player: "Bob", type: "red", value: "3" }, Promise.resolve());
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_play", "log_skip"]);
 	});
 
 	it("the skip card itself does not break its own run", async () => {

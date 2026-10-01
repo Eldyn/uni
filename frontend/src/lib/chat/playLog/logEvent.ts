@@ -9,7 +9,7 @@ export type LogEvent =
 			total: number;
 	  }
 	| { kind: "wild"; player: string; color: string }
-	| { kind: "play"; player: string };
+	| { kind: "play"; player: string; color: string; value: string };
 
 export type StreakInfo = {
 	skipRun: number;
