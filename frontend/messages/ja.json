@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "常に数字を正位置で表示",
 	"settings_animation_always_upright_values_description": "出されたカードが回転して置かれても、数字を常に読みやすい向きに保ちます。カードの色や枠線は実際の向きを表示します。",
 	"settings_graphics_heading": "グラフィックとゲームプレイ",
+	"settings_orientation_landscape": "対局中に横向きへ切り替え",
+	"settings_orientation_landscape_description": "対局中は自動的に画面を横向きに回転します。",
 	"settings_graphics_draw_pile": "山札の完全3Dスタック表示",
 	"settings_graphics_draw_pile_description": "山札のカードを深さ制限ではなく完全な3Dスタックで表示します。",
 	"settings_graphics_click_to_play": "クリックでカードを出す",

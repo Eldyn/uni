@@ -23,6 +23,13 @@ vi.mock("$stores/renderSettings.svelte", () => ({
 		setAutoScrollOnEdgeCreep: vi.fn()
 	}
 }));
+vi.mock("$stores/orientation.svelte", () => ({
+	storeOrientation: {
+		supported: true,
+		switchToLandscape: true,
+		setSwitchToLandscape: vi.fn()
+	}
+}));
 
 import SettingsSections from "$components/settings/SettingsSections.svelte";
 
@@ -99,6 +106,28 @@ describe("SettingsSections", () => {
 		storeRenderSettings.clickToPlay = true;
 		storeRenderSettings.syncCursorOnClick = true;
 		storeRenderSettings.autoScrollOnEdgeCreep = true;
+	});
+
+	it("offers the landscape toggle where the screen can rotate", async () => {
+		const { storeOrientation } = await import("$stores/orientation.svelte");
+		(storeOrientation as unknown as { supported: boolean }).supported = true;
+
+		const { getByLabelText } = render(SettingsSections);
+		const toggle = getByLabelText("Switch to landscape in game");
+		expect(toggle).toBeChecked();
+
+		await fireEvent.click(toggle);
+		expect(storeOrientation.setSwitchToLandscape).toHaveBeenCalledWith(false);
+	});
+
+	it("hides the landscape toggle where it cannot work", async () => {
+		const { storeOrientation } = await import("$stores/orientation.svelte");
+		(storeOrientation as unknown as { supported: boolean }).supported = false;
+
+		const { queryByLabelText } = render(SettingsSections);
+		expect(queryByLabelText("Switch to landscape in game")).not.toBeInTheDocument();
+
+		(storeOrientation as unknown as { supported: boolean }).supported = true;
 	});
 
 	it("omits Find us by default", () => {

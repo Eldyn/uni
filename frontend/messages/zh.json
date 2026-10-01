@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "始终正面朝上显示卡牌数值",
 	"settings_animation_always_upright_values_description": "打出的卡牌即使旋转放置，其数值也始终保持便于阅读的方向。卡牌颜色和边框仍会显示其实际朝向。",
 	"settings_graphics_heading": "画面与玩法",
+	"settings_orientation_landscape": "对局中切换到横屏",
+	"settings_orientation_landscape_description": "对局进行时自动将手机旋转为横屏。",
 	"settings_graphics_draw_pile": "完整 3D 牌堆堆叠",
 	"settings_graphics_draw_pile_description": "以完整的 3D 牌堆显示抽牌堆，而不是限制其深度。",
 	"settings_graphics_click_to_play": "点击即出牌",

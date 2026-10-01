@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "Всегда показывать номиналы вертикально",
 	"settings_animation_always_upright_values_description": "Держит число брошенной карты читаемым для вас, даже если сама карта приземлилась повёрнутой. Цвет и рамка карты по-прежнему отражают её реальную ориентацию.",
 	"settings_graphics_heading": "Графика и геймплей",
+	"settings_orientation_landscape": "Переключать в альбомный режим в матче",
+	"settings_orientation_landscape_description": "Автоматически поворачивает телефон в горизонтальное положение во время матча.",
 	"settings_graphics_draw_pile": "Полный 3D-стек колоды добора",
 	"settings_graphics_draw_pile_description": "Отрисовывать полный 3D-стек карт для колоды добора вместо ограниченной глубины.",
 	"settings_graphics_click_to_play": "Играть карту по клику",

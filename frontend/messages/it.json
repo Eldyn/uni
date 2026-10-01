@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "Mostra sempre i valori dritti",
 	"settings_animation_always_upright_values_description": "Mantiene leggibile il numero di una carta giocata, anche quando atterra ruotata. Il colore e il bordo mostrano comunque il suo reale orientamento.",
 	"settings_graphics_heading": "Grafica e gioco",
+	"settings_orientation_landscape": "Passa al formato orizzontale in partita",
+	"settings_orientation_landscape_description": "Ruota automaticamente il telefono in orizzontale mentre una partita è aperta.",
 	"settings_graphics_draw_pile": "Mazzo di pesca 3D completo",
 	"settings_graphics_draw_pile_description": "Mostra l'intera pila 3D delle carte del mazzo di pesca invece di una profondita' limitata.",
 	"settings_graphics_click_to_play": "Clic per giocare la carta",

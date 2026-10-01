@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "Mostrar siempre los valores en posición vertical",
 	"settings_animation_always_upright_values_description": "Mantiene legible el número de una carta jugada, incluso cuando la carta aterriza rotada. El color y el borde siguen mostrando su orientación real.",
 	"settings_graphics_heading": "Gráficos y jugabilidad",
+	"settings_orientation_landscape": "Cambiar a horizontal en partida",
+	"settings_orientation_landscape_description": "Rota automáticamente el teléfono a horizontal mientras hay una partida abierta.",
 	"settings_graphics_draw_pile": "Pila de robo 3D completa",
 	"settings_graphics_draw_pile_description": "Muestra la pila 3D completa de cartas del mazo de robo en lugar de una profundidad limitada.",
 	"settings_graphics_click_to_play": "Clic para jugar la carta",

@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "Always show values upright",
 	"settings_animation_always_upright_values_description": "Keeps a thrown card's number readable to you, even when the card itself lands rotated. The card's color and border still show its real orientation.",
 	"settings_graphics_heading": "Graphics & Gameplay",
+	"settings_orientation_landscape": "Switch to landscape in game",
+	"settings_orientation_landscape_description": "Automatically rotates your phone to landscape while a match is open.",
 	"settings_graphics_draw_pile": "Full 3D draw pile stack",
 	"settings_graphics_draw_pile_description": "Render complete 3D card stack for the draw pile instead of capped depth.",
 	"settings_graphics_click_to_play": "Click to play card",

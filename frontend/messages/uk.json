@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "Завжди показувати значення прямо",
 	"settings_animation_always_upright_values_description": "Тримає число кинутої карти читабельним для вас, навіть якщо сама карта приземлилася повернутою. Колір і рамка карти все одно показують її справжню орієнтацію.",
 	"settings_graphics_heading": "Графіка та геймплей",
+	"settings_orientation_landscape": "Перемикати на альбомну орієнтацію в матчі",
+	"settings_orientation_landscape_description": "Автоматично повертає телефон у горизонтальне положення під час матчу.",
 	"settings_graphics_draw_pile": "Повний 3D-стос колоди добору",
 	"settings_graphics_draw_pile_description": "Показувати повний 3D-стос карт для колоди добору замість обмеженої глибини.",
 	"settings_graphics_click_to_play": "Грати карту одним кліком",

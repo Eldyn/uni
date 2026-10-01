@@ -32,6 +32,7 @@
 	import { storeAnalytics } from "./lib/stores/analytics.svelte";
 	import { storeAuth } from "./lib/stores/auth.svelte";
 	import { storeAudio } from "./lib/stores/audio.svelte";
+	import { storeOrientation } from "./lib/stores/orientation.svelte";
 	import { storeLobby } from "./lib/stores/lobby.svelte";
 	// Eagerly construct the game store so its WebSocket listeners (state capture
 	// and the lobby→game switch) are live from boot. Otherwise it would only load
@@ -107,6 +108,7 @@
 		storeI18n.init();
 		installSessionResets();
 		storeAudio.init();
+		storeOrientation.init();
 
 		// Local screenshot harness: `?dev=match&players=N` renders a synthetic
 		// match offline, skipping login/lobby entirely. __DEV_HARNESS__ is a

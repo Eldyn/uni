@@ -23,6 +23,8 @@
 	"settings_animation_always_upright_values": "항상 카드 숫자를 바르게 표시",
 	"settings_animation_always_upright_values_description": "카드가 회전된 상태로 놓여도 숫자를 항상 읽기 쉽게 유지합니다. 카드의 색상과 테두리는 실제 방향을 유지합니다.",
 	"settings_graphics_heading": "그래픽 및 게임플레이",
+	"settings_orientation_landscape": "게임 중 가로 모드로 전환",
+	"settings_orientation_landscape_description": "경기가 진행되는 동안 휴대폰을 자동으로 가로 방향으로 회전합니다.",
 	"settings_graphics_draw_pile": "전체 3D 뽑기 더미 스택",
 	"settings_graphics_draw_pile_description": "뽑기 더미의 카드를 제한된 깊이가 아닌 전체 3D 카드 스택으로 표시합니다.",
 	"settings_graphics_click_to_play": "클릭하여 카드 내기",

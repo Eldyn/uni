@@ -5,6 +5,7 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
+	import { storeOrientation } from "$stores/orientation.svelte";
 	import { ws, ClientAction } from "$stores/ws.svelte";
 	import Divisor from "$components/common/Divisor.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
@@ -153,6 +154,21 @@
 	<section class="settings-block">
 		<Divisor text={m.settings_graphics_heading({}, { locale: storeI18n.locale })} />
 		<div class="settings-grid">
+			<!-- Only shown where the browser can actually rotate the screen
+			     (Android/Chromium). iPhone and desktop expose no usable lock, so
+			     the toggle would be a dead control there. -->
+			{#if storeOrientation.supported}
+				<Toggle
+					label={m.settings_orientation_landscape({}, { locale: storeI18n.locale })}
+					description={m.settings_orientation_landscape_description(
+						{},
+						{ locale: storeI18n.locale }
+					)}
+					checked={storeOrientation.switchToLandscape}
+					oncommit={(v) => storeOrientation.setSwitchToLandscape(v)}
+				/>
+			{/if}
+
 			<Toggle
 				label={m.settings_graphics_draw_pile({}, { locale: storeI18n.locale })}
 				description={m.settings_graphics_draw_pile_description({}, { locale: storeI18n.locale })}
