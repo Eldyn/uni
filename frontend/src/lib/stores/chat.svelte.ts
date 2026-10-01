@@ -12,6 +12,7 @@ import { storeLobby } from "./lobby.svelte";
 import { storeToast } from "./toast.svelte";
 import { errorText } from "./errors";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
+import type { LogLine } from "$lib/chat/playLog/logEvent";
 
 const CHAT_FRIEND_COLORS = ["#f97373", "#60a5fa", "#4ade80", "#facc15", "#c084fc", "#fb923c"];
 
@@ -27,7 +28,15 @@ export interface ChatLine {
 	username: string;
 	color: string;
 	text: string;
+	/** `"log"` marks a client-only play-log line; absent on player chat. */
+	kind?: "log";
+	/** Play-log message key, resolved to localized copy at render time. */
+	logKey?: string;
+	logParams?: LogLine["params"];
+	logTier?: number;
 }
+
+export const MAX_CHANNEL_LINES = 200;
 
 export type ChatChannel = "global" | "party" | { friendId: string };
 
@@ -233,6 +242,31 @@ class StoreChat implements SessionStore {
 			this.#friendThreads = { ...this.#friendThreads, [channel.friendId]: [...existing, line] };
 		}
 
+		this.#bumpUnread(channel);
+	}
+
+	/**
+	 * Appends a client-only play-log line to the party channel. Never touches
+	 * the socket; a no-op outside a lobby so the line is simply dropped.
+	 */
+	appendLocalLog(log: LogLine): void {
+		if (!this.isPartyAvailable) return;
+
+		const line: ChatLine = {
+			id: `log-${++nextLineId}`,
+			username: "",
+			color: "",
+			text: "",
+			kind: "log",
+			logKey: log.key,
+			logParams: log.params,
+			logTier: log.tier
+		};
+		this.#party = [...this.#party, line].slice(-MAX_CHANNEL_LINES);
+		this.#bumpUnread("party");
+	}
+
+	#bumpUnread(channel: ChatChannel): void {
 		const key = channelKey(channel);
 		if (this.isOpen && channelKey(this.activeChannel) === key) return;
 		this.unread = { ...this.unread, [key]: (this.unread[key] ?? 0) + 1 };

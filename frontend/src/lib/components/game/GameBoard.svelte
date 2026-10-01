@@ -290,6 +290,7 @@
 		bus,
 		cardRegistry,
 		getPlacement,
+		subscribeDesync: (cb) => storeGame.onDesync(cb),
 		getOpponentCardScale,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
@@ -361,6 +362,7 @@
 			// ripple still waiting on a colour pick from the match that just
 			// ended, so it can never fire against the new match's geometry.
 			controller.resetPendingWildRipple();
+			controller.resetPlayLog();
 			introController.start(state).catch((err) => {
 				console.error("GameBoard: match-intro cinematic failed", err);
 			});

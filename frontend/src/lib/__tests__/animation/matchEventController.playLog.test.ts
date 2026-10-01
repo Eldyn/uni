@@ -1,0 +1,226 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createMatchEventBeatController } from "$components/game/animation/matchEventController.svelte";
+import type { MatchEventBeat } from "$components/game/animation/baseBeats.svelte";
+import type { CardBus } from "$components/game/card-bus.svelte";
+import { storeGame } from "$stores/game.svelte";
+import { storeAuth } from "$stores/auth.svelte";
+import { storeLobby } from "$stores/lobby.svelte";
+import { chatStore } from "$stores/chat.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
+import type { BoardPlacement } from "$components/game/layout/boardPlacement";
+
+const placement: BoardPlacement = {
+	mat: {
+		size: [10, 6],
+		offsetX: 0,
+		offsetZ: 0,
+		quarterTurn: false,
+		bounds: { left: -5, right: 5, far: -3, near: 3 }
+	},
+	handScale: 1,
+	centerScale: 1,
+	discardX: 0,
+	discardZ: 0,
+	localSeatZ: 5,
+	localAvatarZ: 6,
+	drawPileX: -3,
+	drawPileZ: 5,
+	drawPileScale: 1
+};
+
+function fakeBus() {
+	return {
+		discardHistory: [] as never[],
+		localHandSnapshot: { orderIds: [] as number[], scrollEm: 0, maxHalfSpanEm: 10 },
+		previousLocalHandSnapshot: null,
+		setActiveType: vi.fn(),
+		setDiscardTop: vi.fn(),
+		addInFlightPlay: vi.fn(),
+		removeInFlightPlay: vi.fn(),
+		pendingLocalDrawIds: new Set<number>(),
+		pendingLocalPlayDrawnId: null,
+		pendingLocalDragPlay: null,
+		setPendingLocalDragPlay: vi.fn()
+	} as unknown as CardBus;
+}
+
+function fakeRegistry(landing: Promise<void> = Promise.resolve()) {
+	return {
+		clearDecoration: vi.fn(),
+		setDecoration: vi.fn(),
+		seedPose: vi.fn(),
+		registerCardMeta: vi.fn(),
+		removeEntry: vi.fn(),
+		enqueue: vi.fn().mockReturnValue(landing)
+	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
+}
+
+function stateWithTop(top: { id: number; type: string; value: string }, active = "red") {
+	return {
+		active_type: active,
+		current_turn: "bob",
+		play_direction: 1,
+		top_card: top,
+		players: [
+			{ username: "me", card_count: 4, is_bot: false, hand: [] },
+			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+		],
+		pending_draws: 0,
+		draw_pile_size: 10
+	} as never;
+}
+
+function harness(landing?: Promise<void>) {
+	let beatHandler: ((beat: MatchEventBeat) => void) | null = null;
+	let desyncHandler: (() => void) | null = null;
+	const controller = createMatchEventBeatController({
+		bus: fakeBus(),
+		cardRegistry: fakeRegistry(landing),
+		getPlacement: () => placement,
+		getOpponentSeatAnchor: () => [0, 0, 0],
+		subscribeBeats: (cb) => {
+			beatHandler = cb;
+			return () => {};
+		},
+		subscribeDesync: (cb) => {
+			desyncHandler = cb;
+			return () => {};
+		}
+	});
+	return {
+		controller,
+		fire: (beat: MatchEventBeat) => beatHandler!(beat),
+		desync: () => desyncHandler!()
+	};
+}
+
+const skipTurn = (skipped: string[], direction = 1): MatchEventBeat => ({
+	seq: 1,
+	kind: "turn",
+	from: "me",
+	to: "carol",
+	direction,
+	deadlineMs: 1000,
+	skipped
+});
+
+const partyKeys = () => chatStore.linesFor("party").map((line) => line.logKey);
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("matchEventController play log", () => {
+	beforeEach(() => {
+		chatStore.reset();
+		storeLobby.current = {
+			invite_code: "ABC123",
+			members: []
+		} as unknown as typeof storeLobby.current;
+		storeAuth.username = "me";
+		storeAnimation.enabled = false;
+	});
+
+	afterEach(() => {
+		storeGame.state = null;
+		storeLobby.current = null;
+		chatStore.reset();
+	});
+
+	it("posts a skip line to the party channel only", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(chatStore.linesFor("global")).toEqual([]);
+	});
+
+	it("posts nothing when the player is not in a lobby", async () => {
+		storeLobby.current = null;
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys()).toEqual([]);
+	});
+
+	it("holds the line back until the played card has landed", async () => {
+		let land!: () => void;
+		const landing = new Promise<void>((resolve) => (land = resolve));
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "skip" });
+		const h = harness(landing);
+
+		h.fire({ seq: 1, kind: "play", player: "me", cardId: 2, auto: false });
+		h.fire(skipTurn(["bob"]));
+		await flush();
+		expect(partyKeys()).toEqual([]);
+
+		land();
+		await flush();
+		expect(partyKeys()).toEqual(["log_skip"]);
+	});
+
+	it("escalates a repeated skip, and a desync resets the streak (Review Focus 5)", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		h.fire(skipTurn(["bob"]));
+		await flush();
+		h.desync();
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip", "log_skip_again", "log_skip"]);
+	});
+
+	it("resets the streak when the match is cleared", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		await flush();
+		storeGame.state = null;
+		h.controller.syncState();
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
+	});
+
+	it("escapes a hostile name before it reaches the chat line (Review Focus 1)", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["[fx=shake]boo[/fx]"]));
+		await flush();
+
+		const [line] = chatStore.linesFor("party");
+		expect(line.logParams?.name).not.toBe("[fx=shake]boo[/fx]");
+		expect(String(line.logParams?.name)).toContain("\\[");
+	});
+
+	it("logs a draw stack from a +2 play and its debt toast", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "+2" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "play", player: "me", cardId: 2, auto: false });
+		h.fire({
+			seq: 2,
+			kind: "toast",
+			target: "bob",
+			statusKind: "vanilla:draw_debt",
+			magnitude: 4,
+			durationUnit: "none",
+			instanceId: 1
+		});
+		await flush();
+
+		const [line] = chatStore.linesFor("party");
+		expect(line.logKey).toBe("log_draw_stack");
+		expect(line.logParams).toMatchObject({ amount: 2, total: 4 });
+	});
+});

@@ -22,6 +22,8 @@ import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
+import { chatStore } from "$stores/chat.svelte";
+import { createPlayLogEmitter, DRAW_DEBT_STATUS_KIND } from "$lib/chat/playLog/playLogEmitter";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -73,7 +75,15 @@ export function createMatchEventBeatController(deps: {
 	/** storeGame.onMatchEventBeat — the store buffers beats and drains them
 	 *  after the next snapshot is applied (the client). */
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
-}): { dispose: () => void; syncState: () => void; resetPendingWildRipple: () => void } {
+	/** storeGame.onDesync — a seq gap makes the play-log streaks untrustworthy. */
+	subscribeDesync?: (cb: () => void) => () => void;
+}): {
+	dispose: () => void;
+	syncState: () => void;
+	resetPendingWildRipple: () => void;
+	resetPlayLog: () => void;
+} {
+	const playLog = createPlayLogEmitter((line) => chatStore.appendLocalLog(line));
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
 	// reads "white" — Playmat3D's own comment on the same field): the ripple's
@@ -343,12 +353,18 @@ export function createMatchEventBeatController(deps: {
 		if (!playedByMe) {
 			deps.bus.addInFlightPlay(beat.player);
 		}
-		deps.cardRegistry.enqueue([playBeat, shakeBeat], resolveCardTarget).then(() => {
+		const landed = deps.cardRegistry.enqueue([playBeat, shakeBeat], resolveCardTarget);
+		landed.then(() => {
 			deps.bus.setDiscardTop(top, landingBaseDeg);
 			if (!playedByMe) {
 				deps.bus.removeInFlightPlay(beat.player);
 			}
 		});
+		playLog.notePlay(
+			{ player: beat.player, type: top.type, value: top.value },
+			landed,
+			knownWildColor
+		);
 	}
 
 	/** Ports the watcher's draw branch (baseBeats.svelte.ts:795-1077). The
@@ -669,6 +685,7 @@ export function createMatchEventBeatController(deps: {
 		});
 		if (cueFires) storeTurnCue.fire();
 		storeDirectionRing.reverseTo(beat.direction);
+		playLog.noteTurn({ skipped: beat.skipped, direction: beat.direction });
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
@@ -691,6 +708,9 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "toast":
 				// Toast state lives in the store; map-and-drop.
+				if (beat.statusKind === DRAW_DEBT_STATUS_KIND) {
+					playLog.noteDebt(beat.target, beat.magnitude);
+				}
 				return;
 		}
 	}
@@ -705,6 +725,7 @@ export function createMatchEventBeatController(deps: {
 			// A teardown/returnToLobby clears the match — drop any landing hold
 			// so the mat can't stay wedged on the old colour into the next one.
 			storeMatRipple.clearPending();
+			playLog.reset();
 			return;
 		}
 
@@ -720,6 +741,7 @@ export function createMatchEventBeatController(deps: {
 		if (pendingWildRipple && state.active_type && state.active_type !== "white") {
 			const { originUv, maxRadius } = pendingWildRipple;
 			pendingWildRipple = null;
+			playLog.noteWildColor(state.active_type);
 			storeMatRipple.startMatRipple(
 				CARD_COLOR_MAP[state.active_type] ?? MAT_INITIAL_COLOR,
 				"wild",
@@ -768,8 +790,13 @@ export function createMatchEventBeatController(deps: {
 		prevIsActionPending = isActionPendingNow;
 	}
 
-	const dispose = deps.subscribeBeats(handle);
-	return { dispose, syncState, resetPendingWildRipple };
+	const unsubscribeBeats = deps.subscribeBeats(handle);
+	const unsubscribeDesync = deps.subscribeDesync?.(playLog.reset);
+	const dispose = () => {
+		unsubscribeBeats();
+		unsubscribeDesync?.();
+	};
+	return { dispose, syncState, resetPendingWildRipple, resetPlayLog: playLog.reset };
 }
 
 /** Computes the local hand's card-N slot as a world-space anchor — ported
