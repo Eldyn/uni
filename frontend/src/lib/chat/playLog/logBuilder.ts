@@ -4,8 +4,11 @@ export type { LogEvent, LogLine };
 
 export const SKIP_AGAIN_RUN = 2;
 export const SKIP_THIRD_RUN = 3;
+export const SKIP_STREAK_RUN = 4;
 export const REVERSE_BACK_RUN = 2;
 export const REVERSE_AGAIN_RUN = 3;
+export const REVERSE_SPIN_RUN = 4;
+export const DRAW_STACK_HEAVY_TOTAL = 8;
 
 type Params = Record<string, string | number>;
 
@@ -26,7 +29,8 @@ export const LOG_RULES = {
 		variants: [
 			{ minRun: 1, key: "log_skip" },
 			{ minRun: SKIP_AGAIN_RUN, key: "log_skip_again" },
-			{ minRun: SKIP_THIRD_RUN, key: "log_skip_third" }
+			{ minRun: SKIP_THIRD_RUN, key: "log_skip_third" },
+			{ minRun: SKIP_STREAK_RUN, key: "log_skip_streak" }
 		],
 		params: (event) => ({ name: event.player })
 	},
@@ -35,13 +39,18 @@ export const LOG_RULES = {
 		variants: [
 			{ minRun: 1, key: "log_reverse" },
 			{ minRun: REVERSE_BACK_RUN, key: "log_reverse_back" },
-			{ minRun: REVERSE_AGAIN_RUN, key: "log_reverse_again" }
+			{ minRun: REVERSE_AGAIN_RUN, key: "log_reverse_again" },
+			{ minRun: REVERSE_SPIN_RUN, key: "log_reverse_spin" }
 		],
 		params: () => ({})
 	},
 	draw_stack: {
-		run: SINGLE_RUN,
-		variants: [{ minRun: 1, key: "log_draw_stack" }],
+		// INFO: the stack escalates on its running total, not on a streak count
+		run: (streak) => streak.stackedDebt,
+		variants: [
+			{ minRun: 1, key: "log_draw_stack" },
+			{ minRun: DRAW_STACK_HEAVY_TOTAL, key: "log_draw_stack_heavy" }
+		],
 		params: (event) => ({
 			name: event.player,
 			victim: event.victim,
