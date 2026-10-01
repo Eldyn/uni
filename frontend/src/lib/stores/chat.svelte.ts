@@ -248,7 +248,8 @@ class StoreChat implements SessionStore {
 
 	/**
 	 * Appends a client-only play-log line to the party channel. Never touches
-	 * the socket; a no-op outside a lobby so the line is simply dropped.
+	 * the socket; a no-op outside a lobby so the line is simply dropped. Log
+	 * lines never raise the unread badge, so real party messages stay visible.
 	 */
 	appendLocalLog(log: LogLine): void {
 		if (!this.isPartyAvailable) return;
@@ -264,7 +265,6 @@ class StoreChat implements SessionStore {
 			logTier: log.tier
 		};
 		this.#party = this.#withLogCap([...this.#party, line]);
-		this.#bumpUnread("party");
 	}
 
 	/** Drops the oldest log lines beyond the cap; player chat is never evicted. */

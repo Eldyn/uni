@@ -70,10 +70,23 @@ describe("chatStore.appendLocalLog", () => {
 		expect(chatStore.totalUnread).toBe(0);
 	});
 
-	it("bumps unread by one per line while the party tab is not being viewed", () => {
+	it("leaves the unread badge alone for log lines while the party tab is closed", () => {
 		chatStore.appendLocalLog(logLine());
 		chatStore.appendLocalLog(logLine());
-		expect(chatStore.unreadCount("party")).toBe(2);
+		expect(chatStore.unreadCount("party")).toBe(0);
+		expect(chatStore.totalUnread).toBe(0);
+	});
+
+	it("still bumps unread for a real player line among log lines", () => {
+		chatStore.appendLocalLog(logLine());
+		chatStore.receiveLine("party", {
+			id: "player-1",
+			username: "ann",
+			color: "",
+			text: "gg"
+		});
+		chatStore.appendLocalLog(logLine());
+		expect(chatStore.unreadCount("party")).toBe(1);
 	});
 
 	it("leaves unread alone while the party tab is open and active", () => {
