@@ -127,7 +127,8 @@
 			const elapsedSteps = lastSpinStep < 0 ? 0 : step - lastSpinStep;
 			lastSpinStep = step;
 			const spinDelta = RING_SPIN_RADIANS_PER_SECOND * (AMBIENT_STEP_MS / 1000) * elapsedSteps;
-			spin -= storeDirectionRing.sign * spinDelta;
+			// INFO: positive z spin is counter-clockwise seen from the camera.
+			spin += storeDirectionRing.sign * spinDelta;
 			invalidate();
 		},
 		{ autoInvalidate: false }

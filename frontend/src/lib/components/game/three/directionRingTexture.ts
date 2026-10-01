@@ -1,42 +1,84 @@
 /**
  * @file directionRingTexture.ts
- * @brief Canvas-drawn ring of clockwise-pointing chevrons with ordered (Bayer)
- * dithered alpha, for the table's play-direction ring. White; tinted per use.
+ * @brief Canvas-drawn ring of evenly spaced, hard-edged pixel chevrons
+ * pointing counter-clockwise on screen (forward play: the next seat is due
+ * right of the local player), echoing the open arrowhead of the mat's chalk
+ * loop, for the table's play-direction ring. White; tinted per use.
  */
 
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from "three";
 
 const CANVAS_SIZE = 256;
-const CHEVRON_COUNT = 14;
-const RING_INNER = 0.88;
-const RING_OUTER = 0.98;
-const CHEVRON_SWEEP = 1.1;
-const CHEVRON_THICKNESS = 0.22;
-const BAYER_SIZE = 4;
-const BAYER_LEVELS = 3;
-// prettier-ignore
-const BAYER_MATRIX = [
-	0, 8, 2, 10,
-	12, 4, 14, 6,
-	3, 11, 1, 9,
-	15, 7, 13, 5
-];
+const CHEVRON_COUNT = 12;
+/** Ring centre line, as a fraction of the canvas half-size. */
+const RING_RADIUS = 0.9;
+/** Chevron length along the ring and half-spread across it, in texels. */
+const CHEVRON_LENGTH = 11;
+const CHEVRON_HALF_SPREAD = 8;
+const STROKE_WIDTH = 3;
+/** Dashed track between chevrons, like the dashed leg of the mat's loop. */
+const DASH_LENGTH = 5;
+const DASH_PITCH = 10;
+const DASH_HALF_WIDTH = 1.5;
+const DASH_CLEARANCE = CHEVRON_LENGTH;
+const OPAQUE = 255;
 
 let cached: CanvasTexture | null = null;
 
-/** Chevron coverage 0..1 at a polar point. Canvas angles grow clockwise on
- *  screen, and the apex leads in that direction with both arms trailing. */
-function chevronIntensity(radius: number, angle: number): number {
-	if (radius < RING_INNER || radius > RING_OUTER) return 0;
-	const bandHalf = (RING_OUTER - RING_INNER) / 2;
-	const bandOffset = Math.abs(radius - (RING_INNER + RING_OUTER) / 2) / bandHalf;
-	const cellAngle = (Math.PI * 2) / CHEVRON_COUNT;
-	const cellPosition = (((angle % cellAngle) + cellAngle) % cellAngle) / cellAngle - 0.5;
-	const strokeDistance = Math.abs(cellPosition + CHEVRON_SWEEP * bandOffset * 0.5 - 0.25);
-	return Math.max(0, 1 - strokeDistance / CHEVRON_THICKNESS);
+/** Distance from (px, py) to the segment (ax, ay)-(bx, by). */
+function segmentDistance(
+	px: number,
+	py: number,
+	ax: number,
+	ay: number,
+	bx: number,
+	by: number
+): number {
+	const abx = bx - ax;
+	const aby = by - ay;
+	const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / (abx * abx + aby * aby)));
+	return Math.hypot(px - ax - abx * t, py - ay - aby * t);
 }
 
-/** Returns the shared dithered chevron ring, or null when there is no DOM. */
+/** True when the texel at (along, across), in the frame of the nearest
+ *  chevron (along = arc length counter-clockwise, across = outward), is inked. */
+function onChevron(along: number, across: number): boolean {
+	const apex = CHEVRON_LENGTH / 2;
+	const tail = -CHEVRON_LENGTH / 2;
+	const upperArm = segmentDistance(along, across, tail, CHEVRON_HALF_SPREAD, apex, 0);
+	const lowerArm = segmentDistance(along, across, tail, -CHEVRON_HALF_SPREAD, apex, 0);
+	return Math.min(upperArm, lowerArm) <= STROKE_WIDTH / 2;
+}
+
+/** True when the texel sits on a dash of the track between two chevrons. */
+function onTrack(along: number, across: number): boolean {
+	if (Math.abs(along) < DASH_CLEARANCE || Math.abs(across) > DASH_HALF_WIDTH) return false;
+	const dashPhase = (((along - DASH_CLEARANCE) % DASH_PITCH) + DASH_PITCH) % DASH_PITCH;
+	return dashPhase < DASH_LENGTH;
+}
+
+/** Alpha per texel (row-major, 0 or 255) of a `size`-square ring. Canvas
+ *  angles grow clockwise on screen, so each apex leads against them. */
+export function directionRingAlpha(size: number = CANVAS_SIZE): Uint8Array {
+	const alpha = new Uint8Array(size * size);
+	const center = size / 2;
+	const ringRadius = center * RING_RADIUS;
+	const cellAngle = (Math.PI * 2) / CHEVRON_COUNT;
+	for (let y = 0; y < size; y++) {
+		for (let x = 0; x < size; x++) {
+			const dx = x + 0.5 - center;
+			const dy = y + 0.5 - center;
+			const angle = Math.atan2(dy, dx);
+			const nearestCell = Math.round(angle / cellAngle) * cellAngle;
+			const along = (nearestCell - angle) * ringRadius;
+			const across = Math.hypot(dx, dy) - ringRadius;
+			if (onChevron(along, across) || onTrack(along, across)) alpha[y * size + x] = OPAQUE;
+		}
+	}
+	return alpha;
+}
+
+/** Returns the shared chevron ring, or null when there is no DOM. */
 export function directionRingTexture(): CanvasTexture | null {
 	if (cached) return cached;
 	if (typeof document === "undefined") return null;
@@ -47,21 +89,14 @@ export function directionRingTexture(): CanvasTexture | null {
 	const ctx = canvas.getContext("2d");
 	if (!ctx) return null;
 
+	const alpha = directionRingAlpha(CANVAS_SIZE);
 	const image = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
-	const center = CANVAS_SIZE / 2;
-	for (let y = 0; y < CANVAS_SIZE; y++) {
-		for (let x = 0; x < CANVAS_SIZE; x++) {
-			const dx = x - center;
-			const dy = y - center;
-			const intensity = chevronIntensity(Math.hypot(dx, dy) / center, Math.atan2(dy, dx));
-			const threshold = (BAYER_MATRIX[(y % BAYER_SIZE) * BAYER_SIZE + (x % BAYER_SIZE)] + 0.5) / 16;
-			const quantized = Math.floor(intensity * BAYER_LEVELS + threshold);
-			const offset = (y * CANVAS_SIZE + x) * 4;
-			image.data[offset] = 255;
-			image.data[offset + 1] = 255;
-			image.data[offset + 2] = 255;
-			image.data[offset + 3] = quantized > 0 ? 255 : 0;
-		}
+	for (let texel = 0; texel < alpha.length; texel++) {
+		const offset = texel * 4;
+		image.data[offset] = 255;
+		image.data[offset + 1] = 255;
+		image.data[offset + 2] = 255;
+		image.data[offset + 3] = alpha[texel];
 	}
 	ctx.putImageData(image, 0, 0);
 
