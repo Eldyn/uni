@@ -10,7 +10,7 @@ const streak = (overrides: Partial<StreakInfo> = {}): StreakInfo => ({
 });
 
 describe("buildLogLine", () => {
-	const skip: LogEvent = { kind: "skip", player: "Ann" };
+	const skip: LogEvent = { kind: "skip", seq: 1, player: "Ann" };
 
 	it.each([
 		[1, "log_skip", 0],
@@ -34,7 +34,7 @@ describe("buildLogLine", () => {
 		[4, "log_reverse_spin", 3],
 		[9, "log_reverse_spin", 3]
 	])("reverse run %i uses %s", (reverseRun, key, tier) => {
-		expect(buildLogLine({ kind: "reverse" }, streak({ reverseRun }))).toMatchObject({
+		expect(buildLogLine({ kind: "reverse", seq: 2 }, streak({ reverseRun }))).toMatchObject({
 			key,
 			tier
 		});
@@ -46,13 +46,21 @@ describe("buildLogLine", () => {
 		[8, "log_draw_stack_heavy", 1],
 		[12, "log_draw_stack_heavy", 1]
 	])("draw stack total %i uses %s", (total, key, tier) => {
-		const event: LogEvent = { kind: "draw_stack", player: "Ann", victim: "Bob", amount: 4, total };
+		const event: LogEvent = {
+			kind: "draw_stack",
+			seq: 3,
+			player: "Ann",
+			victim: "Bob",
+			amount: 4,
+			total
+		};
 		expect(buildLogLine(event, streak({ stackedDebt: total }))).toMatchObject({ key, tier });
 	});
 
 	it("builds the draw stack line with the running total", () => {
 		const event: LogEvent = {
 			kind: "draw_stack",
+			seq: 4,
 			player: "Ann",
 			victim: "Bob",
 			amount: 2,
@@ -97,7 +105,7 @@ describe("buildLogLine variant selection", () => {
 		Object.assign(LOG_RULES, { skip: unsorted });
 		try {
 			const line = buildLogLine(
-				{ kind: "skip", player: "Ann" },
+				{ kind: "skip", seq: 5, player: "Ann" },
 				{ skipRun: 2, reverseRun: 0, stackedDebt: 0 }
 			);
 			expect(line).toMatchObject({ key: "second", tier: 1 });

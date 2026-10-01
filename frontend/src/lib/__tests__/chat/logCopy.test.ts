@@ -14,9 +14,9 @@ const PLACEHOLDER_RE = /\{[^}]*\}/g;
 const TAG_RE = /\[(c|fx)=([^\]]*)\]|\[\/(c|fx)\]/g;
 
 const SAMPLE_EVENTS: { [K in keyof typeof LOG_RULES]: Extract<LogEvent, { kind: K }> } = {
-	skip: { kind: "skip", player: "Ann" },
-	reverse: { kind: "reverse" },
-	draw_stack: { kind: "draw_stack", player: "Ann", victim: "Bob", amount: 4, total: 8 },
+	skip: { kind: "skip", seq: 1, player: "Ann" },
+	reverse: { kind: "reverse", seq: 2 },
+	draw_stack: { kind: "draw_stack", seq: 3, player: "Ann", victim: "Bob", amount: 4, total: 8 },
 	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" }
 };
 
