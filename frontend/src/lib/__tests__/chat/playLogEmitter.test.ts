@@ -116,6 +116,26 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
+	it("reads the debt magnitude as the running total across a stacked +2 then +4", async () => {
+		// INFO: the engine applies magnitude + carried debt, so the status_applied
+		// magnitude is already the running total on the new victim.
+		emitter.notePlay({ player: "Ann", type: "green", value: "+2" }, Promise.resolve());
+		emitter.noteDebt("Bob", 2);
+		emitter.notePlay(
+			{ player: "Bob", type: "blue", value: "jolly_draw4" },
+			Promise.resolve(),
+			"red"
+		);
+		emitter.noteDebt("Cy", 6);
+		await flush();
+
+		const stacks = lines.filter((line) => line.key === "log_draw_stack");
+		expect(stacks.map((line) => line.params)).toEqual([
+			{ name: "Ann", victim: "Bob", amount: 2, total: 2 },
+			{ name: "Bob", victim: "Cy", amount: 4, total: 6 }
+		]);
+	});
+
 	it("ignores a debt status with no preceding +N play", async () => {
 		emitter.noteDebt("Bob", 2);
 		await flush();
