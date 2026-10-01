@@ -36,6 +36,7 @@ export interface ChatLine {
 	logTier?: number;
 }
 
+/** Per-channel cap on play-log lines; player chat lines are never capped. */
 export const MAX_CHANNEL_LINES = 200;
 
 export type ChatChannel = "global" | "party" | { friendId: string };
@@ -202,7 +203,7 @@ class StoreChat implements SessionStore {
 		const key = channelKey(channel);
 		if (this.#loadingMore[key] || this.#hasMore[key] === false) return;
 
-		const oldest = this.linesFor(channel)[0];
+		const oldest = this.linesFor(channel).find((line) => line.serverId !== undefined);
 		this.#loadingMore = { ...this.#loadingMore, [key]: true };
 		try {
 			await ws.connect();
@@ -262,8 +263,15 @@ class StoreChat implements SessionStore {
 			logParams: log.params,
 			logTier: log.tier
 		};
-		this.#party = [...this.#party, line].slice(-MAX_CHANNEL_LINES);
+		this.#party = this.#withLogCap([...this.#party, line]);
 		this.#bumpUnread("party");
+	}
+
+	/** Drops the oldest log lines beyond the cap; player chat is never evicted. */
+	#withLogCap(lines: ChatLine[]): ChatLine[] {
+		let excess = lines.filter((line) => line.kind === "log").length - MAX_CHANNEL_LINES;
+		if (excess <= 0) return lines;
+		return lines.filter((line) => line.kind !== "log" || excess-- <= 0);
 	}
 
 	#bumpUnread(channel: ChatChannel): void {
