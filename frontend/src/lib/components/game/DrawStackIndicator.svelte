@@ -36,7 +36,9 @@
 			// hit each time another +2/+4 is chained; a human may want to scale
 			// pitch with the new pending count.
 			storeAudio.playSfx("sfx.draw-stack.increase");
-			if (storeAnimation.enabled && badgeElement) popBadge(badgeElement);
+			// INFO: GSAP does not tick in a hidden tab, so a pop queued there
+			// would play stale on return; the badge still shows the new total.
+			if (storeAnimation.enabled && badgeElement && !document.hidden) popBadge(badgeElement);
 		}
 		previousPending = pending;
 	});

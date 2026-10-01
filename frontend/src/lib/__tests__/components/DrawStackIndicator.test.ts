@@ -86,6 +86,19 @@ describe("DrawStackIndicator", () => {
 		expect(container.querySelector(".draw-stack-badge")!.className).toContain("tier-3");
 	});
 
+	it("skips the pop while the tab is hidden so none replays on return", async () => {
+		const hiddenSpy = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+		const { container } = render(DrawStackIndicator);
+
+		setPending(4);
+		await tick();
+		hiddenSpy.mockReturnValue(false);
+		await tick();
+
+		expect(popSpy).not.toHaveBeenCalled();
+		expect(container.querySelector(".draw-stack-badge")!.textContent).toBe("+4");
+	});
+
 	it("still plays the increase sound", async () => {
 		render(DrawStackIndicator);
 		setPending(2);
