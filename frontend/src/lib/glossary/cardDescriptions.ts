@@ -4,6 +4,7 @@
  */
 
 import * as m from "$lib/paraglide/messages.js";
+import { ValueMap } from "$lib/generated/schemas";
 import { storeI18n } from "$stores/i18n.svelte";
 import type { CardValue } from "$stores/game.svelte";
 
@@ -61,5 +62,40 @@ export function getCardInfo(
 	return {
 		title: getCardTitle(card, locale),
 		description: getCardDescription(card.value, locale)
+	};
+}
+
+const VANILLA_COLORS = ["red", "blue", "green", "yellow"];
+
+const VALUE_BY_SLUG: Record<string, CardValue> = {
+	draw2: "+2",
+	wild: "jolly",
+	wild_draw4: "jolly_draw4"
+};
+
+const KNOWN_VALUES = new Set<string>(ValueMap);
+
+function vanillaSlug(localId: string): string {
+	for (const color of VANILLA_COLORS) {
+		const prefix = `${color}_`;
+		if (localId.startsWith(prefix)) return localId.slice(prefix.length);
+	}
+	return localId;
+}
+
+export function cardValueFromKind(kindId: string): CardValue | null {
+	const [namespace, localId] = kindId.split(":");
+	if (namespace !== "vanilla" || !localId) return null;
+	const slug = vanillaSlug(localId);
+	const value = VALUE_BY_SLUG[slug] ?? slug;
+	return KNOWN_VALUES.has(value) ? (value as CardValue) : null;
+}
+
+export function cardInfoByKind(kindId: string, locale?: string): CardDescriptionInfo | null {
+	const value = cardValueFromKind(kindId);
+	if (!value) return null;
+	return {
+		title: getCardTitle({ type: "white", value }, locale),
+		description: getCardDescription(value, locale)
 	};
 }

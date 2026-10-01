@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getCardDescription, getCardTitle, getCardInfo } from "$lib/glossary/cardDescriptions";
+import {
+	getCardDescription,
+	getCardTitle,
+	getCardInfo,
+	cardInfoByKind,
+	cardValueFromKind
+} from "$lib/glossary/cardDescriptions";
 import { ValueMap } from "$lib/generated/schemas";
 import type { CardValue } from "$stores/game.svelte";
 
@@ -42,5 +48,21 @@ describe("cardDescriptions", () => {
 
 		const wild4 = getCardInfo({ type: "black", value: "jolly_draw4" as CardValue }, "en");
 		expect(wild4.title).toBe("Wild Draw Four (+4)");
+	});
+
+	it("maps a vanilla kind id back to a card value", () => {
+		expect(cardValueFromKind("vanilla:red_draw2")).toBe("+2");
+		expect(cardValueFromKind("vanilla:green_skip")).toBe("skip");
+		expect(cardValueFromKind("vanilla:wild_draw4")).toBe("jolly_draw4");
+		expect(cardValueFromKind("vanilla:blue_7")).toBe("7");
+		expect(cardValueFromKind("mymod:thing")).toBeNull();
+		expect(cardValueFromKind("vanilla:bogus")).toBeNull();
+	});
+
+	it("resolves card info from a kind id", () => {
+		expect(cardInfoByKind("vanilla:red_draw2", "en")?.title).toBe(
+			getCardTitle({ type: "red", value: "+2" }, "en")
+		);
+		expect(cardInfoByKind("mymod:thing", "en")).toBeNull();
 	});
 });
