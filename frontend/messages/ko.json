@@ -410,5 +410,20 @@
 	"email_reset_body_intro": "비밀번호 재설정 요청을 받았습니다.",
 	"email_reset_body_instruction": "아래 버튼을 클릭해 새 비밀번호를 설정하세요. 이 링크는 60분 후 만료됩니다.",
 	"email_reset_body_ignore": "요청하지 않으셨다면 이 이메일을 무시하셔도 됩니다.",
-	"email_reset_button_label": "비밀번호 재설정"
+	"email_reset_button_label": "비밀번호 재설정",
+	"log_skip": "{name} 님이 스킵당했습니다.",
+	"log_skip_again": "{name} 님이 또 스킵당했습니다.",
+	"log_skip_third": "[c=red]{name}[/c] 님이 세 번째로 스킵당했습니다. 무슨 원한이라도 있나 봐요.",
+	"log_skip_streak": "[c=red]{name}[/c] 님이 또 스킵당했습니다. [fx=shake]이쯤 되면 관전 모드입니다.[/fx]",
+	"log_reverse": "리버스.",
+	"log_reverse_back": "다시 리버스.",
+	"log_reverse_again": "또 리버스. 이제 누구 차례인지 아무도 모릅니다.",
+	"log_reverse_spin": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
+	"log_draw_stack": "{name} 님이 +{amount} 추가. {victim} 님이 뽑을 카드는 {total}장.",
+	"log_draw_stack_heavy": "{name} 님이 +{amount} 더 얹었습니다. [c=red]{victim}[/c] 님은 [fx=shake]{total}장[/fx]을 뽑아야 합니다. 행운을 빕니다.",
+	"log_wild": "{name} 님이 [c={color}]{colorName}[/c]을 선택했습니다.",
+	"log_color_red": "빨강",
+	"log_color_yellow": "노랑",
+	"log_color_green": "초록",
+	"log_color_blue": "파랑"
 }

@@ -410,5 +410,20 @@
 	"email_reset_body_intro": "Recibimos una solicitud para restablecer tu contraseña.",
 	"email_reset_body_instruction": "Haz clic en el botón para elegir una nueva contraseña. Este enlace caduca en 60 minutos.",
 	"email_reset_body_ignore": "Si no lo solicitaste, puedes ignorar este correo.",
-	"email_reset_button_label": "Restablecer contraseña"
+	"email_reset_button_label": "Restablecer contraseña",
+	"log_skip": "{name} pierde el turno.",
+	"log_skip_again": "{name} vuelve a perder el turno.",
+	"log_skip_third": "[c=red]{name}[/c] pierde el turno por tercera vez. Esto ya es personal.",
+	"log_skip_streak": "[c=red]{name}[/c] pierde el turno otra vez. [fx=shake]Ya solo viene a mirar.[/fx]",
+	"log_reverse": "Cambio de sentido.",
+	"log_reverse_back": "Y de vuelta.",
+	"log_reverse_again": "Otro cambio de sentido. Ya nadie sabe a quién le toca.",
+	"log_reverse_spin": "Otro cambio más. [fx=shake]Esto parece una rotonda.[/fx]",
+	"log_draw_stack": "{name} suma +{amount}. {victim} ya debe {total}.",
+	"log_draw_stack_heavy": "{name} carga +{amount} más. [c=red]{victim}[/c] debe [fx=shake]{total}[/fx]. Que Dios le pille confesado.",
+	"log_wild": "{name} elige [c={color}]{colorName}[/c].",
+	"log_color_red": "rojo",
+	"log_color_yellow": "amarillo",
+	"log_color_green": "verde",
+	"log_color_blue": "azul"
 }

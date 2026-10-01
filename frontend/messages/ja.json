@@ -410,5 +410,20 @@
 	"email_reset_body_intro": "パスワードのリセット要求を受け付けました。",
 	"email_reset_body_instruction": "下のボタンをクリックして新しいパスワードを設定してください。このリンクは60分で期限切れになります。",
 	"email_reset_body_ignore": "心当たりがない場合は、このメールを無視してください。",
-	"email_reset_button_label": "パスワードをリセット"
+	"email_reset_button_label": "パスワードをリセット",
+	"log_skip": "{name}はスキップされた。",
+	"log_skip_again": "{name}、またスキップ。",
+	"log_skip_third": "[c=red]{name}[/c]、3回目のスキップ。何か恨みでもあるのか。",
+	"log_skip_streak": "[c=red]{name}[/c]、またスキップ。[fx=shake]もはや観客席の人。[/fx]",
+	"log_reverse": "リバース。",
+	"log_reverse_back": "リバース返し。",
+	"log_reverse_again": "またリバース。誰の番か、もう誰にも分からない。",
+	"log_reverse_spin": "またまたリバース。[fx=shake]目が回ってきた。[/fx]",
+	"log_draw_stack": "{name}が+{amount}を重ねた。{victim}の引く枚数は{total}枚。",
+	"log_draw_stack_heavy": "{name}がさらに+{amount}。[c=red]{victim}[/c]は[fx=shake]{total}枚[/fx]引くことに。ご愁傷さま。",
+	"log_wild": "{name}は[c={color}]{colorName}[/c]を選んだ。",
+	"log_color_red": "赤",
+	"log_color_yellow": "黄",
+	"log_color_green": "緑",
+	"log_color_blue": "青"
 }
