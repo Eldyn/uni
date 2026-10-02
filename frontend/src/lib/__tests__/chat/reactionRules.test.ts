@@ -9,7 +9,6 @@ const base: ReactionContext = {
 	event: { kind: "reverse", seq: 9 },
 	skipRun: 0,
 	reverseRun: 0,
-	stackedDebt: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,

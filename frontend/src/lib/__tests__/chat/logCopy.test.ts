@@ -36,7 +36,6 @@ const PLACEHOLDER_SAMPLES: Record<string, string> = {
 const EMPTY_STREAK: StreakInfo = {
 	skipRun: 0,
 	reverseRun: 0,
-	stackedDebt: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,

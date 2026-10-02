@@ -432,14 +432,11 @@ export function createMatchEventBeatController(deps: {
 		//       even for the viewed/"local" player, but must still react so the
 		//       variant keys match every other client.
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
-		// INFO: the snapshot is post-draw, so the pre-draw count is the drawn
-		//       count subtracted back out; `nearWin` marks a hand that held a
-		//       single card just before this draw.
 		const localPostCount =
 			state.players?.find((p) => p.username === beat.player)?.card_count ?? localHand.length;
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: localPostCount, nearWin: localPostCount - beat.count === 1 }
+			{ handSize: localPostCount }
 		);
 
 		// INFO: only the animation seeding needs the drawn identities the
@@ -554,7 +551,7 @@ export function createMatchEventBeatController(deps: {
 
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: player.card_count, nearWin: preCount === 1 }
+			{ handSize: player.card_count }
 		);
 
 		const isTurn = state.current_turn === beat.player;

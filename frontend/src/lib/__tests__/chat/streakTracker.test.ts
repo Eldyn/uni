@@ -29,7 +29,6 @@ describe("StreakTracker", () => {
 		expect(info).toEqual({
 			skipRun: 0,
 			reverseRun: 0,
-			stackedDebt: 0,
 			drawRun: 0,
 			totalDraws: 0,
 			wildRun: 0,
@@ -114,7 +113,6 @@ describe("StreakTracker", () => {
 		expect(tracker.record({ kind: "skip", player: "Ann" })).toEqual({
 			skipRun: 1,
 			reverseRun: 0,
-			stackedDebt: 0,
 			drawRun: 0,
 			totalDraws: 0,
 			wildRun: 0,

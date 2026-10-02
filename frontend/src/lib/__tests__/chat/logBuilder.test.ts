@@ -5,7 +5,6 @@ import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
 const streak = (overrides: Partial<StreakInfo> = {}): StreakInfo => ({
 	skipRun: 0,
 	reverseRun: 0,
-	stackedDebt: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,

@@ -5,7 +5,6 @@ export type { StreakInfo };
 const EMPTY_STREAK: StreakInfo = {
 	skipRun: 0,
 	reverseRun: 0,
-	stackedDebt: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,
@@ -45,7 +44,6 @@ export class StreakTracker {
 				...this.state,
 				skipRun: 0,
 				reverseRun: 0,
-				stackedDebt: 0,
 				drawRun: count,
 				totalDraws: this.#totalDraws,
 				wildRun: 0,
@@ -86,7 +84,6 @@ export class StreakTracker {
 					...this.state,
 					skipRun: event.player === this.lastSkipped ? this.state.skipRun + 1 : 1,
 					reverseRun: 0,
-					stackedDebt: 0,
 					drawRun: 0,
 					wildRun: 0,
 					nearWinTarget: stopsNearWin ? null : this.state.nearWinTarget,
@@ -100,7 +97,6 @@ export class StreakTracker {
 					...this.state,
 					skipRun: 0,
 					reverseRun: this.state.reverseRun + 1,
-					stackedDebt: 0,
 					drawRun: 0,
 					wildRun: 0
 				};
@@ -117,7 +113,6 @@ export class StreakTracker {
 					skipRun: ownSkip ? this.state.skipRun : 0,
 					reverseRun: ownReverse ? this.state.reverseRun : 0,
 					wildRun: ownWild ? this.state.wildRun : 0,
-					stackedDebt: 0,
 					drawRun: 0,
 					nearWinTarget: escaped ? null : this.state.nearWinTarget,
 					nearWinOpen: escaped ? false : this.state.nearWinOpen
