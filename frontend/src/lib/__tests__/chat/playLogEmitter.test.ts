@@ -145,6 +145,21 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[1].params).toEqual({ name: "Ann", color: "blue" });
 	});
 
+	it("keeps a forced wild as an auto play once its colour arrives", async () => {
+		let land!: () => void;
+		const landed = new Promise<void>((resolve) => (land = resolve));
+		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "white", auto: true }, landed, {
+			seq: 6
+		});
+		emitter.noteWildColor("blue");
+		land();
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^log_auto_play/),
+			"log_wild_reaction_1"
+		]);
+	});
+
 	it("logs a near-win reaction carried by the play", async () => {
 		emitter.notePlay({ player: "Ann", kind: "vanilla:red_5", color: "red" }, Promise.resolve(), {
 			seq: 6,

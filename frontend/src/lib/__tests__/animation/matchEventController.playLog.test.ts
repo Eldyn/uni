@@ -354,4 +354,17 @@ describe("matchEventController play log", () => {
 		await flush();
 		expect(partyKeys()).toHaveLength(2);
 	});
+
+	it("does not log a win for an aborted match's empty winner", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			winner: "",
+			placements: []
+		});
+		const h = harness();
+
+		h.controller.syncState();
+		await flush();
+
+		expect(partyKeys()).toEqual([]);
+	});
 });

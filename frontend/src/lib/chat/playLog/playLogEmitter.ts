@@ -14,6 +14,7 @@ type PendingWild = {
 	landed: Promise<unknown>;
 	seq: number;
 	nearWin?: boolean;
+	auto?: boolean;
 };
 type PendingStack = { player: string; amount: number; seq: number };
 
@@ -73,7 +74,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		if (isWild && color === "white") {
 			// INFO: a new unresolved wild supersedes any earlier one that never
 			//       got its colour pick; only the latest is live.
-			pendingWild = { player, kind, landed, seq, nearWin };
+			pendingWild = { player, kind, landed, seq, nearWin, auto: card.auto };
 			enqueue(() => undefined, landed);
 			return;
 		}
@@ -86,9 +87,9 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 
 	function noteWildColor(color: string): void {
 		if (!pendingWild) return;
-		const { player, kind, landed, seq, nearWin } = pendingWild;
+		const { player, kind, landed, seq, nearWin, auto } = pendingWild;
 		pendingWild = null;
-		enqueue(() => emitPlayReactions({ player, kind, color }, seq, nearWin), landed);
+		enqueue(() => emitPlayReactions({ player, kind, color, auto }, seq, nearWin), landed);
 	}
 
 	function noteTurn({ skipped, direction, seq }: TurnInfo): void {
@@ -145,7 +146,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	 * Placement position is the public, shared seq discriminator.
 	 */
 	function noteGameEnd(winner: string | null | undefined, placements: string[]): void {
-		const nextWinner = winner ?? null;
+		const nextWinner = winner || null;
 		const newlyPlaced: { player: string; place: number }[] = [];
 		placements.forEach((player, index) => {
 			if (seenPlacements.has(player)) return;
