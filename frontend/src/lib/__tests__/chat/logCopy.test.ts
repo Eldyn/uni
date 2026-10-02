@@ -75,8 +75,17 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
 };
 
-const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([, event]) => {
-	const ctx: ReactionContext = { seq: event.seq, event, ...EMPTY_STREAK };
+const SAMPLE_STREAKS: Record<string, Partial<StreakInfo>> = {
+	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" }
+};
+
+const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
+	const ctx: ReactionContext = {
+		seq: event.seq,
+		event,
+		...EMPTY_STREAK,
+		...SAMPLE_STREAKS[kind]
+	};
 	return REACTION_RULES.filter((rule) => rule.match(ctx)).flatMap((rule) =>
 		Object.values(rule.pools)
 			.flat()

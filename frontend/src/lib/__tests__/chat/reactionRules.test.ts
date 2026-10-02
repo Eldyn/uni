@@ -75,6 +75,18 @@ const kinds: LogEvent["kind"][] = [
 	"elimination"
 ];
 
+it("escalates wild-colour reactions by the consecutive run", () => {
+	const wild = (n: number) =>
+		REACTION_RULES.find((r) => r.id === "wild")!.group({
+			...base,
+			event: { kind: "wild", seq: 1, player: "Ann", color: "blue" },
+			wildRun: n
+		});
+	expect(wild(1)).toBe("first");
+	expect(wild(2)).toBe("second");
+	expect(wild(3)).toBe("third");
+});
+
 it("every event kind is matched by at least one rule", () => {
 	for (const kind of kinds) {
 		expect(REACTION_RULES.some((r) => r.match({ ...base, event: { kind } as LogEvent }))).toBe(

@@ -127,11 +127,16 @@ export const REACTION_RULES: ReactionRule[] = [
 	{
 		id: "wild",
 		match: (c) => c.event.kind === "wild",
-		group: () => "generic",
-		pools: { generic: [{ key: "log_wild_reaction_1" }] },
+		group: (c) => (c.wildRun <= 1 ? "first" : c.wildRun === 2 ? "second" : "third"),
+		pools: {
+			first: [{ key: "log_wild_reaction_1" }, { key: "log_wild_reaction_first_2" }],
+			second: [{ key: "log_wild_reaction_second_1" }, { key: "log_wild_reaction_second_2" }],
+			third: [{ key: "log_wild_reaction_third_1" }, { key: "log_wild_reaction_third_2" }]
+		},
 		params: (c) => ({
 			name: c.event.kind === "wild" ? c.event.player : "",
-			color: c.event.kind === "wild" ? c.event.color : ""
+			color: c.event.kind === "wild" ? c.event.color : "",
+			prevColor: c.prevWildColor ?? ""
 		})
 	}
 ];
