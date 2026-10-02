@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { LOG_RULES } from "../../chat/playLog/logBuilder";
+import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { resolveLogText } from "../../chat/playLog/logText";
-import type { LogEvent } from "../../chat/playLog/logEvent";
+import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
+import type { ReactionRule } from "../../chat/playLog/reactionRules";
 
 const localeCatalogs = import.meta.glob<Record<string, string>>("../../../../messages/*.json", {
 	eager: true,
@@ -13,20 +14,28 @@ const ALLOWED_EFFECTS = ["shake"];
 const PLACEHOLDER_RE = /\{[^}]*\}/g;
 const TAG_RE = /\[(c|fx)=([^\]]*)\]|\[\/(c|fx)\]/g;
 
-const SAMPLE_EVENTS: { [K in keyof typeof LOG_RULES]: Extract<LogEvent, { kind: K }> } = {
+const EMPTY_STREAK: StreakInfo = {
+	skipRun: 0,
+	reverseRun: 0,
+	stackedDebt: 0,
+	drawRun: 0,
+	totalDraws: 0
+};
+
+const SAMPLE_EVENTS: Record<string, LogEvent> = {
 	skip: { kind: "skip", seq: 1, player: "Ann" },
 	reverse: { kind: "reverse", seq: 2 },
 	draw_stack: { kind: "draw_stack", seq: 3, player: "Ann", victim: "Bob", amount: 4, total: 8 },
 	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" }
 };
 
-const ruleCases = Object.entries(LOG_RULES).flatMap(([kind, rule]) =>
-	rule.variants.map((variant) => {
-		const event = SAMPLE_EVENTS[kind as keyof typeof LOG_RULES];
-		const params = (rule.params as (event: LogEvent) => Record<string, string | number>)(event);
-		return { key: variant.key, params };
-	})
-);
+const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
+	const rule: ReactionRule | undefined = REACTION_RULES[kind as keyof typeof REACTION_RULES];
+	if (!rule) return [];
+	return Object.values(rule.pools)
+		.flat()
+		.map((variant) => ({ key: variant.key, params: rule.params(event, EMPTY_STREAK) }));
+});
 
 const colorNameKeys = PALETTE_COLORS.map((color) => `log_color_${color}`);
 const copyKeys = [...ruleCases.map(({ key }) => key), ...colorNameKeys];
@@ -46,7 +55,7 @@ function tagProblem(text: string): string | null {
 	return open.length > 0 ? `unclosed [${open.join(", ")}]` : null;
 }
 
-describe("play log copy renders for every LOG_RULES variant", () => {
+describe("play log copy renders for every REACTION_RULES pool key", () => {
 	it.each(ruleCases)("$key resolves to clean, balanced copy", ({ key, params }) => {
 		const text = resolveLogText(key, params);
 		expect(text, `${key} is missing from the catalog`).toBeTruthy();

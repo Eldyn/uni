@@ -1,85 +1,56 @@
 import type { LogEvent, LogLine, StreakInfo } from "./logEvent";
+import { selectReactionKey, type ReactionRule } from "./reactionRules";
 
 export type { LogEvent, LogLine };
 
-export const SKIP_AGAIN_RUN = 2;
-export const SKIP_THIRD_RUN = 3;
-export const SKIP_STREAK_RUN = 4;
-export const REVERSE_BACK_RUN = 2;
-export const REVERSE_AGAIN_RUN = 3;
-export const REVERSE_SPIN_RUN = 4;
-export const DRAW_STACK_HEAVY_TOTAL = 8;
-
-type Params = Record<string, string | number>;
-
-export type LogRule<E extends LogEvent = LogEvent> = {
-	run: (streak: StreakInfo) => number;
-	variants: { minRun: number; key: string }[];
-	// INFO: method syntax keeps params bivariant so a narrow rule fits LogRule
-	params(event: E): Params;
-};
-
-type RuleKind = LogEvent["kind"];
-
-const SINGLE_RUN = () => 1;
-
-export const LOG_RULES = {
+export const REACTION_RULES = {
+	play: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_play" }] },
+		params: (e) => ({ name: e.player, kind: e.cardKind, color: e.color })
+	},
 	skip: {
-		run: (streak) => streak.skipRun,
-		variants: [
-			{ minRun: 1, key: "log_skip" },
-			{ minRun: SKIP_AGAIN_RUN, key: "log_skip_again" },
-			{ minRun: SKIP_THIRD_RUN, key: "log_skip_third" },
-			{ minRun: SKIP_STREAK_RUN, key: "log_skip_streak" }
-		],
-		params: (event) => ({ name: event.player })
+		group: (_e, s) =>
+			s.skipRun >= 4 ? "streak" : s.skipRun === 3 ? "three" : s.skipRun === 2 ? "two" : "one",
+		pools: {
+			one: [{ key: "log_skip" }],
+			two: [{ key: "log_skip_again" }],
+			three: [{ key: "log_skip_third" }],
+			streak: [{ key: "log_skip_streak" }]
+		},
+		params: (e) => ({ name: e.player })
 	},
 	reverse: {
-		run: (streak) => streak.reverseRun,
-		variants: [
-			{ minRun: 1, key: "log_reverse" },
-			{ minRun: REVERSE_BACK_RUN, key: "log_reverse_back" },
-			{ minRun: REVERSE_AGAIN_RUN, key: "log_reverse_again" },
-			{ minRun: REVERSE_SPIN_RUN, key: "log_reverse_spin" }
-		],
+		group: (_e, s) =>
+			s.reverseRun >= 4
+				? "streak"
+				: s.reverseRun === 3
+					? "three"
+					: s.reverseRun === 2
+						? "two"
+						: "one",
+		pools: {
+			one: [{ key: "log_reverse" }],
+			two: [{ key: "log_reverse_back" }],
+			three: [{ key: "log_reverse_again" }],
+			streak: [{ key: "log_reverse_spin" }]
+		},
 		params: () => ({})
 	},
 	draw_stack: {
-		// INFO: the stack escalates on its running total, not on a streak count
-		run: (streak) => streak.stackedDebt,
-		variants: [
-			{ minRun: 1, key: "log_draw_stack" },
-			{ minRun: DRAW_STACK_HEAVY_TOTAL, key: "log_draw_stack_heavy" }
-		],
-		params: (event) => ({
-			name: event.player,
-			victim: event.victim,
-			amount: event.amount,
-			total: event.total
-		})
-	},
-	play: {
-		run: SINGLE_RUN,
-		variants: [{ minRun: 1, key: "log_play" }],
-		params: (event) => ({ name: event.player, kind: event.cardKind, color: event.color })
+		// INFO: temporary rule until the draw event and its pools exist
+		group: () => "generic",
+		pools: { generic: [{ key: "log_draw_stack" }] },
+		params: (e) => ({ name: e.player, victim: e.victim, amount: e.amount, total: e.total })
 	}
-} satisfies { [K in RuleKind]: LogRule<Extract<LogEvent, { kind: K }>> };
+} satisfies { [K in LogEvent["kind"]]: ReactionRule<Extract<LogEvent, { kind: K }>> };
 
-const RULES_BY_KIND: Partial<Record<string, LogRule>> = LOG_RULES;
+const RULES_BY_KIND: Partial<Record<string, ReactionRule>> = REACTION_RULES;
 
 export function buildLogLine(event: LogEvent, streak: StreakInfo): LogLine | null {
 	const rule = RULES_BY_KIND[event.kind];
 	if (!rule) return null;
-	const run = rule.run(streak);
-	const ascending = [...rule.variants].sort((a, b) => a.minRun - b.minRun);
-	let tier = 0;
-	ascending.forEach((variant, index) => {
-		if (run >= variant.minRun) tier = index;
-	});
-	return {
-		kind: "log",
-		key: ascending[tier].key,
-		params: rule.params(event),
-		tier
-	};
+	const key = selectReactionKey(event.kind, rule, event, streak);
+	if (!key) return null;
+	return { kind: "log", key, params: rule.params(event, streak), tier: 0 };
 }
