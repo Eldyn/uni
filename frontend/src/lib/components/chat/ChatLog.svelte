@@ -72,7 +72,6 @@
 							<RichText
 								class="font-monogram text-3xl leading-[0.8] [--rt-sib-scale:0.42]"
 								text={logText}
-								censor={true}
 								allowKeywords={true}
 								logTags={true}
 							/>
