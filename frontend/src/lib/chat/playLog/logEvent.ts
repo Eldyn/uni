@@ -15,6 +15,8 @@ export type StreakInfo = {
 	skipRun: number;
 	reverseRun: number;
 	stackedDebt: number;
+	drawRun: number;
+	totalDraws: number;
 };
 
 export type LogLine = {
