@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { resolveLogText } from "../../chat/playLog/logText";
+import { getGlossaryEntry } from "$lib/glossary/glossary";
 import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
 import type { ReactionRule } from "../../chat/playLog/reactionRules";
 
@@ -10,9 +11,25 @@ const localeCatalogs = import.meta.glob<Record<string, string>>("../../../../mes
 });
 
 const PALETTE_COLORS = ["red", "yellow", "green", "blue"];
-const ALLOWED_EFFECTS = ["shake"];
+const ALLOWED_EFFECTS = ["shake", "undulate", "shine"];
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 const PLACEHOLDER_RE = /\{[^}]*\}/g;
-const TAG_RE = /\[(c|fx)=([^\]]*)\]|\[\/(c|fx)\]/g;
+const TAG_RE = /\[(c|fx|k)=([^\]]*)\]|\[\/(c|fx|k)\]/g;
+
+const PLACEHOLDER_SAMPLES: Record<string, string> = {
+	name: "Ann",
+	kind: "vanilla:red_draw2",
+	color: "red",
+	colorName: "red",
+	cardName: "Draw Two",
+	count: "2",
+	amount: "2",
+	total: "4",
+	handSize: "5",
+	drawRun: "3",
+	victim: "Bob",
+	place: "1"
+};
 
 const EMPTY_STREAK: StreakInfo = {
 	skipRun: 0,
@@ -59,10 +76,20 @@ const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
 		.map((variant) => ({ key: variant.key, params: rule.params(event, EMPTY_STREAK) }));
 });
 
+const reactionKeys = Array.from(
+	new Set(
+		Object.values(REACTION_RULES).flatMap((rule) =>
+			Object.values(rule.pools)
+				.flat()
+				.map((variant) => variant.key)
+		)
+	)
+);
 const colorNameKeys = PALETTE_COLORS.map((color) => `log_color_${color}`);
-const copyKeys = [...ruleCases.map(({ key }) => key), ...colorNameKeys];
+const standaloneKeys = ["log_wild"];
+const copyKeys = [...reactionKeys, ...colorNameKeys, ...standaloneKeys];
 
-/** Returns a problem description, or null when every tag is known and closed in order. */
+/** Returns a problem description, or null when every tag is known, resolvable, and closed in order. */
 function tagProblem(text: string): string | null {
 	const open: string[] = [];
 	for (const [, openName, value, closeName] of text.matchAll(TAG_RE)) {
@@ -70,11 +97,22 @@ function tagProblem(text: string): string | null {
 			if (open.pop() !== closeName) return `stray [/${closeName}]`;
 			continue;
 		}
-		const allowed = openName === "c" ? PALETTE_COLORS : ALLOWED_EFFECTS;
-		if (!allowed.includes(value)) return `unknown [${openName}=${value}]`;
+		if (openName === "c") {
+			if (!PALETTE_COLORS.includes(value) && !HEX_COLOR_RE.test(value))
+				return `unknown [c=${value}]`;
+		} else if (openName === "fx") {
+			if (!ALLOWED_EFFECTS.includes(value)) return `unknown [fx=${value}]`;
+		} else if (openName === "k") {
+			if (!getGlossaryEntry(value)) return `unresolved [k=${value}]`;
+		}
 		open.push(openName);
 	}
 	return open.length > 0 ? `unclosed [${open.join(", ")}]` : null;
+}
+
+/** Substitutes every placeholder with a value that satisfies the tag grammar. */
+function withSampleParams(text: string): string {
+	return text.replace(PLACEHOLDER_RE, (match) => PLACEHOLDER_SAMPLES[match.slice(1, -1)] ?? "x");
 }
 
 describe("play log copy renders for every REACTION_RULES pool key", () => {
@@ -130,8 +168,7 @@ describe("play log copy in every locale", () => {
 			expect(placeholdersOf(text), `${path} ${key} params`).toEqual(
 				placeholdersOf(english?.[key] ?? "")
 			);
-			const sampleText = text.replace(/\{color\}/g, PALETTE_COLORS[0]);
-			expect(tagProblem(sampleText), `${path} ${key} tags`).toBeNull();
+			expect(tagProblem(withSampleParams(text)), `${path} ${key} tags`).toBeNull();
 		}
 	});
 });
