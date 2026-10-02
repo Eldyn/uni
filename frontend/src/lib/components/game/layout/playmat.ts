@@ -58,6 +58,60 @@ const FELT_HEIGHT_SHARE = (BOTTOM_FRACTION - TOP_FRACTION) / 2;
 // sheet's half-size. Non-zero on Z: the art is not centered on its sheet.
 const FELT_CENTER_Z_SHARE = (TOP_FRACTION + BOTTOM_FRACTION) / 2;
 
+/** A rectangle in sheet UV: u grows to the right, v grows up the screen. */
+export interface UvRect {
+	left: number;
+	right: number;
+	bottom: number;
+	top: number;
+}
+
+/** A mat sheet's size and where its opaque felt sits on it. The loop and the
+ *  ripple read this instead of assuming one sheet shape. */
+export interface MatSheet {
+	texelWidth: number;
+	texelHeight: number;
+	feltUvRect: UvRect;
+}
+
+function feltUvRectFromTexels(
+	texelWidth: number,
+	texelHeight: number,
+	left: number,
+	right: number,
+	top: number,
+	bottom: number
+): UvRect {
+	return {
+		left: left / texelWidth,
+		right: right / texelWidth,
+		top: 1 - top / texelHeight,
+		bottom: 1 - bottom / texelHeight
+	};
+}
+
+/** playmat.png's opaque felt box: `magick playmat.png -alpha extract
+ *  -threshold 10% -format %@ info:` -> 640x464+640+300. */
+export const DESKTOP_MAT_SHEET: MatSheet = {
+	texelWidth: SHEET_WIDTH,
+	texelHeight: SHEET_HEIGHT,
+	feltUvRect: feltUvRectFromTexels(SHEET_WIDTH, SHEET_HEIGHT, 640, 1280, 300, 764)
+};
+
+/** mobile_playmat.png's opaque felt box (the box ART_* above describes). */
+export const PHONE_MAT_SHEET: MatSheet = {
+	texelWidth: SHEET_WIDTH,
+	texelHeight: SHEET_HEIGHT,
+	feltUvRect: feltUvRectFromTexels(
+		SHEET_WIDTH,
+		SHEET_HEIGHT,
+		ART_LEFT,
+		ART_RIGHT,
+		ART_TOP,
+		ART_BOTTOM
+	)
+};
+
 export interface MatBounds {
 	/** World X of the felt's left/right edge. */
 	left: number;
