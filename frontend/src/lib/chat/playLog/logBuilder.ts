@@ -11,14 +11,20 @@ export const REACTION_RULES: ReactionRule[] = [
 		match: (c) => c.event.kind === "play",
 		group: () => "generic",
 		pools: { generic: [{ key: "log_play" }] },
-		params: (c) => ({ name: c.event.player, kind: c.event.cardKind, color: c.event.color })
+		params: (c): Record<string, string | number> => {
+			if (c.event.kind !== "play") return {};
+			return { name: c.event.player, kind: c.event.cardKind, color: c.event.color };
+		}
 	},
 	{
 		id: "auto_play",
 		match: (c) => c.event.kind === "auto_play",
 		group: () => "generic",
 		pools: { generic: [{ key: "log_auto_play_1" }, { key: "log_auto_play_2" }] },
-		params: (c) => ({ name: c.event.player, kind: c.event.cardKind, color: c.event.color })
+		params: (c): Record<string, string | number> => {
+			if (c.event.kind !== "auto_play") return {};
+			return { name: c.event.player, kind: c.event.cardKind, color: c.event.color };
+		}
 	},
 	{
 		id: "skip",
@@ -74,18 +80,18 @@ export const REACTION_RULES: ReactionRule[] = [
 			penalty_small: [{ key: "log_draw_stack" }],
 			penalty_heavy: [{ key: "log_draw_stack_heavy" }]
 		},
-		params: (c) =>
-			c.event.kind === "draw"
-				? {
-						name: c.event.player,
-						victim: c.event.victim ?? c.event.player,
-						count: c.event.count,
-						amount: c.event.amount ?? 0,
-						total: c.event.total ?? 0,
-						handSize: c.event.handSize ?? 0,
-						drawRun: c.drawRun
-					}
-				: {}
+		params: (c): Record<string, string | number> => {
+			if (c.event.kind !== "draw") return {};
+			return {
+				name: c.event.player,
+				victim: c.event.victim ?? c.event.player,
+				count: c.event.count,
+				amount: c.event.amount ?? 0,
+				total: c.event.total ?? 0,
+				handSize: c.event.handSize ?? 0,
+				drawRun: c.drawRun
+			};
+		}
 	},
 	{
 		id: "reshuffle",
@@ -113,8 +119,10 @@ export const REACTION_RULES: ReactionRule[] = [
 		match: (c) => c.event.kind === "elimination",
 		group: () => "generic",
 		pools: { generic: [{ key: "log_elimination_1" }, { key: "log_elimination_2" }] },
-		params: (c) =>
-			c.event.kind === "elimination" ? { name: c.event.player, place: c.event.place } : {}
+		params: (c): Record<string, string | number> => {
+			if (c.event.kind !== "elimination") return {};
+			return { name: c.event.player, place: c.event.place };
+		}
 	},
 	{
 		id: "wild",

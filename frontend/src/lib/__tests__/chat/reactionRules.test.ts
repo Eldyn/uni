@@ -9,6 +9,7 @@ const base: ReactionContext = {
 	event: { kind: "reverse", seq: 9 },
 	skipRun: 0,
 	reverseRun: 0,
+	stackedDebt: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,
@@ -41,6 +42,23 @@ describe("selectReactions", () => {
 
 	it("skips rules whose match is false", () => {
 		expect(selectReactions(base, [{ ...rule, match: () => false }])).toEqual([]);
+	});
+
+	it("uses when to filter the pool", () => {
+		const gated: ReactionRule = {
+			...rule,
+			pools: { one: [{ key: "only", when: (ctx) => ctx.reverseRun === 5 }, { key: "fallback" }] }
+		};
+		expect(selectReactions(base, [gated])[0].key).toBe("fallback");
+	});
+
+	it("falls back to the generic pool when the group is unknown", () => {
+		const g: ReactionRule = {
+			...rule,
+			group: () => "missing",
+			pools: { generic: [{ key: "g" }] }
+		};
+		expect(selectReactions(base, [g])[0].key).toBe("g");
 	});
 });
 
