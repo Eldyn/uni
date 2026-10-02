@@ -76,7 +76,7 @@ vec2 outlineParam(vec2 offset) {
 }
 
 void main() {
-	vec2 blockPosition = floor(vUv * uBlockCount) + 0.5;
+	vec2 blockPosition = vUv * uBlockCount;
 	vec2 param = outlineParam(blockPosition - uLoopCenter);
 	float arcLength = param.x;
 	float across = param.y;
@@ -84,9 +84,9 @@ void main() {
 	if (abs(across) > uChevronHalfSpread + 0.5) discard;
 
 	// Position inside the current cell, mirrored when play runs the other way
-	// so the chevron apex always leads. The phase is whole blocks: the pattern
-	// crawls pixel by pixel.
-	float cellOffset = mod(arcLength - floor(uPhase), uPitch);
+	// so the chevron apex always leads. Coordinates and phase stay continuous
+	// (not snapped to the art-pixel grid) so the pattern marches smoothly.
+	float cellOffset = mod(arcLength - uPhase, uPitch);
 	float along = (cellOffset - uPitch * 0.5) * uDirection;
 
 	float apex = uChevronLength * 0.5;

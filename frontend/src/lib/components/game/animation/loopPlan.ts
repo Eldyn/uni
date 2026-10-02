@@ -9,7 +9,7 @@
 import { AMBIENT_STEP_FPS } from "../three/ripple/ripplePlan";
 
 /** Distance from the felt's opaque edge to the loop's outline, in blocks. */
-export const LOOP_INSET_BLOCKS = 10;
+export const LOOP_INSET_BLOCKS = 22;
 /** Must stay above CHEVRON_HALF_SPREAD_BLOCKS so the shader's nearest-point is unambiguous. */
 export const LOOP_CORNER_RADIUS_BLOCKS = 10;
 /** One chevron per cell; the shader fits the pitch so cells tile the loop. */
