@@ -127,13 +127,10 @@
 			/>
 
 			<Toggle
-				label={m.settings_animation_always_upright_values({}, { locale: storeI18n.locale })}
-				description={m.settings_animation_always_upright_values_description(
-					{},
-					{ locale: storeI18n.locale }
-				)}
-				checked={storeAnimation.alwaysUprightValues}
-				oncommit={(v) => storeAnimation.setAlwaysUprightValues(v)}
+				label={m.settings_graphics_mat_ripple({}, { locale: storeI18n.locale })}
+				description={m.settings_graphics_mat_ripple_description({}, { locale: storeI18n.locale })}
+				checked={storeRenderSettings.matRipple}
+				oncommit={(v) => storeRenderSettings.setMatRipple(v)}
 			/>
 
 			<div class="span-all">
@@ -202,10 +199,13 @@
 			/>
 
 			<Toggle
-				label={m.settings_graphics_mat_ripple({}, { locale: storeI18n.locale })}
-				description={m.settings_graphics_mat_ripple_description({}, { locale: storeI18n.locale })}
-				checked={storeRenderSettings.matRipple}
-				oncommit={(v) => storeRenderSettings.setMatRipple(v)}
+				label={m.settings_animation_always_upright_values({}, { locale: storeI18n.locale })}
+				description={m.settings_animation_always_upright_values_description(
+					{},
+					{ locale: storeI18n.locale }
+				)}
+				checked={storeAnimation.alwaysUprightValues}
+				oncommit={(v) => storeAnimation.setAlwaysUprightValues(v)}
 			/>
 
 			<Toggle
