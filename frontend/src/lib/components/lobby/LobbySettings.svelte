@@ -84,14 +84,14 @@
 	/** A lobby always needs at least one human seat, so bots can fill the rest. */
 	let botCountMax = $derived(Math.min(BOT_COUNT_MAX, settings.max_players - 1));
 
-	/** Mirrors LobbySettings::RaceTarget; seats are the lobby's max players. */
+	/** The server resolves the race target from the seats filled at start. */
+	let seatCount = $derived(storeLobby.current?.members?.length || settings.max_players);
+
+	/** Mirrors LobbySettings::RaceTarget. */
 	let raceTarget = $derived(
 		Math.min(
-			Math.max(
-				Math.ceil(((settings.race_percent ?? RACE_PERCENT_DEFAULT) * settings.max_players) / 100),
-				1
-			),
-			settings.max_players - 1
+			Math.max(Math.ceil(((settings.race_percent ?? RACE_PERCENT_DEFAULT) * seatCount) / 100), 1),
+			Math.max(1, seatCount - 1)
 		)
 	);
 
@@ -200,7 +200,7 @@
 						{
 							percent: settings.race_percent ?? RACE_PERCENT_DEFAULT,
 							count: raceTarget,
-							total: settings.max_players
+							total: seatCount
 						},
 						{ locale: storeI18n.locale }
 					)}

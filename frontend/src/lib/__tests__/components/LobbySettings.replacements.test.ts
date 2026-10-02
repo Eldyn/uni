@@ -168,6 +168,17 @@ describe("LobbySettings race percent", () => {
 		expect(screen.getByText("5% = 1 of 16 players win")).toBeInTheDocument();
 	});
 
+	it("resolves the count from the seats filled, not the lobby capacity", () => {
+		const lobby = (storeLobby as any).current;
+		const previousMembers = lobby.members;
+		lobby.members = [{ username: "a" }, { username: "b" }, { username: "c" }];
+		settings().mode = "race";
+		settings().max_players = 8;
+		render(LobbySettings);
+		expect(screen.getByText("50% = 2 of 3 players win")).toBeInTheDocument();
+		lobby.members = previousMembers;
+	});
+
 	it("steps the percent by 5 and commits race_percent", async () => {
 		settings().mode = "race";
 		render(LobbySettings);
