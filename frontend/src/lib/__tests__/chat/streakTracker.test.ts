@@ -216,4 +216,20 @@ describe("StreakTracker", () => {
 		});
 		expect(after.nearWinOpen).toBe(false);
 	});
+
+	it("closes the near-win window when the target draws without a penalty", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		const draw = t.record({ kind: "draw", seq: 2, player: "Bob", count: 1 });
+		expect(draw.nearWinOpen).toBe(false);
+		expect(draw.nearWinTarget).toBeNull();
+	});
+
+	it("keeps the near-win window open through a skip aimed at someone else", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		const skip = t.record({ kind: "skip", seq: 2, player: "Cara" });
+		expect(skip.nearWinOpen).toBe(true);
+		expect(skip.nearWinTarget).toBe("Bob");
+	});
 });

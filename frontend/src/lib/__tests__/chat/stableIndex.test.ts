@@ -23,4 +23,10 @@ describe("stableIndex", () => {
 		const picks = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s) => stableIndex(s, "draw:generic", 4)));
 		expect(picks.size).toBeGreaterThan(1);
 	});
+
+	it("matches reference FNV-1a values so every client keeps picking the same line", () => {
+		expect(stableIndex(1, "draw", 7)).toBe(0);
+		expect(stableIndex(42, "skip", 5)).toBe(2);
+		expect(stableIndex(1000, "wild", 3)).toBe(0);
+	});
 });
