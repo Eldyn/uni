@@ -721,6 +721,10 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     state["current_player"] = match.GetCurrentPlayerUsername();
     state["winner"] = match.GetWinner();
     state["placements"] = match.GetPlacements();
+    // INFO: `placements` is best-first; in a race it grows as seats finish,
+    //       so the client derives finished seats from it mid-match.
+    state["mode"] = match.GetMode();
+    state["race_target"] = match.GetRaceTarget();
 
     // INFO: absolute epoch-ms turn deadline for the current player (0 = none);
     //       the reconnect-safe source for the client turn countdown.

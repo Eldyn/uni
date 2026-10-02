@@ -1623,8 +1623,8 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
-    // Clears the is_spectator flag left over from a previous match's elimination
-    // (match_controller.cpp sets it on knockout). Only seated members are reset;
+    // Clears the is_spectator flag left over from an earlier spectator toggle
+    // (match_controller.cpp only reads it). Only seated members are reset;
     // voluntary spectators (seat_index == -1, joined mid-match) stay spectators.
     for (auto& lobby_member : lobby.members) {
         if (lobby_member.seat_index != -1) {
@@ -1701,6 +1701,11 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         options.players.push_back({member->username, member->is_bot,
                                    member->is_connected,
                                    member->is_ready});
+    }
+    // INFO: the race target is resolved once from the seats filled now.
+    if (lobby.settings.mode == "race") {
+        options.race_target = static_cast<uint32_t>(
+            lobby.settings.RaceTarget(static_cast<int>(seated.size())));
     }
 
     match::engine::AssemblyResult assembly =

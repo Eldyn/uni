@@ -316,6 +316,13 @@ public:
     /** @brief Finish order as usernames, best place first. */
     std::vector<std::string> GetPlacements() const;
 
+    /** @brief `"race"` when a race target was fixed at assembly, else
+     *         `"standard"`. */
+    std::string GetMode() const;
+
+    /** @brief Finishers that end a race match; 0 in standard mode. */
+    uint32_t GetRaceTarget() const;
+
     /** @brief Current-turn player entity, or nullopt. */
     std::optional<ecs::Entity> GetCurrentPlayer() const;
 
@@ -501,6 +508,16 @@ private:
 
     /** @brief Apply the engine default win/placement for `player`. */
     void DeclareHandEmptyWin(ecs::Entity player);
+
+    /**
+     * @brief Race placement: rank `player`, then either pass the turn or,
+     *        once `race_target` seats finished, rank the rest and end.
+     */
+    void DeclareRaceFinish(ecs::Entity player, ecs::Placements& placements,
+                           uint32_t race_target);
+
+    /** @brief Dispatch and emit the closing `match_end`. */
+    void EmitMatchEnd();
 
     /** @brief `hand_empty` / `win_check` settle after a play. */
     void SettleAfterPlay(ecs::Entity player);

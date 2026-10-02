@@ -383,6 +383,40 @@ TEST_CASE("start: succeeds once every human member is ready") {
     CHECK(lp->session != nullptr);
 }
 
+TEST_CASE("start: a race lobby hands the seated race target to the engine") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    lp->settings.mode = "race";
+    lp->settings.race_percent = 50;
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->session->Engine().GetMode() == "race");
+    CHECK(lp->session->Engine().GetRaceTarget() == 1u);
+}
+
+TEST_CASE("start: a standard lobby leaves the engine out of race mode") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->session->Engine().GetMode() == "standard");
+    CHECK(lp->session->Engine().GetRaceTarget() == 0u);
+}
+
 // ---------------------------------------------------------------------------
 // a disconnect must unbind the live session's socket, or the
 // session keeps a freed `AppWebSocket*` and sends through it once the seat is
@@ -445,7 +479,7 @@ TEST_CASE("close: a spectator is unbound from the live session viewer map") {
     CHECK(lp->session->Viewers().count("carol") == 0);
 }
 
-TEST_CASE("start: clears is_spectator left over from a prior elimination for seated members") {
+TEST_CASE("start: clears is_spectator left over from an earlier spectator toggle for seated members") {
     LobbyFixture f{ProjectModsRoot()};
     std::string code = f.alice_creates();
     f.bob_joins(code);
@@ -454,7 +488,7 @@ TEST_CASE("start: clears is_spectator left over from a prior elimination for sea
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
 
-    // Simulate bob having been eliminated mid-match last round: he kept his
+    // Simulate bob having finished in a race last round: he kept his
     // seat but match_controller.cpp flagged him as a spectator.
     for (auto& m : lp->members) {
         if (m.username == "bob") m.is_spectator = true;

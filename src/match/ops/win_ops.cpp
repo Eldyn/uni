@@ -62,7 +62,8 @@ std::optional<ecs::Entity> EntityFromJson(const json& value) {
  * candidate (fail-safe). Seat order is the tie-break.
  */
 std::optional<ecs::Entity> FirstHandEmptyBySeat(ecs::EntityStore& store) {
-    for (ecs::Entity player : PlayersBySeat(store)) {
+    // INFO: race finishers keep their empty hand; they are already placed.
+    for (ecs::Entity player : ActivePlayersBySeat(store)) {
         const ecs::Hand* hand = store.Get<ecs::Hand>(player);
         if (hand != nullptr && hand->cards.empty()) return player;
     }

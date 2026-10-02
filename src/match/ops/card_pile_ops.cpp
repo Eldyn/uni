@@ -784,7 +784,7 @@ OpResult OpPassHands(ecs::EntityStore& store, const OpArgs& args,
     }
 
     std::vector<ecs::Entity> players;
-    for (ecs::Entity player : PlayersBySeat(store)) {
+    for (ecs::Entity player : ActivePlayersBySeat(store)) {
         if (store.Has<ecs::Hand>(player)) players.push_back(player);
     }
     if (players.size() < 2) {
@@ -832,7 +832,7 @@ OpResult OpRedistributeHands(ecs::EntityStore& store, const OpArgs& args,
     if (mode != "even") return OpResult::Resolved();
 
     std::vector<ecs::Entity> players;
-    for (ecs::Entity player : PlayersBySeat(store)) {
+    for (ecs::Entity player : ActivePlayersBySeat(store)) {
         if (store.Has<ecs::Hand>(player)) players.push_back(player);
     }
     if (players.empty()) return OpResult::Resolved();

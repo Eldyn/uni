@@ -170,8 +170,10 @@ bool EvalHandSize(ecs::EntityStore& store, const json& args, OpContext& ctx) {
 
 /** @brief The live seated-player count compared with `cmp`/`n`. */
 bool EvalPlayerCount(ecs::EntityStore& store, const json& args, OpContext&) {
+    // INFO: race finishers have left the table, so they no longer count
+    //       (a reverse with two live seats left acts as a skip).
     const int64_t count =
-        static_cast<int64_t>(store.EntitiesWith<ecs::PlayerInfo>().size());
+        static_cast<int64_t>(ActivePlayersBySeat(store).size());
     return CompareArg(args, count);
 }
 

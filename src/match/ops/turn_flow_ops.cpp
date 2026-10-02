@@ -23,9 +23,9 @@
  *
  * Turn order is `PlayersBySeat` (ascending `PlayerInfo.seat`, slot index as the
  * tie-break) stepped by `MatchMeta.direction` (+1 forward / -1 reverse) with
- * wrapping. Timers are the timer layer's; these ops only record deadline state
- * and the emitted `turn_advance` event carries the incoming player's stored
- * deadline.
+ * wrapping. In a race, seats that already finished are stepped over. Timers
+ * are the timer layer's; these ops only record deadline state and the emitted
+ * `turn_advance` event carries the incoming player's stored deadline.
  */
 
 namespace match::ops::detail {
@@ -264,7 +264,11 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     std::vector<ecs::Entity> skipped;
     if (current_index >= 0) {
         ecs::TurnState* current_turn = store.Get<ecs::TurnState>(*from);
-        if (current_turn != nullptr && ExtraTurns(*current_turn) > 0u) {
+        // INFO: a race finisher has left the table, so a queued extra turn
+        //       of theirs is dropped rather than replayed.
+        const bool from_finished = FinishedRace(store, *from);
+        if (current_turn != nullptr && ExtraTurns(*current_turn) > 0u
+            && !from_finished) {
             // INFO: an extra turn replays the current player; one queued turn
             //       is consumed. The one-shot skip flag is left untouched.
             ConsumeExtraTurn(*current_turn);
@@ -278,17 +282,36 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
             //       seats that lost their turn (client X animation).
             for (int tries = 0; tries < count; ++tries) {
                 cursor = PositiveMod(cursor + step, count);
-                ecs::TurnState* candidate = store.Get<ecs::TurnState>(
-                    players[static_cast<std::size_t>(cursor)]);
+                const ecs::Entity seat =
+                    players[static_cast<std::size_t>(cursor)];
+                // INFO: race finishers are stepped over silently; they lost
+                //       no turn, they are simply out of the rotation.
+                if (FinishedRace(store, seat)) continue;
+                ecs::TurnState* candidate = store.Get<ecs::TurnState>(seat);
                 if (candidate != nullptr && SkipPending(*candidate)) {
                     ConsumeSkip(*candidate);
-                    skipped.push_back(players[static_cast<std::size_t>(cursor)]);
+                    skipped.push_back(seat);
                     continue;
                 }
                 chosen = cursor;
                 break;
             }
             incoming_index = chosen >= 0 ? chosen : PositiveMod(cursor, count);
+            if (chosen < 0 && from_finished) {
+                // WARN: every live seat had a skip queued and the lap fell back
+                //       onto the finisher; hand the turn to the first live seat
+                //       in play direction instead.
+                for (int tries = 1; tries <= count; ++tries) {
+                    const int seat_index =
+                        PositiveMod(current_index + step * tries, count);
+                    if (!FinishedRace(
+                            store,
+                            players[static_cast<std::size_t>(seat_index)])) {
+                        incoming_index = seat_index;
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -369,6 +392,8 @@ OpResult OpRedirectTurn(ecs::EntityStore& store, const OpArgs& args,
     (void)ctx;
     const std::optional<ecs::Entity> target = TargetPlayer(store, args);
     if (!target.has_value()) return OpResult::Resolved();
+    // INFO: a race finisher has left the table and cannot be handed a turn.
+    if (FinishedRace(store, *target)) return OpResult::Resolved();
     const std::optional<ecs::Entity> match = FindMatch(store);
     if (!match.has_value()) return OpResult::Resolved();
     const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);

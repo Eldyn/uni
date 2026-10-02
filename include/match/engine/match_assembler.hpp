@@ -76,6 +76,12 @@ struct MatchAssemblyOptions {
     std::vector<MatchPlayerSpec> players;  /**< seat order, seat 0 first. */
     int starting_cards = 7;                /**< legacy `starting_cards`. */
     std::optional<uint64_t> seed;          /**< explicit; else env / random. */
+    /**
+     * Race finishers that end the match. 0 keeps the standard mode; with
+     * fewer than two seats it resolves to 0, otherwise it is capped at
+     * seats - 1 at assembly.
+     */
+    uint32_t race_target = 0;
 };
 
 /**

@@ -122,6 +122,35 @@ std::vector<ecs::Entity> PlayersBySeat(ecs::EntityStore& store) {
     return players;
 }
 
+uint32_t RaceTarget(ecs::EntityStore& store) {
+    const std::optional<ecs::Entity> match = FindMatch(store);
+    if (!match.has_value()) return 0;
+    const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
+    return meta == nullptr ? 0 : meta->race_target;
+}
+
+bool FinishedRace(ecs::EntityStore& store, ecs::Entity player) {
+    if (RaceTarget(store) == 0) return false;
+    const std::optional<ecs::Entity> match = FindMatch(store);
+    if (!match.has_value()) return false;
+    const ecs::Placements* placements = store.Get<ecs::Placements>(*match);
+    if (placements == nullptr) return false;
+    return std::find(placements->order.begin(), placements->order.end(),
+                     player)
+           != placements->order.end();
+}
+
+std::vector<ecs::Entity> ActivePlayersBySeat(ecs::EntityStore& store) {
+    std::vector<ecs::Entity> players = PlayersBySeat(store);
+    if (RaceTarget(store) == 0) return players;
+    players.erase(std::remove_if(players.begin(), players.end(),
+                                 [&store](ecs::Entity player) {
+                                     return FinishedRace(store, player);
+                                 }),
+                  players.end());
+    return players;
+}
+
 std::optional<ecs::Entity> FindCurrentPlayer(ecs::EntityStore& store) {
     for (ecs::Entity entity : store.EntitiesWith<ecs::TurnState>()) {
         const ecs::TurnState* turn = store.Get<ecs::TurnState>(entity);

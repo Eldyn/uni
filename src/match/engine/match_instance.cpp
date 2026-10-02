@@ -766,6 +766,11 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
 
     ecs::Placements* placements =
         store.Get<ecs::Placements>(registries.match);
+    const uint32_t race_target = ops::RaceTarget(store);
+    if (race_target > 0 && placements != nullptr) {
+        DeclareRaceFinish(player, *placements, race_target);
+        return;
+    }
     const uint32_t place =
         placements == nullptr
             ? 1u
@@ -776,7 +781,54 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
     finished_ = true;
     Emit("placement",
          json{{"player", PlayerUsername(store, player)}, {"place", place}});
+    EmitMatchEnd();
+}
 
+void MatchInstance::DeclareRaceFinish(ecs::Entity player,
+                                      ecs::Placements& placements,
+                                      uint32_t race_target) {
+    ecs::EntityStore& store = assembly_->store;
+
+    // INFO: a finisher already placed (a mod rewrite naming them again) is
+    //       not re-ranked; play simply moves on.
+    if (std::find(placements.order.begin(), placements.order.end(), player)
+        == placements.order.end()) {
+        placements.order.push_back(player);
+        Emit("placement",
+             json{{"player", PlayerUsername(store, player)},
+                  {"place", placements.order.size()}});
+    }
+
+    // INFO: `winner` stays empty until the race ends; mid-match finishers are
+    //       read from the placements.
+    if (placements.order.size() < race_target) {
+        AdvanceTurn();
+        return;
+    }
+
+    // INFO: everyone still holding cards lost; they rank below the finishers
+    //       by fewest cards left, seat order breaking ties.
+    std::vector<ecs::Entity> remaining;
+    for (ecs::Entity seat : ops::PlayersBySeat(store)) {
+        if (std::find(placements.order.begin(), placements.order.end(), seat)
+            == placements.order.end()) {
+            remaining.push_back(seat);
+        }
+    }
+    std::stable_sort(remaining.begin(), remaining.end(),
+                     [&store](ecs::Entity a, ecs::Entity b) {
+                         return ops::HandOf(store, a).size()
+                                < ops::HandOf(store, b).size();
+                     });
+    placements.order.insert(placements.order.end(), remaining.begin(),
+                            remaining.end());
+
+    winner_ = placements.order.front();
+    finished_ = true;
+    EmitMatchEnd();
+}
+
+void MatchInstance::EmitMatchEnd() {
     // INFO: `match_end` closes the match. The settings snapshot is the
     //       deck settings retained at assembly (the session; was an empty
     //       object until the assembly carried it).
@@ -2125,7 +2177,7 @@ void MatchInstance::BindConditionSelectors(
         discard.has_value()) {
         frame.BindSelector("@discard_pile", {*discard});
     }
-    const std::vector<ecs::Entity> players = ops::PlayersBySeat(store);
+    const std::vector<ecs::Entity> players = ops::ActivePlayersBySeat(store);
     frame.BindSelector("@all_players", players);
     std::vector<ecs::Entity> others;
     others.reserve(players.size());
@@ -2210,6 +2262,17 @@ std::vector<std::string> MatchInstance::GetPlacements() const {
     return names;
 }
 
+std::string MatchInstance::GetMode() const {
+    return GetRaceTarget() > 0 ? "race" : "standard";
+}
+
+uint32_t MatchInstance::GetRaceTarget() const {
+    if (assembly_ == nullptr) return 0;
+    const ecs::MatchMeta* meta =
+        assembly_->store.Get<ecs::MatchMeta>(assembly_->registries.match);
+    return meta == nullptr ? 0 : meta->race_target;
+}
+
 std::optional<ecs::Entity> MatchInstance::GetCurrentPlayer() const {
     return CurrentPlayer();
 }
@@ -2280,6 +2343,8 @@ json MatchInstance::ExportState() const {
     out["current_player"] = GetCurrentPlayerUsername();
     out["winner"] = GetWinner();
     out["placements"] = GetPlacements();
+    out["mode"] = GetMode();
+    out["race_target"] = GetRaceTarget();
 
     const ecs::PileContents* draw =
         store.Get<ecs::PileContents>(registries.draw_pile);

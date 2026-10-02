@@ -661,6 +661,11 @@ AssemblyResult MatchAssembler::Assemble(
     meta.mods = reg.mods;
     meta.direction = ecs::Direction::kForward;
     meta.round = 0;
+    // INFO: fixed once from the seated count; later leavers or bot takeovers
+    //       never move it.
+    const uint32_t seats = static_cast<uint32_t>(options.players.size());
+    meta.race_target = seats < 2 ? 0u
+                                 : std::min(options.race_target, seats - 1u);
     store.Add(reg.match, std::move(meta));
     store.Add(reg.match, ecs::Placements{});
     ecs::RngState rng_state;

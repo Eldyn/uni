@@ -404,6 +404,8 @@ struct MatchMeta {
     uint32_t round = 0;
     uint64_t rng_seed = 0;
     BudgetLedger budgets;
+    /**< Finishers that end a race match; 0 = standard (first one ends it). */
+    uint32_t race_target = 0;
 };
 
 // --- placements ------------------------------------------------------------

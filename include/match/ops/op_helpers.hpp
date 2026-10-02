@@ -79,6 +79,24 @@ std::optional<ecs::Entity> FindMatch(ecs::EntityStore& store);
 std::vector<ecs::Entity> PlayersBySeat(ecs::EntityStore& store);
 
 /**
+ * @brief Race target fixed at assembly; 0 when the match is not a race.
+ */
+uint32_t RaceTarget(ecs::EntityStore& store);
+
+/**
+ * @brief Whether `player` already finished a race and left the table.
+ *
+ * Always false outside race mode, so standard turn order and selectors are
+ * untouched even when a mod records placements mid-match.
+ */
+bool FinishedRace(ecs::EntityStore& store, ecs::Entity player);
+
+/**
+ * @brief `PlayersBySeat` minus seats that already finished a race.
+ */
+std::vector<ecs::Entity> ActivePlayersBySeat(ecs::EntityStore& store);
+
+/**
  * @brief The player whose `turn_state.is_current` is set, or nullopt.
  */
 std::optional<ecs::Entity> FindCurrentPlayer(ecs::EntityStore& store);

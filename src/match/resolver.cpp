@@ -1,5 +1,7 @@
 #include <match/resolver.hpp>
 
+#include <match/ops/op_helpers.hpp>
+
 #include <common/env.hpp>
 #include <logger.hpp>
 
@@ -308,18 +310,9 @@ std::optional<ecs::Entity> Resolver::FindPlayerByUsername(
 }
 
 std::vector<ecs::Entity> Resolver::PlayersBySeat() const {
-    std::vector<ecs::Entity> players = store_.EntitiesWith<ecs::PlayerInfo>();
-    std::stable_sort(
-        players.begin(), players.end(),
-        [this](ecs::Entity a, ecs::Entity b) {
-            const ecs::PlayerInfo* pa = store_.Get<ecs::PlayerInfo>(a);
-            const ecs::PlayerInfo* pb = store_.Get<ecs::PlayerInfo>(b);
-            const uint32_t sa = pa == nullptr ? 0 : pa->seat;
-            const uint32_t sb = pb == nullptr ? 0 : pb->seat;
-            if (sa != sb) return sa < sb;
-            return a.index < b.index;
-        });
-    return players;
+    // INFO: race finishers have left the table, so no player selector or
+    //       `@choose_player` prompt reaches them.
+    return ops::ActivePlayersBySeat(store_);
 }
 
 std::optional<ecs::Entity> Resolver::FindCurrentPlayer() const {
@@ -364,13 +357,19 @@ std::optional<ecs::Entity> Resolver::Neighbor(
 
 std::optional<ecs::Entity> Resolver::SeatStep(ecs::Entity anchor,
                                               int step) const {
-    std::vector<ecs::Entity> players = PlayersBySeat();
+    // INFO: the anchor is located among every seat (a race finisher may
+    //       still anchor its own last play), then finished seats are hopped.
+    std::vector<ecs::Entity> players = ops::PlayersBySeat(store_);
     const int count = static_cast<int>(players.size());
     for (int i = 0; i < count; ++i) {
         if (!(players[static_cast<std::size_t>(i)] == anchor)) continue;
-        int index = (i + step) % count;
-        if (index < 0) index += count;
-        return players[static_cast<std::size_t>(index)];
+        for (int hop = 1; hop <= count; ++hop) {
+            int index = (i + step * hop) % count;
+            if (index < 0) index += count;
+            const ecs::Entity seat = players[static_cast<std::size_t>(index)];
+            if (!ops::FinishedRace(store_, seat)) return seat;
+        }
+        return std::nullopt;
     }
     return std::nullopt;
 }
