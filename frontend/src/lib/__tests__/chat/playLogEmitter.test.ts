@@ -144,8 +144,9 @@ describe("createPlayLogEmitter", () => {
 			seq: 4
 		});
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
-		expect(lines[1].params).toEqual({ name: "Ann", color: "red" });
+		expect(lines[0].key).toBe("log_play");
+		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[1].params).toEqual({ name: "Ann", color: "red", prevColor: "" });
 	});
 
 	it("logs the wild colour reaction once the colour arrives", async () => {
@@ -155,8 +156,9 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteWildColor("blue");
 		land();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
-		expect(lines[1].params).toEqual({ name: "Ann", color: "blue" });
+		expect(lines[0].key).toBe("log_play");
+		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[1].params).toEqual({ name: "Ann", color: "blue", prevColor: "" });
 	});
 
 	it("keeps a forced wild as an auto play once its colour arrives", async () => {
@@ -168,10 +170,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteWildColor("blue");
 		land();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^log_auto_play/),
-			"log_wild_reaction_1"
-		]);
+		expect(lines[0].key).toMatch(/^log_auto_play/);
+		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
 	});
 
 	it("logs a near-win reaction carried by the play", async () => {
@@ -230,7 +230,8 @@ describe("createPlayLogEmitter", () => {
 			seq: 4
 		});
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(lines[0].key).toBe("log_play");
+		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
 		expect(lines[0].params).toEqual({ name: "Ann", kind: "vanilla:wild", color: "red" });
 	});
 
@@ -246,7 +247,7 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 		expect(lines.map((line) => line.params)).toEqual([
 			{ name: "Ann", kind: "vanilla:wild", color: "red" },
-			{ name: "Ann", color: "red" }
+			{ name: "Ann", color: "red", prevColor: "" }
 		]);
 	});
 

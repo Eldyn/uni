@@ -160,6 +160,28 @@ describe("play log copy renders for every REACTION_RULES pool key", () => {
 		expect(text).toContain("[c=purple]purple[/c]");
 	});
 
+	it("names both the previous and current wild colours", () => {
+		const text = resolveLogText(
+			"log_wild_reaction_second_2",
+			{ name: "Ann", color: "red", prevColor: "green" },
+			{ locale: "en" }
+		);
+		expect(text).toContain("[c=green]green[/c]");
+		expect(text).toContain("[c=red]red[/c]");
+		expect(text?.match(PLACEHOLDER_RE) ?? []).toEqual([]);
+	});
+
+	it("keeps a prevColorName the caller already supplied", () => {
+		const text = resolveLogText("log_wild_reaction_second_2", {
+			name: "Ann",
+			color: "red",
+			prevColor: "green",
+			prevColorName: "emerald"
+		});
+		expect(text).toContain("[c=green]emerald[/c]");
+		expect(text).toContain("[c=red]red[/c]");
+	});
+
 	it("renders the card keyword and localized name in a play line", () => {
 		const text = resolveLogText(
 			"log_play",
