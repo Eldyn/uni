@@ -88,6 +88,11 @@ export function createMatchEventBeatController(deps: {
 	resetTurnMotion: () => void;
 } {
 	const playLog = createPlayLogEmitter((line) => chatStore.appendLocalLog(line));
+	let lastPlayedBy: string | null = null;
+	function resetPlayLog(): void {
+		playLog.reset();
+		lastPlayedBy = null;
+	}
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
 	// reads "white" — Playmat3D's own comment on the same field): the ripple's
@@ -395,6 +400,7 @@ export function createMatchEventBeatController(deps: {
 		const isDrawCard = playedKind.endsWith("_draw2") || playedKind.endsWith("_draw4");
 		const actor = state.players?.find((p) => p.username === beat.player);
 		const nearWin = !isDrawCard && actor?.card_count === 1;
+		lastPlayedBy = beat.player;
 		playLog.notePlay(
 			{
 				player: beat.player,
@@ -750,7 +756,12 @@ export function createMatchEventBeatController(deps: {
 			if (cueFires) storeTurnCue.fire();
 			storeDirectionRing.reverseTo(beat.direction);
 		});
-		playLog.noteTurn({ skipped: beat.skipped, direction: beat.direction, seq: beat.seq });
+		playLog.noteTurn({
+			skipped: beat.skipped,
+			direction: beat.direction,
+			seq: beat.seq,
+			actor: lastPlayedBy ?? undefined
+		});
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
@@ -809,7 +820,7 @@ export function createMatchEventBeatController(deps: {
 			// A teardown/returnToLobby clears the match — drop any landing hold
 			// so the mat can't stay wedged on the old colour into the next one.
 			storeMatRipple.clearPending();
-			playLog.reset();
+			resetPlayLog();
 			return;
 		}
 
@@ -879,7 +890,7 @@ export function createMatchEventBeatController(deps: {
 	}
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);
-	const unsubscribeDesync = deps.subscribeDesync?.(playLog.reset);
+	const unsubscribeDesync = deps.subscribeDesync?.(resetPlayLog);
 	const dispose = () => {
 		unsubscribeBeats();
 		unsubscribeDesync?.();
@@ -888,7 +899,7 @@ export function createMatchEventBeatController(deps: {
 		dispose,
 		syncState,
 		resetPendingWildRipple,
-		resetPlayLog: playLog.reset,
+		resetPlayLog,
 		settleBoardAnimations,
 		resetTurnMotion
 	};

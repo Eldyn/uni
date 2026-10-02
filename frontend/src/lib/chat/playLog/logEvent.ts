@@ -8,7 +8,7 @@ export type LogEvent =
 			auto?: boolean;
 	  }
 	| { kind: "auto_play"; seq: number; player: string; cardKind: string; color: string }
-	| { kind: "skip"; seq: number; player: string }
+	| { kind: "skip"; seq: number; player: string; actor?: string }
 	| { kind: "reverse"; seq: number }
 	| { kind: "reshuffle"; seq: number }
 	| { kind: "wild"; seq: number; player: string; color: string }
@@ -25,6 +25,7 @@ export type LogEvent =
 			total?: number;
 			handSize?: number;
 			victim?: string;
+			actor?: string;
 	  };
 
 export type StreakInfo = {

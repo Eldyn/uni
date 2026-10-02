@@ -6,7 +6,7 @@ import type { LogEvent, LogLine } from "./logEvent";
 export const DRAW_DEBT_STATUS_KIND = "vanilla:draw_debt";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
-export type TurnInfo = { skipped: string[]; direction: number; seq: number };
+export type TurnInfo = { skipped: string[]; direction: number; seq: number; actor?: string };
 
 type PendingWild = {
 	player: string;
@@ -92,12 +92,19 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		enqueue(() => emitPlayReactions({ player, kind, color, auto }, seq, nearWin), landed);
 	}
 
-	function noteTurn({ skipped, direction, seq }: TurnInfo): void {
+	function noteTurn({ skipped, direction, seq, actor }: TurnInfo): void {
 		const reversed = lastDirection !== null && direction !== lastDirection;
 		lastDirection = direction;
 		enqueue(() => {
 			if (reversed) emit({ kind: "reverse", seq });
-			for (const player of skipped) emit({ kind: "skip", seq, player: escapeLogText(player) });
+			for (const player of skipped) {
+				emit({
+					kind: "skip",
+					seq,
+					player: escapeLogText(player),
+					actor: actor ? escapeLogText(actor) : undefined
+				});
+			}
 		});
 	}
 
@@ -130,7 +137,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 				count: total,
 				penalty: true,
 				amount,
-				total
+				total,
+				actor: escapeLogText(player)
 			})
 		);
 	}

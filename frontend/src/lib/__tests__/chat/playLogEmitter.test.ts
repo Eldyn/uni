@@ -1,6 +1,19 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createPlayLogEmitter } from "../../chat/playLog/playLogEmitter";
-import type { LogLine } from "../../chat/playLog/logEvent";
+import type { LogEvent, LogLine } from "../../chat/playLog/logEvent";
+
+const { captured } = vi.hoisted(() => ({ captured: [] as LogEvent[] }));
+
+vi.mock(import("../../chat/playLog/logBuilder"), async (importOriginal) => {
+	const actual = await importOriginal();
+	return {
+		...actual,
+		buildLogLine: (event, streak) => {
+			captured.push(event);
+			return actual.buildLogLine(event, streak);
+		}
+	};
+});
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -18,6 +31,7 @@ describe("createPlayLogEmitter", () => {
 
 	beforeEach(() => {
 		({ lines, emitter } = setup());
+		captured.length = 0;
 	});
 
 	it("logs a skip per skipped seat, escalating on the same player", async () => {
@@ -318,5 +332,17 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn([], -1));
 		await flush();
 		expect(lines).toEqual([]);
+	});
+
+	it("carries the skip actor onto the emitted skip event", async () => {
+		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 5, actor: "Ann" });
+		await flush();
+		const line = lines[0];
+		expect(line.key).toBe("log_skip");
+		expect(captured.find((event) => event.kind === "skip")).toMatchObject({
+			kind: "skip",
+			player: "Bob",
+			actor: "Ann"
+		});
 	});
 });
