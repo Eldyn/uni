@@ -93,14 +93,28 @@ describe("parseRichText", () => {
 	});
 
 	it("clamps fx params to 0-3", () => {
-		expect(parseRichText("[fx=shake:9,-1]x[/fx]")[0]).toMatchObject({
+		expect(parseRichText("[fx=shake:9,9]x[/fx]")[0]).toMatchObject({
 			effectIntensity: 3,
-			effectSpeed: 0
+			effectSpeed: 3
 		});
 	});
 
 	it("degrades a speed without intensity to literal text", () => {
 		expect(parseRichText("[fx=shake:,2]x[/fx]")).toEqual([{ text: "[fx=shake:,2]x[/fx]" }]);
+	});
+
+	it("degrades every out-of-grammar fx param form to literal text", () => {
+		for (const tag of [
+			"[fx=shake: 2]",
+			"[fx=shake:+2]",
+			"[fx=shake:-1]",
+			"[fx=shake:2.0]",
+			"[fx=shake:0x2]",
+			"[fx=shake:2,]",
+			"[fx=shake:2:3]"
+		]) {
+			expect(parseRichText(`${tag}x[/fx]`), tag).toEqual([{ text: `${tag}x[/fx]` }]);
+		}
 	});
 
 	it("round-trips a valid but unmatched fx tag with its params verbatim", () => {

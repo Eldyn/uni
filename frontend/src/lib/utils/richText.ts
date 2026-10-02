@@ -18,6 +18,7 @@ export type RichEffect = "shake" | "undulate" | "shine";
 
 const RICH_EFFECTS: readonly RichEffect[] = ["shake", "undulate", "shine"];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+const FX_LEVEL_RE = /^\d+$/;
 const KEYWORD_ID_RE = /^[a-z0-9_-]+(:[a-z0-9_-]+)?$/i;
 
 export const LOG_ESCAPE_CHAR = "\\";
@@ -65,23 +66,29 @@ type Token =
 
 /**
  * Parses the params half of an `[fx=kind[:intensity[,speed]]]` tag. Returns
- * null for an unknown kind or any malformed param shape (a speed without an
- * intensity, non-integer values, too many parts). Values are clamped to 0-3;
- * params are numeric-only, so there is no style-injection surface.
+ * null for an unknown kind or any malformed param shape: a speed without an
+ * intensity, anything but plain digits, a comma without a following digit, or
+ * a second colon. Digits above 3 are clamped down; params are numeric-only, so
+ * there is no style-injection surface.
  */
 function parseFxParams(raw: string): { kind: RichEffect; intensity: number; speed: number } | null {
-	const [kind, params] = raw.split(":");
+	const segments = raw.split(":");
+	if (segments.length > 2) return null;
+	const [kind, params] = segments;
 	if (!RICH_EFFECTS.includes(kind as RichEffect)) return null;
 	if (params === undefined) return { kind: kind as RichEffect, intensity: 1, speed: 1 };
 	const parts = params.split(",");
-	if (parts.length > 2 || parts[0] === "") return null;
+	if (parts.length > 2) return null;
 	const clamp = (n: number) => Math.max(0, Math.min(3, n));
+	if (!FX_LEVEL_RE.test(parts[0])) return null;
 	const intensity = Number(parts[0]);
-	if (!Number.isInteger(intensity)) return null;
 	if (parts.length === 2) {
-		const speed = Number(parts[1]);
-		if (!Number.isInteger(speed)) return null;
-		return { kind: kind as RichEffect, intensity: clamp(intensity), speed: clamp(speed) };
+		if (!FX_LEVEL_RE.test(parts[1])) return null;
+		return {
+			kind: kind as RichEffect,
+			intensity: clamp(intensity),
+			speed: clamp(Number(parts[1]))
+		};
 	}
 	return { kind: kind as RichEffect, intensity: clamp(intensity), speed: 1 };
 }

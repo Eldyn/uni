@@ -146,6 +146,25 @@ function withSampleParams(text: string): string {
 	return text.replace(PLACEHOLDER_RE, (match) => PLACEHOLDER_SAMPLES[match.slice(1, -1)] ?? "x");
 }
 
+describe("tagProblem fx param validation", () => {
+	it.each(["[fx=shake]x[/fx]", "[fx=shake:2]x[/fx]", "[fx=shake:2,3]x[/fx]"])(
+		"accepts %s",
+		(text) => {
+			expect(tagProblem(text)).toBeNull();
+		}
+	);
+
+	it.each([
+		"[fx=shake:4]x[/fx]",
+		"[fx=shake: 2]x[/fx]",
+		"[fx=shake:2,]x[/fx]",
+		"[fx=shake:2:3]x[/fx]",
+		"[fx=bogus:2]x[/fx]"
+	])("rejects %s", (text) => {
+		expect(tagProblem(text)).not.toBeNull();
+	});
+});
+
 describe("play log copy renders for every REACTION_RULES pool key", () => {
 	it.each(ruleCases)("$key resolves to clean, balanced copy", ({ key, params }) => {
 		const text = resolveLogText(key, params);
