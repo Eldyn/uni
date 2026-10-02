@@ -2,6 +2,7 @@
 
 #include <common/lobby.hpp>
 #include <match/ecs/components.hpp>
+#include <match/ecs/hooks.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
@@ -433,6 +434,60 @@ TEST_CASE("race: bot takeover after start does not move the target") {
     CHECK(live.GetPlacements()
           == std::vector<std::string>{"player0", "player1", "bot_three",
                                       "bot_two"});
+}
+
+TEST_CASE("race: a turn_end veto cannot keep a finisher on the turn") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
+    engine->Assembly().bus.Subscribe(
+        "veto", 0, {"turn_end", ecs::HookPhase::kBefore},
+        [](ecs::HookPayload& payload) { payload.veto = true; });
+
+    const std::vector<ecs::Entity> wilds =
+        CardsByKind(*engine, "vanilla:wild");
+    FinishWithWild(*engine, "player0", wilds[0]);
+
+    CHECK(engine->GetPlacements() == std::vector<std::string>{"player0"});
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+}
+
+TEST_CASE("race: placements that reach the target end the race on turn end") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
+
+    ecs::Placements* placements = engine->Store().Get<ecs::Placements>(
+        engine->Registries().match);
+    REQUIRE(placements != nullptr);
+    placements->order = {*engine->FindPlayer("player1"),
+                         *engine->FindPlayer("player2")};
+
+    DrawAndPass(*engine, "player0");
+
+    CHECK(engine->IsMatchOver());
+    CHECK(engine->GetWinner() == "player1");
+    CHECK(engine->GetPlacements()
+          == std::vector<std::string>{"player1", "player2", "player3",
+                                      "player0"});
+}
+
+TEST_CASE("race: a round is one cycle of the seats still at the table") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 3);
+
+    const std::vector<ecs::Entity> wilds =
+        CardsByKind(*engine, "vanilla:wild");
+    FinishWithWild(*engine, "player0", wilds[0]);
+    engine->Tick();
+    CHECK(engine->ExportState()["round"] == 0u);
+
+    DrawAndPass(*engine, "player1");
+    DrawAndPass(*engine, "player2");
+    CHECK(engine->GetCurrentPlayerUsername() == "player3");
+    engine->Tick();
+    CHECK(engine->ExportState()["round"] == 1u);
 }
 
 }  // TEST_SUITE

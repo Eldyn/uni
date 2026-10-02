@@ -520,14 +520,16 @@ void MatchInstance::Tick() {
     ecs::EntityStore& store = assembly_->store;
     MatchRegistries& registries = assembly_->registries;
 
-    const std::size_t player_count = registries.players.size();
-    if (player_count == 0) return;
+    // INFO: a round is one cycle of the seats still at the table, so race
+    //       finishers stop counting toward it.
+    const std::size_t seat_count = ops::ActivePlayersBySeat(store).size();
+    if (seat_count == 0) return;
     ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(registries.match);
     if (meta == nullptr) return;
 
-    const uint32_t round =
-        static_cast<uint32_t>(turns_elapsed_ / player_count);
-    if (round > meta->round) {
+    if (turns_elapsed_ >= seat_count) {
+        turns_elapsed_ -= seat_count;
+        const uint32_t round = meta->round + 1;
         json end_data = json{{"round", meta->round}};
         Before("round_end", end_data);
         After("round_end", end_data);
@@ -580,13 +582,18 @@ void MatchInstance::Tick() {
 // --- turn advance ----------------------------------------------------------
 
 void MatchInstance::AdvanceTurn() {
+    if (EndRaceIfTargetReached()) return;
+
     const std::optional<ecs::Entity> before = CurrentPlayer();
 
     // INFO: A `before:turn_end` veto grants an extra turn, so the
     //       advance op is skipped and the same player stays current.
     if (before.has_value()) {
         json end_data = json{{"player", EntityJson(*before)}};
-        if (Before("turn_end", end_data)) return;
+        // INFO: a race finisher has left the table, so a veto cannot hand
+        //       them another turn.
+        const bool vetoed = Before("turn_end", end_data);
+        if (vetoed && !ops::FinishedRace(assembly_->store, *before)) return;
         if (Paused()) return;
     }
 
@@ -805,6 +812,25 @@ void MatchInstance::DeclareRaceFinish(ecs::Entity player,
         AdvanceTurn();
         return;
     }
+    EndRace(placements);
+}
+
+bool MatchInstance::EndRaceIfTargetReached() {
+    if (finished_ || assembly_ == nullptr) return false;
+    ecs::EntityStore& store = assembly_->store;
+    const uint32_t race_target = ops::RaceTarget(store);
+    if (race_target == 0) return false;
+    ecs::Placements* placements =
+        store.Get<ecs::Placements>(assembly_->registries.match);
+    if (placements == nullptr || placements->order.size() < race_target) {
+        return false;
+    }
+    EndRace(*placements);
+    return true;
+}
+
+void MatchInstance::EndRace(ecs::Placements& placements) {
+    ecs::EntityStore& store = assembly_->store;
 
     // INFO: everyone still holding cards lost; they rank below the finishers
     //       by fewest cards left, seat order breaking ties.

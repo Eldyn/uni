@@ -516,6 +516,20 @@ private:
     void DeclareRaceFinish(ecs::Entity player, ecs::Placements& placements,
                            uint32_t race_target);
 
+    /**
+     * @brief Ranks every seat still holding cards below the finishers (fewest
+     *        cards left first, seat order on ties) and ends the race.
+     */
+    void EndRace(ecs::Placements& placements);
+
+    /**
+     * @brief Ends a running race whose placements already reached the target
+     *        (a mod's `add_placement` can get there without a hand-empty
+     *        finish).
+     * @return true when the race ended.
+     */
+    bool EndRaceIfTargetReached();
+
     /** @brief Dispatch and emit the closing `match_end`. */
     void EmitMatchEnd();
 
@@ -822,7 +836,7 @@ private:
     std::vector<nlohmann::json> events_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
-    uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances so far. */
+    uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */
     bool started_ = false;
     bool finished_ = false;
 
