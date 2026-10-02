@@ -32,6 +32,11 @@ Lobby::Lobby(Lobby&&) noexcept = default;
 Lobby& Lobby::operator=(Lobby&&) noexcept = default;
 Lobby::~Lobby() = default;
 
+int LobbySettings::RaceTarget(int seats) const {
+    const int ceil_target = (race_percent * seats + 99) / 100;
+    return std::clamp(ceil_target, 1, std::max(1, seats - 1));
+}
+
 void LobbySettings::Sanitize(int max_players_ceiling) {
     turn_time_limit_ms = std::clamp(turn_time_limit_ms,
                                      contract::kTurnTimeMinMs, contract::kTurnTimeMaxMs);
@@ -39,8 +44,11 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
                                  contract::kStartingCardsMin, contract::kStartingCardsMax);
     bot_count = std::clamp(bot_count, contract::kBotCountMin, contract::kBotCountMax);
     max_players = std::clamp(max_players, 2, max_players_ceiling);
-    if (mode != "elimination") mode = "standard";
-    survivor_count = std::clamp(survivor_count, 1, std::max(1, max_players - 1));
+    if (mode != "race") mode = "standard";
+    race_percent = std::clamp(race_percent, contract::kRacePercentMin,
+                              contract::kRacePercentMax);
+    race_percent = (race_percent + contract::kRacePercentStep / 2)
+                   / contract::kRacePercentStep * contract::kRacePercentStep;
 
     const int deck_size = DeckSize();
     if (deck_size > 0) {

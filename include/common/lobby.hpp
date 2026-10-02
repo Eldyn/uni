@@ -82,10 +82,17 @@ struct LobbySettings {
                + count_wild + count_wild_draw_four;
     }
 
-    /**< Game mode: "standard" or "elimination". */
+    /**< Game mode: "standard" or "race". */
     std::string mode = "standard";
-    /**< Number of survivors remaining when elimination match ends (default 1). */
-    int survivor_count = 1;
+    /**< Race mode: percent of seated players that must finish (5..95, step 5). */
+    int race_percent = contract::kRacePercentDefault;
+
+    /**
+     * @brief Resolves the number of finishers that ends a race match.
+     * @param seats Seated player count at match start.
+     * @return ceil(race_percent * seats / 100) clamped to [1, seats - 1].
+     */
+    int RaceTarget(int seats) const;
 
     /**< Selected deck snapshot: the mod list, card multiset and
      * typed settings bag as one object, matching the `decks/*.json` shape
@@ -110,7 +117,7 @@ struct LobbySettings {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
     allow_bot_takeover, allow_bot_replacement, quit_deletes_match, is_public,
-    max_players, ranked, mode, survivor_count, deck
+    max_players, ranked, mode, race_percent, deck
 )
 
 /**

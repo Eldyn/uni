@@ -852,13 +852,23 @@ components:
           x-constants: { minimum: StartingCardsMin, maximum: StartingCardsMax }
         mode:
           type: string
-          enum: ["standard", "elimination"]
-          description: Game mode (standard or elimination).
-        survivor_count:
+          enum: ["standard", "race"]
+          description: Game mode (standard or race).
+        race_percent:
           type: integer
-          minimum: 1
-          maximum: 15
-          description: Number of survivors remaining when elimination match ends (default 1).
+          minimum: 5
+          maximum: 95
+          multipleOf: 5
+          default: 50
+          description: >-
+            Race mode only. Percent of seated players that must empty their
+            hand for the match to end (rounded up, at least 1 and at most
+            seats - 1).
+          x-constants:
+            minimum: RacePercentMin
+            maximum: RacePercentMax
+            multipleOf: RacePercentStep
+            default: RacePercentDefault
         active_mods:
           type: array
           items:

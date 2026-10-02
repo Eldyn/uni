@@ -779,3 +779,68 @@ TEST_CASE("lobby: 120s grace period is respected") {
     REQUIRE_EQ(expired.size(), 1);
     CHECK_EQ(expired[0], "Bob");
 }
+
+TEST_CASE("lobby: Sanitize coerces unknown and legacy modes to standard") {
+    for (const char* legacy : {"elimination", "bogus", ""}) {
+        LobbySettings settings;
+        settings.mode = legacy;
+        settings.Sanitize();
+        CHECK(settings.mode == "standard");
+    }
+    LobbySettings race;
+    race.mode = "race";
+    race.Sanitize();
+    CHECK(race.mode == "race");
+}
+
+TEST_CASE("lobby: Sanitize clamps race_percent and snaps it to the step") {
+    const std::vector<std::pair<int, int>> cases = {
+        {-10, 5}, {0, 5}, {1, 5}, {7, 5}, {8, 10}, {50, 50}, {52, 50},
+        {53, 55}, {94, 95}, {95, 95}, {100, 95}, {9999, 95}};
+    for (const auto& [input, expected] : cases) {
+        LobbySettings settings;
+        settings.race_percent = input;
+        settings.Sanitize();
+        CHECK_MESSAGE(settings.race_percent == expected, "input ", input);
+    }
+    CHECK(LobbySettings{}.race_percent == contract::kRacePercentDefault);
+}
+
+TEST_CASE("lobby: RaceTarget resolves ceil(percent * seats / 100) in [1, seats-1]") {
+    auto target = [](int percent, int seats) {
+        LobbySettings settings;
+        settings.race_percent = percent;
+        return settings.RaceTarget(seats);
+    };
+    CHECK(target(50, 2) == 1);
+    CHECK(target(95, 2) == 1);
+    CHECK(target(5, 2) == 1);
+    CHECK(target(50, 3) == 2);
+    CHECK(target(5, 3) == 1);
+    CHECK(target(95, 3) == 2);
+    CHECK(target(50, 4) == 2);
+    CHECK(target(25, 4) == 1);
+    CHECK(target(95, 4) == 3);
+    CHECK(target(5, 16) == 1);
+    CHECK(target(10, 16) == 2);
+    CHECK(target(25, 16) == 4);
+    CHECK(target(50, 16) == 8);
+    CHECK(target(95, 16) == 15);
+}
+
+TEST_CASE("lobby: race_percent and mode survive a JSON round trip") {
+    LobbySettings settings;
+    settings.mode = "race";
+    settings.race_percent = 35;
+    const nlohmann::json encoded = settings;
+    CHECK(encoded["race_percent"] == 35);
+    CHECK_FALSE(encoded.contains("survivor_count"));
+    const LobbySettings decoded = encoded.get<LobbySettings>();
+    CHECK(decoded.mode == "race");
+    CHECK(decoded.race_percent == 35);
+
+    LobbySettings legacy = nlohmann::json{{"mode", "elimination"}}.get<LobbySettings>();
+    legacy.Sanitize();
+    CHECK(legacy.mode == "standard");
+    CHECK(legacy.race_percent == contract::kRacePercentDefault);
+}
