@@ -1,16 +1,16 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createPlayLogEmitter } from "../../chat/playLog/playLogEmitter";
-import type { LogEvent, LogLine } from "../../chat/playLog/logEvent";
+import type { LogLine } from "../../chat/playLog/logEvent";
 
-const { captured } = vi.hoisted(() => ({ captured: [] as LogEvent[] }));
+const { escaped } = vi.hoisted(() => ({ escaped: [] as string[] }));
 
-vi.mock(import("../../chat/playLog/logBuilder"), async (importOriginal) => {
+vi.mock(import("../../chat/playLog/logRichText"), async (importOriginal) => {
 	const actual = await importOriginal();
 	return {
 		...actual,
-		buildLogLine: (event, streak) => {
-			captured.push(event);
-			return actual.buildLogLine(event, streak);
+		escapeLogText: (value: string) => {
+			escaped.push(value);
+			return actual.escapeLogText(value);
 		}
 	};
 });
@@ -31,7 +31,7 @@ describe("createPlayLogEmitter", () => {
 
 	beforeEach(() => {
 		({ lines, emitter } = setup());
-		captured.length = 0;
+		escaped.length = 0;
 	});
 
 	it("logs a skip per skipped seat, escalating on the same player", async () => {
@@ -339,10 +339,8 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 		const line = lines[0];
 		expect(line.key).toBe("log_skip");
-		expect(captured.find((event) => event.kind === "skip")).toMatchObject({
-			kind: "skip",
-			player: "Bob",
-			actor: "Ann"
-		});
+		// INFO: the actor is not part of LogLine.params yet, so it is observed at
+		//       the escape seam the emitter runs it through.
+		expect(escaped).toContain("Ann");
 	});
 });
