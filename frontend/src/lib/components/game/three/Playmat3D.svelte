@@ -1,10 +1,9 @@
-<!-- The playmat and the turn-direction arrows, as real meshes on the table
-     plane instead of DOM sprites layered behind the canvas. They used to be
+<!-- The playmat and the turn-direction loop, as real meshes on the table plane
+     instead of DOM sprites layered behind the canvas. They used to be
      full-screen <TintedSprite> siblings of the board, which meant every change
      to the camera's framing had to be mirrored back out into CSS to keep the
      piles sitting on the mat. Here they simply live at the world origin like
-     everything else. Tinting works the same way it did in CSS: the texture is
-     multiplied by the active color, and the PNG's own alpha is the mask.
+     everything else.
 
      The felt's colour changes sweep through a pixelated, dithered ripple
      instead of snapping instantly — storeMatRipple (ripple/matRipple.svelte.ts)
@@ -37,10 +36,7 @@
 	import TurnLoop3D from "./TurnLoop3D.svelte";
 
 	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
-	 *  sized against the felt this draws and all three have to agree on it. The
-	 *  arrows share the mat's exact size and offset rather than fitting
-	 *  themselves: they are painted on the same 16:9 sheet, so any independent
-	 *  fit would slide them off the felt as soon as the two fits disagreed. */
+	 *  sized against the felt this draws and all three have to agree on it. */
 	let {
 		mat,
 		viewport,
@@ -54,9 +50,8 @@
 		showFelt?: boolean;
 	} = $props();
 
-	// Both sit below the cards' y=0 plane, arrows over the mat.
+	// Sits below the cards' y=0 plane, so the felt never z-fights the piles.
 	const MAT_Y = -0.02;
-	const ARROWS_Y = -0.01;
 
 	// The game's four colours, from the one module that defines them —
 	// three.js needs real values, not the var() references the DOM side uses.
@@ -160,15 +155,11 @@
 
 	onDestroy(() => storeMatRipple.reset());
 
-	// The arrows plane isn't shader-driven, so it needs a plain reactive
-	// colour Svelte can bind straight into MeshBasicMaterial's `color` prop.
-	let arrowsTint = $state(MAT_INITIAL_COLOR);
-
 	// Idle sync: whenever the committed colour changes outside an active
 	// sweep (a fresh syncColor call above, or a ripple that just finished —
-	// #finish() sets committedColor and active=false together), snap both the
-	// felt uniforms and the arrows straight to it. While a ripple IS active
-	// this is a no-op, so it never fights the per-step updates below.
+	// #finish() sets committedColor and active=false together), snap the felt
+	// uniforms straight to it. While a ripple IS active this is a no-op, so it
+	// never fights the per-step updates below.
 	$effect(() => {
 		const active = storeMatRipple.active;
 		const color = storeMatRipple.committedColor;
@@ -177,7 +168,6 @@
 		feltUniforms.uToColor.value.set(color);
 		feltUniforms.uFlash.value = 0;
 		feltUniforms.uActive.value = 0;
-		arrowsTint = color;
 		invalidate();
 	});
 
@@ -185,12 +175,7 @@
 		feltUniforms.uAspect.value = mat.size[1] / mat.size[0];
 	});
 
-	let arrowsSrc = $derived(
-		(storeGame.state?.play_direction ?? 1) > 0 ? "/assets/cw.png" : "/assets/ccw.png"
-	);
-
 	let matTexture = $state<Texture | null>(null);
-	let arrowsTexture = $state<Texture | null>(null);
 
 	let matSrc = $derived(
 		isPhoneLayout(viewport) ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
@@ -217,16 +202,6 @@
 				);
 			}
 			invalidate();
-		});
-		return () => {
-			cancelled = true;
-		};
-	});
-
-	$effect(() => {
-		let cancelled = false;
-		loadTexture(arrowsSrc).then((t) => {
-			if (!cancelled) arrowsTexture = t;
 		});
 		return () => {
 			cancelled = true;
@@ -274,7 +249,6 @@
 
 			const radius = frontRadiusAt(elapsed, ripple.durationMs, ripple.maxRadius);
 			feltUniforms.uRadius.value = radius;
-			arrowsTint = radius >= ripple.maxRadius / 2 ? ripple.toColor : ripple.fromColor;
 
 			invalidate();
 		},
@@ -294,19 +268,6 @@
 				vertexShader={feltVertexShader}
 				fragmentShader={feltFragmentShader}
 				uniforms={feltUniforms}
-				transparent
-				depthWrite={false}
-				toneMapped={false}
-			/>
-		</T.Mesh>
-	{/if}
-
-	{#if arrowsTexture}
-		<T.Mesh position.y={ARROWS_Y} rotation.x={-Math.PI / 2}>
-			<T.PlaneGeometry args={mat.size} />
-			<T.MeshBasicMaterial
-				map={arrowsTexture}
-				color={arrowsTint}
 				transparent
 				depthWrite={false}
 				toneMapped={false}

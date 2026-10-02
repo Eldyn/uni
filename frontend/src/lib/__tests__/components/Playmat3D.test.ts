@@ -1,7 +1,8 @@
-// Playmat3D's tint is a plain reactive value: the mat holds the game's active
-// colour, except while the match-intro deal demands rebeccapurple (#663399).
-// This mounts the component against a colour-recording Threlte stand-in so the
-// branch can be observed without a real WebGL context.
+// Playmat3D's committed colour lives in the felt's shader uniforms, not a
+// plain reactive prop: the mat holds the game's active colour, except while the
+// match-intro deal demands rebeccapurple (#663399). This mounts the component
+// against a colour-recording Threlte stand-in so the branch can be observed
+// without a real WebGL context.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import MockTintMaterial from "./MockTintMaterial.svelte";
@@ -29,7 +30,7 @@ import type { ViewportInfo } from "$components/game/layout/seatLayout";
 import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
 import { loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
 import { LOOP_CORNER_RADIUS_BLOCKS, LOOP_INSET_BLOCKS } from "$components/game/animation/loopPlan";
-import type * as THREE from "three";
+import * as THREE from "three";
 
 const mat: MatPlacement = {
 	size: [10, 10],
@@ -45,9 +46,26 @@ async function flush() {
 	await new Promise((r) => setTimeout(r, 10));
 }
 
-/** Every colour that reached a material, in the order the effects recorded it. */
-function tints(): unknown[] {
-	return meshInstances.map((m) => m.color).filter((c) => typeof c === "string");
+type Uniforms = Record<string, { value: unknown }>;
+
+function uniformSets(): Uniforms[] {
+	return meshInstances
+		.map((instance) => (instance as unknown as { uniforms?: Uniforms }).uniforms)
+		.filter((uniforms): uniforms is Uniforms => Boolean(uniforms));
+}
+
+function feltUniforms(): Uniforms {
+	const felt = uniformSets().find((uniforms) => !("uLoopLength" in uniforms));
+	if (!felt) throw new Error("felt material not mounted");
+	return felt;
+}
+
+function hexOf(css: string): number {
+	return new THREE.Color(css).getHex();
+}
+
+function feltTint(): number {
+	return (feltUniforms().uToColor.value as THREE.Color).getHex();
 }
 
 describe("Playmat3D match-intro tint", () => {
@@ -72,8 +90,8 @@ describe("Playmat3D match-intro tint", () => {
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
 
-		expect(tints()).toContain("#663399");
-		expect(tints()).not.toContain(CARD_COLOR_MAP.red);
+		expect(feltTint()).toBe(hexOf("#663399"));
+		expect(feltTint()).not.toBe(hexOf(CARD_COLOR_MAP.red));
 	});
 
 	it("ripples from the forced purple into the first real colour when the intro clears", async () => {
@@ -84,12 +102,11 @@ describe("Playmat3D match-intro tint", () => {
 
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
-		expect(tints()).toContain(CARD_COLOR_MAP.red);
+		expect(feltTint()).toBe(hexOf(CARD_COLOR_MAP.red));
 
 		storeMatchIntro.forcePurpleMat = true;
 		await flush();
-		const afterPurple = tints();
-		expect(afterPurple[afterPurple.length - 1]).toBe("#663399");
+		expect(feltTint()).toBe(hexOf("#663399"));
 
 		storeMatchIntro.forcePurpleMat = false;
 		await flush();
@@ -100,11 +117,7 @@ describe("Playmat3D match-intro tint", () => {
 			{ u: 0.5, v: 0.5 },
 			expect.any(Number)
 		);
-		// The felt plane is now a ShaderMaterial (its colour lives in uniforms,
-		// not a recordable `color` prop), so only the arrows plane still pushes
-		// through MockTintMaterial — one entry per change, not two.
-		const afterClear = tints();
-		expect(afterClear[afterClear.length - 1]).toBe(CARD_COLOR_MAP.red);
+		expect(feltTint()).toBe(hexOf(CARD_COLOR_MAP.red));
 	});
 });
 
@@ -131,7 +144,7 @@ describe("Playmat3D ripple colour sync", () => {
 
 		expect(syncColor).toHaveBeenCalledWith(CARD_COLOR_MAP.red);
 		expect(storeMatRipple.committedColor).toBe(CARD_COLOR_MAP.red);
-		expect(tints()).toContain(CARD_COLOR_MAP.red);
+		expect(feltTint()).toBe(hexOf(CARD_COLOR_MAP.red));
 	});
 
 	it("does not let a store colour change overwrite an active ripple", async () => {
@@ -182,18 +195,17 @@ describe("Playmat3D ripple frame stepping", () => {
 		storeMatRipple.toColor = MAT_INITIAL_COLOR;
 	});
 
-	function latestTaskCallback(): () => void {
+	function feltTaskCallback(): () => void {
 		const calls = vi.mocked(useTask).mock.calls;
 		return calls[0][0] as unknown as () => void;
 	}
 
-	it("switches the arrows tint to the target colour once the front passes half radius", async () => {
+	it("writes the sweep colours, active flag and a growing radius into the felt each step", async () => {
 		const nowSpy = vi.spyOn(performance, "now");
 		nowSpy.mockReturnValue(0);
-
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
-		const step = latestTaskCallback();
+		const step = feltTaskCallback();
 
 		const start = 1000;
 		storeMatRipple.active = true;
@@ -203,26 +215,23 @@ describe("Playmat3D ripple frame stepping", () => {
 		storeMatRipple.committedColor = CARD_COLOR_MAP.red;
 		storeMatRipple.originUv = { u: 0.5, v: 0.5 };
 		storeMatRipple.startTimeMs = start;
-		storeMatRipple.durationMs = 480; // step-aligned: 480ms / (1000/12) = 5.76 steps -> 6 steps
+		storeMatRipple.durationMs = 480;
 		storeMatRipple.maxRadius = 1;
 
-		// First step: front radius is 1/6 of maxRadius, well under half.
-		nowSpy.mockReturnValue(start + 0);
+		nowSpy.mockReturnValue(start);
 		step();
-		await flush();
-		let beforeHalf = tints();
-		expect(beforeHalf[beforeHalf.length - 1]).toBe(CARD_COLOR_MAP.red);
+		const uniforms = feltUniforms();
+		expect((uniforms.uFromColor.value as THREE.Color).getHex()).toBe(hexOf(CARD_COLOR_MAP.red));
+		expect((uniforms.uToColor.value as THREE.Color).getHex()).toBe(hexOf(CARD_COLOR_MAP.blue));
+		expect(uniforms.uActive.value).toBe(1);
+		const firstRadius = uniforms.uRadius.value as number;
 
-		// A later step whose radius crosses maxRadius / 2 (progress >= 0.5,
-		// i.e. at least the 3rd of 6 steps).
 		nowSpy.mockReturnValue(start + 3 * (1000 / 12));
 		step();
-		await flush();
-		const afterHalf = tints();
-		expect(afterHalf[afterHalf.length - 1]).toBe(CARD_COLOR_MAP.blue);
+		expect(uniforms.uRadius.value as number).toBeGreaterThan(firstRadius);
 	});
 
-	it("resets the felt and arrows to idle once the ripple completes", async () => {
+	it("resets the felt to idle once the ripple completes", async () => {
 		const nowSpy = vi.spyOn(performance, "now");
 		nowSpy.mockReturnValue(0);
 
@@ -233,7 +242,7 @@ describe("Playmat3D ripple frame stepping", () => {
 		storeGame.state = { active_type: "blue", play_direction: 1 } as never;
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
-		const step = latestTaskCallback();
+		const step = feltTaskCallback();
 
 		const start = 2000;
 		storeMatRipple.active = true;
@@ -249,21 +258,25 @@ describe("Playmat3D ripple frame stepping", () => {
 		nowSpy.mockReturnValue(start + 5 * (1000 / 12));
 		step();
 		await flush();
-		const midSweep = tints();
-		expect(midSweep[midSweep.length - 1]).toBe(CARD_COLOR_MAP.blue);
+		expect(feltUniforms().uActive.value).toBe(1);
 
 		// Completion: matRipple.svelte.ts's own #finish() sets committedColor
 		// and active=false together (its setTimeout normally drives this; here
 		// it's simulated directly, matching the existing "does not let a store
 		// colour change overwrite an active ripple" test's approach elsewhere
 		// in this file). The idle effect, not the frame task, is what resets
-		// the uniforms/arrowsTint in response.
+		// the uniforms in response.
 		storeMatRipple.committedColor = storeMatRipple.toColor;
 		storeMatRipple.active = false;
 		await flush();
 
-		const afterFinish = tints();
-		expect(afterFinish[afterFinish.length - 1]).toBe(CARD_COLOR_MAP.blue);
+		expect(feltUniforms().uActive.value).toBe(0);
+		expect((feltUniforms().uFromColor.value as THREE.Color).getHex()).toBe(
+			hexOf(CARD_COLOR_MAP.blue)
+		);
+		expect((feltUniforms().uToColor.value as THREE.Color).getHex()).toBe(
+			hexOf(CARD_COLOR_MAP.blue)
+		);
 
 		// A further frame task tick while inactive must stay a no-op (it
 		// returns immediately on !ripple.active), so nothing regresses back
@@ -271,18 +284,15 @@ describe("Playmat3D ripple frame stepping", () => {
 		nowSpy.mockReturnValue(start + 20 * (1000 / 12));
 		step();
 		await flush();
-		const afterExtraTick = tints();
-		expect(afterExtraTick[afterExtraTick.length - 1]).toBe(CARD_COLOR_MAP.blue);
+		expect(feltUniforms().uActive.value).toBe(0);
+		expect((feltUniforms().uFromColor.value as THREE.Color).getHex()).toBe(
+			hexOf(CARD_COLOR_MAP.blue)
+		);
+		expect((feltUniforms().uToColor.value as THREE.Color).getHex()).toBe(
+			hexOf(CARD_COLOR_MAP.blue)
+		);
 	});
 });
-
-type Uniforms = Record<string, { value: unknown }>;
-
-function uniformSets(): Uniforms[] {
-	return meshInstances
-		.map((instance) => (instance as unknown as { uniforms?: Uniforms }).uniforms)
-		.filter((uniforms): uniforms is Uniforms => Boolean(uniforms));
-}
 
 describe("Playmat3D turn loop", () => {
 	beforeEach(() => {
