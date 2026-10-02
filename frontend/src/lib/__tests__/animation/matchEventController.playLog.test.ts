@@ -44,7 +44,11 @@ function fakeBus() {
 		pendingLocalDrawIds: new Set<number>(),
 		pendingLocalPlayDrawnId: null,
 		pendingLocalDragPlay: null,
-		setPendingLocalDragPlay: vi.fn()
+		setPendingLocalDragPlay: vi.fn(),
+		retainTopDiscard: vi.fn(),
+		reshuffleDrawPileSize: null,
+		onReshuffleCardLanding: null,
+		getDrawPileHoverDipZ: () => 0
 	} as unknown as CardBus;
 }
 
@@ -59,7 +63,11 @@ function fakeRegistry(landing: Promise<void> = Promise.resolve()) {
 	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
 }
 
-function stateWithTop(top: { id: number; type: string; value: string }, active = "red") {
+function stateWithTop(
+	top: { id: number; type: string; value: string },
+	active = "red",
+	overrides: Record<string, unknown> = {}
+) {
 	return {
 		active_type: active,
 		current_turn: "bob",
@@ -70,7 +78,8 @@ function stateWithTop(top: { id: number; type: string; value: string }, active =
 			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
 		],
 		pending_draws: 0,
-		draw_pile_size: 10
+		draw_pile_size: 10,
+		...overrides
 	} as never;
 }
 
@@ -260,5 +269,89 @@ describe("matchEventController play log", () => {
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+	});
+
+	it("logs a forced play as an auto play", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 20, kind: "play", player: "me", cardId: 2, auto: true });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_auto_play/)]);
+	});
+
+	it("logs a wild colour reaction once the snapshot resolves it", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "white");
+		const h = harness();
+
+		h.fire({ seq: 21, kind: "play", player: "me", cardId: 2, auto: false });
+		await flush();
+		expect(partyKeys()).toEqual([]);
+
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "red");
+		h.controller.syncState();
+		await flush();
+		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+	});
+
+	it("logs a reshuffle reaction after the pile is reshuffled", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+		h.controller.syncState();
+
+		h.fire({ seq: 22, kind: "reshuffle", drawSize: 13, discardSize: 3 });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_reshuffle/)]);
+	});
+
+	it("logs a near-win when a non-draw play leaves the actor at one card", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			players: [
+				{ username: "me", card_count: 1, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+			]
+		});
+		const h = harness();
+
+		h.fire({ seq: 23, kind: "play", player: "me", cardId: 2, auto: false });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_play", expect.stringMatching(/^log_near_win/)]);
+	});
+
+	it("does not log a near-win when the played card is a draw card", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "+2" }, "red", {
+			players: [
+				{ username: "me", card_count: 1, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+			]
+		});
+		const h = harness();
+
+		h.fire({ seq: 24, kind: "play", player: "me", cardId: 2, auto: false });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_play"]);
+	});
+
+	it("logs a win and each later placement once from snapshot changes", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			winner: "bob",
+			placements: ["bob", "me"]
+		});
+		const h = harness();
+
+		h.controller.syncState();
+		await flush();
+		expect(partyKeys()).toEqual([
+			expect.stringMatching(/^log_win/),
+			expect.stringMatching(/^log_elimination/)
+		]);
+
+		h.controller.syncState();
+		await flush();
+		expect(partyKeys()).toHaveLength(2);
 	});
 });

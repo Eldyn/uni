@@ -391,14 +391,19 @@ export function createMatchEventBeatController(deps: {
 				deps.bus.removeInFlightPlay(beat.player);
 			}
 		});
+		const playedKind = kindOf(top);
+		const isDrawCard = playedKind.endsWith("_draw2") || playedKind.endsWith("_draw4");
+		const actor = state.players?.find((p) => p.username === beat.player);
+		const nearWin = !isDrawCard && actor?.card_count === 1;
 		playLog.notePlay(
 			{
 				player: beat.player,
-				kind: kindOf(top),
-				color: top.type === "white" ? (knownWildColor ?? "white") : top.type
+				kind: playedKind,
+				color: top.type === "white" ? (knownWildColor ?? "white") : top.type,
+				auto: beat.auto
 			},
 			landed,
-			{ seq: beat.seq }
+			{ seq: beat.seq, nearWin }
 		);
 	}
 
@@ -715,6 +720,7 @@ export function createMatchEventBeatController(deps: {
 					deps.bus.reshuffleDrawPileSize = null;
 					deps.bus.onReshuffleCardLanding = null;
 				});
+			playLog.noteReshuffle({ seq: beat.seq });
 		} else {
 			deps.bus.reshuffleDrawPileSize = null;
 			deps.bus.onReshuffleCardLanding = null;
@@ -859,6 +865,10 @@ export function createMatchEventBeatController(deps: {
 			}
 		}
 		prevIsActionPending = isActionPendingNow;
+
+		// INFO: game-end has no beat of its own; the public winner/placements
+		//       fields are diffed inside the emitter, which dedupes repeats.
+		playLog.noteGameEnd(state.winner ?? null, state.placements ?? []);
 	}
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);

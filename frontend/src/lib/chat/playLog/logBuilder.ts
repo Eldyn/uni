@@ -37,6 +37,36 @@ export const REACTION_RULES = {
 		},
 		params: () => ({})
 	},
+	auto_play: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_auto_play_1" }, { key: "log_auto_play_2" }] },
+		params: (e) => ({ name: e.player, kind: e.cardKind, color: e.color })
+	},
+	reshuffle: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_reshuffle_1" }, { key: "log_reshuffle_2" }] },
+		params: () => ({})
+	},
+	wild: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_wild_reaction_1" }] },
+		params: (e) => ({ name: e.player, color: e.color })
+	},
+	near_win: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_near_win_1" }, { key: "log_near_win_2" }] },
+		params: (e) => ({ name: e.player })
+	},
+	win: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_win_1" }, { key: "log_win_2" }] },
+		params: (e) => ({ name: e.player })
+	},
+	elimination: {
+		group: () => "generic",
+		pools: { generic: [{ key: "log_elimination_1" }, { key: "log_elimination_2" }] },
+		params: (e) => ({ name: e.player, place: e.place })
+	},
 	draw: {
 		group: (e, s) => {
 			if (e.penalty) return (e.total ?? 0) >= 8 ? "penalty_heavy" : "penalty_small";

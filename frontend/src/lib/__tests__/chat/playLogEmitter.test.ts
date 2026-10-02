@@ -112,12 +112,96 @@ describe("createPlayLogEmitter", () => {
 		});
 	});
 
+	it("logs a forced play as an auto play, not a play", async () => {
+		emitter.notePlay(
+			{ player: "Ann", kind: "vanilla:red_skip", color: "red", auto: true },
+			Promise.resolve(),
+			{
+				seq: 3
+			}
+		);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_auto_play/)]);
+		expect(lines[0].params).toEqual({ name: "Ann", kind: "vanilla:red_skip", color: "red" });
+	});
+
+	it("logs a wild colour reaction alongside the play", async () => {
+		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "red" }, Promise.resolve(), {
+			seq: 4
+		});
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(lines[1].params).toEqual({ name: "Ann", color: "red" });
+	});
+
+	it("logs the wild colour reaction once the colour arrives", async () => {
+		let land!: () => void;
+		const landed = new Promise<void>((resolve) => (land = resolve));
+		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "white" }, landed, { seq: 5 });
+		emitter.noteWildColor("blue");
+		land();
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(lines[1].params).toEqual({ name: "Ann", color: "blue" });
+	});
+
+	it("logs a near-win reaction carried by the play", async () => {
+		emitter.notePlay({ player: "Ann", kind: "vanilla:red_5", color: "red" }, Promise.resolve(), {
+			seq: 6,
+			nearWin: true
+		});
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_play",
+			expect.stringMatching(/^log_near_win/)
+		]);
+		expect(lines[1].params).toEqual({ name: "Ann" });
+	});
+
+	it("logs a reshuffle", async () => {
+		emitter.noteReshuffle({ seq: 7 });
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_reshuffle/)]);
+	});
+
+	it("logs a win and each later placement once", async () => {
+		emitter.noteGameEnd("Ann", ["Ann"]);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_win/)]);
+
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^log_win/),
+			expect.stringMatching(/^log_elimination/)
+		]);
+		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
+
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("reset clears the game-end trackers", async () => {
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		await flush();
+		emitter.reset();
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^log_win/),
+			expect.stringMatching(/^log_elimination/),
+			expect.stringMatching(/^log_win/),
+			expect.stringMatching(/^log_elimination/)
+		]);
+	});
+
 	it("logs a wild once its colour is already known", async () => {
 		emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color: "red" }, Promise.resolve(), {
 			seq: 4
 		});
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play"]);
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_wild_reaction_1"]);
 		expect(lines[0].params).toEqual({ name: "Ann", kind: "vanilla:wild", color: "red" });
 	});
 
@@ -132,7 +216,8 @@ describe("createPlayLogEmitter", () => {
 		land();
 		await flush();
 		expect(lines.map((line) => line.params)).toEqual([
-			{ name: "Ann", kind: "vanilla:wild", color: "red" }
+			{ name: "Ann", kind: "vanilla:wild", color: "red" },
+			{ name: "Ann", color: "red" }
 		]);
 	});
 

@@ -8,7 +8,13 @@ export const DRAW_DEBT_STATUS_KIND = "vanilla:draw_debt";
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
 export type TurnInfo = { skipped: string[]; direction: number; seq: number };
 
-type PendingWild = { player: string; kind: string; landed: Promise<unknown>; seq: number };
+type PendingWild = {
+	player: string;
+	kind: string;
+	landed: Promise<unknown>;
+	seq: number;
+	nearWin?: boolean;
+};
 type PendingStack = { player: string; amount: number; seq: number };
 
 /**
@@ -23,10 +29,24 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	let lastDirection: number | null = null;
 	let pendingWild: PendingWild | null = null;
 	let pendingStack: PendingStack | null = null;
+	let seenWinner: string | null = null;
+	const seenPlacements = new Set<string>();
 
 	function emit(event: LogEvent): void {
 		const line = buildLogLine(event, tracker.record(event));
 		if (line) post(line);
+	}
+
+	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
+		const player = escapeLogText(card.player);
+		const isWild = card.kind === "vanilla:wild" || card.kind === "vanilla:wild_draw4";
+		emit(
+			card.auto
+				? { kind: "auto_play", seq, player, cardKind: card.kind, color: card.color }
+				: { kind: "play", seq, player, cardKind: card.kind, color: card.color }
+		);
+		if (nearWin) emit({ kind: "near_win", seq, player });
+		if (isWild) emit({ kind: "wild", seq, player, color: card.color });
 	}
 
 	function enqueue(step: () => void, landed: Promise<unknown> = Promise.resolve()): void {
@@ -39,9 +59,13 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 			});
 	}
 
-	function notePlay(card: PlayedCard, landed: Promise<unknown>, ctx: { seq: number }): void {
+	function notePlay(
+		card: PlayedCard,
+		landed: Promise<unknown>,
+		ctx: { seq: number; nearWin?: boolean }
+	): void {
 		const { player, kind, color } = card;
-		const { seq } = ctx;
+		const { seq, nearWin } = ctx;
 		const stackAmount = kind === "vanilla:wild_draw4" ? 4 : kind.endsWith("_draw2") ? 2 : null;
 		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;
 
@@ -49,7 +73,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		if (isWild && color === "white") {
 			// INFO: a new unresolved wild supersedes any earlier one that never
 			//       got its colour pick; only the latest is live.
-			pendingWild = { player, kind, landed, seq };
+			pendingWild = { player, kind, landed, seq, nearWin };
 			enqueue(() => undefined, landed);
 			return;
 		}
@@ -57,20 +81,14 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		// INFO: any resolved play closes the window for an unresolved wild from
 		//       before it — no wild colour is coming for that one now.
 		pendingWild = null;
-		enqueue(
-			() => emit({ kind: "play", seq, player: escapeLogText(player), cardKind: kind, color }),
-			landed
-		);
+		enqueue(() => emitPlayReactions(card, seq, nearWin), landed);
 	}
 
 	function noteWildColor(color: string): void {
 		if (!pendingWild) return;
-		const { player, kind, landed, seq } = pendingWild;
+		const { player, kind, landed, seq, nearWin } = pendingWild;
 		pendingWild = null;
-		enqueue(
-			() => emit({ kind: "play", seq, player: escapeLogText(player), cardKind: kind, color }),
-			landed
-		);
+		enqueue(() => emitPlayReactions({ player, kind, color }, seq, nearWin), landed);
 	}
 
 	function noteTurn({ skipped, direction, seq }: TurnInfo): void {
@@ -116,6 +134,39 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		);
 	}
 
+	function noteReshuffle(ctx: { seq: number }): void {
+		enqueue(() => emit({ kind: "reshuffle", seq: ctx.seq }));
+	}
+
+	/**
+	 * Emits game-end reactions from the public snapshot. The winner takes a
+	 * `win` line and every newly-placed player below first takes an
+	 * `elimination` line; the winner is place 1 and never also "eliminated".
+	 * Placement position is the public, shared seq discriminator.
+	 */
+	function noteGameEnd(winner: string | null | undefined, placements: string[]): void {
+		const nextWinner = winner ?? null;
+		const newlyPlaced: { player: string; place: number }[] = [];
+		placements.forEach((player, index) => {
+			if (seenPlacements.has(player)) return;
+			seenPlacements.add(player);
+			if (index + 1 >= 2) newlyPlaced.push({ player, place: index + 1 });
+		});
+		const winnerIsNew = nextWinner !== null && nextWinner !== seenWinner;
+		if (winnerIsNew) seenWinner = nextWinner;
+		if (!winnerIsNew && newlyPlaced.length === 0) return;
+
+		const winnerName = nextWinner === null ? null : escapeLogText(nextWinner);
+		enqueue(() => {
+			if (winnerIsNew && winnerName !== null) {
+				emit({ kind: "win", seq: placements.length, player: winnerName });
+			}
+			for (const { player, place } of newlyPlaced) {
+				emit({ kind: "elimination", seq: place, player: escapeLogText(player), place });
+			}
+		});
+	}
+
 	function reset(): void {
 		generation += 1;
 		tail = Promise.resolve();
@@ -123,9 +174,20 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		lastDirection = null;
 		pendingWild = null;
 		pendingStack = null;
+		seenWinner = null;
+		seenPlacements.clear();
 	}
 
-	return { notePlay, noteWildColor, noteTurn, noteDraw, noteDebt, reset };
+	return {
+		notePlay,
+		noteWildColor,
+		noteTurn,
+		noteDraw,
+		noteDebt,
+		noteReshuffle,
+		noteGameEnd,
+		reset
+	};
 }
 
 export type PlayLogEmitter = ReturnType<typeof createPlayLogEmitter>;

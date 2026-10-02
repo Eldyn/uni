@@ -34,6 +34,14 @@ export class StreakTracker {
 			return { ...this.state };
 		}
 		switch (event.kind) {
+			case "reshuffle":
+			case "wild":
+			case "near_win":
+			case "win":
+			case "elimination":
+				// INFO: reaction lines that ride alongside a turn action do not
+				//       themselves break a skip/reverse/draw run.
+				return { ...this.state };
 			case "skip":
 				this.state = {
 					skipRun: event.player === this.lastSkipped ? this.state.skipRun + 1 : 1,

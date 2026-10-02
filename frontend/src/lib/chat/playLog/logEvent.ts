@@ -1,7 +1,20 @@
 export type LogEvent =
-	| { kind: "play"; seq: number; player: string; cardKind: string; color: string }
+	| {
+			kind: "play";
+			seq: number;
+			player: string;
+			cardKind: string;
+			color: string;
+			auto?: boolean;
+	  }
+	| { kind: "auto_play"; seq: number; player: string; cardKind: string; color: string }
 	| { kind: "skip"; seq: number; player: string }
 	| { kind: "reverse"; seq: number }
+	| { kind: "reshuffle"; seq: number }
+	| { kind: "wild"; seq: number; player: string; color: string }
+	| { kind: "near_win"; seq: number; player: string }
+	| { kind: "win"; seq: number; player: string }
+	| { kind: "elimination"; seq: number; player: string; place: number }
 	| {
 			kind: "draw";
 			seq: number;

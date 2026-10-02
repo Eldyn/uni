@@ -104,3 +104,45 @@ describe("draw reaction groups", () => {
 		});
 	});
 });
+
+describe("reshuffle, wild, auto, near-win and game-end rules", () => {
+	const keyOf = (event: LogEvent, info: StreakInfo = streak) =>
+		buildLogLine(event, info)?.key ?? "";
+
+	it("picks a reshuffle joke", () => {
+		expect(keyOf({ kind: "reshuffle", seq: 1 })).toMatch(/^log_reshuffle/);
+	});
+
+	it("carries the wild picker and colour", () => {
+		const line = buildLogLine({ kind: "wild", seq: 2, player: "Ann", color: "red" }, streak);
+		expect(line?.key).toBe("log_wild_reaction_1");
+		expect(line?.params).toEqual({ name: "Ann", color: "red" });
+	});
+
+	it("carries the auto-played card kind and colour", () => {
+		const line = buildLogLine(
+			{ kind: "auto_play", seq: 3, player: "Ann", cardKind: "vanilla:wild", color: "blue" },
+			streak
+		);
+		expect(line?.key).toMatch(/^log_auto_play/);
+		expect(line?.params).toEqual({ name: "Ann", kind: "vanilla:wild", color: "blue" });
+	});
+
+	it("names the near-win player", () => {
+		const line = buildLogLine({ kind: "near_win", seq: 4, player: "Ann" }, streak);
+		expect(line?.key).toMatch(/^log_near_win/);
+		expect(line?.params).toEqual({ name: "Ann" });
+	});
+
+	it("names the winner", () => {
+		const line = buildLogLine({ kind: "win", seq: 1, player: "Ann" }, streak);
+		expect(line?.key).toMatch(/^log_win/);
+		expect(line?.params).toEqual({ name: "Ann" });
+	});
+
+	it("carries the eliminated player and place", () => {
+		const line = buildLogLine({ kind: "elimination", seq: 2, player: "Ann", place: 2 }, streak);
+		expect(line?.key).toMatch(/^log_elimination/);
+		expect(line?.params).toEqual({ name: "Ann", place: 2 });
+	});
+});

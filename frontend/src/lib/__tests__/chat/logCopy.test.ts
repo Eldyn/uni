@@ -36,7 +36,19 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		handSize: 12,
 		victim: "Bob"
 	},
-	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" }
+	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" },
+	reshuffle: { kind: "reshuffle", seq: 4 },
+	wild: { kind: "wild", seq: 5, player: "Ann", color: "red" },
+	auto_play: {
+		kind: "auto_play",
+		seq: 6,
+		player: "Ann",
+		cardKind: "vanilla:red_5",
+		color: "red"
+	},
+	near_win: { kind: "near_win", seq: 7, player: "Ann" },
+	win: { kind: "win", seq: 1, player: "Ann" },
+	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
 };
 
 const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
