@@ -431,7 +431,7 @@
 	"log_draw_big_hand_2": "{handSize} cards, [c=red]{name}[/c]. Maybe leave some for the rest.",
 	"log_draw_large_1": "{name} draws {count}. Ouch.",
 	"log_skip_streak_2": "[c=red]{name}[/c] again. [fx=shake]LET {name} PLAY!![/fx]",
-	"log_reverse_spin_2": "Another reverse. [fx=shake]This table is a revolving door.[/fx]",
+	"log_reverse_spin_2": "Another reverse. [fx=shake]Back the other way.[/fx]",
 	"log_draw_stack": "{name} 님이 +{amount} 추가. {victim} 님이 뽑을 카드는 {total}장.",
 	"log_draw_stack_heavy": "{name} 님이 +{amount} 더 얹었습니다. [c=red]{victim}[/c] 님은 [fx=shake]{total}장[/fx]을 뽑아야 합니다. 행운을 빕니다.",
 	"log_play": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",

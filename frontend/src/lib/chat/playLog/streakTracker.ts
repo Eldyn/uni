@@ -21,7 +21,16 @@ export class StreakTracker {
 			const count = (this.#drawCounts.get(event.player) ?? 0) + 1;
 			this.#drawCounts.set(event.player, count);
 			this.#totalDraws += 1;
-			this.state = { ...this.state, drawRun: count, totalDraws: this.#totalDraws };
+			// INFO: a draw is a turn action, so it breaks any skip/reverse run
+			//       just like a play does.
+			this.state = {
+				skipRun: 0,
+				reverseRun: 0,
+				stackedDebt: 0,
+				drawRun: count,
+				totalDraws: this.#totalDraws
+			};
+			this.lastSkipped = null;
 			return { ...this.state };
 		}
 		switch (event.kind) {

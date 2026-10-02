@@ -37,6 +37,15 @@ describe("buildLogLine", () => {
 		);
 	});
 
+	it("rotates the streak pool across different seq values (Review Focus)", () => {
+		const keys = new Set(
+			[1, 2, 3, 4].map(
+				(seq) => buildLogLine({ kind: "skip", seq, player: "Ann" }, streak({ skipRun: 4 }))?.key
+			)
+		);
+		expect(keys.size).toBeGreaterThan(1);
+	});
+
 	it.each([
 		[1, "log_reverse"],
 		[2, "log_reverse_back"],

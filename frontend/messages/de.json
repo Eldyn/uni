@@ -431,7 +431,7 @@
 	"log_draw_big_hand_2": "{handSize} cards, [c=red]{name}[/c]. Maybe leave some for the rest.",
 	"log_draw_large_1": "{name} draws {count}. Ouch.",
 	"log_skip_streak_2": "[c=red]{name}[/c] again. [fx=shake]LET {name} PLAY!![/fx]",
-	"log_reverse_spin_2": "Another reverse. [fx=shake]This table is a revolving door.[/fx]",
+	"log_reverse_spin_2": "Another reverse. [fx=shake]Back the other way.[/fx]",
 	"log_draw_stack": "{name} legt +{amount} drauf. {victim} muss jetzt {total} ziehen.",
 	"log_draw_stack_heavy": "{name} legt noch +{amount} drauf. [c=red]{victim}[/c] muss [fx=shake]{total}[/fx] ziehen. Viel Spaß.",
 	"log_play": "{name} spielt [k={kind}][c={color}]{cardName}[/c][/k].",

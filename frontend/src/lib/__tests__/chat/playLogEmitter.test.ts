@@ -10,7 +10,7 @@ function setup() {
 	return { lines, emitter };
 }
 
-const turn = (skipped: string[], direction = 1) => ({ skipped, direction });
+const turn = (skipped: string[], direction = 1, seq = 1) => ({ skipped, direction, seq });
 
 describe("createPlayLogEmitter", () => {
 	let lines: LogLine[];
@@ -27,6 +27,23 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again", "log_skip_third"]);
+	});
+
+	it("threads the turn seq so a streak pool actually rotates (Review Focus)", async () => {
+		emitter.noteTurn(turn(["Ann"], 1, 1));
+		emitter.noteTurn(turn(["Ann"], 1, 1));
+		emitter.noteTurn(turn(["Ann"], 1, 1));
+		emitter.noteTurn(turn(["Ann"], 1, 1));
+		emitter.noteTurn(turn(["Ann"], 1, 2));
+		await flush();
+
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_skip",
+			"log_skip_again",
+			"log_skip_third",
+			"log_skip_streak_2",
+			"log_skip_streak"
+		]);
 	});
 
 	it("logs one line per skipped seat on a single turn, in order", async () => {

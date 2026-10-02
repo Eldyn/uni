@@ -87,6 +87,20 @@ describe("StreakTracker", () => {
 		).toMatchObject({ drawRun: 1, totalDraws: 1 });
 	});
 
+	it("resets the skip run when a draw breaks two same-player skips (Review Focus)", () => {
+		const tracker = new StreakTracker();
+		tracker.record({ kind: "skip", player: "Ann" });
+		tracker.record({ kind: "draw", seq: 1, player: "Bob", count: 1, penalty: false });
+		expect(tracker.record({ kind: "skip", player: "Ann" }).skipRun).toBe(1);
+	});
+
+	it("resets the reverse run on a draw", () => {
+		const tracker = new StreakTracker();
+		tracker.record({ kind: "reverse" });
+		tracker.record({ kind: "draw", seq: 1, player: "Bob", count: 1, penalty: false });
+		expect(tracker.record({ kind: "reverse" }).reverseRun).toBe(1);
+	});
+
 	it("reset clears the state", () => {
 		const tracker = new StreakTracker();
 		tracker.record({ kind: "skip", player: "Ann" });

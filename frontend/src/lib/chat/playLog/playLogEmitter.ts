@@ -6,7 +6,7 @@ import type { LogEvent, LogLine } from "./logEvent";
 export const DRAW_DEBT_STATUS_KIND = "vanilla:draw_debt";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
-export type TurnInfo = { skipped: string[]; direction: number };
+export type TurnInfo = { skipped: string[]; direction: number; seq: number };
 
 type PendingWild = { player: string; kind: string; landed: Promise<unknown>; seq: number };
 type PendingStack = { player: string; amount: number; seq: number };
@@ -73,12 +73,12 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		);
 	}
 
-	function noteTurn({ skipped, direction }: TurnInfo): void {
+	function noteTurn({ skipped, direction, seq }: TurnInfo): void {
 		const reversed = lastDirection !== null && direction !== lastDirection;
 		lastDirection = direction;
 		enqueue(() => {
-			if (reversed) emit({ kind: "reverse" });
-			for (const player of skipped) emit({ kind: "skip", player: escapeLogText(player) });
+			if (reversed) emit({ kind: "reverse", seq });
+			for (const player of skipped) emit({ kind: "skip", seq, player: escapeLogText(player) });
 		});
 	}
 

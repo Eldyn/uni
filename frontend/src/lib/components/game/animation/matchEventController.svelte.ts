@@ -737,7 +737,7 @@ export function createMatchEventBeatController(deps: {
 			if (cueFires) storeTurnCue.fire();
 			storeDirectionRing.reverseTo(beat.direction);
 		});
-		playLog.noteTurn({ skipped: beat.skipped, direction: beat.direction });
+		playLog.noteTurn({ skipped: beat.skipped, direction: beat.direction, seq: beat.seq });
 		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
