@@ -420,12 +420,12 @@ export function createMatchEventBeatController(deps: {
 			return;
 		}
 
-		const newIds = beat.cardIds;
-		if (newIds.length === 0) return;
-
-		const placement = deps.getPlacement();
+		// INFO: the draw reaction reads only public data (actor, count and the
+		//       public card_count), so it is emitted before the identity-
+		//       dependent guard below. A spectator's beat carries no card ids
+		//       even for the viewed/"local" player, but must still react so the
+		//       variant keys match every other client.
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
-
 		// INFO: the snapshot is post-draw, so the pre-draw count is the drawn
 		//       count subtracted back out; `nearWin` marks a hand that held a
 		//       single card just before this draw.
@@ -435,6 +435,13 @@ export function createMatchEventBeatController(deps: {
 			{ seq: beat.seq, player: beat.player, count: beat.count },
 			{ handSize: localPostCount, nearWin: localPostCount - beat.count === 1 }
 		);
+
+		// INFO: only the animation seeding needs the drawn identities the
+		//       server withholds from a spectator.
+		const newIds = beat.cardIds;
+		if (newIds.length === 0) return;
+
+		const placement = deps.getPlacement();
 
 		// Each landed card rejoins the row at once, so card i lands in the row
 		// as it will stand at that moment: the cards already showing plus the

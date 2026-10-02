@@ -72,7 +72,7 @@ export const REACTION_RULES = {
 			if (e.penalty) return (e.total ?? 0) >= 8 ? "penalty_heavy" : "penalty_small";
 			if ((e.handSize ?? 0) >= 10) return "big_hand";
 			if (e.count >= 4) return "large";
-			if (s.drawRun === 1) return "first";
+			if (s.totalDraws === 1) return "first";
 			if (s.drawRun >= 4) return "many";
 			return "generic";
 		},

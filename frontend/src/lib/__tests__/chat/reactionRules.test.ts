@@ -57,6 +57,11 @@ describe("selectReactionKey", () => {
 
 describe("draw reaction groups", () => {
 	const withDrawRun = (drawRun: number): StreakInfo => ({ ...streak, drawRun });
+	const withDraws = (drawRun: number, totalDraws: number): StreakInfo => ({
+		...streak,
+		drawRun,
+		totalDraws
+	});
 	const draw = (over: Partial<Extract<LogEvent, { kind: "draw" }>> = {}): LogEvent => ({
 		kind: "draw",
 		seq: 1,
@@ -71,15 +76,22 @@ describe("draw reaction groups", () => {
 	it.each([
 		["penalty_small", draw({ penalty: true, total: 4 }), streak, "log_draw_stack"],
 		["penalty_heavy", draw({ penalty: true, total: 8 }), streak, "log_draw_stack_heavy"],
-		["big_hand", draw({ handSize: 10 }), withDrawRun(1), /^log_draw_big_hand/],
-		["large", draw({ count: 4, handSize: 5 }), withDrawRun(1), "log_draw_large_1"],
-		["first", draw(), withDrawRun(1), /^log_draw_first/],
-		["many", draw(), withDrawRun(4), /^log_draw_many/],
-		["generic", draw(), withDrawRun(2), /^log_draw_generic/]
+		["big_hand", draw({ handSize: 10 }), withDraws(1, 1), /^log_draw_big_hand/],
+		["large", draw({ count: 4, handSize: 5 }), withDraws(1, 1), "log_draw_large_1"],
+		["first", draw(), withDraws(1, 1), /^log_draw_first/],
+		["many", draw(), withDraws(4, 5), /^log_draw_many/],
+		["generic", draw(), withDraws(2, 3), /^log_draw_generic/]
 	])("group %s picks %s", (_group, event, info, expected) => {
 		const key = keyOf(event as LogEvent, info as StreakInfo);
 		if (typeof expected === "string") expect(key).toBe(expected);
 		else expect(key).toMatch(expected as RegExp);
+	});
+
+	it("scopes the first-draw joke to the match, not the player", () => {
+		// A player's own first draw later in the match (drawRun 1, totalDraws 2)
+		// must not claim to be the match's first draw.
+		expect(keyOf(draw(), withDraws(1, 1))).toMatch(/^log_draw_first/);
+		expect(keyOf(draw(), withDraws(1, 2))).toMatch(/^log_draw_generic/);
 	});
 
 	it("prefers penalty over hand size and count", () => {

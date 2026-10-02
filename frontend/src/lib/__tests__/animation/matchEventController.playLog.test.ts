@@ -7,6 +7,7 @@ import { storeAuth } from "$stores/auth.svelte";
 import { storeLobby } from "$stores/lobby.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
+import { storeSpectator } from "$stores/spectator.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
 
 const placement: BoardPlacement = {
@@ -134,6 +135,7 @@ describe("matchEventController play log", () => {
 	afterEach(() => {
 		storeGame.state = null;
 		storeLobby.current = null;
+		storeSpectator.reset();
 		chatStore.reset();
 	});
 
@@ -266,6 +268,26 @@ describe("matchEventController play log", () => {
 		const h = harness();
 
 		h.fire({ seq: 2, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+	});
+
+	it("posts a draw reaction for a spectator viewing the drawing player", async () => {
+		storeAuth.username = "spec";
+		storeSpectator.viewedUsername = "bob";
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			current_turn: "bob",
+			players: [
+				{ username: "bob", card_count: 3, is_bot: false, hand: [] },
+				{ username: "carol", card_count: 4, is_bot: false, hand: [] }
+			]
+		});
+		const h = harness();
+
+		// INFO: the server withholds card identities from a spectator, so the
+		//       beat carries no ids even though bob is the viewed/"local" player.
+		h.fire({ seq: 1, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
