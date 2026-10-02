@@ -11,7 +11,7 @@ import { AMBIENT_STEP_FPS } from "../three/ripple/ripplePlan";
 /** Distance from the felt's opaque edge to the loop's outline, in blocks. */
 export const LOOP_INSET_BLOCKS = 14;
 /** Clear space kept between the piles' scatter and the loop on a phone, in blocks. */
-export const LOOP_PILE_CLEARANCE_BLOCKS = 8;
+export const LOOP_PILE_CLEARANCE_BLOCKS = 12;
 /** Preferred corner radius; the fit may nudge it to make the pattern tile. */
 export const LOOP_CORNER_RADIUS_BLOCKS = 12;
 export const LOOP_MIN_CORNER_RADIUS_BLOCKS = 10;

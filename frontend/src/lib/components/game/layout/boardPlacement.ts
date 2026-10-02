@@ -189,10 +189,6 @@ export const PORTRAIT_HAND_MIN_VISIBLE_CARDS = 6;
 // plus clear space between the loop and the piles.
 export const PORTRAIT_LOOP_MARGIN_BLOCKS = LOOP_INSET_BLOCKS + LOOP_PILE_CLEARANCE_BLOCKS;
 
-// Each retry of the phone board shrinks the piles by this factor until the felt
-// that wraps them fits the table area.
-export const PORTRAIT_PILE_SHRINK_STEP = 0.96;
-
 /** The phone hand's card scale — width-bound, so a function of the frustum's
  *  width alone. */
 export function portraitHandScale(halfWidth: number): number {
@@ -260,10 +256,9 @@ function portraitPileLayout(centerScale: number, handScale: number): PortraitPil
 
 /**
  * The phone board: the two center piles stack on the center line of the table
- * area portraitTable.ts leaves between the seats, at the hand's own card size
- * unless the area is too tight for it, and the felt is drawn only big enough to
- * wrap them. The felt is one uniformly scaled sheet, never stretched to fill
- * the area; the piles shrink instead when the area cannot hold it.
+ * area portraitTable.ts leaves between the seats, always at the hand's own card
+ * size, and the felt is drawn only big enough to wrap them. The felt is one
+ * uniformly scaled sheet, never stretched to fill the area.
  */
 function portraitTablePlacement(rig: CameraRig, table: FeltBox): BoardPlacement {
 	const handScale = portraitHandScale(rig.halfWidth);
@@ -280,21 +275,10 @@ function portraitTablePlacement(rig: CameraRig, table: FeltBox): BoardPlacement 
 			table.feltCenterZ
 		);
 	}
-	function fitsTheArea(mat: MatPlacement): boolean {
-		return (
-			mat.bounds.right <= table.feltHalfWidth &&
-			(mat.bounds.near - mat.bounds.far) / 2 <= table.feltHalfDepth
-		);
-	}
 
-	let centerScale = handScale;
-	let layout = portraitPileLayout(centerScale, handScale);
-	let mat = feltAround(layout);
-	while (!fitsTheArea(mat) && centerScale > MIN_CENTER_SCALE) {
-		centerScale = Math.max(MIN_CENTER_SCALE, centerScale * PORTRAIT_PILE_SHRINK_STEP);
-		layout = portraitPileLayout(centerScale, handScale);
-		mat = feltAround(layout);
-	}
+	const centerScale = handScale;
+	const layout = portraitPileLayout(centerScale, handScale);
+	const mat = feltAround(layout);
 
 	return {
 		mat,
