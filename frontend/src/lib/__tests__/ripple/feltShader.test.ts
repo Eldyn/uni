@@ -30,4 +30,19 @@ describe("buildFeltFragmentShader", () => {
 		expect(shader).toContain("precision highp float;");
 		expect(shader).toContain("float bayer4(");
 	});
+
+	it("takes the ripple colour from the shared chunk instead of inlining it", () => {
+		const shader = buildFeltFragmentShader();
+		expect(shader).toContain("vec3 matRippleColor(vec2 uv)");
+		expect(shader).toContain("matRippleColor(vUv)");
+		// the nine ripple uniforms are declared exactly once
+		expect(shader.split("uniform float uRadius;").length - 1).toBe(1);
+	});
+
+	it("keeps the ripple expressions the felt always used", () => {
+		const shader = buildFeltFragmentShader();
+		expect(shader).toContain("bayer4(blockUv * uBlockCount)");
+		expect(shader).toContain("const float FLASH_LIGHTEN = 0.65;");
+		expect(shader).toContain("texel.rgb * matRippleColor(vUv)");
+	});
 });
