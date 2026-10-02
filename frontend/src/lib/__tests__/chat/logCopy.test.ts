@@ -105,6 +105,20 @@ const reactionKeys = Array.from(
 const colorNameKeys = PALETTE_COLORS.map((color) => `log_color_${color}`);
 const copyKeys = [...reactionKeys, ...colorNameKeys];
 
+/** Returns a problem description for an [fx=...] value, or null when valid. */
+function fxProblem(value: string): string | null {
+	const [kind, params, ...extra] = value.split(":");
+	if (!ALLOWED_EFFECTS.includes(kind)) return `unknown [fx=${value}]`;
+	if (params === undefined) return null;
+	if (extra.length > 0) return `malformed [fx=${value}]`;
+	const parts = params.split(",");
+	const isLevel = (raw: string | undefined) =>
+		raw !== undefined && /^\d+$/.test(raw) && Number(raw) <= 3;
+	if (parts.length > 2 || !isLevel(parts[0])) return `malformed [fx=${value}]`;
+	if (parts.length === 2 && !isLevel(parts[1])) return `malformed [fx=${value}]`;
+	return null;
+}
+
 /** Returns a problem description, or null when every tag is known, resolvable, and closed in order. */
 function tagProblem(text: string): string | null {
 	const open: string[] = [];
@@ -117,7 +131,8 @@ function tagProblem(text: string): string | null {
 			if (!PALETTE_COLORS.includes(value) && !HEX_COLOR_RE.test(value))
 				return `unknown [c=${value}]`;
 		} else if (openName === "fx") {
-			if (!ALLOWED_EFFECTS.includes(value)) return `unknown [fx=${value}]`;
+			const problem = fxProblem(value);
+			if (problem) return problem;
 		} else if (openName === "k") {
 			if (!getGlossaryEntry(value)) return `unresolved [k=${value}]`;
 		}

@@ -2,9 +2,10 @@
  * @file richText.ts
  * @brief Parses a small inline markup grammar into flat, renderable segments.
  *
- * Grammar: `**bold**`, `*italic*`, `[c=value]...[/c]` (color), `[fx=value]...[/fx]`
- * (effect, one of TextEffects' effect names). Tags nest. No underline or
- * strikethrough tokens exist by design.
+ * Grammar: `**bold**`, `*italic*`, `[c=value]...[/c]` (color),
+ * `[fx=kind[:intensity[,speed]]]...[/fx]` (effect, one of TextEffects' effect
+ * names; intensity/speed are integers 0-3, default 1). Tags nest. No underline
+ * or strikethrough tokens exist by design.
  *
  * Matching is done in two passes so malformed markup degrades to literal text
  * instead of throwing or silently swallowing the rest of the message: bold/
@@ -46,6 +47,8 @@ export interface RichSegment {
 	italic?: true;
 	color?: string;
 	effect?: RichEffect;
+	effectIntensity?: number;
+	effectSpeed?: number;
 	keyword?: string;
 }
 
@@ -55,10 +58,33 @@ type Token =
 	| { kind: "italic" }
 	| { kind: "openColor"; value: string; source?: string }
 	| { kind: "closeColor" }
-	| { kind: "openFx"; value: string }
+	| { kind: "openFx"; value: RichEffect; intensity: number; speed: number; source: string }
 	| { kind: "closeFx" }
 	| { kind: "openKeyword"; value: string }
 	| { kind: "closeKeyword" };
+
+/**
+ * Parses the params half of an `[fx=kind[:intensity[,speed]]]` tag. Returns
+ * null for an unknown kind or any malformed param shape (a speed without an
+ * intensity, non-integer values, too many parts). Values are clamped to 0-3;
+ * params are numeric-only, so there is no style-injection surface.
+ */
+function parseFxParams(raw: string): { kind: RichEffect; intensity: number; speed: number } | null {
+	const [kind, params] = raw.split(":");
+	if (!RICH_EFFECTS.includes(kind as RichEffect)) return null;
+	if (params === undefined) return { kind: kind as RichEffect, intensity: 1, speed: 1 };
+	const parts = params.split(",");
+	if (parts.length > 2 || parts[0] === "") return null;
+	const clamp = (n: number) => Math.max(0, Math.min(3, n));
+	const intensity = Number(parts[0]);
+	if (!Number.isInteger(intensity)) return null;
+	if (parts.length === 2) {
+		const speed = Number(parts[1]);
+		if (!Number.isInteger(speed)) return null;
+		return { kind: kind as RichEffect, intensity: clamp(intensity), speed: clamp(speed) };
+	}
+	return { kind: kind as RichEffect, intensity: clamp(intensity), speed: 1 };
+}
 
 const TOKEN_RE =
 	/(\*\*)|(\*)|\[c=([^\]]+)\]|\[\/c\]|\[fx=([^\]]+)\]|\[\/fx\]|\[k=([^\]]+)\]|\[\/k\]/g;
@@ -99,9 +125,16 @@ function tokenize(input: string, options: ParseRichTextOptions = {}): Token[] {
 			);
 		} else if (full === "[/c]") tokens.push({ kind: "closeColor" });
 		else if (fxValue !== undefined) {
+			const parsed = parseFxParams(fxValue);
 			tokens.push(
-				RICH_EFFECTS.includes(fxValue as RichEffect)
-					? { kind: "openFx", value: fxValue }
+				parsed
+					? {
+							kind: "openFx",
+							value: parsed.kind,
+							intensity: parsed.intensity,
+							speed: parsed.speed,
+							source: fxValue
+						}
 					: { kind: "text", value: full }
 			);
 		} else if (full === "[/fx]") tokens.push({ kind: "closeFx" });
@@ -139,7 +172,7 @@ function literalOf(token: Token): string {
 		case "closeColor":
 			return "[/c]";
 		case "openFx":
-			return `[fx=${token.value}]`;
+			return `[fx=${token.source}]`;
 		case "closeFx":
 			return "[/fx]";
 		case "openKeyword":
@@ -204,7 +237,7 @@ export function parseRichText(input: string, options: ParseRichTextOptions = {})
 	let bold = false;
 	let italic = false;
 	const colorStack: string[] = [];
-	const fxStack: RichEffect[] = [];
+	const fxStack: { value: RichEffect; intensity: number; speed: number; source: string }[] = [];
 	const keywordStack: string[] = [];
 
 	const flush = () => {
@@ -213,7 +246,16 @@ export function parseRichText(input: string, options: ParseRichTextOptions = {})
 		if (bold) segment.bold = true;
 		if (italic) segment.italic = true;
 		if (colorStack.length) segment.color = colorStack[colorStack.length - 1];
-		if (fxStack.length) segment.effect = fxStack[fxStack.length - 1];
+		if (fxStack.length) {
+			const fx = fxStack[fxStack.length - 1];
+			segment.effect = fx.value;
+			// Only surface params that were spelled out; a bare [fx=kind] keeps
+			// its segment shape unchanged so existing callers/tests don't shift.
+			if (fx.source.includes(":")) {
+				segment.effectIntensity = fx.intensity;
+				segment.effectSpeed = fx.speed;
+			}
+		}
 		if (keywordStack.length) segment.keyword = keywordStack[keywordStack.length - 1];
 		segments.push(segment);
 		buffer = "";
@@ -242,7 +284,12 @@ export function parseRichText(input: string, options: ParseRichTextOptions = {})
 				break;
 			case "openFx":
 				flush();
-				fxStack.push(token.value as RichEffect);
+				fxStack.push({
+					value: token.value,
+					intensity: token.intensity,
+					speed: token.speed,
+					source: token.source
+				});
 				break;
 			case "closeFx":
 				flush();
@@ -261,4 +308,23 @@ export function parseRichText(input: string, options: ParseRichTextOptions = {})
 	flush();
 
 	return segments;
+}
+
+/**
+ * Maps an effect's parsed intensity/speed (0-3, default 1) onto TextEffects'
+ * per-effect tuning props. Index 1 reproduces the component's own defaults, so
+ * a bare `[fx=kind]` renders exactly as before.
+ */
+export function fxRenderProps(effect: RichEffect, intensity = 1, speed = 1) {
+	switch (effect) {
+		case "shake":
+			return {
+				shakeIntensity: [0, 3, 5, 8][intensity],
+				shakeSpeed: [0.6, 0.4, 0.28, 0.18][speed]
+			};
+		case "undulate":
+			return { amplitude: [0, 10, 16, 24][intensity], speed: [1.6, 1.2, 0.85, 0.55][speed] };
+		case "shine":
+			return { shineSpeed: [3.4, 2.5, 1.7, 1.0][speed] };
+	}
 }

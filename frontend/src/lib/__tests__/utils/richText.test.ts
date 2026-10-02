@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRichText } from "$utils/richText";
+import { fxRenderProps, parseRichText } from "$utils/richText";
 
 describe("parseRichText", () => {
 	it("returns a single unstyled segment for plain text", () => {
@@ -80,6 +80,34 @@ describe("parseRichText", () => {
 		expect(parseRichText("[fx=bogus]oops[/fx]")).toEqual([{ text: "[fx=bogus]oops[/fx]" }]);
 	});
 
+	it("parses fx intensity and speed", () => {
+		expect(parseRichText("[fx=shake:2,3]x[/fx]")).toEqual([
+			{ text: "x", effect: "shake", effectIntensity: 2, effectSpeed: 3 }
+		]);
+	});
+
+	it("defaults fx params when omitted", () => {
+		expect(parseRichText("[fx=shake:2]x[/fx]")).toEqual([
+			{ text: "x", effect: "shake", effectIntensity: 2, effectSpeed: 1 }
+		]);
+	});
+
+	it("clamps fx params to 0-3", () => {
+		expect(parseRichText("[fx=shake:9,-1]x[/fx]")[0]).toMatchObject({
+			effectIntensity: 3,
+			effectSpeed: 0
+		});
+	});
+
+	it("degrades a speed without intensity to literal text", () => {
+		expect(parseRichText("[fx=shake:,2]x[/fx]")).toEqual([{ text: "[fx=shake:,2]x[/fx]" }]);
+	});
+
+	it("round-trips a valid but unmatched fx tag with its params verbatim", () => {
+		expect(parseRichText("[fx=shake:2,3]x")).toEqual([{ text: "[fx=shake:2,3]x" }]);
+		expect(parseRichText("[fx=shake]x")).toEqual([{ text: "[fx=shake]x" }]);
+	});
+
 	it("keeps keyword tag as literal text when allowKeywords is false or omitted", () => {
 		expect(parseRichText("[k=draw]Draw[/k]")).toEqual([{ text: "[k=draw]Draw[/k]" }]);
 		expect(parseRichText("[k=draw]Draw[/k]", { allowKeywords: false })).toEqual([
@@ -135,5 +163,19 @@ describe("parseRichText", () => {
 		expect(parseRichText("[k=a:b:c]x[/k]", { allowKeywords: true })).toEqual([
 			{ text: "[k=a:b:c]x[/k]" }
 		]);
+	});
+});
+
+describe("fxRenderProps", () => {
+	it("reproduces TextEffects' defaults at intensity/speed 1", () => {
+		expect(fxRenderProps("shake")).toEqual({ shakeIntensity: 3, shakeSpeed: 0.4 });
+		expect(fxRenderProps("undulate")).toEqual({ amplitude: 10, speed: 1.2 });
+		expect(fxRenderProps("shine")).toEqual({ shineSpeed: 2.5 });
+	});
+
+	it("maps intensity and speed levels onto per-effect tuning", () => {
+		expect(fxRenderProps("shake", 3, 0)).toEqual({ shakeIntensity: 8, shakeSpeed: 0.6 });
+		expect(fxRenderProps("undulate", 2, 3)).toEqual({ amplitude: 16, speed: 0.55 });
+		expect(fxRenderProps("shine", 1, 3)).toEqual({ shineSpeed: 1.0 });
 	});
 });

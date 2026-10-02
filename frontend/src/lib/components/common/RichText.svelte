@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TextEffects from "$components/common/TextEffects.svelte";
-	import { parseRichText } from "$utils/richText";
+	import { parseRichText, fxRenderProps } from "$utils/richText";
 	import { censorText, loadCensorData } from "$utils/censor.svelte";
 	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 	import { hasGlossaryKeyword } from "$lib/glossary/glossary";
@@ -107,6 +107,7 @@
 						shineBaseColor={segment.color ?? "var(--tooltip-link-color, var(--redCard, #bd3130))"}
 						font={segmentFont(segment)}
 						class="fx-{segment.effect} {segment.bold || segment.italic ? 'rt-scaled' : ''}"
+						{...fxRenderProps(segment.effect, segment.effectIntensity, segment.effectSpeed)}
 					/>
 				{:else}
 					{displayText}
@@ -119,6 +120,7 @@
 				color={segment.color ?? ""}
 				font={segmentFont(segment)}
 				class="fx-{segment.effect} {segment.bold || segment.italic ? 'rt-scaled' : ''}"
+				{...fxRenderProps(segment.effect, segment.effectIntensity, segment.effectSpeed)}
 			/>
 		{:else}
 			<!-- Bold uses the Pypx bold face and italic the Monogram-italic face,
