@@ -71,12 +71,27 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		color: "red"
 	},
 	near_win: { kind: "near_win", seq: 7, player: "Ann" },
+	blocked_skip: { kind: "skip", seq: 8, player: "Ann", actor: "Bob" },
+	blocked_draw: {
+		kind: "draw",
+		seq: 9,
+		player: "Bob",
+		count: 0,
+		penalty: true,
+		amount: 2,
+		total: 2,
+		handSize: 4,
+		victim: "Ann",
+		actor: "Carl"
+	},
 	win: { kind: "win", seq: 1, player: "Ann" },
 	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
 };
 
 const SAMPLE_STREAKS: Record<string, Partial<StreakInfo>> = {
-	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" }
+	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" },
+	blocked_skip: { nearWinTarget: "Ann", nearWinOpen: true },
+	blocked_draw: { nearWinTarget: "Ann", nearWinOpen: true }
 };
 
 const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
