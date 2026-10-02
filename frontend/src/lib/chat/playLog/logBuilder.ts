@@ -33,7 +33,7 @@ export const REACTION_RULES: ReactionRule[] = [
 			c.skipRun >= 4 ? "streak" : c.skipRun === 3 ? "three" : c.skipRun === 2 ? "two" : "one",
 		pools: {
 			one: [{ key: "log_skip" }],
-			two: [{ key: "log_skip_again" }],
+			two: [{ key: "log_skip_again" }, { key: "log_skip_again_2" }],
 			three: [{ key: "log_skip_third" }],
 			streak: [{ key: "log_skip_streak" }, { key: "log_skip_streak_2" }]
 		},
@@ -52,7 +52,7 @@ export const REACTION_RULES: ReactionRule[] = [
 						: "one",
 		pools: {
 			one: [{ key: "log_reverse" }],
-			two: [{ key: "log_reverse_back" }],
+			two: [{ key: "log_reverse_back" }, { key: "log_reverse_back_2" }],
 			three: [{ key: "log_reverse_again" }],
 			streak: [{ key: "log_reverse_spin" }, { key: "log_reverse_spin_2" }]
 		},
@@ -73,7 +73,11 @@ export const REACTION_RULES: ReactionRule[] = [
 		},
 		pools: {
 			first: [{ key: "log_draw_first_1" }, { key: "log_draw_first_2" }],
-			generic: [{ key: "log_draw_generic_1" }, { key: "log_draw_generic_2" }],
+			generic: [
+				{ key: "log_draw_generic_1" },
+				{ key: "log_draw_generic_2" },
+				{ key: "log_draw_generic_3" }
+			],
 			many: [{ key: "log_draw_many_1" }, { key: "log_draw_many_2" }],
 			big_hand: [{ key: "log_draw_big_hand_1" }, { key: "log_draw_big_hand_2" }],
 			large: [{ key: "log_draw_large_1" }],
@@ -114,14 +118,18 @@ export const REACTION_RULES: ReactionRule[] = [
 		id: "reshuffle",
 		match: (c) => c.event.kind === "reshuffle",
 		group: () => "generic",
-		pools: { generic: [{ key: "log_reshuffle_1" }, { key: "log_reshuffle_2" }] },
+		pools: {
+			generic: [{ key: "log_reshuffle_1" }, { key: "log_reshuffle_2" }, { key: "log_reshuffle_3" }]
+		},
 		params: () => ({})
 	},
 	{
 		id: "near_win",
 		match: (c) => c.event.kind === "near_win",
 		group: () => "generic",
-		pools: { generic: [{ key: "log_near_win_1" }, { key: "log_near_win_2" }] },
+		pools: {
+			generic: [{ key: "log_near_win_1" }, { key: "log_near_win_2" }, { key: "log_near_win_3" }]
+		},
 		params: (c) => ({ name: c.event.kind === "near_win" ? c.event.player : "" })
 	},
 	{

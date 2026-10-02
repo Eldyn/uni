@@ -28,7 +28,7 @@ describe("buildLogLines", () => {
 
 	it.each([
 		[1, "log_skip"],
-		[2, "log_skip_again"],
+		[2, "log_skip_again_2"],
 		[3, "log_skip_third"]
 	])("skip run %i uses %s", (skipRun, key) => {
 		expect(buildLogLines({ kind: "skip", seq: 1, player: "Ann" }, streak({ skipRun }))[0]).toEqual({
@@ -54,7 +54,7 @@ describe("buildLogLines", () => {
 
 	it.each([
 		[1, "log_reverse"],
-		[2, "log_reverse_back"],
+		[2, "log_reverse_back_2"],
 		[3, "log_reverse_again"]
 	])("reverse run %i uses %s", (reverseRun, key) => {
 		expect(buildLogLines({ kind: "reverse", seq: 2 }, streak({ reverseRun }))[0]).toMatchObject({

@@ -40,7 +40,11 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
 
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again", "log_skip_third"]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_skip",
+			"log_skip_again_2",
+			"log_skip_third"
+		]);
 	});
 
 	it("threads the turn seq so a streak pool actually rotates (Review Focus)", async () => {
@@ -53,7 +57,7 @@ describe("createPlayLogEmitter", () => {
 
 		expect(lines.map((line) => line.key)).toEqual([
 			"log_skip",
-			"log_skip_again",
+			"log_skip_again_2",
 			"log_skip_third",
 			"log_skip_streak_2",
 			"log_skip_streak"
@@ -319,7 +323,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.reset();
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
 	});
 
 	it("a reset forgets the direction baseline and drops queued lines", async () => {

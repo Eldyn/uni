@@ -188,7 +188,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob"]));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip", "log_skip_again", "log_skip"]);
+		expect(partyKeys()).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
 	});
 
 	it("resets the streak when the match is cleared", async () => {
