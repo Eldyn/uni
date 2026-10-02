@@ -1,7 +1,7 @@
 <!-- Threlte scene root: camera + lights + the playmat, the opponent ring, the
      local seat and hand, and the piles. Everything that used to be DOM —
      opponents, piles, the local player's own hand, and now the playmat and
-     turn-direction arrows too — lives here, viewed from a tilted perspective
+     turn-direction loop too — lives here, viewed from a tilted perspective
      camera (see cameraRig.ts). Every piece of table furniture sits under one
      rotating group so a spectator spin turns the whole board as a single
      object; the local hand row is the one thing outside it. -->
@@ -25,7 +25,6 @@
 	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
 	import AmbientDust3D from "./AmbientDust3D.svelte";
-	import DirectionRing3D from "./DirectionRing3D.svelte";
 	import PlayerSeat3D from "./PlayerSeat3D.svelte";
 	import LocalSeat3D from "./LocalSeat3D.svelte";
 	import LocalHand3D from "./LocalHand3D.svelte";
@@ -163,7 +162,7 @@
 
 	// Spectator table spin, first half: the WHOLE TABLE turns as one rigid
 	// group about the mat's center. There is no per-seat orbital interpolation
-	// any more — the seats, the mat, the arrows and both piles all live under
+	// any more — the seats, the mat, the loop and both piles all live under
 	// `boardGroup`, so a single group rotation carries every one of them and
 	// they can never disagree about where the table is.
 	//
@@ -219,14 +218,13 @@
 <T.AmbientLight intensity={1.1} />
 <T.DirectionalLight intensity={0.4} position={[3, 6, 4]} />
 
-<!-- The whole table: mat, arrows, both center piles, every seat (the outgoing
-     POV player included, drawn at the bottom pivot) and the local avatar. One
-     yaw drives all of it — see boardRotation.ts. The local HAND row is
-     deliberately outside this group: it is the viewer's own UI, not table
-     furniture, and always stays upright at the bottom of the screen. -->
+<!-- The whole table: mat, direction loop, both center piles, every seat (the
+     outgoing POV player included, drawn at the bottom pivot) and the local
+     avatar. One yaw drives all of it — see boardRotation.ts. The local HAND
+     row is deliberately outside this group: it is the viewer's own UI, not
+     table furniture, and always stays upright at the bottom of the screen. -->
 <T.Group rotation.y={storeTableSpin.boardRotationY}>
 	<Playmat3D mat={placement.mat} showFelt={true} {viewport} />
-	<DirectionRing3D mat={placement.mat} />
 
 	{#if storeRenderSettings.ambientDustActive}
 		<AmbientDust3D mat={placement.mat} {viewport} />
