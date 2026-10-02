@@ -166,6 +166,7 @@ describe("Playmat3D ripple colour sync", () => {
 // itself uses via storeMatRipple's injectable now().
 describe("Playmat3D ripple frame stepping", () => {
 	beforeEach(() => {
+		vi.mocked(useTask).mockClear();
 		resetMockState();
 		storeGame.state = { active_type: "red", play_direction: 1 } as never;
 	});
@@ -183,7 +184,7 @@ describe("Playmat3D ripple frame stepping", () => {
 
 	function latestTaskCallback(): () => void {
 		const calls = vi.mocked(useTask).mock.calls;
-		return calls[calls.length - 1][0] as unknown as () => void;
+		return calls[0][0] as unknown as () => void;
 	}
 
 	it("switches the arrows tint to the target colour once the front passes half radius", async () => {

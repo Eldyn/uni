@@ -6,12 +6,19 @@
      offset and quarter turn. Reverse and march behaviour: see
      turnLoopMotion.ts. -->
 <script lang="ts">
-	import { T, useThrelte } from "@threlte/core";
+	import { onDestroy, untrack } from "svelte";
+	import { T, useTask, useThrelte } from "@threlte/core";
 	import * as THREE from "three";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeDirectionRing } from "$stores/directionRing.svelte";
+	import { storeGame } from "$stores/game.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import playmatFeltVertexSource from "$lib/shaders/playmatFelt.vert.glsl?raw";
 	import { buildTurnLoopFragmentShader } from "./ripple/feltShader";
+	import type { DirectionSign } from "../animation/directionRing";
 	import type { MatPlacement, MatSheet } from "../layout/playmat";
 	import { fitPitch, loopLength, loopRect, sheetBlockCount } from "./loopGeometry";
+	import { TurnLoopMotion } from "./turnLoopMotion";
 	import {
 		CHEVRON_HALF_SPREAD_BLOCKS,
 		CHEVRON_LENGTH_BLOCKS,
@@ -21,7 +28,6 @@
 		DASH_LENGTH_BLOCKS,
 		DASH_PITCH_BLOCKS,
 		LOOP_CORNER_RADIUS_BLOCKS,
-		LOOP_IDLE_LIGHTEN,
 		LOOP_INSET_BLOCKS,
 		LOOP_TARGET_PITCH_BLOCKS
 	} from "../animation/loopPlan";
@@ -45,15 +51,26 @@
 
 	const { invalidate } = useThrelte();
 
+	let direction = $state<DirectionSign>(1);
+
+	const motion = new TurnLoopMotion({
+		motionActive: () => storeRenderSettings.matRippleActive,
+		speedMultiplier: () => storeAnimation.speedMultiplier,
+		onChange: () => {
+			direction = motion.direction.value as DirectionSign;
+			invalidate();
+		}
+	});
+
 	const loopUniforms = {
 		uLoopCenter: { value: new THREE.Vector2() },
 		uLoopHalfSize: { value: new THREE.Vector2() },
 		uLoopCornerRadius: { value: LOOP_CORNER_RADIUS_BLOCKS },
 		uLoopLength: { value: 1 },
 		uPitch: { value: LOOP_TARGET_PITCH_BLOCKS },
-		uPhase: { value: 0 },
-		uDirection: { value: 1 },
-		uLighten: { value: LOOP_IDLE_LIGHTEN },
+		uPhase: motion.phase,
+		uDirection: motion.direction,
+		uLighten: motion.lighten,
 		uChevronLength: { value: CHEVRON_LENGTH_BLOCKS },
 		uChevronHalfSpread: { value: CHEVRON_HALF_SPREAD_BLOCKS },
 		uStroke: { value: CHEVRON_STROKE_BLOCKS },
@@ -68,8 +85,6 @@
 	const vertexShader = playmatFeltVertexSource;
 	const fragmentShader = buildTurnLoopFragmentShader();
 
-	let direction = $state(1);
-
 	$effect(() => {
 		const rect = loopRect(
 			sheetBlockCount(sheet),
@@ -78,12 +93,47 @@
 			LOOP_CORNER_RADIUS_BLOCKS
 		);
 		const length = loopLength(rect);
+		motion.loopLength = length;
 		loopUniforms.uLoopCenter.value.set(rect.centerX, rect.centerY);
 		loopUniforms.uLoopHalfSize.value.set(rect.halfWidth, rect.halfHeight);
 		loopUniforms.uLoopLength.value = length;
 		loopUniforms.uPitch.value = fitPitch(length, LOOP_TARGET_PITCH_BLOCKS);
 		invalidate();
 	});
+
+	storeDirectionRing.set(storeGame.state?.play_direction ?? 1);
+	motion.snapTo(storeDirectionRing.sign);
+
+	let lastFlipToken = storeDirectionRing.token;
+	let lastSettleToken = storeDirectionRing.settleToken;
+
+	$effect(() => {
+		const token = storeDirectionRing.token;
+		if (token === lastFlipToken) return;
+		lastFlipToken = token;
+		const flips = storeDirectionRing.takeFlips();
+		untrack(() => motion.enqueue(flips));
+	});
+
+	$effect(() => {
+		const token = storeDirectionRing.settleToken;
+		if (token === lastSettleToken) return;
+		lastSettleToken = token;
+		untrack(() => motion.snapTo(storeDirectionRing.sign));
+	});
+
+	// INFO: turning motion off mid-flip must end the brighten at once, or the
+	//       loop stays lit with nothing left to drive it.
+	$effect(() => {
+		if (storeRenderSettings.matRippleActive) return;
+		untrack(() => motion.motionStopped());
+	});
+
+	// INFO: the march runs on real frames, not the ambient 12fps grid: the
+	//       old ring quantised its spin to that grid and it aliased into stutter.
+	useTask((delta) => motion.tick(delta), { autoInvalidate: false });
+
+	onDestroy(() => motion.dispose());
 </script>
 
 <T.Mesh

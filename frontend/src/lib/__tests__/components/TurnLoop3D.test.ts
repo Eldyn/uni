@@ -11,9 +11,12 @@ vi.mock("@threlte/core", () => ({
 }));
 
 import { render, cleanup, screen } from "@testing-library/svelte";
+import { gsap } from "gsap";
 import * as THREE from "three";
 import TurnLoop3D from "$components/game/three/TurnLoop3D.svelte";
+import { storeAnimation } from "$stores/animation.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
+import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
 import { loopLength, loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
 import {
@@ -117,5 +120,106 @@ describe("TurnLoop3D", () => {
 		);
 		const center = loopMaterialUniforms().uLoopCenter.value as THREE.Vector2;
 		expect(center.x).toBeCloseTo(expected.centerX);
+	});
+});
+
+describe("TurnLoop3D store wiring", () => {
+	beforeEach(() => {
+		resetMockState();
+		storeDirectionRing.reset();
+		storeAnimation.enabled = true;
+		storeRenderSettings.matRipple = true;
+	});
+
+	afterEach(() => {
+		cleanup();
+		vi.restoreAllMocks();
+		storeRenderSettings.matRipple = true;
+		storeAnimation.enabled = true;
+	});
+
+	function mountLoop() {
+		render(TurnLoop3D, {
+			props: { mat, rippleUniforms: rippleUniforms(), sheet: DESKTOP_MAT_SHEET }
+		});
+		flushSync();
+	}
+
+	it("flips the chevrons once for a reverse and plays one impulse", () => {
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		expect(toSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("queues two reverses from one batch behind each other", () => {
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		storeDirectionRing.reverseTo(1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		(toSpy.mock.results[0].value as gsap.core.Tween).progress(1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("1");
+		expect(toSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("flips with no tween when the mat-ripple setting is off", () => {
+		storeRenderSettings.matRipple = false;
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		expect(toSpy).not.toHaveBeenCalled();
+	});
+
+	it("flips with no tween when animations are disabled", () => {
+		storeAnimation.enabled = false;
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		expect(toSpy).not.toHaveBeenCalled();
+	});
+
+	it("snaps to a new match's direction when state is set on a mounted loop", () => {
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.set(-1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		expect(toSpy).not.toHaveBeenCalled();
+	});
+
+	it("snaps to the server direction on tab return without replaying flips", () => {
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		flushSync();
+		storeDirectionRing.reverseTo(1);
+		flushSync();
+		storeDirectionRing.settle(-1);
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("-1");
+		expect(toSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("settles at once when motion is switched off mid-flip", () => {
+		const toSpy = vi.spyOn(gsap, "to");
+		mountLoop();
+		storeDirectionRing.reverseTo(-1);
+		storeDirectionRing.reverseTo(1);
+		flushSync();
+		storeRenderSettings.matRipple = false;
+		flushSync();
+		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("1");
+		expect(
+			gsap.getTweensOf((toSpy.mock.results[0].value as gsap.core.Tween).targets())
+		).toHaveLength(0);
 	});
 });
