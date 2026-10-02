@@ -389,4 +389,40 @@ describe("matchEventController play log", () => {
 
 		expect(partyKeys()).toEqual([]);
 	});
+
+	it("logs a blocked retort when the near-win target is skipped by the last player", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			players: [
+				{ username: "me", card_count: 4, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 1, is_bot: false, hand: [] },
+				{ username: "ann", card_count: 3, is_bot: false, hand: [] }
+			]
+		});
+		const h = harness();
+
+		// bob's near-win play opens the window
+		h.fire({ seq: 30, kind: "play", player: "bob", cardId: 2, auto: false });
+		await flush();
+
+		// ann plays next, becoming the last player before the skip turn
+		storeGame.state = stateWithTop({ id: 3, type: "blue", value: "7" }, "blue", {
+			players: [
+				{ username: "me", card_count: 4, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 1, is_bot: false, hand: [] },
+				{ username: "ann", card_count: 2, is_bot: false, hand: [] }
+			]
+		});
+		h.fire({ seq: 31, kind: "play", player: "ann", cardId: 3, auto: false });
+		await flush();
+
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		const keys = partyKeys();
+		const blockedIndex = keys.findIndex((key) => key?.startsWith("log_blocked_"));
+		expect(keys.indexOf("log_skip")).toBeGreaterThanOrEqual(0);
+		expect(blockedIndex).toBeGreaterThan(keys.indexOf("log_skip"));
+		const blockedLine = chatStore.linesFor("party")[blockedIndex];
+		expect(blockedLine.logParams).toEqual({ blocker: "ann", target: "bob" });
+	});
 });

@@ -94,3 +94,68 @@ it("every event kind is matched by at least one rule", () => {
 		);
 	}
 });
+
+describe("blocked rule", () => {
+	it("fires when the near-win target is skipped, naming the actor", () => {
+		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+		const ctx: ReactionContext = {
+			...base,
+			event: { kind: "skip", seq: 4, player: "Bob", actor: "Ann" },
+			nearWinOpen: true,
+			nearWinTarget: "Bob"
+		};
+		expect(blocked.match(ctx)).toBe(true);
+		expect(blocked.params(ctx)).toEqual({ blocker: "Ann", target: "Bob" });
+	});
+
+	it("fires when the near-win target is penalty-drawn, naming the actor", () => {
+		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+		const ctx: ReactionContext = {
+			...base,
+			event: {
+				kind: "draw",
+				seq: 4,
+				player: "Ann",
+				victim: "Bob",
+				count: 2,
+				penalty: true,
+				actor: "Ann"
+			},
+			nearWinOpen: true,
+			nearWinTarget: "Bob"
+		};
+		expect(blocked.match(ctx)).toBe(true);
+		expect(blocked.params(ctx)).toEqual({ blocker: "Ann", target: "Bob" });
+	});
+
+	it("does not fire when the window is closed", () => {
+		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+		const ctx: ReactionContext = {
+			...base,
+			event: { kind: "skip", seq: 4, player: "Bob", actor: "Ann" },
+			nearWinOpen: false,
+			nearWinTarget: "Bob"
+		};
+		expect(blocked.match(ctx)).toBe(false);
+	});
+
+	it("does not fire for a different target or a missing actor", () => {
+		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+		expect(
+			blocked.match({
+				...base,
+				event: { kind: "skip", seq: 4, player: "Cy", actor: "Ann" },
+				nearWinOpen: true,
+				nearWinTarget: "Bob"
+			})
+		).toBe(false);
+		expect(
+			blocked.match({
+				...base,
+				event: { kind: "skip", seq: 4, player: "Bob" },
+				nearWinOpen: true,
+				nearWinTarget: "Bob"
+			})
+		).toBe(false);
+	});
+});

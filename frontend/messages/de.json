@@ -434,6 +434,8 @@
 	"log_reverse_spin_2": "Another reverse. [fx=shake]Back the other way.[/fx]",
 	"log_draw_stack": "{name} legt +{amount} drauf. {victim} muss jetzt {total} ziehen.",
 	"log_draw_stack_heavy": "{name} legt noch +{amount} drauf. [c=red]{victim}[/c] muss [fx=shake]{total}[/fx] ziehen. Viel Spaß.",
+	"log_blocked_1": "{blocker} hat's echt getan!",
+	"log_blocked_2": "Sag ich doch. {blocker} hat sie gestoppt.",
 	"log_play": "{name} spielt [k={kind}][c={color}]{cardName}[/c][/k].",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",

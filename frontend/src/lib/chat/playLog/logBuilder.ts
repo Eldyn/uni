@@ -94,6 +94,23 @@ export const REACTION_RULES: ReactionRule[] = [
 		}
 	},
 	{
+		id: "blocked",
+		match: (c) => {
+			if (!c.nearWinOpen || c.nearWinTarget === null) return false;
+			const e = c.event;
+			if (e.kind === "skip") return e.player === c.nearWinTarget && !!e.actor;
+			if (e.kind === "draw" && e.penalty) return e.victim === c.nearWinTarget && !!e.actor;
+			return false;
+		},
+		group: () => "generic",
+		pools: { generic: [{ key: "log_blocked_1" }, { key: "log_blocked_2" }] },
+		params: (c) => {
+			const e = c.event;
+			const blocker = e.kind === "skip" || e.kind === "draw" ? (e.actor ?? "") : "";
+			return { blocker, target: c.nearWinTarget ?? "" };
+		}
+	},
+	{
 		id: "reshuffle",
 		match: (c) => c.event.kind === "reshuffle",
 		group: () => "generic",

@@ -344,4 +344,42 @@ describe("createPlayLogEmitter", () => {
 		//       the escape seam the emitter runs it through.
 		expect(escaped).toContain("Ann");
 	});
+
+	it("logs a blocked retort when the near-win target is skipped", async () => {
+		emitter.notePlay({ player: "Bob", kind: "vanilla:red_5", color: "red" }, Promise.resolve(), {
+			seq: 1,
+			nearWin: true
+		});
+		emitter.notePlay({ player: "Ann", kind: "vanilla:red_5", color: "red" }, Promise.resolve(), {
+			seq: 2
+		});
+		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 3, actor: "Ann" });
+		await flush();
+
+		const skipIndex = lines.findIndex((line) => line.key === "log_skip");
+		const blockedIndex = lines.findIndex((line) => line.key.startsWith("log_blocked_"));
+		expect(skipIndex).toBeGreaterThanOrEqual(0);
+		expect(blockedIndex).toBeGreaterThan(skipIndex);
+		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
+	});
+
+	it("logs a blocked retort when the near-win target is penalty-drawn", async () => {
+		emitter.notePlay({ player: "Bob", kind: "vanilla:red_5", color: "red" }, Promise.resolve(), {
+			seq: 1,
+			nearWin: true
+		});
+		emitter.notePlay(
+			{ player: "Ann", kind: "vanilla:red_draw2", color: "red" },
+			Promise.resolve(),
+			{ seq: 2 }
+		);
+		emitter.noteDebt("Bob", 2);
+		await flush();
+
+		const drawIndex = lines.findIndex((line) => line.key === "log_draw_stack");
+		const blockedIndex = lines.findIndex((line) => line.key.startsWith("log_blocked_"));
+		expect(drawIndex).toBeGreaterThanOrEqual(0);
+		expect(blockedIndex).toBeGreaterThan(drawIndex);
+		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
+	});
 });
