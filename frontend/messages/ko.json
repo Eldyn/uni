@@ -423,7 +423,7 @@
 	"log_reverse_spin": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
 	"log_draw_stack": "{name} 님이 +{amount} 추가. {victim} 님이 뽑을 카드는 {total}장.",
 	"log_draw_stack_heavy": "{name} 님이 +{amount} 더 얹었습니다. [c=red]{victim}[/c] 님은 [fx=shake]{total}장[/fx]을 뽑아야 합니다. 행운을 빕니다.",
-	"log_play": "{name} 님이 [c={color}]{colorName} {value}[/c]을 냈습니다.",
+	"log_play": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",
 	"log_wild": "{name} 님이 [c={color}]{colorName}[/c]을 선택했습니다.",
 	"log_color_red": "빨강",
 	"log_color_yellow": "노랑",

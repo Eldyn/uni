@@ -1,4 +1,5 @@
 import * as messages from "$lib/paraglide/messages.js";
+import { cardInfoByKind } from "$lib/glossary/cardDescriptions";
 import type { LogLine } from "./logEvent";
 
 /** Paraglide message options; `locale` pins the language for one call. */
@@ -13,6 +14,20 @@ const catalog = messages as unknown as Record<string, MessageFn | undefined>;
 const COLOR_PARAM = "color";
 const COLOR_NAME_PARAM = "colorName";
 const COLOR_NAME_KEY_PREFIX = "log_color_";
+const KIND_PARAM = "kind";
+const CARD_NAME_PARAM = "cardName";
+
+/**
+ * Adds `cardName`, the reader's word for the card kind in `kind`, so copy can
+ * name the played card while still tagging it with the raw kind. Unknown kinds
+ * fall back to the kind itself.
+ */
+function withCardName(params: LogLine["params"], options: LogTextOptions): LogLine["params"] {
+	const kind = params[KIND_PARAM];
+	if (typeof kind !== "string" || CARD_NAME_PARAM in params) return params;
+	const info = cardInfoByKind(kind, options.locale);
+	return { [CARD_NAME_PARAM]: info?.title ?? kind, ...params };
+}
 
 /**
  * Adds `colorName`, the reader's word for a card colour id in `color`, so copy
@@ -39,5 +54,7 @@ export function resolveLogText(
 	options: LogTextOptions = {}
 ): string | null {
 	const message = catalog[key];
-	return typeof message === "function" ? message(withColorName(params, options), options) : null;
+	return typeof message === "function"
+		? message(withCardName(withColorName(params, options), options), options)
+		: null;
 }

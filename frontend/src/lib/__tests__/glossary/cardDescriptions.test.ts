@@ -65,4 +65,9 @@ describe("cardDescriptions", () => {
 		);
 		expect(cardInfoByKind("mymod:thing", "en")).toBeNull();
 	});
+
+	it("gives a colour-free play title for a kind id", () => {
+		expect(cardInfoByKind("vanilla:blue_7", "en")?.title).toBe("7");
+		expect(cardInfoByKind("vanilla:red_draw2", "en")?.title).toBe("Draw Two (+2)");
+	});
 });

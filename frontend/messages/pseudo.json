@@ -423,7 +423,7 @@
 	"log_reverse_spin": "[Åñõthér révérsé. [fx=shake]Thís tåbłé ís å révõłvíñg dõõr.[/fx] ~~~~~~~~~~~~~~~~~~~~~~~~~~]",
 	"log_draw_stack": "[{name} püt +{amount} õñ thé ståçk. {victim} ñõw õwés {total}. ~~~~~~~~~~~~~~~~~~~~~~~~~]",
 	"log_draw_stack_heavy": "[{name} píłés õñ +{amount}. [c=red]{victim}[/c] ñõw õwés [fx=shake]{total}[/fx]. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~]",
-	"log_play": "[{name} pläýs [c={color}]{colorName} {value}[/c] ñöw åt öñçé ~~~~~~~~~]",
+	"log_play": "[{name} pläýs [k={kind}][c={color}]{cardName}[/c][/k] ñöw åt öñçé ~~~~~~~~~]",
 	"log_wild": "[{name} píçks [c={color}]{colorName}[/c]. ~~~~~~~~~~~~~~~~]",
 	"log_color_red": "[réd ~~~~]",
 	"log_color_yellow": "[ýéłłõw ~~~~]",

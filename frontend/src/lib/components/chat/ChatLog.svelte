@@ -52,14 +52,14 @@
 	{:else if lines.length === 0}
 		<p class="font-tiny text-sm text-text/50">No messages yet.</p>
 	{:else}
-		<div class="flex flex-col gap-1">
+		<div class="flex flex-col">
 			{#if hasMore}
 				<button
 					class="self-center px-2 py-1 font-pypx text-[10px] uppercase text-text/60 hover:text-text-h disabled:opacity-50"
 					disabled={isLoadingMore}
 					onclick={loadOlder}
 				>
-					{isLoadingMore ? "Loading…" : "Load older messages"}
+					{isLoadingMore ? "Loading..." : "Load older messages"}
 				</button>
 			{/if}
 			{#each lines as line (line.id)}
@@ -68,17 +68,18 @@
 						locale: storeI18n.locale
 					})}
 					{#if logText}
-						<p class="break-words px-2 py-0.5 text-sm leading-snug text-text/55">
+						<p class="break-words px-2 py-0 text-sm leading-snug text-text/55">
 							<RichText
-								class="font-monogram text-3xl leading-tight [--rt-sib-scale:0.42]"
+								class="font-monogram text-3xl leading-[0.8] [--rt-sib-scale:0.42]"
 								text={logText}
 								censor={true}
+								allowKeywords={true}
 								logTags={true}
 							/>
 						</p>
 					{/if}
 				{:else}
-					<p class="break-words px-2 py-1 text-sm leading-relaxed text-text">
+					<p class="break-words px-2 py-0 text-sm leading-relaxed text-text">
 						<span
 							class="uppercase"
 							style="font-family: var(--pypx); font-weight: 700; color: {line.color};"
@@ -87,9 +88,11 @@
 						<!-- Monogram's cap-height is ~0.44em (vs ~1em for Pypx/Habbo), so
 					     the Monogram message body needs a much larger font-size, and
 					     bold/italic faces must then be scaled back down via
-					     --rt-sib-scale to match it. -->
+					     --rt-sib-scale to match it. leading-[0.8] matches the font's
+					     own ~0.81em line box; leading-tight (1.25em) left ~20px of
+					     empty box around every line. -->
 						<RichText
-							class="font-monogram text-3xl leading-tight [--rt-sib-scale:0.42]"
+							class="font-monogram text-3xl leading-[0.8] [--rt-sib-scale:0.42]"
 							text={line.text}
 							censor={true}
 						/>

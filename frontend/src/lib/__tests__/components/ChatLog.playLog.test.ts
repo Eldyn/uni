@@ -62,6 +62,19 @@ describe("ChatLog play log lines", () => {
 		expect(container.textContent).not.toContain("No messages yet.");
 	});
 
+	it("renders a play line as a keyword button", () => {
+		chatStore.appendLocalLog({
+			kind: "log",
+			key: "log_play",
+			params: { name: "Zed", kind: "vanilla:red_draw2", color: "red" },
+			tier: 0
+		});
+		const { container } = render(ChatLog, { props: { channel: "party" } });
+		expect(container.textContent).toContain("Zed");
+		expect(container.textContent).toContain("Draw Two");
+		expect(container.querySelector(".glossary-keyword-btn")).not.toBeNull();
+	});
+
 	it("re-renders a log line in the new language when the locale changes", () => {
 		storeI18n.setLocale(DEFAULT_LOCALE);
 		chatStore.appendLocalLog({

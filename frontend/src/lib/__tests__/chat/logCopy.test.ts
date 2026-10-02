@@ -71,6 +71,17 @@ describe("play log copy renders for every LOG_RULES variant", () => {
 		expect(text).toContain("[c=purple]purple[/c]");
 	});
 
+	it("renders the card keyword and localized name in a play line", () => {
+		const text = resolveLogText(
+			"log_play",
+			{ name: "Ann", kind: "vanilla:red_draw2", color: "red" },
+			{ locale: "en" }
+		);
+		expect(text).toContain("[k=vanilla:red_draw2]");
+		expect(text).toContain("[c=red]");
+		expect(text).toContain("Draw Two");
+	});
+
 	it("returns null for a key the catalog lacks", () => {
 		expect(resolveLogText("log_does_not_exist", {})).toBeNull();
 	});

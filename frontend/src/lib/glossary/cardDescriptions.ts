@@ -95,7 +95,17 @@ export function cardInfoByKind(kindId: string, locale?: string): CardDescription
 	const value = cardValueFromKind(kindId);
 	if (!value) return null;
 	return {
-		title: getCardTitle({ type: "white", value }, locale),
+		title: colorFreeTitle(value, locale),
 		description: getCardDescription(value, locale)
 	};
+}
+
+const SPECIAL_VALUES = new Set<CardValue>(["skip", "reverse", "+2", "jolly", "jolly_draw4"]);
+
+/**
+ * A card title without a colour word, for copy that already conveys colour
+ * separately. Specials keep their localized title; numbers are just the value.
+ */
+function colorFreeTitle(value: CardValue, locale?: string): string {
+	return SPECIAL_VALUES.has(value) ? getCardTitle({ type: "white", value }, locale) : String(value);
 }
