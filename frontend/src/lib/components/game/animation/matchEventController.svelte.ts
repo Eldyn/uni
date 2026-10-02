@@ -883,7 +883,11 @@ export function createMatchEventBeatController(deps: {
 
 		// INFO: game-end has no beat of its own; the public winner/placements
 		//       fields are diffed inside the emitter, which dedupes repeats.
-		playLog.noteGameEnd(state.winner || null, state.placements ?? []);
+		playLog.noteGameEnd(
+			state.winner || null,
+			state.placements ?? [],
+			Math.max(1, state.race_target ?? 0)
+		);
 	}
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);

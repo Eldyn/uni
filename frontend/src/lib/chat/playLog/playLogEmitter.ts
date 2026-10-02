@@ -150,15 +150,22 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	 * Emits game-end reactions from the public snapshot. The winner takes a
 	 * `win` line and every newly-placed player below first takes a place
 	 * line (kind `elimination`); the winner is place 1 and never also gets one.
+	 * Places up to `finisherCount` finished; the rest were left behind.
 	 * Placement position is the public, shared seq discriminator.
 	 */
-	function noteGameEnd(winner: string | null | undefined, placements: string[]): void {
+	function noteGameEnd(
+		winner: string | null | undefined,
+		placements: string[],
+		finisherCount = 1
+	): void {
 		const nextWinner = winner || null;
-		const newlyPlaced: { player: string; place: number }[] = [];
+		const newlyPlaced: { player: string; place: number; finished: boolean }[] = [];
 		placements.forEach((player, index) => {
 			if (seenPlacements.has(player)) return;
 			seenPlacements.add(player);
-			if (index + 1 >= 2) newlyPlaced.push({ player, place: index + 1 });
+			if (index + 1 >= 2) {
+				newlyPlaced.push({ player, place: index + 1, finished: index + 1 <= finisherCount });
+			}
 		});
 		const winnerIsNew = nextWinner !== null && nextWinner !== seenWinner;
 		if (winnerIsNew) seenWinner = nextWinner;
@@ -169,8 +176,14 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 			if (winnerIsNew && winnerName !== null) {
 				emit({ kind: "win", seq: placements.length, player: winnerName });
 			}
-			for (const { player, place } of newlyPlaced) {
-				emit({ kind: "elimination", seq: place, player: escapeLogText(player), place });
+			for (const { player, place, finished } of newlyPlaced) {
+				emit({
+					kind: "elimination",
+					seq: place,
+					player: escapeLogText(player),
+					place,
+					finished
+				});
 			}
 		});
 	}

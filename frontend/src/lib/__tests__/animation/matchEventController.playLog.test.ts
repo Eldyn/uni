@@ -369,7 +369,7 @@ describe("matchEventController play log", () => {
 		await flush();
 		expect(partyKeys()).toEqual([
 			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_elimination/)
+			expect.stringMatching(/^log_left_behind/)
 		]);
 
 		h.controller.syncState();

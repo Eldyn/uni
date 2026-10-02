@@ -142,8 +142,11 @@ export const REACTION_RULES: ReactionRule[] = [
 	{
 		id: "elimination",
 		match: (c) => c.event.kind === "elimination",
-		group: () => "generic",
-		pools: { generic: [{ key: "log_elimination_1" }, { key: "log_elimination_2" }] },
+		group: (c) => (c.event.kind === "elimination" && c.event.finished ? "finished" : "left_behind"),
+		pools: {
+			finished: [{ key: "log_finish_1" }, { key: "log_finish_2" }],
+			left_behind: [{ key: "log_left_behind_1" }, { key: "log_left_behind_2" }]
+		},
 		params: (c): Record<string, string | number> => {
 			if (c.event.kind !== "elimination") return {};
 			return { name: c.event.player, place: c.event.place };

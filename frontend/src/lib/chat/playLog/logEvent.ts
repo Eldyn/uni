@@ -14,7 +14,7 @@ export type LogEvent =
 	| { kind: "wild"; seq: number; player: string; color: string }
 	| { kind: "near_win"; seq: number; player: string }
 	| { kind: "win"; seq: number; player: string }
-	| { kind: "elimination"; seq: number; player: string; place: number }
+	| { kind: "elimination"; seq: number; player: string; place: number; finished: boolean }
 	| {
 			kind: "draw";
 			seq: number;

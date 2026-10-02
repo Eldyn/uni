@@ -206,13 +206,24 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_elimination/)
+			expect.stringMatching(/^log_left_behind/)
 		]);
 		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
 
 		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
 		await flush();
 		expect(lines).toHaveLength(2);
+	});
+
+	it("words places up to the finisher count as finishing and the rest as left behind", async () => {
+		emitter.noteGameEnd("Ann", ["Ann", "Bob", "Cy"], 2);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^log_win/),
+			expect.stringMatching(/^log_finish/),
+			expect.stringMatching(/^log_left_behind/)
+		]);
+		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
 	});
 
 	it("reset clears the game-end trackers", async () => {
@@ -223,9 +234,9 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_elimination/),
+			expect.stringMatching(/^log_left_behind/),
 			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_elimination/)
+			expect.stringMatching(/^log_left_behind/)
 		]);
 	});
 
