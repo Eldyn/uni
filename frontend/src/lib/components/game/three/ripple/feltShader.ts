@@ -12,6 +12,7 @@
 import bayerDither from "$lib/shaders/chunks/bayerDither.glsl?raw";
 import matRipple from "$lib/shaders/chunks/matRipple.glsl?raw";
 import playmatFeltFragmentSource from "$lib/shaders/playmatFelt.frag.glsl?raw";
+import turnLoopFragmentSource from "$lib/shaders/turnLoop.frag.glsl?raw";
 import { WILD_FLASH_RADIUS_BLOCKS } from "./ripplePlan";
 
 /** Token in playmatFelt.frag.glsl replaced with ripplePlan's constant. */
@@ -32,4 +33,8 @@ function assembleFragmentShader(body: string): string {
 
 export function buildFeltFragmentShader(): string {
 	return assembleFragmentShader(playmatFeltFragmentSource);
+}
+
+export function buildTurnLoopFragmentShader(): string {
+	return assembleFragmentShader(turnLoopFragmentSource);
 }

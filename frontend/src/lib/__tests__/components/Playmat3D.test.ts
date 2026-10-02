@@ -26,6 +26,10 @@ import { storeMatRipple, MAT_INITIAL_COLOR } from "$components/game/three/ripple
 import { CARD_COLOR_MAP } from "$lib/palette";
 import type { MatPlacement } from "$components/game/layout/playmat";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
+import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
+import { loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
+import { LOOP_CORNER_RADIUS_BLOCKS, LOOP_INSET_BLOCKS } from "$components/game/animation/loopPlan";
+import type * as THREE from "three";
 
 const mat: MatPlacement = {
 	size: [10, 10],
@@ -268,5 +272,75 @@ describe("Playmat3D ripple frame stepping", () => {
 		await flush();
 		const afterExtraTick = tints();
 		expect(afterExtraTick[afterExtraTick.length - 1]).toBe(CARD_COLOR_MAP.blue);
+	});
+});
+
+type Uniforms = Record<string, { value: unknown }>;
+
+function uniformSets(): Uniforms[] {
+	return meshInstances
+		.map((instance) => (instance as unknown as { uniforms?: Uniforms }).uniforms)
+		.filter((uniforms): uniforms is Uniforms => Boolean(uniforms));
+}
+
+describe("Playmat3D turn loop", () => {
+	beforeEach(() => {
+		resetMockState();
+		storeGame.state = { active_type: "red", play_direction: 1 } as never;
+	});
+
+	afterEach(() => {
+		cleanup();
+		storeGame.state = null;
+		storeMatchIntro.end();
+		storeMatRipple.reset();
+	});
+
+	it("hands the loop the felt's own ripple uniform objects", async () => {
+		render(Playmat3D, { props: { mat, viewport } });
+		await flush();
+		const felt = uniformSets().find((uniforms) => !("uLoopLength" in uniforms));
+		const loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms);
+		expect(felt).toBeDefined();
+		expect(loop).toBeDefined();
+		expect(loop!.uFromColor).toBe(felt!.uFromColor);
+		expect(loop!.uRadius).toBe(felt!.uRadius);
+		expect(loop!.uBlockCount).toBe(felt!.uBlockCount);
+	});
+
+	it("starts the felt on the real block grid, before any texture has loaded", async () => {
+		render(Playmat3D, { props: { mat, viewport } });
+		await flush();
+		const felt = uniformSets().find((uniforms) => !("uLoopLength" in uniforms))!;
+		const blockCount = felt.uBlockCount.value as THREE.Vector2;
+		expect(blockCount.x).toBe(sheetBlockCount(DESKTOP_MAT_SHEET).x);
+		expect(blockCount.y).toBe(sheetBlockCount(DESKTOP_MAT_SHEET).y);
+	});
+
+	it("follows the desktop felt box on a landscape viewport and the phone box on a phone", async () => {
+		render(Playmat3D, { props: { mat, viewport } });
+		await flush();
+		let loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms)!;
+		const desktop = loopRect(
+			sheetBlockCount(DESKTOP_MAT_SHEET),
+			DESKTOP_MAT_SHEET.feltUvRect,
+			LOOP_INSET_BLOCKS,
+			LOOP_CORNER_RADIUS_BLOCKS
+		);
+		expect((loop.uLoopHalfSize.value as THREE.Vector2).x).toBeCloseTo(desktop.halfWidth);
+		cleanup();
+		resetMockState();
+
+		const phoneViewport: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
+		render(Playmat3D, { props: { mat, viewport: phoneViewport } });
+		await flush();
+		loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms)!;
+		const phone = loopRect(
+			sheetBlockCount(PHONE_MAT_SHEET),
+			PHONE_MAT_SHEET.feltUvRect,
+			LOOP_INSET_BLOCKS,
+			LOOP_CORNER_RADIUS_BLOCKS
+		);
+		expect((loop.uLoopHalfSize.value as THREE.Vector2).x).toBeCloseTo(phone.halfWidth);
 	});
 });

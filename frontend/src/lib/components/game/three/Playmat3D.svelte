@@ -31,8 +31,10 @@
 		stepIndexAt
 	} from "./ripple/ripplePlan";
 	import { storeMatRipple, MAT_INITIAL_COLOR } from "./ripple/matRipple.svelte";
-	import type { MatPlacement } from "../layout/playmat";
+	import { sheetBlockCount } from "./loopGeometry";
+	import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET, type MatPlacement } from "../layout/playmat";
 	import { isPhoneLayout, type ViewportInfo } from "../layout/seatLayout";
+	import TurnLoop3D from "./TurnLoop3D.svelte";
 
 	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
 	 *  sized against the felt this draws and all three have to agree on it. The
@@ -86,6 +88,10 @@
 	const feltVertexShader = playmatFeltVertexSource;
 	const feltFragmentShader = buildFeltFragmentShader();
 
+	// The sheet showing right now: its size sets the block grid, its felt box
+	// sets where the loop runs.
+	let sheet = $derived(isPhoneLayout(viewport) ? PHONE_MAT_SHEET : DESKTOP_MAT_SHEET);
+
 	// Built once and mutated in place from here on — see the frame task below
 	// and the idle-colour effect. Never recreated, so the material identity
 	// (and the GPU program compiled for it) stays stable across every colour
@@ -97,7 +103,12 @@
 		uOriginUv: { value: new THREE.Vector2(0.5, 0.5) },
 		uRadius: { value: 0 },
 		uBandBlocks: { value: NORMAL_BAND_BLOCKS },
-		uBlockCount: { value: new THREE.Vector2(1, 1) },
+		uBlockCount: {
+			value: new THREE.Vector2(
+				sheetBlockCount(untrack(() => sheet)).x,
+				sheetBlockCount(untrack(() => sheet)).y
+			)
+		},
 		// Real starting value comes from the uAspect-sync effect below, which
 		// runs before Threlte's first render — 1 here is just a safe default.
 		uAspect: { value: 1 },
@@ -302,4 +313,6 @@
 			/>
 		</T.Mesh>
 	{/if}
+
+	<TurnLoop3D {mat} rippleUniforms={feltUniforms} {sheet} />
 </T.Group>
