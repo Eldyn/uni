@@ -128,7 +128,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteDebt("Bob", 6);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_draw_stack"]);
-		expect(lines[1].params).toEqual({ name: "Ann", victim: "Bob", amount: 2, total: 6 });
+		expect(lines[1].params).toMatchObject({ name: "Ann", victim: "Bob", amount: 2, total: 6 });
 	});
 
 	it("reads the debt magnitude as the running total across a stacked +2 then +4", async () => {
@@ -149,7 +149,7 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 
 		const stacks = lines.filter((line) => line.key === "log_draw_stack");
-		expect(stacks.map((line) => line.params)).toEqual([
+		expect(stacks.map((line) => line.params)).toMatchObject([
 			{ name: "Ann", victim: "Bob", amount: 2, total: 2 },
 			{ name: "Bob", victim: "Cy", amount: 4, total: 6 }
 		]);

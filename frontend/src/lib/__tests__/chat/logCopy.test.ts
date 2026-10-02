@@ -25,7 +25,17 @@ const EMPTY_STREAK: StreakInfo = {
 const SAMPLE_EVENTS: Record<string, LogEvent> = {
 	skip: { kind: "skip", seq: 1, player: "Ann" },
 	reverse: { kind: "reverse", seq: 2 },
-	draw_stack: { kind: "draw_stack", seq: 3, player: "Ann", victim: "Bob", amount: 4, total: 8 },
+	draw: {
+		kind: "draw",
+		seq: 3,
+		player: "Ann",
+		count: 2,
+		penalty: false,
+		amount: 4,
+		total: 8,
+		handSize: 12,
+		victim: "Bob"
+	},
 	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" }
 };
 

@@ -68,16 +68,23 @@ describe("StreakTracker", () => {
 		expect(tracker.record({ kind: "reverse" }).reverseRun).toBe(3);
 	});
 
-	it("tracks the stacked draw total", () => {
+	it("counts per-player draw runs and the match draw total", () => {
 		const tracker = new StreakTracker();
-		const event = {
-			kind: "draw_stack" as const,
-			player: "Ann",
-			victim: "Bob",
-			amount: 2
-		};
-		tracker.record({ ...event, total: 2 });
-		expect(tracker.record({ ...event, total: 4 }).stackedDebt).toBe(4);
+		const draw = (player: string, seq: number) =>
+			tracker.record({ kind: "draw", seq, player, count: 1, penalty: false });
+		expect(draw("Ann", 1)).toMatchObject({ drawRun: 1, totalDraws: 1 });
+		expect(draw("Bob", 2)).toMatchObject({ drawRun: 1, totalDraws: 2 });
+		expect(draw("Ann", 3)).toMatchObject({ drawRun: 2, totalDraws: 3 });
+	});
+
+	it("clears the draw counters on reset", () => {
+		const tracker = new StreakTracker();
+		tracker.record({ kind: "draw", seq: 1, player: "Ann", count: 1, penalty: false });
+		tracker.record({ kind: "draw", seq: 2, player: "Ann", count: 1, penalty: false });
+		tracker.reset();
+		expect(
+			tracker.record({ kind: "draw", seq: 3, player: "Ann", count: 1, penalty: false })
+		).toMatchObject({ drawRun: 1, totalDraws: 1 });
 	});
 
 	it("reset clears the state", () => {

@@ -9,7 +9,7 @@ export type PlayedCard = { player: string; kind: string; color: string; auto?: b
 export type TurnInfo = { skipped: string[]; direction: number };
 
 type PendingWild = { player: string; kind: string; landed: Promise<unknown>; seq: number };
-type PendingStack = { player: string; amount: number };
+type PendingStack = { player: string; amount: number; seq: number };
 
 /**
  * Turns match beats into play-log lines, in order and only once the card they
@@ -43,7 +43,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		const { player, kind, color } = card;
 		const { seq } = ctx;
 		const stackAmount = kind === "vanilla:wild_draw4" ? 4 : kind.endsWith("_draw2") ? 2 : null;
-		pendingStack = stackAmount ? { player, amount: stackAmount } : null;
+		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;
 
 		const isWild = kind === "vanilla:wild" || kind === "vanilla:wild_draw4";
 		if (isWild && color === "white") {
@@ -82,15 +82,34 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		});
 	}
 
+	function noteDraw(
+		beat: { seq: number; player: string; count: number },
+		ctx: { handSize: number; nearWin: boolean }
+	): void {
+		enqueue(() =>
+			emit({
+				kind: "draw",
+				seq: beat.seq,
+				player: escapeLogText(beat.player),
+				count: beat.count,
+				penalty: false,
+				handSize: ctx.handSize
+			})
+		);
+	}
+
 	function noteDebt(victim: string, total: number): void {
 		if (!pendingStack) return;
-		const { player, amount } = pendingStack;
+		const { player, amount, seq } = pendingStack;
 		pendingStack = null;
 		enqueue(() =>
 			emit({
-				kind: "draw_stack",
+				kind: "draw",
+				seq,
 				player: escapeLogText(player),
 				victim: escapeLogText(victim),
+				count: total,
+				penalty: true,
 				amount,
 				total
 			})
@@ -106,7 +125,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		pendingStack = null;
 	}
 
-	return { notePlay, noteWildColor, noteTurn, noteDebt, reset };
+	return { notePlay, noteWildColor, noteTurn, noteDraw, noteDebt, reset };
 }
 
 export type PlayLogEmitter = ReturnType<typeof createPlayLogEmitter>;

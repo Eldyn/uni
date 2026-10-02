@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { selectReactionKey, type ReactionRule } from "../../chat/playLog/reactionRules";
+import { buildLogLine } from "../../chat/playLog/logBuilder";
+import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
 
 type E = { kind: "x"; seq: number; n: number };
-const streak = { skipRun: 0, reverseRun: 0, stackedDebt: 0, drawRun: 0, totalDraws: 0 };
+const streak: StreakInfo = {
+	skipRun: 0,
+	reverseRun: 0,
+	stackedDebt: 0,
+	drawRun: 0,
+	totalDraws: 0
+};
 
 const rule: ReactionRule<E> = {
 	group: (e) => (e.n >= 4 ? "many" : "few"),
@@ -44,5 +52,55 @@ describe("selectReactionKey", () => {
 			pools: { generic: [{ key: "g" }] }
 		};
 		expect(selectReactionKey("x", g, { kind: "x", seq: 1, n: 1 }, streak)).toBe("g");
+	});
+});
+
+describe("draw reaction groups", () => {
+	const withDrawRun = (drawRun: number): StreakInfo => ({ ...streak, drawRun });
+	const draw = (over: Partial<Extract<LogEvent, { kind: "draw" }>> = {}): LogEvent => ({
+		kind: "draw",
+		seq: 1,
+		player: "Ann",
+		count: 1,
+		penalty: false,
+		...over
+	});
+	const keyOf = (event: LogEvent, info: StreakInfo = streak) =>
+		buildLogLine(event, info)?.key ?? "";
+
+	it.each([
+		["penalty_small", draw({ penalty: true, total: 4 }), streak, "log_draw_stack"],
+		["penalty_heavy", draw({ penalty: true, total: 8 }), streak, "log_draw_stack_heavy"],
+		["big_hand", draw({ handSize: 10 }), withDrawRun(1), /^log_draw_big_hand/],
+		["large", draw({ count: 4, handSize: 5 }), withDrawRun(1), "log_draw_large_1"],
+		["first", draw(), withDrawRun(1), /^log_draw_first/],
+		["many", draw(), withDrawRun(4), /^log_draw_many/],
+		["generic", draw(), withDrawRun(2), /^log_draw_generic/]
+	])("group %s picks %s", (_group, event, info, expected) => {
+		const key = keyOf(event as LogEvent, info as StreakInfo);
+		if (typeof expected === "string") expect(key).toBe(expected);
+		else expect(key).toMatch(expected as RegExp);
+	});
+
+	it("prefers penalty over hand size and count", () => {
+		expect(keyOf(draw({ penalty: true, total: 4, handSize: 12, count: 4 }))).toBe("log_draw_stack");
+		expect(keyOf(draw({ penalty: true, total: 9, handSize: 12, count: 4 }))).toBe(
+			"log_draw_stack_heavy"
+		);
+	});
+
+	it("prefers big hand over large count", () => {
+		expect(keyOf(draw({ handSize: 10, count: 4 }), withDrawRun(1))).toMatch(/^log_draw_big_hand/);
+	});
+
+	it("carries the live drawRun and victim into params (R3)", () => {
+		const line = buildLogLine(draw({ count: 2, handSize: 5, victim: "Bob" }), withDrawRun(3));
+		expect(line?.params).toMatchObject({
+			name: "Ann",
+			count: 2,
+			handSize: 5,
+			drawRun: 3,
+			victim: "Bob"
+		});
 	});
 });

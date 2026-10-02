@@ -421,6 +421,16 @@ export function createMatchEventBeatController(deps: {
 		const placement = deps.getPlacement();
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
 
+		// INFO: the snapshot is post-draw, so the pre-draw count is the drawn
+		//       count subtracted back out; `nearWin` marks a hand that held a
+		//       single card just before this draw.
+		const localPostCount =
+			state.players?.find((p) => p.username === beat.player)?.card_count ?? localHand.length;
+		playLog.noteDraw(
+			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ handSize: localPostCount, nearWin: localPostCount - beat.count === 1 }
+		);
+
 		// Each landed card rejoins the row at once, so card i lands in the row
 		// as it will stand at that moment: the cards already showing plus the
 		// i drawn ahead of it. Counted from the live state when the beat starts,
@@ -523,6 +533,11 @@ export function createMatchEventBeatController(deps: {
 		// the PRE-draw hand layout and pile height the cards visually left from.
 		const preCount = Math.max(0, player.card_count - drawnCount);
 		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
+
+		playLog.noteDraw(
+			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ handSize: player.card_count, nearWin: preCount === 1 }
+		);
 
 		const isTurn = state.current_turn === beat.player;
 		const isValidTarget = isChoosePlayerTarget(beat.player);

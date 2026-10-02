@@ -3,12 +3,15 @@ export type LogEvent =
 	| { kind: "skip"; seq: number; player: string }
 	| { kind: "reverse"; seq: number }
 	| {
-			kind: "draw_stack";
+			kind: "draw";
 			seq: number;
 			player: string;
-			victim: string;
-			amount: number;
-			total: number;
+			count: number;
+			penalty: boolean;
+			amount?: number;
+			total?: number;
+			handSize?: number;
+			victim?: string;
 	  };
 
 export type StreakInfo = {

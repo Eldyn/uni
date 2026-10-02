@@ -37,6 +37,10 @@ function fakeBus() {
 		setDiscardTop: vi.fn(),
 		addInFlightPlay: vi.fn(),
 		removeInFlightPlay: vi.fn(),
+		addInFlightDraw: vi.fn(),
+		removeInFlightDraw: vi.fn(),
+		addPendingLocalDraw: vi.fn(),
+		removePendingLocalDraw: vi.fn(),
 		pendingLocalDrawIds: new Set<number>(),
 		pendingLocalPlayDrawnId: null,
 		pendingLocalDragPlay: null,
@@ -236,5 +240,25 @@ describe("matchEventController play log", () => {
 		const line = chatStore.linesFor("party")[1];
 		expect(line.logKey).toBe("log_draw_stack");
 		expect(line.logParams).toMatchObject({ amount: 2, total: 4 });
+	});
+
+	it("posts a draw reaction for a local draw", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "draw", player: "me", count: 1, sourcePile: "draw", cardIds: [99] });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+	});
+
+	it("posts a draw reaction for an opponent draw", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 2, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
 	});
 });

@@ -16,7 +16,7 @@ export const REACTION_RULES = {
 			one: [{ key: "log_skip" }],
 			two: [{ key: "log_skip_again" }],
 			three: [{ key: "log_skip_third" }],
-			streak: [{ key: "log_skip_streak" }]
+			streak: [{ key: "log_skip_streak" }, { key: "log_skip_streak_2" }]
 		},
 		params: (e) => ({ name: e.player })
 	},
@@ -33,15 +33,37 @@ export const REACTION_RULES = {
 			one: [{ key: "log_reverse" }],
 			two: [{ key: "log_reverse_back" }],
 			three: [{ key: "log_reverse_again" }],
-			streak: [{ key: "log_reverse_spin" }]
+			streak: [{ key: "log_reverse_spin" }, { key: "log_reverse_spin_2" }]
 		},
 		params: () => ({})
 	},
-	draw_stack: {
-		// INFO: temporary rule until the draw event and its pools exist
-		group: () => "generic",
-		pools: { generic: [{ key: "log_draw_stack" }] },
-		params: (e) => ({ name: e.player, victim: e.victim, amount: e.amount, total: e.total })
+	draw: {
+		group: (e, s) => {
+			if (e.penalty) return (e.total ?? 0) >= 8 ? "penalty_heavy" : "penalty_small";
+			if ((e.handSize ?? 0) >= 10) return "big_hand";
+			if (e.count >= 4) return "large";
+			if (s.drawRun === 1) return "first";
+			if (s.drawRun >= 4) return "many";
+			return "generic";
+		},
+		pools: {
+			first: [{ key: "log_draw_first_1" }, { key: "log_draw_first_2" }],
+			generic: [{ key: "log_draw_generic_1" }, { key: "log_draw_generic_2" }],
+			many: [{ key: "log_draw_many_1" }, { key: "log_draw_many_2" }],
+			big_hand: [{ key: "log_draw_big_hand_1" }, { key: "log_draw_big_hand_2" }],
+			large: [{ key: "log_draw_large_1" }],
+			penalty_small: [{ key: "log_draw_stack" }],
+			penalty_heavy: [{ key: "log_draw_stack_heavy" }]
+		},
+		params: (e, s) => ({
+			name: e.player,
+			count: e.count,
+			amount: e.amount ?? 0,
+			total: e.total ?? 0,
+			handSize: e.handSize ?? 0,
+			drawRun: s.drawRun,
+			victim: e.victim ?? e.player
+		})
 	}
 } satisfies { [K in LogEvent["kind"]]: ReactionRule<Extract<LogEvent, { kind: K }>> };
 

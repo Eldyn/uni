@@ -21,9 +21,7 @@ describe("buildLogLine", () => {
 	it.each([
 		[1, "log_skip"],
 		[2, "log_skip_again"],
-		[3, "log_skip_third"],
-		[4, "log_skip_streak"],
-		[7, "log_skip_streak"]
+		[3, "log_skip_third"]
 	])("skip run %i uses %s", (skipRun, key) => {
 		expect(buildLogLine({ kind: "skip", seq: 1, player: "Ann" }, streak({ skipRun }))).toEqual({
 			kind: "log",
@@ -33,12 +31,16 @@ describe("buildLogLine", () => {
 		});
 	});
 
+	it.each([4, 7])("skip run %i uses a streak key", (skipRun) => {
+		expect(buildLogLine({ kind: "skip", seq: 1, player: "Ann" }, streak({ skipRun }))?.key).toMatch(
+			/^log_skip_streak/
+		);
+	});
+
 	it.each([
 		[1, "log_reverse"],
 		[2, "log_reverse_back"],
-		[3, "log_reverse_again"],
-		[4, "log_reverse_spin"],
-		[9, "log_reverse_spin"]
+		[3, "log_reverse_again"]
 	])("reverse run %i uses %s", (reverseRun, key) => {
 		expect(buildLogLine({ kind: "reverse", seq: 2 }, streak({ reverseRun }))).toMatchObject({
 			key,
@@ -46,23 +48,24 @@ describe("buildLogLine", () => {
 		});
 	});
 
-	it("builds the temporary draw stack line with the running total", () => {
+	it.each([4, 9])("reverse run %i uses a spin key", (reverseRun) => {
+		expect(buildLogLine({ kind: "reverse", seq: 2 }, streak({ reverseRun }))?.key).toMatch(
+			/^log_reverse_spin/
+		);
+	});
+
+	it("builds a draw reaction with the live draw run", () => {
 		const event: LogEvent = {
-			kind: "draw_stack",
+			kind: "draw",
 			seq: 4,
 			player: "Ann",
-			victim: "Bob",
-			amount: 2,
-			total: 6
+			count: 1,
+			penalty: false,
+			handSize: 5
 		};
-		const line = buildLogLine(event, streak({ stackedDebt: 6 }));
-		expect(line?.key).toBe("log_draw_stack");
-		expect(line?.params).toEqual({
-			name: "Ann",
-			victim: "Bob",
-			amount: 2,
-			total: 6
-		});
+		const line = buildLogLine(event, streak({ drawRun: 2 }));
+		expect(line?.key).toMatch(/^log_draw_generic/);
+		expect(line?.params).toMatchObject({ name: "Ann", count: 1, handSize: 5, drawRun: 2 });
 	});
 
 	it("builds the play line with the card kind and colour", () => {

@@ -2,8 +2,6 @@ import type { LogEvent, StreakInfo } from "./logEvent";
 
 export type { StreakInfo };
 
-type DrawEvent = { kind: "draw"; seq: number; player: string };
-
 const EMPTY_STREAK: StreakInfo = {
 	skipRun: 0,
 	reverseRun: 0,
@@ -19,12 +17,9 @@ export class StreakTracker {
 	#totalDraws = 0;
 
 	record(event: LogEvent): StreakInfo {
-		// INFO: the draw event kind is not in LogEvent yet; widen locally so the
-		//       counters are ready for it without changing the event union here.
-		const wide = event as LogEvent | DrawEvent;
-		if (wide.kind === "draw") {
-			const count = (this.#drawCounts.get(wide.player) ?? 0) + 1;
-			this.#drawCounts.set(wide.player, count);
+		if (event.kind === "draw") {
+			const count = (this.#drawCounts.get(event.player) ?? 0) + 1;
+			this.#drawCounts.set(event.player, count);
 			this.#totalDraws += 1;
 			this.state = { ...this.state, drawRun: count, totalDraws: this.#totalDraws };
 			return { ...this.state };
@@ -45,16 +40,6 @@ export class StreakTracker {
 					skipRun: 0,
 					reverseRun: this.state.reverseRun + 1,
 					stackedDebt: 0,
-					drawRun: 0,
-					totalDraws: this.#totalDraws
-				};
-				this.lastSkipped = null;
-				break;
-			case "draw_stack":
-				this.state = {
-					skipRun: 0,
-					reverseRun: 0,
-					stackedDebt: event.total,
 					drawRun: 0,
 					totalDraws: this.#totalDraws
 				};
