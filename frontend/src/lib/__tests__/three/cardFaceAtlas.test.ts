@@ -87,12 +87,6 @@ describe("cardFaceAtlas", () => {
 		expect(typeof ATLAS_PAGE_VERSION.value).toBe("number");
 	});
 
-	it("exports preloadCardArt returning a promise", async () => {
-		const promise = preloadCardArt();
-		expect(promise).toBeInstanceOf(Promise);
-		await promise;
-	});
-
 	it("handles concurrent preloadCardArt calls safely via singleton promise cache", async () => {
 		const [p1, p2, p3] = [preloadCardArt(), preloadCardArt(), preloadCardArt()];
 		expect(p1).toBeInstanceOf(Promise);

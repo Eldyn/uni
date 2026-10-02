@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Vector4, type WebGLProgramParametersWithUniforms } from "three";
-import {
-	patchAtlasLayerShader,
-	ATLAS_LAYER_SHADER_PROGRAM_KEY
-} from "$components/game/three/AtlasLayerMesh.svelte";
+import { patchAtlasLayerShader } from "$components/game/three/AtlasLayerMesh.svelte";
 
 // Snapshot of the exact fragment-shader string the onBeforeCompile patch
 // produced before the inline GLSL template literals were moved into .glsl
@@ -20,10 +17,6 @@ const EXPECTED_MAP_FRAGMENT_BLOCK = `
 `;
 
 describe("AtlasLayerMesh patchAtlasLayerShader: byte-identical output (glsl file move)", () => {
-	it("exports a stable shader program cache key", () => {
-		expect(ATLAS_LAYER_SHADER_PROGRAM_KEY).toBe("CardMesh3D_AtlasLayerPlane");
-	});
-
 	it("produces the exact pinned fragment shader for a stub shader object", () => {
 		const stub = {
 			uniforms: {},

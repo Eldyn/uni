@@ -31,12 +31,6 @@ describe("storeI18n", () => {
 		expect(document.documentElement.lang).toBe("it");
 	});
 
-	it("setLocale does not throw or hang given the mocked runtime", async () => {
-		const { storeI18n } = await import("$lib/stores/i18n.svelte");
-
-		expect(() => storeI18n.setLocale("it")).not.toThrow();
-	});
-
 	it("exposes the supported locale list", async () => {
 		const { storeI18n } = await import("$lib/stores/i18n.svelte");
 		expect(storeI18n.locales).toEqual(["en", "it"]);

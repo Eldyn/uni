@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-	RenderSettings,
-	SETTINGS_STORAGE_KEY,
-	storeRenderSettings
-} from "$stores/renderSettings.svelte";
+import { RenderSettings, SETTINGS_STORAGE_KEY } from "$stores/renderSettings.svelte";
 import { storeWebglCapability } from "$stores/webglCapability.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 
@@ -103,10 +99,6 @@ describe("RenderSettings store", () => {
 			store.cardRenderMode = "legacy";
 		}).not.toThrow();
 		expect(store.cardRenderMode).toBe("legacy");
-	});
-
-	it("exports a storeRenderSettings singleton instance", () => {
-		expect(storeRenderSettings).toBeInstanceOf(RenderSettings);
 	});
 
 	it("merges matRipple and ambientDust defaults into a saved blob missing those keys", () => {

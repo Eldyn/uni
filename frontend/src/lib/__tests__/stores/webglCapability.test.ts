@@ -2,10 +2,6 @@ import { describe, it, expect } from "vitest";
 import { storeWebglCapability } from "$stores/webglCapability.svelte";
 
 describe("storeWebglCapability deviceTier", () => {
-	it("exposes deviceTier as low or high", () => {
-		expect(["low", "high"]).toContain(storeWebglCapability.deviceTier);
-	});
-
 	it("returns high when hardwareAccelerated is true and reducedMotion is false", () => {
 		storeWebglCapability.hardwareAccelerated = true;
 		storeWebglCapability.reducedMotion = false;

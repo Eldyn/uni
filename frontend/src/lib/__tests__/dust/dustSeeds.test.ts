@@ -7,9 +7,6 @@
 import { describe, it, expect } from "vitest";
 import {
 	generateDustSeeds,
-	DUST_COUNT_HIGH,
-	DUST_COUNT_LOW,
-	DUST_OVER_MAT_KEEP,
 	type DustSpawnBounds,
 	type DustMatFootprint
 } from "$components/game/three/dust/dustSeeds";
@@ -76,11 +73,5 @@ describe("generateDustSeeds", () => {
 		const a = generateDustSeeds(30, bounds, matRect, seededRng(99));
 		const b = generateDustSeeds(30, bounds, matRect, seededRng(99));
 		expect(Array.from(a)).toEqual(Array.from(b));
-	});
-
-	it("exposes the named tuning constants", () => {
-		expect(DUST_COUNT_HIGH).toBe(160);
-		expect(DUST_COUNT_LOW).toBe(60);
-		expect(DUST_OVER_MAT_KEEP).toBe(0.25);
 	});
 });

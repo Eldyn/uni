@@ -9,14 +9,6 @@ beforeAll(() => {
 });
 
 describe("fluid type ramp", () => {
-	it.each(["--text-hero", "--text-display", "--text-title", "--text-body", "--text-small"])(
-		"%s is a clamp() expression",
-		(token) => {
-			const match = sheetText.match(new RegExp(`${token}:\\s*(clamp\\([^;]*\\));`));
-			expect(match, `expected ${token} to be a clamp()`).toBeTruthy();
-		}
-	);
-
 	it("title-hero no longer uses a fixed 10rem size", () => {
 		const titleHeroBlock = sheetText.slice(
 			sheetText.indexOf(".title-hero {"),

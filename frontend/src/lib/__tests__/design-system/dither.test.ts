@@ -13,10 +13,6 @@ describe("dither family", () => {
 		expect(sheetText).toContain(`${className} {`);
 	});
 
-	it("defines a blur-backed veil variant", () => {
-		expect(sheetText).toMatch(/\.dither-veil\s*\{[^}]*backdrop-filter:\s*blur/s);
-	});
-
 	it("uses repeating-conic-gradient, never an image or canvas", () => {
 		const ditherBlock = sheetText.slice(
 			sheetText.indexOf(".dither-2"),

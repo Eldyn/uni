@@ -101,5 +101,4 @@ TEST_CASE("Start/Stop does not hang") {
     AccountReaper reaper(Database::Get(), std::chrono::hours(1), std::chrono::hours(24 * 7));
     reaper.Start();
     reaper.Stop();
-    CHECK(true);
 }

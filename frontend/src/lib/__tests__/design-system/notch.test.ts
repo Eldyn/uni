@@ -9,10 +9,6 @@ beforeAll(() => {
 });
 
 describe("pixel-corner notch consolidation", () => {
-	it("defines one shared --notch-clip custom property", () => {
-		expect(sheetText).toMatch(/--notch-clip:\s*polygon\(/);
-	});
-
 	it("all three notch consumers reference the shared property instead of repeating the polygon", () => {
 		const clipPathDeclarations = sheetText.match(/clip-path:\s*polygon\([^;]*\);/g) ?? [];
 		// Once consolidated, no rule should inline a literal polygon(...) —

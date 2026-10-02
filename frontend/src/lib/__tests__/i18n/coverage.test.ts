@@ -31,16 +31,13 @@ const REQUIRED_KEYS = [
 ];
 
 describe("i18n coverage for the P1.1 polish screens", () => {
-	for (const key of REQUIRED_KEYS) {
-		it(`"${key}" exists in en.json`, () => {
-			expect(en).toHaveProperty(key);
-			expect((en as Record<string, string>)[key].length).toBeGreaterThan(0);
-		});
-		it(`"${key}" exists in it.json`, () => {
-			expect(itLocale).toHaveProperty(key);
-			expect((itLocale as Record<string, string>)[key].length).toBeGreaterThan(0);
-		});
-	}
+	it("every required key exists with a non-empty value in en.json and it.json", () => {
+		const catalogs: Record<string, Record<string, string>> = { en, it: itLocale };
+		const missing = Object.entries(catalogs).flatMap(([locale, catalog]) =>
+			REQUIRED_KEYS.filter((key) => !catalog[key]?.length).map((key) => `${locale}:${key}`)
+		);
+		expect(missing, `missing or empty keys: ${missing.join(", ")}`).toEqual([]);
+	});
 });
 
 describe("structural catalog parity and non-empty values", () => {
