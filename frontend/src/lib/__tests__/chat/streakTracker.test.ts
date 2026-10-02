@@ -31,7 +31,12 @@ describe("StreakTracker", () => {
 			reverseRun: 0,
 			stackedDebt: 0,
 			drawRun: 0,
-			totalDraws: 0
+			totalDraws: 0,
+			wildRun: 0,
+			lastWildColor: null,
+			prevWildColor: null,
+			nearWinTarget: null,
+			nearWinOpen: false
 		});
 	});
 
@@ -111,11 +116,106 @@ describe("StreakTracker", () => {
 			reverseRun: 0,
 			stackedDebt: 0,
 			drawRun: 0,
-			totalDraws: 0
+			totalDraws: 0,
+			wildRun: 0,
+			lastWildColor: null,
+			prevWildColor: null,
+			nearWinTarget: null,
+			nearWinOpen: false
 		});
 	});
 
 	it("a fresh tracker starts the first skip at run 1", () => {
 		expect(new StreakTracker().record({ kind: "skip", player: "Ann" }).skipRun).toBe(1);
+	});
+
+	it("counts consecutive wild picks and remembers the previous colour", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
+		const second = t.record({ kind: "wild", seq: 2, player: "Bob", color: "blue" });
+		expect(second.wildRun).toBe(2);
+		expect(second.lastWildColor).toBe("blue");
+		expect(second.prevWildColor).toBe("red");
+	});
+
+	it("does not reset a wild run on the wild card's own play", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
+		const afterPlay = t.record({
+			kind: "play",
+			seq: 2,
+			player: "Ann",
+			cardKind: "vanilla:wild",
+			color: "red"
+		});
+		expect(afterPlay.wildRun).toBe(1);
+	});
+
+	it("resets the wild run on a non-wild play", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
+		expect(
+			t.record({ kind: "play", seq: 2, player: "Ann", cardKind: "vanilla:red_5", color: "red" })
+				.wildRun
+		).toBe(0);
+	});
+
+	it("resets the wild run on a skip", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
+		expect(t.record({ kind: "skip", seq: 2, player: "Bob" }).wildRun).toBe(0);
+	});
+
+	it("resets the wild run on a reverse", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
+		expect(t.record({ kind: "reverse", seq: 2 }).wildRun).toBe(0);
+	});
+
+	it("opens a near-win window and reports it entering a skip on the target", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		const skip = t.record({ kind: "skip", seq: 2, player: "Bob" });
+		expect(skip.nearWinOpen).toBe(true);
+		expect(skip.nearWinTarget).toBe("Bob");
+	});
+
+	it("closes the near-win window after a block", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		t.record({ kind: "skip", seq: 2, player: "Bob" });
+		expect(t.record({ kind: "skip", seq: 3, player: "Ann" }).nearWinOpen).toBe(false);
+	});
+
+	it("closes the near-win window when the target plays", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		expect(
+			t.record({ kind: "play", seq: 2, player: "Bob", cardKind: "vanilla:red_5", color: "red" })
+				.nearWinOpen
+		).toBe(false);
+	});
+
+	it("closes the near-win window on a penalty draw aimed at the target", () => {
+		const t = new StreakTracker();
+		t.record({ kind: "near_win", seq: 1, player: "Bob" });
+		const block = t.record({
+			kind: "draw",
+			seq: 2,
+			player: "Ann",
+			count: 2,
+			penalty: true,
+			victim: "Bob"
+		});
+		expect(block.nearWinOpen).toBe(true);
+		expect(block.nearWinTarget).toBe("Bob");
+		const after = t.record({
+			kind: "play",
+			seq: 3,
+			player: "Cara",
+			cardKind: "vanilla:red_5",
+			color: "red"
+		});
+		expect(after.nearWinOpen).toBe(false);
 	});
 });

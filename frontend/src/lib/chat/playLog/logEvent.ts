@@ -33,6 +33,11 @@ export type StreakInfo = {
 	stackedDebt: number;
 	drawRun: number;
 	totalDraws: number;
+	wildRun: number;
+	lastWildColor: string | null;
+	prevWildColor: string | null;
+	nearWinTarget: string | null;
+	nearWinOpen: boolean;
 };
 
 export type LogLine = {
