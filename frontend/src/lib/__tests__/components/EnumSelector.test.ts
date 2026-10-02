@@ -5,7 +5,7 @@ import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 const options = [
 	{ value: "standard", label: "Standard", description: "The standard way to win." },
-	{ value: "elimination", label: "Elimination", description: "Knock players out." }
+	{ value: "race", label: "Race", description: "First finishers win." }
 ];
 
 function baseProps(overrides: Record<string, unknown> = {}) {
@@ -57,15 +57,15 @@ describe("EnumSelector field and per-selection tooltips", () => {
 	it("updates the select tooltip when the selection changes", async () => {
 		const { rerender } = render(EnumSelector, { props: baseProps() });
 
-		await rerender(baseProps({ value: "elimination" }));
+		await rerender(baseProps({ value: "race" }));
 
-		const trigger = screen.getByRole("button", { name: /Elimination/ });
+		const trigger = screen.getByRole("button", { name: /Race/ });
 		await fireEvent.mouseEnter(trigger.closest(".tooltip-container")!);
 		await act(() => vi.runAllTimers());
 
 		const tooltip = screen.getByRole("tooltip");
-		expect(tooltip.querySelector(".tooltip-title")).toHaveTextContent("Elimination");
-		expect(tooltip).toHaveTextContent("Knock players out.");
+		expect(tooltip.querySelector(".tooltip-title")).toHaveTextContent("Race");
+		expect(tooltip).toHaveTextContent("First finishers win.");
 	});
 
 	it("renders no info icon when the field has no description", () => {

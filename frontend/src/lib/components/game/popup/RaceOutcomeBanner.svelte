@@ -1,4 +1,4 @@
-<!-- frontend/src/lib/components/game/popup/EliminationOutcomeBanner.svelte -->
+<!-- frontend/src/lib/components/game/popup/RaceOutcomeBanner.svelte -->
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
@@ -12,15 +12,15 @@
 	$effect(() => {
 		// Match-over gate: on the MatchOver tick the modal (GameVictoryPopup)
 		// owns the outcome — the mid-match banner must stay silent (no banner,
-		// no double SFX) for the winner or for the elimination that completes
-		// the match.
+		// no double SFX) for the winner or for the finish that completes the
+		// match.
 		if (storeGame.state?.is_over) return;
-		if (!storeGame.justEliminated || !storeGame.eliminationOutcome) return;
+		if (!storeGame.justFinished || !storeGame.raceOutcome) return;
 		visible = true;
 
-		if (storeGame.eliminationOutcome === "win") {
+		if (storeGame.raceOutcome === "win") {
 			// PLACEHOLDER-SFX: sfx.match.victory, reused from the final-screen
-			// fanfare — a top-3 elimination finish is framed as a win.
+			// fanfare — finishing within the race target is framed as a win.
 			storeAudio.playSfx("sfx.match.victory");
 		} else {
 			// PLACEHOLDER-SFX: sfx.match.defeat
@@ -47,10 +47,10 @@
 	<div
 		bind:this={bannerEl}
 		class="outcome-banner"
-		class:is-win={storeGame.eliminationOutcome === "win"}
-		class:is-lose={storeGame.eliminationOutcome === "lose"}
+		class:is-win={storeGame.raceOutcome === "win"}
+		class:is-lose={storeGame.raceOutcome === "lose"}
 	>
-		{storeGame.eliminationOutcome === "win"
+		{storeGame.raceOutcome === "win"
 			? m.game_victory_title({}, { locale: storeI18n.locale })
 			: m.game_defeat_title({}, { locale: storeI18n.locale })}
 	</div>

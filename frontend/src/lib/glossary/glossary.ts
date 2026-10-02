@@ -157,10 +157,10 @@ export const GLOSSARY_REGISTRY: Record<string, GlossaryDefinition> = {
 			glossaryTag("rule", m.glossary_tag_rule({}, { locale: l ?? storeI18n.locale }))
 		]
 	},
-	"vanilla:elimination": {
-		id: "vanilla:elimination",
-		getTitle: (l) => m.glossary_elimination_title({}, { locale: l ?? storeI18n.locale }),
-		getDescription: (l) => m.glossary_elimination_desc({}, { locale: l ?? storeI18n.locale }),
+	"vanilla:race": {
+		id: "vanilla:race",
+		getTitle: (l) => m.glossary_race_title({}, { locale: l ?? storeI18n.locale }),
+		getDescription: (l) => m.glossary_race_desc({}, { locale: l ?? storeI18n.locale }),
 		getTags: (l) => [
 			glossaryTag("rule", m.glossary_tag_rule({}, { locale: l ?? storeI18n.locale }))
 		]

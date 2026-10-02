@@ -12,7 +12,7 @@
 
 	let isInterrupted = $derived(storeGame.state?.is_over && !storeGame.state?.winner);
 	let isVictory = $derived(!!storeGame.state?.winner);
-	let isElimination = $derived(storeGame.state?.mode === "elimination");
+	let isRace = $derived(storeGame.state?.mode === "race");
 
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeAuth.username);
@@ -23,7 +23,8 @@
 		const idx = storeGame.placements.indexOf(me);
 		return idx === -1 ? -1 : idx + 1;
 	});
-	let isPodium = $derived(isElimination && !isMe && (myRank === 2 || myRank === 3));
+	let raceTarget = $derived(storeGame.state?.race_target ?? 0);
+	let isFinisher = $derived(isRace && !isMe && myRank >= 2 && myRank <= raceTarget);
 
 	/** Whether a ranked player is a bot. The LOBBY roster is checked first: match
 	 *  players are erased from `state.players` the moment they shed their hand, so
@@ -49,7 +50,7 @@
 	$effect(() => {
 		if (!isVictory || hasPlayedResultSfx) return;
 		hasPlayedResultSfx = true;
-		if (isMe || isPodium) {
+		if (isMe || isFinisher) {
 			// PLACEHOLDER-SFX: sfx.match.victory
 			storeAudio.playSfx("sfx.match.victory");
 		} else {
@@ -89,11 +90,11 @@
 		>
 			<h1
 				id="end-title"
-				class="result {isMe ? 'result--win' : isPodium ? 'result--podium' : 'result--lose'}"
+				class="result {isMe ? 'result--win' : isFinisher ? 'result--podium' : 'result--lose'}"
 			>
 				{isMe
 					? m.game_victory_title({}, { locale: storeI18n.locale })
-					: isPodium
+					: isFinisher
 						? m.game_podium_finish_title({}, { locale: storeI18n.locale })
 						: m.game_defeat_title({}, { locale: storeI18n.locale })}
 			</h1>
@@ -110,7 +111,7 @@
 				{m.game_winner_label({ name: winnerName }, { locale: storeI18n.locale })}
 			</p>
 
-			{#if isElimination && podium.length > 0}
+			{#if isRace && podium.length > 0}
 				<div class="podium">
 					{#each podium as name, i}
 						<div class="podium-slot podium-slot--{i}">
@@ -138,7 +139,7 @@
 				</div>
 
 				{#if storeGame.placements.length > 3}
-					<div class="elimination-results pixel-corners">
+					<div class="race-results pixel-corners">
 						<h2 class="standings-heading">
 							{m.game_placement_standings({}, { locale: storeI18n.locale })}
 						</h2>
@@ -287,7 +288,7 @@
 		display: inline-block;
 	}
 
-	.elimination-results {
+	.race-results {
 		width: 100%;
 		background: var(--surface-2);
 		padding: 10px 14px;

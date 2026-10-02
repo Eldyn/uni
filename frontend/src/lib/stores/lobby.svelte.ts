@@ -70,10 +70,10 @@ export interface LobbySettings {
 	count_wild: number;
 	/** Total number of Wild Draw Four (+4) cards in the deck. */
 	count_wild_draw_four: number;
-	/** Game mode: standard or elimination. */
-	mode?: "standard" | "elimination";
-	/** Survivor count for elimination mode. */
-	survivor_count?: number;
+	/** Game mode: standard or race. */
+	mode?: "standard" | "race";
+	/** Share of the seats that must finish to end a race, in percent. */
+	race_percent?: number;
 
 	/**
 	 * Selected deck snapshot from the server, or absent/empty for

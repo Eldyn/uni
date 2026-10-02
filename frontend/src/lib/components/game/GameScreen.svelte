@@ -4,8 +4,8 @@
 	import GameHud from "./GameHud.svelte";
 	import SpectatorBanner from "./SpectatorBanner.svelte";
 	import SpectatorFade from "./SpectatorFade.svelte";
-	import EliminationStandings from "./EliminationStandings.svelte";
-	import EliminationOutcomeBanner from "./popup/EliminationOutcomeBanner.svelte";
+	import RaceStandings from "./RaceStandings.svelte";
+	import RaceOutcomeBanner from "./popup/RaceOutcomeBanner.svelte";
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
 	import FuseLine from "./FuseLine.svelte";
@@ -36,14 +36,14 @@
 			</div>
 
 			<SpectatorBanner
-				eliminated={storeGame.state?.mode === "elimination" &&
-					storeGame.eliminationOutcome !== null}
+				eliminated={storeGame.state?.mode === "race" && storeGame.raceOutcome === "lose"}
+				finished={storeGame.state?.mode === "race" && storeGame.raceOutcome === "win"}
 			/>
 		</div>
 
-		<EliminationOutcomeBanner />
+		<RaceOutcomeBanner />
 
-		<EliminationStandings />
+		<RaceStandings />
 
 		<CardDetailPopover />
 

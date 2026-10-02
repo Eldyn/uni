@@ -4,7 +4,7 @@ import { render } from "@testing-library/svelte";
 const { mockGameState, mockAuth } = vi.hoisted(() => ({
 	mockGameState: {
 		state: {
-			mode: "elimination",
+			mode: "race",
 			is_over: false
 		},
 		placements: [] as string[]
@@ -22,12 +22,12 @@ vi.mock("$stores/auth.svelte", () => ({
 	storeAuth: mockAuth
 }));
 
-import EliminationStandings from "$components/game/EliminationStandings.svelte";
+import RaceStandings from "$components/game/RaceStandings.svelte";
 
-describe("EliminationStandings", () => {
+describe("RaceStandings", () => {
 	beforeEach(() => {
 		mockAuth.username = "";
-		mockGameState.state.mode = "elimination";
+		mockGameState.state.mode = "race";
 		mockGameState.state.is_over = false;
 		mockGameState.placements = [];
 	});
@@ -43,17 +43,17 @@ describe("EliminationStandings", () => {
 		return Array.from(document.querySelectorAll<HTMLElement>(".placement-chip"));
 	}
 
-	it("is hidden outside elimination mode", () => {
+	it("is hidden outside race mode", () => {
 		mockGameState.state.mode = "standard";
 		mockGameState.placements = ["a"];
-		render(EliminationStandings);
+		render(RaceStandings);
 		expect(chips()).toHaveLength(0);
 	});
 
-	it("numbers live eliminations in elimination order with no medals", () => {
+	it("numbers live finishers in finishing order with no medals", () => {
 		mockGameState.placements = ["firstOut", "secondOut"];
 
-		render(EliminationStandings);
+		render(RaceStandings);
 
 		const rendered = chips();
 		expect(rendered).toHaveLength(2);
@@ -68,7 +68,7 @@ describe("EliminationStandings", () => {
 		mockGameState.state.is_over = true;
 		mockGameState.placements = ["winner", "runnerUp", "third"];
 
-		render(EliminationStandings);
+		render(RaceStandings);
 
 		const rendered = chips();
 		expect(rendered).toHaveLength(3);
@@ -84,7 +84,7 @@ describe("EliminationStandings", () => {
 		mockAuth.username = "firstOut";
 		mockGameState.placements = ["firstOut", "secondOut"];
 
-		render(EliminationStandings);
+		render(RaceStandings);
 
 		const rendered = chips();
 		expect(rendered[0]).toHaveClass("is-me");

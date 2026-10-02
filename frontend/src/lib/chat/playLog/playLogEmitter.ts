@@ -148,8 +148,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 
 	/**
 	 * Emits game-end reactions from the public snapshot. The winner takes a
-	 * `win` line and every newly-placed player below first takes an
-	 * `elimination` line; the winner is place 1 and never also "eliminated".
+	 * `win` line and every newly-placed player below first takes a place
+	 * line (kind `elimination`); the winner is place 1 and never also gets one.
 	 * Placement position is the public, shared seq discriminator.
 	 */
 	function noteGameEnd(winner: string | null | undefined, placements: string[]): void {

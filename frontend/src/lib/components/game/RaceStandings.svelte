@@ -1,6 +1,6 @@
-<!-- frontend/src/lib/components/game/EliminationStandings.svelte -->
-<!-- Elimination mode's placement leaderboard, as its own top-left panel rather
-     than a chip row inside the HUD. Live placements list players in elimination
+<!-- frontend/src/lib/components/game/RaceStandings.svelte -->
+<!-- Race mode's placement leaderboard, as its own top-left panel rather
+     than a chip row inside the HUD. Live placements list finishers in finishing
      order; once the match is over the list is best-first and the podium is
      medalled. Vertical so it can grow with the table without widening. -->
 <script lang="ts">
@@ -9,9 +9,7 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
-	let visible = $derived(
-		storeGame.state?.mode === "elimination" && storeGame.placements.length > 0
-	);
+	let visible = $derived(storeGame.state?.mode === "race" && storeGame.placements.length > 0);
 </script>
 
 {#if visible}
@@ -103,7 +101,7 @@
 
 	@media (max-width: 700px) {
 		.standings {
-			top: 3.75rem;
+			top: 4.5rem;
 			max-width: 55vw;
 		}
 	}

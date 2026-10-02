@@ -22,7 +22,11 @@
 		TURN_TIME_MAX_MS,
 		BOT_COUNT_MIN,
 		BOT_COUNT_MAX,
-		MAX_LOBBY_MEMBERS
+		MAX_LOBBY_MEMBERS,
+		RACE_PERCENT_MIN,
+		RACE_PERCENT_MAX,
+		RACE_PERCENT_STEP,
+		RACE_PERCENT_DEFAULT
 	} from "$lib/generated/schemas";
 
 	/** Backend floor from LobbySettings::Sanitize(), not contract-generated. */
@@ -55,7 +59,7 @@
 		bot_count: storeLobby.current?.settings.bot_count ?? 0,
 
 		mode: storeLobby.current?.settings.mode ?? "standard",
-		survivor_count: storeLobby.current?.settings.survivor_count ?? 1,
+		race_percent: storeLobby.current?.settings.race_percent ?? RACE_PERCENT_DEFAULT,
 
 		deck: storeLobby.current?.settings.deck
 	} as LobbySettings);
@@ -79,6 +83,17 @@
 
 	/** A lobby always needs at least one human seat, so bots can fill the rest. */
 	let botCountMax = $derived(Math.min(BOT_COUNT_MAX, settings.max_players - 1));
+
+	/** Mirrors LobbySettings::RaceTarget; seats are the lobby's max players. */
+	let raceTarget = $derived(
+		Math.min(
+			Math.max(
+				Math.ceil(((settings.race_percent ?? RACE_PERCENT_DEFAULT) * settings.max_players) / 100),
+				1
+			),
+			settings.max_players - 1
+		)
+	);
 
 	function commit(key: SettingsKey, value: boolean | number) {
 		if (!isHost) return;
@@ -160,13 +175,37 @@
 						description: m.lobby_mode_standard_desc({}, { locale: storeI18n.locale })
 					},
 					{
-						value: "elimination",
-						label: m.lobby_mode_elimination({}, { locale: storeI18n.locale }),
-						description: m.lobby_mode_elimination_desc({}, { locale: storeI18n.locale })
+						value: "race",
+						label: m.lobby_mode_race({}, { locale: storeI18n.locale }),
+						description: m.lobby_mode_race_desc({}, { locale: storeI18n.locale })
 					}
 				]}
-				oncommit={(v) => commit("mode", v as "standard" | "elimination")}
+				oncommit={(v) => commit("mode", v as "standard" | "race")}
 			/>
+			{#if settings.mode === "race"}
+				<Slider
+					id="race-percent"
+					label={m.lobby_settings_race_percent({}, { locale: storeI18n.locale })}
+					description={m.lobby_settings_race_percent_desc({}, { locale: storeI18n.locale })}
+					value={settings.race_percent ?? RACE_PERCENT_DEFAULT}
+					min={RACE_PERCENT_MIN}
+					max={RACE_PERCENT_MAX}
+					step={RACE_PERCENT_STEP}
+					disabled={!isHost}
+					format={(v) => `${v}%`}
+					oncommit={(v) => commit("race_percent", v)}
+				/>
+				<p class="race-target-hint">
+					{m.lobby_settings_race_target_hint(
+						{
+							percent: settings.race_percent ?? RACE_PERCENT_DEFAULT,
+							count: raceTarget,
+							total: settings.max_players
+						},
+						{ locale: storeI18n.locale }
+					)}
+				</p>
+			{/if}
 			<Slider
 				id="card-count"
 				label={m.lobby_settings_starting_hand_size({}, { locale: storeI18n.locale })}
@@ -259,6 +298,13 @@
 </div>
 
 <style>
+	.race-target-hint {
+		margin: 0;
+		font-family: var(--tiny);
+		font-size: 13px;
+		color: var(--text);
+	}
+
 	.lobby-settings-panel {
 		display: flex;
 		flex-direction: column;

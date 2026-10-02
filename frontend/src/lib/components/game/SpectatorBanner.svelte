@@ -5,7 +5,8 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
-	let { eliminated = false }: { eliminated?: boolean } = $props();
+	let { eliminated = false, finished = false }: { eliminated?: boolean; finished?: boolean } =
+		$props();
 
 	let viewedName = $derived(storeSpectator.viewedUsername ?? storeGame.state?.current_turn ?? "");
 </script>
@@ -15,7 +16,9 @@
 		<p class="lead">
 			{eliminated
 				? m.game_spectator_banner_lead_eliminated({}, { locale: storeI18n.locale })
-				: m.game_spectator_banner_lead({}, { locale: storeI18n.locale })}
+				: finished
+					? m.game_spectator_banner_lead_finished({}, { locale: storeI18n.locale })
+					: m.game_spectator_banner_lead({}, { locale: storeI18n.locale })}
 		</p>
 		<h2 class="title">{m.game_spectator_banner_title({}, { locale: storeI18n.locale })}</h2>
 		{#if viewedName}

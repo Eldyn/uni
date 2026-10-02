@@ -27,13 +27,16 @@ vi.mock("$stores/lobby.svelte", () => ({
 				quit_deletes_match: false,
 				bot_mode: 0,
 				bot_count: 1,
-				active_mods: []
+				active_mods: [],
+				mode: "standard",
+				race_percent: 50
 			}
 		},
 		updateSettings
 	}
 }));
 
+import { storeLobby } from "$stores/lobby.svelte";
 import LobbySettings from "$components/lobby/LobbySettings.svelte";
 
 describe("LobbySettings replacement bindings", () => {
@@ -124,5 +127,61 @@ describe("LobbySettings deck picker", () => {
 		render(LobbySettings);
 
 		expect(screen.getByRole("button", { name: /Deck/ })).toBeDisabled();
+	});
+});
+
+describe("LobbySettings race percent", () => {
+	const settings = () => (storeLobby as any).current.settings;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		auth.username = "eldyn";
+		settings().mode = "standard";
+		settings().race_percent = 50;
+		settings().max_players = 4;
+	});
+
+	it("hides the percent control outside race mode", () => {
+		render(LobbySettings);
+		expect(document.getElementById("race-percent")).toBeNull();
+	});
+
+	it("shows the percent control and resolved count in race mode", () => {
+		settings().mode = "race";
+		render(LobbySettings);
+		expect(document.getElementById("race-percent")).not.toBeNull();
+		expect(screen.getByText("50% = 2 of 4 players win")).toBeInTheDocument();
+	});
+
+	it("clamps the resolved count to leave at least one loser", () => {
+		settings().mode = "race";
+		settings().race_percent = 95;
+		render(LobbySettings);
+		expect(screen.getByText("95% = 3 of 4 players win")).toBeInTheDocument();
+	});
+
+	it("resolves at least one finisher at the minimum percent", () => {
+		settings().mode = "race";
+		settings().race_percent = 5;
+		settings().max_players = 16;
+		render(LobbySettings);
+		expect(screen.getByText("5% = 1 of 16 players win")).toBeInTheDocument();
+	});
+
+	it("steps the percent by 5 and commits race_percent", async () => {
+		settings().mode = "race";
+		render(LobbySettings);
+		await fireEvent.click(screen.getByRole("button", { name: "Players who win +" }));
+		expect(updateSettings).toHaveBeenCalledWith({ race_percent: 55 });
+		await fireEvent.click(screen.getByRole("button", { name: "Players who win −" }));
+		expect(updateSettings).toHaveBeenLastCalledWith({ race_percent: 50 });
+	});
+
+	it("disables the percent control for non-hosts", () => {
+		settings().mode = "race";
+		auth.username = "someone-else";
+		render(LobbySettings);
+		expect(document.getElementById("race-percent")).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Players who win +" })).toBeDisabled();
 	});
 });

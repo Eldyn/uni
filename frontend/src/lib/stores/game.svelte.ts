@@ -71,6 +71,7 @@ const RawGameStateSchema = z.object({
 	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
 	turn_time_remaining_ms: z.number().optional(),
 	mode: z.string().optional(),
+	race_target: z.number().int().optional(),
 	spectator_count: z.number().int().optional(),
 	draw_pile: z.object({ count: z.number().int() }).optional(),
 	discard_pile: z.object({ count: z.number().int(), top: RawCardSchema.optional() }).optional(),
@@ -149,11 +150,13 @@ export interface GameState {
 	discard_pile_size?: number;
 	/** Origin of the last played card, used to animate it from its source slot. */
 	last_play?: LastPlay;
-	/** Mode of the match ('standard' | 'elimination'). */
+	/** Mode of the match ('standard' | 'race'). */
 	mode?: string;
+	/** Finishers needed to end a race (0 outside race mode). */
+	race_target?: number;
 	/** Number of connected spectators. */
 	spectator_count?: number;
-	/** Current or final placement list in elimination mode. */
+	/** Current or final placement list in race mode, best-first. */
 	placements?: string[];
 	/** Flag indicating whether the match has reached a terminal state. */
 	is_over?: boolean;
@@ -355,8 +358,17 @@ class StoreGame implements SessionStore {
 		this.state?.players.find((p) => p.username === storeAuth.username) ?? null
 	);
 
-	/** Derived property indicating whether client is a spectator (or eliminated).
-	 *  Both conditions are OR-ed, not `??`-ed: the backend marks an eliminated
+	/** True while the match is a live race and the local player has already
+	 *  finished: the server keeps them seated (no `is_spectator` flag), so the
+	 *  placements list is the only signal that they now just watch. */
+	hasFinishedRace = $derived(
+		this.state?.mode === "race" &&
+			this.state.is_over !== true &&
+			this.state.placements?.includes(storeAuth.username) === true
+	);
+
+	/** Derived property indicating whether client is a spectator (or finished).
+	 *  All conditions are OR-ed, not `??`-ed: the backend marks an eliminated
 	 *  player `is_spectator` in the LOBBY but only broadcasts match state, so the
 	 *  client's lobby copy keeps a stale `false` — which would win a `??` and hide
 	 *  that the player has left the match. Being absent from `state.players` is the
@@ -365,7 +377,8 @@ class StoreGame implements SessionStore {
 	isSpectator = $derived(
 		(storeLobby.current?.members.find((m) => m.username === storeAuth.username)?.is_spectator ??
 			false) ||
-			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username))
+			(this.state !== null && !this.state.players.some((p) => p.username === storeAuth.username)) ||
+			this.hasFinishedRace
 	);
 
 	/** True while the local player may answer the open response window, even
@@ -432,34 +445,37 @@ class StoreGame implements SessionStore {
 		return players.find((p) => p.username === name)?.spectator_count ?? 0;
 	});
 
-	/** Current or final placement list in elimination mode. */
+	/** Current or final placement list in race mode, best-first. */
 	placements = $derived(this.state?.placements ?? []);
 
-	/** True for the tick where the local player's own elimination just landed
-	 *  in `placements` — used to fire the one-shot mid-match outcome banner
+	/** True for the tick where the local player's own finish just landed in
+	 *  `placements` — used to fire the one-shot mid-match outcome banner
 	 *  exactly once, not on every subsequent state update. */
 	#previousPlacementsHadMe = false;
-	justEliminated = $derived.by(() => {
+	justFinished = $derived.by(() => {
 		const inPlacementsNow = this.placements.includes(storeAuth.username);
 		const isNew = inPlacementsNow && !this.#previousPlacementsHadMe;
 		this.#previousPlacementsHadMe = inPlacementsNow;
 		return isNew;
 	});
 
-	/** "win" if the local player's rank is top 3, "lose" otherwise; null if they
-	 *  aren't in `placements` yet (match ongoing for them, or not elimination
-	 *  mode). Fixed rank<=3 threshold — no small-lobby exception.
-	 *  Elimination is a shedding race: the first player to drop every card
-	 *  leaves first and WINS, so `placements` is best-first (1st, 2nd, ...) in
-	 *  both regimes — the backend never reorders it — and the rank is always
-	 *  idx + 1. A player enters `placements` the moment they shed their hand.
+	/** Race outcome for the local player; null while they are not in
+	 *  `placements` yet (still racing, or not a race).
+	 *  Race is a shedding race: emptying your hand takes the next place and
+	 *  WINS it. `placements` is best-first (the backend never reorders it) and a
+	 *  player enters it the moment they shed their hand, so mid-match every
+	 *  entry is a finisher ("win"). When the match ends the left-behind players
+	 *  are appended below the finishers: only the first `race_target` places
+	 *  win, the rest lose.
 	 *  Corner: a mid-game quitter drops out of `players` without entering
 	 *  `placements` — rare, accepted. */
-	eliminationOutcome = $derived<"win" | "lose" | null>(
+	raceOutcome = $derived<"win" | "lose" | null>(
 		(() => {
 			const idx = this.placements.indexOf(storeAuth.username);
 			if (idx === -1) return null;
-			return idx + 1 <= 3 ? "win" : "lose";
+			if (this.state?.is_over !== true) return "win";
+			const finishers = this.state.race_target ?? 0;
+			return finishers > 0 && idx + 1 > finishers ? "lose" : "win";
 		})()
 	);
 
@@ -679,6 +695,7 @@ class StoreGame implements SessionStore {
 				draw_pile_size: stateJson.draw_pile?.count ?? stateJson.draw_pile_size ?? 0,
 				discard_pile_size: stateJson.discard_pile?.count ?? stateJson.discard_pile_size ?? 0,
 				mode: stateJson.mode,
+				race_target: stateJson.race_target,
 				spectator_count: stateJson.spectator_count,
 				placements: stateJson.placements,
 				seq_watermark: stateJson.seq_watermark,

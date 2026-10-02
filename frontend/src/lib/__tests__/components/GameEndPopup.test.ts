@@ -22,13 +22,18 @@ import GameEndPopup from "$components/game/GameEndPopup.svelte";
 
 // Matches the real end-of-match shape: `placements` is BEST-FIRST and the
 // eliminated local player has already been erased from `state.players`
-// (survivor_count = 1 leaves only the winner). Rank identity must therefore
+// (only the first race_target finishers stay seated). Rank identity must therefore
 // come from storeAuth.username, never from state.players.
-function setEndState(opts: { mode: "elimination" | "standard"; placements: string[] }): void {
+function setEndState(opts: {
+	mode: "race" | "standard";
+	placements: string[];
+	raceTarget?: number;
+}): void {
 	mockGame.state = {
 		is_over: true,
 		winner: opts.placements[0],
 		mode: opts.mode,
+		race_target: opts.raceTarget ?? 0,
 		placements: opts.placements,
 		players: [{ username: opts.placements[0], is_bot: false }]
 	};
@@ -46,7 +51,7 @@ describe("GameEndPopup podium finish", () => {
 
 	it("titles the local winner VICTORY! with the win style", () => {
 		mockAuth.username = "Alice";
-		setEndState({ mode: "elimination", placements: ["Alice", "Bob", "Cara", "Dan"] });
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 
@@ -54,29 +59,29 @@ describe("GameEndPopup podium finish", () => {
 		expect(titleEl()).toHaveClass("result--win");
 	});
 
-	it("titles 2nd place PODIUM FINISH! even when absent from state.players", () => {
+	it("titles 2nd place YOU FINISHED! even when absent from state.players", () => {
 		mockAuth.username = "Bob";
-		setEndState({ mode: "elimination", placements: ["Alice", "Bob", "Cara", "Dan"] });
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 
-		expect(titleEl()).toHaveTextContent("PODIUM FINISH!");
+		expect(titleEl()).toHaveTextContent("YOU FINISHED!");
 		expect(titleEl()).toHaveClass("result--podium");
 	});
 
-	it("titles 3rd place PODIUM FINISH! even when absent from state.players", () => {
+	it("titles 3rd place YOU FINISHED! even when absent from state.players", () => {
 		mockAuth.username = "Cara";
-		setEndState({ mode: "elimination", placements: ["Alice", "Bob", "Cara", "Dan"] });
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 
-		expect(titleEl()).toHaveTextContent("PODIUM FINISH!");
+		expect(titleEl()).toHaveTextContent("YOU FINISHED!");
 		expect(titleEl()).toHaveClass("result--podium");
 	});
 
-	it("titles 4th place YOU LOST! with the loss style", () => {
+	it("titles a left-behind player YOU LOST! with the loss style", () => {
 		mockAuth.username = "Dan";
-		setEndState({ mode: "elimination", placements: ["Alice", "Bob", "Cara", "Dan"] });
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 

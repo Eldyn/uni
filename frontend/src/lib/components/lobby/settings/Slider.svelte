@@ -9,6 +9,7 @@
 		value,
 		min,
 		max,
+		step = 1,
 		disabled = false,
 		live = false,
 		format = (v: number) => String(v),
@@ -20,6 +21,8 @@
 		value: number;
 		min: number;
 		max: number;
+		/** Granularity of the range input and of the +/- nudge buttons. */
+		step?: number;
 		disabled?: boolean;
 		/** When true, oncommit fires on every drag tick instead of only on release. Client-side-only controls (e.g. audio volume) want this; anything that sends a server update on commit must leave this false to avoid flooding the server mid-drag. */
 		live?: boolean;
@@ -39,7 +42,7 @@
 
 	function nudge(delta: number) {
 		if (disabled) return;
-		localValue = Math.min(max, Math.max(min, localValue + delta));
+		localValue = Math.min(max, Math.max(min, localValue + delta * step));
 		oncommit(localValue);
 	}
 </script>
@@ -63,6 +66,7 @@
 				type="range"
 				{min}
 				{max}
+				{step}
 				bind:value={localValue}
 				{disabled}
 				style="--slider-pct: {pct}%"

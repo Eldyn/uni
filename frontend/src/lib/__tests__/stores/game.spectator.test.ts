@@ -52,7 +52,7 @@ describe("game store: spectator subsystem", () => {
 			],
 			pending_draws: 0,
 			draw_pile_size: 40,
-			mode: "elimination",
+			mode: "race",
 			spectator_count: 3,
 			placements: ["Charlie"]
 		};
@@ -99,7 +99,7 @@ describe("game store: spectator subsystem", () => {
 			players: [{ username: "Alice", card_count: 5, is_bot: false }],
 			pending_draws: 0,
 			draw_pile_size: 40,
-			mode: "elimination",
+			mode: "race",
 			spectator_count: 1,
 			placements: ["SpectatorGuy"]
 		};
@@ -137,5 +137,50 @@ describe("game store: spectator subsystem", () => {
 		expect(emitSpy).not.toHaveBeenCalled();
 
 		emitSpy.mockRestore();
+	});
+
+	describe("race finish/lose derivation", () => {
+		function setRace(opts: { placements: string[]; over: boolean; target?: number }) {
+			storeLobby.current = null;
+			storeGame.state = {
+				active_type: "Red",
+				current_turn: "Alice",
+				play_direction: 1,
+				players: [
+					{ username: "SpectatorGuy", card_count: 3, is_bot: false },
+					{ username: "Alice", card_count: 5, is_bot: false }
+				],
+				pending_draws: 0,
+				draw_pile_size: 40,
+				mode: "race",
+				race_target: opts.target ?? 2,
+				is_over: opts.over,
+				placements: opts.placements
+			};
+		}
+
+		it("treats a mid-match finisher as a spectator who won", () => {
+			setRace({ placements: ["SpectatorGuy"], over: false });
+			expect(storeGame.hasFinishedRace).toBe(true);
+			expect(storeGame.isSpectator).toBe(true);
+			expect(storeGame.raceOutcome).toBe("win");
+		});
+
+		it("leaves a player still racing neither finished nor decided", () => {
+			setRace({ placements: ["Alice"], over: false });
+			expect(storeGame.hasFinishedRace).toBe(false);
+			expect(storeGame.isSpectator).toBe(false);
+			expect(storeGame.raceOutcome).toBeNull();
+		});
+
+		it("marks a left-behind player as lost when the match ends", () => {
+			setRace({ placements: ["Alice", "Bob", "SpectatorGuy"], over: true, target: 2 });
+			expect(storeGame.raceOutcome).toBe("lose");
+		});
+
+		it("keeps a finisher a winner when the match ends", () => {
+			setRace({ placements: ["Alice", "SpectatorGuy", "Bob"], over: true, target: 2 });
+			expect(storeGame.raceOutcome).toBe("win");
+		});
 	});
 });

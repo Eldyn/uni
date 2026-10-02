@@ -55,13 +55,13 @@ describe("GameHud", () => {
 		expect(document.querySelector(".top-card-dot")).toBeNull();
 	});
 
-	it("no longer renders elimination placements in the HUD row", () => {
-		mockGameState.state.mode = "elimination";
+	it("no longer renders race placements in the HUD row", () => {
+		mockGameState.state.mode = "race";
 		mockGameState.placements = ["firstOut", "secondOut"];
 
 		render(GameHud);
 
-		expect(document.querySelector(".elimination-standings")).toBeNull();
+		expect(document.querySelector(".race-standings")).toBeNull();
 		expect(document.querySelectorAll(".placement-chip")).toHaveLength(0);
 
 		mockGameState.placements = [];
