@@ -91,25 +91,23 @@ function feltUvRectFromTexels(
 }
 
 /** playmat.png's opaque felt box: `magick playmat.png -alpha extract
- *  -threshold 10% -format %@ info:` -> 640x464+640+300. */
+ *  -threshold 10% -format %@ info:` -> 648x480+648+300 on 1920x1080. */
 export const DESKTOP_MAT_SHEET: MatSheet = {
 	texelWidth: SHEET_WIDTH,
 	texelHeight: SHEET_HEIGHT,
-	feltUvRect: feltUvRectFromTexels(SHEET_WIDTH, SHEET_HEIGHT, 640, 1280, 300, 764)
+	feltUvRect: feltUvRectFromTexels(SHEET_WIDTH, SHEET_HEIGHT, 648, 1296, 300, 780)
 };
 
-/** mobile_playmat.png's opaque felt box (the box ART_* above describes). */
+const PHONE_SHEET_WIDTH = 1080;
+const PHONE_SHEET_HEIGHT = 1920;
+
+/** mobile_playmat.png is a portrait-native sheet; its opaque felt box:
+ *  `magick mobile_playmat.png -alpha extract -threshold 10% -format %@ info:`
+ *  -> 480x648+300+624 on 1080x1920. */
 export const PHONE_MAT_SHEET: MatSheet = {
-	texelWidth: SHEET_WIDTH,
-	texelHeight: SHEET_HEIGHT,
-	feltUvRect: feltUvRectFromTexels(
-		SHEET_WIDTH,
-		SHEET_HEIGHT,
-		ART_LEFT,
-		ART_RIGHT,
-		ART_TOP,
-		ART_BOTTOM
-	)
+	texelWidth: PHONE_SHEET_WIDTH,
+	texelHeight: PHONE_SHEET_HEIGHT,
+	feltUvRect: feltUvRectFromTexels(PHONE_SHEET_WIDTH, PHONE_SHEET_HEIGHT, 300, 780, 624, 1272)
 };
 
 export interface MatBounds {
@@ -208,6 +206,52 @@ export function portraitMatPlacement(feltWidth: number, farZ: number, nearZ: num
 	const size: [number, number] = [feltWidth / FELT_WIDTH_SHARE, feltHeight / FELT_HEIGHT_SHARE];
 	const offsetZ = feltCenterZ - (size[1] / 2) * FELT_CENTER_Z_SHARE;
 	return { size, offsetX: 0, offsetZ, quarterTurn: false, bounds: boundsOf(size, offsetZ) };
+}
+
+/**
+ * Portrait: a portrait-native sheet drawn at ONE scale on both axes, so the
+ * painted border and the art pixels keep their drawn proportions. The felt is
+ * sized so that, after `marginTexels` of felt on every side, it just covers
+ * `wrapWidth` x `wrapDepth` (whichever of the two the art's own aspect makes
+ * binding), and is centred on the table's centre line at `feltCenterZ`. The
+ * margin is in texels so whatever has to fit inside it (the loop and its
+ * clearance) scales with the felt instead of being a fixed world distance.
+ */
+export function portraitSheetMatPlacement(
+	sheet: MatSheet,
+	wrapWidth: number,
+	wrapDepth: number,
+	marginTexels: number,
+	feltCenterZ: number
+): MatPlacement {
+	const { left, right, top, bottom } = sheet.feltUvRect;
+	const feltTexelWidth = (right - left) * sheet.texelWidth;
+	const feltTexelHeight = (top - bottom) * sheet.texelHeight;
+	const innerTexelWidth = Math.max(1, feltTexelWidth - 2 * marginTexels);
+	const innerTexelHeight = Math.max(1, feltTexelHeight - 2 * marginTexels);
+	const worldPerTexel = Math.max(wrapWidth / innerTexelWidth, wrapDepth / innerTexelHeight);
+
+	const size: [number, number] = [
+		sheet.texelWidth * worldPerTexel,
+		sheet.texelHeight * worldPerTexel
+	];
+	// UV v grows up the screen, which is -Z on the table.
+	const offsetX = -((left + right) / 2 - 0.5) * size[0];
+	const offsetZ = feltCenterZ + ((top + bottom) / 2 - 0.5) * size[1];
+	const halfWidth = (feltTexelWidth * worldPerTexel) / 2;
+	const halfDepth = (feltTexelHeight * worldPerTexel) / 2;
+	return {
+		size,
+		offsetX,
+		offsetZ,
+		quarterTurn: false,
+		bounds: {
+			left: -halfWidth,
+			right: halfWidth,
+			far: feltCenterZ - halfDepth,
+			near: feltCenterZ + halfDepth
+		}
+	};
 }
 
 // Where the felt's own center sits across the sheet's width, as a fraction of

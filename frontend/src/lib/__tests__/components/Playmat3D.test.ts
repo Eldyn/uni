@@ -28,8 +28,14 @@ import { CARD_COLOR_MAP } from "$lib/palette";
 import type { MatPlacement } from "$components/game/layout/playmat";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
-import { loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
-import { LOOP_CORNER_RADIUS_BLOCKS, LOOP_INSET_BLOCKS } from "$components/game/animation/loopPlan";
+import { fitLoopRect, loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
+import {
+	LOOP_CELL_BLOCKS,
+	LOOP_CORNER_RADIUS_BLOCKS,
+	LOOP_INSET_BLOCKS,
+	LOOP_MAX_CORNER_RADIUS_BLOCKS,
+	LOOP_MIN_CORNER_RADIUS_BLOCKS
+} from "$components/game/animation/loopPlan";
 import * as THREE from "three";
 
 const mat: MatPlacement = {
@@ -294,6 +300,23 @@ describe("Playmat3D ripple frame stepping", () => {
 	});
 });
 
+function fittedLoopRect(sheet: typeof DESKTOP_MAT_SHEET) {
+	return fitLoopRect(
+		loopRect(
+			sheetBlockCount(sheet),
+			sheet.feltUvRect,
+			LOOP_INSET_BLOCKS,
+			LOOP_CORNER_RADIUS_BLOCKS
+		),
+		{
+			cellLength: LOOP_CELL_BLOCKS,
+			preferredCornerRadius: LOOP_CORNER_RADIUS_BLOCKS,
+			minCornerRadius: LOOP_MIN_CORNER_RADIUS_BLOCKS,
+			maxCornerRadius: LOOP_MAX_CORNER_RADIUS_BLOCKS
+		}
+	);
+}
+
 describe("Playmat3D turn loop", () => {
 	beforeEach(() => {
 		resetMockState();
@@ -332,12 +355,7 @@ describe("Playmat3D turn loop", () => {
 		render(Playmat3D, { props: { mat, viewport } });
 		await flush();
 		let loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms)!;
-		const desktop = loopRect(
-			sheetBlockCount(DESKTOP_MAT_SHEET),
-			DESKTOP_MAT_SHEET.feltUvRect,
-			LOOP_INSET_BLOCKS,
-			LOOP_CORNER_RADIUS_BLOCKS
-		);
+		const desktop = fittedLoopRect(DESKTOP_MAT_SHEET);
 		expect((loop.uLoopHalfSize.value as THREE.Vector2).x).toBeCloseTo(desktop.halfWidth);
 		cleanup();
 		resetMockState();
@@ -346,12 +364,7 @@ describe("Playmat3D turn loop", () => {
 		render(Playmat3D, { props: { mat, viewport: phoneViewport } });
 		await flush();
 		loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms)!;
-		const phone = loopRect(
-			sheetBlockCount(PHONE_MAT_SHEET),
-			PHONE_MAT_SHEET.feltUvRect,
-			LOOP_INSET_BLOCKS,
-			LOOP_CORNER_RADIUS_BLOCKS
-		);
+		const phone = fittedLoopRect(PHONE_MAT_SHEET);
 		expect((loop.uLoopHalfSize.value as THREE.Vector2).x).toBeCloseTo(phone.halfWidth);
 	});
 });

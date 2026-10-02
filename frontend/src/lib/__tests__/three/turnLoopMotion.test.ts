@@ -2,9 +2,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { gsap } from "gsap";
 import { TurnLoopMotion } from "$components/game/three/turnLoopMotion";
 import {
-	LOOP_IDLE_LIGHTEN,
+	LOOP_IDLE_TONE,
 	LOOP_MARCH_BLOCKS_PER_SECOND,
-	LOOP_PEAK_LIGHTEN
+	LOOP_PEAK_TONE
 } from "$components/game/animation/loopPlan";
 
 function build(motionActive = true) {
@@ -62,9 +62,9 @@ describe("TurnLoopMotion", () => {
 			expect(toSpy).toHaveBeenCalledTimes(1);
 
 			tweenAt(toSpy, 0).progress(0.5);
-			expect(motion.lighten.value).toBeCloseTo(LOOP_PEAK_LIGHTEN);
+			expect(motion.tone.value).toBeCloseTo(LOOP_PEAK_TONE);
 			tweenAt(toSpy, 0).progress(1);
-			expect(motion.lighten.value).toBeCloseTo(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBeCloseTo(LOOP_IDLE_TONE);
 		});
 
 		it("does not jump the phase when the direction flips", () => {
@@ -89,7 +89,7 @@ describe("TurnLoopMotion", () => {
 			expect(toSpy).toHaveBeenCalledTimes(2);
 
 			tweenAt(toSpy, 1).progress(1);
-			expect(motion.lighten.value).toBeCloseTo(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBeCloseTo(LOOP_IDLE_TONE);
 		});
 
 		it("applies the last flip instantly with no tween when motion is off", () => {
@@ -98,7 +98,7 @@ describe("TurnLoopMotion", () => {
 			state.motionActive = false;
 			motion.enqueue([-1, 1, -1]);
 			expect(motion.direction.value).toBe(-1);
-			expect(motion.lighten.value).toBe(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBe(LOOP_IDLE_TONE);
 			expect(motion.phase.value).toBe(0);
 			expect(toSpy).not.toHaveBeenCalled();
 		});
@@ -111,7 +111,7 @@ describe("TurnLoopMotion", () => {
 			motion.enqueue([-1, 1, -1]);
 			motion.snapTo(1);
 			expect(motion.direction.value).toBe(1);
-			expect(motion.lighten.value).toBe(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBe(LOOP_IDLE_TONE);
 			expect(gsap.getTweensOf(tweenAt(toSpy, 0).targets())).toHaveLength(0);
 			expect(toSpy).toHaveBeenCalledTimes(1);
 		});
@@ -131,13 +131,13 @@ describe("TurnLoopMotion", () => {
 			motion.tick(1);
 			motion.enqueue([-1, 1]);
 			tweenAt(toSpy, 0).progress(0.5);
-			expect(motion.lighten.value).toBeGreaterThan(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBeGreaterThan(LOOP_IDLE_TONE);
 
 			state.motionActive = false;
 			motion.motionStopped();
 
 			expect(motion.direction.value).toBe(1);
-			expect(motion.lighten.value).toBe(LOOP_IDLE_LIGHTEN);
+			expect(motion.tone.value).toBe(LOOP_IDLE_TONE);
 			expect(motion.phase.value).toBe(0);
 			expect(gsap.getTweensOf(tweenAt(toSpy, 0).targets())).toHaveLength(0);
 		});

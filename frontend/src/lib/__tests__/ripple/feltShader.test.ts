@@ -70,17 +70,16 @@ describe("buildTurnLoopFragmentShader", () => {
 			"uLoopHalfSize",
 			"uLoopCornerRadius",
 			"uLoopLength",
-			"uPitch",
 			"uPhase",
 			"uDirection",
-			"uLighten",
-			"uChevronLength",
-			"uChevronHalfSpread",
-			"uStroke",
+			"uTone",
+			"uSlot",
 			"uDashLength",
-			"uDashPitch",
-			"uDashHalfWidth",
-			"uDashClearance"
+			"uDashThickness",
+			"uSlotsPerCell",
+			"uChevronClearSlots",
+			"uChevronArm",
+			"uChevronStroke"
 		]) {
 			expect(shader).toMatch(new RegExp(`uniform\\s+(float|vec2)\\s+${name};`));
 		}
@@ -90,5 +89,6 @@ describe("buildTurnLoopFragmentShader", () => {
 		const shader = buildTurnLoopFragmentShader();
 		expect(shader).toContain("vec2 outlineParam(vec2 offset)");
 		expect(shader).toContain("bottomLeftArcStart");
+		expect(shader).toContain("vec4 pathPoint(float arcLength)");
 	});
 });

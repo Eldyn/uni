@@ -17,19 +17,21 @@
 	import { buildTurnLoopFragmentShader } from "./ripple/feltShader";
 	import type { DirectionSign } from "../animation/directionRing";
 	import type { MatPlacement, MatSheet } from "../layout/playmat";
-	import { fitPitch, loopLength, loopRect, sheetBlockCount } from "./loopGeometry";
+	import { fitLoopRect, loopLength, loopRect, sheetBlockCount } from "./loopGeometry";
 	import { TurnLoopMotion } from "./turnLoopMotion";
 	import {
-		CHEVRON_HALF_SPREAD_BLOCKS,
-		CHEVRON_LENGTH_BLOCKS,
+		CHEVRON_ARM_BLOCKS,
 		CHEVRON_STROKE_BLOCKS,
-		DASH_CLEARANCE_BLOCKS,
-		DASH_HALF_WIDTH_BLOCKS,
-		DASH_LENGTH_BLOCKS,
-		DASH_PITCH_BLOCKS,
+		LOOP_CELL_BLOCKS,
+		LOOP_CHEVRON_CLEAR_SLOTS,
 		LOOP_CORNER_RADIUS_BLOCKS,
+		LOOP_DASH_BLOCKS,
+		LOOP_DASH_THICKNESS_BLOCKS,
 		LOOP_INSET_BLOCKS,
-		LOOP_TARGET_PITCH_BLOCKS
+		LOOP_MAX_CORNER_RADIUS_BLOCKS,
+		LOOP_MIN_CORNER_RADIUS_BLOCKS,
+		LOOP_SLOTS_PER_CELL,
+		LOOP_SLOT_BLOCKS
 	} from "../animation/loopPlan";
 
 	let {
@@ -67,17 +69,16 @@
 		uLoopHalfSize: { value: new THREE.Vector2() },
 		uLoopCornerRadius: { value: LOOP_CORNER_RADIUS_BLOCKS },
 		uLoopLength: { value: 1 },
-		uPitch: { value: LOOP_TARGET_PITCH_BLOCKS },
 		uPhase: motion.phase,
 		uDirection: motion.direction,
-		uLighten: motion.lighten,
-		uChevronLength: { value: CHEVRON_LENGTH_BLOCKS },
-		uChevronHalfSpread: { value: CHEVRON_HALF_SPREAD_BLOCKS },
-		uStroke: { value: CHEVRON_STROKE_BLOCKS },
-		uDashLength: { value: DASH_LENGTH_BLOCKS },
-		uDashPitch: { value: DASH_PITCH_BLOCKS },
-		uDashHalfWidth: { value: DASH_HALF_WIDTH_BLOCKS },
-		uDashClearance: { value: DASH_CLEARANCE_BLOCKS }
+		uTone: motion.tone,
+		uSlot: { value: LOOP_SLOT_BLOCKS },
+		uDashLength: { value: LOOP_DASH_BLOCKS },
+		uDashThickness: { value: LOOP_DASH_THICKNESS_BLOCKS },
+		uSlotsPerCell: { value: LOOP_SLOTS_PER_CELL },
+		uChevronClearSlots: { value: LOOP_CHEVRON_CLEAR_SLOTS },
+		uChevronArm: { value: CHEVRON_ARM_BLOCKS },
+		uChevronStroke: { value: CHEVRON_STROKE_BLOCKS }
 	};
 
 	// svelte-ignore state_referenced_locally
@@ -86,18 +87,24 @@
 	const fragmentShader = buildTurnLoopFragmentShader();
 
 	$effect(() => {
-		const rect = loopRect(
+		const nominal = loopRect(
 			sheetBlockCount(sheet),
 			sheet.feltUvRect,
 			LOOP_INSET_BLOCKS,
 			LOOP_CORNER_RADIUS_BLOCKS
 		);
+		const rect = fitLoopRect(nominal, {
+			cellLength: LOOP_CELL_BLOCKS,
+			preferredCornerRadius: LOOP_CORNER_RADIUS_BLOCKS,
+			minCornerRadius: LOOP_MIN_CORNER_RADIUS_BLOCKS,
+			maxCornerRadius: LOOP_MAX_CORNER_RADIUS_BLOCKS
+		});
 		const length = loopLength(rect);
 		motion.loopLength = length;
 		loopUniforms.uLoopCenter.value.set(rect.centerX, rect.centerY);
 		loopUniforms.uLoopHalfSize.value.set(rect.halfWidth, rect.halfHeight);
+		loopUniforms.uLoopCornerRadius.value = rect.cornerRadius;
 		loopUniforms.uLoopLength.value = length;
-		loopUniforms.uPitch.value = fitPitch(length, LOOP_TARGET_PITCH_BLOCKS);
 		invalidate();
 	});
 

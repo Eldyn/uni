@@ -75,6 +75,7 @@ function fakeRegistry() {
 		seedPose: vi.fn(),
 		registerCardMeta: vi.fn(),
 		removeEntry: vi.fn(),
+		flushImmediately: vi.fn(),
 		enqueue: vi.fn().mockResolvedValue(undefined)
 	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
 }
@@ -681,7 +682,7 @@ describe("createMatchEventBeatController", () => {
 		expect(storeTurnSkip.presentingTurn).toBeNull();
 	});
 
-	it("raises the turn cue only when the beat hands the turn to the local player", () => {
+	it("raises the turn cue only when the beat hands the turn to the local player", async () => {
 		storeAuth.username = "me";
 		storeGame.state = baseState();
 		const h = harness();
@@ -696,6 +697,7 @@ describe("createMatchEventBeatController", () => {
 			deadlineMs: 1,
 			skipped: []
 		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(storeTurnCue.token).toBe(token);
 
 		h.fire({
@@ -707,10 +709,12 @@ describe("createMatchEventBeatController", () => {
 			deadlineMs: 1,
 			skipped: []
 		});
-		expect(storeTurnCue.token).toBe(token + 1);
+		await vi.waitFor(() => {
+			expect(storeTurnCue.token).toBe(token + 1);
+		});
 	});
 
-	it("queues one ring flip per reverse, reading direction from each beat", () => {
+	it("queues one ring flip per reverse, reading direction from each beat", async () => {
 		storeAuth.username = "me";
 		storeGame.state = baseState();
 		storeDirectionRing.reset();
@@ -726,14 +730,103 @@ describe("createMatchEventBeatController", () => {
 		});
 
 		h.fire(turnBeat(30, 1));
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(storeDirectionRing.token).toBe(0);
 		h.fire(turnBeat(31, -1));
 		h.fire(turnBeat(32, 1));
 		h.fire(turnBeat(33, 1));
 
-		expect(storeDirectionRing.token).toBe(2);
+		await vi.waitFor(() => {
+			expect(storeDirectionRing.token).toBe(2);
+		});
 		expect(storeDirectionRing.takeFlips()).toEqual([-1, 1]);
 		expect(storeDirectionRing.sign).toBe(1);
+	});
+
+	it("waits for the implicated play's landing before firing the turn cue", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		let resolveLanding!: () => void;
+		const landing = new Promise<void>((resolve) => (resolveLanding = resolve));
+		const h = harness({
+			cardRegistry: {
+				...fakeRegistry(),
+				enqueue: vi.fn(() => landing)
+			} as never
+		});
+		const cueToken = storeTurnCue.token;
+		const ringToken = storeDirectionRing.token;
+
+		h.fire({ seq: 1, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 0 });
+		h.fire({
+			seq: 2,
+			kind: "turn",
+			from: "bob",
+			to: "me",
+			direction: -1,
+			deadlineMs: 1,
+			skipped: []
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(storeTurnCue.token).toBe(cueToken);
+		expect(storeDirectionRing.token).toBe(ringToken);
+
+		resolveLanding();
+		await vi.waitFor(() => {
+			expect(storeTurnCue.token).toBe(cueToken + 1);
+			expect(storeDirectionRing.token).toBe(ringToken + 1);
+		});
+	});
+
+	it("drops a turn cue deferred behind a landing when the board settles", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		let resolveLanding!: () => void;
+		const landing = new Promise<void>((resolve) => (resolveLanding = resolve));
+		const h = harness({
+			cardRegistry: {
+				...fakeRegistry(),
+				enqueue: vi.fn(() => landing)
+			} as never
+		});
+		const cueToken = storeTurnCue.token;
+		const ringToken = storeDirectionRing.token;
+
+		h.fire({ seq: 1, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 0 });
+		h.fire({
+			seq: 2,
+			kind: "turn",
+			from: "bob",
+			to: "me",
+			direction: -1,
+			deadlineMs: 1,
+			skipped: []
+		});
+
+		h.controller.settleBoardAnimations(1);
+		resolveLanding();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(storeTurnCue.token).toBe(cueToken);
+		expect(storeDirectionRing.token).toBe(ringToken);
+	});
+
+	it("settleBoardAnimations flushes the queue and resyncs the ring to state", () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		const h = harness();
+		const settleToken = storeDirectionRing.settleToken;
+		const cueSettleToken = storeTurnCue.settleToken;
+
+		h.controller.settleBoardAnimations(-1);
+
+		expect(h.cardRegistry.flushImmediately).toHaveBeenCalledTimes(1);
+		expect(storeDirectionRing.sign).toBe(-1);
+		expect(storeDirectionRing.settleToken).toBe(settleToken + 1);
+		expect(storeTurnCue.settleToken).toBe(cueSettleToken + 1);
 	});
 
 	it("does not present a skip when the turn carries none", () => {

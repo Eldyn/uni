@@ -20,10 +20,12 @@ class StoreDirectionRing {
 	settleToken = $state(0);
 	#pendingFlips: DirectionSign[] = [];
 
-	/** Sets the resting direction without animating (mount, new match). */
+	/** Sets the resting direction from server state without animating (mount,
+	 *  new match) and signals any already-mounted ring to snap to it. */
 	set(playDirection: number): void {
 		this.sign = directionSign(playDirection);
 		this.#pendingFlips = [];
+		this.settleToken += 1;
 	}
 
 	/** Queues a flip when the beat's direction differs from the ring's. */
@@ -35,9 +37,12 @@ class StoreDirectionRing {
 		return true;
 	}
 
-	/** Drops queued flips so the ring snaps to `sign` without a tween, as
-	 *  cardRegistry.flushImmediately does for card beats (tab return). */
-	settle(): void {
+	/** Snaps to the server's live direction without a tween and drops queued
+	 *  flips (tab return, desync, new match), as cardRegistry.flushImmediately
+	 *  does for card beats. Resyncing `sign` here repairs a ring left pointing
+	 *  the wrong way by a missed turn_advance. */
+	settle(playDirection: number): void {
+		this.sign = directionSign(playDirection);
 		this.#pendingFlips = [];
 		this.settleToken += 1;
 	}

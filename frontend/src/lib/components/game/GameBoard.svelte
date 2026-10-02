@@ -23,7 +23,6 @@
 	import { storeTableSpin, type HandMorph } from "$stores/tableSpin.svelte";
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import { storeDirectionRing } from "$stores/directionRing.svelte";
-	import { storeTurnCue } from "$stores/turnCue.svelte";
 	import {
 		resolveViewedPlayer,
 		rotatedOpponentsFor,
@@ -367,6 +366,8 @@
 			// ended, so it can never fire against the new match's geometry.
 			controller.resetPendingWildRipple();
 			controller.resetPlayLog();
+			controller.resetTurnMotion();
+			storeDirectionRing.set(state.play_direction);
 			introController.start(state).catch((err) => {
 				console.error("GameBoard: match-intro cinematic failed", err);
 			});
@@ -382,8 +383,11 @@
 	});
 
 	// INFO: a match_event seq gap means a beat was missed; flush the queue to
-	// its end state instead of animating a stale backlog.
-	$effect(() => storeGame.onDesync(() => cardRegistry.flushImmediately()));
+	// its end state instead of animating a stale backlog. Also snaps the ring
+	// and turn pulse, and resyncs the ring's direction from the live snapshot.
+	$effect(() =>
+		storeGame.onDesync(() => controller.settleBoardAnimations(storeGame.state?.play_direction ?? 1))
+	);
 
 	// Escape toggles the mini settings modal from the gamescreen.
 	$effect(() => {
@@ -411,9 +415,7 @@
 	// the second flush, that backlog plays through the moment focus returns.
 	$effect(() => {
 		function onVisibilityChange() {
-			cardRegistry.flushImmediately();
-			storeDirectionRing.settle();
-			storeTurnCue.settle();
+			controller.settleBoardAnimations(storeGame.state?.play_direction ?? 1);
 		}
 		document.addEventListener("visibilitychange", onVisibilityChange);
 		return () => document.removeEventListener("visibilitychange", onVisibilityChange);

@@ -4,7 +4,7 @@
  * three.js and no Svelte: the pattern's march along the outline, the queue of
  * reverses and the brighten impulse each one plays.
  *
- * `phase`, `direction` and `lighten` are plain `{ value }` objects meant to be
+ * `phase`, `direction` and `tone` are plain `{ value }` objects meant to be
  * dropped straight into the loop shader's uniforms. Motion is gated by the
  * caller's `motionActive` (the mat-ripple gate): when it is false nothing
  * moves, a reverse flips the direction at once and the pose is static.
@@ -14,10 +14,10 @@ import { gsap } from "gsap";
 import type { DirectionSign } from "../animation/directionRing";
 import {
 	LOOP_FLIP_SECONDS,
-	LOOP_IDLE_LIGHTEN,
+	LOOP_IDLE_TONE,
 	advancePhase,
-	glowLighten,
-	glowStepCount
+	glowStepCount,
+	glowTone
 } from "../animation/loopPlan";
 
 export interface TurnLoopMotionDeps {
@@ -35,7 +35,7 @@ const MIN_SPEED_MULTIPLIER = 0.1;
 export class TurnLoopMotion {
 	readonly phase: UniformNumber = { value: 0 };
 	readonly direction: UniformNumber = { value: 1 };
-	readonly lighten: UniformNumber = { value: LOOP_IDLE_LIGHTEN };
+	readonly tone: UniformNumber = { value: LOOP_IDLE_TONE };
 	loopLength = 1;
 
 	#deps: TurnLoopMotionDeps;
@@ -66,7 +66,7 @@ export class TurnLoopMotion {
 		this.#queue = [];
 		this.#latest = sign;
 		this.direction.value = sign;
-		this.lighten.value = LOOP_IDLE_LIGHTEN;
+		this.tone.value = LOOP_IDLE_TONE;
 		if (!this.#deps.motionActive()) this.phase.value = 0;
 		this.#deps.onChange();
 	}
@@ -112,12 +112,12 @@ export class TurnLoopMotion {
 			ease: "power2.inOut",
 			onUpdate: () => {
 				const steppedProgress = Math.floor(progress.value * steps) / steps;
-				this.lighten.value = glowLighten(Math.sin(Math.PI * steppedProgress));
+				this.tone.value = glowTone(Math.sin(Math.PI * steppedProgress));
 				this.#deps.onChange();
 			},
 			onComplete: () => {
 				this.#tween = null;
-				this.lighten.value = LOOP_IDLE_LIGHTEN;
+				this.tone.value = LOOP_IDLE_TONE;
 				this.#deps.onChange();
 				this.#runNext();
 			}

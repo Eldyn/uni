@@ -1,13 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
-	fitPitch,
+	fitLoopRect,
 	loopLength,
 	loopRect,
 	outlineParam,
+	pathPoint,
 	sheetBlockCount,
 	type LoopRect
 } from "$components/game/three/loopGeometry";
-import { DESKTOP_MAT_SHEET, type MatSheet } from "$components/game/layout/playmat";
+import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET, type MatSheet } from "$components/game/layout/playmat";
+import {
+	LOOP_CELL_BLOCKS,
+	LOOP_CORNER_RADIUS_BLOCKS,
+	LOOP_INSET_BLOCKS,
+	LOOP_MAX_CORNER_RADIUS_BLOCKS,
+	LOOP_MIN_CORNER_RADIUS_BLOCKS
+} from "$components/game/animation/loopPlan";
 
 const rect: LoopRect = { centerX: 0, centerY: 0, halfWidth: 20, halfHeight: 12, cornerRadius: 4 };
 const length = loopLength(rect);
@@ -38,11 +46,11 @@ describe("loopRect", () => {
 			10,
 			10
 		);
-		// felt: x 160..320, y 79..195 (blocks); inset 10 -> x 170..310, y 89..185
-		expect(insetRect.centerX).toBeCloseTo(240);
-		expect(insetRect.centerY).toBeCloseTo(137);
-		expect(insetRect.halfWidth).toBeCloseTo(70);
-		expect(insetRect.halfHeight).toBeCloseTo(48);
+		// felt: x 162..324, y 75..195 (blocks); inset 10 -> x 172..314, y 85..185
+		expect(insetRect.centerX).toBeCloseTo(243);
+		expect(insetRect.centerY).toBeCloseTo(135);
+		expect(insetRect.halfWidth).toBeCloseTo(71);
+		expect(insetRect.halfHeight).toBeCloseTo(50);
 		expect(insetRect.cornerRadius).toBe(10);
 	});
 });
@@ -53,17 +61,116 @@ describe("loopLength", () => {
 	});
 });
 
-describe("fitPitch", () => {
-	it("returns a pitch that tiles the loop in a whole number of cells near the target", () => {
-		const pitch = fitPitch(length, 24);
-		const cells = length / pitch;
-		expect(cells).toBeCloseTo(Math.round(cells));
-		expect(cells).toBeCloseTo(5);
-		expect(Math.abs(pitch - 24)).toBeLessThan(24 / 2);
+const fitOptions = {
+	cellLength: LOOP_CELL_BLOCKS,
+	preferredCornerRadius: LOOP_CORNER_RADIUS_BLOCKS,
+	minCornerRadius: LOOP_MIN_CORNER_RADIUS_BLOCKS,
+	maxCornerRadius: LOOP_MAX_CORNER_RADIUS_BLOCKS
+};
+
+describe("fitLoopRect", () => {
+	const sheets: [string, MatSheet][] = [
+		["desktop", DESKTOP_MAT_SHEET],
+		["phone", PHONE_MAT_SHEET]
+	];
+
+	for (const [name, sheet] of sheets) {
+		const nominal = loopRect(
+			sheetBlockCount(sheet),
+			sheet.feltUvRect,
+			LOOP_INSET_BLOCKS,
+			LOOP_CORNER_RADIUS_BLOCKS
+		);
+		const fitted = fitLoopRect(nominal, fitOptions);
+
+		it(`tiles the ${name} outline in a whole number of cells`, () => {
+			const cells = loopLength(fitted) / LOOP_CELL_BLOCKS;
+			expect(cells).toBeGreaterThanOrEqual(1);
+			expect(cells).toBeCloseTo(Math.round(cells), 6);
+		});
+
+		it(`keeps the ${name} corner radius in range and the rectangle close to nominal`, () => {
+			expect(fitted.cornerRadius).toBeGreaterThanOrEqual(LOOP_MIN_CORNER_RADIUS_BLOCKS);
+			expect(fitted.cornerRadius).toBeLessThanOrEqual(LOOP_MAX_CORNER_RADIUS_BLOCKS);
+			expect(Math.abs(fitted.halfWidth - nominal.halfWidth)).toBeLessThanOrEqual(3);
+			expect(Math.abs(fitted.halfHeight - nominal.halfHeight)).toBeLessThanOrEqual(3);
+			expect(Math.abs(fitted.centerX - nominal.centerX)).toBeLessThanOrEqual(1);
+			expect(Math.abs(fitted.centerY - nominal.centerY)).toBeLessThanOrEqual(1);
+		});
+
+		it(`puts every ${name} edge on a row or column of whole pixels`, () => {
+			for (const edge of [
+				fitted.centerX - fitted.halfWidth,
+				fitted.centerX + fitted.halfWidth,
+				fitted.centerY - fitted.halfHeight,
+				fitted.centerY + fitted.halfHeight
+			]) {
+				expect(edge - Math.floor(edge)).toBeCloseTo(0.5, 9);
+			}
+		});
+	}
+
+	it("refuses a rectangle no radius in range can tile", () => {
+		const tiny: LoopRect = {
+			centerX: 0.5,
+			centerY: 0.5,
+			halfWidth: 3,
+			halfHeight: 3,
+			cornerRadius: 2
+		};
+		expect(() => fitLoopRect(tiny, fitOptions)).toThrow();
+	});
+});
+
+describe("pathPoint", () => {
+	it("starts at the bottom-edge midpoint heading right", () => {
+		const start = pathPoint(0, rect);
+		expect(start.x).toBeCloseTo(0);
+		expect(start.y).toBeCloseTo(-12);
+		expect([start.directionX, start.directionY]).toEqual([1, 0]);
 	});
 
-	it("never yields zero cells for a tiny loop", () => {
-		expect(fitPitch(3, 24)).toBeCloseTo(3);
+	it("heads up the right edge, left along the top and down the left edge", () => {
+		const cases: [number, number, number, number, number][] = [
+			[16 + quarterArc + 8, 20, 0, 0, 1],
+			[length / 2, 0, 12, -1, 0],
+			[(3 * length) / 4, -20, 0, 0, -1]
+		];
+		for (const [arcLength, x, y, directionX, directionY] of cases) {
+			const point = pathPoint(arcLength, rect);
+			expect(point.x).toBeCloseTo(x, 9);
+			expect(point.y).toBeCloseTo(y, 9);
+			expect(point.directionX).toBeCloseTo(directionX, 9);
+			expect(point.directionY).toBeCloseTo(directionY, 9);
+		}
+	});
+
+	it("wraps past the loop length", () => {
+		const wrapped = pathPoint(length + 5, rect);
+		const direct = pathPoint(5, rect);
+		expect(wrapped.x).toBeCloseTo(direct.x);
+		expect(wrapped.y).toBeCloseTo(direct.y);
+	});
+
+	it("always heads along a unit vector and stays on the outline it is the inverse of", () => {
+		for (let step = 0; step < 400; step++) {
+			const arcLength = (step / 400) * length + 0.013;
+			const point = pathPoint(arcLength, rect);
+			expect(Math.hypot(point.directionX, point.directionY)).toBeCloseTo(1, 9);
+			const back = outlineParam(point.x, point.y, rect);
+			expect(back.across).toBeCloseTo(0, 6);
+			expect(modularGap(back.s, arcLength)).toBeLessThan(1e-6);
+		}
+	});
+
+	it("is continuous: a tiny step in s moves the point by about that much", () => {
+		const epsilon = 0.01;
+		for (let step = 0; step < 400; step++) {
+			const arcLength = (step / 400) * length;
+			const here = pathPoint(arcLength, rect);
+			const next = pathPoint(arcLength + epsilon, rect);
+			expect(Math.hypot(next.x - here.x, next.y - here.y)).toBeLessThan(epsilon * 1.01);
+		}
 	});
 });
 

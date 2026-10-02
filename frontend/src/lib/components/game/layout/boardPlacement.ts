@@ -13,13 +13,16 @@
  */
 
 import { CARD_HEIGHT, CARD_WIDTH, EM_TO_WORLD } from "../three/units";
+import { FELT_TEXELS_PER_ART_PIXEL } from "../three/ripple/ripplePlan";
+import { LOOP_INSET_BLOCKS, LOOP_PILE_CLEARANCE_BLOCKS } from "../animation/loopPlan";
 import { MAX_JITTER_EM } from "./discardPile";
 import type { CameraRig } from "./cameraRig";
 import {
 	landscapeMatPlacement,
 	matBounds,
 	portraitMatPlacement,
-	turnedPortraitMatPlacement,
+	portraitSheetMatPlacement,
+	PHONE_MAT_SHEET,
 	PORTRAIT_MAT_WIDTH_FILL,
 	type MatPlacement
 } from "./playmat";
@@ -147,6 +150,16 @@ export const CENTER_PILE_MIN_SPREAD = 1.5;
 // rather than a stack to read.
 export const PORTRAIT_DRAW_PILE_SCALE = 0.6;
 
+// The draw pile is never more than this share of the discard pile's size, however
+// tight the table gets and the piles shrink, so the front pile cannot swallow
+// the discard behind it.
+export const PORTRAIT_DRAW_TO_DISCARD_RATIO = 0.85;
+
+// Extra depth pushed between the discard pile and the portrait draw pile on top
+// of CENTER_PILE_GAP, so the stack-under-discard pair reads as two clearly
+// separate piles rather than one crowded mass. Positive = toward the player.
+export const PORTRAIT_DRAW_PILE_DEPTH_OFFSET = 0.6;
+
 // How much of the frustum's width the hand row may span, and how many cards
 // have to fit inside it before the row starts scrolling. Without this the card
 // size is solved purely from the height of the strip under the felt, which on a
@@ -171,9 +184,14 @@ export const HAND_SPACING_RATIO = 0.8;
 // the second draw.
 export const PORTRAIT_HAND_MIN_VISIBLE_CARDS = 6;
 
-// Clearance kept between the center piles' scattered footprint and the felt's
-// painted edge on a phone, across and along the table.
-export const PORTRAIT_PILE_FELT_MARGIN = 0.35;
+// Felt kept between the center piles' scattered footprint and the felt's painted
+// edge on a phone, in the felt's art pixels: room for the direction loop's inset
+// plus clear space between the loop and the piles.
+export const PORTRAIT_LOOP_MARGIN_BLOCKS = LOOP_INSET_BLOCKS + LOOP_PILE_CLEARANCE_BLOCKS;
+
+// Each retry of the phone board shrinks the piles by this factor until the felt
+// that wraps them fits the table area.
+export const PORTRAIT_PILE_SHRINK_STEP = 0.96;
 
 /** The phone hand's card scale — width-bound, so a function of the frustum's
  *  width alone. */
@@ -197,11 +215,55 @@ export function portraitHandStripDepth(halfWidth: number): number {
 	);
 }
 
+interface PortraitPileLayout {
+	drawPileScale: number;
+	/** Half the width the piles' scatter covers. */
+	halfWidth: number;
+	/** Depth the piles' scatter covers, discard's far reach to draw pile's near. */
+	depth: number;
+	/** Each pile's centre, as a Z offset from the middle of that footprint. */
+	discardOffsetZ: number;
+	drawPileOffsetZ: number;
+}
+
+/** The discard pile with the draw pile tucked under it, for a given card scale.
+ *  Only the piles' own geometry: where they sit on the table is decided after. */
+function portraitPileLayout(centerScale: number, handScale: number): PortraitPileLayout {
+	// Per unit of card scale: how far the scatter reaches across and along the
+	// table past its own center.
+	const jitter = MAX_JITTER_EM * EM_TO_WORLD;
+	const reachX = CARD_WIDTH / 2 + jitter;
+	const reachZ = CARD_HEIGHT / 2 + jitter;
+
+	// The draw pile is a tap target, not a stack to read, so it is a fraction of
+	// the hand's card size and cannot swallow the discard sitting behind it.
+	const drawPileScale = Math.min(
+		centerScale * PORTRAIT_DRAW_TO_DISCARD_RATIO,
+		handScale * PORTRAIT_DRAW_PILE_SCALE
+	);
+	const drawPileZ =
+		reachZ * centerScale +
+		CENTER_PILE_GAP +
+		PORTRAIT_DRAW_PILE_DEPTH_OFFSET +
+		reachZ * drawPileScale;
+	const farEdge = -reachZ * centerScale;
+	const nearEdge = drawPileZ + reachZ * drawPileScale;
+	const middle = (farEdge + nearEdge) / 2;
+	return {
+		drawPileScale,
+		halfWidth: reachX * Math.max(centerScale, drawPileScale),
+		depth: nearEdge - farEdge,
+		discardOffsetZ: -middle,
+		drawPileOffsetZ: drawPileZ - middle
+	};
+}
+
 /**
- * The phone board: the felt box comes from portraitTable.ts, and both center
- * piles stack on its center line — discard toward the opponents, draw toward
- * the player — at the hand's own card size unless the felt is too narrow or
- * too short for it.
+ * The phone board: the two center piles stack on the center line of the table
+ * area portraitTable.ts leaves between the seats, at the hand's own card size
+ * unless the area is too tight for it, and the felt is drawn only big enough to
+ * wrap them. The felt is one uniformly scaled sheet, never stretched to fill
+ * the area; the piles shrink instead when the area cannot hold it.
  */
 function portraitTablePlacement(rig: CameraRig, table: FeltBox): BoardPlacement {
 	const handScale = portraitHandScale(rig.halfWidth);
@@ -209,38 +271,42 @@ function portraitTablePlacement(rig: CameraRig, table: FeltBox): BoardPlacement 
 	const localSeatZ = nearEdgeZ - (CARD_HEIGHT * handScale) / 2 - HAND_BOTTOM_MARGIN;
 	const localAvatarZ = localSeatZ - (CARD_HEIGHT * handScale) / 2 - LOCAL_SEAT_GAP;
 
-	const mat = turnedPortraitMatPlacement(
-		table.feltHalfWidth,
-		table.feltHalfDepth,
-		table.feltCenterZ
-	);
-	const feltHalfWidth = mat.bounds.right - PORTRAIT_PILE_FELT_MARGIN;
-	const feltHalfDepth = (mat.bounds.near - mat.bounds.far) / 2 - PORTRAIT_PILE_FELT_MARGIN;
+	function feltAround(layout: PortraitPileLayout) {
+		return portraitSheetMatPlacement(
+			PHONE_MAT_SHEET,
+			2 * layout.halfWidth,
+			layout.depth,
+			PORTRAIT_LOOP_MARGIN_BLOCKS * FELT_TEXELS_PER_ART_PIXEL,
+			table.feltCenterZ
+		);
+	}
+	function fitsTheArea(mat: MatPlacement): boolean {
+		return (
+			mat.bounds.right <= table.feltHalfWidth &&
+			(mat.bounds.near - mat.bounds.far) / 2 <= table.feltHalfDepth
+		);
+	}
 
-	// Per unit of card scale: how far the scatter reaches across and along the
-	// table past its own center.
-	const jitter = MAX_JITTER_EM * EM_TO_WORLD;
-	const reachX = CARD_WIDTH / 2 + jitter;
-	const reachZ = CARD_HEIGHT / 2 + jitter;
-	const widthFit = feltHalfWidth / reachX;
-	// Two stacked piles span four reaches plus the gap between them.
-	const depthFit = (2 * feltHalfDepth - CENTER_PILE_GAP) / (4 * reachZ);
-	const centerScale = Math.max(MIN_CENTER_SCALE, Math.min(handScale, widthFit, depthFit));
-
-	const pileSpreadZ = reachZ * centerScale + CENTER_PILE_GAP / 2;
-	const feltCenterZ = (mat.bounds.far + mat.bounds.near) / 2;
+	let centerScale = handScale;
+	let layout = portraitPileLayout(centerScale, handScale);
+	let mat = feltAround(layout);
+	while (!fitsTheArea(mat) && centerScale > MIN_CENTER_SCALE) {
+		centerScale = Math.max(MIN_CENTER_SCALE, centerScale * PORTRAIT_PILE_SHRINK_STEP);
+		layout = portraitPileLayout(centerScale, handScale);
+		mat = feltAround(layout);
+	}
 
 	return {
 		mat,
 		discardX: 0,
-		discardZ: feltCenterZ - pileSpreadZ,
+		discardZ: table.feltCenterZ + layout.discardOffsetZ,
 		handScale,
 		centerScale,
 		localSeatZ,
 		localAvatarZ,
 		drawPileX: 0,
-		drawPileZ: feltCenterZ + pileSpreadZ,
-		drawPileScale: centerScale
+		drawPileZ: table.feltCenterZ + layout.drawPileOffsetZ,
+		drawPileScale: layout.drawPileScale
 	};
 }
 

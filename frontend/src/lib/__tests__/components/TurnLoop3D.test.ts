@@ -18,11 +18,18 @@ import { storeAnimation } from "$stores/animation.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
-import { loopLength, loopRect, sheetBlockCount } from "$components/game/three/loopGeometry";
 import {
+	fitLoopRect,
+	loopLength,
+	loopRect,
+	sheetBlockCount
+} from "$components/game/three/loopGeometry";
+import {
+	LOOP_CELL_BLOCKS,
 	LOOP_CORNER_RADIUS_BLOCKS,
 	LOOP_INSET_BLOCKS,
-	LOOP_TARGET_PITCH_BLOCKS
+	LOOP_MAX_CORNER_RADIUS_BLOCKS,
+	LOOP_MIN_CORNER_RADIUS_BLOCKS
 } from "$components/game/animation/loopPlan";
 
 type Uniforms = Record<string, { value: unknown }>;
@@ -50,6 +57,23 @@ function loopMaterialUniforms(): Uniforms {
 	return set;
 }
 
+function fittedLoopRect(sheet: typeof DESKTOP_MAT_SHEET) {
+	return fitLoopRect(
+		loopRect(
+			sheetBlockCount(sheet),
+			sheet.feltUvRect,
+			LOOP_INSET_BLOCKS,
+			LOOP_CORNER_RADIUS_BLOCKS
+		),
+		{
+			cellLength: LOOP_CELL_BLOCKS,
+			preferredCornerRadius: LOOP_CORNER_RADIUS_BLOCKS,
+			minCornerRadius: LOOP_MIN_CORNER_RADIUS_BLOCKS,
+			maxCornerRadius: LOOP_MAX_CORNER_RADIUS_BLOCKS
+		}
+	);
+}
+
 describe("TurnLoop3D", () => {
 	beforeEach(() => {
 		resetMockState();
@@ -69,17 +93,12 @@ describe("TurnLoop3D", () => {
 		expect(screen.getByTestId("turn-loop").dataset.direction).toBe("1");
 	});
 
-	it("writes the inset felt rectangle and a seamless pitch into its uniforms", () => {
+	it("writes the fitted felt rectangle into its uniforms, tiling whole cells", () => {
 		render(TurnLoop3D, {
 			props: { mat, rippleUniforms: rippleUniforms(), sheet: DESKTOP_MAT_SHEET }
 		});
 		flushSync();
-		const expected = loopRect(
-			sheetBlockCount(DESKTOP_MAT_SHEET),
-			DESKTOP_MAT_SHEET.feltUvRect,
-			LOOP_INSET_BLOCKS,
-			LOOP_CORNER_RADIUS_BLOCKS
-		);
+		const expected = fittedLoopRect(DESKTOP_MAT_SHEET);
 		const uniforms = loopMaterialUniforms();
 		const center = uniforms.uLoopCenter.value as THREE.Vector2;
 		const halfSize = uniforms.uLoopHalfSize.value as THREE.Vector2;
@@ -87,13 +106,10 @@ describe("TurnLoop3D", () => {
 		expect(center.y).toBeCloseTo(expected.centerY);
 		expect(halfSize.x).toBeCloseTo(expected.halfWidth);
 		expect(halfSize.y).toBeCloseTo(expected.halfHeight);
+		expect(uniforms.uLoopCornerRadius.value).toBeCloseTo(expected.cornerRadius);
 		const length = uniforms.uLoopLength.value as number;
 		expect(length).toBeCloseTo(loopLength(expected));
-		const cells = length / (uniforms.uPitch.value as number);
-		expect(cells).toBeCloseTo(Math.round(cells));
-		expect(Math.abs((uniforms.uPitch.value as number) - LOOP_TARGET_PITCH_BLOCKS)).toBeLessThan(
-			LOOP_TARGET_PITCH_BLOCKS / 2
-		);
+		expect(length / LOOP_CELL_BLOCKS).toBeCloseTo(Math.round(length / LOOP_CELL_BLOCKS), 6);
 	});
 
 	it("shares the felt's uniform objects instead of copying them", () => {
@@ -112,14 +128,16 @@ describe("TurnLoop3D", () => {
 			props: { mat, rippleUniforms: rippleUniforms(), sheet: PHONE_MAT_SHEET }
 		});
 		flushSync();
-		const expected = loopRect(
-			sheetBlockCount(PHONE_MAT_SHEET),
-			PHONE_MAT_SHEET.feltUvRect,
-			LOOP_INSET_BLOCKS,
-			LOOP_CORNER_RADIUS_BLOCKS
-		);
-		const center = loopMaterialUniforms().uLoopCenter.value as THREE.Vector2;
+		const expected = fittedLoopRect(PHONE_MAT_SHEET);
+		const uniforms = loopMaterialUniforms();
+		const center = uniforms.uLoopCenter.value as THREE.Vector2;
+		const halfSize = uniforms.uLoopHalfSize.value as THREE.Vector2;
 		expect(center.x).toBeCloseTo(expected.centerX);
+		expect(center.y).toBeCloseTo(expected.centerY);
+		expect(halfSize.x).toBeCloseTo(expected.halfWidth);
+		expect(halfSize.y).toBeCloseTo(expected.halfHeight);
+		// the phone felt is taller than wide, so is its loop
+		expect(halfSize.y).toBeGreaterThan(halfSize.x);
 	});
 });
 
