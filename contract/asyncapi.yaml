@@ -310,6 +310,12 @@ components:
               EVERY viewer while any prompt is pending and carries only the
               clock, never the payload or target; it is omitted when no
               prompt is pending. Observers draw the wait from it.
+              Outcome fields: `mode` is `"standard"` or `"race"`; `race_target`
+              is the number of finishers that end a race (0 in standard mode,
+              fixed from the seated count at match start); `placements` lists
+              usernames best-first. In a race it grows as seats finish and
+              `winner` stays empty until the race ends, when every seat still
+              holding cards is ranked below the finishers.
           action_required:
             type: integer
             description: >
