@@ -6,8 +6,8 @@
      rotating group so a spectator spin turns the whole board as a single
      object; the local hand row is the one thing outside it. -->
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { T } from "@threlte/core";
+	import { onMount, tick } from "svelte";
+	import { T, useThrelte } from "@threlte/core";
 	import { interactivity, useInteractivity } from "@threlte/extras";
 	import type { PerspectiveCamera } from "three";
 	import { storeGame, type GamePlayer } from "$stores/game.svelte";
@@ -32,9 +32,11 @@
 	import DiscardPile3D from "./DiscardPile3D.svelte";
 	import AllCards3D from "./AllCards3D.svelte";
 	import { preloadCardArt } from "./cardFaceAtlas";
+	import { warmRenderer } from "./rendererWarmup";
 
 	interactivity();
 	const { raycaster } = useInteractivity();
+	const { scene, camera, renderer } = useThrelte();
 
 	// Whether the local player's own avatar/hand also dim outside their turn,
 	// the same way every opponent seat now does — kept as a single flip so the
@@ -187,17 +189,31 @@
 
 	onMount(() => {
 		let cancelled = false;
-		preloadCardArt()
-			.then(() => {
-				if (cancelled) return;
-				artLoaded = true;
-				storeGame.sendClientReady();
-			})
-			.catch((err) => {
+
+		async function prepare(): Promise<void> {
+			// 1. Decode the card art and bake the atlas (async, network + canvas).
+			try {
+				await preloadCardArt();
+			} catch (err) {
 				console.error("Scene3D: card art preload failed", err);
-				if (cancelled) return;
-				storeGame.sendClientReady();
-			});
+			}
+			if (cancelled) return;
+			artLoaded = true;
+
+			// 2. Require the board's own meshes (gated on `artLoaded`) to mount so
+			//    the scene graph handed to the warm-up is complete.
+			await tick();
+			if (cancelled) return;
+
+			// 3. Compile the shaders and upload the atlas NOW, behind the loader,
+			//    instead of on the deal's opening frames. `sendClientReady` — which
+			//    releases the ready barrier and lets the match begin — waits for it.
+			await warmRenderer(renderer, scene, camera.current);
+			if (cancelled) return;
+			storeGame.sendClientReady();
+		}
+
+		void prepare();
 		return () => {
 			cancelled = true;
 		};

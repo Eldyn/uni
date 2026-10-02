@@ -12,6 +12,29 @@ function resetPreload() {
 		preloadReject = reject;
 	});
 }
+
+// `sendClientReady` is awaited behind the renderer warm-up, which awaits a
+// `compileAsync` promise. This mock keeps that promise pending so tests can
+// assert "ready not yet sent", then `settleWarmup()` releases it.
+let warmResolve: () => void;
+function resetWarmup() {
+	warmResolve = () => {};
+}
+resetWarmup();
+async function settleWarmup() {
+	warmResolve();
+	await tick();
+	await tick();
+	await tick();
+	await tick();
+}
+
+vi.mock("./rendererWarmup", () => ({
+	warmRenderer: () =>
+		new Promise<void>((resolve) => {
+			warmResolve = resolve;
+		})
+}));
 resetPreload();
 
 vi.mock("@threlte/core", () => ({
@@ -52,6 +75,7 @@ describe("Scene3D card art preloading", () => {
 	afterEach(() => {
 		cleanup();
 		resetPreload();
+		resetWarmup();
 		vi.restoreAllMocks();
 	});
 
@@ -117,10 +141,14 @@ describe("Scene3D card art preloading", () => {
 		// The ready signal must wait for card art, not fire on mount.
 		expect(readySpy).not.toHaveBeenCalled();
 
+		// Art done is not enough: the renderer warm-up must finish too, since
+		// its whole point is to be paid before the ready barrier opens.
 		preloadResolve();
 		await tick();
 		await tick();
+		expect(readySpy).not.toHaveBeenCalled();
 
+		await settleWarmup();
 		expect(readySpy).toHaveBeenCalledTimes(1);
 	});
 
@@ -181,8 +209,10 @@ describe("Scene3D card art preloading", () => {
 		await tick();
 		await tick();
 
-		// A failed preload must not strand the barrier: ready is still sent.
+		// A failed preload must not strand the barrier: ready is still sent,
+		// once the warm-up (also, here, still pending) finishes.
 		expect(errorSpy).toHaveBeenCalled();
+		await settleWarmup();
 		expect(readySpy).toHaveBeenCalledTimes(1);
 	});
 

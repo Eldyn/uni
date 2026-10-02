@@ -48,7 +48,9 @@ const pruneStaleChunksPlugin = {
 	}
 };
 
-const OUT_DIR = "../public";
+// Overridable so the perf harness can build into an isolated dir and serve it
+// without clobbering the production bundle a running server is serving.
+const OUT_DIR = process.env.UNI_OUT_DIR || "../public";
 
 // The server ships a ".gz" sidecar whenever the client accepts gzip, so the
 // three.js/Threlte bundle goes over the wire compressed without costing any

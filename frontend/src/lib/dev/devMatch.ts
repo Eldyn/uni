@@ -13,6 +13,7 @@ import { storeGame } from "$stores/game.svelte";
 import { storeNavigation } from "$stores/navigation.svelte";
 import { pointerMode } from "$components/game/layout/pointerMode.svelte";
 import { devFixturePreset } from "./devFixturePreset.svelte";
+import { perfProbe } from "./perfProbe";
 import { buildMatchFixture, parseMatchFixtureQuery, FIXTURE_LOCAL_USERNAME } from "./matchFixture";
 
 /**
@@ -27,12 +28,22 @@ export function tryStartDevMatch(search: string): boolean {
 	const options = parseMatchFixtureQuery(search);
 	if (options === null) return false;
 
+	// `&perf=1` arms the frame-time probe. Enabling it here (before the board
+	// mounts) means the auto-bracketed `deal` capture is already live when the
+	// match-start cinematic begins; the harness reads `window.__uniPerf`.
+	if (new URLSearchParams(search).has("perf")) perfProbe.enable();
+
 	// `localPlayer` is derived from the auth username, so the fixture's local
 	// seat only resolves once the store agrees on who the local player is.
 	storeAuth.username = FIXTURE_LOCAL_USERNAME;
 	storeAuth.isGuest = true;
 
 	storeGame.state = buildMatchFixture(options);
+	// The fixture bypasses the wire, so nothing ever raises the ready barrier
+	// (`match_begin`). Without it `matchBegun` stays false: the loader covers
+	// the board forever, and the `&intro=1` cinematic can never pass its gate.
+	// The fixture already represents a begun match, so mark it as such.
+	storeGame.matchBegun = true;
 	// `&intro=1` forces the match-start cinematic even though the fixture
 	// bypasses the wire (no `match_start` frame sets the pending flag).
 	if (new URLSearchParams(search).get("intro") === "1") storeGame.matchIntroPending = true;

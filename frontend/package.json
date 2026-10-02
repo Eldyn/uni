@@ -8,6 +8,8 @@
 		"build": "node scripts/generate-schemas.js && vite build",
 		"watch": "vite build --watch --mode development",
 		"preview": "vite preview",
+		"perf": "node scripts/perf-harness.mjs",
+		"perf:build": "vite build --mode development",
 		"test": "vitest run",
 		"test:ui": "vitest --ui",
 		"lint": "prettier --check .",
