@@ -168,6 +168,12 @@ TEST_CASE("engine adversarial: thousand-card hands assemble and play") {
     REQUIRE(engine->DrawCard("player1"));
     CHECK(HandSize(*engine, player1) == 1001);
     CHECK(PileSize(*engine, ecs::PileKind::kDraw) == 198);
+    // INFO: the drawn red_5 matches the red active type, so the playable draw
+    //       holds the turn for player1's play/keep choice. Keeping it clears
+    //       the hold and advances; this preserves the turn-advance assertion.
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    REQUIRE(engine->KeepDrawn("player1"));
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
 
     engine->Tick();

@@ -420,7 +420,26 @@ bool MatchInstance::DrawCard(const std::string& username) {
     //       pipeline instead of passing the turn. A paused flow is left for
     //       SubmitInput / the window; otherwise the turn passes.
     if (!Paused() && ExecuteForcedPlays()) return true;
-    if (!Paused()) AdvanceTurn();
+    if (Paused()) return true;
+    if (DrawnCardPlayable(*player, *card)) {
+        awaiting_play_drawn_ = PendingPlayDrawn{*player, *card};
+        return true;
+    }
+    AdvanceTurn();
+    return true;
+}
+
+bool MatchInstance::KeepDrawn(const std::string& username) {
+    if (!started_ || finished_ || assembly_ == nullptr) return false;
+    if (!awaiting_play_drawn_.has_value()) return false;
+
+    const std::optional<ecs::Entity> player = FindPlayer(username);
+    if (!player.has_value() || !(awaiting_play_drawn_->player == *player)) {
+        return false;
+    }
+
+    awaiting_play_drawn_.reset();
+    AdvanceTurn();
     return true;
 }
 
@@ -570,7 +589,9 @@ void MatchInstance::Tick() {
                              : "all_pass");
     } else if (tick.turn_expired) {
         // INFO: engine default for a lapsed turn clock; the engine may refine
-        //       the AFK/bot takeover policy.
+        //       the AFK/bot takeover policy. A parked play/keep choice is
+        //       dropped with the turn it belonged to.
+        awaiting_play_drawn_.reset();
         AdvanceTurn();
     }
 
@@ -911,6 +932,14 @@ modload::PlayAttempt MatchInstance::BuildPlayAttempt(ecs::Entity player,
 modload::PlayDecision MatchInstance::CheckPlayRestrictions(
     const modload::PlayAttempt& attempt) const {
     return MakePlayEvaluator().Check(attempt);
+}
+
+bool MatchInstance::DrawnCardPlayable(ecs::Entity player,
+                                      ecs::Entity card) const {
+    // INFO: `CheckPlayRestrictions` is a pure probe (it only evaluates the
+    //       ordered pipeline; it never emits `play_rejected` or mutates the
+    //       store), so it is safe to ask mid-draw.
+    return CheckPlayRestrictions(BuildPlayAttempt(player, card, true)).allowed;
 }
 
 PlayEvaluator MatchInstance::MakePlayEvaluator() const {
@@ -2458,6 +2487,11 @@ std::optional<resolver::WindowRequest> MatchInstance::PendingWindow() const {
                ? std::optional<resolver::WindowRequest>(
                      pending_window_->request)
                : std::nullopt;
+}
+
+const std::optional<PendingPlayDrawn>&
+MatchInstance::PendingPlayDrawnState() const {
+    return awaiting_play_drawn_;
 }
 
 std::vector<PlayEvaluator::WindowView::Member> MatchInstance::WindowFilters()

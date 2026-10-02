@@ -83,6 +83,19 @@
 namespace match::engine {
 
 /**
+ * @struct PendingPlayDrawn
+ * @brief A playable voluntary draw's play/keep choice.
+ *
+ * Set when the current player draws a card that passes the restriction
+ * pipeline: `player` holds the turn until it plays `card`, keeps it
+ * (`KeepDrawn`) or the turn clock expires. Cleared by each of those paths.
+ */
+struct PendingPlayDrawn {
+    ecs::Entity player{}; /**< drawing player who keeps the turn. */
+    ecs::Entity card{};   /**< the drawn card awaiting play/keep. */
+};
+
+/**
  * @class MatchInstance
  * @brief Headless match driver over a `MatchAssembly`.
  */
@@ -162,14 +175,27 @@ public:
      * Fires `draw_attempt` (veto = skip this draw), auto-reshuffles the discard
      * into the draw pile when it is empty (`pile_empty` veto blocks the
      * reshuffle, `shuffle` observes it), fires `draw` (veto = undo), then emits
-     * `cards_drawn` and advances the turn. The drawn-card play decision is a
-     * The engine and the engine seam: this slice always passes the turn after
-     * the draw.
+     * `cards_drawn`. A drawn card a forced `after:draw` play claims is routed
+     * through the normal play pipeline; otherwise a playable drawn card parks a
+     * `PendingPlayDrawn` choice and holds the turn, and an unplayable one passes
+     * the turn.
      *
      * @return false on an unknown player, a non-current player, an exhausted
      *         draw pile with nothing to reshuffle, or a finished match.
      */
     bool DrawCard(const std::string& username);
+
+    /**
+     * @brief Keep a playable drawn card and end the turn.
+     *
+     * Only valid while a `PendingPlayDrawn` choice is parked and `username` is
+     * the chooser (`FindPlayer` match). Clears the choice and advances the
+     * turn; the card stays in the hand. A non-owner or absent choice is
+     * refused and leaves the state untouched.
+     *
+     * @return true when the choice was kept and the turn advanced.
+     */
+    bool KeepDrawn(const std::string& username);
 
     /**
      * @brief Bind a paused op input and resume the Resolver.
@@ -357,6 +383,14 @@ public:
      * live responder/response state.
      */
     std::optional<resolver::WindowRequest> PendingWindow() const;
+
+    /**
+     * @brief The parked play/keep choice for a playable voluntary draw.
+     *
+     * Nullopt unless the current player drew a playable card and has yet to
+     * play it, keep it (`KeepDrawn`) or let the turn clock expire.
+     */
+    const std::optional<PendingPlayDrawn>& PendingPlayDrawnState() const;
 
     /**
      * @brief Every member's responders and `respond_with` of the open group.
@@ -575,6 +609,15 @@ private:
     /** @brief Run the restriction pipeline for `attempt`. */
     modload::PlayDecision CheckPlayRestrictions(
         const modload::PlayAttempt& attempt) const;
+
+    /**
+     * @brief True when the current player could legally play `card` now.
+     *
+     * Side-effect free: probes the restriction pipeline with an in-turn
+     * attempt (`CheckPlayRestrictions` does not emit `play_rejected`), so a
+     * mere probe never mutates the match.
+     */
+    bool DrawnCardPlayable(ecs::Entity player, ecs::Entity card) const;
 
     /** @brief True when `card` satisfies the window's `respond_with`. */
     bool ResponseEligible(const nlohmann::json& respond_with,
@@ -851,6 +894,8 @@ private:
     /** Elapsed schedules parked behind a pause. */
     std::vector<nlohmann::json> deferred_scheduled_;
     std::vector<ForcedPlay> forced_plays_;  /**< queued `play_card` effects. */
+    /** Parked play/keep choice for a playable voluntary draw. */
+    std::optional<PendingPlayDrawn> awaiting_play_drawn_;
     match::Scheduler scheduler_;      /**< deferred-graph arm/expiry. */
     match::MatchTimers timers_;       /**< disjoint window/turn clocks. */
     /** Length the controller last armed the turn/prompt clocks with. */
