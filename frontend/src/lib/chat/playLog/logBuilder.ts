@@ -1,32 +1,47 @@
 import type { LogEvent, LogLine, StreakInfo } from "./logEvent";
-import { selectReactionKey, type ReactionRule } from "./reactionRules";
+import type { ReactionContext } from "./reactionContext";
+import type { ReactionRule } from "./reactionRules";
+import { selectReactions } from "./reactionRules";
 
 export type { LogEvent, LogLine };
 
-export const REACTION_RULES = {
-	play: {
+export const REACTION_RULES: ReactionRule[] = [
+	{
+		id: "play",
+		match: (c) => c.event.kind === "play",
 		group: () => "generic",
 		pools: { generic: [{ key: "log_play" }] },
-		params: (e) => ({ name: e.player, kind: e.cardKind, color: e.color })
+		params: (c) => ({ name: c.event.player, kind: c.event.cardKind, color: c.event.color })
 	},
-	skip: {
-		group: (_e, s) =>
-			s.skipRun >= 4 ? "streak" : s.skipRun === 3 ? "three" : s.skipRun === 2 ? "two" : "one",
+	{
+		id: "auto_play",
+		match: (c) => c.event.kind === "auto_play",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_auto_play_1" }, { key: "log_auto_play_2" }] },
+		params: (c) => ({ name: c.event.player, kind: c.event.cardKind, color: c.event.color })
+	},
+	{
+		id: "skip",
+		match: (c) => c.event.kind === "skip",
+		group: (c) =>
+			c.skipRun >= 4 ? "streak" : c.skipRun === 3 ? "three" : c.skipRun === 2 ? "two" : "one",
 		pools: {
 			one: [{ key: "log_skip" }],
 			two: [{ key: "log_skip_again" }],
 			three: [{ key: "log_skip_third" }],
 			streak: [{ key: "log_skip_streak" }, { key: "log_skip_streak_2" }]
 		},
-		params: (e) => ({ name: e.player })
+		params: (c) => ({ name: c.event.kind === "skip" ? c.event.player : "" })
 	},
-	reverse: {
-		group: (_e, s) =>
-			s.reverseRun >= 4
+	{
+		id: "reverse",
+		match: (c) => c.event.kind === "reverse",
+		group: (c) =>
+			c.reverseRun >= 4
 				? "streak"
-				: s.reverseRun === 3
+				: c.reverseRun === 3
 					? "three"
-					: s.reverseRun === 2
+					: c.reverseRun === 2
 						? "two"
 						: "one",
 		pools: {
@@ -37,43 +52,17 @@ export const REACTION_RULES = {
 		},
 		params: () => ({})
 	},
-	auto_play: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_auto_play_1" }, { key: "log_auto_play_2" }] },
-		params: (e) => ({ name: e.player, kind: e.cardKind, color: e.color })
-	},
-	reshuffle: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_reshuffle_1" }, { key: "log_reshuffle_2" }] },
-		params: () => ({})
-	},
-	wild: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_wild_reaction_1" }] },
-		params: (e) => ({ name: e.player, color: e.color })
-	},
-	near_win: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_near_win_1" }, { key: "log_near_win_2" }] },
-		params: (e) => ({ name: e.player })
-	},
-	win: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_win_1" }, { key: "log_win_2" }] },
-		params: (e) => ({ name: e.player })
-	},
-	elimination: {
-		group: () => "generic",
-		pools: { generic: [{ key: "log_elimination_1" }, { key: "log_elimination_2" }] },
-		params: (e) => ({ name: e.player, place: e.place })
-	},
-	draw: {
-		group: (e, s) => {
+	{
+		id: "draw",
+		match: (c) => c.event.kind === "draw",
+		group: (c) => {
+			if (c.event.kind !== "draw") return "generic";
+			const e = c.event;
 			if (e.penalty) return (e.total ?? 0) >= 8 ? "penalty_heavy" : "penalty_small";
 			if ((e.handSize ?? 0) >= 10) return "big_hand";
 			if (e.count >= 4) return "large";
-			if (s.totalDraws === 1) return "first";
-			if (s.drawRun >= 4) return "many";
+			if (c.totalDraws === 1) return "first";
+			if (c.drawRun >= 4) return "many";
 			return "generic";
 		},
 		pools: {
@@ -85,24 +74,66 @@ export const REACTION_RULES = {
 			penalty_small: [{ key: "log_draw_stack" }],
 			penalty_heavy: [{ key: "log_draw_stack_heavy" }]
 		},
-		params: (e, s) => ({
-			name: e.player,
-			count: e.count,
-			amount: e.amount ?? 0,
-			total: e.total ?? 0,
-			handSize: e.handSize ?? 0,
-			drawRun: s.drawRun,
-			victim: e.victim ?? e.player
+		params: (c) =>
+			c.event.kind === "draw"
+				? {
+						name: c.event.player,
+						victim: c.event.victim ?? c.event.player,
+						count: c.event.count,
+						amount: c.event.amount ?? 0,
+						total: c.event.total ?? 0,
+						handSize: c.event.handSize ?? 0,
+						drawRun: c.drawRun
+					}
+				: {}
+	},
+	{
+		id: "reshuffle",
+		match: (c) => c.event.kind === "reshuffle",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_reshuffle_1" }, { key: "log_reshuffle_2" }] },
+		params: () => ({})
+	},
+	{
+		id: "near_win",
+		match: (c) => c.event.kind === "near_win",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_near_win_1" }, { key: "log_near_win_2" }] },
+		params: (c) => ({ name: c.event.kind === "near_win" ? c.event.player : "" })
+	},
+	{
+		id: "win",
+		match: (c) => c.event.kind === "win",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_win_1" }, { key: "log_win_2" }] },
+		params: (c) => ({ name: c.event.kind === "win" ? c.event.player : "" })
+	},
+	{
+		id: "elimination",
+		match: (c) => c.event.kind === "elimination",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_elimination_1" }, { key: "log_elimination_2" }] },
+		params: (c) =>
+			c.event.kind === "elimination" ? { name: c.event.player, place: c.event.place } : {}
+	},
+	{
+		id: "wild",
+		match: (c) => c.event.kind === "wild",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_wild_reaction_1" }] },
+		params: (c) => ({
+			name: c.event.kind === "wild" ? c.event.player : "",
+			color: c.event.kind === "wild" ? c.event.color : ""
 		})
 	}
-} satisfies { [K in LogEvent["kind"]]: ReactionRule<Extract<LogEvent, { kind: K }>> };
+];
 
-const RULES_BY_KIND: Partial<Record<string, ReactionRule>> = REACTION_RULES;
-
-export function buildLogLine(event: LogEvent, streak: StreakInfo): LogLine | null {
-	const rule = RULES_BY_KIND[event.kind];
-	if (!rule) return null;
-	const key = selectReactionKey(event.kind, rule, event, streak);
-	if (!key) return null;
-	return { kind: "log", key, params: rule.params(event, streak), tier: 0 };
+export function buildLogLines(event: LogEvent, streak: StreakInfo): LogLine[] {
+	const ctx: ReactionContext = { seq: event.seq, event, ...streak };
+	return selectReactions(ctx, REACTION_RULES).map((r) => ({
+		kind: "log",
+		key: r.key,
+		params: r.params,
+		tier: 0
+	}));
 }

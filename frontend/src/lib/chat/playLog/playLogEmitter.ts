@@ -1,4 +1,4 @@
-import { buildLogLine } from "./logBuilder";
+import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
 import { StreakTracker } from "./streakTracker";
 import type { LogEvent, LogLine } from "./logEvent";
@@ -34,8 +34,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	const seenPlacements = new Set<string>();
 
 	function emit(event: LogEvent): void {
-		const line = buildLogLine(event, tracker.record(event));
-		if (line) post(line);
+		for (const line of buildLogLines(event, tracker.record(event))) post(line);
 	}
 
 	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
@@ -110,7 +109,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 
 	function noteDraw(
 		beat: { seq: number; player: string; count: number },
-		ctx: { handSize: number; nearWin: boolean }
+		ctx: { handSize: number }
 	): void {
 		enqueue(() =>
 			emit({

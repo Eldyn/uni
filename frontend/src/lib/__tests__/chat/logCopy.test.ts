@@ -3,7 +3,7 @@ import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { resolveLogText } from "../../chat/playLog/logText";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
 import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
-import type { ReactionRule } from "../../chat/playLog/reactionRules";
+import type { ReactionContext } from "../../chat/playLog/reactionContext";
 
 const localeCatalogs = import.meta.glob<Record<string, string>>("../../../../messages/*.json", {
 	eager: true,
@@ -21,6 +21,8 @@ const PLACEHOLDER_SAMPLES: Record<string, string> = {
 	kind: "vanilla:red_draw2",
 	color: "red",
 	colorName: "red",
+	prevColor: "blue",
+	prevColorName: "blue",
 	cardName: "Draw Two",
 	count: "2",
 	amount: "2",
@@ -34,9 +36,13 @@ const PLACEHOLDER_SAMPLES: Record<string, string> = {
 const EMPTY_STREAK: StreakInfo = {
 	skipRun: 0,
 	reverseRun: 0,
-	stackedDebt: 0,
 	drawRun: 0,
-	totalDraws: 0
+	totalDraws: 0,
+	wildRun: 0,
+	lastWildColor: null,
+	prevWildColor: null,
+	nearWinTarget: null,
+	nearWinOpen: false
 };
 
 const SAMPLE_EVENTS: Record<string, LogEvent> = {
@@ -68,17 +74,18 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
 };
 
-const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
-	const rule: ReactionRule | undefined = REACTION_RULES[kind as keyof typeof REACTION_RULES];
-	if (!rule) return [];
-	return Object.values(rule.pools)
-		.flat()
-		.map((variant) => ({ key: variant.key, params: rule.params(event, EMPTY_STREAK) }));
+const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([, event]) => {
+	const ctx: ReactionContext = { seq: event.seq, event, ...EMPTY_STREAK };
+	return REACTION_RULES.filter((rule) => rule.match(ctx)).flatMap((rule) =>
+		Object.values(rule.pools)
+			.flat()
+			.map((variant) => ({ key: variant.key, params: rule.params(ctx) }))
+	);
 });
 
 const reactionKeys = Array.from(
 	new Set(
-		Object.values(REACTION_RULES).flatMap((rule) =>
+		REACTION_RULES.flatMap((rule) =>
 			Object.values(rule.pools)
 				.flat()
 				.map((variant) => variant.key)
@@ -86,8 +93,7 @@ const reactionKeys = Array.from(
 	)
 );
 const colorNameKeys = PALETTE_COLORS.map((color) => `log_color_${color}`);
-const standaloneKeys = ["log_wild"];
-const copyKeys = [...reactionKeys, ...colorNameKeys, ...standaloneKeys];
+const copyKeys = [...reactionKeys, ...colorNameKeys];
 
 /** Returns a problem description, or null when every tag is known, resolvable, and closed in order. */
 function tagProblem(text: string): string | null {
@@ -125,18 +131,22 @@ describe("play log copy renders for every REACTION_RULES pool key", () => {
 	});
 
 	it.each(PALETTE_COLORS)("names the %s wild colour and tags it with its id", (color) => {
-		const text = resolveLogText("log_wild", { name: "Ann", color });
+		const text = resolveLogText("log_wild_reaction_1", { name: "Ann", color });
 		expect(text).toContain(`[c=${color}]`);
 		expect(resolveLogText(`log_color_${color}`, {})?.trim()).toBeTruthy();
 	});
 
 	it("keeps a colorName the caller already supplied", () => {
-		const text = resolveLogText("log_wild", { name: "Ann", color: "red", colorName: "crimson" });
+		const text = resolveLogText("log_wild_reaction_1", {
+			name: "Ann",
+			color: "red",
+			colorName: "crimson"
+		});
 		expect(text).toContain("[c=red]crimson[/c]");
 	});
 
 	it("falls back to the raw id for an unknown colour", () => {
-		const text = resolveLogText("log_wild", { name: "Ann", color: "purple" });
+		const text = resolveLogText("log_wild_reaction_1", { name: "Ann", color: "purple" });
 		expect(text).toContain("[c=purple]purple[/c]");
 	});
 

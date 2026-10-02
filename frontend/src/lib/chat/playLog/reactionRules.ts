@@ -1,25 +1,33 @@
 import { stableIndex } from "./stableIndex";
-import type { LogEvent, StreakInfo } from "./logEvent";
+import type { ReactionContext } from "./reactionContext";
 
-export type ReactionVariant<E> = { key: string; when?(event: E, streak: StreakInfo): boolean };
+export type ReactionVariant = { key: string; when?(ctx: ReactionContext): boolean };
 
-export type ReactionRule<E extends LogEvent = LogEvent> = {
-	group(event: E, streak: StreakInfo): string;
-	pools: Record<string, ReactionVariant<E>[]>;
-	params(event: E, streak: StreakInfo): Record<string, string | number>;
+export type ReactionRule = {
+	id: string;
+	match(ctx: ReactionContext): boolean;
+	group(ctx: ReactionContext): string;
+	pools: Record<string, ReactionVariant[]>;
+	params(ctx: ReactionContext): Record<string, string | number>;
 };
 
-export function selectReactionKey<E extends LogEvent>(
-	ruleId: string,
-	rule: ReactionRule<E>,
-	event: E,
-	streak: StreakInfo
-): string {
-	const group = rule.group(event, streak);
-	const pool = rule.pools[group] ?? rule.pools.generic ?? [];
-	const eligible = pool.filter((v) => !v.when || v.when(event, streak));
-	const pickFrom = eligible.length > 0 ? eligible : pool;
-	if (pickFrom.length === 0) return "";
-	const index = stableIndex(event.seq, `${ruleId}:${group}`, pickFrom.length);
-	return pickFrom[index].key;
+export type SelectedReaction = {
+	ruleId: string;
+	key: string;
+	params: Record<string, string | number>;
+};
+
+export function selectReactions(ctx: ReactionContext, rules: ReactionRule[]): SelectedReaction[] {
+	const out: SelectedReaction[] = [];
+	for (const rule of rules) {
+		if (!rule.match(ctx)) continue;
+		const group = rule.group(ctx);
+		const pool = rule.pools[group] ?? rule.pools.generic ?? [];
+		const eligible = pool.filter((v) => !v.when || v.when(ctx));
+		const pickFrom = eligible.length > 0 ? eligible : pool;
+		if (pickFrom.length === 0) continue;
+		const index = stableIndex(ctx.seq, `${rule.id}:${group}`, pickFrom.length);
+		out.push({ ruleId: rule.id, key: pickFrom[index].key, params: rule.params(ctx) });
+	}
+	return out;
 }
