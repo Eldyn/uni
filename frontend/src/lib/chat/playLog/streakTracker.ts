@@ -60,15 +60,18 @@ export class StreakTracker {
 				};
 				this.lastSkipped = null;
 				break;
-			default:
+			default: {
+				const ownSkip = event.cardKind.endsWith("_skip");
+				const ownReverse = event.cardKind.endsWith("_reverse");
 				this.state = {
-					skipRun: 0,
-					reverseRun: 0,
+					skipRun: ownSkip ? this.state.skipRun : 0,
+					reverseRun: ownReverse ? this.state.reverseRun : 0,
 					stackedDebt: 0,
 					drawRun: 0,
 					totalDraws: this.#totalDraws
 				};
-				this.lastSkipped = null;
+				if (!ownSkip) this.lastSkipped = null;
+			}
 		}
 		return { ...this.state };
 	}

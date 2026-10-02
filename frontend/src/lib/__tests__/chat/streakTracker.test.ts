@@ -19,8 +19,46 @@ describe("StreakTracker", () => {
 		const tracker = new StreakTracker();
 		tracker.record({ kind: "skip", player: "Ann" });
 		tracker.record({ kind: "reverse" });
-		const info = tracker.record({ kind: "play", player: "Ann", color: "red", value: "3" });
-		expect(info).toEqual({ skipRun: 0, reverseRun: 0, stackedDebt: 0 });
+		const info = tracker.record({
+			kind: "play",
+			seq: 1,
+			player: "Ann",
+			cardKind: "vanilla:red_3",
+			color: "red"
+		});
+		expect(info).toEqual({
+			skipRun: 0,
+			reverseRun: 0,
+			stackedDebt: 0,
+			drawRun: 0,
+			totalDraws: 0
+		});
+	});
+
+	it("keeps a same-player skip run through the skip card's own play", () => {
+		const tracker = new StreakTracker();
+		tracker.record({ kind: "skip", player: "Ann" });
+		tracker.record({
+			kind: "play",
+			seq: 1,
+			player: "Bob",
+			cardKind: "vanilla:red_skip",
+			color: "red"
+		});
+		expect(tracker.record({ kind: "skip", player: "Ann" }).skipRun).toBe(2);
+	});
+
+	it("keeps a reverse run through the reverse card's own play", () => {
+		const tracker = new StreakTracker();
+		tracker.record({ kind: "reverse" });
+		tracker.record({
+			kind: "play",
+			seq: 1,
+			player: "Ann",
+			cardKind: "vanilla:red_reverse",
+			color: "red"
+		});
+		expect(tracker.record({ kind: "reverse" }).reverseRun).toBe(2);
 	});
 
 	it("counts reverses in a row", () => {
@@ -50,7 +88,9 @@ describe("StreakTracker", () => {
 		expect(tracker.record({ kind: "skip", player: "Ann" })).toEqual({
 			skipRun: 1,
 			reverseRun: 0,
-			stackedDebt: 0
+			stackedDebt: 0,
+			drawRun: 0,
+			totalDraws: 0
 		});
 	});
 
