@@ -288,6 +288,7 @@
 	"game_action_drew_playable": "You drew a playable card!",
 	"game_action_play_it": "Play It",
 	"game_action_keep_it": "Keep It",
+	"game_keep_drawn": "Keep",
 	"game_exit_confirm_title": "Leave the match?",
 	"game_exit_confirm_body": "You'll leave this match and return to the lobby.",
 	"game_exit_confirm_yes": "Yes, leave",

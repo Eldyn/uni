@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { gotoMock, openSettingsMock, chatOpenMock } = vi.hoisted(() => ({
+const { gotoMock, openSettingsMock, chatOpenMock, keepDrawnMock } = vi.hoisted(() => ({
 	gotoMock: vi.fn(),
 	openSettingsMock: vi.fn(),
-	chatOpenMock: vi.fn()
+	chatOpenMock: vi.fn(),
+	keepDrawnMock: vi.fn()
 }));
 
 vi.mock("$stores/navigation.svelte", () => ({
@@ -12,7 +13,7 @@ vi.mock("$stores/navigation.svelte", () => ({
 vi.mock("$stores/modal.svelte", () => ({ storeModal: { isAnyOpen: false } }));
 vi.mock("$stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false } }));
 vi.mock("$stores/game.svelte", () => ({
-	storeGame: { state: null, activePrompt: null, activeWindow: null }
+	storeGame: { state: null, activePrompt: null, activeWindow: null, keepDrawn: keepDrawnMock }
 }));
 vi.mock("$stores/chat.svelte", () => ({ chatStore: { open: chatOpenMock } }));
 
@@ -62,6 +63,12 @@ describe("keyboard accelerators", () => {
 	it("C opens chat", () => {
 		press("c");
 		expect(chatOpenMock).toHaveBeenCalled();
+	});
+
+	it("K keeps the held draw", () => {
+		storeGame.state = { current_turn: "me" };
+		press("K");
+		expect(keepDrawnMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("Escape opens the settings modal while in a lobby", () => {

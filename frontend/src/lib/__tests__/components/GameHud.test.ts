@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/svelte";
+import { render, screen, fireEvent } from "@testing-library/svelte";
 
 const { mockGameState, mockAuth } = vi.hoisted(() => ({
 	mockGameState: {
+		localPlayer: null as { username: string } | null,
+		keepDrawn: vi.fn(),
 		state: {
+			pendingPlayDrawn: null as { player: string; card?: number } | null,
 			active_type: 0,
 			current_turn: "alice",
 			play_direction: 1,
@@ -21,7 +24,8 @@ const { mockGameState, mockAuth } = vi.hoisted(() => ({
 		isSpectator: false,
 		spectatorCount: 0,
 		turnTimeRemaining: 12,
-		placements: [] as string[]
+		placements: [] as string[],
+		quitMatch: vi.fn()
 	},
 	mockAuth: {
 		username: ""
@@ -66,5 +70,30 @@ describe("GameHud", () => {
 
 		mockGameState.placements = [];
 		mockGameState.state.mode = "standard";
+	});
+
+	it("renders a Keep button for the owner's held draw and calls keepDrawn", async () => {
+		mockGameState.localPlayer = { username: "alice" };
+		mockGameState.state.pendingPlayDrawn = { player: "alice", card: 10 };
+
+		render(GameHud);
+
+		await fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+		expect(mockGameState.keepDrawn).toHaveBeenCalledTimes(1);
+
+		mockGameState.state.pendingPlayDrawn = null;
+		mockGameState.localPlayer = null;
+	});
+
+	it("hides the Keep button when the held draw belongs to another player", () => {
+		mockGameState.localPlayer = { username: "alice" };
+		mockGameState.state.pendingPlayDrawn = { player: "bob", card: 10 };
+
+		render(GameHud);
+
+		expect(screen.queryByRole("button", { name: "Keep" })).not.toBeInTheDocument();
+
+		mockGameState.state.pendingPlayDrawn = null;
+		mockGameState.localPlayer = null;
 	});
 });

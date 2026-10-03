@@ -288,6 +288,7 @@
 	"game_action_drew_playable": "Ви взяли карту, якою можна грати!",
 	"game_action_play_it": "Зіграти її",
 	"game_action_keep_it": "Залишити її",
+	"game_keep_drawn": "Залишити",
 	"game_exit_confirm_title": "Покинути матч?",
 	"game_exit_confirm_body": "Ви покинете цей матч і повернетеся до лобі.",
 	"game_exit_confirm_yes": "Так, вийти",

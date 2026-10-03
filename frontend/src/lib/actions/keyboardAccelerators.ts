@@ -78,6 +78,14 @@ function onKeydown(event: KeyboardEvent): void {
 
 	const key = event.key.toLowerCase();
 
+	// K keeps the held draw. keepDrawn() itself no-ops unless the local player
+	// owns the live decision, so this is safe to route unconditionally whenever
+	// no prompt/window/modal owns the keyboard (the guards above already apply).
+	if (key === "k") {
+		storeGame.keepDrawn();
+		return;
+	}
+
 	if (key === "c") {
 		chatStore.open();
 		return;

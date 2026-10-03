@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import en from "../../../../messages/en.json";
 import itLocale from "../../../../messages/it.json";
+import esLocale from "../../../../messages/es.json";
+import deLocale from "../../../../messages/de.json";
+import koLocale from "../../../../messages/ko.json";
+import zhLocale from "../../../../messages/zh.json";
+import jaLocale from "../../../../messages/ja.json";
+import ukLocale from "../../../../messages/uk.json";
+import ruLocale from "../../../../messages/ru.json";
+import pseudoLocale from "../../../../messages/pseudo.json";
 
 const REQUIRED_KEYS = [
 	"home_quick_play",
@@ -66,5 +74,27 @@ describe("structural catalog parity and non-empty values", () => {
 			expect(typeof val).toBe("string");
 			expect(val.trim().length, `it.json key "${key}" has empty value`).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe("held-draw keep label coverage", () => {
+	const locales: Record<string, Record<string, string>> = {
+		en,
+		it: itLocale,
+		es: esLocale,
+		de: deLocale,
+		ko: koLocale,
+		zh: zhLocale,
+		ja: jaLocale,
+		uk: ukLocale,
+		ru: ruLocale,
+		pseudo: pseudoLocale
+	};
+
+	it("every locale has a non-empty game_keep_drawn label", () => {
+		const missing = Object.entries(locales)
+			.filter(([, catalog]) => !catalog.game_keep_drawn?.trim())
+			.map(([locale]) => locale);
+		expect(missing, `missing game_keep_drawn: ${missing.join(", ")}`).toEqual([]);
 	});
 });

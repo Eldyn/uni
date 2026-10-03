@@ -74,6 +74,16 @@
 	});
 	let buttonEls: (HTMLButtonElement | null)[] = $state([]);
 
+	// The owner's live held draw, so the accessible path can offer the same
+	// Play/Keep choice the pointer hit target (HeldDrawCard) does. Null for
+	// every other viewer and once the decision resolves.
+	let heldDrawId = $derived.by(() => {
+		const pending = storeGame.state?.pendingPlayDrawn ?? null;
+		if (!pending || pending.card === undefined) return null;
+		if (pending.player !== storeGame.localPlayer?.username) return null;
+		return pending.card;
+	});
+
 	// Mirrors the touch gesture one step at a time: the first Enter/Space/click
 	// on a card picks it (same `selectedId` the discard pile arms off of), the
 	// second — now that it's already picked — confirms the play.
@@ -270,6 +280,17 @@
 		</ul>
 
 		<button type="button" class="visually-hidden" onclick={drawCard}> Draw card </button>
+
+		{#if heldDrawId !== null}
+			<div role="group" aria-label="Held drawn card">
+				<button type="button" class="visually-hidden" onclick={() => onPlay(heldDrawId)}>
+					Play drawn card
+				</button>
+				<button type="button" class="visually-hidden" onclick={() => storeGame.keepDrawn()}>
+					Keep drawn card
+				</button>
+			</div>
+		{/if}
 
 		<div class="visually-hidden" aria-live="polite">{turnAnnouncement}</div>
 	</div>

@@ -288,6 +288,7 @@
 	"game_action_drew_playable": "¡Has robado una carta jugable!",
 	"game_action_play_it": "Jugarla",
 	"game_action_keep_it": "Guardarla",
+	"game_keep_drawn": "Quedársela",
 	"game_exit_confirm_title": "¿Salir de la partida?",
 	"game_exit_confirm_body": "Saldrás de esta partida y volverás al lobby.",
 	"game_exit_confirm_yes": "Sí, salir",

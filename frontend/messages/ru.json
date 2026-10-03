@@ -288,6 +288,7 @@
 	"game_action_drew_playable": "Вы взяли играбельную карту!",
 	"game_action_play_it": "Сыграть её",
 	"game_action_keep_it": "Оставить её",
+	"game_keep_drawn": "Оставить",
 	"game_exit_confirm_title": "Покинуть матч?",
 	"game_exit_confirm_body": "Вы покинете этот матч и вернётесь в лобби.",
 	"game_exit_confirm_yes": "Да, выйти",

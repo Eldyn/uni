@@ -326,4 +326,24 @@ describe("AccessibleHandControls", () => {
 			storeModal.unregister();
 		}
 	});
+
+	it("exposes Play and Keep controls for the owner's held draw", async () => {
+		storeGame.state!.pendingPlayDrawn = { player: "me", card: 1 };
+		const keepDrawn = vi.spyOn(storeGame, "keepDrawn").mockImplementation(() => {});
+		const { onPlay } = renderControls();
+
+		await fireEvent.click(screen.getByRole("button", { name: "Keep drawn card" }));
+		expect(keepDrawn).toHaveBeenCalledTimes(1);
+
+		await fireEvent.click(screen.getByRole("button", { name: "Play drawn card" }));
+		expect(onPlay).toHaveBeenCalledWith(1);
+	});
+
+	it("hides the held-draw controls when another player holds the draw", () => {
+		storeGame.state!.pendingPlayDrawn = { player: "opponent", card: 1 };
+		renderControls();
+
+		expect(screen.queryByRole("button", { name: "Keep drawn card" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Play drawn card" })).not.toBeInTheDocument();
+	});
 });
