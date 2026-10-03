@@ -451,10 +451,15 @@ export function createMatchEventBeatController(deps: {
 
 		// INFO: a voluntary playable draw is held for a play/keep decision —
 		//       park it face up on the draw pile instead of flying it into the
-		//       hand. The store's snapshot already carries the hold.
+		//       hand. The store's snapshot already carries the hold. If the
+		//       hand has not caught up yet, fall through to the normal draw.
 		const heldId = heldDrawnCardId(state);
-		if (heldId !== null && newIds.length === 1 && newIds[0] === heldId) {
-			parkHeldDrawCard(state, heldId);
+		if (
+			heldId !== null &&
+			newIds.length === 1 &&
+			newIds[0] === heldId &&
+			parkHeldDrawCard(state, heldId)
+		) {
 			heldPlayDrawnId = heldId;
 			return;
 		}
@@ -834,13 +839,18 @@ export function createMatchEventBeatController(deps: {
 
 	/** Parks the held drawn card face up above the draw pile until the play or
 	 *  keep resolves. Reconnect-safe: called from syncState when no live draw
-	 *  beat seeded it. */
-	function parkHeldDrawCard(state: NonNullable<typeof storeGame.state>, cardId: number): void {
+	 *  beat seeded it. Returns false (and leaves the pose untouched) when the
+	 *  POV hand does not yet list the card, so the caller can retry. */
+	function parkHeldDrawCard(state: NonNullable<typeof storeGame.state>, cardId: number): boolean {
 		const pov = resolveLocalUsername(state);
 		const card = state.players?.find((p) => p.username === pov)?.hand?.find((c) => c.id === cardId);
-		if (!card) return;
+		if (!card) return false;
 		const key = String(cardId);
 		const placement = deps.getPlacement();
+		// INFO: the drawn card is out of the pile but displayed as its top card,
+		//       so it rests one above the remaining stack (`draw_pile_size + 1`)
+		//       — the same slot it left from on the live draw and the same slot
+		//       the current pile top occupies on reconnect.
 		const pileSize = Math.max((state.draw_pile_size ?? 0) + 1, 1);
 		const [px, py, pz] = drawPileTopPose(
 			placement,
@@ -878,18 +888,20 @@ export function createMatchEventBeatController(deps: {
 			[[{ op: "flip", target: key, payload: { turned: false, axis: "x" } }]],
 			resolveCardTarget
 		);
+		return true;
 	}
 
 	/** Reconciles the parked held-draw pose with the live snapshot: seeds a
 	 *  newly parked card (reconnect or first observation), and releases the
-	 *  pose once the decision resolves. */
+	 *  pose once the decision resolves. The id is only latched once the card
+	 *  parks successfully, so a snapshot whose hand has not caught up yet
+	 *  retries on the next sync instead of stranding the card unposed. */
 	function syncHeldDrawPose(state: NonNullable<typeof storeGame.state>): void {
 		const cardId = heldDrawnCardId(state);
 		if (cardId !== null) {
-			if (heldPlayDrawnId !== cardId && !deps.cardRegistry.isInTransit(String(cardId))) {
-				parkHeldDrawCard(state, cardId);
-			}
-			heldPlayDrawnId = cardId;
+			if (heldPlayDrawnId === cardId) return;
+			if (deps.cardRegistry.isInTransit(String(cardId))) return;
+			if (parkHeldDrawCard(state, cardId)) heldPlayDrawnId = cardId;
 			return;
 		}
 		if (heldPlayDrawnId !== null) {

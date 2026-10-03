@@ -33,6 +33,7 @@ vi.mock("$lib/stores/ws.svelte", () => ({
 
 import { storeGame, type GameState } from "$lib/stores/game.svelte";
 import { CardBus } from "$components/game/card-bus.svelte";
+import { storeAuth } from "$lib/stores/auth.svelte";
 import { ws } from "$lib/stores/ws.svelte";
 
 function snapshotHandler(): (payload: any) => void {
@@ -47,7 +48,10 @@ function stateWithPending(pending: GameState["pendingPlayDrawn"]): GameState {
 		active_type: "white",
 		current_turn: "alice",
 		play_direction: 1,
-		players: [],
+		players: [
+			{ username: "alice", card_count: 0, is_bot: false },
+			{ username: "bob", card_count: 0, is_bot: false }
+		],
 		pending_draws: 0,
 		draw_pile_size: 0,
 		pendingPlayDrawn: pending
@@ -137,18 +141,32 @@ describe("storeGame.applyPendingPlayDrawn drives the card bus", () => {
 
 describe("storeGame.keepDrawn", () => {
 	beforeEach(() => {
-		storeGame.state = null;
+		storeGame.state = stateWithPending(null);
 		storeGame.isActionPending = false;
+		storeAuth.username = "alice";
 		vi.clearAllMocks();
 	});
 
-	it("sends match_keep_drawn", () => {
+	it("sends match_keep_drawn for the owner's live decision", () => {
+		storeGame.state = stateWithPending({ player: "alice", card: 77 });
 		storeGame.keepDrawn();
 		expect(ws.emit).toHaveBeenCalledWith("match_keep_drawn");
 	});
 
 	it("is a no-op while another action is already pending", () => {
+		storeGame.state = stateWithPending({ player: "alice", card: 77 });
 		storeGame.isActionPending = true;
+		storeGame.keepDrawn();
+		expect(ws.emit).not.toHaveBeenCalled();
+	});
+
+	it("is a no-op when no decision is live", () => {
+		storeGame.keepDrawn();
+		expect(ws.emit).not.toHaveBeenCalled();
+	});
+
+	it("is a no-op when another player owns the decision", () => {
+		storeGame.state = stateWithPending({ player: "bob" });
 		storeGame.keepDrawn();
 		expect(ws.emit).not.toHaveBeenCalled();
 	});

@@ -12,6 +12,7 @@
 	import { createGameLayoutContext, useGameLayoutContext } from "./game-layout-context.svelte";
 	import Scene3D from "./three/Scene3D.svelte";
 	import DrawStackIndicator from "./DrawStackIndicator.svelte";
+	import HeldDrawCard from "./HeldDrawCard.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { resetImpactEffects } from "./animation/impactReset";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
@@ -30,6 +31,10 @@
 	} from "./layout/spectatorPov";
 	import { boardRotationFor } from "./layout/boardRotation";
 	import { handSlotPose } from "./layout/handSlotPose";
+	import { worldToScreenPercent } from "./layout/screenProjection";
+	import { drawPileTopPose } from "./layout/drawPile";
+	import { DRAW_HOVER_LIFT } from "./animation/baseBeats.svelte";
+	import { storeBoardCamera } from "$stores/boardCamera.svelte";
 	import type { BoardPlacement } from "./layout/boardPlacement";
 	import type { SeatPosition3D } from "./layout/seatLayout3D";
 	import {
@@ -123,6 +128,58 @@
 	$effect(() => {
 		layout.geometry = geometry;
 	});
+
+	// The owner's parked drawn card, playable by pointer through a DOM hit
+	// target laid over it (HeldDrawCard). The card id only ever reaches its
+	// owner, so its presence already means "this client is the chooser".
+	let heldDrawCardId = $derived.by(() => {
+		const pending = storeGame.state?.pendingPlayDrawn;
+		if (!pending || pending.card === undefined) return null;
+		if (pending.player !== storeGame.localPlayer?.username) return null;
+		return pending.card;
+	});
+
+	let sceneLayerEl = $state<HTMLDivElement | null>(null);
+	// How close (in viewport percent) a released drag must be to the discard
+	// pile's projected centre to count as dropped on it.
+	const DISCARD_SCREEN_RADIUS_PERCENT = 12;
+
+	// Screen position of the parked card, projected from the same draw-pile top
+	// the controller parks its pose at. Null until the scene camera exists.
+	let heldDrawScreen = $derived.by(() => {
+		const cardId = heldDrawCardId;
+		const camera = storeBoardCamera.camera;
+		if (cardId === null || !camera) return null;
+		const pileSize = Math.max((storeGame.state?.draw_pile_size ?? 0) + 1, 1);
+		const [x, y, z] = drawPileTopPose(
+			geometry.placement,
+			pileSize,
+			storeRenderSettings.drawPileThickness,
+			bus.getDrawPileHoverDipZ()
+		);
+		return worldToScreenPercent(camera, x, y + DRAW_HOVER_LIFT, z);
+	});
+
+	/** True when a pointer released at `(clientX, clientY)` is over the discard
+	 *  pile. Falls back to true without a camera (headless/tests), so a drag is
+	 *  still treated as a play. */
+	function heldDropOverDiscard(clientX: number, clientY: number): boolean {
+		const camera = storeBoardCamera.camera;
+		const rect = sceneLayerEl?.getBoundingClientRect();
+		if (!camera || !rect || rect.width === 0 || rect.height === 0) return true;
+		const discard = worldToScreenPercent(
+			camera,
+			geometry.placement.discardX,
+			0,
+			geometry.placement.discardZ
+		);
+		const xPercent = ((clientX - rect.left) / rect.width) * 100;
+		const yPercent = ((clientY - rect.top) / rect.height) * 100;
+		return (
+			Math.hypot(xPercent - discard.leftPercent, yPercent - discard.topPercent) <=
+			DISCARD_SCREEN_RADIUS_PERCENT
+		);
+	}
 
 	// The incoming POV's hand arc, as it reads once their seat has swept down
 	// to the bottom pivot: the same ring/radial sizing Scene3D draws a seat with,
@@ -438,6 +495,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="scene-layer"
+		bind:this={sceneLayerEl}
 		bind:clientWidth={sceneWidth}
 		bind:clientHeight={sceneHeight}
 		onpointerdown={() => {
@@ -465,6 +523,15 @@
 			/>
 		</Canvas>
 		<div class="screen-vignette" aria-hidden="true"></div>
+		{#if heldDrawCardId !== null && heldDrawScreen}
+			<HeldDrawCard
+				cardId={heldDrawCardId}
+				leftPercent={heldDrawScreen.leftPercent}
+				topPercent={heldDrawScreen.topPercent}
+				isOverDiscard={heldDropOverDiscard}
+				onPlay={play}
+			/>
+		{/if}
 	</div>
 </div>
 

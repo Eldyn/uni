@@ -1070,10 +1070,13 @@ class StoreGame implements SessionStore {
 	 * @brief Tells the server the local player keeps the held drawn card,
 	 * ending the play/keep choice with the card left in hand.
 	 *
-	 * Mirrors drawCard's latch: ignored while a request is already in flight.
+	 * Mirrors drawCard's latch: ignored while a request is already in flight,
+	 * and a no-op unless the local player owns a live draw decision.
 	 */
 	keepDrawn() {
 		if (this.isSpectator || this.isActionPending) return;
+		const pending = this.state?.pendingPlayDrawn ?? null;
+		if (pending === null || pending.player !== this.localPlayer?.username) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
 		ws.emit(ClientAction.MatchKeepDrawn);
@@ -1090,11 +1093,13 @@ class StoreGame implements SessionStore {
 	 */
 	applyPendingPlayDrawn(bus: CardBus, localUsername: string | null): void {
 		const pending = this.state?.pendingPlayDrawn ?? null;
-		const ownerIsLocal =
-			pending !== null && pending.player === localUsername && pending.card !== undefined;
-		bus.setPendingLocalPlayDrawnId(ownerIsLocal ? (pending!.card as number) : null);
+		const ownedCard =
+			pending !== null && pending.player === localUsername && pending.card !== undefined
+				? pending.card
+				: null;
+		bus.setPendingLocalPlayDrawnId(ownedCard);
 		bus.setHoldingOpponents(
-			pending !== null && !ownerIsLocal ? new Set([pending.player]) : new Set()
+			pending !== null && ownedCard === null ? new Set([pending.player]) : new Set()
 		);
 	}
 

@@ -10,6 +10,9 @@ import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { storeTurnSkip } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import type { BoardPlacement } from "$components/game/layout/boardPlacement";
+import { drawPileTopPose } from "$components/game/layout/drawPile";
+import { DRAW_HOVER_LIFT } from "$components/game/animation/baseBeats.svelte";
+import { storeRenderSettings } from "$stores/renderSettings.svelte";
 import type { AnimationBeat } from "$components/game/animation/types";
 
 const placement: BoardPlacement = {
@@ -76,6 +79,8 @@ function fakeRegistry() {
 		setDecoration: vi.fn(),
 		seedPose: vi.fn(),
 		registerCardMeta: vi.fn(),
+		setPoseProvider: vi.fn(),
+		isInTransit: vi.fn(() => false),
 		removeEntry: vi.fn(),
 		flushImmediately: vi.fn(),
 		enqueue: vi.fn().mockResolvedValue(undefined)
@@ -116,6 +121,21 @@ function localDrawState() {
 					{ id: 9, type: "yellow", value: "5" }
 				]
 			},
+			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+		]
+	} as never;
+}
+
+/** Snapshot of the owner's held voluntary draw: "me" parks card 5. `hand` is
+ *  empty in the transient case where the snapshot's hand has not caught up. */
+function heldState(hand: { id: number; type: string; value: string }[] = [], drawPileSize = 9) {
+	return {
+		...baseState(),
+		current_turn: "me",
+		draw_pile_size: drawPileSize,
+		pendingPlayDrawn: { player: "me", card: 5 },
+		players: [
+			{ username: "me", card_count: hand.length, is_bot: false, hand },
 			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
 		]
 	} as never;
@@ -219,6 +239,45 @@ describe("createMatchEventBeatController", () => {
 		const h = harness();
 		h.controller.syncState();
 		expect(h.bus.setActiveType).not.toHaveBeenCalled();
+	});
+
+	it("restores the held draw pose from a snapshot alone (reconnect)", () => {
+		storeAuth.username = "me";
+		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
+		const h = harness();
+
+		h.controller.syncState();
+
+		expect(h.bus.setPendingLocalPlayDrawnId).toHaveBeenCalledWith(5);
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith("5", expect.any(Object));
+		expect(h.cardRegistry.setPoseProvider).toHaveBeenCalledWith("5", expect.any(Function));
+	});
+
+	it("parks the held draw one above the remaining pile", () => {
+		storeAuth.username = "me";
+		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }], 9);
+		const h = harness();
+
+		h.controller.syncState();
+
+		const [ex, ey, ez] = drawPileTopPose(placement, 10, storeRenderSettings.drawPileThickness, 0);
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+			"5",
+			expect.objectContaining({ x: ex, y: ey + DRAW_HOVER_LIFT, z: ez })
+		);
+	});
+
+	it("retries parking after a transient snapshot that lacks the card", () => {
+		storeAuth.username = "me";
+		storeGame.state = heldState([]);
+		const h = harness();
+
+		h.controller.syncState();
+		expect(h.cardRegistry.seedPose).not.toHaveBeenCalled();
+
+		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
+		h.controller.syncState();
+		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith("5", expect.any(Object));
 	});
 
 	it("enqueues a single move beat for the local player's own play", () => {
