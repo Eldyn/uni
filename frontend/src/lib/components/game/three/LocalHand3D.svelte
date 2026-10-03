@@ -247,6 +247,12 @@
 		const discardIds = new Set(bus.discardHistory.map((entry) => String(entry.card.id)));
 		for (const id of prevRealIds) {
 			if (liveIds.has(id)) continue;
+			// INFO: a held play/keep draw and an in-flight draw leave this row on
+			//       purpose — the draw/held-draw controller owns their pose. Retiring
+			//       one here would delete the parked entry the instant the hold
+			//       appears (the card flashed, then vanished).
+			if (String(bus.pendingLocalPlayDrawnId) === id) continue;
+			if (bus.pendingLocalDrawIds.has(Number(id))) continue;
 			releaseDisplacement(id);
 			if (cardRegistry.isInTransit(id)) continue;
 			if (discardIds.has(id)) {

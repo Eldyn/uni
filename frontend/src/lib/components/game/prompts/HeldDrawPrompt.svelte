@@ -1,8 +1,14 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeBoardCamera } from "$stores/boardCamera.svelte";
+	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { autofocus } from "./autofocus";
+	import { useGameLayoutContext } from "../game-layout-context.svelte";
+	import { drawPileTopPose } from "../layout/drawPile";
+	import { worldToScreenPercent } from "../layout/screenProjection";
+	import { DRAW_HOVER_LIFT } from "../animation/baseBeats.svelte";
 
 	// The owner's post-draw choice, shown as a centered prompt exactly like the
 	// colour picker rather than a quiet HUD button. Playing routes through the
@@ -14,6 +20,26 @@
 		if (!pending || pending.card === undefined) return null;
 		if (pending.player !== storeGame.localPlayer?.username) return null;
 		return pending.card;
+	});
+
+	const layout = useGameLayoutContext();
+
+	// Desktop: float the prompt just above the parked card at the draw pile, where
+	// the pointer already is after a draw. Mobile (or before the camera/geometry
+	// exists) stays centered, which is the better fit on the rail layout.
+	let anchor = $derived.by(() => {
+		if (!layout || layout.viewportClass === "mobile") return null;
+		const camera = storeBoardCamera.camera;
+		const geometry = layout.geometry;
+		if (!camera || !geometry) return null;
+		const pileSize = Math.max((storeGame.state?.draw_pile_size ?? 0) + 1, 1);
+		const [x, y, z] = drawPileTopPose(
+			geometry.placement,
+			pileSize,
+			storeRenderSettings.drawPileThickness,
+			0
+		);
+		return worldToScreenPercent(camera, x, y + DRAW_HOVER_LIFT, z);
 	});
 
 	function handlePlay() {
@@ -28,7 +54,11 @@
 </script>
 
 {#if heldCardId !== null}
-	<div class="inline-action-container">
+	<div
+		class="inline-action-container"
+		class:anchored={anchor !== null}
+		style={anchor ? `left:${anchor.leftPercent}%; top:${anchor.topPercent}%` : ""}
+	>
 		<div class="cute-bubble pixel-corners">
 			<h2 class="held-draw-text">
 				{m.game_action_drew_playable({}, { locale: storeI18n.locale })}
@@ -64,6 +94,11 @@
 		transform: translateX(-50%);
 		z-index: 200;
 		pointer-events: auto;
+	}
+
+	/* Desktop: sit just above the parked card at the draw pile. */
+	.inline-action-container.anchored {
+		transform: translate(-50%, calc(-100% - 18px));
 	}
 
 	.cute-bubble {
