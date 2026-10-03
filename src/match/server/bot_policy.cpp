@@ -127,12 +127,27 @@ std::string PickMostCommonColor(const std::vector<BotHandCard>& hand,
  * username. Ties keep the earliest seat (registry order).
  */
 std::string PickFewestCardsPlayer(const std::vector<BotPlayerRow>& players,
-                                  const std::string& self) {
+                                  const std::string& self,
+                                  const json& payload) {
+    std::vector<std::string> offered;
+    if (payload.is_object() && payload.contains("options")
+        && payload["options"].is_array()) {
+        for (const json& option : payload["options"]) {
+            if (option.is_string()) offered.push_back(option.get<std::string>());
+        }
+    }
+    const bool restrict_to_offered = !offered.empty();
+
     std::string best = self;
     int best_count = 0;
     bool found = false;
     for (const BotPlayerRow& row : players) {
         if (row.username.empty() || row.username == self) continue;
+        if (restrict_to_offered
+            && std::find(offered.begin(), offered.end(), row.username)
+                   == offered.end()) {
+            continue;
+        }
         if (!found || row.card_count < best_count) {
             best = row.username;
             best_count = row.card_count;
@@ -293,7 +308,8 @@ json HeuristicBotPolicy::ChoosePrompt(const BotView& view) {
                                    schema == nullptr ? permissive : *schema);
     }
     if (kind == "choose_player") {
-        return PickFewestCardsPlayer(view.players, view.username);
+        return PickFewestCardsPlayer(view.players, view.username,
+                                     view.prompt_payload);
     }
     if (kind == "choose_card") {
         return FirstOption(view.prompt_payload);

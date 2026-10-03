@@ -244,6 +244,16 @@ TEST_CASE("bot policy: choose_player is the other fewest-cards seat") {
     CHECK(policy.ChoosePrompt(view) == json("bot1"));
 }
 
+TEST_CASE("bot policy: choose_player skips seats the prompt did not offer") {
+    HeuristicBotPolicy policy(1);
+    BotView view = View("bot0");
+    view.prompt_kind = "choose_player";
+    // INFO: bot2 finished a race (0 cards) and is absent from the options.
+    view.players = {{"bot0", 5}, {"bot1", 3}, {"bot2", 0}, {"bot3", 4}};
+    view.prompt_payload = json{{"options", json::array({"bot1", "bot3"})}};
+    CHECK(policy.ChoosePrompt(view) == json("bot1"));
+}
+
 TEST_CASE("bot policy: choose_card takes the first option") {
     HeuristicBotPolicy policy(1);
     BotView view = View("bot0");

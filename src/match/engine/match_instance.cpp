@@ -499,7 +499,8 @@ bool MatchInstance::SubmitInput(const std::string& username,
                 assembly_->store.Get<ecs::PlayerInfo>(entity);
             if (info != nullptr
                 && info->username == value.get<std::string>()) {
-                known = true;
+                // INFO: a race finisher left the table, it cannot be chosen.
+                known = !ops::FinishedRace(assembly_->store, entity);
                 break;
             }
         }
