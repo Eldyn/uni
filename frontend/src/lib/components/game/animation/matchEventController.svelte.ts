@@ -299,6 +299,30 @@ export function createMatchEventBeatController(deps: {
 					opacity: 1,
 					dragT: 0
 				});
+			} else if (heldPlayDrawnId === top.id) {
+				// INFO: a held play/keep draw is played from where it is parked —
+				//       on top of the draw pile — not from a hand slot it never
+				//       occupied. Without this the card sprouted at the hand and flew
+				//       from there. Seed exactly as parkHeldDrawCard left it so the
+				//       play beat flies draw-pile -> discard from the live pose.
+				heldPlayDrawnId = null;
+				const pileSize = Math.max((state.draw_pile_size ?? 0) + 1, 1);
+				const [sx, sy, sz] = drawPileTopPose(
+					placement,
+					pileSize,
+					storeRenderSettings.drawPileThickness,
+					deps.bus.getDrawPileHoverDipZ?.() ?? 0
+				);
+				deps.cardRegistry.seedPose(String(top.id), {
+					x: sx,
+					y: sy + DRAW_HOVER_LIFT,
+					z: sz,
+					spinDeg: 0,
+					flipDeg: 0,
+					scale: placement.drawPileScale,
+					turned: false,
+					opacity: 1
+				});
 			} else {
 				const [sx, sy, sz] = localCardAnchor(
 					top.id,
