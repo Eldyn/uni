@@ -395,7 +395,13 @@
 		}
 
 		for (const id of prevProviderIds) {
-			if (!currentCardIdSet.has(id)) cardRegistry.setPoseProvider(id, null);
+			if (currentCardIdSet.has(id)) continue;
+			// INFO: the held draw leaves the row on purpose and the controller
+			//       owns its pose provider; clearing it here made the flip beat
+			//       retire the parked card, so it never rendered.
+			if (String(bus.pendingLocalPlayDrawnId) === id) continue;
+			if (bus.pendingLocalDrawIds.has(Number(id))) continue;
+			cardRegistry.setPoseProvider(id, null);
 		}
 		prevProviderIds = currentCardIdSet;
 

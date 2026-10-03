@@ -882,6 +882,10 @@ export function createMatchEventBeatController(deps: {
 		const card = state.players?.find((p) => p.username === pov)?.hand?.find((c) => c.id === cardId);
 		if (!card) return false;
 		const key = String(cardId);
+		// INFO: claim the card for the controller before any effect runs, or the
+		//       hand row (reacting to the same snapshot) plants it in its slots
+		//       first and the parked pose is overwritten.
+		deps.bus.setPendingLocalPlayDrawnId(cardId);
 		const placement = deps.getPlacement();
 		// INFO: the drawn card is out of the pile but displayed as its top card,
 		//       so it rests one above the remaining stack (`draw_pile_size + 1`)
