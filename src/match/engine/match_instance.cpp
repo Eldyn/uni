@@ -954,6 +954,11 @@ bool MatchInstance::DrawnCardPlayable(ecs::Entity player,
     // INFO: `CheckPlayRestrictions` is a pure probe (it only evaluates the
     //       ordered pipeline; it never emits `play_rejected` or mutates the
     //       store), so it is safe to ask mid-draw.
+    // INFO: accepted divergence - the hold gates on the full restriction
+    //       pipeline (`CheckPlayRestrictions`), whereas `force_play` and
+    //       `progressive` gate on `EvalDrawnCardPlayable`
+    //       (`condition_eval.cpp`). The two predicates are intentionally not
+    //       converged.
     return CheckPlayRestrictions(BuildPlayAttempt(player, card, true)).allowed;
 }
 
