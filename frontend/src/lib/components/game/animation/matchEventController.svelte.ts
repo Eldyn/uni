@@ -564,8 +564,7 @@ export function createMatchEventBeatController(deps: {
 	 *  (baseBeats.svelte.ts:988-1077). Non-owner viewers get `count` only, so
 	 *  each card is seeded at the draw-pile top under a synthetic
 	 *  `draw:<player>:<n>` id and flies into its own slot of the opponent's
-	 *  card arc. The `isOpponentPlayableDraw` branch is intentionally dropped
-	 *  (PlayDrawn legacy, same ruling as A1/A2). */
+	 *  card arc. The `isOpponentPlayableDraw` branch is intentionally dropped. */
 	function handleOpponentDraw(
 		beat: Extract<MatchEventBeat, { kind: "draw" }>,
 		state: NonNullable<typeof storeGame.state>
