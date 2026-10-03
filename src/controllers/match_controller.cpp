@@ -153,6 +153,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kMatchKeepDrawn,
+                      [this](WsContext context, const json& message) {
+        HandleKeepDrawn(context, message);
+        return true;
+    });
+
     action_router_.On(ws::ClientAction::kMatchSubmitInput,
                       [this](WsContext context, const json& message) {
         HandleProvideInput(context, message);
@@ -328,6 +334,57 @@ void MatchController::HandleDrawCard(WsContext context, const json& message) {
     if (!active_lobby->session->DrawCard(context.socket_data->username)) {
         broadcaster_.SendError(context.socket, context.op_code,
                                contract::ErrorCode::kCannotDraw,
+                               request_identifier);
+        return;
+    }
+
+    active_lobby->session->EmitEvents(broadcaster_);
+    // INFO: arm the incoming turn before the snapshot so `turn_deadline_ms`
+    //       carries the fresh value (the advance emits it unarmed as 0).
+    ClearTurnTimer(active_lobby->id);
+    OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
+    ScheduleWindowTick(active_lobby);
+}
+
+/**
+ * @brief Resolves the owner's decision to keep a playable voluntary draw.
+ *
+ * Mirrors `HandleDrawCard`'s spectator and ready-barrier guards, then forwards
+ * to the session so the parked play/keep choice clears and the turn advances.
+ * @param context Signaling packet metadata tracking incoming user sockets.
+ * @param message JSON input structure containing callback identifiers.
+ */
+void MatchController::HandleKeepDrawn(WsContext context, const json& message) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (!active_lobby) {
+        return;
+    }
+
+    std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
+    // INFO: new-engine path.
+    if (!active_lobby->session) {
+        return;
+    }
+
+    if (!active_lobby->session->ReadyBarrierOpen()) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kCannotDraw,
+                               request_identifier);
+        return;
+    }
+
+    if (!active_lobby->session->KeepDrawn(context.socket_data->username)) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidMove,
                                request_identifier);
         return;
     }

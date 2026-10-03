@@ -172,6 +172,66 @@ void ForceHand(MatchInstance& engine, ecs::Entity player,
     }
 }
 
+/** @brief The draw pile's contents component, or nullptr. */
+ecs::PileContents* DrawPile(MatchInstance& engine) {
+    for (ecs::Entity pile : engine.Store().EntitiesWith<ecs::PileContents>()) {
+        ecs::PileContents* contents =
+            engine.Store().Get<ecs::PileContents>(pile);
+        if (contents != nullptr && contents->kind == ecs::PileKind::kDraw) {
+            return contents;
+        }
+    }
+    return nullptr;
+}
+
+/**
+ * @brief Top the draw pile with a non-wild card and make it playable.
+ *
+ * Sets the active type to the card's colour so the next voluntary draw is
+ * legal and parks a `PendingPlayDrawn` choice on the drawer.
+ */
+std::optional<ecs::Entity> ArmPlayableDraw(MatchInstance& engine) {
+    ecs::PileContents* draw = DrawPile(engine);
+    if (draw == nullptr) return std::nullopt;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const ecs::FaceSpec* face =
+            engine.Store().Get<ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color == "white") continue;
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (ecs::InZone* in =
+                    engine.Store().Get<ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        ecs::ActiveTypeReq* req =
+            engine.Store().Get<ecs::ActiveTypeReq>(engine.Registries().match);
+        REQUIRE(req != nullptr);
+        req->type = face->color;
+        return draw->cards.back();
+    }
+    return std::nullopt;
+}
+
+/** @brief True when `needle` appears as an integer anywhere in `value`. */
+bool JsonHasNumber(const json& value, uint32_t needle) {
+    if (value.is_number_integer()) {
+        return value.get<int64_t>() == static_cast<int64_t>(needle);
+    }
+    if (value.is_array()) {
+        for (const json& item : value) {
+            if (JsonHasNumber(item, needle)) return true;
+        }
+        return false;
+    }
+    if (value.is_object()) {
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            if (JsonHasNumber(it.value(), needle)) return true;
+        }
+    }
+    return false;
+}
+
 /** @brief OR `mask` into `viewer`'s grant entry on `target`. */
 void AddGrant(MatchInstance& engine, ecs::Entity target, ecs::Entity viewer,
               uint32_t mask) {
@@ -306,6 +366,73 @@ TEST_CASE("view snapshot: pending_draws mirrors the draw-stacking debt") {
     CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
               ["match_state"]["pending_draws"]
           == 2);
+}
+
+TEST_CASE("view snapshot: pending_play_drawn reveals the drawn card to the owner only") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+
+    // INFO: no parked choice -> explicit null, same shape every viewer.
+    CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
+              ["match_state"]["pending_play_drawn"]
+              .is_null());
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+    const uint32_t drawn_bits = engine->Registries().CardId(*drawn)->bits;
+
+    // OWNER: names the player and carries the compact card bits.
+    const json owner =
+        builder.BuildSnapshot(Viewer::Player("player0"), sink);
+    const json& owner_choice =
+        owner["match_state"]["pending_play_drawn"];
+    REQUIRE(owner_choice.is_object());
+    CHECK(owner_choice["player"] == "player0");
+    REQUIRE(owner_choice.contains("card"));
+    CHECK(owner_choice["card"] == drawn_bits);
+
+    // OPPONENT: names the choosing player, never the card; the drawn identity
+    // appears nowhere else in the opponent's JSON.
+    const json opponent =
+        builder.BuildSnapshot(Viewer::Player("player1"), sink);
+    const json& opp_choice =
+        opponent["match_state"]["pending_play_drawn"];
+    REQUIRE(opp_choice.is_object());
+    CHECK(opp_choice["player"] == "player0");
+    CHECK_FALSE(opp_choice.contains("card"));
+    CHECK_FALSE(JsonHasNumber(opponent["match_state"], drawn_bits));
+
+    // SPECTATOR (default, omniscient): the field names the choosing player
+    // but never carries the card. A default spectator can still see the drawn
+    // identity through the pre-existing omniscient hand rule, so the field must
+    // not add a second copy of it.
+    const json spectator =
+        builder.BuildSnapshot(Viewer::Spectator(), sink);
+    const json& spec_choice =
+        spectator["match_state"]["pending_play_drawn"];
+    REQUIRE(spec_choice.is_object());
+    CHECK(spec_choice["player"] == "player0");
+    CHECK_FALSE(spec_choice.contains("card"));
+    CHECK_FALSE(JsonHasNumber(spec_choice, drawn_bits));
+
+    // SPECTATOR with the drawer's hand private: with the hand hidden, the drawn
+    // identity appears NOWHERE in the JSON - the new field leaks nothing.
+    SnapshotOptions private_options;
+    private_options.privacy_from_spectators = {"player0"};
+    const json private_spec = builder.BuildSnapshot(
+        Viewer::Spectator(), sink, private_options);
+    const json& private_choice =
+        private_spec["match_state"]["pending_play_drawn"];
+    REQUIRE(private_choice.is_object());
+    CHECK(private_choice["player"] == "player0");
+    CHECK_FALSE(private_choice.contains("card"));
+    CHECK_FALSE(JsonHasNumber(private_spec["match_state"], drawn_bits));
 }
 
 TEST_CASE("view snapshot: no other hand identity without a grant") {

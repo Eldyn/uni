@@ -93,6 +93,18 @@ public:
     bool DrawCard(const std::string& username);
 
     /**
+     * @brief Keep the parked play/keep choice for `username`.
+     *
+     * Thin forwarding to `MatchInstance::KeepDrawn`: only the player whose
+     * playable voluntary draw parked the choice may resolve it. Clears the
+     * choice and advances the turn on success.
+     *
+     * @param username Acting player.
+     * @return true when `username` owned the parked choice.
+     */
+    bool KeepDrawn(const std::string& username);
+
+    /**
      * @brief Answer the parked op-input prompt.
      *
      * Validates the `{prompt_id, value}` pair against the pending input before

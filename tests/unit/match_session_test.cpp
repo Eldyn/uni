@@ -140,6 +140,45 @@ uint32_t BitsOf(const MatchInstance& engine, ecs::Entity card) {
     return id->bits;
 }
 
+/** @brief The draw pile's contents component, or nullptr. */
+ecs::PileContents* DrawPile(MatchInstance& engine) {
+    for (ecs::Entity pile : engine.Store().EntitiesWith<ecs::PileContents>()) {
+        ecs::PileContents* contents =
+            engine.Store().Get<ecs::PileContents>(pile);
+        if (contents != nullptr && contents->kind == ecs::PileKind::kDraw) {
+            return contents;
+        }
+    }
+    return nullptr;
+}
+
+/**
+ * @brief Top the draw pile with a non-wild card and make it playable, so the
+ * next voluntary draw parks a `PendingPlayDrawn` choice on the drawer.
+ */
+std::optional<ecs::Entity> ArmPlayableDraw(MatchInstance& engine) {
+    ecs::PileContents* draw = DrawPile(engine);
+    if (draw == nullptr) return std::nullopt;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const ecs::FaceSpec* face =
+            engine.Store().Get<ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color == "white") continue;
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (ecs::InZone* in =
+                    engine.Store().Get<ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        ecs::ActiveTypeReq* req =
+            engine.Store().Get<ecs::ActiveTypeReq>(engine.Registries().match);
+        REQUIRE(req != nullptr);
+        req->type = face->color;
+        return draw->cards.back();
+    }
+    return std::nullopt;
+}
+
 /** @brief An opaque test socket key; never dereferenced by the fake. */
 AppWebSocket* PlayerSocket(int index) {
     return reinterpret_cast<AppWebSocket*>(
@@ -280,6 +319,15 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK((*drawn0)["payload"]["player"] == "player1");
     CHECK((*drawn0)["payload"]["count"] == 1);
     CHECK_FALSE((*drawn0)["payload"].contains("cards"));
+
+    // INFO: a voluntary playable draw now holds the turn on the drawer; a keep
+    //       resolves it and advances. The draw either held (playable) or
+    //       advanced (unplayable); either way player0 owns the turn before the
+    //       next scripted play.
+    if (session.Engine().PendingPlayDrawnState().has_value()) {
+        CHECK(session.Engine().GetCurrentPlayerUsername() == "player1");
+        REQUIRE(session.KeepDrawn("player1"));
+    }
     CHECK(session.Engine().GetCurrentPlayerUsername() == "player0");
 
     // --- finish: player0's last wild empties the hand and wins -------------
@@ -357,6 +405,33 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     CHECK(FindEvent(s1_after, "prompt_close") == nullptr);
     // INFO: a cleared prompt never re-sends prompt_open either.
     CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+}
+
+TEST_CASE("match session: KeepDrawn forwards to the engine for the owner only") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+
+    // INFO: a non-owner cannot resolve another seat's parked choice.
+    CHECK_FALSE(session.KeepDrawn("player1"));
+    CHECK(session.Engine().PendingPlayDrawnState().has_value());
+
+    // INFO: the owner's keep clears the choice and advances the turn.
+    CHECK(session.KeepDrawn("player0"));
+    CHECK_FALSE(session.Engine().PendingPlayDrawnState().has_value());
+    CHECK(session.Engine().GetCurrentPlayerUsername() == "player1");
 }
 
 TEST_CASE("match session: per-recipient seq persists across batches") {

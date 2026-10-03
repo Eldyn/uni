@@ -350,6 +350,42 @@ static uint32_t BitsOf(const match::engine::MatchInstance& engine,
     return id->bits;
 }
 
+// INFO: top the draw pile with a non-wild card and set the active type to its
+//       colour, so the next voluntary draw parks a `PendingPlayDrawn` choice.
+static std::optional<match::ecs::Entity> ArmPlayableDraw(
+    match::engine::MatchInstance& engine) {
+    match::ecs::PileContents* draw = nullptr;
+    for (match::ecs::Entity pile :
+         engine.Store().EntitiesWith<match::ecs::PileContents>()) {
+        match::ecs::PileContents* contents =
+            engine.Store().Get<match::ecs::PileContents>(pile);
+        if (contents != nullptr
+            && contents->kind == match::ecs::PileKind::kDraw) {
+            draw = contents;
+            break;
+        }
+    }
+    if (draw == nullptr) return std::nullopt;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const match::ecs::FaceSpec* face =
+            engine.Store().Get<match::ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color == "white") continue;
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (match::ecs::InZone* in =
+                    engine.Store().Get<match::ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        match::ecs::ActiveTypeReq* req = engine.Store().Get<
+            match::ecs::ActiveTypeReq>(engine.Registries().match);
+        REQUIRE(req != nullptr);
+        req->type = face->color;
+        return draw->cards.back();
+    }
+    return std::nullopt;
+}
+
 static LobbySettings settings_with_mode(BotTakeoverMode mode, int turn_time_limit_ms = 15'000) {
     LobbySettings s;
     s.bot_mode = mode;
@@ -686,6 +722,16 @@ TEST_CASE("Spectator cannot play card, draw card, or provide input") {
     auto err2 = json::parse(f.bus.sent.back().payload);
     CHECK_EQ(err2["action"], "error");
     CHECK_EQ(err2["code"], "spectator_cannot_act");
+
+    // Keep drawn rejected
+    f.bus.Clear();
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchKeepDrawn}
+    });
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err3 = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err3["action"], "error");
+    CHECK_EQ(err3["code"], "spectator_cannot_act");
 }
 }
 
@@ -1448,4 +1494,27 @@ TEST_CASE("ready barrier: match_client_ready after open is ignored") {
     CHECK(f.timers.schedule_counts["turn_1"] == turn_schedules);
 }
 }  // TEST_SUITE("MatchController::ReadyBarrier")
+
+TEST_SUITE("MatchController::KeepDrawn") {
+TEST_CASE("keep drawn: the owner's hold resolves and advances the turn") {
+    MatchFixture f;
+    f.SetupMatch({{"Alice", false}, {"Bob", false}}, LobbySettings{});
+    f.OpenBarrierNow();
+
+    match::engine::MatchInstance& engine = f.Engine();
+    REQUIRE(engine.GetCurrentPlayerUsername() == "Alice");
+    const std::optional<match::ecs::Entity> drawn = ArmPlayableDraw(engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine.DrawCard("Alice"));
+    REQUIRE(engine.PendingPlayDrawnState().has_value());
+
+    REQUIRE(f.router.Dispatch(f.ContextFor("Alice"),
+                              json{{"action", ws::ClientAction::kMatchKeepDrawn}}));
+
+    CHECK_FALSE(engine.PendingPlayDrawnState().has_value());
+    CHECK(engine.GetCurrentPlayerUsername() == "Bob");
+    CHECK(f.CountMatchEvents("turn_advance") >= 1);
+    CHECK(f.timers.Has("turn_1"));
+}
+}  // TEST_SUITE("MatchController::KeepDrawn")
 

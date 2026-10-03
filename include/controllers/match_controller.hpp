@@ -67,6 +67,14 @@ private:
     void HandleDrawCard(WsContext context, const nlohmann::json& message);
 
     /**
+     * @brief Handles the owner's decision to keep a playable voluntary draw.
+     * Clears the parked play/keep choice and advances the turn.
+     * @param context Context of the calling socket.
+     * @param message JSON payload of the request (unused).
+     */
+    void HandleKeepDrawn(WsContext context, const nlohmann::json& message);
+
+    /**
      * @brief Handles the submission of input from the client for a pending effect (e.g. colour choice).
      * @param context Context of the calling socket.
      * @param message JSON payload containing the chosen data.

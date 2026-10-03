@@ -73,6 +73,10 @@ bool MatchSession::DrawCard(const std::string& username) {
     return engine_->DrawCard(username);
 }
 
+bool MatchSession::KeepDrawn(const std::string& username) {
+    return engine_->KeepDrawn(username);
+}
+
 bool MatchSession::SubmitInput(const std::string& username,
                                const std::string& prompt_id,
                                const nlohmann::json& value) {

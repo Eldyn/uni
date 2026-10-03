@@ -751,6 +751,26 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     }
     state["pending_draws"] = pending_draws;
 
+    // INFO: a playable voluntary draw parks a play/keep choice. Every viewer
+    //       sees whose choice it is; only the owner sees which card was drawn,
+    //       matching the hand's owner-only identity rule.
+    if (const std::optional<match::engine::PendingPlayDrawn>& pending =
+            match.PendingPlayDrawnState();
+        pending.has_value()) {
+        json choice = json::object();
+        const ecs::PlayerInfo* info =
+            store.Get<ecs::PlayerInfo>(pending->player);
+        choice["player"] = info == nullptr ? std::string() : info->username;
+        if (viewer_entity.has_value() && *viewer_entity == pending->player) {
+            const std::optional<ecs::CompactCardV2> id =
+                registries.CardId(pending->card);
+            if (id.has_value()) choice["card"] = id->bits;
+        }
+        state["pending_play_drawn"] = std::move(choice);
+    } else {
+        state["pending_play_drawn"] = nullptr;
+    }
+
     // INFO: one legality authority per snapshot; `can_play` is derived from it
     //replacing the deleted view-local copy.
     const match::engine::PlayEvaluator evaluator = match.MakePlayEvaluator();

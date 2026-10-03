@@ -48,6 +48,7 @@ channels:
         oneOf:
           - $ref: "#/components/messages/MatchPlayCard"
           - $ref: "#/components/messages/MatchDrawCard"
+          - $ref: "#/components/messages/MatchKeepDrawn"
           - $ref: "#/components/messages/MatchSubmitInput"
           - $ref: "#/components/messages/MatchPromptResponse"
           - $ref: "#/components/messages/MatchWindowResponse"
@@ -310,6 +311,10 @@ components:
               EVERY viewer while any prompt is pending and carries only the
               clock, never the payload or target; it is omitted when no
               prompt is pending. Observers draw the wait from it.
+              `pending_play_drawn` is null unless a playable voluntary draw
+              parks a play/keep choice; it is `{player, card}` for the owner and
+              `{player}` (no card key) for every other viewer, so the drawn
+              identity never leaks.
               Outcome fields: `mode` is `"standard"` or `"race"`; `race_target`
               is the number of finishers that end a race (0 in standard mode,
               fixed from the seated count at match start); `placements` lists
@@ -321,7 +326,9 @@ components:
             description: >
               Integer index of the Action enum value the server is waiting for.
               Present only when the server awaits a match_submit_input from this player.
-              0 = ChooseType, 1 = PlayDrawn, 2 = ChooseTarget.
+              0 = ChooseType, 2 = ChooseTarget. PlayDrawn (1) is retired: a
+              playable voluntary draw now holds the turn and is resolved by
+              match_play_card or match_keep_drawn, no prompt input.
           action_context:
             type: object
             description: Additional context for the required action (e.g. available colours).
@@ -468,6 +475,22 @@ components:
           action:
             type: string
             enum: ["match_draw_card"]
+          request_id:
+            type: string
+
+    MatchKeepDrawn:
+      name: match_keep_drawn
+      title: Keep the Drawn Card
+      description: >
+        Owner-only resolution of a playable voluntary draw: clear the parked
+        play/keep choice and advance the turn, leaving the drawn card in hand.
+        Replaces the retired Action.PlayDrawn prompt input. Empty payload.
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["match_keep_drawn"]
           request_id:
             type: string
 
@@ -772,8 +795,9 @@ components:
             The player's response to a mandatory game prompt, encoded as a string.
             Semantics depend on the pending Action:
               - ChooseType (0): integer string "0"–"3" mapping to the Type enum (Red=0, Blue=1, Green=2, Yellow=3).
-              - PlayDrawn (1): "0" = play the drawn card, "1" = keep it.
               - ChooseTarget (2): the target player's username string.
+              PlayDrawn (1) is retired and no longer sent; a playable voluntary
+              draw is resolved by match_play_card or match_keep_drawn.
 
     LobbyCreatePayload:
       type: object
@@ -1633,7 +1657,8 @@ components:
       description: Input action the server is waiting for. Transmitted as an integer via action_required.
       values:
         ChooseType: 0
-        PlayDrawn: 1
+        # PlayDrawn (1) is retired: a playable voluntary draw now holds the
+        # turn and is resolved by match_play_card / match_keep_drawn.
         ChooseTarget: 2
 
     ErrorCode:
