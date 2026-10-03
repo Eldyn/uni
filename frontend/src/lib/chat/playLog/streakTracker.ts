@@ -78,6 +78,18 @@ export class StreakTracker {
 			case "reshuffle":
 			case "elimination":
 				break;
+			case "keep":
+				// INFO: a keep is an action with no card, so it simply breaks
+				//       the skip/reverse/wild runs like a plain play does.
+				this.state = {
+					...this.state,
+					skipRun: 0,
+					reverseRun: 0,
+					drawRun: 0,
+					wildRun: 0
+				};
+				this.lastSkipped = null;
+				break;
 			case "skip": {
 				const stopsNearWin = this.state.nearWinOpen && event.player === this.state.nearWinTarget;
 				this.state = {

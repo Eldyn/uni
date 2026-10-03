@@ -197,6 +197,13 @@ describe("createPlayLogEmitter", () => {
 		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_reshuffle/)]);
 	});
 
+	it("logs a keep without leaking the kept card (Review Focus)", async () => {
+		emitter.noteKeep("Ann", 9);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+		expect(lines[0].params).toEqual({ name: "Ann" });
+	});
+
 	it("logs a win and each later placement once", async () => {
 		emitter.noteGameEnd("Ann", ["Ann"]);
 		await flush();

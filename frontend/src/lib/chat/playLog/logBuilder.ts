@@ -124,6 +124,15 @@ export const REACTION_RULES: ReactionRule[] = [
 		params: () => ({})
 	},
 	{
+		id: "keep",
+		match: (c) => c.event.kind === "keep",
+		group: () => "generic",
+		pools: { generic: [{ key: "log_keep_drawn" }] },
+		// INFO: the kept card's identity never reaches the log — a keep line
+		//       names only the player.
+		params: (c) => ({ name: c.event.kind === "keep" ? c.event.player : "" })
+	},
+	{
 		id: "near_win",
 		match: (c) => c.event.kind === "near_win",
 		group: () => "generic",

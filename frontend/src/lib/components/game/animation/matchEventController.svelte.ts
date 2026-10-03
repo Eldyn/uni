@@ -92,6 +92,8 @@ export function createMatchEventBeatController(deps: {
 	function resetPlayLog(): void {
 		playLog.reset();
 		lastPlayedBy = null;
+		prevPendingPlayer = null;
+		pendingResolvedByPlay = false;
 	}
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
@@ -136,6 +138,13 @@ export function createMatchEventBeatController(deps: {
 	// once when the snapshot's `pending_play_drawn` clears or the card leaves
 	// the hand, instead of re-seeding it on every snapshot.
 	let heldPlayDrawnId: number | null = null;
+	// The player whose pending play/keep decision the last observed snapshot
+	// carried, and whether a play beat resolved it in this drain. The client
+	// never receives a keep packet (a keep and a turn-timer timeout look
+	// identical), so syncState infers a keep when the hold clears with no
+	// intervening play beat.
+	let prevPendingPlayer: string | null = null;
+	let pendingResolvedByPlay = false;
 	// INFO: turn beats drain on packet arrival, synchronously after the
 	// snapshot, while the play that caused them is still flying. Each turn's
 	// cue and ring flip is deferred onto the last play's landing so they play
@@ -236,6 +245,10 @@ export function createMatchEventBeatController(deps: {
 	function handlePlay(beat: Extract<MatchEventBeat, { kind: "play" }>): void {
 		const state = storeGame.state;
 		if (!state) return;
+		// INFO: a play beat from the player who held a decision resolves it as a
+		//       play, not a keep. Flagged before the top-card guard so a beat the
+		//       board declines to animate still suppresses a false keep line.
+		if (beat.player === prevPendingPlayer) pendingResolvedByPlay = true;
 		const top = state.top_card;
 		if (!top) return;
 		if (String(top.id) !== String(beat.cardId)) return;
@@ -942,6 +955,17 @@ export function createMatchEventBeatController(deps: {
 		//       alone, with no replay of the draw beat.
 		storeGame.applyPendingPlayDrawn(deps.bus, resolveLocalUsername(state) ?? null);
 		syncHeldDrawPose(state);
+
+		// INFO: a hold that clears with no play beat landed was a keep (an
+		//       explicit keep and a turn-timer timeout are indistinguishable
+		//       here). Emitted from the snapshot transition because the server
+		//       sends no keep match_event; the card face never enters the line.
+		const pendingPlayer = state.pendingPlayDrawn?.player ?? null;
+		if (prevPendingPlayer !== null && pendingPlayer === null && !pendingResolvedByPlay) {
+			playLog.noteKeep(prevPendingPlayer, state.seq_watermark ?? 0);
+		}
+		prevPendingPlayer = pendingPlayer;
+		pendingResolvedByPlay = false;
 
 		if (pendingWildRipple && state.active_type && state.active_type !== "white") {
 			const { originUv, maxRadius } = pendingWildRipple;

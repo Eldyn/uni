@@ -445,6 +445,7 @@
 	"log_blocked_1": "[fx=shake:3,2]{blocker} 님이 진짜 해냈습니다![/fx]",
 	"log_blocked_2": "내가 그랬잖아요. [fx=shake:3,2]{blocker} 님이 막았습니다.[/fx]",
 	"log_play": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",
+	"log_keep_drawn": "{name} 님이 뽑은 카드를 킵했습니다.",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",
 	"log_reshuffle_3": "더미 바닥, 버린 카드 복귀. 같은 카드, 두 번째 기회.",

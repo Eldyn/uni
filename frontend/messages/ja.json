@@ -445,6 +445,7 @@
 	"log_blocked_1": "[fx=shake:3,2]{blocker}は本当にやった！[/fx]",
 	"log_blocked_2": "言っただろ。[fx=shake:3,2]{blocker}が止めた。[/fx]",
 	"log_play": "{name}は[k={kind}][c={color}]{cardName}[/c][/k]を出した。",
+	"log_keep_drawn": "{name}は引いたカードをキープ。",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",
 	"log_reshuffle_3": "山札切れ、捨て札が復活。同じカード、二度目のチャンス。",

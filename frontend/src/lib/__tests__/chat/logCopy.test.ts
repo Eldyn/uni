@@ -60,6 +60,7 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		victim: "Bob"
 	},
 	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" },
+	keep: { kind: "keep", seq: 10, player: "Ann" },
 	reshuffle: { kind: "reshuffle", seq: 4 },
 	wild: { kind: "wild", seq: 5, player: "Ann", color: "red" },
 	auto_play: {

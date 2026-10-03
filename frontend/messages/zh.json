@@ -445,6 +445,7 @@
 	"log_blocked_1": "[fx=shake:3,2]{blocker} 真的做到了！[/fx]",
 	"log_blocked_2": "早说了。[fx=shake:3,2]{blocker} 拦住了。[/fx]",
 	"log_play": "{name} 打出[k={kind}][c={color}]{cardName}[/c][/k]。",
+	"log_keep_drawn": "{name} 留下了摸到的牌。",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",
 	"log_reshuffle_3": "摸牌堆空了，弃牌堆回来了。同样的牌，第二次机会。",

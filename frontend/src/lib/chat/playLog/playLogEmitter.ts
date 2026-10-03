@@ -147,6 +147,15 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	}
 
 	/**
+	 * Emits the line for a resolved play/keep decision that ended in a keep.
+	 * Carries the player only: the kept card stays hidden, so a spectator never
+	 * learns its face from the log.
+	 */
+	function noteKeep(player: string, seq: number): void {
+		enqueue(() => emit({ kind: "keep", seq, player: escapeLogText(player) }));
+	}
+
+	/**
 	 * Emits game-end reactions from the public snapshot. The winner takes a
 	 * `win` line and every newly-placed player below first takes a place
 	 * line (kind `elimination`); the winner is place 1 and never also gets one.
@@ -206,6 +215,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteDraw,
 		noteDebt,
 		noteReshuffle,
+		noteKeep,
 		noteGameEnd,
 		reset
 	};

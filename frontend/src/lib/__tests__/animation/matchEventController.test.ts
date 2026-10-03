@@ -4,6 +4,7 @@ import type { MatchEventBeat } from "$components/game/animation/baseBeats.svelte
 import type { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
+import { chatStore } from "$stores/chat.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeTurnCue } from "$stores/turnCue.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
@@ -136,6 +137,20 @@ function heldState(hand: { id: number; type: string; value: string }[] = [], dra
 		pendingPlayDrawn: { player: "me", card: 5 },
 		players: [
 			{ username: "me", card_count: hand.length, is_bot: false, hand },
+			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+		]
+	} as never;
+}
+
+/** The snapshot after the held draw resolved by a play: the card is the new
+ *  discard top and `pendingPlayDrawn` is gone. */
+function playedHeldState() {
+	return {
+		...baseState(),
+		current_turn: "bob",
+		top_card: { id: 5, type: "red", value: "5" },
+		players: [
+			{ username: "me", card_count: 3, is_bot: false, hand: [] },
 			{ username: "bob", card_count: 3, is_bot: false, hand: [] }
 		]
 	} as never;
@@ -278,6 +293,40 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
 		h.controller.syncState();
 		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith("5", expect.any(Object));
+	});
+
+	it("logs a keep when the held draw resolves without a play (Review Focus)", async () => {
+		storeAuth.username = "me";
+		const append = vi.spyOn(chatStore, "appendLocalLog").mockImplementation(() => {});
+		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
+		const h = harness();
+
+		h.controller.syncState();
+		storeGame.state = baseState();
+		h.controller.syncState();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(append).toHaveBeenCalledWith(
+			expect.objectContaining({ key: "log_keep_drawn", params: { name: "me" } })
+		);
+	});
+
+	it("does not log a keep when the held card is played", async () => {
+		storeAuth.username = "me";
+		const append = vi.spyOn(chatStore, "appendLocalLog").mockImplementation(() => {});
+		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
+		const h = harness();
+
+		h.controller.syncState();
+		storeGame.state = playedHeldState();
+		h.fire({ seq: 1, kind: "play", player: "me", cardId: 5, auto: false });
+		h.controller.syncState();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const keeps = append.mock.calls.filter(([line]) =>
+			String((line as { key: string }).key).startsWith("log_keep_drawn")
+		);
+		expect(keeps).toHaveLength(0);
 	});
 
 	it("enqueues a single move beat for the local player's own play", () => {

@@ -445,6 +445,7 @@
 	"log_blocked_1": "[fx=shake:3,2]¡{blocker} sí que lo hizo![/fx]",
 	"log_blocked_2": "Te lo dije. [fx=shake:3,2]{blocker} le cortó el paso.[/fx]",
 	"log_play": "{name} juega [k={kind}][c={color}]{cardName}[/c][/k].",
+	"log_keep_drawn": "{name} se queda con la carta robada.",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",
 	"log_reshuffle_3": "Mazo vacío, vuelve la pila de descarte. Mismas cartas, segunda oportunidad.",

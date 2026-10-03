@@ -445,6 +445,7 @@
 	"log_blocked_1": "[fx=shake:3,2]{blocker} и правда остановил![/fx]",
 	"log_blocked_2": "Говорил же. [fx=shake:3,2]{blocker} его остановил.[/fx]",
 	"log_play": "{name} играет [k={kind}][c={color}]{cardName}[/c][/k].",
+	"log_keep_drawn": "{name} оставляет вытянутую карту.",
 	"log_reshuffle_1": "Discard pile shuffled back in. Fresh cards, same pain.",
 	"log_reshuffle_2": "The deck ran dry, so the pile is back. Shuffle up.",
 	"log_reshuffle_3": "Колода пуста, сброс вернулся. Те же карты, второй шанс.",

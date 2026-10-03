@@ -11,6 +11,7 @@ export type LogEvent =
 	| { kind: "skip"; seq: number; player: string; actor?: string }
 	| { kind: "reverse"; seq: number }
 	| { kind: "reshuffle"; seq: number }
+	| { kind: "keep"; seq: number; player: string }
 	| { kind: "wild"; seq: number; player: string; color: string }
 	| { kind: "near_win"; seq: number; player: string }
 	| { kind: "win"; seq: number; player: string }
