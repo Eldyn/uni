@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <match/ecs/compact_card.hpp>
+#include <match/ecs/components.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/modload/mod_loader.hpp>
@@ -14,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -399,6 +402,98 @@ std::size_t HandCount(MatchInstance& engine, const std::string& username) {
     return hand == nullptr ? 0 : hand->cards.size();
 }
 
+/** @brief Picks the held drawn card (or nothing) and records the view seen. */
+class DrawnChoicePolicy : public match::server::IBotPolicy {
+public:
+    explicit DrawnChoicePolicy(bool take) : take_(take) {}
+
+    std::optional<uint32_t> ChoosePlay(const BotView& view) override {
+        seen_hand_size = view.hand.size();
+        seen_drawn = view.drawn_card;
+        if (!take_ || !view.drawn_card.has_value()) return std::nullopt;
+        // INFO: the driver must hand over a hand holding only the draw.
+        if (view.hand.size() == 1
+            && view.hand.front().bits == *view.drawn_card) {
+            return view.drawn_card;
+        }
+        return std::nullopt;
+    }
+    json ChoosePrompt(const BotView&) override { return nullptr; }
+    std::vector<uint32_t> ChooseWindowResponses(const BotView&) override {
+        return {};
+    }
+
+    std::size_t seen_hand_size = 0;
+    std::optional<uint32_t> seen_drawn;
+
+private:
+    bool take_;
+};
+
+/** @brief A two-bot session with bot0's turn parked on a playable draw. */
+struct HeldDraw {
+    Content content;
+    std::unique_ptr<MatchSession> session;
+    ecs::Entity drawn{};
+    std::size_t hand_before = 0;
+};
+
+bool OpenHeldDraw(HeldDraw& out) {
+    if (!LoadContent(out.content)) return false;
+    MatchAssemblyOptions options;
+    options.starting_cards = 5;
+    options.seed = 7;
+    for (int index = 0; index < 2; ++index) {
+        MatchPlayerSpec spec;
+        spec.username = "bot" + std::to_string(index);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result = MatchAssembler::Assemble(
+        out.content.mods, out.content.classic, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    auto engine = std::make_unique<MatchInstance>(std::move(result.assembly));
+    MatchInstance& raw = *engine;
+    REQUIRE(raw.GetCurrentPlayerUsername() == "bot0");
+
+    ecs::PileContents* draw =
+        raw.Store().Get<ecs::PileContents>(raw.Registries().draw_pile);
+    if (draw == nullptr) return false;
+    std::optional<ecs::Entity> chosen;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const ecs::FaceSpec* face =
+            raw.Store().Get<ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color == "white") continue;
+        if (face->label.size() != 1) continue;
+        if (!std::isdigit(static_cast<unsigned char>(face->label[0]))) continue;
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (ecs::InZone* in = raw.Store().Get<ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        chosen = draw->cards.back();
+        break;
+    }
+    if (!chosen.has_value()) return false;
+    const ecs::FaceSpec* face = raw.Store().Get<ecs::FaceSpec>(*chosen);
+    if (face == nullptr) return false;
+    ecs::ActiveTypeReq* req =
+        raw.Store().Get<ecs::ActiveTypeReq>(raw.Registries().match);
+    if (req == nullptr) return false;
+    req->type = face->color;
+
+    out.drawn = *chosen;
+    out.hand_before = HandCount(raw, "bot0");
+    if (!raw.DrawCard("bot0")) return false;
+    if (!raw.PendingPlayDrawnState().has_value()) return false;
+
+    out.session = std::make_unique<MatchSession>(
+        std::move(engine), std::move(out.content.mods),
+        MatchSession::SocketMap{{"bot0", PlayerSocket(0)},
+                                {"bot1", PlayerSocket(1)}});
+    return true;
+}
+
 /** @brief bot0 played a +2 into a jump_in + draw_stacking group. */
 struct DebtGroup {
     Content content;
@@ -551,4 +646,71 @@ TEST_CASE("bot policy: nobody passes a jump_in-only window") {
     }
     CHECK(session.Engine().WindowOpen());
     CHECK(session.Engine().ExportWindow()["responses"].empty());
+}
+
+TEST_CASE("bot policy: a policy that picks the drawn card plays it") {
+    HeldDraw fixture;
+    REQUIRE(OpenHeldDraw(fixture));
+    DrawnChoicePolicy policy(true);
+    MatchSession& session = *fixture.session;
+    MatchInstance& engine = session.Engine();
+    const std::optional<ecs::CompactCardV2> bits =
+        engine.Registries().CardId(fixture.drawn);
+    REQUIRE(bits.has_value());
+
+    CHECK(BotStep(session, policy, "bot0"));
+
+    // INFO: the driver offered a view whose hand held only the drawn card.
+    CHECK(policy.seen_hand_size == 1);
+    REQUIRE(policy.seen_drawn.has_value());
+    CHECK(*policy.seen_drawn == bits->bits);
+
+    CHECK_FALSE(engine.PendingPlayDrawnState().has_value());
+    const ecs::InZone* zone = engine.Store().Get<ecs::InZone>(fixture.drawn);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == ecs::ZoneKind::kDiscardPile);
+    CHECK(engine.GetCurrentPlayerUsername() == "bot1");
+    CHECK(HandCount(engine, "bot0") == fixture.hand_before);
+}
+
+TEST_CASE("bot policy: a policy that picks nothing keeps the drawn card") {
+    HeldDraw fixture;
+    REQUIRE(OpenHeldDraw(fixture));
+    DrawnChoicePolicy policy(false);
+    MatchSession& session = *fixture.session;
+    MatchInstance& engine = session.Engine();
+
+    CHECK(BotStep(session, policy, "bot0"));
+
+    CHECK(policy.seen_hand_size == 1);
+    REQUIRE(policy.seen_drawn.has_value());
+
+    // INFO: keeping clears the hold, passes the turn and leaves the card.
+    CHECK_FALSE(engine.PendingPlayDrawnState().has_value());
+    const ecs::InZone* zone = engine.Store().Get<ecs::InZone>(fixture.drawn);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == ecs::ZoneKind::kHand);
+    CHECK(engine.GetCurrentPlayerUsername() == "bot1");
+    CHECK(HandCount(engine, "bot0") == fixture.hand_before + 1);
+}
+
+TEST_CASE("bot policy: the held draw is exposed only to its owner") {
+    HeldDraw fixture;
+    REQUIRE(OpenHeldDraw(fixture));
+    MatchSession& session = *fixture.session;
+    MatchInstance& engine = session.Engine();
+    const std::optional<ecs::CompactCardV2> bits =
+        engine.Registries().CardId(fixture.drawn);
+    REQUIRE(bits.has_value());
+
+    const BotView owner = match::server::BuildBotView(session, "bot0");
+    const BotView other = match::server::BuildBotView(session, "bot1");
+    REQUIRE(owner.drawn_card.has_value());
+    CHECK(*owner.drawn_card == bits->bits);
+    CHECK_FALSE(other.drawn_card.has_value());
+
+    // INFO: a non-owner's step is a no-op; the owner's choice stays parked.
+    DrawnChoicePolicy policy(false);
+    CHECK_FALSE(BotStep(session, policy, "bot1"));
+    CHECK(engine.PendingPlayDrawnState().has_value());
 }

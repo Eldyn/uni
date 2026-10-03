@@ -85,6 +85,7 @@ struct BotView {
     uint64_t window_id = 0;              /**< Window id (RNG stability). */
     bool is_responder = false;           /**< Bot may reply to the window. */
     bool window_responded = false;       /**< Bot already replied / passed. */
+    std::optional<uint32_t> drawn_card;  /**< Held voluntary draw, owner only. */
 };
 
 /**
@@ -166,7 +167,8 @@ private:
  * @brief Build the read-only decision view for `username`.
  *
  * Reads the own-hand snapshot (`can_play` flags) plus the parked prompt
- * and open window state. Never mutates the match.
+ * and open window state. A playable voluntary draw parked on this bot is
+ * surfaced as `drawn_card`. Never mutates the match.
  *
  * @param session  Live match session.
  * @param username The bot to build for.
@@ -177,9 +179,11 @@ BotView BuildBotView(const MatchSession& session, const std::string& username);
 /**
  * @brief Perform exactly one bot action on `session` for `username`.
  *
- * Order: answer a parked prompt, else reply to an open window, else take the
- * turn (play a chosen card, or draw). Returns false when the bot has nothing
- * to do (not its turn / not a responder / match over).
+ * Order: answer a parked prompt, else reply to an open window, else resolve a
+ * held playable draw (offer just the drawn card to the policy; keep it if the
+ * policy declines), else take the turn (play a chosen card, or draw). Returns
+ * false when the bot has nothing to do (not its turn / not a responder / match
+ * over).
  *
  * @param session  Live match session to mutate.
  * @param policy   The deciding strategy.

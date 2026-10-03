@@ -1,5 +1,6 @@
 #include <match/server/bot_policy.hpp>
 
+#include <match/ecs/compact_card.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/server/match_session.hpp>
 #include <match/view/event_sink.hpp>
@@ -396,6 +397,21 @@ BotView BuildBotView(const MatchSession& session, const std::string& username) {
             }
         }
     }
+
+    // INFO: a playable voluntary draw parks a play/keep choice on its owner;
+    //       expose the drawn card only to that owner so the bot resolves the
+    //       hold instead of leaving the turn parked.
+    const std::optional<match::engine::PendingPlayDrawn>& drawn_choice =
+        session.Engine().PendingPlayDrawnState();
+    if (drawn_choice.has_value()) {
+        const std::optional<ecs::Entity> owner =
+            session.Engine().FindPlayer(username);
+        if (owner.has_value() && *owner == drawn_choice->player) {
+            const std::optional<ecs::CompactCardV2> id =
+                session.Engine().Registries().CardId(drawn_choice->card);
+            if (id.has_value()) view.drawn_card = id->bits;
+        }
+    }
     return view;
 }
 
@@ -418,6 +434,21 @@ bool BotStep(MatchSession& session, IBotPolicy& policy,
             if (session.RespondWindow(username, bits)) return true;
         }
         return session.PassWindow(username);
+    }
+
+    // INFO: a held voluntary draw owns the turn. Decide from a view whose hand
+    //       is only the drawn card, so a policy can only accept or decline it;
+    //       declining (or a refused play) keeps the card and passes the turn.
+    if (view.drawn_card.has_value()) {
+        BotView drawn_view = view;
+        drawn_view.hand.clear();
+        BotHandCard drawn;
+        drawn.bits = *view.drawn_card;
+        drawn.can_play = true;
+        drawn_view.hand.push_back(drawn);
+        const std::optional<uint32_t> play = policy.ChoosePlay(drawn_view);
+        if (play.has_value() && session.PlayCard(username, *play)) return true;
+        return session.KeepDrawn(username);
     }
 
     if (view.current_player == username) {
