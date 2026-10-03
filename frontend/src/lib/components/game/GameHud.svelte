@@ -13,7 +13,7 @@
 	// exactly a pending draw whose player matches the local player.
 	let ownsHeldDraw = $derived.by(() => {
 		const pending = storeGame.state?.pendingPlayDrawn ?? null;
-		if (!pending) return false;
+		if (!pending || pending.card === undefined) return false;
 		return pending.player === storeGame.localPlayer?.username;
 	});
 

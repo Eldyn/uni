@@ -24,8 +24,7 @@ const { mockGameState, mockAuth } = vi.hoisted(() => ({
 		isSpectator: false,
 		spectatorCount: 0,
 		turnTimeRemaining: 12,
-		placements: [] as string[],
-		quitMatch: vi.fn()
+		placements: [] as string[]
 	},
 	mockAuth: {
 		username: ""
@@ -88,6 +87,18 @@ describe("GameHud", () => {
 	it("hides the Keep button when the held draw belongs to another player", () => {
 		mockGameState.localPlayer = { username: "alice" };
 		mockGameState.state.pendingPlayDrawn = { player: "bob", card: 10 };
+
+		render(GameHud);
+
+		expect(screen.queryByRole("button", { name: "Keep" })).not.toBeInTheDocument();
+
+		mockGameState.state.pendingPlayDrawn = null;
+		mockGameState.localPlayer = null;
+	});
+
+	it("hides the Keep button when the held draw has no card id", () => {
+		mockGameState.localPlayer = { username: "alice" };
+		mockGameState.state.pendingPlayDrawn = { player: "alice" };
 
 		render(GameHud);
 
