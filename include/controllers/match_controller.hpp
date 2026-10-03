@@ -173,4 +173,19 @@ private:
      * @param lobby Target lobby whose session window should be watched.
      */
     void ScheduleWindowTick(Lobby* lobby);
+
+    /**
+     * @brief Auto-keeps a held draw when its AFK human's turn times out.
+     *
+     * A timed match resolves a playable voluntary draw's play/keep hold
+     * through this AFK takeover, not the engine's `Tick` expiry, so the
+     * heuristic bot would otherwise play the held card. When the hold is
+     * owned by `username` it is kept (the card stays in hand) and the turn
+     * advances; any other turn is left to `BotStep`.
+     * @param session Live match session.
+     * @param username The AFK human whose turn clock elapsed.
+     * @return true when a held draw owned by `username` was kept.
+     */
+    bool ResolveAfkHeldDraw(match::server::MatchSession& session,
+                            const std::string& username);
 };

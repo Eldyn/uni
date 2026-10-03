@@ -624,6 +624,16 @@ void MatchController::OpenReadyBarrier(Lobby* lobby) {
     BroadcastMatchState(lobby);
 }
 
+bool MatchController::ResolveAfkHeldDraw(
+    match::server::MatchSession& session, const std::string& username) {
+    const std::optional<match::engine::PendingPlayDrawn>& hold =
+        session.Engine().PendingPlayDrawnState();
+    if (!hold.has_value()) return false;
+    const auto player = session.Engine().FindPlayer(username);
+    if (!player.has_value() || !(hold->player == *player)) return false;
+    return session.KeepDrawn(username);
+}
+
 /**
  * @brief New-engine turn driver.
  *
@@ -731,10 +741,16 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         Lobby* verified_lobby = lobby_store_.GetLobbyById(lobby_id);
         if (verified_lobby == nullptr || !verified_lobby->session) return;
         if (verified_lobby->session->Engine().IsMatchOver()) return;
-        Logger::Info("[MATCH] Bot playing for AFK player: ", human_actor);
-        match::server::HeuristicBotPolicy policy(
-            BotSeed(lobby_id, human_actor));
-        match::server::BotStep(*verified_lobby->session, policy, human_actor);
+        // INFO: a held playable draw resolves as the engine's auto-keep on
+        //       timeout; the takeover bot must not play it (that would invert
+        //       the play/keep promise and risk an unintended win).
+        if (!ResolveAfkHeldDraw(*verified_lobby->session, human_actor)) {
+            Logger::Info("[MATCH] Bot playing for AFK player: ", human_actor);
+            match::server::HeuristicBotPolicy policy(
+                BotSeed(lobby_id, human_actor));
+            match::server::BotStep(*verified_lobby->session, policy,
+                                   human_actor);
+        }
         verified_lobby->session->Tick();
         // INFO: Flush the takeover step's engine events before
         //       the snapshot so AFK plays reach the wire as `match_event`.

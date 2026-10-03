@@ -1516,5 +1516,44 @@ TEST_CASE("keep drawn: the owner's hold resolves and advances the turn") {
     CHECK(f.CountMatchEvents("turn_advance") >= 1);
     CHECK(f.timers.Has("turn_1"));
 }
+
+TEST_CASE("AFK timeout on a held draw keeps it instead of playing it") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
+
+    match::engine::MatchInstance& engine = f.Engine();
+    REQUIRE(engine.GetCurrentPlayerUsername() == "Alice");
+
+    // INFO: park a playable held draw on the idle human, then let the turn
+    //       clock expire through the controller's AFK takeover timer.
+    const std::optional<match::ecs::Entity> drawn = ArmPlayableDraw(engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine.DrawCard("Alice"));
+    REQUIRE(engine.PendingPlayDrawnState().has_value());
+    const match::ecs::Entity alice = *engine.FindPlayer("Alice");
+    const match::ecs::Hand* hand = engine.Store().Get<match::ecs::Hand>(alice);
+    REQUIRE(hand != nullptr);
+    const std::size_t hand_before = hand->cards.size();
+
+    REQUIRE(f.timers.Has("turn_1"));
+    f.timers.Fire("turn_1");
+
+    // INFO: the timeout is the engine's auto-keep, so the card stays in the
+    //       hand and the turn passes on; the AFK bot must not play it.
+    CHECK_FALSE(engine.PendingPlayDrawnState().has_value());
+    hand = engine.Store().Get<match::ecs::Hand>(alice);
+    REQUIRE(hand != nullptr);
+    CHECK(hand->cards.size() == hand_before);
+    CHECK(std::find(hand->cards.begin(), hand->cards.end(), *drawn)
+          != hand->cards.end());
+    const match::ecs::InZone* zone =
+        engine.Store().Get<match::ecs::InZone>(*drawn);
+    REQUIRE(zone != nullptr);
+    CHECK(zone->zone.kind == match::ecs::ZoneKind::kHand);
+    CHECK(engine.GetCurrentPlayerUsername() == "BotBob");
+    CHECK(f.CountMatchEvents("turn_advance") >= 1);
+}
 }  // TEST_SUITE("MatchController::KeepDrawn")
 
