@@ -487,6 +487,34 @@ TEST_CASE("engine: a lapsed turn clock drops the held draw and advances") {
     CHECK(ZoneOf(*engine, *drawn) == ecs::ZoneKind::kHand);
 }
 
+TEST_CASE("engine: a held draw neither suspends nor resets the turn clock") {
+    FakeClock clock;
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7,
+                                                       clock.Fn());
+
+    // INFO: arm the turn clock BEFORE the draw so the recorded deadline is
+    //       the one the hold must leave alone (a suspend would zero it).
+    engine->SyncClocks(kTimeLimitMs);
+    const int64_t armed = engine->CurrentTurnDeadlineMs();
+    REQUIRE(armed > 0);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    // INFO: parking the hold must not suspend or re-arm the clock.
+    CHECK(engine->CurrentTurnDeadlineMs() == armed);
+
+    REQUIRE(engine->KeepDrawn("player0"));
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    // INFO: the keep advances the turn; the incoming seat is left unarmed
+    //       for the controller to arm, not handed the outgoing seat's clock.
+    CHECK(engine->CurrentTurnDeadlineMs() == 0);
+}
+
 TEST_CASE("engine: other players route as today while a held draw waits") {
     Content content;
     REQUIRE(LoadContent(content));
