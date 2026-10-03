@@ -201,11 +201,41 @@ bool HasEvent(const MatchInstance& engine, const std::string& type,
     return false;
 }
 
+/** @brief True when a named `emit_signal` packet was observed. */
+bool HasSignal(const MatchInstance& engine, const std::string& name) {
+    for (const json& event : engine.Events()) {
+        if (event.value("type", std::string()) != "signal") continue;
+        if (!event.contains("payload") || !event["payload"].is_object()) {
+            continue;
+        }
+        if (event["payload"].value("name", std::string()) == name) return true;
+    }
+    return false;
+}
+
 void SetActiveType(MatchInstance& engine, const std::string& type) {
     ecs::ActiveTypeReq* req = engine.Store().Get<ecs::ActiveTypeReq>(
         engine.Assembly().registries.match);
     REQUIRE(req != nullptr);
     req->type = type;
+}
+
+/**
+ * @brief Rewrite a card's identity and face together.
+ *
+ * The restriction pipeline reads frozen `kind_id` facts while the
+ * `drawn_card_playable` condition reads the mutable `FaceSpec`; a card is only
+ * genuinely unplayable when both agree.
+ */
+void SetCard(MatchInstance& engine, ecs::Entity card, const std::string& kind,
+             const std::string& color, const std::string& label) {
+    if (ecs::CardIdentity* id = engine.Store().Get<ecs::CardIdentity>(card)) {
+        id->kind_id = kind;
+    }
+    if (ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card)) {
+        face->color = color;
+        face->label = label;
+    }
 }
 
 }  // namespace
@@ -236,6 +266,7 @@ TEST_CASE("engine: force-play of a playable drawn card runs the pipeline") {
           == ecs::ZoneKind::kDiscardPile);
     CHECK(HandSize(*engine, "player0") == before);
     CHECK(HasEvent(*engine, "card_played", *drawn));
+    CHECK_FALSE(HasSignal(*engine, "wp9d1_skip"));
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
 }
 
@@ -248,30 +279,33 @@ TEST_CASE("engine: force-play rule leaves an unplayable drawn card in hand") {
 
     const std::optional<ecs::Entity> drawn = NumericTopCard(*engine);
     REQUIRE(drawn.has_value());
-    const ecs::FaceSpec* face = engine->Store().Get<ecs::FaceSpec>(*drawn);
-    REQUIRE(face != nullptr);
 
-    // INFO: make the card unplayable: active colour differs, and the discard
-    //       top's face value differs from the drawn card's.
-    SetActiveType(*engine, face->color == "green" ? "red" : "green");
+    // INFO: make the card genuinely unplayable to BOTH the restriction
+    //       pipeline (which reads frozen `kind_id` facts) and the
+    //       `drawn_card_playable` condition (which reads the mutable
+    //       `FaceSpec`): a red 5 on a blue 9 with green active matches
+    //       neither colour nor value, so the graph's condition is false and
+    //       the skip branch runs (no `play_card` op is ever emitted).
     ecs::PileContents* discard = Pile(*engine, ecs::PileKind::kDiscard);
     REQUIRE(discard != nullptr);
     REQUIRE_FALSE(discard->cards.empty());
-    if (ecs::FaceSpec* top =
-            engine->Store().Get<ecs::FaceSpec>(discard->cards.back())) {
-        top->label = "___";
-    }
+    SetCard(*engine, discard->cards.back(), "vanilla:blue_9", "blue", "9");
+    SetCard(*engine, *drawn, "vanilla:red_5", "red", "5");
+    SetActiveType(*engine, "green");
 
     const std::size_t before = HandSize(*engine, "player0");
     REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
 
     CHECK(engine->DrawCard("player0"));
 
-    // INFO: no forced play; the card stays in hand (draw +1) and the turn
+    // INFO: no forced play; the card stays in hand (draw +1), the graph took
+    //       the skip branch (proving the `drawn_card_playable` condition --
+    //       not the restriction pipeline -- gated the play) and the turn
     //       passes to the opponent.
     CHECK(engine->Store().Get<ecs::InZone>(*drawn)->zone.kind
           == ecs::ZoneKind::kHand);
     CHECK(HandSize(*engine, "player0") == before + 1);
     CHECK_FALSE(HasEvent(*engine, "card_played", *drawn));
+    CHECK(HasSignal(*engine, "wp9d1_skip"));
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
 }

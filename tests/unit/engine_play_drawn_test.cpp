@@ -8,9 +8,12 @@
 
 #include <nlohmann/json.hpp>
 
+#include <match/timers.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -38,6 +41,59 @@ using namespace match::modload;
 namespace {
 
 using nlohmann::json;
+
+constexpr int64_t kTimeLimitMs = 15'000;
+
+/** @brief A settable engine clock so the turn deadline is deterministic. */
+struct FakeClock {
+    int64_t now = 0;
+
+    match::NowMs Fn() {
+        return [this]() { return now; };
+    }
+};
+
+/** @brief A rule mod whose `after:draw` hook force-plays a playable draw. */
+LoadedMod ForcePlayMod() {
+    const json nodes = json::array({
+        json{{"id", "n1"},
+             {"cases", json::array({json{
+                 {"when", json{{"drawn_card_playable", json::object()}}},
+                 {"next", "n2"}}})},
+             {"else", "n3"}},
+        json{{"id", "n2"},
+             {"op", "play_card"},
+             {"args", json{{"card", "@drawn_card"}, {"player", "@self"}}}},
+        json{{"id", "n3"},
+             {"op", "emit_signal"},
+             {"args", json{{"name", "wp9d1_skip"}}}},
+    });
+    const json graph = json{{"nodes", nodes}};
+
+    BehaviorGraph behavior;
+    behavior.raw = graph;
+    behavior.nodes = nodes;
+
+    BehaviorEntry entry;
+    entry.hook = "after:draw";
+    entry.graph = behavior;
+
+    RuleDef rule;
+    rule.id = "force";
+    rule.namespace_id = "wp9d1_force";
+    rule.rule_id = "wp9d1_force:force";
+    rule.title = " test force play";
+    rule.hooks.push_back(entry);
+
+    LoadedMod mod;
+    mod.folder = "wp9d1_force";
+    mod.manifest.id = "wp9d1_force";
+    mod.manifest.name = " test force play";
+    mod.manifest.version = "1.0.0";
+    mod.manifest.api = "1";
+    mod.rules.push_back(rule);
+    return mod;
+}
 
 std::string AssemblyMessage(const AssemblyResult& result) {
     return result.error.has_value() ? result.error->message
@@ -88,11 +144,16 @@ MatchAssemblyOptions Players(int count, int starting_cards, uint64_t seed) {
 }
 
 std::unique_ptr<MatchInstance> MakeEngine(Content& content, int players,
-                                          int cards, uint64_t seed) {
+                                          int cards, uint64_t seed,
+                                          match::NowMs clock = nullptr) {
     DeckDef deck = content.classic;
     AssemblyResult result = MatchAssembler::Assemble(
         content.mods, deck, Players(players, cards, seed));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    if (clock) {
+        return std::make_unique<MatchInstance>(std::move(result.assembly),
+                                               std::move(clock));
+    }
     return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
 
@@ -105,6 +166,33 @@ ecs::PileContents* Pile(MatchInstance& engine, ecs::PileKind kind) {
         if (contents != nullptr && contents->kind == kind) return contents;
     }
     return nullptr;
+}
+
+/** @brief Top the draw pile with the plain wild (`jolly`) card. */
+std::optional<ecs::Entity> WildTopCard(MatchInstance& engine) {
+    ecs::PileContents* draw = Pile(engine, ecs::PileKind::kDraw);
+    if (draw == nullptr) return std::nullopt;
+    for (std::size_t i = 0; i < draw->cards.size(); ++i) {
+        const ecs::FaceSpec* face =
+            engine.Store().Get<ecs::FaceSpec>(draw->cards[i]);
+        if (face == nullptr || face->color != "white") continue;
+        if (face->label != "jolly") continue;
+        std::swap(draw->cards[i], draw->cards.back());
+        for (std::size_t j = 0; j < draw->cards.size(); ++j) {
+            if (ecs::InZone* in =
+                    engine.Store().Get<ecs::InZone>(draw->cards[j])) {
+                in->ordinal = static_cast<uint32_t>(j);
+            }
+        }
+        return draw->cards.back();
+    }
+    return std::nullopt;
+}
+
+ecs::ZoneKind ZoneOf(MatchInstance& engine, ecs::Entity card) {
+    const ecs::InZone* in = engine.Store().Get<ecs::InZone>(card);
+    REQUIRE(in != nullptr);
+    return in->zone.kind;
 }
 
 std::size_t HandSize(MatchInstance& engine, const std::string& username) {
@@ -271,4 +359,161 @@ TEST_CASE("engine: KeepDrawn by a non-owner is refused and leaves the choice") {
     // INFO: the owner can still resolve the choice afterwards.
     CHECK(engine->KeepDrawn("player0"));
     CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+}
+
+TEST_CASE("engine: playing the held drawn card clears the choice and advances") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    CHECK(engine->PlayCard("player0", *drawn));
+
+    CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+    CHECK(ZoneOf(*engine, *drawn) == ecs::ZoneKind::kDiscardPile);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+}
+
+TEST_CASE("engine: playing another card while waiting is refused, state stays") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    // INFO: player0's first hand card is not the held draw.
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Hand* hand = engine->Store().Get<ecs::Hand>(player0);
+    REQUIRE(hand != nullptr);
+    REQUIRE_FALSE(hand->cards.empty());
+    const ecs::Entity other = hand->cards.front();
+    REQUIRE_FALSE(other == *drawn);
+
+    CHECK_FALSE(engine->PlayCard("player0", other));
+
+    CHECK(engine->PendingPlayDrawnState().has_value());
+    CHECK(engine->PendingPlayDrawnState()->card == *drawn);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
+    CHECK(HandContains(*engine, "player0", other));
+}
+
+TEST_CASE("engine: drawing again while waiting is refused") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+    const std::size_t hand = HandSize(*engine, "player0");
+
+    CHECK_FALSE(engine->DrawCard("player0"));
+
+    CHECK(engine->PendingPlayDrawnState().has_value());
+    CHECK(HandSize(*engine, "player0") == hand);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
+}
+
+TEST_CASE("engine: a wild held draw opens the colour prompt when played") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    // INFO: a wild is always legal, so the voluntary draw holds the turn.
+    const std::optional<ecs::Entity> drawn = WildTopCard(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    CHECK(engine->PlayCard("player0", *drawn));
+
+    CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+    const std::optional<json> pending = engine->PendingInput();
+    REQUIRE(pending.has_value());
+    CHECK((*pending)["kind"] == "choose_color");
+
+    REQUIRE(engine->SubmitInput("player0", "red"));
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+}
+
+TEST_CASE("engine: force_play resolves the drawn card and never parks the state") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    content.mods.push_back(ForcePlayMod());
+    content.classic.mods.push_back("wp9d1_force");
+
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+
+    CHECK(engine->DrawCard("player0"));
+
+    // INFO: the after:draw graph force-played the drawn card before the hold
+    //       path could run: no choice is parked and the turn advanced.
+    CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+    CHECK(ZoneOf(*engine, *drawn) == ecs::ZoneKind::kDiscardPile);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+}
+
+TEST_CASE("engine: a lapsed turn clock drops the held draw and advances") {
+    FakeClock clock;
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7,
+                                                       clock.Fn());
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    engine->SyncClocks(kTimeLimitMs);
+    clock.now = kTimeLimitMs + 1;
+    engine->Tick();
+
+    CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(HandContains(*engine, "player0", *drawn));
+    CHECK(ZoneOf(*engine, *drawn) == ecs::ZoneKind::kHand);
+}
+
+TEST_CASE("engine: other players route as today while a held draw waits") {
+    Content content;
+    REQUIRE(LoadContent(content));
+
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+
+    const std::optional<ecs::Entity> drawn = ArmPlayableDraw(*engine);
+    REQUIRE(drawn.has_value());
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
+
+    // INFO: the hold only constrains the holder; a non-holder's attempt while
+    //       the holder still waits is refused (turn order), leaving the
+    //       choice and the current player untouched. Assert the refusals
+    //       explicitly so the ordinary pipeline cannot silently accept them.
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Hand* hand = engine->Store().Get<ecs::Hand>(player1);
+    REQUIRE(hand != nullptr);
+    REQUIRE_FALSE(hand->cards.empty());
+
+    CHECK_FALSE(engine->PlayCard("player1", *drawn));
+    CHECK(engine->PendingPlayDrawnState().has_value());
+    CHECK(engine->PendingPlayDrawnState()->card == *drawn);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
+
+    CHECK_FALSE(engine->PlayCard("player1", hand->cards.front()));
+    CHECK(engine->PendingPlayDrawnState().has_value());
+    CHECK(engine->PendingPlayDrawnState()->card == *drawn);
+    CHECK(engine->GetCurrentPlayerUsername() == "player0");
 }

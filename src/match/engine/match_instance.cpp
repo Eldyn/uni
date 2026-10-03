@@ -232,6 +232,17 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+
+    // INFO:  - while a playable voluntary draw holds the turn, only the
+    //       holder may act and only by playing the held card. Clearing the
+    //       state before the play pipeline runs lets a wild open its
+    //       colour prompt (a pending prompt refuses further plays).
+    if (awaiting_play_drawn_.has_value()) {
+        if (!(awaiting_play_drawn_->player == *player)) return false;
+        if (!(awaiting_play_drawn_->card == card)) return false;
+        awaiting_play_drawn_.reset();
+    }
+
     if (!store.IsAlive(card) || !store.Has<ecs::CardIdentity>(card)) {
         return false;
     }
@@ -365,6 +376,10 @@ bool MatchInstance::DrawCard(const std::string& username) {
     if (!player.has_value()) return false;
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value() || !(*current == *player)) return false;
+
+    // INFO:  - a held playable draw owns the turn until it is played, kept
+    //       or the turn clock expires; the holder cannot draw again.
+    if (awaiting_play_drawn_.has_value()) return false;
 
     // --- draw_attempt: a before-veto skips this draw ----------------------
     json attempt = json{{"player", EntityJson(*player)},
