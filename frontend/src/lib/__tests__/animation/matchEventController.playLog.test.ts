@@ -44,6 +44,8 @@ function fakeBus() {
 		removePendingLocalDraw: vi.fn(),
 		pendingLocalDrawIds: new Set<number>(),
 		pendingLocalPlayDrawnId: null,
+		setPendingLocalPlayDrawnId: vi.fn(),
+		setHoldingOpponents: vi.fn(),
 		pendingLocalDragPlay: null,
 		setPendingLocalDragPlay: vi.fn(),
 		retainTopDiscard: vi.fn(),

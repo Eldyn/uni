@@ -25,4 +25,23 @@ describe("isHandCardDimmed", () => {
 			isHandCardDimmed({ handDimmed: true, isWindowResponder: true, canPlay: undefined })
 		).toBe(true);
 	});
+
+	it("dims the rest of the hand while the drawn card is held, even on-turn", () => {
+		expect(
+			isHandCardDimmed({
+				handDimmed: false,
+				isWindowResponder: false,
+				canPlay: true,
+				pendingPlayDrawn: true
+			})
+		).toBe(true);
+		expect(
+			isHandCardDimmed({
+				handDimmed: false,
+				isWindowResponder: true,
+				canPlay: true,
+				pendingPlayDrawn: true
+			})
+		).toBe(true);
+	});
 });

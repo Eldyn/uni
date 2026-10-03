@@ -27,6 +27,7 @@ import {
 	WindowOpenPayloadSchema
 } from "$lib/generated/schemas";
 import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schemas";
+import type { CardBus } from "$components/game/card-bus.svelte";
 import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 
 export const TYPE_MAP = TypeMap;
@@ -66,6 +67,10 @@ const RawGameStateSchema = z.object({
 	placements: z.array(z.string()).optional(),
 	players: z.array(RawPlayerSchema),
 	pending_draws: z.number().int().default(0),
+	pending_play_drawn: z
+		.object({ player: z.string(), card: z.number().int().optional() })
+		.nullable()
+		.optional(),
 	draw_pile_size: z.number().int().default(0),
 	discard_pile_size: z.number().int().default(0),
 	last_play: z.object({ player: z.string(), hand_index: z.number().int() }).optional(),
@@ -125,6 +130,19 @@ export interface GamePlayer {
 }
 
 /**
+ * @interface PendingPlayDrawn
+ * @brief The voluntary draw currently held for a play/keep decision. The
+ * `card` id is present only for the owner; every other viewer receives just
+ * the `player`, so the drawn face is never leaked.
+ */
+export interface PendingPlayDrawn {
+	/** Username of the player holding the decision. */
+	player: string;
+	/** Id of the drawn card — owner only. */
+	card?: number;
+}
+
+/**
  * @interface GameState
  * @brief Snapshot of the complete table state at a precise instant.
  */
@@ -141,6 +159,9 @@ export interface GameState {
 	players: GamePlayer[];
 	/** Accumulated cards (+2/+4 chain) that the next player will have to draw. */
 	pending_draws: number;
+	/** Voluntary draw held for a play/keep decision, or null when none is live.
+	 *  The card id is present only in the owner's snapshot. */
+	pendingPlayDrawn: PendingPlayDrawn | null;
 	/** How many cards remain in the draw pile — drives the pile's visible stack height and reshuffle detection. */
 	draw_pile_size: number;
 	/** How many cards sit in the discard pile. When the draw pile is empty this
@@ -692,6 +713,7 @@ class StoreGame implements SessionStore {
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
 				pending_draws: stateJson.pending_draws,
+				pendingPlayDrawn: stateJson.pending_play_drawn ?? null,
 				draw_pile_size: stateJson.draw_pile?.count ?? stateJson.draw_pile_size ?? 0,
 				discard_pile_size: stateJson.discard_pile?.count ?? stateJson.discard_pile_size ?? 0,
 				mode: stateJson.mode,
@@ -1042,6 +1064,38 @@ class StoreGame implements SessionStore {
 		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
 		storeAudio.playSfx("sfx.action.draw-card");
 		ws.emit(ClientAction.MatchDrawCard);
+	}
+
+	/**
+	 * @brief Tells the server the local player keeps the held drawn card,
+	 * ending the play/keep choice with the card left in hand.
+	 *
+	 * Mirrors drawCard's latch: ignored while a request is already in flight.
+	 */
+	keepDrawn() {
+		if (this.isSpectator || this.isActionPending) return;
+		this.isActionPending = true;
+		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
+		ws.emit(ClientAction.MatchKeepDrawn);
+	}
+
+	/**
+	 * @brief Mirrors the snapshot's `pending_play_drawn` onto the animation bus.
+	 *
+	 * The owner's drawn card lifts by id; a waiting opponent's hold lifts a
+	 * card back (never a face — the id only ever reaches its owner). The store
+	 * is a plain singleton and cannot reach Svelte context, so the board's
+	 * state-sync effect passes its bus in. Pass the viewer's POV username so a
+	 * spectator's viewed player is matched as "local".
+	 */
+	applyPendingPlayDrawn(bus: CardBus, localUsername: string | null): void {
+		const pending = this.state?.pendingPlayDrawn ?? null;
+		const ownerIsLocal =
+			pending !== null && pending.player === localUsername && pending.card !== undefined;
+		bus.setPendingLocalPlayDrawnId(ownerIsLocal ? (pending!.card as number) : null);
+		bus.setHoldingOpponents(
+			pending !== null && !ownerIsLocal ? new Set([pending.player]) : new Set()
+		);
 	}
 
 	/**

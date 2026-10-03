@@ -131,6 +131,11 @@ export function createMatchEventBeatController(deps: {
 	// updates it AFTER the store drains the current snapshot's beats
 	//so `handle` still sees the pre-reshuffle value.
 	let prevDrawPileSize: number | null = null;
+	// The POV player's drawn card currently parked at the draw-pile top for a
+	// play/keep decision. Tracked so syncState can release the pose exactly
+	// once when the snapshot's `pending_play_drawn` clears or the card leaves
+	// the hand, instead of re-seeding it on every snapshot.
+	let heldPlayDrawnId: number | null = null;
 	// INFO: turn beats drain on packet arrival, synchronously after the
 	// snapshot, while the play that caused them is still flying. Each turn's
 	// cue and ring flip is deferred onto the last play's landing so they play
@@ -443,6 +448,16 @@ export function createMatchEventBeatController(deps: {
 		//       server withholds from a spectator.
 		const newIds = beat.cardIds;
 		if (newIds.length === 0) return;
+
+		// INFO: a voluntary playable draw is held for a play/keep decision —
+		//       park it face up on the draw pile instead of flying it into the
+		//       hand. The store's snapshot already carries the hold.
+		const heldId = heldDrawnCardId(state);
+		if (heldId !== null && newIds.length === 1 && newIds[0] === heldId) {
+			parkHeldDrawCard(state, heldId);
+			heldPlayDrawnId = heldId;
+			return;
+		}
 
 		const placement = deps.getPlacement();
 
@@ -807,6 +822,85 @@ export function createMatchEventBeatController(deps: {
 		}
 	}
 
+	/** The POV player's held drawn card id, or null when no decision is live
+	 *  for them. Non-owners never receive the `card`, so this is owner-only by
+	 *  construction. */
+	function heldDrawnCardId(state: NonNullable<typeof storeGame.state>): number | null {
+		const pending = state.pendingPlayDrawn;
+		if (!pending || pending.card === undefined) return null;
+		if (pending.player !== resolveLocalUsername(state)) return null;
+		return pending.card;
+	}
+
+	/** Parks the held drawn card face up above the draw pile until the play or
+	 *  keep resolves. Reconnect-safe: called from syncState when no live draw
+	 *  beat seeded it. */
+	function parkHeldDrawCard(state: NonNullable<typeof storeGame.state>, cardId: number): void {
+		const pov = resolveLocalUsername(state);
+		const card = state.players?.find((p) => p.username === pov)?.hand?.find((c) => c.id === cardId);
+		if (!card) return;
+		const key = String(cardId);
+		const placement = deps.getPlacement();
+		const pileSize = Math.max((state.draw_pile_size ?? 0) + 1, 1);
+		const [px, py, pz] = drawPileTopPose(
+			placement,
+			pileSize,
+			storeRenderSettings.drawPileThickness,
+			deps.bus.getDrawPileHoverDipZ?.() ?? 0
+		);
+		deps.cardRegistry.registerCardMeta(key, cardMetaFrom(card));
+		deps.cardRegistry.seedPose(key, {
+			x: px,
+			y: py + DRAW_HOVER_LIFT,
+			z: pz,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: placement.drawPileScale,
+			turned: true,
+			opacity: 1
+		});
+		deps.cardRegistry.setDecoration(key, { dimmed: false, glint: true });
+		deps.cardRegistry.setPoseProvider(key, () => {
+			const current = deps.getPlacement();
+			const size = Math.max((storeGame.state?.draw_pile_size ?? 0) + 1, 1);
+			const [tx, ty, tz] = drawPileTopPose(
+				current,
+				size,
+				storeRenderSettings.drawPileThickness,
+				deps.bus.getDrawPileHoverDipZ?.() ?? 0
+			);
+			return [tx, ty + DRAW_HOVER_LIFT, tz];
+		});
+		// INFO: flip the parked card face up (a held draw is the owner's to
+		//       see); the flip step also registers the flight handle that
+		//       AllCards3D renders.
+		deps.cardRegistry.enqueue(
+			[[{ op: "flip", target: key, payload: { turned: false, axis: "x" } }]],
+			resolveCardTarget
+		);
+	}
+
+	/** Reconciles the parked held-draw pose with the live snapshot: seeds a
+	 *  newly parked card (reconnect or first observation), and releases the
+	 *  pose once the decision resolves. */
+	function syncHeldDrawPose(state: NonNullable<typeof storeGame.state>): void {
+		const cardId = heldDrawnCardId(state);
+		if (cardId !== null) {
+			if (heldPlayDrawnId !== cardId && !deps.cardRegistry.isInTransit(String(cardId))) {
+				parkHeldDrawCard(state, cardId);
+			}
+			heldPlayDrawnId = cardId;
+			return;
+		}
+		if (heldPlayDrawnId !== null) {
+			// Release the pose provider so LocalHand3D (kept) or the discard
+			// pile (played) takes ownership back. The entry itself is left for
+			// whichever owner now has the card.
+			deps.cardRegistry.setPoseProvider(String(heldPlayDrawnId), null);
+			heldPlayDrawnId = null;
+		}
+	}
+
 	/** Called by GameBoard on each `storeGame.state` change (a plain $effect,
 	 *  NOT a diff source). Also live-refreshes every in-flight draw card's
 	 *  dimmed state, since a turn or a target prompt can change mid-flight
@@ -818,6 +912,7 @@ export function createMatchEventBeatController(deps: {
 			// so the mat can't stay wedged on the old colour into the next one.
 			storeMatRipple.clearPending();
 			resetPlayLog();
+			heldPlayDrawnId = null;
 			return;
 		}
 
@@ -829,6 +924,12 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		deps.bus.setActiveType(state.active_type as CardType);
+
+		// INFO: pending_play_drawn is authoritative for the held card's pose and
+		//       the bus mirror — a reconnect restores both from the snapshot
+		//       alone, with no replay of the draw beat.
+		storeGame.applyPendingPlayDrawn(deps.bus, resolveLocalUsername(state) ?? null);
+		syncHeldDrawPose(state);
 
 		if (pendingWildRipple && state.active_type && state.active_type !== "white") {
 			const { originUv, maxRadius } = pendingWildRipple;

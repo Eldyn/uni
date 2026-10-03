@@ -136,6 +136,24 @@ export class CardBus {
 		return this.holdingOpponents.has(username);
 	}
 
+	/** Replaces the whole held-opponent set in one assignment — used by the
+	 *  snapshot mirror, which must also clear a hold that has resolved, not
+	 *  just add or remove a single known seat. No-ops when the membership is
+	 *  unchanged so a per-snapshot sync never churns consumers. */
+	setHoldingOpponents(usernames: Set<string>): void {
+		if (this.holdingOpponents.size === usernames.size) {
+			let same = true;
+			for (const username of usernames) {
+				if (!this.holdingOpponents.has(username)) {
+					same = false;
+					break;
+				}
+			}
+			if (same) return;
+		}
+		this.holdingOpponents = new Set(usernames);
+	}
+
 	/** True while a local card is being dragged and currently sits over the
 	 *  discard pile as a valid drop. Drives the pile's own drop highlight
 	 *  (DiscardPile3D reads it directly rather than threading a prop through

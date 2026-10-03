@@ -48,6 +48,8 @@ function fakeBus() {
 		removePendingLocalDraw: vi.fn(),
 		pendingLocalDrawIds: new Set<number>(),
 		pendingLocalPlayDrawnId: null,
+		setPendingLocalPlayDrawnId: vi.fn(),
+		setHoldingOpponents: vi.fn(),
 		retainTopDiscard: vi.fn()
 	} as unknown as CardBus;
 }

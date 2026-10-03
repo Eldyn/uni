@@ -194,6 +194,14 @@
 	let sortButtonX = $derived(-((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3));
 
 	let handCards = $derived(handPlayer?.hand ?? []);
+	// The viewer's own voluntary draw is parked for a play/keep decision: the
+	// lifted card id is only ever sent to its owner, so its presence confirms
+	// this POV player is the one choosing. The rest of the row dims meanwhile.
+	let holdsDrawnCard = $derived(
+		storeGame.state?.pendingPlayDrawn != null &&
+			storeGame.state.pendingPlayDrawn.player === handPlayer?.username &&
+			storeGame.state.pendingPlayDrawn.card !== undefined
+	);
 	// A spectator viewing a player whose hand the server withheld (privacy_mode)
 	// still gets a full-looking row — of card backs, one per card_count, never
 	// inferred faces. Only ever non-zero for a spectator: the local player's own
@@ -544,7 +552,8 @@
 				dimmed: isHandCardDimmed({
 					handDimmed: dimmed,
 					isWindowResponder: storeGame.isWindowResponder,
-					canPlay: card.can_play
+					canPlay: card.can_play,
+					pendingPlayDrawn: holdsDrawnCard
 				}),
 				shadow: shadowTexture
 					? {
