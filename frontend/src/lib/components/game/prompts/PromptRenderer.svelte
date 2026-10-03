@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
 	import SchemaFallbackPrompt from "./SchemaFallbackPrompt.svelte";
+	import HeldDrawPrompt from "./HeldDrawPrompt.svelte";
 	import { kindRegistry } from "./kindRegistry";
 
 	let prompt = $derived(storeGame.activePrompt);
@@ -12,3 +13,5 @@
 {#if !storeGame.isSpectator && prompt && PromptComponent}
 	<PromptComponent {prompt} />
 {/if}
+
+<HeldDrawPrompt />

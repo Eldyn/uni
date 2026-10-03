@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/svelte";
+import { render } from "@testing-library/svelte";
 
 const { mockGameState, mockAuth } = vi.hoisted(() => ({
 	mockGameState: {
@@ -69,42 +69,5 @@ describe("GameHud", () => {
 
 		mockGameState.placements = [];
 		mockGameState.state.mode = "standard";
-	});
-
-	it("renders a Keep button for the owner's held draw and calls keepDrawn", async () => {
-		mockGameState.localPlayer = { username: "alice" };
-		mockGameState.state.pendingPlayDrawn = { player: "alice", card: 10 };
-
-		render(GameHud);
-
-		await fireEvent.click(screen.getByRole("button", { name: "Keep" }));
-		expect(mockGameState.keepDrawn).toHaveBeenCalledTimes(1);
-
-		mockGameState.state.pendingPlayDrawn = null;
-		mockGameState.localPlayer = null;
-	});
-
-	it("hides the Keep button when the held draw belongs to another player", () => {
-		mockGameState.localPlayer = { username: "alice" };
-		mockGameState.state.pendingPlayDrawn = { player: "bob", card: 10 };
-
-		render(GameHud);
-
-		expect(screen.queryByRole("button", { name: "Keep" })).not.toBeInTheDocument();
-
-		mockGameState.state.pendingPlayDrawn = null;
-		mockGameState.localPlayer = null;
-	});
-
-	it("hides the Keep button when the held draw has no card id", () => {
-		mockGameState.localPlayer = { username: "alice" };
-		mockGameState.state.pendingPlayDrawn = { player: "alice" };
-
-		render(GameHud);
-
-		expect(screen.queryByRole("button", { name: "Keep" })).not.toBeInTheDocument();
-
-		mockGameState.state.pendingPlayDrawn = null;
-		mockGameState.localPlayer = null;
 	});
 });

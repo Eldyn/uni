@@ -289,6 +289,8 @@
 	"game_action_play_it": "Gioca",
 	"game_action_keep_it": "Tieni",
 	"game_keep_drawn": "Tieni",
+	"game_held_draw_play": "Gioca",
+	"game_held_draw_draw": "Pesca",
 	"game_exit_confirm_title": "Uscire dalla partita?",
 	"game_exit_confirm_body": "Uscirai da questa partita e tornerai alla lobby.",
 	"game_exit_confirm_yes": "Si', esci",

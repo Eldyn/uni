@@ -289,6 +289,8 @@
 	"game_action_play_it": "Play It",
 	"game_action_keep_it": "Keep It",
 	"game_keep_drawn": "Keep",
+	"game_held_draw_play": "Play",
+	"game_held_draw_draw": "Draw",
 	"game_exit_confirm_title": "Leave the match?",
 	"game_exit_confirm_body": "You'll leave this match and return to the lobby.",
 	"game_exit_confirm_yes": "Yes, leave",

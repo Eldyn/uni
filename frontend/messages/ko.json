@@ -289,6 +289,8 @@
 	"game_action_play_it": "내기",
 	"game_action_keep_it": "가지고 있기",
 	"game_keep_drawn": "가지기",
+	"game_held_draw_play": "내기",
+	"game_held_draw_draw": "뽑기",
 	"game_exit_confirm_title": "경기를 나가시겠습니까?",
 	"game_exit_confirm_body": "이 경기를 나가고 로비로 돌아갑니다.",
 	"game_exit_confirm_yes": "예, 나갑니다",

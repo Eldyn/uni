@@ -8,19 +8,6 @@
 
 	let showExitConfirm = $state(false);
 
-	// The local player owns a live held-draw decision: show the Keep button.
-	// The drawn card id only ever reaches its owner, so an owned decision is
-	// exactly a pending draw whose player matches the local player.
-	let ownsHeldDraw = $derived.by(() => {
-		const pending = storeGame.state?.pendingPlayDrawn ?? null;
-		if (!pending || pending.card === undefined) return false;
-		return pending.player === storeGame.localPlayer?.username;
-	});
-
-	function handleKeepClick() {
-		storeGame.keepDrawn();
-	}
-
 	function handleExitClick() {
 		showExitConfirm = true;
 	}
@@ -77,12 +64,6 @@
 					>
 				{/if}
 			</div>
-
-			{#if ownsHeldDraw}
-				<button class="keep-btn pixel-corners" onclick={handleKeepClick}>
-					{m.game_keep_drawn({}, { locale: storeI18n.locale })}
-				</button>
-			{/if}
 
 			{#if !storeGame.state?.is_over}
 				<button class="exit-btn pixel-corners" onclick={handleExitClick}>
@@ -234,25 +215,6 @@
 		transition: filter 0.12s ease;
 	}
 	.exit-btn:hover:not(:disabled) {
-		filter: brightness(1.12) drop-shadow(0 3px 0 var(--pixel-shadow));
-	}
-
-	/* Keep sits beside Exit while a held draw is live. Same chunky arcade
-	   shape, but a neutral surface fill so it doesn't read as destructive. */
-	.keep-btn {
-		font-family: var(--pixel);
-		font-weight: bold;
-		font-size: 0.85rem;
-		color: var(--text-h);
-		background: var(--surface-2);
-		border: none;
-		padding: 6px 12px;
-		cursor: pointer;
-		flex: none;
-		filter: drop-shadow(0 3px 0 var(--pixel-shadow));
-		transition: filter 0.12s ease;
-	}
-	.keep-btn:hover:not(:disabled) {
 		filter: brightness(1.12) drop-shadow(0 3px 0 var(--pixel-shadow));
 	}
 

@@ -289,6 +289,8 @@
 	"game_action_play_it": "[Plåý Ït ]",
 	"game_action_keep_it": "[Kéép Ït ]",
 	"game_keep_drawn": "[Kéép]",
+	"game_held_draw_play": "[Plåý]",
+	"game_held_draw_draw": "[Dråw]",
 	"game_exit_confirm_title": "[Lëäve thë mätch? ~~]",
 	"game_exit_confirm_body": "[Ýøü'll lëävë thís mätch änd rëtúrn tỏ thë löbby. ~~~~~~~~~~~~]",
 	"game_exit_confirm_yes": "[Ýës, lëävë ~]",

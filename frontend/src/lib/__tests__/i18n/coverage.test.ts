@@ -97,4 +97,12 @@ describe("held-draw keep label coverage", () => {
 			.map(([locale]) => locale);
 		expect(missing, `missing game_keep_drawn: ${missing.join(", ")}`).toEqual([]);
 	});
+
+	it("every locale has the held-draw prompt heading and Play/Draw labels", () => {
+		const keys = ["game_action_drew_playable", "game_held_draw_play", "game_held_draw_draw"];
+		const missing = Object.entries(locales).flatMap(([locale, catalog]) =>
+			keys.filter((key) => !catalog[key]?.trim()).map((key) => `${locale}:${key}`)
+		);
+		expect(missing, `missing held-draw labels: ${missing.join(", ")}`).toEqual([]);
+	});
 });
