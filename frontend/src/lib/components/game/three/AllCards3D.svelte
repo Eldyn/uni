@@ -153,6 +153,7 @@
 		pushX={handle.pose.pushX}
 		hoverSpinDeg={(handle.decoration?.hoverSpinDeg ?? 0) + (handle.pose.hoverSpinDeg ?? 0)}
 		dimmed={handle.decoration?.dimmed}
+		holdLifted={isPendingPlayDrawn}
 		shadow={handle.decoration?.shadow ??
 			(shadowTexture
 				? {
@@ -163,6 +164,7 @@
 					}
 				: undefined)}
 		highlight={handle.decoration?.highlight}
+		glint={handle.decoration?.glint}
 		oncontextmenu={(event) => handleContextMenu(handle, event)}
 		onpointerdown={(event) => handlePointerDown(handle, event)}
 	/>

@@ -7,18 +7,35 @@
 	import { Vector4, type WebGLProgramParametersWithUniforms } from "three";
 	import cardMeshUniforms from "$lib/shaders/cardMesh/uniforms.frag.glsl?raw";
 	import cardMeshMapFragment from "$lib/shaders/cardMesh/mapFragment.frag.glsl?raw";
+	import cardMeshGlint from "$lib/shaders/cardMesh/glint.frag.glsl?raw";
+	import { CARD_ART_PX } from "./cardFaceAtlas";
+	import { CARD_HEIGHT, CARD_WIDTH } from "./units";
 
 	export const CARD_SHADER_PROGRAM_KEY = "CardMesh3D_AtlasShader";
 	export const CARD_ALPHA_TEST = 0.5;
 
 	export function patchCardShader(
 		shader: WebGLProgramParametersWithUniforms,
-		uniforms: { uUvRectFront: Vector4; uUvRectBack: Vector4 }
+		uniforms: {
+			uUvRectFront: Vector4;
+			uUvRectBack: Vector4;
+			uGlintStrength: { value: number };
+			uGlintPhase: { value: number };
+		}
 	) {
 		shader.uniforms.uUvRectFront = { value: uniforms.uUvRectFront };
 		shader.uniforms.uUvRectBack = { value: uniforms.uUvRectBack };
+		shader.uniforms.uGlintStrength = uniforms.uGlintStrength;
+		shader.uniforms.uGlintPhase = uniforms.uGlintPhase;
+		shader.uniforms.uGlintAspect = { value: CARD_WIDTH / CARD_HEIGHT };
+		shader.uniforms.uGlintPixels = { value: [CARD_ART_PX.width, CARD_ART_PX.height] };
 
 		shader.fragmentShader = cardMeshUniforms + shader.fragmentShader;
+
+		shader.fragmentShader = shader.fragmentShader.replace(
+			"#include <map_pars_fragment>",
+			"#include <map_pars_fragment>\n" + cardMeshGlint
+		);
 
 		shader.fragmentShader = shader.fragmentShader.replace(
 			"#include <map_fragment>",
@@ -29,16 +46,11 @@
 
 <script lang="ts">
 	import { T, useTask } from "@threlte/core";
+	import { untrack } from "svelte";
 	import { Color, DoubleSide, type MeshBasicMaterial } from "three";
 	import type { Card, CardType } from "$stores/game.svelte";
 	import { loadSilhouette } from "./textures";
-	import {
-		CARD_WIDTH,
-		CARD_HEIGHT,
-		CARD_HOVER_LIFT,
-		CARD_HOVER_SCALE,
-		computeValueFlipRad
-	} from "./units";
+	import { CARD_HOVER_LIFT, CARD_HOVER_SCALE, computeValueFlipRad } from "./units";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeCardDefs } from "$stores/cardDefs.svelte";
 	import {
@@ -79,13 +91,21 @@
 		wildColor,
 		hoverSpinDeg = 0,
 		shadow,
-		highlight
+		highlight,
+		glint = false,
+		holdLifted = false
 	}: {
 		card: Card;
 		turned?: boolean;
 		position?: [number, number, number];
 		/** Draw order / renderOrder for Three.js depth sorting. Defaults to 0. */
 		renderOrder?: number;
+		/** The owner's parked held-draw card: lift it clear of the discard/draw
+		 *  piles. Like a dragged card it joins the transparent pass with its
+		 *  depth test off — it hovers at DRAW_HOVER_LIFT (0.5), below the discard
+		 *  stack (up to ~0.75) and the draw-pile base (0.6), so a depth-tested
+		 *  opaque card is simply hidden behind whichever pile is taller. */
+		holdLifted?: boolean;
 		/** Rotation around the vertical (world Y) axis, in degrees. */
 		spinDeg?: number;
 		/** Rotation about a horizontal or vertical axis — a genuine edge-on
@@ -169,6 +189,8 @@
 			color?: string;
 			pulse?: boolean;
 		};
+		/** Sweeping shine marking a card the local player can play right now. */
+		glint?: boolean;
 	} = $props();
 
 	const WHITE = new Color("#ffffff");
@@ -274,7 +296,7 @@
 		const targetAspect = artTarget.w / artTarget.h;
 		let sx = 1;
 		let sy = 1;
-		// INFO: `cover` is approximated as `contain` for phase 1 — a true cover
+		// INFO: `cover` is approximated as `contain` for  — a true cover
 		//       crop needs a per-card UV transform to avoid overflowing the card.
 		if (facePlan.art_fit === "contain" || facePlan.art_fit === "cover") {
 			if (aspect > targetAspect) sy = targetAspect / aspect;
@@ -296,7 +318,7 @@
 	// renderOrder within a pass, so a dragged card must join the transparent
 	// pass for its `dragged` tier to beat the transparent opponent-seat sprites.
 	// Non-dragged cards stay opaque (unchanged pass, unchanged ordering).
-	//
+
 	// Joining that pass is also why the dragged face turns its depth test OFF
 	// (see the face material below): its DRAG_LIFT (0.5) sits below the discard
 	// pile's own stack height (up to MAX_DISCARD_HEIGHT 0.6) and the draw pile's
@@ -305,6 +327,9 @@
 	// Skipping the test while dragging is what makes the `dragged` tier
 	// actually mean "on top".
 	let dragging = $derived(isDragged(dragT));
+	// The held draw needs the same escape as a dragged card: skip the opaque
+	// depth pass so it renders on top of both piles.
+	let passesDepth = $derived(!dragging && !holdLifted);
 
 	let totalSpinDeg = $derived(spinDeg + hoverSpinDeg);
 	let spinRad = $derived((totalSpinDeg * Math.PI) / 180);
@@ -374,6 +399,23 @@
 		};
 	});
 
+	// The line crosses the card for the first 60% of the cycle, then rests off
+	// the far corner. A small per-card phase offset keeps a row of playable
+	// cards from sweeping in perfect lockstep.
+	const GLINT_SWEEP_SECONDS = 2.6;
+	const GLINT_SEED_PHASE_STEP = 0.37;
+	const glintUniforms = {
+		uGlintStrength: { value: 0 },
+		uGlintPhase: { value: untrack(() => ((card.id * GLINT_SEED_PHASE_STEP) % 1) * 0.25) }
+	};
+	useTask((delta) => {
+		const active = glint && storeAnimation.enabled && !dragging && !turned;
+		glintUniforms.uGlintStrength.value = active ? 1 : 0;
+		if (!active) return;
+		const cycle = glintUniforms.uGlintPhase.value + delta / GLINT_SWEEP_SECONDS;
+		glintUniforms.uGlintPhase.value = cycle - Math.floor(cycle);
+	});
+
 	const uUvRectFront = new Vector4();
 	const uUvRectBack = new Vector4();
 
@@ -407,7 +449,7 @@
 			activeBack.u1 - activeBack.u0,
 			activeBack.v1 - activeBack.v0
 		);
-		patchCardShader(shader, { uUvRectFront, uUvRectBack });
+		patchCardShader(shader, { uUvRectFront, uUvRectBack, ...glintUniforms });
 		if (cardMaterial) {
 			cardMaterial.userData.uUvRectFront = uUvRectFront;
 			cardMaterial.userData.uUvRectBack = uUvRectBack;
@@ -473,7 +515,7 @@
 					color="#000000"
 					transparent
 					opacity={shadow.opacity * (1 + 0.2 * dragT) * opacity}
-					depthTest={!dragging}
+					depthTest={passesDepth}
 					depthWrite={false}
 					toneMapped={false}
 				/>
@@ -510,8 +552,8 @@
 								map={atlasTexture}
 								color={meshColor}
 								alphaTest={0.5}
-								transparent={dragging}
-								depthTest={!dragging}
+								transparent={dragging || holdLifted}
+								depthTest={passesDepth}
 								depthWrite
 								toneMapped={false}
 								side={DoubleSide}
@@ -522,8 +564,8 @@
 							<T.MeshBasicMaterial
 								map={artTexture}
 								alphaTest={0.5}
-								transparent={dragging}
-								depthTest={!dragging}
+								transparent={dragging || holdLifted}
+								depthTest={passesDepth}
 								depthWrite
 								toneMapped={false}
 								side={DoubleSide}
@@ -540,17 +582,17 @@
 							color={backgroundLayerColor}
 							{opacity}
 							alphaTest={0.5}
-							transparent={dragging}
+							transparent={dragging || holdLifted}
 							depthWrite
-							depthTest={!dragging}
+							depthTest={passesDepth}
 						/>
 						<T.Mesh position.z={ART_Z} scale={[artScale[0], artScale[1], 1]} {renderOrder}>
 							<T.PlaneGeometry args={[artTarget.w, artTarget.h]} />
 							<T.MeshBasicMaterial
 								map={artTexture}
 								alphaTest={0.5}
-								transparent={dragging}
-								depthTest={!dragging}
+								transparent={dragging || holdLifted}
+								depthTest={passesDepth}
 								depthWrite
 								toneMapped={false}
 								side={DoubleSide}
@@ -564,8 +606,8 @@
 								color={layerColor}
 								{opacity}
 								alphaTest={0.5}
-								transparent={dragging}
-								depthTest={!dragging}
+								transparent={dragging || holdLifted}
+								depthTest={passesDepth}
 							/>
 						{/if}
 						{#if facePlan.keep.includes("border")}
@@ -576,8 +618,8 @@
 								color={layerColor}
 								{opacity}
 								alphaTest={0.5}
-								transparent={dragging}
-								depthTest={!dragging}
+								transparent={dragging || holdLifted}
+								depthTest={passesDepth}
 							/>
 						{/if}
 					{/if}
@@ -594,8 +636,8 @@
 							map={atlasTexture}
 							color={meshColor}
 							alphaTest={0.5}
-							transparent={dragging}
-							depthTest={!dragging}
+							transparent={dragging || holdLifted}
+							depthTest={passesDepth}
 							depthWrite
 							toneMapped={false}
 							side={DoubleSide}
