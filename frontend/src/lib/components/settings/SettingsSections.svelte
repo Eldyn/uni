@@ -6,6 +6,7 @@
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeOrientation } from "$stores/orientation.svelte";
+	import { censorState, setCensorEnabled } from "$utils/censor.svelte";
 	import { ws, ClientAction } from "$stores/ws.svelte";
 	import Divisor from "$components/common/Divisor.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
@@ -219,6 +220,18 @@
 				description={m.game_privacy_mode_desc({}, { locale: storeI18n.locale })}
 				checked={privacyMode}
 				oncommit={setPrivacyMode}
+			/>
+		</div>
+	</section>
+
+	<section class="settings-block">
+		<Divisor text={m.settings_content_heading({}, { locale: storeI18n.locale })} />
+		<div class="settings-grid">
+			<Toggle
+				label={m.settings_censor_text({}, { locale: storeI18n.locale })}
+				description={m.settings_censor_text_description({}, { locale: storeI18n.locale })}
+				checked={censorState.enabled}
+				oncommit={setCensorEnabled}
 			/>
 		</div>
 	</section>

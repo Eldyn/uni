@@ -79,7 +79,14 @@ let defaultRegex: RegExp | null = null;
 let customRegex: RegExp | null = null;
 let customRegexVersion = -1;
 
-export const censorState = $state({ ready: false, enabled: true });
+export const CENSOR_STORAGE_KEY = "uni:censor:enabled";
+
+function readStoredEnabled(): boolean {
+	if (typeof localStorage === "undefined") return true;
+	return localStorage.getItem(CENSOR_STORAGE_KEY) !== "false";
+}
+
+export const censorState = $state({ ready: false, enabled: readStoredEnabled() });
 
 /** Kicks off the (idempotent) dynamic import of the word-list data. */
 export function loadCensorData(): Promise<void> {
@@ -94,9 +101,12 @@ export function loadCensorData(): Promise<void> {
 	return loadPromise;
 }
 
-/** Reserved for a future settings toggle, not yet wired to any UI. */
+/** Settings toggle: persists the choice and masks/unmasks reactively. */
 export function setCensorEnabled(enabled: boolean): void {
 	censorState.enabled = enabled;
+	if (typeof localStorage !== "undefined") {
+		localStorage.setItem(CENSOR_STORAGE_KEY, enabled ? "true" : "false");
+	}
 }
 
 /**
