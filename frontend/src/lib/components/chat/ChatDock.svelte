@@ -80,7 +80,7 @@
 			>
 			{#if unreadBadge}
 				<span
-					class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 font-mono text-[10px] leading-none text-white ring-2 ring-bg"
+					class="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center bg-danger px-1 font-pixel text-[10px] leading-none text-white"
 				>
 					{unreadBadge}
 				</span>
