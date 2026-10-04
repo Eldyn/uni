@@ -10,6 +10,8 @@ import { MusicPlayer } from "$lib/audio/musicPlayer";
 import { SfxPlayer } from "$lib/audio/sfxPlayer";
 import { isMobileDevice, resolveMusicForContext } from "$lib/audio/audioLogic";
 import { storeNavigation } from "$stores/navigation.svelte";
+import { whenIdle } from "$lib/utils/idle";
+import { whenAutoplayAllowed } from "$lib/audio/autoplay";
 
 const SETTINGS_STORAGE_KEY = "uni:audio:settings";
 const DEFAULT_MUSIC_VOLUME = 0.15;
@@ -27,6 +29,8 @@ class StoreAudio {
 	#music = new MusicPlayer();
 	#sfx = new SfxPlayer();
 	#initialized = false;
+	#musicReady = $state(false);
+	#musicStarted = false;
 
 	constructor() {
 		try {
@@ -59,17 +63,36 @@ class StoreAudio {
 		this.#unlockOnGesture();
 		this.#bindVisibilityPause();
 
+		// INFO: The track is multi-MB, so its download waits until the page has
+		//       loaded and the browser is idle, and then until the browser will
+		//       actually let audio start (policy allows it, or the first click /
+		//       keypress). Starting earlier only parks a locked <audio> element.
+		void whenIdle()
+			.then(whenAutoplayAllowed)
+			.then(() => {
+				this.#musicReady = true;
+			});
+
 		// INFO: storeAudio is an app-lifetime singleton, so this effect is
 		//       meant to run for the whole session, the dispose function
 		//       $effect.root returns is intentionally left unused.
 		$effect.root(() => {
 			$effect(() => {
+				if (!this.#musicReady) return;
+				// INFO: Music that has never started is not downloaded while muted;
+				//       raising the volume re-runs this effect and loads it then.
+				//       Once playing, a drop to 0 only silences it (setVolume),
+				//       since unloading would restart the song and refetch it on
+				//       the next raise.
+				const musicMuted = this.musicVolume <= 0;
 				const trackId = resolveMusicForContext(storeNavigation.current);
 				try {
-					if (trackId) {
+					if (trackId && (!musicMuted || this.#musicStarted)) {
 						this.#music.playTrack(trackId);
-					} else {
+						this.#musicStarted = true;
+					} else if (!trackId) {
 						this.#music.stopAll();
+						this.#musicStarted = false;
 					}
 				} catch {
 					// INFO: Playback backend unavailable, screen switches silently.
@@ -117,6 +140,8 @@ class StoreAudio {
 	#onVisibilityChange = (): void => {
 		try {
 			if (!this.#shouldPauseOnHidden()) return;
+			if (document.hidden) this.#music.suspendForHidden();
+			else this.#music.resumeFromHidden();
 			const ctx = Howler.ctx;
 			if (!ctx) return;
 			if (document.hidden) {
@@ -157,10 +182,11 @@ class StoreAudio {
 	playSfx(id: string, opts?: { pitch?: number; volume?: number; gain?: number }): void {
 		try {
 			const catalogGain = SFX_CATALOG[id]?.volume ?? 1;
-			this.#sfx.playSfx(id, {
-				pitch: opts?.pitch,
-				volume: (opts?.volume ?? this.sfxVolume * catalogGain) * (opts?.gain ?? 1)
-			});
+			const volume = (opts?.volume ?? this.sfxVolume * catalogGain) * (opts?.gain ?? 1);
+			// INFO: SFX files load on first play, so a muted sound is skipped
+			//       before it is ever fetched.
+			if (volume <= 0) return;
+			this.#sfx.playSfx(id, { pitch: opts?.pitch, volume });
 		} catch {
 			// INFO: Audio backend unavailable, silently drop the SFX.
 		}

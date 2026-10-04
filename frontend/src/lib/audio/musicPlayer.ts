@@ -12,6 +12,12 @@ import { playSyncedChannels } from "$lib/audio/multiChannelSync";
 
 const DEFAULT_CROSSFADE_MS = 500;
 
+// INFO: Music tracks are multi-MB, so they play through a streaming <audio>
+//       element (starts after the first chunks) instead of being downloaded
+//       and decoded whole by Web Audio. Streamed tracks bypass Howler.ctx, so
+//       suspendForHidden() has to pause them separately.
+const STREAM_MUSIC = true;
+
 interface SingleHandle {
 	kind: "single";
 	howl: Howl;
@@ -57,6 +63,8 @@ export class MusicPlayer {
 	// INFO: Catalog id behind #current, lets playTrack no-op when asked to
 	//       play what's already playing instead of restarting from zero.
 	#currentId: string | undefined;
+
+	#pausedForHidden = false;
 	// INFO: Bumped on every playTrack/stopAll call. Async work (playlist
 	//       onend, multi-channel decode) captures its token and bails if a
 	//       newer operation has taken over, prevents playlist double-advance
@@ -113,6 +121,25 @@ export class MusicPlayer {
 		this.#operationId++;
 	}
 
+	/**
+	 * @brief Pauses the streamed track while the page is hidden. Web Audio
+	 * based playback is covered by suspending Howler.ctx, but a streamed
+	 * <audio> element keeps playing on its own.
+	 */
+	suspendForHidden(): void {
+		const current = this.#current;
+		if (!current || current.kind === "multi" || !current.howl.playing()) return;
+		current.howl.pause();
+		this.#pausedForHidden = true;
+	}
+
+	resumeFromHidden(): void {
+		const current = this.#current;
+		if (!this.#pausedForHidden) return;
+		this.#pausedForHidden = false;
+		if (current && current.kind !== "multi") current.howl.play();
+	}
+
 	#stopCurrent(fadeMs?: number): void {
 		const current = this.#current;
 		if (!current) return;
@@ -140,7 +167,12 @@ export class MusicPlayer {
 	// INFO: Runs fully synchronously (no await before #current is set), so it
 	//       doesn't need the operationId race guard #playMultiChannel does.
 	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
-		const howl = new Howl({ src: [def.src], loop: def.loop ?? false, volume: 0 });
+		const howl = new Howl({
+			src: [def.src],
+			loop: def.loop ?? false,
+			volume: 0,
+			html5: STREAM_MUSIC
+		});
 		howl.play();
 		howl.fade(0, this.#volume, fadeMs);
 		this.#current = { kind: "single", howl };
@@ -180,6 +212,7 @@ export class MusicPlayer {
 		//       nested def's own loop flag, the playlist owns advancing.
 		const howl = new Howl({
 			src: [trackDef.src],
+			html5: STREAM_MUSIC,
 			loop: false,
 			volume: this.#volume,
 			onend: () => {
