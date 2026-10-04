@@ -74,7 +74,7 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 
 const sfxPath = (fileName: string): string => assetUrl(`/assets/audio/sfx/${fileName}`);
 
-// INFO: Other sfx ids wired at gameplay trigger points (deal, match end, lobby)
+// INFO: Other sfx ids wired at gameplay trigger points (lobby, elimination)
 //       have no entry yet and warn once until their sounds are authored.
 export const SFX_CATALOG: Record<string, SfxDef> = {
 	"sfx.turn.start": {
@@ -113,6 +113,16 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 		id: "sfx.ui.untick",
 		variants: [sfxPath("untick.m4a")],
 		volume: 0.2
+	},
+	"sfx.match.victory": {
+		id: "sfx.match.victory",
+		variants: [sfxPath("victory.m4a")],
+		volume: 0.5
+	},
+	"sfx.match.defeat": {
+		id: "sfx.match.defeat",
+		variants: [sfxPath("defeat.m4a")],
+		volume: 0.25
 	}
 };
 
