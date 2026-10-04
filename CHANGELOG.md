@@ -57,6 +57,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Windows opened in the same situation merge into one group**: responders are the union, the duration is the longest member's, and there is one `window_open` and one `window_close` per group (a mod hooking them per member gets them once per group). A response is accepted for a member only if the player is in that member's own `responders` and its `respond_with` accepts the card; the first accepting member in load order owns it. With no response every member runs its default in member order. Windows deferred behind a parked input prompt (wild +4) merge too.
 - **New red/green/blue/yellow palette, defined once**: the four game colours are now `#bd3130` / `#4aab42` / `#0470dd` / `#f2cc47`, each with a lighter companion shade. `src/lib/palette.ts` is the single source for the WebGL scene and `app.css` mirrors it for the DOM, so card faces, the pick-a-colour prompt, seat identity colours and the victory popup no longer carry their own copies of the hexes.
 - **Retired the legacy `Action.PlayDrawn` value**: the play/keep choice now rides the snapshot's `pending_play_drawn` field and the `match_keep_drawn` message, so the dead `PlayDrawn` enum value is gone (schema/dead-value cleanup).
+- **One song on every screen**: the main track now also plays on the game screen and during its loader, and no longer stops on profile, decks or shop.
 
 ### Fixed
 

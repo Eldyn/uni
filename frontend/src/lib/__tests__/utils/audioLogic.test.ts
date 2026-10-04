@@ -52,8 +52,10 @@ describe("audioLogic: resolveMusicForContext", () => {
 		expect(resolveMusicForContext("main")).toBe("music.fuzzsong");
 	});
 
-	it("returns undefined for a screen with no entry (the match screen, no music during gameplay)", () => {
-		expect(resolveMusicForContext("game")).toBeUndefined();
+	it("plays the same song on the game, decks and shop screens", () => {
+		expect(resolveMusicForContext("game")).toBe("music.fuzzsong");
+		expect(resolveMusicForContext("decks")).toBe("music.fuzzsong");
+		expect(resolveMusicForContext("shop")).toBe("music.fuzzsong");
 	});
 });
 

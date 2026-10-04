@@ -122,6 +122,10 @@ export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {
 	main: "music.fuzzsong",
 	lobbies: "music.fuzzsong",
 	lobby: "music.fuzzsong",
-	settings: "music.fuzzsong",
-	stats: "music.fuzzsong"
+	game: "music.fuzzsong",
+	profile: "music.fuzzsong",
+	stats: "music.fuzzsong",
+	decks: "music.fuzzsong",
+	shop: "music.fuzzsong",
+	settings: "music.fuzzsong"
 };
