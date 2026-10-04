@@ -163,6 +163,32 @@ json ProjectWindowClose(const match::engine::MatchInstance& match,
     return out;
 }
 
+// NOTE: patchwork. Server-authored hand-movement events, projected to
+//       public data only (usernames and pre-move hand sizes, no card ids).
+json ProjectHandsSwapped(const match::engine::MatchInstance& match,
+                         const json& payload) {
+    return json{{"a", UsernameFor(match, payload.value("a", json()))},
+                {"b", UsernameFor(match, payload.value("b", json()))},
+                {"a_size", payload.value("a_size", 0)},
+                {"b_size", payload.value("b_size", 0)}};
+}
+
+json ProjectHandsPassed(const match::engine::MatchInstance& match,
+                        const json& payload) {
+    json players = json::array();
+    if (payload.contains("players") && payload["players"].is_array()) {
+        for (const json& entry : payload["players"]) {
+            players.push_back(UsernameFor(match, entry));
+        }
+    }
+    json hand_sizes = payload.contains("hand_sizes")
+                          ? payload["hand_sizes"]
+                          : json::array();
+    return json{{"direction", payload.value("direction", std::string())},
+                {"players", std::move(players)},
+                {"hand_sizes", std::move(hand_sizes)}};
+}
+
 json ProjectAutoPlayed(const match::engine::MatchInstance& match,
                        const json& payload) {
     json out = json::object();
@@ -249,6 +275,8 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "window_response") return ProjectWindowResponse(match, body);
     if (type == "window_close") return ProjectWindowClose(match, body);
     if (type == "auto_played") return ProjectAutoPlayed(match, body);
+    if (type == "hands_swapped") return ProjectHandsSwapped(match, body);
+    if (type == "hands_passed") return ProjectHandsPassed(match, body);
     if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "roll_result") return ProjectRollResult(body);
     // INFO: `signal` is NOT `all`-visibility: its audience is

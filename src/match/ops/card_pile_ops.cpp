@@ -796,12 +796,24 @@ OpResult OpPassHands(ecs::EntityStore& store, const OpArgs& args,
     for (ecs::Entity player : players) hands.push_back(HandOf(store, player));
 
     const int count = static_cast<int>(players.size());
+    json seats = json::array();
+    json hand_sizes = json::array();
     for (int i = 0; i < count; ++i) {
         const int dst = ((i + step) % count + count) % count;
+        seats.push_back(EntityJson(players[static_cast<std::size_t>(i)]));
+        hand_sizes.push_back(hands[static_cast<std::size_t>(i)].size());
         SetHandOrder(store, players[static_cast<std::size_t>(dst)],
                      hands[static_cast<std::size_t>(i)]);
     }
-    return OpResult::Resolved(json{{"count", count}});
+    OpResult result = OpResult::Resolved(json{{"count", count}});
+    // NOTE: patchwork. The server authors `hands_passed` for now so the
+    //       client can animate the rotation; this becomes data-driven (or
+    //       mod-declared, with the mod owning the animation) later.
+    result.events.push_back(MakeEvent(
+        "hands_passed", json{{"direction", direction},
+                             {"players", std::move(seats)},
+                             {"hand_sizes", std::move(hand_sizes)}}));
+    return result;
 }
 
 OpResult OpSwapHands(ecs::EntityStore& store, const OpArgs& args,
@@ -820,8 +832,17 @@ OpResult OpSwapHands(ecs::EntityStore& store, const OpArgs& args,
     const std::vector<ecs::Entity> hand_b = HandOf(store, *b);
     SetHandOrder(store, *a, hand_b);
     SetHandOrder(store, *b, hand_a);
-    return OpResult::Resolved(
+    OpResult result = OpResult::Resolved(
         json{{"a", EntityJson(*a)}, {"b", EntityJson(*b)}});
+    // NOTE: patchwork. Sizes are the PRE-swap hands: `a_size` cards moved
+    //       from `a` to `b` and `b_size` from `b` to `a`. Server-authored for
+    //       now, to be replaced by a data-driven / mod-declared event.
+    result.events.push_back(MakeEvent(
+        "hands_swapped", json{{"a", EntityJson(*a)},
+                              {"b", EntityJson(*b)},
+                              {"a_size", hand_a.size()},
+                              {"b_size", hand_b.size()}}));
+    return result;
 }
 
 OpResult OpRedistributeHands(ecs::EntityStore& store, const OpArgs& args,

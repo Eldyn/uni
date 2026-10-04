@@ -614,6 +614,28 @@ TEST_CASE("card_pile_ops: pass_hands rotates in both directions") {
     CHECK(HandOf(h.store, c) == std::vector<Entity>{c1});
 }
 
+// NOTE: patchwork. `hands_passed` is server-authored for now.
+TEST_CASE("card_pile_ops: pass_hands emits hands_passed with pre-move sizes") {
+    Harness h;
+    Entity a = AddPlayer(h.store, "a", 0);
+    Entity b = AddPlayer(h.store, "b", 1);
+    Entity c = AddPlayer(h.store, "c", 2);
+    PutInHand(h.store, a, MakeCard(h.store, "vanilla:red_1", "red"));
+    PutInHand(h.store, a, MakeCard(h.store, "vanilla:red_2", "red"));
+    PutInHand(h.store, b, MakeCard(h.store, "vanilla:red_3", "red"));
+
+    const OpResult result =
+        h.Invoke("pass_hands", json{{"direction", "backward"}});
+    REQUIRE(result.events.size() == 1);
+    const json& event = result.events[0];
+    CHECK(event["type"] == "hands_passed");
+    CHECK(event["payload"]["direction"] == "backward");
+    CHECK(event["payload"]["hand_sizes"] == json::array({2, 1, 0}));
+    REQUIRE(event["payload"]["players"].size() == 3);
+    CHECK(event["payload"]["players"][0]["index"] == a.index);
+    CHECK(event["payload"]["players"][2]["index"] == c.index);
+}
+
 TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
@@ -630,6 +652,17 @@ TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(HandOf(h.store, a) == std::vector<Entity>{b1});
     CHECK(HandOf(h.store, b) == std::vector<Entity>{a1, a2});
+
+    // NOTE: patchwork. `hands_swapped` is server-authored for now; sizes are
+    //       the pre-swap hands and no card ids ride the event.
+    REQUIRE(result.events.size() == 1);
+    const json& event = result.events[0];
+    CHECK(event["type"] == "hands_swapped");
+    CHECK(event["payload"]["a"]["index"] == a.index);
+    CHECK(event["payload"]["b"]["index"] == b.index);
+    CHECK(event["payload"]["a_size"] == 2);
+    CHECK(event["payload"]["b_size"] == 1);
+    CHECK_FALSE(event["payload"].contains("cards"));
 }
 
 TEST_CASE("card_pile_ops: redistribute_hands deals evenly by seat order") {

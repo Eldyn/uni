@@ -96,6 +96,8 @@ components:
     play_rejected: PlayRejectedPayload
     cards_drawn: CardsDrawnPayload
     reshuffle: ReshufflePayload
+    hands_swapped: HandsSwappedPayload
+    hands_passed: HandsPassedPayload
     status_applied: StatusAppliedPayload
     status_removed: StatusRemovedPayload
     window_open: WindowOpenPayload
@@ -1274,6 +1276,51 @@ components:
         discard_size:
           type: integer
           minimum: 0
+
+    # NOTE: patchwork. Server-authored for now; a later pass makes the event
+    #       data-driven or mod-declared, with the mod owning the animation.
+    # Public data only: pre-move hand sizes, never card ids.
+    HandsSwappedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [a, b, a_size, b_size]
+      properties:
+        a:
+          $ref: "#/components/schemas/PlayerRef"
+        b:
+          $ref: "#/components/schemas/PlayerRef"
+        a_size:
+          type: integer
+          minimum: 0
+          description: Cards that moved from `a` to `b` (a's pre-swap hand size).
+        b_size:
+          type: integer
+          minimum: 0
+          description: Cards that moved from `b` to `a` (b's pre-swap hand size).
+
+    # NOTE: patchwork. See HandsSwappedPayload.
+    HandsPassedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [direction, players, hand_sizes]
+      properties:
+        direction:
+          type: string
+          enum: [forward, backward]
+          description: >
+            `forward` moves each hand to the next seat in `players`, `backward`
+            to the previous one (wrapping).
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+          description: Seats in order.
+        hand_sizes:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          description: Pre-move hand size of each seat, parallel to `players`.
 
     StatusAppliedPayload:
       type: object
