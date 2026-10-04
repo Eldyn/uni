@@ -15,6 +15,11 @@
 				.catch(() => undefined);
 		</script>
 
+		<!-- Warm the connections to the third-party hosts below so their TLS
+		     handshakes overlap the bundle download instead of following it. -->
+		<link rel="preconnect" href="https://www.googletagmanager.com" />
+		<link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin />
+
 		<!-- Google meta -->
 		<meta name="google-adsense-account" content="ca-pub-7899204097948216" />
 		<meta name="google-site-verification" content="pi5b9DDctNKSXtVT0-SsWRSCD_qtU-P-6EtLow_a5Rg" />
