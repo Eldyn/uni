@@ -485,14 +485,21 @@ export function createMatchEventBeatController(deps: {
 	 *  owner receives real card ids, so the local branch reads them
 	 *  straight from the beat; every other viewer gets a count only and the
 	 *  opponent branch synthesizes ids. */
+	/** One draw sound per card, fired as each card lands so a staggered
+	 *  multi-card draw (a +N penalty) is heard card by card. */
+	function playDrawSfx(gain: number): void {
+		storeAudio.playSfx("sfx.action.draw-card", { gain });
+	}
+
+	function ownDrawSfxGain(): number {
+		return storeGame.isSpectator ? OPPONENT_ACTION_SFX_GAIN : 1;
+	}
+
 	function handleDraw(beat: Extract<MatchEventBeat, { kind: "draw" }>): void {
 		const state = storeGame.state;
 		if (!state) return;
 
 		const isLocalDraw = beat.player === resolveLocalUsername(state);
-		storeAudio.playSfx("sfx.action.draw-card", {
-			gain: isLocalDraw && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
-		});
 		if (!isLocalDraw) {
 			handleOpponentDraw(beat, state);
 			return;
@@ -514,7 +521,10 @@ export function createMatchEventBeatController(deps: {
 		// INFO: only the animation seeding needs the drawn identities the
 		//       server withholds from a spectator.
 		const newIds = beat.cardIds;
-		if (newIds.length === 0) return;
+		if (newIds.length === 0) {
+			playDrawSfx(ownDrawSfxGain());
+			return;
+		}
 
 		// INFO: a voluntary playable draw is held for a play/keep decision —
 		//       park it face up on the draw pile instead of flying it into the
@@ -528,6 +538,7 @@ export function createMatchEventBeatController(deps: {
 			parkHeldDrawCard(state, heldId)
 		) {
 			heldPlayDrawnId = heldId;
+			playDrawSfx(ownDrawSfxGain());
 			return;
 		}
 
@@ -594,6 +605,7 @@ export function createMatchEventBeatController(deps: {
 					placement,
 					slotAnchorKeys,
 					onCardComplete: (index) => {
+						playDrawSfx(ownDrawSfxGain());
 						const id = newIds[index];
 						if (id !== undefined && remainingLocalDraws.has(id)) {
 							remainingLocalDraws.delete(id);
@@ -638,6 +650,7 @@ export function createMatchEventBeatController(deps: {
 		);
 		const cardId = `draw:${beat.player}:${drawIdCounter++}`;
 		heldOpponentCards.set(beat.player, cardId);
+		playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
 			{ handSize: player.card_count }
@@ -799,6 +812,7 @@ export function createMatchEventBeatController(deps: {
 					slotAnchorKeys,
 					slotSpinDegs,
 					onCardComplete: (index) => {
+						playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
 						if (remainingOpponentDraws > 0) {
 							remainingOpponentDraws--;
 							deps.bus.removeInFlightDraw(beat.player, 1);
