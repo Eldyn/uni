@@ -708,25 +708,14 @@
 	/* Modals */
 }
 
-/* HackerNoon Pixel Icon Library glyphs. Unlayered so it overrides the
-   library's own unlayered `.hn:before { vertical-align: top }`, which would
-   otherwise float the icon ink to the top of the line box; `middle` centres it
-   against adjacent text and inside fixed chips. Display lives here (not the
-   components layer) so responsive `hidden`/`inline-block` utilities still win. */
-.pix::before {
-	vertical-align: middle;
-}
-
 /* pixelarticons ships `[class^="pixelart-icons-font-"] { font-size: 24px !important }`
    on the ICON ELEMENT ITSELF, not just its glyph — overriding only `::before`
    (as an earlier version of this rule did) leaves the element's own line box
    pinned to a 24px-tall font context regardless of what size the glyph
    actually renders at, inflating and vertically misaligning every button/
    chip/field that contains one. `.pia` has to win that fight on the same
-   selector the library used, unlayered like `.pix` above so responsive
-   `hidden`/`inline-block` utilities still win over it too. Also mirrors
-   hackernoon's own `.hn { line-height: 1 }`, which pixelarticons has no
-   equivalent of. */
+   selector the library used, unlayered so responsive `hidden`/`inline-block`
+   utilities still win over it too. */
 .pia {
 	font-size: inherit !important;
 	line-height: 1;

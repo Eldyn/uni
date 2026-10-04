@@ -39,7 +39,7 @@
 						{ locale: storeI18n.locale }
 					)}
 				>
-					<i class="hn hn-eye pix"></i>
+					<i class="pixelart-icons-font-eye pia"></i>
 					{storeGame.povSpectatorCount}
 				</span>
 			{/if}

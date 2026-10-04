@@ -110,7 +110,70 @@ function hashPublicAssetsPlugin(manifest) {
 	};
 }
 
-// The server ships a ".gz" sidecar whenever the client accepts gzip, so the
+// Aseprite sources live beside the exported art in public/ (several MB), so
+// the build copies them into the served bundle and the Docker image where
+// nothing ever requests them. Dropped from the output only; sources stay put.
+const SOURCE_ART_EXTENSION = ".ase";
+
+const pruneSourceArtPlugin = {
+	name: "prune-source-art",
+	closeBundle() {
+		const pruneDirectory = (directory) => {
+			if (!fs.existsSync(directory)) return;
+			for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+				const fullPath = path.join(directory, entry.name);
+				if (entry.isDirectory()) pruneDirectory(fullPath);
+				else if (entry.name.endsWith(SOURCE_ART_EXTENSION)) fs.unlinkSync(fullPath);
+			}
+		};
+		pruneDirectory(path.resolve(OUT_DIR));
+	}
+};
+
+// three's DRACOLoader and KTX2Loader reference their ~1 MB wasm decoders with
+// top-level `new URL(..., import.meta.url)`, which makes the bundler emit the
+// files even though @threlte/extras only reaches the loaders through its
+// barrel and nothing here ever loads a glTF model or compressed texture. The
+// URLs are blanked so the decoders are never bundled. If a glTF/KTX2 loader is
+// ever used, remove this plugin.
+const THREE_DECODER_URL =
+	/new URL\(\s*'\.\.\/libs\/(?:draco|basis)\/[^']*',\s*import\.meta\.url\s*\)\.toString\(\)/g;
+
+const skipThreeDecodersPlugin = {
+	name: "skip-three-decoders",
+	enforce: "pre",
+	transform(code, id) {
+		if (!/three\/examples\/jsm\/loaders\/(DRACO|KTX2)Loader\.js$/.test(id)) return null;
+		const rewritten = code.replace(THREE_DECODER_URL, '""');
+		return rewritten === code ? null : { code: rewritten, map: null };
+	}
+};
+
+// pixelarticons' stylesheet lists eot, woff, ttf and svg fallbacks next to the
+// woff2, and the bundler emits every one of them (about 1.3 MB) although every
+// current browser takes the woff2 and never requests the rest. The fallbacks
+// are cut from the @font-face so only the woff2 is built.
+const ICON_FONT_STYLESHEET = /pixelarticons\/fonts\/pixelart-icons-font\.css$/;
+
+const woff2OnlyIconFontPlugin = {
+	name: "woff2-only-icon-font",
+	enforce: "pre",
+	transform(code, id) {
+		if (!ICON_FONT_STYLESHEET.test(id)) return null;
+		const fontFace = /@font-face\s*\{[^}]*\}/;
+		const woff2Source = code.match(/url\('[^']*\.woff2[^']*'\)\s*format\('woff2'\)/)?.[0];
+		if (!woff2Source) return null;
+		return {
+			code: code.replace(
+				fontFace,
+				`@font-face {\n  font-family: "pixelart-icons-font";\n  src: ${woff2Source};\n}`
+			),
+			map: null
+		};
+	}
+};
+
+// The server ships a ".br"/".gz" sidecar whenever the client accepts one, so the
 // three.js/Threlte bundle goes over the wire compressed without costing any
 // per-request CPU. Runs in closeBundle, after pruneStaleChunksPlugin has
 // removed the chunks whose sidecars would otherwise be left orphaned.
@@ -210,6 +273,9 @@ export default defineConfig(({ mode, command }) => {
 			svelte(),
 			isDev && watchPublicDirPlugin,
 			isDev && pruneStaleChunksPlugin,
+			woff2OnlyIconFontPlugin,
+			skipThreeDecodersPlugin,
+			pruneSourceArtPlugin,
 			gzipAssetsPlugin
 		].filter(Boolean),
 		resolve: {

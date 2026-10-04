@@ -1207,7 +1207,7 @@
 			title="Sort hand"
 			aria-label="Sort hand"
 		>
-			<i class="hn pix hn-sort"></i>
+			<i class="pixelart-icons-font-sort-vertical pia"></i>
 		</button>
 	</HTML>
 {/if}
