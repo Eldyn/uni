@@ -11,6 +11,7 @@
  * — it is fed through `subscribeBeats`.
  */
 
+import type { AnimationStep } from "./types";
 import { storeGame, type CardType } from "$stores/game.svelte";
 import { CARD_COLOR_MAP } from "$lib/palette";
 import { storeSpectator } from "$stores/spectator.svelte";
@@ -237,6 +238,12 @@ export function createMatchEventBeatController(deps: {
 				? deps.getOpponentFrontPose(username).position
 				: deps.getOpponentSeatAnchor(username);
 			return anchorWithBoardRotation(front, yaw);
+		}
+		if (name.startsWith("hand-transfer:")) {
+			const anchor = pendingTransferAnchors.get(name);
+			if (!anchor) return [0, 0, 0];
+			const position = anchor.resolve();
+			return anchor.tableBound ? anchorWithBoardRotation(position, yaw) : position;
 		}
 		if (name.startsWith("opponent-slot:")) {
 			return anchorWithBoardRotation(pendingOpponentSlots.get(name) ?? [0, 0, 0], yaw);
@@ -626,6 +633,196 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
+	// NOTE: patchwork. Built-in animation for the server-authored hands_swapped
+	//       / hands_passed events; meant to move to the rule mod later.
+	/** A whole hand moving between two seats: `count` cards leave `from`'s
+	 *  pre-move slots and land in `to`'s post-move slots. */
+	interface HandTransfer {
+		from: string;
+		to: string;
+		count: number;
+	}
+
+	function handPassTransfers(
+		players: string[],
+		handSizes: number[],
+		direction: "forward" | "backward"
+	): HandTransfer[] {
+		const step = direction === "forward" ? 1 : -1;
+		const seatCount = players.length;
+		return players.map((from, index) => ({
+			from,
+			to: players[(((index + step) % seatCount) + seatCount) % seatCount]!,
+			count: handSizes[index] ?? 0
+		}));
+	}
+
+	// Anchor key -> where a transferred card lands, resolved when its move starts
+	// so a hand that is still settling is read at the last moment.
+	const pendingTransferAnchors = new Map<
+		string,
+		{ resolve: () => [number, number, number]; tableBound: boolean }
+	>();
+	let transferAnchorCounter = 0;
+
+	function handleHandTransfers(transfers: HandTransfer[]): void {
+		const state = storeGame.state;
+		if (!state) return;
+		const moving = transfers.filter((t) => t.count > 0 && t.from !== t.to);
+		if (moving.length === 0) return;
+
+		const placement = deps.getPlacement();
+		const localUsername = resolveLocalUsername(state);
+		const opponentScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
+		const previousHand = deps.bus.previousLocalHandSnapshot ?? deps.bus.localHandSnapshot;
+
+		const localSteps: AnimationStep[] = [];
+		const opponentSteps: AnimationStep[] = [];
+		const localIds: string[] = [];
+		const localTargets: string[] = [];
+		const syntheticIds: string[] = [];
+		const syntheticTargets: string[] = [];
+		const syntheticSpins: number[] = [];
+		const syntheticLanding: Array<{ to: string; localHand: boolean }> = [];
+		const localRealIds: number[] = [];
+		const incomingByPlayer = new Map<string, number>();
+
+		for (const transfer of moving) {
+			const { from, to, count } = transfer;
+			const toIsLocal = to === localUsername;
+			const fromIsLocal = from === localUsername;
+			const incomingHand = state.players?.find((p) => p.username === to)?.hand ?? [];
+			if (!toIsLocal) {
+				incomingByPlayer.set(to, (incomingByPlayer.get(to) ?? 0) + count);
+			}
+
+			for (let slot = 0; slot < count; slot++) {
+				const startPose = fromIsLocal
+					? {
+							position: localHandSlotAnchor(count, slot, placement, previousHand),
+							spinDeg: 0,
+							scale: placement.handScale
+						}
+					: (() => {
+							const pose = deps.getOpponentCardPose?.(from, count, slot);
+							return {
+								position: pose?.position ?? deps.getOpponentSeatAnchor(from),
+								spinDeg: pose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(from) ?? 0,
+								scale: opponentScale
+							};
+						})();
+				const realCard = toIsLocal ? incomingHand[slot] : undefined;
+				const anchorKey = `hand-transfer:${transferAnchorCounter++}`;
+
+				let cardId: string;
+				if (realCard) {
+					cardId = String(realCard.id);
+					deps.cardRegistry.registerCardMeta(cardId, cardMetaFrom(realCard));
+					localRealIds.push(realCard.id);
+					localIds.push(cardId);
+					localTargets.push(anchorKey);
+				} else {
+					cardId = `transfer:${from}:${to}:${anchorKey}`;
+					syntheticIds.push(cardId);
+					syntheticTargets.push(anchorKey);
+					syntheticLanding.push({ to, localHand: toIsLocal });
+				}
+
+				if (toIsLocal) {
+					pendingTransferAnchors.set(anchorKey, {
+						resolve: () =>
+							localHandSlotAnchor(count, slot, deps.getPlacement(), deps.bus.localHandSnapshot),
+						tableBound: false
+					});
+					syntheticSpins.push(0);
+				} else {
+					const pose = deps.getOpponentCardPose?.(to, count, slot);
+					const position = pose?.position ?? deps.getOpponentSeatAnchor(to);
+					pendingTransferAnchors.set(anchorKey, { resolve: () => position, tableBound: true });
+					syntheticSpins.push(pose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(to) ?? 0);
+				}
+
+				deps.cardRegistry.clearDecoration(cardId);
+				deps.cardRegistry.seedPose(cardId, {
+					x: startPose.position[0],
+					y: startPose.position[1],
+					z: startPose.position[2],
+					spinDeg: startPose.spinDeg,
+					flipDeg: 0,
+					scale: startPose.scale,
+					turned: true,
+					opacity: 1
+				});
+			}
+		}
+
+		for (const id of localRealIds) deps.bus.addPendingLocalDraw(id);
+		for (const [player, incoming] of incomingByPlayer) deps.bus.addInFlightDraw(player, incoming);
+
+		const pendingIncoming = new Map(incomingByPlayer);
+		const remainingLocal = new Set(localRealIds);
+		const landedSynthetic = new Set<string>();
+		const landSynthetic = (index: number): void => {
+			const id = syntheticIds[index];
+			if (id === undefined || landedSynthetic.has(id)) return;
+			landedSynthetic.add(id);
+			const landing = syntheticLanding[index]!;
+			if (!landing.localHand && (pendingIncoming.get(landing.to) ?? 0) > 0) {
+				pendingIncoming.set(landing.to, pendingIncoming.get(landing.to)! - 1);
+				deps.bus.removeInFlightDraw(landing.to, 1);
+			}
+			deps.cardRegistry.removeEntry(id);
+		};
+
+		if (localIds.length > 0) {
+			localSteps.push(
+				...(buildDrawBeats({
+					cardIds: localIds,
+					forLocalPlayer: true,
+					placement,
+					slotAnchorKeys: localTargets,
+					onCardComplete: (index) => {
+						const id = localRealIds[index];
+						if (id === undefined || !remainingLocal.has(id)) return;
+						remainingLocal.delete(id);
+						deps.bus.removePendingLocalDraw(id);
+						deps.cardRegistry.releaseLanded(String(id));
+					}
+				})[0] ?? [])
+			);
+		}
+		if (syntheticIds.length > 0) {
+			opponentSteps.push(
+				...(buildDrawBeats({
+					cardIds: syntheticIds,
+					forLocalPlayer: false,
+					opponentUsername: moving[0]!.to,
+					placement,
+					opponentCardScale: opponentScale,
+					slotAnchorKeys: syntheticTargets,
+					slotSpinDegs: syntheticSpins,
+					onCardComplete: landSynthetic
+				})[0] ?? [])
+			);
+		}
+
+		storeAudio.playSfx("sfx.action.draw-card", { gain: OPPONENT_ACTION_SFX_GAIN });
+		deps.cardRegistry
+			.enqueue([[...localSteps, ...opponentSteps]], resolveCardTarget)
+			.finally(() => {
+				for (const id of remainingLocal) deps.bus.removePendingLocalDraw(id);
+				remainingLocal.clear();
+				for (const [player, left] of pendingIncoming) {
+					if (left > 0) deps.bus.removeInFlightDraw(player, left);
+				}
+				pendingIncoming.clear();
+				for (let i = 0; i < syntheticIds.length; i++) landSynthetic(i);
+				for (const key of [...localTargets, ...syntheticTargets]) {
+					pendingTransferAnchors.delete(key);
+				}
+			});
+	}
+
 	/** An opponent's voluntary playable draw: the card flies to a spot in front
 	 *  of their seat, on the line toward the discard pile just past their card
 	 *  arc, and waits there face down for the play/keep decision. The play
@@ -998,6 +1195,15 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "turn":
 				handleTurn(beat);
+				return;
+			case "hands_swap":
+				handleHandTransfers([
+					{ from: beat.a, to: beat.b, count: beat.aSize },
+					{ from: beat.b, to: beat.a, count: beat.bSize }
+				]);
+				return;
+			case "hands_pass":
+				handleHandTransfers(handPassTransfers(beat.players, beat.handSizes, beat.direction));
 				return;
 			case "toast":
 				// Toast state lives in the store; map-and-drop per

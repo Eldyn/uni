@@ -64,6 +64,43 @@ describe("mapMatchEventPacket", () => {
 		});
 	});
 
+	// NOTE: patchwork. Server-authored hand movement events.
+	it("maps hands_swapped to a hands_swap beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(6, "hands_swapped", { a: "alice", b: "bob", a_size: 3, b_size: 1 })
+		);
+		expect(beat).toEqual({
+			seq: 6,
+			kind: "hands_swap",
+			a: "alice",
+			b: "bob",
+			aSize: 3,
+			bSize: 1
+		});
+	});
+
+	it("maps hands_passed to a hands_pass beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(7, "hands_passed", {
+				direction: "backward",
+				players: ["alice", "bob", "cara"],
+				hand_sizes: [3, 1, 2]
+			})
+		);
+		expect(beat).toEqual({
+			seq: 7,
+			kind: "hands_pass",
+			direction: "backward",
+			players: ["alice", "bob", "cara"],
+			handSizes: [3, 1, 2]
+		});
+	});
+
+	it("drops malformed hand movement payloads", () => {
+		expect(mapMatchEventPacket(frame(8, "hands_swapped", { a: "alice" }))).toBeNull();
+		expect(mapMatchEventPacket(frame(9, "hands_passed", { direction: "forward" }))).toBeNull();
+	});
+
 	it("maps reshuffle to a reshuffle beat", () => {
 		const beat = mapMatchEventPacket(frame(5, "reshuffle", { draw_size: 20, discard_size: 1 }));
 		expect(beat).toEqual({ seq: 5, kind: "reshuffle", drawSize: 20, discardSize: 1 });

@@ -11,6 +11,8 @@ import {
 	CardPlayedPayloadSchema,
 	CardsDrawnPayloadSchema,
 	ReshufflePayloadSchema,
+	HandsSwappedPayloadSchema,
+	HandsPassedPayloadSchema,
 	StatusAppliedPayloadSchema,
 	AutoPlayedPayloadSchema,
 	TurnAdvancePayloadSchema
@@ -48,6 +50,15 @@ export type MatchEventBeat =
 			cardIds: number[];
 	  }
 	| { seq: number; kind: "reshuffle"; drawSize: number; discardSize: number }
+	// NOTE: patchwork. Server-authored hand movement; sizes are pre-move hands.
+	| { seq: number; kind: "hands_swap"; a: string; b: string; aSize: number; bSize: number }
+	| {
+			seq: number;
+			kind: "hands_pass";
+			direction: "forward" | "backward";
+			players: string[];
+			handSizes: number[];
+	  }
 	| {
 			seq: number;
 			kind: "turn";
@@ -129,6 +140,29 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				kind: "reshuffle",
 				drawSize: parsed.data.draw_size,
 				discardSize: parsed.data.discard_size
+			};
+		}
+		case "hands_swapped": {
+			const parsed = HandsSwappedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return {
+				seq,
+				kind: "hands_swap",
+				a: parsed.data.a,
+				b: parsed.data.b,
+				aSize: parsed.data.a_size,
+				bSize: parsed.data.b_size
+			};
+		}
+		case "hands_passed": {
+			const parsed = HandsPassedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return {
+				seq,
+				kind: "hands_pass",
+				direction: parsed.data.direction === "backward" ? "backward" : "forward",
+				players: parsed.data.players,
+				handSizes: parsed.data.hand_sizes
 			};
 		}
 		case "turn_advance": {

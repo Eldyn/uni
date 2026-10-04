@@ -590,6 +590,125 @@ describe("createMatchEventBeatController", () => {
 		});
 	});
 
+	// NOTE: patchwork. Built-in hand-movement animations; see matchEventController.
+	describe("hand movement beats", () => {
+		const threeSeatState = (hand: number[] = []) =>
+			({
+				...baseState(),
+				players: [
+					{
+						username: "me",
+						card_count: hand.length,
+						is_bot: false,
+						hand: hand.map((id) => ({ id, type: "red", value: String(id) }))
+					},
+					{ username: "bob", card_count: 2, is_bot: false, hand: [] },
+					{ username: "cara", card_count: 1, is_bot: false, hand: [] }
+				]
+			}) as never;
+		const flightTargets = (h: ReturnType<typeof harness>) => {
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			expect(beats).toHaveLength(1);
+			return beats[0]!.filter((step) => step.op === "move").map((step) => String(step.target));
+		};
+
+		it("swaps with an opponent from the player's POV: real cards in, backs out", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([40, 41]);
+			const h = harness();
+
+			h.fire({ seq: 9, kind: "hands_swap", a: "me", b: "bob", aSize: 3, bSize: 2 });
+
+			expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
+			const targets = flightTargets(h);
+			expect(targets).toEqual(expect.arrayContaining(["40", "41"]));
+			expect(targets.filter((t) => t.startsWith("transfer:me:bob:"))).toHaveLength(3);
+			expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(40);
+			expect(h.bus.addPendingLocalDraw).toHaveBeenCalledWith(41);
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 3);
+		});
+
+		it("animates an opponent swapping with the player from the opponent's POV", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([50]);
+			const h = harness();
+
+			h.fire({ seq: 9, kind: "hands_swap", a: "bob", b: "me", aSize: 1, bSize: 2 });
+
+			const targets = flightTargets(h);
+			expect(targets).toContain("50");
+			expect(targets.filter((t) => t.startsWith("transfer:me:bob:"))).toHaveLength(2);
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 2);
+		});
+
+		it("swaps two opponents with each other using backs only", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([1]);
+			const h = harness();
+
+			h.fire({ seq: 9, kind: "hands_swap", a: "bob", b: "cara", aSize: 2, bSize: 1 });
+
+			const targets = flightTargets(h);
+			expect(targets).toHaveLength(3);
+			expect(targets.every((t) => t.startsWith("transfer:"))).toBe(true);
+			expect(h.bus.addPendingLocalDraw).not.toHaveBeenCalled();
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("cara", 2);
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 1);
+		});
+
+		it("rotates every hand to the next seat for a forward pass", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([7]);
+			const h = harness();
+
+			h.fire({
+				seq: 9,
+				kind: "hands_pass",
+				direction: "forward",
+				players: ["me", "bob", "cara"],
+				handSizes: [2, 2, 1]
+			});
+
+			const targets = flightTargets(h);
+			expect(targets).toHaveLength(5);
+			// cara's single card lands in me's hand (a real card), bob's two go to cara.
+			expect(targets).toContain("7");
+			expect(targets.filter((t) => t.startsWith("transfer:bob:cara:"))).toHaveLength(2);
+			expect(targets.filter((t) => t.startsWith("transfer:me:bob:"))).toHaveLength(2);
+		});
+
+		it("rotates the other way for a backward pass", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([7, 8]);
+			const h = harness();
+
+			h.fire({
+				seq: 9,
+				kind: "hands_pass",
+				direction: "backward",
+				players: ["me", "bob", "cara"],
+				handSizes: [2, 2, 1]
+			});
+
+			const targets = flightTargets(h);
+			expect(targets).toEqual(expect.arrayContaining(["7", "8"]));
+			expect(targets.filter((t) => t.startsWith("transfer:cara:bob:"))).toHaveLength(1);
+			expect(targets.filter((t) => t.startsWith("transfer:bob:cara:"))).toHaveLength(0);
+		});
+
+		it("does nothing when nothing moves", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState();
+			const h = harness();
+
+			h.fire({ seq: 9, kind: "hands_swap", a: "bob", b: "cara", aSize: 0, bSize: 0 });
+
+			expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+		});
+	});
+
 	it("enqueues synthetic staggered moves for an opponent draw", () => {
 		storeAuth.username = "me";
 		storeGame.state = opponentDrawState(2, "bob");
