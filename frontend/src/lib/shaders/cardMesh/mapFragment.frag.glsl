@@ -8,4 +8,7 @@
 		sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
 	#endif
 	diffuseColor *= sampledDiffuseColor;
+	if (gl_FrontFacing && uGlintStrength > 0.0) {
+		diffuseColor.rgb += glintContribution(rect, baseUv) * uGlintStrength;
+	}
 #endif

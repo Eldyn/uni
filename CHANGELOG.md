@@ -47,6 +47,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Bottom-edge fuse line for every player-facing timer**: `FuseLine.svelte` drains along the bottom of the screen for the response window group (the jump-in hold is a hatched segment with a tick where it unlocks), a pending prompt (also for observers), the ready barrier and the turn clock, replacing the window and prompt countdown chips. Reduced motion steps the fill instead of animating it. A debug label of the window kinds shows only with `?debug` in the URL or `localStorage` `uni:debug=1` and is not localised. The disconnect grace, lobby eviction and engine scheduler timers are not drawn (nobody in the match waits on them).
 - **Automatic highlight of eligible cards for window responders**: a responder's `can_play` follows the open window, and the board lights those cards even out of turn.
 - **Sound effects for play, draw, deal, your turn and rejected actions**: your own plays and draws, opponents' (at half volume), each dealt card, the start of your turn, a rejected action, an error toast or a skipped player all have a short retro sound now. Toggles, slider nudges and dropdown picks make a soft tick. The SFX slider now defaults to 80.
+- **Playable hand cards glint**: a sweeping shine crosses every card you can play right now, and under jump-in an out-of-turn card identical to the pile top lights up too, even with no window open.
 
 ### Changed
 

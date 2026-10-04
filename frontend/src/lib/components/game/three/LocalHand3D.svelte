@@ -24,10 +24,11 @@
 	import { HTML } from "@threlte/extras";
 	import { gsap } from "gsap";
 	import { storeGame, type Card, type GamePlayer } from "$stores/game.svelte";
+	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { computeHandLine, centerSlotIndex } from "../layout/handLine";
-	import { isHandCardDimmed } from "../layout/handCardDimming";
+	import { isHandCardDimmed, isIdenticalToTop } from "../layout/handCardDimming";
 	import { handSlotPose, HAND_STACK_STEP, DRAG_LIFT } from "../layout/handSlotPose";
 	import { useCardBus } from "../card-bus.svelte";
 	import { useCardRegistry, cardMetaFrom } from "../animation/cardRegistry.svelte";
@@ -193,6 +194,9 @@
 	// left end — mirroring the overflow hint on the right.
 	let sortButtonX = $derived(-((maxHalfSpanEm + CARD_HALF_WIDTH_EM) * handEmToWorld + 0.3));
 
+	let jumpInEnabled = $derived(
+		storeLobby.current?.settings?.active_mods?.includes("jump_in") ?? false
+	);
 	let handCards = $derived(handPlayer?.hand ?? []);
 	// The viewer's own voluntary draw is parked for a play/keep decision: the
 	// lifted card id is only ever sent to its owner, so its presence confirms
@@ -553,6 +557,15 @@
 				isSelected ||
 				((focusedId !== null ? focusedId === card.id : hoveredId === card.id) && !isDragging);
 			const fade = edgeFade(slot.x);
+			const isJumpInCandidate =
+				jumpInEnabled && !readOnly && isIdenticalToTop(card, storeGame.state?.top_card);
+			const handCardDimmed = isHandCardDimmed({
+				handDimmed: dimmed,
+				isWindowResponder: storeGame.isWindowResponder,
+				canPlay: card.can_play,
+				isJumpInCandidate,
+				pendingPlayDrawn: holdsDrawnCard
+			});
 			cardRegistry.setDecoration(idString, {
 				tableBound: false,
 				hovered: lifted,
@@ -561,12 +574,8 @@
 				pushX: neighborPush * handEmToWorld,
 				hoverSpinDeg: isDragging ? dragTiltDeg : lifted ? tiltTowardPileDeg(slot.x) : 0,
 				opacity: isSelected ? 1 : fade,
-				dimmed: isHandCardDimmed({
-					handDimmed: dimmed,
-					isWindowResponder: storeGame.isWindowResponder,
-					canPlay: card.can_play,
-					pendingPlayDrawn: holdsDrawnCard
-				}),
+				dimmed: handCardDimmed,
+				glint: (card.can_play === true || isJumpInCandidate) && !handCardDimmed && !isDragging,
 				shadow: shadowTexture
 					? {
 							texture: shadowTexture,

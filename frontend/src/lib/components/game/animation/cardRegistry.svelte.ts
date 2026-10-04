@@ -31,6 +31,8 @@ export interface CardDecoration {
 	tableBound?: boolean;
 	shadow?: { texture: import("three").Texture; offsetX: number; dropZ: number; opacity: number };
 	highlight?: { color?: string; pulse?: boolean };
+	/** Sweeping shine on a hand card the local player can play right now. */
+	glint?: boolean;
 }
 
 export interface CardMeta {

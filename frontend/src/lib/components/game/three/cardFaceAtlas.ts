@@ -38,6 +38,10 @@ const TILE_PAD = 2;
 const CARD_PX_WIDTH = 43;
 const CARD_PX_HEIGHT = 60;
 
+/** Native pixel dimensions of one baked face — the grid decorative overlays
+ *  (e.g. the playable-card glint) snap to so they read as part of the art. */
+export const CARD_ART_PX = { width: CARD_PX_WIDTH, height: CARD_PX_HEIGHT } as const;
+
 const SLOT_WIDTH = CARD_PX_WIDTH + 2 * TILE_PAD; // 47px
 const SLOT_HEIGHT = CARD_PX_HEIGHT + 2 * TILE_PAD; // 64px
 const TILES_PER_ROW = Math.floor(PAGE_SIZE / SLOT_WIDTH); // 43
