@@ -1,4 +1,10 @@
 import "@testing-library/jest-dom";
+import { locales } from "$lib/paraglide/runtime.js";
+import { loadLocale } from "$lib/utils/localeLoader";
+
+// Locales load on demand in the app; tests switch between them synchronously,
+// so every locale is resolved up front.
+await Promise.all(locales.map(loadLocale));
 
 // Mock matchMedia for jsdom (which doesn't have it by default)
 Object.defineProperty(window, "matchMedia", {

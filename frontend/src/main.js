@@ -6,6 +6,8 @@ import "@hackernoon/pixel-icon-library/fonts/iconfont.css";
 import "pixelarticons/fonts/pixelart-icons-font.css";
 import "./app.css";
 import App from "./App.svelte";
+import { getLocale } from "./lib/paraglide/runtime.js";
+import { loadLocale } from "./lib/utils/localeLoader";
 
 // The static #seo-splash markup inside #app is real, crawlable content —
 // It used to be deleted here
@@ -16,6 +18,10 @@ const appRoot = document.getElementById("app") ?? document.body;
 const mountTarget = document.createElement("div");
 mountTarget.id = "svelte-app";
 appRoot.after(mountTarget);
+
+// The persisted locale's translations are fetched on demand, so they must be
+// in before the first render or the app would paint in the base language.
+await loadLocale(getLocale());
 
 const app = mount(App, { target: mountTarget });
 

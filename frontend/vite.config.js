@@ -64,6 +64,61 @@ const gzipAssetsPlugin = {
 	}
 };
 
+const baseLocale = JSON.parse(
+	fs.readFileSync(path.resolve("project.inlang/settings.json"), "utf8")
+).baseLocale;
+
+// Paraglide's locale-modules index statically imports every locale, which
+// bundles all translations into the entry. Rewrites each non-base import into
+// a mutable binding that starts as the base locale and is swapped for the real
+// module by loadLocale(), so a locale's chunk is only fetched when it's used.
+// Anything rendered before its locale loads falls back to the base language.
+const lazyLocalesPlugin = {
+	name: "lazy-locales",
+	enforce: "pre",
+	transform(code, id) {
+		if (!id.endsWith("paraglide/messages/_index.js")) return null;
+
+		const localeImport = /^import \* as (__\w+) from "\.\/([\w-]+)\.js"$/gm;
+		const lazyLocales = [];
+		let baseBinding = "";
+
+		const rewritten = code.replace(localeImport, (statement, binding, locale) => {
+			if (locale === baseLocale) {
+				baseBinding = binding;
+				return statement;
+			}
+			lazyLocales.push({ binding, locale });
+			return "";
+		});
+
+		const bindings = lazyLocales.map(({ binding }) => `let ${binding} = ${baseBinding}`).join("\n");
+		const loaders = lazyLocales
+			.map(
+				({ binding, locale }) =>
+					`\t${JSON.stringify(locale)}: async () => { ${binding} = await import("./${locale}.js") }`
+			)
+			.join(",\n");
+
+		return `${rewritten}
+${bindings}
+
+const localeLoaders = {
+${loaders}
+}
+const loadedLocales = new Set([${JSON.stringify(baseLocale)}])
+
+export const isLocaleLoaded = (locale) => loadedLocales.has(locale)
+
+export async function loadLocale(locale) {
+	if (loadedLocales.has(locale)) return
+	await localeLoaders[locale]()
+	loadedLocales.add(locale)
+}
+`;
+	}
+};
+
 const appVersion = fs.readFileSync(path.resolve("../VERSION"), "utf8").trim();
 
 export default defineConfig(({ mode }) => {
@@ -79,12 +134,16 @@ export default defineConfig(({ mode }) => {
 			paraglideVitePlugin({
 				project: "./project.inlang",
 				outdir: "./src/lib/paraglide",
+				// One module per locale instead of one per message, so lazyLocalesPlugin
+				// can split each locale into its own on-demand chunk.
+				outputStructure: "locale-modules",
 				// Cookie stays first (canonical default order keeps baseLocale as
 				// the final fallback); localStorage slots in right after so a
 				// locale chosen when cookies are blocked still survives reloads,
 				// without changing precedence for browsers that support both.
 				strategy: ["cookie", "localStorage", "globalVariable", "baseLocale"]
 			}),
+			lazyLocalesPlugin,
 			tailwindcss(),
 			svelte(),
 			isDev && watchPublicDirPlugin,

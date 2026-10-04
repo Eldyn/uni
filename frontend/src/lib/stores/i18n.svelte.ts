@@ -11,6 +11,7 @@
  */
 
 import { getLocale, setLocale as paraglideSetLocale, locales } from "$lib/paraglide/runtime.js";
+import { isLocaleLoaded, loadLocale } from "$lib/utils/localeLoader";
 import { storeAnalytics } from "./analytics.svelte";
 
 // Paraglide's generated runtime.js only exposes `Locale` as a JSDoc typedef,
@@ -37,7 +38,20 @@ class StoreI18n {
 		document.documentElement.lang = this.locale;
 	}
 
-	setLocale(locale: Locale): void {
+	/**
+	 * @brief Switches the active locale, fetching its translations first if
+	 * this is the first time it's used. The UI keeps the previous language until
+	 * the chunk arrives, so a switch never flashes untranslated text.
+	 */
+	setLocale(locale: Locale): Promise<void> {
+		if (isLocaleLoaded(locale)) {
+			this.applyLocale(locale);
+			return Promise.resolve();
+		}
+		return loadLocale(locale).then(() => this.applyLocale(locale));
+	}
+
+	private applyLocale(locale: Locale): void {
 		const previous = this.locale;
 		paraglideSetLocale(locale, { reload: false });
 		this.locale = locale;
