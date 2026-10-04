@@ -1543,7 +1543,9 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     lobby.settings = std::move(new_settings);
     if (new_name) lobby.name = std::move(*new_name);
 
-    if (old_bot_count != lobby.settings.bot_count) {
+    lobby.ClampBotCountToCapacity();
+    if (old_bot_count != lobby.settings.bot_count ||
+        old_max_players != lobby.settings.max_players) {
         lobby.SyncBots(rng_);
     }
 

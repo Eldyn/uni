@@ -257,6 +257,13 @@ struct Lobby {
     ~Lobby();
 
     /**
+     * @brief Lowers settings.bot_count so humans plus bots fit within
+     * settings.max_players, always leaving at least one human seat.
+     * Call after max_players changes so the setting never exceeds capacity.
+     */
+    void ClampBotCountToCapacity();
+
+    /**
      * @brief Re-evaluates settings.bot_count, adding or purging bot members
      * until the bot count matches (clamped to the lobby capacity). No-op
      * while a match is in progress.

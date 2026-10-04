@@ -288,6 +288,41 @@ TEST_CASE("lobby: SyncBots clamps desired bots to the lobby's max_players") {
     CHECK_EQ(CountBots(lobby), 1);
 }
 
+TEST_CASE("lobby: ClampBotCountToCapacity lowers bot_count to the seats humans leave free") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Host", nullptr, true, false);
+    lobby.settings.max_players = 2;
+    lobby.settings.bot_count   = 4;
+
+    lobby.ClampBotCountToCapacity();
+
+    CHECK_EQ(lobby.settings.bot_count, 1);
+}
+
+TEST_CASE("lobby: ClampBotCountToCapacity reserves a human seat in an empty lobby") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.max_players = 3;
+    lobby.settings.bot_count   = 5;
+
+    lobby.ClampBotCountToCapacity();
+
+    CHECK_EQ(lobby.settings.bot_count, 2);
+}
+
+TEST_CASE("lobby: ClampBotCountToCapacity leaves a bot_count that already fits") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Host", nullptr, true, false);
+    lobby.settings.max_players = 4;
+    lobby.settings.bot_count   = 2;
+
+    lobby.ClampBotCountToCapacity();
+
+    CHECK_EQ(lobby.settings.bot_count, 2);
+}
+
 TEST_CASE("lobby: SyncBots is a no-op when a match is in progress") {
     Lobby lobby;
     lobby.id = 1;

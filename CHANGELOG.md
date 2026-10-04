@@ -68,6 +68,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Client IPs in logs and rate-limit keys are always plain IPv4**: `http::GetClientIp` (`include/common/http.hpp`) now unwraps IPv4-mapped IPv6 addresses (`::ffff:1.2.3.4` → `1.2.3.4`) before they are logged or used as a limiter/connection-cap key; genuine IPv6 addresses pass through unchanged.
 - **Roomy portrait viewports keep the desktop board**: the phone board composition (felt-rail seats, stacked piles, mobile playmat, `.portrait` styles) keyed off `height > width`, so a tablet-sized window such as 816x1000 was drawn as a phone. A new `isPhoneLayout(viewport)` in `layout/seatLayout.ts` switches on the aspect ratio instead (narrower than 3:4), while `orientation` stays a pure geometric fact.
 - **Music volume no longer scales the sound effects**: the music slider used to set the master volume, so lowering music muted every effect too. Music volume now applies to the music only.
+- **Lowering max players trims the bot count**: setting max players below the number of seats humans and bots take left extra bots in the lobby and broke the seat layout. The bot count now drops to fit, always leaving a seat for a human.
 
 ### Security
 

@@ -131,6 +131,14 @@ void Lobby::SyncBots(std::mt19937& rng) {
     }
 }
 
+void Lobby::ClampBotCountToCapacity() {
+    const int human_count = static_cast<int>(
+        std::count_if(members.begin(), members.end(),
+                      [](const LobbyMember& member) { return !member.is_bot; }));
+    const int bot_capacity = std::max(0, settings.max_players - std::max(1, human_count));
+    settings.bot_count = std::min(settings.bot_count, bot_capacity);
+}
+
 MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt19937& rng) {
     MemberRemovalResult result;
 
