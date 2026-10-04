@@ -88,7 +88,7 @@ describe("storeAudio", () => {
 	it("defaults musicVolume/sfxVolume when localStorage is empty", async () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
 		expect(storeAudio.musicVolume).toBe(0.15);
-		expect(storeAudio.sfxVolume).toBe(0.5);
+		expect(storeAudio.sfxVolume).toBe(0.8);
 	});
 
 	it("loads persisted volumes from localStorage on construction", async () => {
@@ -102,16 +102,16 @@ describe("storeAudio", () => {
 		localStorage.setItem(SETTINGS_KEY, "{not-json");
 		const { storeAudio } = await import("$stores/audio.svelte");
 		expect(storeAudio.musicVolume).toBe(0.15);
-		expect(storeAudio.sfxVolume).toBe(0.5);
+		expect(storeAudio.sfxVolume).toBe(0.8);
 	});
 
-	it("setMusicVolume updates state, calls Howler.volume, and persists", async () => {
+	it("setMusicVolume updates state, leaves Howler master volume alone, and persists", async () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
 
 		storeAudio.setMusicVolume(0.3);
 
 		expect(storeAudio.musicVolume).toBe(0.3);
-		expect(HowlerMock.volume).toHaveBeenCalledWith(0.3);
+		expect(HowlerMock.volume).not.toHaveBeenCalled();
 		const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
 		expect(stored.musicVolume).toBe(0.3);
 	});
@@ -158,31 +158,12 @@ describe("storeAudio", () => {
 		expect(() => storeAudio.playSfx("sfx.whatever")).not.toThrow();
 	});
 
-	it("init() applies the current musicVolume via Howler.volume exactly once", async () => {
+	it("init() never touches Howler's master volume, so SFX stay independent of music", async () => {
 		const { storeAudio } = await import("$stores/audio.svelte");
 
-		storeAudio.init();
-
-		expect(HowlerMock.volume).toHaveBeenCalledWith(storeAudio.musicVolume);
-	});
-
-	it("init() is idempotent, a second call does not re-apply the volume", async () => {
-		const { storeAudio } = await import("$stores/audio.svelte");
-
-		storeAudio.init();
-		HowlerMock.volume.mockClear();
 		storeAudio.init();
 
 		expect(HowlerMock.volume).not.toHaveBeenCalled();
-	});
-
-	it("init() never throws even if Howler.volume throws (degrades to silent no-op)", async () => {
-		HowlerMock.volume.mockImplementationOnce(() => {
-			throw new Error("no AudioContext in this environment");
-		});
-		const { storeAudio } = await import("$stores/audio.svelte");
-
-		expect(() => storeAudio.init()).not.toThrow();
 	});
 
 	it("suspends the shared AudioContext when the document becomes hidden", async () => {

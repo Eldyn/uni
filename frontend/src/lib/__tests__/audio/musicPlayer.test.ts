@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { FakeHowl, fakeCtx, fakeMasterGain, HowlerMock } = vi.hoisted(() => {
+const { FakeHowl, fakeCtx, fakeMasterGain, fakeMusicGain, HowlerMock } = vi.hoisted(() => {
 	class FakeHowl {
 		static instances: FakeHowl[] = [];
 
@@ -40,8 +40,10 @@ const { FakeHowl, fakeCtx, fakeMasterGain, HowlerMock } = vi.hoisted(() => {
 		});
 	}
 
+	const fakeMusicGain = { gain: { value: 1 }, connect: vi.fn() };
 	const fakeCtx = {
-		decodeAudioData: vi.fn(async () => ({ fake: "buffer" }))
+		decodeAudioData: vi.fn(async () => ({ fake: "buffer" })),
+		createGain: vi.fn(() => fakeMusicGain)
 	};
 
 	const fakeMasterGain = { fake: "masterGain" };
@@ -52,7 +54,7 @@ const { FakeHowl, fakeCtx, fakeMasterGain, HowlerMock } = vi.hoisted(() => {
 		volume: vi.fn()
 	};
 
-	return { FakeHowl, fakeCtx, fakeMasterGain, HowlerMock };
+	return { FakeHowl, fakeCtx, fakeMasterGain, fakeMusicGain, HowlerMock };
 });
 
 vi.mock("howler", () => ({ Howl: FakeHowl, Howler: HowlerMock }));
@@ -192,7 +194,8 @@ describe("MusicPlayer", () => {
 		const [ctxArg, channelsArg, destArg] = playSyncedChannelsMock.mock.calls[0];
 		expect(ctxArg).toBe(fakeCtx);
 		expect(channelsArg).toHaveLength(3);
-		expect(destArg).toBe(fakeMasterGain);
+		expect(destArg).toBe(fakeMusicGain);
+		expect(fakeMusicGain.connect).toHaveBeenCalledWith(fakeMasterGain);
 	});
 
 	it("stopAll(fadeMs) fades a single track before stopping it", () => {
@@ -221,5 +224,33 @@ describe("MusicPlayer", () => {
 		player.stopAll(500);
 
 		expect(stop).toHaveBeenCalledWith(500);
+	});
+
+	it("setVolume scales a playing single track without touching Howler's master volume", () => {
+		const player = new MusicPlayer();
+		player.playTrack("music.single");
+		const howl = FakeHowl.instances[0];
+
+		player.setVolume(0.2);
+
+		expect(howl.volume).toHaveBeenCalledWith(0.2);
+		expect(HowlerMock.volume).not.toHaveBeenCalled();
+	});
+
+	it("fades a new single track in to the configured volume", () => {
+		const player = new MusicPlayer();
+		player.setVolume(0.2);
+		player.playTrack("music.single");
+
+		expect(FakeHowl.instances[0].fade).toHaveBeenCalledWith(0, 0.2, 0);
+	});
+
+	it("setVolume updates the multi-channel music gain", async () => {
+		const player = new MusicPlayer();
+		await player.playTrack("music.folder");
+
+		player.setVolume(0.3);
+
+		expect(fakeMusicGain.gain.value).toBe(0.3);
 	});
 });

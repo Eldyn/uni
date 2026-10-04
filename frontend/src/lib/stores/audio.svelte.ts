@@ -40,7 +40,7 @@ class StoreAudio {
 	}
 
 	/**
-	 * @brief Boots the audio system: applies the persisted master volume,
+	 * @brief Boots the audio system: applies the persisted music volume,
 	 * wires the autoplay-unlock-on-gesture fallback, and starts/keeps
 	 * screen-driven music in sync with `storeNavigation`. Idempotent, safe
 	 * to call more than once. Degrades to a silent no-op if the underlying
@@ -51,9 +51,7 @@ class StoreAudio {
 		this.#initialized = true;
 
 		try {
-			// INFO: Also creates Howler.ctx as a side effect, Howler defers
-			//       AudioContext setup until first real use.
-			Howler.volume(this.musicVolume);
+			this.#music.setVolume(this.musicVolume);
 		} catch {
 			// INFO: Howler/AudioContext unavailable, degrade to silent no-op.
 		}
@@ -171,9 +169,9 @@ class StoreAudio {
 	setMusicVolume(v: number): void {
 		this.musicVolume = v;
 		try {
-			Howler.volume(v);
+			this.#music.setVolume(v);
 		} catch {
-			// INFO: Howler/AudioContext unavailable, the setting still persists.
+			// INFO: Playback backend unavailable, the setting still persists.
 		}
 		this.#persist();
 	}

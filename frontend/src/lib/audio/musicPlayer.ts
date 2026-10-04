@@ -62,6 +62,17 @@ export class MusicPlayer {
 	//       newer operation has taken over, prevents playlist double-advance
 	//       and a stale decode clobbering a newer track.
 	#operationId = 0;
+	// INFO: Music level lives here, not on Howler's master volume, which
+	//       would also scale every SFX.
+	#volume = 1;
+	#multiChannelGain: GainNode | undefined;
+
+	setVolume(volume: number): void {
+		this.#volume = volume;
+		const current = this.#current;
+		if (current && current.kind !== "multi") current.howl.volume(volume);
+		if (this.#multiChannelGain) this.#multiChannelGain.gain.value = volume;
+	}
 
 	playTrack(id: string, opts?: { fadeMs?: number }): Promise<void> {
 		if (id === this.#currentId && this.#current) return Promise.resolve();
@@ -131,7 +142,7 @@ export class MusicPlayer {
 	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
 		const howl = new Howl({ src: [def.src], loop: def.loop ?? false, volume: 0 });
 		howl.play();
-		howl.fade(0, 1, fadeMs);
+		howl.fade(0, this.#volume, fadeMs);
 		this.#current = { kind: "single", howl };
 	}
 
@@ -170,7 +181,7 @@ export class MusicPlayer {
 		const howl = new Howl({
 			src: [trackDef.src],
 			loop: false,
-			volume: 1,
+			volume: this.#volume,
 			onend: () => {
 				// INFO: Howler fires onend only on natural completion, never on
 				//       a manual .stop(), guard anyway in case a newer
@@ -181,7 +192,7 @@ export class MusicPlayer {
 			}
 		});
 		howl.play();
-		howl.fade(0, 1, crossfadeMs);
+		howl.fade(0, this.#volume, crossfadeMs);
 
 		this.#current = { kind: "playlist", order, index, crossfadeMs, howl };
 	}
@@ -205,7 +216,16 @@ export class MusicPlayer {
 		//       resurrect as "current" over whatever's playing now.
 		if (operationId !== this.#operationId) return;
 
-		const handle = playSyncedChannels(Howler.ctx, channelBuffers, Howler.masterGain);
+		const handle = playSyncedChannels(Howler.ctx, channelBuffers, this.#getMultiChannelGain());
 		this.#current = { kind: "multi", handle };
+	}
+
+	#getMultiChannelGain(): GainNode {
+		if (!this.#multiChannelGain) {
+			this.#multiChannelGain = Howler.ctx.createGain();
+			this.#multiChannelGain.gain.value = this.#volume;
+			this.#multiChannelGain.connect(Howler.masterGain);
+		}
+		return this.#multiChannelGain;
 	}
 }
