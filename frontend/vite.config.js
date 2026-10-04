@@ -4,6 +4,7 @@ import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const watchPublicDirPlugin = {
 	name: "watch-public-dir",
@@ -51,6 +52,63 @@ const pruneStaleChunksPlugin = {
 // Overridable so the perf harness can build into an isolated dir and serve it
 // without clobbering the production bundle a running server is serving.
 const OUT_DIR = process.env.UNI_OUT_DIR || "../public";
+
+// Files under public/assets/ are copied verbatim, so their names never change
+// while the server marks everything under /assets/ as immutable for a year.
+// Each one is renamed to carry its content hash (like Vite's own chunks) so an
+// edited file becomes a new URL. Files referenced from outside the bundle
+// (the web manifest, link-preview meta tags) keep a stable name.
+const PUBLIC_ASSETS_DIR = path.resolve("public/assets");
+const STABLE_PUBLIC_ASSETS = new Set(["logo.png", "link_image.png"]);
+const CONTENT_HASH_LENGTH = 8;
+
+function buildPublicAssetManifest() {
+	const manifest = {};
+	const walk = (directory) => {
+		if (!fs.existsSync(directory)) return;
+		for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+			const fullPath = path.join(directory, entry.name);
+			if (entry.isDirectory()) {
+				walk(fullPath);
+				continue;
+			}
+			const relativePath = path.relative(PUBLIC_ASSETS_DIR, fullPath).split(path.sep).join("/");
+			if (entry.name.endsWith(".ase") || STABLE_PUBLIC_ASSETS.has(relativePath)) continue;
+
+			const contentHash = createHash("sha256")
+				.update(fs.readFileSync(fullPath))
+				.digest("hex")
+				.slice(0, CONTENT_HASH_LENGTH);
+			const { dir, name, ext } = path.posix.parse(relativePath);
+			const hashedName = `${name}-${contentHash}${ext}`;
+			manifest[`/assets/${relativePath}`] = `/assets/${dir ? `${dir}/` : ""}${hashedName}`;
+		}
+	};
+	walk(PUBLIC_ASSETS_DIR);
+	return manifest;
+}
+
+// Quoted or url()-wrapped literals are rewritten at transform time; paths built
+// at runtime go through assetUrl() (src/lib/utils/assetUrl.ts) instead.
+function hashPublicAssetsPlugin(manifest) {
+	const literalPath = /(?<=["'`(])\/assets\/[^"'`)\s$]+(?=["'`)])/g;
+	return {
+		name: "hash-public-assets",
+		enforce: "pre",
+		transform(code, id) {
+			if (id.includes("node_modules") || !code.includes("/assets/")) return null;
+			const rewritten = code.replace(literalPath, (match) => manifest[match] ?? match);
+			return rewritten === code ? null : { code: rewritten, map: null };
+		},
+		closeBundle() {
+			const outDir = path.resolve(OUT_DIR);
+			for (const [original, hashed] of Object.entries(manifest)) {
+				const source = path.join(outDir, original);
+				if (fs.existsSync(source)) fs.renameSync(source, path.join(outDir, hashed));
+			}
+		}
+	};
+}
 
 // The server ships a ".gz" sidecar whenever the client accepts gzip, so the
 // three.js/Threlte bundle goes over the wire compressed without costing any
@@ -121,8 +179,11 @@ export async function loadLocale(locale) {
 
 const appVersion = fs.readFileSync(path.resolve("../VERSION"), "utf8").trim();
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
 	const isDev = mode === "development";
+	// Only real builds rename files; tests and the dev server keep plain paths.
+	const publicAssetManifest =
+		command === "build" && mode !== "test" ? buildPublicAssetManifest() : {};
 	// Keyed on the flag rather than the mode, so a development build can also be
 	// run one-shot (`vite build --mode development`) to produce a dev bundle for
 	// the screenshot harness without leaving a watcher behind.
@@ -144,6 +205,7 @@ export default defineConfig(({ mode }) => {
 				strategy: ["cookie", "localStorage", "globalVariable", "baseLocale"]
 			}),
 			lazyLocalesPlugin,
+			hashPublicAssetsPlugin(publicAssetManifest),
 			tailwindcss(),
 			svelte(),
 			isDev && watchPublicDirPlugin,
@@ -169,6 +231,7 @@ export default defineConfig(({ mode }) => {
 		},
 		define: {
 			__APP_VERSION__: JSON.stringify(appVersion),
+			__PUBLIC_ASSET_MANIFEST__: JSON.stringify(publicAssetManifest),
 			// Gate for the local screenshot harness (src/lib/dev). A literal
 			// `false` in a production build, so the bundler drops the guarded
 			// dynamic import and the harness never ships. `import.meta.env.DEV`

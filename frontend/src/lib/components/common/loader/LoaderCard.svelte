@@ -1,5 +1,6 @@
 <script lang="ts">
 	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import { assetUrl } from "$lib/utils/assetUrl";
 	import type { LoaderFace } from "./loaderFaces";
 
 	let { face }: { face: LoaderFace } = $props();
@@ -14,6 +15,7 @@
 
 	const cardColor = $derived(COLOR_MAP[face.type] ?? "inherit");
 	const tinted = $derived(face.value !== "jolly");
+	const faceSrc = $derived(assetUrl(`/assets/cards/${face.value}.png`));
 </script>
 
 <div class="loader-card" data-testid="loader-card" style="--card-color: {cardColor};">
@@ -21,17 +23,13 @@
 		<img src="/assets/cards/background.png" alt="" class="layer" />
 		{#if tinted}
 			<div class="layer">
-				<TintedSprite
-					src="/assets/cards/{face.value}.png"
-					color="var(--card-color)"
-					fit="100% 100%"
-				/>
+				<TintedSprite src={faceSrc} color="var(--card-color)" fit="100% 100%" />
 			</div>
 			<div class="layer">
 				<TintedSprite src="/assets/cards/border.png" color="var(--card-color)" fit="100% 100%" />
 			</div>
 		{:else}
-			<img src="/assets/cards/{face.value}.png" alt="" class="layer" />
+			<img src={faceSrc} alt="" class="layer" />
 			<img src="/assets/cards/border.png" alt="" class="layer" />
 		{/if}
 	</div>

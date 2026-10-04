@@ -6,6 +6,7 @@
  */
 
 import type { AppScreen } from "$stores/navigation.svelte";
+import { assetUrl } from "$lib/utils/assetUrl";
 
 /** Static per-channel mix balance for a stem of a "multi" music track. */
 export interface MusicChannelDef {
@@ -71,28 +72,28 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	//the multi-channel engine already handles this shape, no new code needed.
 };
 
-const SFX_DIR = "/assets/audio/sfx";
+const sfxPath = (fileName: string): string => assetUrl(`/assets/audio/sfx/${fileName}`);
 
 // INFO: Other sfx ids wired at gameplay trigger points (deal, match end, lobby)
 //       have no entry yet and warn once until their sounds are authored.
 export const SFX_CATALOG: Record<string, SfxDef> = {
 	"sfx.turn.start": {
 		id: "sfx.turn.start",
-		variants: [`${SFX_DIR}/turn-start.m4a`],
+		variants: [sfxPath("turn-start.m4a")],
 		volume: 0.8,
 		minIntervalMs: 300
 	},
 	"sfx.action.play-card": {
 		id: "sfx.action.play-card",
-		variants: [`${SFX_DIR}/play.m4a`]
+		variants: [sfxPath("play.m4a")]
 	},
 	"sfx.action.draw-card": {
 		id: "sfx.action.draw-card",
-		variants: [`${SFX_DIR}/draw.m4a`]
+		variants: [sfxPath("draw.m4a")]
 	},
 	"sfx.deal": {
 		id: "sfx.deal",
-		variants: [`${SFX_DIR}/draw.m4a`],
+		variants: [sfxPath("draw.m4a")],
 		pitchRange: [0.95, 1.1],
 		volume: 0.3,
 		minIntervalMs: 90,
@@ -100,17 +101,17 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 	},
 	"sfx.invalid": {
 		id: "sfx.invalid",
-		variants: [`${SFX_DIR}/invalid.m4a`],
+		variants: [sfxPath("invalid.m4a")],
 		minIntervalMs: 150
 	},
 	"sfx.ui.tick": {
 		id: "sfx.ui.tick",
-		variants: [`${SFX_DIR}/tick.m4a`],
+		variants: [sfxPath("tick.m4a")],
 		volume: 0.2
 	},
 	"sfx.ui.untick": {
 		id: "sfx.ui.untick",
-		variants: [`${SFX_DIR}/untick.m4a`],
+		variants: [sfxPath("untick.m4a")],
 		volume: 0.2
 	}
 };

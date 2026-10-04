@@ -9,6 +9,7 @@
 import { Howl, Howler } from "howler";
 import { MUSIC_CATALOG, type MusicChannelDef, type MusicTrackDef } from "$data/audioCatalogs";
 import { playSyncedChannels } from "$lib/audio/multiChannelSync";
+import { assetUrl } from "$lib/utils/assetUrl";
 
 const DEFAULT_CROSSFADE_MS = 500;
 
@@ -52,7 +53,7 @@ function resolveChannelDefs(def: MusicTrackDef): MusicChannelDef[] {
 	if (def.kind === "multi-folder") {
 		const start = def.start ?? 0;
 		return Array.from({ length: def.count }, (_, i) => ({
-			src: `/assets/audio/music/${def.folder}/${start + i}.mp3`
+			src: assetUrl(`/assets/audio/music/${def.folder}/${start + i}.mp3`)
 		}));
 	}
 	return [];

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { type Card, type CardValue, type CardType } from "$stores/game.svelte";
 	import TintedSprite from "$components/common/TintedSprite.svelte";
+	import { assetUrl } from "$lib/utils/assetUrl";
 
 	let {
 		card,
@@ -46,7 +47,7 @@
 	};
 
 	function getCardImage(value: CardValue): string {
-		return `/assets/cards/${value}.png`;
+		return assetUrl(`/assets/cards/${value}.png`);
 	}
 
 	const imgSrc = $derived(getCardImage(card.value));

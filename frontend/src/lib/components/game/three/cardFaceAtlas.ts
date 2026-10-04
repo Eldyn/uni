@@ -11,6 +11,7 @@ import { CanvasTexture, NearestFilter, SRGBColorSpace, type Texture } from "thre
 import { CARD_COLOR_MAP } from "$lib/palette";
 import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
+import { assetUrl } from "$lib/utils/assetUrl";
 
 export interface AtlasEntry {
 	page: number;
@@ -464,7 +465,7 @@ export async function preloadCardArt(): Promise<void> {
 			const loadPromises = STANDARD_ART_NAMES.map(async (name) => {
 				if (loadedArt.has(name)) return;
 				try {
-					const img = await loadArtImage(`/assets/cards/${name}.png`);
+					const img = await loadArtImage(assetUrl(`/assets/cards/${name}.png`));
 					loadedArt.set(name, img);
 				} catch {
 					// Ignore loading error for missing asset in fallback

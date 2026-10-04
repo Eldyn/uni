@@ -4,6 +4,7 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import TextEffects from "./common/TextEffects.svelte";
+	import SocialLinks from "./common/SocialLinks.svelte";
 	import HomeScreen from "$components/home/HomeScreen.svelte";
 	import LandingContent from "$components/landing/LandingContent.svelte";
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
@@ -33,24 +34,6 @@
 			logoutPending = false;
 		}
 	}
-
-	const SOCIAL_LINKS = [
-		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
-		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e", img: "discord_icon.png" },
-		{
-			label: "Bluesky",
-			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
-			img: "bluesky_icon.png"
-		},
-		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
-		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
-		{
-			label: "Instagram",
-			href: "https://www.instagram.com/the.uni.game/",
-			img: "instagram_icon.png"
-		},
-		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" }
-	];
 </script>
 
 <div
@@ -206,19 +189,7 @@
 						>{m.home_footer_credits({}, { locale: storeI18n.locale })}</a
 					>
 				</nav>
-				<nav class="flex items-center gap-3" aria-label="Social links">
-					{#each SOCIAL_LINKS as link}
-						<a
-							href={link.href}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="social-icon"
-							aria-label={link.label}
-						>
-							<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
-						</a>
-					{/each}
-				</nav>
+				<SocialLinks class="gap-3" />
 			</footer>
 		</div>
 	</div>
@@ -271,15 +242,6 @@
 	.skip-link:focus {
 		left: var(--space-4);
 		top: var(--space-4);
-	}
-
-	.social-icon {
-		opacity: 0.45;
-		transition: opacity 0.15s;
-		image-rendering: pixelated;
-	}
-	.social-icon:hover {
-		opacity: 1;
 	}
 
 	/* Scroll-driven reveal: the logo/hero shrinks and the dock's actions

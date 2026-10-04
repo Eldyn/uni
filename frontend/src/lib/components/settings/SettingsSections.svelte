@@ -11,6 +11,7 @@
 	import Divisor from "$components/common/Divisor.svelte";
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
+	import SocialLinks from "$components/common/SocialLinks.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let {
@@ -43,24 +44,6 @@
 		uk: "🇺🇦",
 		ru: "🇷🇺"
 	};
-
-	const SOCIAL_LINKS = [
-		{ label: "GitHub", href: "https://github.com/Eldyn/uni", img: "github_icon.png" },
-		{ label: "Discord", href: "https://discord.gg/QYJvfWqG5e", img: "discord_icon.png" },
-		{
-			label: "Bluesky",
-			href: "https://bsky.app/profile/did:plc:pnfiqgr56esaantendnklouz",
-			img: "bluesky_icon.png"
-		},
-		{ label: "X", href: "https://x.com/theunigamee", img: "x_icon.png" },
-		{ label: "YouTube", href: "https://youtube.com/@play-uni", img: "youtube_icon.png" },
-		{
-			label: "Instagram",
-			href: "https://www.instagram.com/the.uni.game/",
-			img: "instagram_icon.png"
-		},
-		{ label: "TikTok", href: "https://tiktok.com/@the.uni.game", img: "tiktok_icon.png" }
-	];
 
 	const inMatch = $derived(storeGame.state !== null);
 
@@ -268,19 +251,7 @@
 	{#if showCredits}
 		<section class="settings-block">
 			<Divisor text={m.settings_credits_heading({}, { locale: storeI18n.locale })} />
-			<nav class="social-row" aria-label="Social links">
-				{#each SOCIAL_LINKS as link}
-					<a
-						href={link.href}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="social-icon"
-						aria-label={link.label}
-					>
-						<img src="/assets/social/{link.img}" alt={link.label} width="32" height="32" />
-					</a>
-				{/each}
-			</nav>
+			<SocialLinks />
 		</section>
 	{/if}
 
@@ -382,21 +353,5 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-2);
-	}
-
-	.social-row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-4);
-	}
-
-	.social-icon {
-		opacity: 0.55;
-		image-rendering: pixelated;
-		transition: opacity var(--duration-fast) var(--ease-standard);
-	}
-	.social-icon:hover {
-		opacity: 1;
 	}
 </style>
