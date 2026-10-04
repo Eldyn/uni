@@ -7,8 +7,16 @@
 	import HomeScreen from "$components/home/HomeScreen.svelte";
 	import LandingContent from "$components/landing/LandingContent.svelte";
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
+	import { whenIdle } from "$lib/utils/idle";
+	import { fade } from "svelte/transition";
 
 	let logoutPending = $state(false);
+
+	// INFO: The WebGL backdrop is decorative and pulls in three.js (~1.2 MB), so
+	//       it only starts downloading once the page is loaded and idle, behind
+	//       everything the user is actually waiting on.
+	const loadShaderBackground = () =>
+		whenIdle().then(() => import("./home/ShaderBackground.svelte"));
 
 	async function playAsGuest() {
 		// INFO: No forced navigation, playing as guest from Main leaves you on
@@ -58,8 +66,8 @@
 	     below (that content flows as a normal sibling, outside this box). -->
 	<div class="hero-zone relative z-0 h-full">
 		{#if storeWebglCapability.shaderBackgroundEnabled}
-			{#await import("./home/ShaderBackground.svelte") then { default: ShaderBackground }}
-				<div class="absolute inset-0 -z-10">
+			{#await loadShaderBackground() then { default: ShaderBackground }}
+				<div class="absolute inset-0 -z-10" in:fade={{ duration: 600 }}>
 					<ShaderBackground />
 				</div>
 			{/await}
