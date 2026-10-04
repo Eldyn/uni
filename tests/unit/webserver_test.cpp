@@ -177,6 +177,67 @@ TEST_CASE("never wraps a .gz request in another layer of gzip") {
 
 } // TEST_SUITE
 
+TEST_SUITE("http_utils::SelectPrecompressed") {
+
+TEST_CASE("prefers brotli over gzip when both are accepted and built") {
+    ScratchDir dir;
+    fs::path asset = dir.WriteFile("assets/bundle.js", "console.log(1)");
+    dir.WriteFile("assets/bundle.js.gz", "gzipped");
+    dir.WriteFile("assets/bundle.js.br", "brotli");
+
+    auto body = http::SelectPrecompressed(asset, "gzip, deflate, br");
+    REQUIRE(body.has_value());
+    CHECK(body->path.filename() == "bundle.js.br");
+    CHECK(body->encoding == "br");
+}
+
+TEST_CASE("falls back to gzip when the client does not accept brotli") {
+    ScratchDir dir;
+    fs::path asset = dir.WriteFile("assets/bundle.js", "console.log(1)");
+    dir.WriteFile("assets/bundle.js.gz", "gzipped");
+    dir.WriteFile("assets/bundle.js.br", "brotli");
+
+    auto body = http::SelectPrecompressed(asset, "gzip, deflate");
+    REQUIRE(body.has_value());
+    CHECK(body->encoding == "gzip");
+}
+
+TEST_CASE("falls back to gzip when no brotli sidecar was built") {
+    ScratchDir dir;
+    fs::path asset = dir.WriteFile("assets/bundle.js", "console.log(1)");
+    dir.WriteFile("assets/bundle.js.gz", "gzipped");
+
+    auto body = http::SelectPrecompressed(asset, "br, gzip");
+    REQUIRE(body.has_value());
+    CHECK(body->encoding == "gzip");
+}
+
+TEST_CASE("honours an explicit refusal of brotli") {
+    ScratchDir dir;
+    fs::path asset = dir.WriteFile("assets/bundle.js", "console.log(1)");
+    dir.WriteFile("assets/bundle.js.br", "brotli");
+
+    CHECK(http::SelectPrecompressed(asset, "br;q=0, gzip") == std::nullopt);
+}
+
+TEST_CASE("serves the identity body when nothing compressed is accepted") {
+    ScratchDir dir;
+    fs::path asset = dir.WriteFile("assets/bundle.js", "console.log(1)");
+    dir.WriteFile("assets/bundle.js.br", "brotli");
+
+    CHECK(http::SelectPrecompressed(asset, "") == std::nullopt);
+}
+
+TEST_CASE("never wraps a .br request in another layer of compression") {
+    ScratchDir dir;
+    fs::path sidecar = dir.WriteFile("assets/bundle.js.br", "brotli");
+    dir.WriteFile("assets/bundle.js.br.br", "double");
+
+    CHECK(http::SelectPrecompressed(sidecar, "br") == std::nullopt);
+}
+
+} // TEST_SUITE
+
 TEST_SUITE("http_utils::MakeETag") {
 
 TEST_CASE("produces a non-empty weak validator for an existing file") {

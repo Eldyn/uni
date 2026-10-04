@@ -517,12 +517,10 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
             // A HEAD must describe exactly the response a GET would produce, so it
             // has to pick the same encoding and report that variant's ETag/length.
             fs::path bodyPath = filePath;
-            bool gzipped = false;
-            if (http::AcceptsGzip(accept_encoding)) {
-                if (auto sidecar = http::PrecompressedVariant(filePath)) {
-                    bodyPath = *sidecar;
-                    gzipped  = true;
-                }
+            std::string_view contentEncoding;
+            if (auto precompressed = http::SelectPrecompressed(filePath, accept_encoding)) {
+                bodyPath        = precompressed->path;
+                contentEncoding = precompressed->encoding;
             }
 
             std::string etag = http::MakeETag(bodyPath);
@@ -540,8 +538,8 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("X-Content-Type-Options", "nosniff");
-            if (gzipped) {
-                res->writeHeader("Content-Encoding", "gzip");
+            if (!contentEncoding.empty()) {
+                res->writeHeader("Content-Encoding", contentEncoding);
             }
             if (!etag.empty()) {
                 res->writeHeader("ETag", etag);
@@ -604,19 +602,17 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             const fs::path& filePath = *resolved;
             std::string pathStr = filePath.string();
 
-            // INFO: Prefer the build-time .gz sidecar whenever the client accepts
+            // INFO: Prefer the build-time .br/.gz sidecar whenever the client accepts
             //       it. The bundle carrying three.js/Threlte is why this matters,
             //       it is by far the heaviest asset served, and shipping a
             //       precompressed body costs no per-request CPU. Content-Type still
             //       comes from the *uncompressed* name: gzip is transport encoding,
             //       not the media type.
             fs::path bodyPath = filePath;
-            bool gzipped = false;
-            if (http::AcceptsGzip(accept_encoding)) {
-                if (auto sidecar = http::PrecompressedVariant(filePath)) {
-                    bodyPath = *sidecar;
-                    gzipped  = true;
-                }
+            std::string_view contentEncoding;
+            if (auto precompressed = http::SelectPrecompressed(filePath, accept_encoding)) {
+                bodyPath        = precompressed->path;
+                contentEncoding = precompressed->encoding;
             }
 
             // The two encodings are distinct representations, so they must not
@@ -640,8 +636,8 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("X-Content-Type-Options", "nosniff");
-            if (gzipped) {
-                res->writeHeader("Content-Encoding", "gzip");
+            if (!contentEncoding.empty()) {
+                res->writeHeader("Content-Encoding", contentEncoding);
             }
             if (!etag.empty()) {
                 res->writeHeader("ETag", etag);

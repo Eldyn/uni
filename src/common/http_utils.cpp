@@ -50,13 +50,13 @@ std::string CacheControlFor(std::string_view relative_path) {
     return "public, max-age=86400";
 }
 
-bool AcceptsGzip(std::string_view accept_encoding) {
-    const size_t at = accept_encoding.find("gzip");
+bool AcceptsEncoding(std::string_view accept_encoding, std::string_view coding) {
+    const size_t at = accept_encoding.find(coding);
     if (at == std::string_view::npos) return false;
 
-    // INFO: A bare "gzip" (or one followed by anything other than a qvalue)
+    // INFO: A bare coding (or one followed by anything other than a qvalue)
     //       is an acceptance. Only an explicit q=0 is a refusal, per RFC 9110.
-    std::string_view params = accept_encoding.substr(at + 4);
+    std::string_view params = accept_encoding.substr(at + coding.size());
     const size_t equals     = params.find('=');
     if (!params.starts_with(";") || equals == std::string_view::npos) return true;
 
@@ -67,17 +67,36 @@ bool AcceptsGzip(std::string_view accept_encoding) {
     return false;
 }
 
-std::optional<fs::path> PrecompressedVariant(const fs::path& file) {
-    // A direct request for the sidecar itself is just a normal file download,
-    // never a gzip-encoded response for some other resource.
-    if (file.extension() == ".gz") return std::nullopt;
+bool AcceptsGzip(std::string_view accept_encoding) {
+    return AcceptsEncoding(accept_encoding, "gzip");
+}
+
+std::optional<fs::path> PrecompressedVariant(const fs::path& file, std::string_view suffix) {
+    // A direct request for a sidecar itself is just a normal file download,
+    // never a compressed response for some other resource.
+    if (file.extension() == ".gz" || file.extension() == ".br") return std::nullopt;
 
     fs::path sidecar = file;
-    sidecar += ".gz";
+    sidecar += suffix;
 
     std::error_code ec;
     if (!fs::exists(sidecar, ec) || ec) return std::nullopt;
     return sidecar;
+}
+
+std::optional<PrecompressedBody> SelectPrecompressed(const fs::path& file,
+                                                     std::string_view accept_encoding) {
+    if (AcceptsEncoding(accept_encoding, "br")) {
+        if (auto sidecar = PrecompressedVariant(file, ".br")) {
+            return PrecompressedBody{*sidecar, "br"};
+        }
+    }
+    if (AcceptsGzip(accept_encoding)) {
+        if (auto sidecar = PrecompressedVariant(file, ".gz")) {
+            return PrecompressedBody{*sidecar, "gzip"};
+        }
+    }
+    return std::nullopt;
 }
 
 std::string MakeETag(const fs::path& file) {

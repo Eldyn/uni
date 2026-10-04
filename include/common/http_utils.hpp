@@ -80,29 +80,53 @@ std::optional<std::filesystem::path> ResolveSafePath(const std::filesystem::path
 std::string CacheControlFor(std::string_view relative_path);
 
 /**
- * @brief Tells whether a client's Accept-Encoding header welcomes gzip.
+ * @brief Tells whether a client's Accept-Encoding header welcomes a coding.
  *
- * Deliberately lenient: any mention of "gzip" counts, except an explicit
- * zero qvalue ("gzip;q=0"), which RFC 9110 defines as a refusal.
+ * Deliberately lenient: any mention of the coding counts, except an explicit
+ * zero qvalue (e.g. "br;q=0"), which RFC 9110 defines as a refusal.
  *
  * @param accept_encoding The raw Accept-Encoding header value (may be empty).
- * @return bool True if a gzip-encoded body may be sent.
+ * @param coding The content-coding token to look for, e.g. "gzip" or "br".
+ * @return bool True if a body in that coding may be sent.
  */
+bool AcceptsEncoding(std::string_view accept_encoding, std::string_view coding);
+
+/** @brief Shorthand for AcceptsEncoding(accept_encoding, "gzip"). */
 bool AcceptsGzip(std::string_view accept_encoding);
 
 /**
- * @brief Locates the build-time gzip sidecar of a static asset, if one exists.
+ * @brief Locates a build-time compressed sidecar of a static asset, if one exists.
  *
- * The frontend build writes a "<file>.gz" next to every compressible asset
- * (see frontend/scripts/gzip-assets.js), so the server can ship a compressed
- * body without spending CPU per request. The JS bundle carrying three.js is
- * what makes this worth it: it compresses to a fraction of its size.
+ * The frontend build writes a "<file>.br" and a "<file>.gz" next to every
+ * compressible asset (see frontend/scripts/gzip-assets.js), so the server can
+ * ship a compressed body without spending CPU per request. The JS bundle
+ * carrying three.js is what makes this worth it: it compresses to a fraction
+ * of its size.
  *
  * @param file The resolved, in-root path of the asset actually requested.
+ * @param suffix The sidecar suffix, ".gz" by default.
  * @return std::optional<std::filesystem::path> The sidecar's path, or
- *         std::nullopt when none exists or @p file is itself a ".gz".
+ *         std::nullopt when none exists or @p file is itself a sidecar.
  */
-std::optional<std::filesystem::path> PrecompressedVariant(const std::filesystem::path& file);
+std::optional<std::filesystem::path> PrecompressedVariant(const std::filesystem::path& file,
+                                                          std::string_view suffix = ".gz");
+
+/** @brief A compressed sidecar chosen for a response, and its Content-Encoding. */
+struct PrecompressedBody {
+    std::filesystem::path path;
+    std::string_view      encoding;
+};
+
+/**
+ * @brief Picks the best sidecar the client accepts: Brotli first, then gzip.
+ *
+ * @param file The resolved, in-root path of the asset actually requested.
+ * @param accept_encoding The raw Accept-Encoding header value (may be empty).
+ * @return std::optional<PrecompressedBody> The sidecar to send, or
+ *         std::nullopt when the identity body should be served.
+ */
+std::optional<PrecompressedBody> SelectPrecompressed(const std::filesystem::path& file,
+                                                     std::string_view accept_encoding);
 
 /**
  * @brief Derives a weak ETag from a file's size and last-write time.
