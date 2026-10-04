@@ -12,6 +12,7 @@
 	import Slider from "$components/lobby/settings/Slider.svelte";
 	import Toggle from "$components/lobby/settings/Toggle.svelte";
 	import SocialLinks from "$components/common/SocialLinks.svelte";
+	import { supportsFlagEmoji } from "$lib/utils/flagEmoji";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let {
@@ -32,6 +33,10 @@
 		uk: "Українська",
 		ru: "Русский"
 	};
+
+	// Platforms without a colour emoji font draw flags as boxed letters, so the
+	// language name is shown instead.
+	const flagsSupported = supportsFlagEmoji();
 
 	const localeFlags: Record<string, string> = {
 		en: "🇬🇧",
@@ -225,13 +230,16 @@
 			{#each storeI18n.locales as locale (locale)}
 				<button
 					class="locale-flag-btn"
+					class:text-fallback={!flagsSupported}
 					class:active={storeI18n.locale === locale}
 					aria-pressed={storeI18n.locale === locale}
 					title={localeDisplayNames[locale] ?? locale}
 					aria-label={localeDisplayNames[locale] ?? locale}
 					onclick={() => storeI18n.setLocale(locale)}
 				>
-					{localeFlags[locale] ?? locale}
+					{flagsSupported
+						? (localeFlags[locale] ?? locale)
+						: (localeDisplayNames[locale] ?? locale)}
 				</button>
 			{/each}
 		</div>
@@ -327,6 +335,11 @@
 		transition:
 			filter var(--duration-fast) var(--ease-standard),
 			opacity var(--duration-fast) var(--ease-standard);
+	}
+	.locale-flag-btn.text-fallback {
+		font-family: var(--tiny);
+		font-size: 14px;
+		color: var(--text-h);
 	}
 	.locale-flag-btn:hover,
 	.locale-flag-btn.active {
