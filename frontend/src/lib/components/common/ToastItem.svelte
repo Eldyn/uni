@@ -2,6 +2,7 @@
 	import { usePan, type GestureCustomEvent } from "svelte-gestures";
 	import { storeToast, type Toast, type ToastType } from "$stores/toast.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
 	function getPrefix(type: ToastType): string {
@@ -24,6 +25,9 @@
 	const DISMISS_THRESHOLD_PX = 80;
 
 	let { toast }: { toast: Toast } = $props();
+
+	// INFO: runs once per toast, items are keyed so they mount exactly once.
+	if (toast.type === "error") storeAudio.playSfx("sfx.invalid");
 
 	let offsetX = $state(0);
 	let dragging = $state(false);

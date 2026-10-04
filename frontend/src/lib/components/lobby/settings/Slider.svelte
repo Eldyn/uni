@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storeAudio } from "$stores/audio.svelte";
 	import Tooltip from "$components/common/Tooltip.svelte";
 	import RichText from "$components/common/RichText.svelte";
 
@@ -43,6 +44,7 @@
 	function nudge(delta: number) {
 		if (disabled) return;
 		localValue = Math.min(max, Math.max(min, localValue + delta * step));
+		storeAudio.playSfx(delta < 0 ? "sfx.ui.untick" : "sfx.ui.tick");
 		oncommit(localValue);
 	}
 </script>

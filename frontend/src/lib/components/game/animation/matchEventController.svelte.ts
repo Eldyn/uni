@@ -23,6 +23,7 @@ import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
+import { storeAudio } from "$stores/audio.svelte";
 import { createPlayLogEmitter, DRAW_DEBT_STATUS_KIND } from "$lib/chat/playLog/playLogEmitter";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
@@ -257,6 +258,9 @@ export function createMatchEventBeatController(deps: {
 		const localUsername = resolveLocalUsername(state);
 
 		const playedByMe = beat.player === localUsername;
+		if (!playedByMe) {
+			storeAudio.playSfx("sfx.action.play-card", { gain: OPPONENT_ACTION_SFX_GAIN });
+		}
 		const landingBaseDeg = playedByMe
 			? 0
 			: (deps.getOpponentSeatRotationDeg?.(beat.player) ?? 0) + 180;
@@ -463,7 +467,11 @@ export function createMatchEventBeatController(deps: {
 		const state = storeGame.state;
 		if (!state) return;
 
-		if (beat.player !== resolveLocalUsername(state)) {
+		const isLocalDraw = beat.player === resolveLocalUsername(state);
+		storeAudio.playSfx("sfx.action.draw-card", {
+			gain: isLocalDraw && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
+		});
+		if (!isLocalDraw) {
 			handleOpponentDraw(beat, state);
 			return;
 		}
@@ -815,8 +823,12 @@ export function createMatchEventBeatController(deps: {
 			seq: beat.seq,
 			actor: lastPlayedBy ?? undefined
 		});
-		if (!storeAnimation.enabled) return;
 		if (beat.skipped.length === 0) return;
+		const localSkipped = beat.skipped.includes(storeGame.localPlayer?.username ?? "");
+		storeAudio.playSfx("sfx.invalid", {
+			gain: localSkipped && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
+		});
+		if (!storeAnimation.enabled) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
 		storeTurnSkip.present(beat.from, beat.skipped, durationMs);
 	}
@@ -1069,6 +1081,8 @@ export function createMatchEventBeatController(deps: {
 		resetTurnMotion
 	};
 }
+
+const OPPONENT_ACTION_SFX_GAIN = 0.5;
 
 const VALUE_SLUG: Record<string, string> = {
 	"+2": "draw2",

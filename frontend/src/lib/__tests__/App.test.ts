@@ -15,7 +15,7 @@ class StubResizeObserver {
 vi.stubGlobal("ResizeObserver", StubResizeObserver);
 
 vi.mock("$lib/stores/analytics.svelte", () => ({ storeAnalytics: { track: vi.fn() } }));
-vi.mock("$lib/stores/audio.svelte", () => ({ storeAudio: { init: vi.fn() } }));
+vi.mock("$lib/stores/audio.svelte", () => ({ storeAudio: { init: vi.fn(), playSfx: vi.fn() } }));
 vi.mock(import("$lib/stores/ws.svelte"), async (importOriginal) => {
 	const actual = await importOriginal();
 	return {

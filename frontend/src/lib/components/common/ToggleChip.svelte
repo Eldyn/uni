@@ -1,6 +1,7 @@
 <!-- Pixel-bordered on/off filter chip: accent fill when active. -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	let {
 		active,
@@ -25,7 +26,10 @@
 		: 'text-text-h [--pc-fill:var(--surface-deep)] hover:[--pc-border:var(--accent)]'} {extraClass}"
 	aria-pressed={active}
 	{title}
-	{onclick}
+	onclick={() => {
+		storeAudio.playSfx(active ? "sfx.ui.untick" : "sfx.ui.tick");
+		onclick();
+	}}
 >
 	{#if icon}<i class="pia {icon} text-base"></i>{/if}{@render children()}
 </button>

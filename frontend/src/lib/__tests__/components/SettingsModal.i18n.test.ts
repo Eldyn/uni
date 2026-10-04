@@ -5,7 +5,13 @@ vi.mock("$lib/stores/navigation.svelte", () => ({
 	storeNavigation: { isSettingsOpen: true, closeSettings: vi.fn() }
 }));
 vi.mock("$lib/stores/audio.svelte", () => ({
-	storeAudio: { musicVolume: 0.5, sfxVolume: 0.5, setMusicVolume: vi.fn(), setSfxVolume: vi.fn() }
+	storeAudio: {
+		musicVolume: 0.5,
+		sfxVolume: 0.5,
+		setMusicVolume: vi.fn(),
+		setSfxVolume: vi.fn(),
+		playSfx: vi.fn()
+	}
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({ storeAuth: { username: "eldyn", logout: vi.fn() } }));
 vi.mock("$lib/stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false, leave: vi.fn() } }));

@@ -16,6 +16,7 @@
 import { tick } from "svelte";
 import { gsap } from "gsap";
 import { storeGame, type GameState } from "$stores/game.svelte";
+import { storeAudio } from "$stores/audio.svelte";
 import { storeSpectator } from "$stores/spectator.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeRenderSettings } from "$stores/renderSettings.svelte";
@@ -195,6 +196,7 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 				revealLocal: hiddenBackCountFor(povPlayer) === 0,
 				onLocalLanded: (index) => {
 					if (finished) return;
+					storeAudio.playSfx("sfx.deal");
 					const card = localHand[index];
 					if (card) {
 						deps.bus.removePendingLocalDraw(card.id);
@@ -209,6 +211,7 @@ export function createMatchIntroController(deps: MatchIntroControllerDeps): {
 				},
 				onOpponentLanded: (username, round) => {
 					if (finished) return;
+					storeAudio.playSfx("sfx.deal");
 					deps.bus.removeInFlightDraw(username, 1);
 					const id = opponentCardId(username, round);
 					deps.cardRegistry.removeEntry(id);

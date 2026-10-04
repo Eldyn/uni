@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { storeAudio } from "$stores/audio.svelte";
+
 	/**
 	 * Pixel-art checkbox: a notched square that fills with the accent colour
 	 * and reveals the pixelarticons check glyph when on. Replaces the native
@@ -25,7 +27,11 @@
 		class="sr-only"
 		{checked}
 		{disabled}
-		onchange={(e) => oncommit((e.target as HTMLInputElement).checked)}
+		onchange={(e) => {
+			const isChecked = (e.target as HTMLInputElement).checked;
+			storeAudio.playSfx(isChecked ? "sfx.ui.tick" : "sfx.ui.untick");
+			oncommit(isChecked);
+		}}
 	/>
 	<span class="pixel-check__box" aria-hidden="true">
 		<i class="pia pixelart-icons-font-check"></i>

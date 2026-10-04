@@ -817,7 +817,9 @@ class StoreGame implements SessionStore {
 		//       bare error frame and no state update, so without this the
 		//       latch swallows every action until the 3 s safety timer fires.
 		ws.on(ServerAction.Error, () => {
-			if (this.isActionPending) this.#clearActionPending();
+			if (!this.isActionPending) return;
+			storeAudio.playSfx("sfx.invalid");
+			this.#clearActionPending();
 		});
 	}
 
@@ -1058,11 +1060,8 @@ class StoreGame implements SessionStore {
 		if (this.isSpectator || this.isActionPending) return;
 		this.isActionPending = true;
 		this.#pendingSafetyTimer = setTimeout(() => this.#clearActionPending(), 3000);
-		// PLACEHOLDER-SFX: sfx.action.draw-card, optimistic click SFX only,
-		// fires on the client-side action, not confirmed by the server's state
-		// broadcast; a human may want a separate confirmed-by-server SFX later
-		// using the ws.on(ServerAction.MatchStateUpdated) handler instead/in addition.
-		storeAudio.playSfx("sfx.action.draw-card");
+		// INFO: the draw SFX plays from the server's cards_drawn beat, not here,
+		//       so a timer auto-draw sounds the same as a clicked one.
 		ws.emit(ClientAction.MatchDrawCard);
 	}
 

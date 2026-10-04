@@ -71,18 +71,53 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	//the multi-channel engine already handles this shape, no new code needed.
 };
 
-// INFO: All PLACEHOLDER-SFX for now, no real SFX files exist yet.
+const SFX_DIR = "/assets/audio/sfx";
+
+// INFO: Other sfx ids wired at gameplay trigger points (deal, match end, lobby)
+//       have no entry yet and warn once until their sounds are authored.
 export const SFX_CATALOG: Record<string, SfxDef> = {
 	"sfx.turn.start": {
 		id: "sfx.turn.start",
-		variants: ["PLACEHOLDER-SFX"],
+		variants: [`${SFX_DIR}/turn-start.m4a`],
+		volume: 0.8,
 		minIntervalMs: 300
+	},
+	"sfx.action.play-card": {
+		id: "sfx.action.play-card",
+		variants: [`${SFX_DIR}/play.m4a`]
+	},
+	"sfx.action.draw-card": {
+		id: "sfx.action.draw-card",
+		variants: [`${SFX_DIR}/draw.m4a`]
+	},
+	"sfx.deal": {
+		id: "sfx.deal",
+		variants: [`${SFX_DIR}/draw.m4a`],
+		pitchRange: [0.95, 1.1],
+		volume: 0.3,
+		minIntervalMs: 90,
+		maxConcurrent: 3
+	},
+	"sfx.invalid": {
+		id: "sfx.invalid",
+		variants: [`${SFX_DIR}/invalid.m4a`],
+		minIntervalMs: 150
+	},
+	"sfx.ui.tick": {
+		id: "sfx.ui.tick",
+		variants: [`${SFX_DIR}/tick.m4a`],
+		volume: 0.2
+	},
+	"sfx.ui.untick": {
+		id: "sfx.ui.untick",
+		variants: [`${SFX_DIR}/untick.m4a`],
+		volume: 0.2
 	}
 };
 
-// INFO: Plays on every screen except "game", the match itself gets its own
-//       music/atmosphere later; no entry here means resolveMusicForContext()
-//       resolves to undefined and MusicPlayer.stopAll()s instead.
+// INFO: One song everywhere, including the game screen (which also hosts the
+//       game loader). `resolveMusicForContext()` stops music for any screen
+//       missing here, so new screens must be added.
 export const SCREEN_MUSIC: Partial<Record<AppScreen, string>> = {
 	main: "music.fuzzsong",
 	lobbies: "music.fuzzsong",

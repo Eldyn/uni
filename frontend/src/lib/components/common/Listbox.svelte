@@ -5,6 +5,7 @@
 	import { tick } from "svelte";
 	import type { Snippet } from "svelte";
 	import { clickOutside } from "./actions/clickOutside";
+	import { storeAudio } from "$stores/audio.svelte";
 
 	let {
 		id,
@@ -59,6 +60,7 @@
 	}
 
 	function choose(value: T) {
+		storeAudio.playSfx("sfx.ui.tick");
 		onselect(value);
 		close(true);
 	}

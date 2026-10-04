@@ -5,6 +5,7 @@
  */
 
 import { Howler } from "howler";
+import { SFX_CATALOG } from "$data/audioCatalogs";
 import { MusicPlayer } from "$lib/audio/musicPlayer";
 import { SfxPlayer } from "$lib/audio/sfxPlayer";
 import { isMobileDevice, resolveMusicForContext } from "$lib/audio/audioLogic";
@@ -12,7 +13,7 @@ import { storeNavigation } from "$stores/navigation.svelte";
 
 const SETTINGS_STORAGE_KEY = "uni:audio:settings";
 const DEFAULT_MUSIC_VOLUME = 0.15;
-const DEFAULT_SFX_VOLUME = 0.5;
+const DEFAULT_SFX_VOLUME = 0.8;
 
 interface AudioSettings {
 	musicVolume: number;
@@ -151,11 +152,17 @@ class StoreAudio {
 
 	/**
 	 * @brief Plays a one-shot SFX by catalog id. `opts.volume` falls back to
-	 * this store's `sfxVolume` when not explicitly overridden per-call.
+	 * this store's `sfxVolume` scaled by the catalog entry's own `volume`
+	 * when not explicitly overridden per-call. `opts.gain` scales whichever
+	 * volume applies, e.g. to play an opponent's action quieter.
 	 */
-	playSfx(id: string, opts?: { pitch?: number; volume?: number }): void {
+	playSfx(id: string, opts?: { pitch?: number; volume?: number; gain?: number }): void {
 		try {
-			this.#sfx.playSfx(id, { pitch: opts?.pitch, volume: opts?.volume ?? this.sfxVolume });
+			const catalogGain = SFX_CATALOG[id]?.volume ?? 1;
+			this.#sfx.playSfx(id, {
+				pitch: opts?.pitch,
+				volume: (opts?.volume ?? this.sfxVolume * catalogGain) * (opts?.gain ?? 1)
+			});
 		} catch {
 			// INFO: Audio backend unavailable, silently drop the SFX.
 		}

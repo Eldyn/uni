@@ -3,7 +3,13 @@ import { render, fireEvent } from "@testing-library/svelte";
 
 vi.mock("$stores/navigation.svelte", () => ({ storeNavigation: { closeSettings: vi.fn() } }));
 vi.mock("$stores/audio.svelte", () => ({
-	storeAudio: { musicVolume: 0.5, sfxVolume: 0.5, setMusicVolume: vi.fn(), setSfxVolume: vi.fn() }
+	storeAudio: {
+		musicVolume: 0.5,
+		sfxVolume: 0.5,
+		setMusicVolume: vi.fn(),
+		setSfxVolume: vi.fn(),
+		playSfx: vi.fn()
+	}
 }));
 vi.mock("$stores/i18n.svelte", () => ({
 	storeI18n: { locale: "en", locales: ["en", "it"], setLocale: vi.fn() }
