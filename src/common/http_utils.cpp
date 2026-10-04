@@ -99,6 +99,62 @@ std::optional<PrecompressedBody> SelectPrecompressed(const fs::path& file,
     return std::nullopt;
 }
 
+namespace {
+
+std::optional<std::size_t> ParseDecimal(std::string_view digits) {
+    if (digits.empty() || digits.size() > 18) return std::nullopt;
+    std::size_t value = 0;
+    for (const char c : digits) {
+        if (c < '0' || c > '9') return std::nullopt;
+        value = value * 10 + static_cast<std::size_t>(c - '0');
+    }
+    return value;
+}
+
+}  // namespace
+
+ByteRange ParseByteRange(std::string_view header, std::size_t total) {
+    constexpr std::string_view kUnit = "bytes=";
+    if (!header.starts_with(kUnit)) return {};
+
+    std::string_view spec = header.substr(kUnit.size());
+    if (spec.find(',') != std::string_view::npos) return {};
+
+    const std::size_t dash = spec.find('-');
+    if (dash == std::string_view::npos) return {};
+
+    const std::string_view first = spec.substr(0, dash);
+    const std::string_view last  = spec.substr(dash + 1);
+
+    std::size_t start = 0;
+    std::size_t end   = 0;  // inclusive
+
+    if (first.empty()) {
+        // Suffix form "-n": the final n bytes.
+        const auto suffix = ParseDecimal(last);
+        if (!suffix) return {};
+        if (*suffix == 0 || total == 0) return {ByteRange::Kind::kUnsatisfiable, 0, 0};
+        start = total > *suffix ? total - *suffix : 0;
+        end   = total - 1;
+    } else {
+        const auto parsed_start = ParseDecimal(first);
+        if (!parsed_start) return {};
+        start = *parsed_start;
+
+        if (last.empty()) {
+            end = total == 0 ? 0 : total - 1;
+        } else {
+            const auto parsed_end = ParseDecimal(last);
+            if (!parsed_end || *parsed_end < start) return {};
+            end = *parsed_end;
+        }
+        if (start >= total) return {ByteRange::Kind::kUnsatisfiable, 0, 0};
+        if (end >= total) end = total - 1;
+    }
+
+    return {ByteRange::Kind::kPartial, start, end - start + 1};
+}
+
 std::string MakeETag(const fs::path& file) {
     std::error_code ec;
     const auto size = fs::file_size(file, ec);

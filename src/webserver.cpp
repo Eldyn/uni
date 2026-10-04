@@ -538,6 +538,9 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("X-Content-Type-Options", "nosniff");
+            if (contentEncoding.empty()) {
+                res->writeHeader("Accept-Ranges", "bytes");
+            }
             if (!contentEncoding.empty()) {
                 res->writeHeader("Content-Encoding", contentEncoding);
             }
@@ -590,6 +593,8 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
         //       cannot be read afterwards.
         std::string if_none_match = std::string(req->getHeader("if-none-match"));
         std::string accept_encoding = std::string(req->getHeader("accept-encoding"));
+        std::string range_header = std::string(req->getHeader("range"));
+        std::string if_range = std::string(req->getHeader("if-range"));
 
         // INFO: Resolve both the served root and the requested file to canonical
         //       form so that "../" segments and symlinks are collapsed, then
@@ -632,17 +637,48 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
                 return;
             }
 
+            // INFO: Range support is for bodies sent as-is (music, images). A
+            //       compressed sidecar is a different representation, so it is
+            //       always sent whole. If-Range only honours a matching
+            //       validator, otherwise the whole current body is sent.
+            const std::string body = ReadFile(bodyPath.string());
+            const bool rangeEligible = contentEncoding.empty() && !range_header.empty() &&
+                                       (if_range.empty() || if_range == etag);
+            const http::ByteRange range =
+                rangeEligible ? http::ParseByteRange(range_header, body.size()) : http::ByteRange{};
+
+            if (range.kind == http::ByteRange::Kind::kUnsatisfiable) {
+                res->writeStatus("416 Range Not Satisfiable")
+                    ->writeHeader("Content-Range", "bytes */" + std::to_string(body.size()))
+                    ->end();
+                return;
+            }
+            const bool partial = range.kind == http::ByteRange::Kind::kPartial;
+            if (partial) {
+                res->writeStatus("206 Partial Content");
+            }
+
             res->writeHeader("Content-Type", http::GetMimeType(pathStr))
                 ->writeHeader("Cache-Control", http::CacheControlFor(relativePath))
                 ->writeHeader("Vary", "Accept-Encoding")
                 ->writeHeader("X-Content-Type-Options", "nosniff");
+            if (contentEncoding.empty()) {
+                res->writeHeader("Accept-Ranges", "bytes");
+            }
+            if (partial) {
+                res->writeHeader("Content-Range",
+                                 "bytes " + std::to_string(range.start) + "-" +
+                                     std::to_string(range.start + range.length - 1) + "/" +
+                                     std::to_string(body.size()));
+            }
             if (!contentEncoding.empty()) {
                 res->writeHeader("Content-Encoding", contentEncoding);
             }
             if (!etag.empty()) {
                 res->writeHeader("ETag", etag);
             }
-            res->end(ReadFile(bodyPath.string()));
+            res->end(partial ? std::string_view(body).substr(range.start, range.length)
+                             : std::string_view(body));
         } else if (http::IsClientRoute(relativePath)) {
             // Not a real file, but shaped like a client-side route (no dot in its
             // final segment) rather than a missing asset — serve the app shell so

@@ -238,6 +238,64 @@ TEST_CASE("never wraps a .br request in another layer of compression") {
 
 } // TEST_SUITE
 
+TEST_SUITE("http_utils::ParseByteRange") {
+
+using Kind = http::ByteRange::Kind;
+
+TEST_CASE("open-ended range from a start offset") {
+    const auto range = http::ParseByteRange("bytes=0-", 1000);
+    CHECK(range.kind == Kind::kPartial);
+    CHECK(range.start == 0);
+    CHECK(range.length == 1000);
+}
+
+TEST_CASE("bounded range is inclusive of its last byte") {
+    const auto range = http::ParseByteRange("bytes=100-199", 1000);
+    CHECK(range.kind == Kind::kPartial);
+    CHECK(range.start == 100);
+    CHECK(range.length == 100);
+}
+
+TEST_CASE("an end past the body is clamped to the last byte") {
+    const auto range = http::ParseByteRange("bytes=900-5000", 1000);
+    CHECK(range.kind == Kind::kPartial);
+    CHECK(range.start == 900);
+    CHECK(range.length == 100);
+}
+
+TEST_CASE("suffix range takes the final bytes") {
+    const auto range = http::ParseByteRange("bytes=-200", 1000);
+    CHECK(range.kind == Kind::kPartial);
+    CHECK(range.start == 800);
+    CHECK(range.length == 200);
+}
+
+TEST_CASE("suffix longer than the body returns the whole body") {
+    const auto range = http::ParseByteRange("bytes=-5000", 1000);
+    CHECK(range.kind == Kind::kPartial);
+    CHECK(range.start == 0);
+    CHECK(range.length == 1000);
+}
+
+TEST_CASE("a start at or past the end is unsatisfiable") {
+    CHECK(http::ParseByteRange("bytes=1000-", 1000).kind == Kind::kUnsatisfiable);
+    CHECK(http::ParseByteRange("bytes=5000-6000", 1000).kind == Kind::kUnsatisfiable);
+    CHECK(http::ParseByteRange("bytes=-0", 1000).kind == Kind::kUnsatisfiable);
+}
+
+TEST_CASE("unusable headers fall back to the whole body") {
+    CHECK(http::ParseByteRange("", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("items=0-10", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=0-10,20-30", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=abc-", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=10-5", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=-", 1000).kind == Kind::kNone);
+    CHECK(http::ParseByteRange("bytes=99999999999999999999-", 1000).kind == Kind::kNone);
+}
+
+} // TEST_SUITE
+
 TEST_SUITE("http_utils::MakeETag") {
 
 TEST_CASE("produces a non-empty weak validator for an existing file") {

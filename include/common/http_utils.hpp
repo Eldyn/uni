@@ -128,6 +128,31 @@ struct PrecompressedBody {
 std::optional<PrecompressedBody> SelectPrecompressed(const std::filesystem::path& file,
                                                      std::string_view accept_encoding);
 
+/** @brief Outcome of resolving a Range header against a representation of known size. */
+struct ByteRange {
+    enum class Kind {
+        kNone,           ///< No usable range: serve the whole body with 200.
+        kPartial,        ///< Serve [start, start + length) with 206.
+        kUnsatisfiable,  ///< Range lies outside the body: answer 416.
+    };
+    Kind        kind   = Kind::kNone;
+    std::size_t start  = 0;
+    std::size_t length = 0;
+};
+
+/**
+ * @brief Resolves a "Range: bytes=..." header for a body of @p total bytes.
+ *
+ * Only a single range is honoured ("a-b", "a-" or "-n"). Anything else, such
+ * as several ranges, another unit or a malformed value, yields kNone so the
+ * caller falls back to a plain 200 as RFC 9110 allows. An end beyond the body
+ * is clamped to its last byte.
+ *
+ * @param header The raw Range header value (may be empty).
+ * @param total  Size in bytes of the full body.
+ */
+ByteRange ParseByteRange(std::string_view header, std::size_t total);
+
 /**
  * @brief Derives a weak ETag from a file's size and last-write time.
  *
