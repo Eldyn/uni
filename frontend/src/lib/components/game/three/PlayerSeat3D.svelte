@@ -56,6 +56,7 @@
 		seat,
 		isTurn = false,
 		isValidTarget = false,
+		isArmed = false,
 		isViewable = false,
 		color,
 		onSelect,
@@ -74,11 +75,13 @@
 		seat: SeatPosition3D;
 		isTurn?: boolean;
 		isValidTarget?: boolean;
+		/** A target seat picked once and awaiting its confirming second tap. */
+		isArmed?: boolean;
 		/** Spectator mode: clicking this seat switches the viewed POV to the
 		 *  player, so the click must fire even though no card asks for a target. */
 		isViewable?: boolean;
 		color: string;
-		onSelect?: () => void;
+		onSelect?: (pointerType: string) => void;
 		/** Ring-card size; Scene3D shrinks it as the landscape table fills. */
 		cardScale?: number;
 		/** Avatar box edge in px — small on portrait, where the card fan is the
@@ -122,6 +125,9 @@
 	const FRAME_DURATION = 0.12;
 	const DIM_FACTOR = 0.45;
 	const WHITE = new Color("#ffffff");
+	const TARGET_HIGHLIGHT = new Color("#ffffff");
+	const TARGET_HIGHLIGHT_PERIOD_S = 0.8;
+	const TARGET_HIGHLIGHT_MAX_MIX = 0.65;
 
 	const bus = useCardBus();
 	const cardRegistry = useCardRegistry();
@@ -169,7 +175,7 @@
 	// name only actually matters when it's that player's turn, when you're
 	// choosing them as a target, or when you deliberately point at them.
 	let hovered = $state(false);
-	let showLabel = $derived(isTurn || isValidTarget || hovered);
+	let showLabel = $derived(isTurn || isValidTarget || hovered || isArmed);
 	// Darkening every OTHER seat is a material colour multiply, so it survives
 	// the world-space scaling untouched (the old CSS box-shadow glow did not).
 	let dimmed = $derived(!isTurn && !isValidTarget);
@@ -184,6 +190,9 @@
 	let frameElapsed = 0;
 	let pulsePhase = 0;
 	let pulseScale = $state(1);
+	let highlightPhase = 0;
+	let highlightMix = $state(0);
+	let targetHighlightActive = $derived(isValidTarget && (hovered || isArmed));
 
 	let arcAnchorPos = $derived<[number, number, number]>([
 		markerOffset[0],
@@ -200,9 +209,10 @@
 	let avatarScale = $derived(avatarSpriteSize * pulseScale);
 	let labelWorldSize = $derived(labelCanvasSize * worldPerPx);
 	let tintColor = $derived(
-		isBot
+		(isBot
 			? WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
 			: new Color(color).multiplyScalar(dimmed ? DIM_FACTOR : 1)
+		).lerp(TARGET_HIGHLIGHT, highlightMix)
 	);
 
 	// Skip mark: this seat is losing its turn, so stamp an X over the avatar.
@@ -266,6 +276,15 @@
 		pulsePhase = (pulsePhase + delta) % 1.5;
 		pulseScale = isValidTarget ? 1 + 0.025 * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI)) : 1;
 
+		if (targetHighlightActive) {
+			highlightPhase = (highlightPhase + delta) % TARGET_HIGHLIGHT_PERIOD_S;
+			const wave = 0.5 - 0.5 * Math.cos((highlightPhase / TARGET_HIGHLIGHT_PERIOD_S) * 2 * Math.PI);
+			highlightMix = TARGET_HIGHLIGHT_MAX_MIX * (0.35 + 0.65 * wave);
+		} else if (highlightMix !== 0) {
+			highlightPhase = 0;
+			highlightMix = 0;
+		}
+
 		const targetOpacity = showLabel ? 1 : 0;
 		if (labelOpacity !== targetOpacity) {
 			labelOpacity += (targetOpacity - labelOpacity) * Math.min(1, delta * 12);
@@ -273,8 +292,10 @@
 		}
 	});
 
-	function handleSelect() {
-		if (isValidTarget || isViewable) onSelect?.();
+	function handleSelect(event: unknown) {
+		if (!isValidTarget && !isViewable) return;
+		const pointerType = (event as { nativeEvent?: PointerEvent }).nativeEvent?.pointerType;
+		onSelect?.(pointerType ?? "mouse");
 	}
 
 	const displacementTweens = new Map<string, gsap.core.Tween>();
@@ -472,6 +493,14 @@
 			cardRegistry.removeEntry(key);
 		}
 		registeredKeys.clear();
+	});
+	// The ring cards pulse the same white rim as the avatar, so the whole seat
+	// reads as the one about to be picked.
+	$effect(() => {
+		const highlight = targetHighlightActive ? { color: "#ffffff", pulse: true } : undefined;
+		for (const key of registeredKeys) {
+			cardRegistry?.setDecoration(key, { highlight });
+		}
 	});
 </script>
 

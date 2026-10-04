@@ -131,12 +131,26 @@
 	// spectator switches the POV to that player (they then render in the local
 	// seat), while a player in a ChooseTarget prompt confirms them as the card
 	// effect's target. Same click, same seats — only the intent differs.
-	function selectOpponent(username: string) {
+	//
+	// With click-to-play off, or on any touch press, a target needs a second
+	// tap on the same seat to confirm, so a stray finger never picks a player.
+	let armedTarget = $state<string | null>(null);
+	let armedSeat = $derived(
+		armedTarget !== null && isChoosePlayerTarget(armedTarget) ? armedTarget : null
+	);
+
+	function selectOpponent(username: string, pointerType: string) {
 		if (storeGame.isSpectator) {
 			storeSpectator.setViewedUsername(username);
-		} else {
-			confirmTarget(username);
+			return;
 		}
+		const needsConfirm = !storeRenderSettings.clickToPlay || pointerType === "touch";
+		if (needsConfirm && armedSeat !== username) {
+			armedTarget = username;
+			return;
+		}
+		armedTarget = null;
+		confirmTarget(username);
 	}
 
 	// Whose POV the board shows: yourself normally, or — for a spectator — the
@@ -255,9 +269,10 @@
 				hasHoldingCard={bus.isHoldingOpponent(player.username)}
 				isTurn={presentedTurn === player.username}
 				isValidTarget={isChoosePlayerTarget(player.username)}
+				isArmed={armedSeat === player.username}
 				color={colorFor(player.username)}
 				isViewable={storeGame.isSpectator}
-				onSelect={() => selectOpponent(player.username)}
+				onSelect={(pointerType) => selectOpponent(player.username, pointerType)}
 				cardScale={opponentCardScale}
 				avatarPx={opponentAvatarPx}
 				avatarWorld={opponentAvatarWorld}
