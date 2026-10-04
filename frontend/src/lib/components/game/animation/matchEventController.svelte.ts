@@ -49,6 +49,7 @@ import {
 	buildReshuffleBeat,
 	DRAW_HOVER_LIFT,
 	localHandSlotAnchor,
+	opponentFrontAnchorKey,
 	opponentSeatAnchor,
 	opponentSlotAnchorKey,
 	type MatchEventBeat
@@ -146,6 +147,9 @@ export function createMatchEventBeatController(deps: {
 	// intervening play beat.
 	let prevPendingPlayer: string | null = null;
 	let pendingResolvedByPlay = false;
+	// Opponent username -> synthetic id of the face-down card they hold in
+	// front of their seat while their play/keep decision is pending.
+	const heldOpponentCards = new Map<string, string>();
 	// INFO: turn beats drain on packet arrival, synchronously after the
 	// snapshot, while the play that caused them is still flying. Each turn's
 	// cue and ring flip is deferred onto the last play's landing so they play
@@ -345,6 +349,24 @@ export function createMatchEventBeatController(deps: {
 					opacity: 1
 				});
 			}
+		} else if (heldOpponentCards.has(beat.player) && deps.getOpponentFrontPose) {
+			// INFO: the opponent played the card waiting in front of their seat,
+			//       so it flies on from there rather than from an arc slot.
+			const heldCardId = heldOpponentCards.get(beat.player)!;
+			heldOpponentCards.delete(beat.player);
+			deps.cardRegistry.removeEntry(heldCardId);
+			const frontPose = deps.getOpponentFrontPose(beat.player);
+			deps.cardRegistry.clearDecoration(String(top.id));
+			deps.cardRegistry.seedPose(String(top.id), {
+				x: frontPose.position[0],
+				y: frontPose.position[1],
+				z: frontPose.position[2],
+				spinDeg: frontPose.spinDeg,
+				flipDeg: 0,
+				scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+				turned: true,
+				opacity: 1
+			});
 		} else {
 			const player = state.players?.find((p) => p.username === beat.player);
 			// INFO: from_zone_ordinal is a 0-based index into the PRE-play hand
@@ -592,6 +614,102 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
+	/** An opponent's voluntary playable draw: the card flies to a spot in front
+	 *  of their seat, on the line toward the discard pile just past their card
+	 *  arc, and waits there face down for the play/keep decision. The play
+	 *  flies it on to the discard pile; a keep sends it back into the arc. */
+	function parkOpponentHeldDraw(
+		beat: Extract<MatchEventBeat, { kind: "draw" }>,
+		state: NonNullable<typeof storeGame.state>
+	): boolean {
+		const getFrontPose = deps.getOpponentFrontPose;
+		if (!getFrontPose || beat.count !== 1) return false;
+		if (state.pendingPlayDrawn?.player !== beat.player) return false;
+		const player = state.players?.find((p) => p.username === beat.player);
+		if (!player) return false;
+
+		const placement = deps.getPlacement();
+		const frontPose = getFrontPose(beat.player);
+		const [px, py, pz] = drawPileTopPose(
+			placement,
+			Math.max((state.draw_pile_size ?? 0) + 1, 1),
+			storeRenderSettings.drawPileThickness,
+			deps.bus.getDrawPileHoverDipZ?.() ?? 0
+		);
+		const cardId = `draw:${beat.player}:${drawIdCounter++}`;
+		heldOpponentCards.set(beat.player, cardId);
+		playLog.noteDraw(
+			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ handSize: player.card_count }
+		);
+		deps.cardRegistry.clearDecoration(cardId);
+		deps.cardRegistry.seedPose(cardId, {
+			x: px,
+			y: py + DRAW_HOVER_LIFT,
+			z: pz,
+			spinDeg: 0,
+			flipDeg: 0,
+			scale: placement.drawPileScale,
+			turned: true,
+			opacity: 1
+		});
+		void deps.cardRegistry.enqueue(
+			buildDrawBeats({
+				cardIds: [cardId],
+				forLocalPlayer: false,
+				opponentUsername: beat.player,
+				placement,
+				opponentCardScale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+				slotAnchorKeys: [opponentFrontAnchorKey(beat.player)],
+				slotSpinDegs: [frontPose.spinDeg]
+			}),
+			resolveCardTarget
+		);
+		return true;
+	}
+
+	/** An opponent's hold ended without a play: the waiting card flies from the
+	 *  front spot into the last slot of their arc. The arc card stays hidden
+	 *  as an in-flight draw until it lands. */
+	function releaseOpponentHeldDraw(player: string, state: NonNullable<typeof storeGame.state>) {
+		const cardId = heldOpponentCards.get(player);
+		if (cardId === undefined) return;
+		heldOpponentCards.delete(player);
+		const cardCount = state.players?.find((p) => p.username === player)?.card_count ?? 0;
+		const slotIndex = Math.max(cardCount - 1, 0);
+		const slotPose = deps.getOpponentCardPose?.(player, Math.max(cardCount, 1), slotIndex);
+		if (!slotPose) {
+			deps.cardRegistry.removeEntry(cardId);
+			return;
+		}
+		const placement = deps.getPlacement();
+		const slotKey = opponentSlotAnchorKey(player, slotIndex, drawIdCounter++);
+		pendingOpponentSlots.set(slotKey, slotPose.position);
+		deps.bus.addInFlightDraw(player, 1);
+		let landed = false;
+		const land = () => {
+			if (landed) return;
+			landed = true;
+			deps.bus.removeInFlightDraw(player, 1);
+			deps.cardRegistry.removeEntry(cardId);
+		};
+		deps.cardRegistry
+			.enqueue(
+				buildDrawBeats({
+					cardIds: [cardId],
+					forLocalPlayer: false,
+					opponentUsername: player,
+					placement,
+					opponentCardScale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+					slotAnchorKeys: [slotKey],
+					slotSpinDegs: [slotPose.spinDeg],
+					onCardComplete: land
+				}),
+				resolveCardTarget
+			)
+			.finally(land);
+	}
+
 	/** Ports the watcher's plain multi-draw opponent branch
 	 *  (baseBeats.svelte.ts:988-1077). Non-owner viewers get `count` only, so
 	 *  each card is seeded at the draw-pile top under a synthetic
@@ -605,6 +723,7 @@ export function createMatchEventBeatController(deps: {
 		if (drawnCount <= 0) return;
 		const player = state.players?.find((p) => p.username === beat.player);
 		if (!player) return;
+		if (parkOpponentHeldDraw(beat, state)) return;
 
 		const placement = deps.getPlacement();
 		const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
@@ -977,6 +1096,7 @@ export function createMatchEventBeatController(deps: {
 			storeMatRipple.clearPending();
 			resetPlayLog();
 			heldPlayDrawnId = null;
+			heldOpponentCards.clear();
 			return;
 		}
 
@@ -1002,6 +1122,9 @@ export function createMatchEventBeatController(deps: {
 		const pendingPlayer = state.pendingPlayDrawn?.player ?? null;
 		if (prevPendingPlayer !== null && pendingPlayer === null && !pendingResolvedByPlay) {
 			playLog.noteKeep(prevPendingPlayer, state.seq_watermark ?? 0);
+		}
+		for (const heldPlayer of [...heldOpponentCards.keys()]) {
+			if (pendingPlayer !== heldPlayer) releaseOpponentHeldDraw(heldPlayer, state);
 		}
 		prevPendingPlayer = pendingPlayer;
 		pendingResolvedByPlay = false;

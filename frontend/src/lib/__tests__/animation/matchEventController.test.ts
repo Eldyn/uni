@@ -526,6 +526,70 @@ describe("createMatchEventBeatController", () => {
 		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("9", { dimmed: true });
 	});
 
+	describe("an opponent's held playable draw", () => {
+		const frontPose = { position: [1, 0.05, 2] as [number, number, number], spinDeg: 180 };
+		const heldByBob = () =>
+			({
+				...opponentDrawState(1, "bob"),
+				pendingPlayDrawn: { player: "bob" }
+			}) as never;
+
+		it("parks the card in front of the seat instead of in the arc", () => {
+			storeAuth.username = "me";
+			storeGame.state = heldByBob();
+			const h = harness({ getOpponentFrontPose: () => frontPose });
+
+			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			expect(beats[0]![0]!.payload?.to).toBe("opponent-front:bob");
+			expect(beats[0]![0]!.payload?.toSpinDeg).toBe(180);
+			expect(h.bus.addInFlightDraw).not.toHaveBeenCalled();
+		});
+
+		it("flies the played card from the front spot to the discard pile", () => {
+			storeAuth.username = "me";
+			storeGame.state = heldByBob();
+			const h = harness({ getOpponentFrontPose: () => frontPose });
+			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+			const heldId = (
+				(h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [AnimationBeat[]]
+			)[0][0]![0]!.target as string;
+
+			storeGame.state = { ...baseState(), current_turn: "bob" } as never;
+			h.fire({ seq: 6, kind: "play", player: "bob", cardId: 2, auto: false });
+
+			expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith(heldId);
+			expect(h.cardRegistry.seedPose).toHaveBeenLastCalledWith(
+				"2",
+				expect.objectContaining({ x: 1, y: 0.05, z: 2, spinDeg: 180, turned: true })
+			);
+		});
+
+		it("returns a kept card from the front spot to the end of the arc", () => {
+			storeAuth.username = "me";
+			storeGame.state = heldByBob();
+			const getOpponentCardPose = vi.fn(() => ({
+				position: [3, 0, 4] as [number, number, number],
+				spinDeg: 90
+			}));
+			const h = harness({ getOpponentFrontPose: () => frontPose, getOpponentCardPose });
+			h.controller.syncState();
+			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+
+			storeGame.state = opponentDrawState(1, "bob");
+			h.controller.syncState();
+
+			const calls = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls;
+			const [beats] = calls[1] as [AnimationBeat[]];
+			expect(String(beats[0]![0]!.payload?.to)).toMatch(/^opponent-slot:bob:3:/);
+			expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 3);
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 1);
+		});
+	});
+
 	it("enqueues synthetic staggered moves for an opponent draw", () => {
 		storeAuth.username = "me";
 		storeGame.state = opponentDrawState(2, "bob");
