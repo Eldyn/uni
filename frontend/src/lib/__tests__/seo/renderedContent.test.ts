@@ -36,26 +36,33 @@ beforeEach(() => {
 	vi.resetModules();
 });
 
+// INFO: mounting the whole app outlasts the 5 s default when the machine is busy.
+const APP_MOUNT_TIMEOUT_MS = 20_000;
+
 describe("rendered DOM contains real content once mounted (the SEO regression test)", () => {
-	it("the mounted app's DOM contains the marketing copy a crawler would index", async () => {
-		// Imported dynamically, after vi.resetModules(), so it resolves to the
-		// same "svelte" module instance App.svelte's own imports resolve to.
-		// Importing it statically at module top-level (before resetModules
-		// clears the registry) leaves App.svelte's $effect tracking against a
-		// different runtime instance than the one mount()/unmount() use here,
-		// which fails with "$effect can only be used inside an effect".
-		const { mount, unmount } = await import("svelte");
-		const { default: App } = await import("$lib/../App.svelte");
-		const target = document.createElement("div");
-		document.body.appendChild(target);
+	it(
+		"the mounted app's DOM contains the marketing copy a crawler would index",
+		async () => {
+			// Imported dynamically, after vi.resetModules(), so it resolves to the
+			// same "svelte" module instance App.svelte's own imports resolve to.
+			// Importing it statically at module top-level (before resetModules
+			// clears the registry) leaves App.svelte's $effect tracking against a
+			// different runtime instance than the one mount()/unmount() use here,
+			// which fails with "$effect can only be used inside an effect".
+			const { mount, unmount } = await import("svelte");
+			const { default: App } = await import("$lib/../App.svelte");
+			const target = document.createElement("div");
+			document.body.appendChild(target);
 
-		const instance = mount(App, { target });
-		await new Promise((r) => setTimeout(r, 0));
+			const instance = mount(App, { target });
+			await new Promise((r) => setTimeout(r, 0));
 
-		expect(document.body.textContent).toMatch(/what is this/i);
-		expect(document.body.textContent).toMatch(/draw stacking/i);
-		expect(document.body.textContent).toMatch(/mattel/i);
+			expect(document.body.textContent).toMatch(/what is this/i);
+			expect(document.body.textContent).toMatch(/draw stacking/i);
+			expect(document.body.textContent).toMatch(/mattel/i);
 
-		unmount(instance);
-	});
+			unmount(instance);
+		},
+		APP_MOUNT_TIMEOUT_MS
+	);
 });
