@@ -10,7 +10,7 @@ const MEDIUM_DEBT_MIN = 4;
 const HEAVY_DEBT_MIN = 8;
 
 export function debtIntensity(pendingDraws: number): DebtTier {
-	if (pendingDraws <= 0) return 0;
+	if (!Number.isFinite(pendingDraws) || pendingDraws <= 0) return 0;
 	if (pendingDraws >= HEAVY_DEBT_MIN) return 3;
 	if (pendingDraws >= MEDIUM_DEBT_MIN) return 2;
 	return 1;
@@ -26,6 +26,9 @@ const MOTE_SPREAD_Z = 0.6;
 const MOTE_CYCLE_SECONDS = 1.6;
 const MOTE_PHASE_STEP = 0.618;
 const MOTE_MAX_OPACITY = 0.55;
+/** Per-mote Z fan: angle step between motes and half the total spread. */
+const MOTE_Z_ANGLE_STEP = 2.4;
+const MOTE_Z_FAN_HALF = 0.5;
 
 /** Horizontal shake applied to the draw pile's cards, 0 at tier 0. */
 export function debtTremorOffset(tier: DebtTier, timeSeconds: number): number {
@@ -51,7 +54,7 @@ export function debtMotePose(index: number, timeSeconds: number): DebtMotePose {
 	return {
 		offsetX: lateral * MOTE_SPREAD_X,
 		offsetY: progress * MOTE_RISE_HEIGHT,
-		offsetZ: Math.cos(index * 2.4) * MOTE_SPREAD_Z * 0.5,
+		offsetZ: Math.cos(index * MOTE_Z_ANGLE_STEP) * MOTE_SPREAD_Z * MOTE_Z_FAN_HALF,
 		opacity: Math.sin(progress * Math.PI) * MOTE_MAX_OPACITY
 	};
 }
