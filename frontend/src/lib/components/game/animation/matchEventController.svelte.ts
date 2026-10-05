@@ -734,6 +734,10 @@ export function createMatchEventBeatController(deps: {
 		}
 		const flights: Flight[] = [];
 		const steps: AnimationStep[] = [];
+		// INFO: seeded when this batch reaches the front of the queue, so a
+		//       second transfer from an instant bot does not show its cards
+		//       while the first is still in flight.
+		const seeds: Array<() => void> = [];
 		const anchorKeys: string[] = [];
 		const pendingLocalIds: number[] = [];
 		const incomingByPlayer = new Map<string, number>();
@@ -802,16 +806,18 @@ export function createMatchEventBeatController(deps: {
 				// Face up only where the viewer really saw the card: the local
 				// hand leaving. Everything else travels as a card back.
 				const startsFaceUp = leavingCard !== undefined;
-				deps.cardRegistry.clearDecoration(cardId);
-				deps.cardRegistry.seedPose(cardId, {
-					x: startPose.position[0],
-					y: startPose.position[1],
-					z: startPose.position[2],
-					spinDeg: startPose.spinDeg,
-					flipDeg: 0,
-					scale: startPose.scale,
-					turned: !startsFaceUp,
-					opacity: 1
+				seeds.push(() => {
+					deps.cardRegistry.clearDecoration(cardId);
+					deps.cardRegistry.seedPose(cardId, {
+						x: startPose.position[0],
+						y: startPose.position[1],
+						z: startPose.position[2],
+						spinDeg: startPose.spinDeg,
+						flipDeg: 0,
+						scale: startPose.scale,
+						turned: !startsFaceUp,
+						opacity: 1
+					});
 				});
 
 				steps.push({
@@ -865,10 +871,14 @@ export function createMatchEventBeatController(deps: {
 		for (const id of pendingLocalIds) deps.bus.addPendingLocalDraw(id);
 		for (const [player, incoming] of incomingByPlayer) deps.bus.addInFlightDraw(player, incoming);
 
-		deps.cardRegistry.enqueue([steps], resolveCardTarget).finally(() => {
-			for (let i = 0; i < flights.length; i++) finish(i);
-			for (const key of anchorKeys) pendingTransferAnchors.delete(key);
-		});
+		deps.cardRegistry
+			.enqueue([steps], resolveCardTarget, () => {
+				for (const seed of seeds) seed();
+			})
+			.finally(() => {
+				for (let i = 0; i < flights.length; i++) finish(i);
+				for (const key of anchorKeys) pendingTransferAnchors.delete(key);
+			});
 	}
 
 	/** An opponent's voluntary playable draw: the card flies to a spot in front

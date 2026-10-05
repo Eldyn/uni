@@ -831,6 +831,10 @@ describe("createMatchEventBeatController", () => {
 			} as never;
 			h.fire({ seq: 9, kind: "hands_swap", a: "me", b: "bob", aSize: 2, bSize: 1 });
 
+			expect(h.cardRegistry.seedPose).not.toHaveBeenCalled();
+			const [, , beforePlay] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+				.calls[0] as [unknown, unknown, () => void];
+			beforePlay();
 			expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
 				"31",
 				expect.objectContaining({ turned: false })

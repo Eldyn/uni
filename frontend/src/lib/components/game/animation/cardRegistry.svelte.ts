@@ -72,6 +72,7 @@ export interface FlightHandle {
 interface PendingBatch {
 	beats: AnimationBeat[];
 	resolveAnchor: (name: string) => [number, number, number];
+	beforePlay?: () => void;
 	resolve: () => void;
 }
 
@@ -399,10 +400,13 @@ export class CardRegistry {
 	 *  position this batch's steps may reference. Returns a promise resolving
 	 *  once every beat in the batch has completed (or been skipped) —
 	 *  callers that need "wait for this to finish" (e.g. a reshuffle before
-	 *  the next turn) await it directly. */
+	 *  the next turn) await it directly. `beforePlay` runs when the batch
+	 *  reaches the front of the queue, for work that must not show earlier
+	 *  (seeding start poses behind a batch that is still flying). */
 	enqueue(
 		beats: AnimationBeat[],
-		resolveAnchor: (name: string) => [number, number, number]
+		resolveAnchor: (name: string) => [number, number, number],
+		beforePlay?: () => void
 	): Promise<void> {
 		return new Promise((resolve) => {
 			// Reserve every target up front, not just when its beat starts
@@ -418,7 +422,7 @@ export class CardRegistry {
 			for (const beat of beats) {
 				for (const step of beat) this.#inTransitIds.add(step.target);
 			}
-			this.#pending.push({ beats, resolveAnchor, resolve });
+			this.#pending.push({ beats, resolveAnchor, beforePlay, resolve });
 			this.#pump();
 		});
 	}
@@ -485,6 +489,7 @@ export class CardRegistry {
 		const batch = this.#pending[0];
 		if (!batch) return;
 		this.#playing = true;
+		batch.beforePlay?.();
 		this.#playBatch(batch, 0);
 	}
 
