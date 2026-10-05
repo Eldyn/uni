@@ -434,6 +434,13 @@ export class CardRegistry {
 		}
 	}
 
+	/** True while beats are being fast-forwarded (a skip or a backgrounded-tab
+	 *  flush). Their completion callbacks fire in a burst, so sounds derived
+	 *  from them must stay silent. */
+	get isFastForwarding(): boolean {
+		return this.#fastForwardDepth > 0;
+	}
+
 	/** Fast-forwards every beat currently playing AND every batch still
 	 *  waiting, without animating any of it, then drains the queue completely.
 	 *  For when the tab goes into the background: nothing is being watched, so

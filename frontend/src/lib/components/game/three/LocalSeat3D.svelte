@@ -105,7 +105,7 @@
 		pulseTween = null;
 		if (!storeAnimation.enabled) return;
 
-		storeAudio.playSfx("sfx.turn.start");
+		if (!document.hidden) storeAudio.playSfx("sfx.turn.start");
 		const duration = TURN_PULSE_SECONDS / Math.max(0.1, storeAnimation.speedMultiplier);
 		const pulse = { progress: 0 };
 		pulseTween = gsap.to(pulse, {

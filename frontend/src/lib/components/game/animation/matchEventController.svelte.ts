@@ -281,7 +281,7 @@ export function createMatchEventBeatController(deps: {
 
 		const playedByMe = beat.player === localUsername;
 		if (!playedByMe) {
-			storeAudio.playSfx("sfx.action.play-card", { gain: OPPONENT_ACTION_SFX_GAIN });
+			playBoardSfx("sfx.action.play-card", { gain: OPPONENT_ACTION_SFX_GAIN });
 		}
 		const landingBaseDeg = playedByMe
 			? 0
@@ -511,10 +511,18 @@ export function createMatchEventBeatController(deps: {
 	 *  owner receives real card ids, so the local branch reads them
 	 *  straight from the beat; every other viewer gets a count only and the
 	 *  opponent branch synthesizes ids. */
+	/** Plays a sound that mirrors a board animation. A backgrounded tab or a
+	 *  fast-forwarded beat skips the animation straight to the latest state, so
+	 *  its sound is skipped too instead of piling up and playing all at once. */
+	function playBoardSfx(id: string, opts?: Parameters<typeof storeAudio.playSfx>[1]): void {
+		if (document.hidden || deps.cardRegistry.isFastForwarding) return;
+		storeAudio.playSfx(id, opts);
+	}
+
 	/** One draw sound per card, fired as each card lands so a staggered
 	 *  multi-card draw (a +N penalty) is heard card by card. */
 	function playDrawSfx(gain: number): void {
-		storeAudio.playSfx("sfx.action.draw-card", { gain });
+		playBoardSfx("sfx.action.draw-card", { gain });
 	}
 
 	function ownDrawSfxGain(): number {
@@ -1196,7 +1204,7 @@ export function createMatchEventBeatController(deps: {
 				// INFO: positive play runs counter-clockwise on screen, so the
 				//       swoop plays forward turning counter-clockwise and
 				//       reversed turning clockwise.
-				storeAudio.playSfx(
+				playBoardSfx(
 					storeDirectionRing.sign === 1 ? "sfx.table.reverse" : "sfx.table.reverse-flip"
 				);
 			}
@@ -1209,7 +1217,7 @@ export function createMatchEventBeatController(deps: {
 		});
 		if (beat.skipped.length === 0) return;
 		const localSkipped = beat.skipped.includes(storeGame.localPlayer?.username ?? "");
-		storeAudio.playSfx("sfx.invalid", {
+		playBoardSfx("sfx.invalid", {
 			gain: localSkipped && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
 		});
 		if (!storeAnimation.enabled) return;
@@ -1413,7 +1421,7 @@ export function createMatchEventBeatController(deps: {
 			const { originUv, maxRadius } = pendingWildRipple;
 			pendingWildRipple = null;
 			playLog.noteWildColor(state.active_type);
-			storeAudio.playSfx("sfx.table.mat-color");
+			playBoardSfx("sfx.table.mat-color");
 			storeMatRipple.startMatRipple(
 				CARD_COLOR_MAP[state.active_type] ?? MAT_INITIAL_COLOR,
 				"wild",

@@ -874,6 +874,28 @@ describe("createMatchEventBeatController", () => {
 		});
 	});
 
+	it("stays silent for animation sounds while the tab is hidden or fast-forwarding", () => {
+		storeAuth.username = "me";
+		storeGame.state = opponentDrawState(1, "bob");
+		const h = harness();
+		const playSfx = vi.spyOn(storeAudio, "playSfx").mockImplementation(() => {});
+		const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+
+		h.fire({ seq: 30, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 0 });
+		expect(playSfx).not.toHaveBeenCalled();
+
+		hidden.mockReturnValue(false);
+		(h.cardRegistry as unknown as { isFastForwarding: boolean }).isFastForwarding = true;
+		h.fire({ seq: 31, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 0 });
+		expect(playSfx).not.toHaveBeenCalled();
+
+		(h.cardRegistry as unknown as { isFastForwarding: boolean }).isFastForwarding = false;
+		h.fire({ seq: 32, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 0 });
+		expect(playSfx).toHaveBeenCalledWith("sfx.action.play-card", expect.anything());
+		hidden.mockRestore();
+		playSfx.mockRestore();
+	});
+
 	it("enqueues synthetic staggered moves for an opponent draw", () => {
 		storeAuth.username = "me";
 		storeGame.state = opponentDrawState(2, "bob");
