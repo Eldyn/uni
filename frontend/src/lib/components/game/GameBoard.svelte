@@ -397,6 +397,10 @@
 	const disposeController = controller.dispose;
 	$effect(() => disposeController);
 
+	// INFO: kill the registry's GSAP timelines on board teardown too — a
+	//       teardown mid-flight would otherwise leave them ticking.
+	$effect(() => () => cardRegistry.dispose());
+
 	$effect(() => () => introController.dispose());
 
 	// INFO: a fresh `match_start` sets `matchIntroPending`, but the cinematic

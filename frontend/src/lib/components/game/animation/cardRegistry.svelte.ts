@@ -255,10 +255,9 @@ export class CardRegistry {
 	}
 
 	/** LocalHand3D-owned visual extras (hover/drag/shadow/highlight) for a card
-	 *  currently in its hand — read by AllCards3D's single render site. See
-	 *  the shared render site owns mounting CardMesh3D,
-	 *  owners only ever compute layout + these decorations, never mount it
-	 *  themselves. */
+	 *  currently in its hand — read by AllCards3D's single render site. The
+	 *  shared render site owns mounting CardMesh3D; owners only ever compute
+	 *  layout + these decorations, never mount it themselves. */
 	setDecoration(cardId: string, decoration: CardDecoration | undefined): void {
 		untrack(() => {
 			const merged = decoration ? { ...this.#decorations.get(cardId), ...decoration } : undefined;
@@ -445,6 +444,29 @@ export class CardRegistry {
 		return this.#fastForwardDepth > 0;
 	}
 
+	/** Kills every GSAP timeline this registry owns on board teardown: the
+	 *  playing beat, the hit-stop hold and per-card lift/punch tweens. Without
+	 *  it a teardown mid-impact leaves timelines ticking against reactive poses
+	 *  the dropped registry no longer renders. */
+	dispose(): void {
+		this.#fastForwardDepth++;
+		try {
+			this.#endHitStop();
+			this.#currentTimeline?.kill();
+			this.#currentTimeline = null;
+			this.#finishCurrentBeat = null;
+			for (const batch of this.#pending) batch.resolve();
+			this.#pending = [];
+			this.#playing = false;
+			for (const tween of this.#liftTweens.values()) tween.kill();
+			this.#liftTweens.clear();
+			for (const timeline of this.#punchTimelines.values()) timeline.kill();
+			this.#punchTimelines.clear();
+		} finally {
+			this.#fastForwardDepth--;
+		}
+	}
+
 	/** Fast-forwards every beat currently playing AND every batch still
 	 *  waiting, without animating any of it, then drains the queue completely.
 	 *  For when the tab goes into the background: nothing is being watched, so
@@ -505,6 +527,7 @@ export class CardRegistry {
 		const beat = batch.beats[beatIndex];
 		for (const step of beat) this.#inTransitIds.add(step.target);
 		try {
+			const timeline = gsap.timeline();
 			const ctx: RenderContext = {
 				getPose: (cardId, startPose) => {
 					let pose = this.#poses.get(cardId);
@@ -533,7 +556,6 @@ export class CardRegistry {
 				hitStop: (durationMs, timeScale) => this.#beginHitStop(timeline, durationMs, timeScale)
 			};
 
-			const timeline = gsap.timeline();
 			for (const step of beat) {
 				const renderer = this.#registry[step.op];
 				if (!renderer) {
