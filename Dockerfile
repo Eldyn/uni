@@ -18,7 +18,7 @@ RUN cd frontend && npm run build
 # =============================================================================
 # Stage 2, Backend builder (Ubuntu): Conan + CMake presets compile uni_server.
 # =============================================================================
-FROM ubuntu:24.04 AS backend
+FROM ubuntu:25.10 AS backend
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -67,7 +67,7 @@ RUN grep -rlE '"dev_only"[[:space:]]*:[[:space:]]*true' /app/mods/*/mod.json 2>/
 # All dependencies are statically linked by Conan, so only the C++ runtime
 # library is needed.
 # =============================================================================
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:25.10 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
