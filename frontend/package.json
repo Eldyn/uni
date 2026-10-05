@@ -29,7 +29,7 @@
 		"js-yaml": "^4.3.0",
 		"jsdom": "^30.0.0",
 		"md-to-pdf": "^5.2.5",
-		"prettier": "^3.9.6",
+		"prettier": "^3.9.9",
 		"prettier-plugin-svelte": "^4.1.1",
 		"svelte": "^5.56.8",
 		"sveltedoc-parser": "^4.2.1",
