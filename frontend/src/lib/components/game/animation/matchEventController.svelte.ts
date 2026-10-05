@@ -1200,14 +1200,7 @@ export function createMatchEventBeatController(deps: {
 		});
 		deferTurnMotion(() => {
 			if (cueFires) storeTurnCue.fire();
-			if (storeDirectionRing.reverseTo(beat.direction)) {
-				// INFO: positive play runs counter-clockwise on screen, so the
-				//       swoop plays forward turning counter-clockwise and
-				//       reversed turning clockwise.
-				playBoardSfx(
-					storeDirectionRing.sign === 1 ? "sfx.table.reverse" : "sfx.table.reverse-flip"
-				);
-			}
+			if (storeDirectionRing.reverseTo(beat.direction)) playBoardSfx("sfx.table.reverse");
 		});
 		playLog.noteTurn({
 			skipped: beat.skipped,

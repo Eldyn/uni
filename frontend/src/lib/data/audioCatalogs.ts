@@ -120,12 +120,6 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 		volume: 0.4,
 		minIntervalMs: 200
 	},
-	"sfx.table.reverse-flip": {
-		id: "sfx.table.reverse-flip",
-		variants: [sfxPath("reverse-flip.m4a")],
-		volume: 0.4,
-		minIntervalMs: 200
-	},
 	"sfx.table.mat-color": {
 		id: "sfx.table.mat-color",
 		variants: [sfxPath("mat-color.m4a")],
