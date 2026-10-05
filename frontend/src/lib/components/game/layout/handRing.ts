@@ -135,7 +135,7 @@ export function opponentFrontWorldPose(
 	cardScale: number
 ): { position: [number, number, number]; spinDeg: number } {
 	const ringRadiusWorld = opponentRingRadiusWorld(avatarWorldSize, cardScale);
-	const frontOffsetWorld = ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.45;
+	const frontOffsetWorld = ringRadiusWorld + (CARD_HEIGHT * cardScale) / 2 + 0.6;
 	const sin = Math.sin(seat.rotationY);
 	const cos = Math.cos(seat.rotationY);
 	const worldX = seat.x + frontOffsetWorld * sin;

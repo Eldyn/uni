@@ -111,7 +111,8 @@ std::optional<json> ProjectCardsDrawn(
     } else {
         out["source_pile"] = payload.value("source_pile", std::string());
     }
-    // INFO: Owner-only identities. The current emitters carry no `cards`
+    if (payload.contains("held")) out["held"] = payload["held"];
+    // INFO: 14.2 owner-only identities. The current emitters carry no `cards`
     //       array, so this is count-only until the descriptor supplies one;
     //       when it does, only the owner ever sees it.
     if (ViewerIs(viewer, owner) && payload.contains("cards")) {

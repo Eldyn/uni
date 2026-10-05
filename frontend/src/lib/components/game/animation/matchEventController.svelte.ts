@@ -12,6 +12,7 @@
  */
 
 import type { AnimationStep } from "./types";
+import { FLIP_DURATION_S } from "./stepRenderers/flip";
 import { storeGame, type CardType } from "$stores/game.svelte";
 import { CARD_COLOR_MAP } from "$lib/palette";
 import { storeSpectator } from "$stores/spectator.svelte";
@@ -150,7 +151,17 @@ export function createMatchEventBeatController(deps: {
 	let pendingResolvedByPlay = false;
 	// Opponent username -> synthetic id of the face-down card they hold in
 	// front of their seat while their play/keep decision is pending.
-	const heldOpponentCards = new Map<string, string>();
+	const heldOpponentCards = new Map<
+		string,
+		{
+			cardId: string;
+			/** Resolves once the card has finished flying to its parking spot. */
+			parked: Promise<void>;
+			/** The arc is hidden by an in-flight count of ours rather than by the
+			 *  snapshot's own hold (a bot's hold is gone before the snapshot). */
+			hidesArc: boolean;
+		}
+	>();
 	// INFO: turn beats drain on packet arrival, synchronously after the
 	// snapshot, while the play that caused them is still flying. Each turn's
 	// cue and ring flip is deferred onto the last play's landing so they play
@@ -357,14 +368,22 @@ export function createMatchEventBeatController(deps: {
 				});
 			}
 		} else if (heldOpponentCards.has(beat.player) && deps.getOpponentFrontPose) {
-			// INFO: the opponent played the card waiting in front of their seat,
-			//       so it flies on from there rather than from an arc slot.
-			const heldCardId = heldOpponentCards.get(beat.player)!;
+			// INFO: the opponent played the card waiting in front of their seat, so
+			//       it flies on from there. The played card stays hidden until the
+			//       parked stand-in has arrived, then takes its place; the play beat
+			//       is queued behind the parking flight, so the hand-off is seamless.
+			const held = heldOpponentCards.get(beat.player)!;
 			heldOpponentCards.delete(beat.player);
-			deps.cardRegistry.removeEntry(heldCardId);
+			if (held.hidesArc) deps.bus.removeInFlightDraw(beat.player, 1);
+			const playedId = String(top.id);
 			const frontPose = deps.getOpponentFrontPose(beat.player);
-			deps.cardRegistry.clearDecoration(String(top.id));
-			deps.cardRegistry.seedPose(String(top.id), {
+			deps.cardRegistry.clearDecoration(playedId);
+			deps.cardRegistry.setDecoration(playedId, { opacity: 0 });
+			void held.parked.then(() => {
+				deps.cardRegistry.removeEntry(held.cardId);
+				deps.cardRegistry.setDecoration(playedId, { opacity: undefined });
+			});
+			deps.cardRegistry.seedPose(playedId, {
 				x: frontPose.position[0],
 				y: frontPose.position[1],
 				z: frontPose.position[2],
@@ -664,7 +683,23 @@ export function createMatchEventBeatController(deps: {
 		{ resolve: () => [number, number, number]; tableBound: boolean }
 	>();
 	let transferAnchorCounter = 0;
+	type LocalHandCard = NonNullable<
+		NonNullable<NonNullable<typeof storeGame.state>["players"]>[number]["hand"]
+	>[number];
+	// The local hand as of the previous snapshot. The drain runs before
+	// syncState, so while a hand transfer is being built this is still the hand
+	// that is leaving; the new snapshot has already replaced the live one.
+	let lastLocalHandCards = new Map<number, LocalHandCard>();
 
+	const HAND_TRANSFER_MOVE_S = 0.5;
+	const HAND_TRANSFER_SLOT_STAGGER_S = 0.03;
+	const HAND_TRANSFER_MAX_STAGGER_S = 0.3;
+
+	/** Every hand moves at once, as a whole arc, from its seat to the next one.
+	 *  Outgoing cards of the local hand fly face up as the real cards that left
+	 *  and turn over in flight; cards arriving in the local hand are the real new
+	 *  ones and turn face up as they land. Both seats' arcs stay hidden (the
+	 *  in-flight count) until their cards have landed, so nothing overlaps. */
 	function handleHandTransfers(transfers: HandTransfer[]): void {
 		const state = storeGame.state;
 		if (!state) return;
@@ -674,76 +709,86 @@ export function createMatchEventBeatController(deps: {
 		const placement = deps.getPlacement();
 		const localUsername = resolveLocalUsername(state);
 		const opponentScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
-		// INFO: LocalHand3D has not re-laid-out for this snapshot yet, so its
-		//       current layout is still the hand the outgoing cards leave from.
-		const outgoingHand = deps.bus.localHandSnapshot;
+		const outgoingLayout = deps.bus.localHandSnapshot;
+		const outgoingIds = outgoingLayout.orderIds.filter((id) => id !== state.top_card?.id);
 
-		const localSteps: AnimationStep[] = [];
-		const opponentSteps: AnimationStep[] = [];
-		const localIds: string[] = [];
-		const localTargets: string[] = [];
-		const syntheticIds: string[] = [];
-		const syntheticTargets: string[] = [];
-		const syntheticSpins: number[] = [];
-		const syntheticLanding: Array<{ to: string; localHand: boolean }> = [];
-		const localRealIds: number[] = [];
+		interface Flight {
+			cardId: string;
+			toLocal: boolean;
+			landed: boolean;
+			onLand: () => void;
+		}
+		const flights: Flight[] = [];
+		const steps: AnimationStep[] = [];
+		const anchorKeys: string[] = [];
+		const pendingLocalIds: number[] = [];
 		const incomingByPlayer = new Map<string, number>();
 
-		for (const transfer of moving) {
-			const { from, to, count } = transfer;
-			const toIsLocal = to === localUsername;
-			const fromIsLocal = from === localUsername;
+		const finish = (index: number): void => {
+			const flight = flights[index];
+			if (!flight || flight.landed) return;
+			flight.landed = true;
+			playDrawSfx(flight.toLocal ? ownDrawSfxGain() : OPPONENT_ACTION_SFX_GAIN);
+			flight.onLand();
+		};
+
+		for (const { from, to, count } of moving) {
+			const fromLocal = from === localUsername;
+			const toLocal = to === localUsername;
 			const incomingHand = state.players?.find((p) => p.username === to)?.hand ?? [];
-			if (!toIsLocal) {
-				incomingByPlayer.set(to, (incomingByPlayer.get(to) ?? 0) + count);
-			}
+			if (!toLocal) incomingByPlayer.set(to, (incomingByPlayer.get(to) ?? 0) + count);
 
 			for (let slot = 0; slot < count; slot++) {
-				const startPose = fromIsLocal
+				const index = flights.length;
+				const anchorKey = `hand-transfer:${transferAnchorCounter++}`;
+				anchorKeys.push(anchorKey);
+				const delayS = Math.min(slot * HAND_TRANSFER_SLOT_STAGGER_S, HAND_TRANSFER_MAX_STAGGER_S);
+
+				const outgoingId = fromLocal ? outgoingIds[slot] : undefined;
+				const leavingCard =
+					outgoingId !== undefined ? lastLocalHandCards.get(outgoingId) : undefined;
+				const arrivingCard = toLocal ? incomingHand[slot] : undefined;
+				const knownCard = leavingCard ?? arrivingCard;
+				const cardId = knownCard ? String(knownCard.id) : `transfer:${from}:${to}:${anchorKey}`;
+				if (knownCard) deps.cardRegistry.registerCardMeta(cardId, cardMetaFrom(knownCard));
+
+				const startPose = fromLocal
 					? {
-							position: localHandSlotAnchor(count, slot, placement, outgoingHand),
+							position: localHandSlotAnchor(count, slot, placement, outgoingLayout),
 							spinDeg: 0,
 							scale: placement.handScale
 						}
-					: (() => {
-							const pose = deps.getOpponentCardPose?.(from, count, slot);
-							return {
-								position: pose?.position ?? deps.getOpponentSeatAnchor(from),
-								spinDeg: pose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(from) ?? 0,
-								scale: opponentScale
-							};
-						})();
-				const realCard = toIsLocal ? incomingHand[slot] : undefined;
-				const anchorKey = `hand-transfer:${transferAnchorCounter++}`;
+					: {
+							position:
+								deps.getOpponentCardPose?.(from, count, slot)?.position ??
+								deps.getOpponentSeatAnchor(from),
+							spinDeg:
+								deps.getOpponentCardPose?.(from, count, slot)?.spinDeg ??
+								deps.getOpponentSeatRotationDeg?.(from) ??
+								0,
+							scale: opponentScale
+						};
 
-				let cardId: string;
-				if (realCard) {
-					cardId = String(realCard.id);
-					deps.cardRegistry.registerCardMeta(cardId, cardMetaFrom(realCard));
-					localRealIds.push(realCard.id);
-					localIds.push(cardId);
-					localTargets.push(anchorKey);
-				} else {
-					cardId = `transfer:${from}:${to}:${anchorKey}`;
-					syntheticIds.push(cardId);
-					syntheticTargets.push(anchorKey);
-					syntheticLanding.push({ to, localHand: toIsLocal });
-				}
-
-				if (toIsLocal) {
+				let endSpinDeg = 0;
+				if (toLocal) {
 					pendingTransferAnchors.set(anchorKey, {
 						resolve: () =>
 							localHandSlotAnchor(count, slot, deps.getPlacement(), deps.bus.localHandSnapshot),
 						tableBound: false
 					});
-					syntheticSpins.push(0);
 				} else {
-					const pose = deps.getOpponentCardPose?.(to, count, slot);
-					const position = pose?.position ?? deps.getOpponentSeatAnchor(to);
-					pendingTransferAnchors.set(anchorKey, { resolve: () => position, tableBound: true });
-					syntheticSpins.push(pose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(to) ?? 0);
+					const endPose = deps.getOpponentCardPose?.(to, count, slot);
+					const endPosition = endPose?.position ?? deps.getOpponentSeatAnchor(to);
+					endSpinDeg = endPose?.spinDeg ?? deps.getOpponentSeatRotationDeg?.(to) ?? 0;
+					pendingTransferAnchors.set(anchorKey, {
+						resolve: () => endPosition,
+						tableBound: true
+					});
 				}
 
+				// Face up only where the viewer really saw the card: the local
+				// hand leaving. Everything else travels as a card back.
+				const startsFaceUp = leavingCard !== undefined;
 				deps.cardRegistry.clearDecoration(cardId);
 				deps.cardRegistry.seedPose(cardId, {
 					x: startPose.position[0],
@@ -752,82 +797,65 @@ export function createMatchEventBeatController(deps: {
 					spinDeg: startPose.spinDeg,
 					flipDeg: 0,
 					scale: startPose.scale,
-					turned: true,
+					turned: !startsFaceUp,
 					opacity: 1
+				});
+
+				steps.push({
+					op: "move",
+					target: cardId,
+					payload: {
+						to: anchorKey,
+						toScale: toLocal ? placement.handScale : opponentScale,
+						toSpinDeg: endSpinDeg,
+						duration: HAND_TRANSFER_MOVE_S,
+						ease: "power2.inOut",
+						onComplete: () => finish(index)
+					},
+					atS: delayS
+				});
+				if (startsFaceUp) {
+					steps.push({
+						op: "flip",
+						target: cardId,
+						payload: { turned: true, axis: "y" },
+						atS: delayS
+					});
+				}
+				if (arrivingCard) {
+					steps.push({
+						op: "flip",
+						target: cardId,
+						payload: { turned: false, axis: "x" },
+						atS: delayS + HAND_TRANSFER_MOVE_S - FLIP_DURATION_S
+					});
+					pendingLocalIds.push(arrivingCard.id);
+				}
+
+				flights.push({
+					cardId,
+					toLocal,
+					landed: false,
+					onLand: () => {
+						if (arrivingCard) {
+							deps.bus.removePendingLocalDraw(arrivingCard.id);
+							deps.cardRegistry.releaseLanded(cardId);
+							return;
+						}
+						if (!toLocal) deps.bus.removeInFlightDraw(to, 1);
+						deps.cardRegistry.removeEntry(cardId);
+					}
 				});
 			}
 		}
 
-		for (const id of localRealIds) deps.bus.addPendingLocalDraw(id);
+		for (const id of pendingLocalIds) deps.bus.addPendingLocalDraw(id);
 		for (const [player, incoming] of incomingByPlayer) deps.bus.addInFlightDraw(player, incoming);
 
-		const pendingIncoming = new Map(incomingByPlayer);
-		const remainingLocal = new Set(localRealIds);
-		const landedSynthetic = new Set<string>();
-		let finishing = false;
-		const landSynthetic = (index: number): void => {
-			const id = syntheticIds[index];
-			if (id === undefined || landedSynthetic.has(id)) return;
-			landedSynthetic.add(id);
-			const landing = syntheticLanding[index]!;
-			if (!finishing) {
-				playDrawSfx(landing.localHand ? ownDrawSfxGain() : OPPONENT_ACTION_SFX_GAIN);
-			}
-			if (!landing.localHand && (pendingIncoming.get(landing.to) ?? 0) > 0) {
-				pendingIncoming.set(landing.to, pendingIncoming.get(landing.to)! - 1);
-				deps.bus.removeInFlightDraw(landing.to, 1);
-			}
-			deps.cardRegistry.removeEntry(id);
-		};
-
-		if (localIds.length > 0) {
-			localSteps.push(
-				...(buildDrawBeats({
-					cardIds: localIds,
-					forLocalPlayer: true,
-					placement,
-					slotAnchorKeys: localTargets,
-					onCardComplete: (index) => {
-						playDrawSfx(ownDrawSfxGain());
-						const id = localRealIds[index];
-						if (id === undefined || !remainingLocal.has(id)) return;
-						remainingLocal.delete(id);
-						deps.bus.removePendingLocalDraw(id);
-						deps.cardRegistry.releaseLanded(String(id));
-					}
-				})[0] ?? [])
-			);
-		}
-		if (syntheticIds.length > 0) {
-			opponentSteps.push(
-				...(buildDrawBeats({
-					cardIds: syntheticIds,
-					forLocalPlayer: false,
-					opponentUsername: moving[0]!.to,
-					placement,
-					opponentCardScale: opponentScale,
-					slotAnchorKeys: syntheticTargets,
-					slotSpinDegs: syntheticSpins,
-					onCardComplete: landSynthetic
-				})[0] ?? [])
-			);
-		}
-
-		deps.cardRegistry
-			.enqueue([[...localSteps, ...opponentSteps]], resolveCardTarget)
-			.finally(() => {
-				for (const id of remainingLocal) deps.bus.removePendingLocalDraw(id);
-				remainingLocal.clear();
-				for (const [player, left] of pendingIncoming) {
-					if (left > 0) deps.bus.removeInFlightDraw(player, left);
-				}
-				pendingIncoming.clear();
-				finishing = true;
-				for (let i = 0; i < syntheticIds.length; i++) landSynthetic(i);
-				for (const key of [...localTargets, ...syntheticTargets]) {
-					pendingTransferAnchors.delete(key);
-				}
-			});
+		deps.cardRegistry.enqueue([steps], resolveCardTarget).finally(() => {
+			for (let i = 0; i < flights.length; i++) finish(i);
+			for (const key of anchorKeys) pendingTransferAnchors.delete(key);
+		});
 	}
 
 	/** An opponent's voluntary playable draw: the card flies to a spot in front
@@ -840,7 +868,10 @@ export function createMatchEventBeatController(deps: {
 	): boolean {
 		const getFrontPose = deps.getOpponentFrontPose;
 		if (!getFrontPose || beat.count !== 1) return false;
-		if (state.pendingPlayDrawn?.player !== beat.player) return false;
+		const holdInSnapshot = state.pendingPlayDrawn?.player === beat.player;
+		// INFO: the draw's own `held` flag is authoritative: a bot resolves its
+		//       hold inside one step, so the snapshot may never show it.
+		if (!beat.held && !holdInSnapshot) return false;
 		const player = state.players?.find((p) => p.username === beat.player);
 		if (!player) return false;
 
@@ -853,7 +884,27 @@ export function createMatchEventBeatController(deps: {
 			deps.bus.getDrawPileHoverDipZ?.() ?? 0
 		);
 		const cardId = `draw:${beat.player}:${drawIdCounter++}`;
-		heldOpponentCards.set(beat.player, cardId);
+		// INFO: while the hold is visible in the snapshot the seat already leaves
+		//       the held card out of its arc; otherwise hide it ourselves.
+		const hidesArc = !holdInSnapshot;
+		if (hidesArc) deps.bus.addInFlightDraw(beat.player, 1);
+		const parked = deps.cardRegistry.enqueue(
+			buildDrawBeats({
+				cardIds: [cardId],
+				forLocalPlayer: false,
+				opponentUsername: beat.player,
+				placement,
+				opponentCardScale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+				slotAnchorKeys: [opponentFrontAnchorKey(beat.player)],
+				slotSpinDegs: [frontPose.spinDeg],
+				// INFO: the registry retires a card with no pose owner the moment
+				//       its beat ends. Handing the parked card back early keeps it
+				//       on the table until the play or keep resolves it.
+				onCardComplete: () => deps.cardRegistry.releaseLanded(cardId)
+			}),
+			resolveCardTarget
+		);
+		heldOpponentCards.set(beat.player, { cardId, parked, hidesArc });
 		playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
@@ -870,18 +921,6 @@ export function createMatchEventBeatController(deps: {
 			turned: true,
 			opacity: 1
 		});
-		void deps.cardRegistry.enqueue(
-			buildDrawBeats({
-				cardIds: [cardId],
-				forLocalPlayer: false,
-				opponentUsername: beat.player,
-				placement,
-				opponentCardScale: deps.getOpponentCardScale?.() ?? placement.centerScale,
-				slotAnchorKeys: [opponentFrontAnchorKey(beat.player)],
-				slotSpinDegs: [frontPose.spinDeg]
-			}),
-			resolveCardTarget
-		);
 		return true;
 	}
 
@@ -889,20 +928,14 @@ export function createMatchEventBeatController(deps: {
 	 *  front spot into the last slot of their arc. The arc card stays hidden
 	 *  as an in-flight draw until it lands. */
 	function releaseOpponentHeldDraw(player: string, state: NonNullable<typeof storeGame.state>) {
-		const cardId = heldOpponentCards.get(player);
-		if (cardId === undefined) return;
+		const held = heldOpponentCards.get(player);
+		if (held === undefined) return;
 		heldOpponentCards.delete(player);
+		const { cardId } = held;
 		const cardCount = state.players?.find((p) => p.username === player)?.card_count ?? 0;
 		const slotIndex = Math.max(cardCount - 1, 0);
 		const slotPose = deps.getOpponentCardPose?.(player, Math.max(cardCount, 1), slotIndex);
-		if (!slotPose) {
-			deps.cardRegistry.removeEntry(cardId);
-			return;
-		}
-		const placement = deps.getPlacement();
-		const slotKey = opponentSlotAnchorKey(player, slotIndex, drawIdCounter++);
-		pendingOpponentSlots.set(slotKey, slotPose.position);
-		deps.bus.addInFlightDraw(player, 1);
+		if (!held.hidesArc) deps.bus.addInFlightDraw(player, 1);
 		let landed = false;
 		const land = () => {
 			if (landed) return;
@@ -910,6 +943,13 @@ export function createMatchEventBeatController(deps: {
 			deps.bus.removeInFlightDraw(player, 1);
 			deps.cardRegistry.removeEntry(cardId);
 		};
+		if (!slotPose) {
+			land();
+			return;
+		}
+		const placement = deps.getPlacement();
+		const slotKey = opponentSlotAnchorKey(player, slotIndex, drawIdCounter++);
+		pendingOpponentSlots.set(slotKey, slotPose.position);
 		deps.cardRegistry
 			.enqueue(
 				buildDrawBeats({
@@ -1335,6 +1375,12 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		deps.bus.setActiveType(state.active_type as CardType);
+
+		lastLocalHandCards = new Map(
+			(state.players?.find((p) => p.username === resolveLocalUsername(state))?.hand ?? []).map(
+				(card) => [card.id, card]
+			)
+		);
 
 		// INFO: pending_play_drawn is authoritative for the held card's pose and
 		//       the bus mirror — a reconnect restores both from the snapshot

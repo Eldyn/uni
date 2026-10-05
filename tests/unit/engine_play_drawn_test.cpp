@@ -303,6 +303,21 @@ TEST_CASE("engine: playable voluntary draw holds the turn and reports the card")
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
 }
 
+TEST_CASE("engine: a held draw is flagged on the cards_drawn event") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 5, 7);
+    REQUIRE(ArmPlayableDraw(*engine).has_value());
+    REQUIRE(engine->DrawCard("player0"));
+
+    const json* drawn = nullptr;
+    for (const json& event : engine->Events()) {
+        if (event.value("type", std::string()) == "cards_drawn") drawn = &event;
+    }
+    REQUIRE(drawn != nullptr);
+    CHECK((*drawn)["payload"]["held"] == true);
+}
+
 TEST_CASE("engine: KeepDrawn clears the choice, advances and keeps the card") {
     Content content;
     REQUIRE(LoadContent(content));

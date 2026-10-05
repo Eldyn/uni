@@ -425,18 +425,26 @@ bool MatchInstance::DrawCard(const std::string& username) {
     }
     After("draw", draw_data);
 
+    // INFO: a playable voluntary draw is held for a play/keep choice. Flagged
+    //       on the public event so every client can park the card for the
+    //       choice even when a bot resolves it within the same step.
+    const bool holds_turn = !Paused() && DrawnCardPlayable(*player, *card);
     Emit("cards_drawn", json{{"player", username},
                              {"count", 1},
                              {"source", "draw_pile"},
+                             {"held", holds_turn},
                              {"cards", json::array({EntityJson(*card)})}});
 
     // INFO: An `after:draw` graph may request a forced play of the
     //       drawn card (legacy force_play); route it through the normal play
-    //       pipeline instead of passing the turn. A paused flow is left for
-    //       SubmitInput / the window; otherwise the turn passes.
+    //       pipeline instead of passing the turn.
     if (!Paused() && ExecuteForcedPlays()) return true;
+    // INFO:  - a draw that paused the flow (input/window) is resolved by its
+    //       own continuation, not here.
     if (Paused()) return true;
-    if (DrawnCardPlayable(*player, *card)) {
+    // INFO:  - a playable voluntary draw holds the turn: the player chooses to
+    //       play it or keep it, or the turn clock expires.
+    if (holds_turn) {
         awaiting_play_drawn_ = PendingPlayDrawn{*player, *card};
         return true;
     }

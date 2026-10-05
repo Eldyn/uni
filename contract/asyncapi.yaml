@@ -1259,6 +1259,11 @@ components:
           minimum: 0
         source_pile:
           type: string
+        held:
+          type: boolean
+          description: >
+            True when this single voluntary draw is held for the drawer's
+            play-or-keep choice. Public: the hold is visible to every seat.
         cards:
           type: array
           description: Owner-only card identities; other viewers receive count only.

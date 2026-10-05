@@ -47,6 +47,8 @@ export type MatchEventBeat =
 			player: string;
 			count: number;
 			sourcePile: string;
+			/** True when the draw is held for the drawer's play-or-keep choice. */
+			held?: boolean;
 			cardIds: number[];
 	  }
 	| { seq: number; kind: "reshuffle"; drawSize: number; discardSize: number }
@@ -129,6 +131,7 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				player: parsed.data.player,
 				count: parsed.data.count,
 				sourcePile: parsed.data.source_pile,
+				held: parsed.data.held,
 				cardIds: parsed.data.cards ?? []
 			};
 		}

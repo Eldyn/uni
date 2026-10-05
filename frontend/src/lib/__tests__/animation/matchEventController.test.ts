@@ -4,6 +4,7 @@ import type { MatchEventBeat } from "$components/game/animation/baseBeats.svelte
 import type { CardBus } from "$components/game/card-bus.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeAuth } from "$stores/auth.svelte";
+import { storeAudio } from "$stores/audio.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 import { storeTurnCue } from "$stores/turnCue.svelte";
@@ -84,6 +85,7 @@ function fakeRegistry() {
 		isInTransit: vi.fn(() => false),
 		removeEntry: vi.fn(),
 		flushImmediately: vi.fn(),
+		releaseLanded: vi.fn(),
 		enqueue: vi.fn().mockResolvedValue(undefined)
 	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
 }
@@ -549,7 +551,7 @@ describe("createMatchEventBeatController", () => {
 			expect(h.bus.addInFlightDraw).not.toHaveBeenCalled();
 		});
 
-		it("flies the played card from the front spot to the discard pile", () => {
+		it("flies the played card from the front spot to the discard pile", async () => {
 			storeAuth.username = "me";
 			storeGame.state = heldByBob();
 			const h = harness({ getOpponentFrontPose: () => frontPose });
@@ -561,6 +563,7 @@ describe("createMatchEventBeatController", () => {
 			storeGame.state = { ...baseState(), current_turn: "bob" } as never;
 			h.fire({ seq: 6, kind: "play", player: "bob", cardId: 2, auto: false });
 
+			await Promise.resolve();
 			expect(h.cardRegistry.removeEntry).toHaveBeenCalledWith(heldId);
 			expect(h.cardRegistry.seedPose).toHaveBeenLastCalledWith(
 				"2",
@@ -587,6 +590,83 @@ describe("createMatchEventBeatController", () => {
 			expect(String(beats[0]![0]!.payload?.to)).toMatch(/^opponent-slot:bob:3:/);
 			expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 3);
 			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 1);
+		});
+	});
+
+	describe("a bot's hold resolved within one step", () => {
+		it("parks on the draw's held flag even though the snapshot shows no hold", () => {
+			storeAuth.username = "me";
+			storeGame.state = opponentDrawState(1, "bob");
+			const h = harness({
+				getOpponentFrontPose: () => ({ position: [1, 0.05, 2], spinDeg: 180 })
+			});
+
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				cardIds: [],
+				held: true
+			});
+
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			expect(beats[0]![0]!.payload?.to).toBe("opponent-front:bob");
+		});
+
+		it("hides the card from the arc while it waits in front and frees it on a play", () => {
+			storeAuth.username = "me";
+			storeGame.state = opponentDrawState(1, "bob");
+			const h = harness({
+				getOpponentFrontPose: () => ({ position: [1, 0.05, 2], spinDeg: 180 })
+			});
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				cardIds: [],
+				held: true
+			});
+			expect(h.bus.addInFlightDraw).toHaveBeenCalledWith("bob", 1);
+
+			// The parked card must outlive its own flight, or it vanishes on arrival.
+			const [parkBeats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			const parkMove = parkBeats[0]![0]!;
+			(parkMove.payload?.onComplete as () => void)();
+			expect(h.cardRegistry.releaseLanded).toHaveBeenCalledWith(String(parkMove.target));
+
+			h.fire({ seq: 6, kind: "play", player: "bob", cardId: 2, auto: false });
+
+			expect(h.bus.removeInFlightDraw).toHaveBeenCalledWith("bob", 1);
+		});
+
+		it("flies the card back into the arc once the step ends without a play", () => {
+			storeAuth.username = "me";
+			storeGame.state = opponentDrawState(1, "bob");
+			const h = harness({
+				getOpponentFrontPose: () => ({ position: [1, 0.05, 2], spinDeg: 180 }),
+				getOpponentCardPose: () => ({ position: [3, 0, 4], spinDeg: 90 })
+			});
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				cardIds: [],
+				held: true
+			});
+
+			h.controller.syncState();
+
+			expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(2);
 		});
 	});
 
@@ -696,6 +776,91 @@ describe("createMatchEventBeatController", () => {
 			expect(targets).toEqual(expect.arrayContaining(["7", "8"]));
 			expect(targets.filter((t) => t.startsWith("transfer:cara:bob:"))).toHaveLength(1);
 			expect(targets.filter((t) => t.startsWith("transfer:bob:cara:"))).toHaveLength(0);
+		});
+
+		it("moves every hand together in one beat so the whole table turns at once", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([7]);
+			const h = harness();
+
+			h.fire({
+				seq: 9,
+				kind: "hands_pass",
+				direction: "forward",
+				players: ["me", "bob", "cara"],
+				handSizes: [2, 2, 1]
+			});
+
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			expect(beats).toHaveLength(1);
+			const starts = beats[0]!.filter((step) => step.op === "move").map((step) => step.atS ?? 0);
+			expect(starts).toHaveLength(5);
+			expect(Math.max(...starts)).toBeLessThan(0.35);
+		});
+
+		it("flies the player's leaving cards face up and turns them over in flight", () => {
+			storeAuth.username = "me";
+			const oldHand = [
+				{ id: 31, type: "red", value: "1" },
+				{ id: 32, type: "blue", value: "2" }
+			];
+			storeGame.state = {
+				...baseState(),
+				players: [
+					{ username: "me", card_count: 2, is_bot: false, hand: oldHand },
+					{ username: "bob", card_count: 2, is_bot: false, hand: [] }
+				]
+			} as never;
+			const h = harness();
+			h.bus.localHandSnapshot = { orderIds: [31, 32], scrollEm: 0, maxHalfSpanEm: 10 };
+			h.controller.syncState();
+
+			storeGame.state = {
+				...baseState(),
+				players: [
+					{
+						username: "me",
+						card_count: 1,
+						is_bot: false,
+						hand: [{ id: 90, type: "green", value: "4" }]
+					},
+					{ username: "bob", card_count: 2, is_bot: false, hand: [] }
+				]
+			} as never;
+			h.fire({ seq: 9, kind: "hands_swap", a: "me", b: "bob", aSize: 2, bSize: 1 });
+
+			expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+				"31",
+				expect.objectContaining({ turned: false })
+			);
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			const turnedOver = beats[0]!
+				.filter((step) => step.op === "flip" && step.payload?.turned === true)
+				.map((step) => step.target);
+			expect(turnedOver).toEqual(expect.arrayContaining(["31", "32"]));
+		});
+
+		it("plays a draw sound for each card as it lands", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([7]);
+			const h = harness();
+			const playSfx = vi.spyOn(storeAudio, "playSfx").mockImplementation(() => {});
+
+			h.fire({ seq: 9, kind: "hands_swap", a: "bob", b: "cara", aSize: 2, bSize: 1 });
+			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
+				AnimationBeat[]
+			];
+			for (const step of beats[0]!.filter((candidate) => candidate.op === "move")) {
+				(step.payload?.onComplete as () => void)();
+			}
+
+			const drawSounds = playSfx.mock.calls.filter(([id]) => id === "sfx.action.draw-card");
+			expect(drawSounds).toHaveLength(3);
+			playSfx.mockRestore();
 		});
 
 		it("does nothing when nothing moves", () => {
