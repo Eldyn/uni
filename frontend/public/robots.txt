@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
 Sitemap: https://playuni.app/sitemap.xml
+Sitemap: https://playuni.app/blog/sitemap-index.xml
