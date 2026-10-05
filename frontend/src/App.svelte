@@ -23,7 +23,7 @@
 		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
 	} as const;
 
-	import { onMount, onDestroy } from "svelte";
+	import { onMount, onDestroy, untrack } from "svelte";
 	import { storeNavigation } from "./lib/stores/navigation.svelte";
 	import { ws } from "./lib/stores/ws.svelte";
 	import { ErrorCode } from "./lib/generated/schemas";
@@ -56,9 +56,16 @@
 	// UI is auto un-readied (so the host can't start with someone who has walked
 	// off), and is re-readied when they come back. The server owns the flag; this
 	// only nudges it toward the state the current screen implies.
+	//
+	// Keyed off the screen transition alone. The lobby read is untracked on
+	// purpose: tracking it would re-run this effect on every broadcast, so the
+	// player's own un-ready update would immediately re-ready them.
 	$effect(() => {
-		if (!storeLobby.isInLobby) return;
-		storeLobby.setReadyToScreen(storeNavigation.current === "lobby");
+		const onLobbyScreen = storeNavigation.current === "lobby";
+		untrack(() => {
+			if (!storeLobby.isInLobby) return;
+			storeLobby.setReadyToScreen(onLobbyScreen);
+		});
 	});
 
 	// Consumes an invite code captured off a deep-linked `/invite/<code>` URL
