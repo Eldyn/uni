@@ -69,7 +69,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -289,12 +289,12 @@ TEST_CASE("view filter: hidden statuses are owner only") {
     CHECK_FALSE(
         WrapOne(builder, Viewer::Player("player1"), removed).has_value());
 
-    // INFO: the vanilla draw-debt status is declared public, so its removal
+    // INFO: the uni draw-debt status is declared public, so its removal
     //       is visible to everyone.
     const json public_removed =
         json{{"type", "status_removed"},
              {"payload", json{{"target", EntityRef(player0)},
-                              {"status_kind", "vanilla:draw_debt"},
+                              {"status_kind", "uni:draw_debt"},
                               {"instance", 9}}}};
     CHECK(WrapOne(builder, Viewer::Player("player1"), public_removed)
               .has_value());
@@ -654,7 +654,7 @@ TEST_CASE("view filter: pending prompt reaches only its target") {
     ViewBuilder builder(*engine, content.mods);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});

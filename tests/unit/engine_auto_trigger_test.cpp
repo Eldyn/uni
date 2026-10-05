@@ -72,7 +72,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -83,7 +83,7 @@ bool LoadContent(Content& out) {
  *
  * Chosen over a tests-fixture folder because the engine tests already build
  * synthetic `LoadedMod`s in memory (see engine_forced_play_test.cpp); it keeps
- * the card out of `mods/vanilla/` and therefore out of the deck + golden.
+ * the card out of `mods/uni/` and therefore out of the deck + golden.
  */
 LoadedMod AutoTriggerMod(bool must_apply = true) {
     const json nodes = json::array(
@@ -138,7 +138,7 @@ MatchAssemblyOptions TestPlayers(int cards, uint64_t seed) {
 
 DeckDef AutoDeck(const Content& content) {
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "wp9x_auto"};
+    deck.mods = {"uni", "wp9x_auto"};
     deck.cards.push_back({"wp9x_auto:auto", 1});
     return deck;
 }

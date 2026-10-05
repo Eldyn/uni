@@ -74,11 +74,11 @@ Content LoadContent() {
     content.mods = std::move(load.mods);
     for (const LoadedMod& mod : content.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") content.classic = deck;
+            if (deck.deck_id == "uni:classic") content.classic = deck;
         }
     }
     REQUIRE_FALSE(content.classic.deck_id.empty());
-    content.classic.mods = {"vanilla"};
+    content.classic.mods = {"uni"};
     return content;
 }
 

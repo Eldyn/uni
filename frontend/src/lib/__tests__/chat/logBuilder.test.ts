@@ -82,13 +82,13 @@ describe("buildLogLines", () => {
 
 	it("builds the play line with the card kind and colour", () => {
 		const line = buildLogLines(
-			{ kind: "play", seq: 10, player: "Ann", cardKind: "vanilla:blue_5", color: "blue" },
+			{ kind: "play", seq: 10, player: "Ann", cardKind: "uni:blue_5", color: "blue" },
 			streak()
 		)[0];
 		expect(line).toEqual({
 			kind: "log",
 			key: "log_play",
-			params: { name: "Ann", kind: "vanilla:blue_5", color: "blue" },
+			params: { name: "Ann", kind: "uni:blue_5", color: "blue" },
 			tier: 0
 		});
 	});

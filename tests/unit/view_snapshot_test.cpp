@@ -73,7 +73,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -115,7 +115,7 @@ match::WindowConfig FixedWindow(int64_t ms) {
 std::unique_ptr<MatchInstance> MakeWindowEngine(Content& content) {
     FakeClock clock;
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "draw_stacking"};
+    deck.mods = {"uni", "draw_stacking"};
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -362,7 +362,7 @@ TEST_CASE("view snapshot: pending_draws mirrors the draw-stacking debt") {
 
     // INFO: a hidden debt still counts; the "+N" is public table state.
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
     CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
               ["match_state"]["pending_draws"]
           == 2);
@@ -533,7 +533,7 @@ TEST_CASE("view snapshot: spectator is omniscient") {
     ViewBuilder builder(*engine, content.mods);
 
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
 
     EventSink sink;
     const json snapshot = builder.BuildSnapshot(Viewer::Spectator(), sink);
@@ -547,7 +547,7 @@ TEST_CASE("view snapshot: spectator is omniscient") {
 
     bool hidden_seen = false;
     for (const json& status : (*seen)["statuses"]) {
-        if (status["status_kind"] == "vanilla:draw_debt") hidden_seen = true;
+        if (status["status_kind"] == "uni:draw_debt") hidden_seen = true;
     }
     CHECK(hidden_seen);
     CHECK(state["draw_pile"].contains("cards"));
@@ -561,8 +561,8 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player0, "vanilla:draw_debt", true);
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    ApplyStatus(*engine, player0, "uni:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
 
     SnapshotOptions options;
     options.privacy_from_spectators = {"player1"};
@@ -578,7 +578,7 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
     REQUIRE(private_player != nullptr);
     CHECK_FALSE(private_player->contains("hand"));
     for (const json& status : (*private_player)["statuses"]) {
-        CHECK(status["status_kind"] != "vanilla:draw_debt");
+        CHECK(status["status_kind"] != "uni:draw_debt");
     }
 
     const json* public_player = FindPlayerState(state, "player0");
@@ -587,7 +587,7 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
     CHECK((*public_player)["hand"].size() == 7u);
     bool hidden_seen = false;
     for (const json& status : (*public_player)["statuses"]) {
-        if (status["status_kind"] == "vanilla:draw_debt") hidden_seen = true;
+        if (status["status_kind"] == "uni:draw_debt") hidden_seen = true;
     }
     CHECK(hidden_seen);
 }
@@ -600,7 +600,7 @@ TEST_CASE("view snapshot: hidden statuses are owner-only for players") {
 
     const ecs::Entity player1 = *engine->FindPlayer("player1");
     ApplyStatus(*engine, player1, "testmod:secret", true);
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", false);
+    ApplyStatus(*engine, player1, "uni:draw_debt", false);
 
     EventSink other_sink;
     const json other =
@@ -610,7 +610,7 @@ TEST_CASE("view snapshot: hidden statuses are owner-only for players") {
     REQUIRE(seen_other != nullptr);
     // INFO: the hidden instance is dropped; the public one remains.
     REQUIRE((*seen_other)["statuses"].size() == 1u);
-    CHECK((*seen_other)["statuses"][0]["status_kind"] == "vanilla:draw_debt");
+    CHECK((*seen_other)["statuses"][0]["status_kind"] == "uni:draw_debt");
 
     EventSink own_sink;
     const json own =
@@ -627,7 +627,7 @@ TEST_CASE("view snapshot: open prompt reaches only its target") {
     ViewBuilder builder(*engine, content.mods);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});
@@ -743,7 +743,7 @@ TEST_CASE("view snapshot: jump_in window lights the responder's identical card")
     REQUIRE(LoadContent(content));
     FakeClock clock;
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "jump_in"};
+    deck.mods = {"uni", "jump_in"};
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -953,7 +953,7 @@ json PacketOfType(const ViewBuilder& builder, const Viewer& viewer,
     return json(nullptr);
 }
 
-const std::vector<std::string> kGroupMods = {"vanilla", "jump_in",
+const std::vector<std::string> kGroupMods = {"uni", "jump_in",
                                              "draw_stacking"};
 
 }  // namespace
@@ -987,9 +987,9 @@ TEST_CASE("view window: kinds follow member order, kind stays the first") {
         json kinds;
     };
     const std::vector<Order> orders = {
-        {{"vanilla", "jump_in", "draw_stacking"},
+        {{"uni", "jump_in", "draw_stacking"},
          json::array({"jump_in", "generic"})},
-        {{"vanilla", "draw_stacking", "jump_in"},
+        {{"uni", "draw_stacking", "jump_in"},
          json::array({"generic", "jump_in"})}};
     for (const Order& order : orders) {
         FakeClock clock;
@@ -1120,7 +1120,7 @@ TEST_CASE("view snapshot: an armed prompt reports its clock length") {
                          clock.Fn());
     ViewBuilder builder(engine, content.mods);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));
@@ -1157,7 +1157,7 @@ TEST_CASE("view prompt: prompt_open carries the enforced clock length") {
 
     // INFO: the controller arms the clocks at turn start, before any play.
     engine.SyncClocks(15000);
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));
@@ -1196,7 +1196,7 @@ TEST_CASE("view snapshot: prompt_wait exposes only the pending prompt clock") {
         builder.BuildSnapshot(Viewer::Player("player1"), idle_sink);
     CHECK_FALSE(idle["match_state"].contains("prompt_wait"));
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));

@@ -123,7 +123,7 @@ TEST_CASE("win_ops: check_win records the hand-empty player by seat order") {
     Entity match = AddMatch(h.store);
     Entity p1 = AddPlayer(h.store, "p1", 1);
     Entity p0 = AddPlayer(h.store, "p0", 0);
-    PutInHand(h.store, p1, MakeCard(h.store, "vanilla:red_1"));
+    PutInHand(h.store, p1, MakeCard(h.store, "uni:red_1"));
 
     const OpResult result = h.Invoke("check_win", json::object());
     CHECK(result.status == OpStatus::kResolved);
@@ -202,7 +202,7 @@ TEST_CASE("win_ops: check_win no candidate is a no-op") {
     Harness h;
     Entity match = AddMatch(h.store);
     Entity p0 = AddPlayer(h.store, "p0", 0);
-    PutInHand(h.store, p0, MakeCard(h.store, "vanilla:red_1"));
+    PutInHand(h.store, p0, MakeCard(h.store, "uni:red_1"));
 
     const OpResult result = h.Invoke("check_win", json::object());
     CHECK(result.events.empty());
@@ -278,7 +278,7 @@ TEST_CASE("win_ops: declare_winner fail-safe paths") {
     Harness h;
     AddMatch(h.store);
     Entity p0 = AddPlayer(h.store, "p0", 0);
-    Entity card = MakeCard(h.store, "vanilla:red_1");
+    Entity card = MakeCard(h.store, "uni:red_1");
 
     const OpResult unbound =
         h.Invoke("declare_winner", json{{"kind", "normal"}});
@@ -340,7 +340,7 @@ TEST_CASE("win_ops: add_placement appends in order and dedupes") {
 TEST_CASE("win_ops: add_placement fail-safe paths") {
     Harness h;
     AddMatch(h.store);
-    Entity card = MakeCard(h.store, "vanilla:red_1");
+    Entity card = MakeCard(h.store, "uni:red_1");
 
     const OpResult unbound = h.Invoke("add_placement", json::object());
     CHECK(unbound.status == OpStatus::kResolved);

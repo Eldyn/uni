@@ -64,11 +64,11 @@ std::unique_ptr<MatchInstance> MakeVanillaEngine(match::NowMs clock) {
     DeckDef classic;
     for (const LoadedMod& mod : load.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") classic = deck;
+            if (deck.deck_id == "uni:classic") classic = deck;
         }
     }
     REQUIRE_FALSE(classic.deck_id.empty());
-    classic.mods = {"vanilla"};
+    classic.mods = {"uni"};
 
     MatchAssemblyOptions options;
     options.starting_cards = 7;

@@ -90,8 +90,8 @@ match::modload::DeckDef DeckDefFromSnapshot(const json& deck) {
  *
  * Freestyle lobbies carry no deck snapshot, so the pool is rebuilt from the
  * legacy scalar `count_*` fields (mirroring `MatchInstance::GenerateDeck`)
- * with the kind ids of `mods/vanilla/decks/classic.json`. Any `active_mods`
- * rule selection is appended after `vanilla` so the base cards stay present.
+ * with the kind ids of `mods/uni/decks/classic.json`. Any `active_mods`
+ * rule selection is appended after `uni` so the base cards stay present.
  *
  * @param settings Lobby settings holding the `count_*` tuning.
  * @return DeckDef The synthesized freestyle deck.
@@ -101,16 +101,16 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
     match::modload::DeckDef def;
     def.id = "classic";
     def.name = "Classic";
-    def.namespace_id = "vanilla";
-    def.deck_id = "vanilla:classic";
-    def.mods.push_back("vanilla");
+    def.namespace_id = "uni";
+    def.deck_id = "uni:classic";
+    def.mods.push_back("uni");
     for (const std::string& mod : settings.active_mods) {
         if (match::modload::IsBaseModId(mod)) continue;
         def.mods.push_back(mod);
     }
 
     for (const char* color : {"red", "blue", "green", "yellow"}) {
-        const std::string prefix = std::string("vanilla:") + color + "_";
+        const std::string prefix = std::string("uni:") + color + "_";
         def.cards.emplace_back(prefix + "0", settings.count_zeros);
         for (int number = 1; number <= 9; ++number) {
             def.cards.emplace_back(prefix + std::to_string(number),
@@ -120,8 +120,8 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
         def.cards.emplace_back(prefix + "reverse", settings.count_reverses);
         def.cards.emplace_back(prefix + "draw2", settings.count_draw_two);
     }
-    def.cards.emplace_back("vanilla:wild", settings.count_wild);
-    def.cards.emplace_back("vanilla:wild_draw4",
+    def.cards.emplace_back("uni:wild", settings.count_wild);
+    def.cards.emplace_back("uni:wild_draw4",
                            settings.count_wild_draw_four);
     return def;
 }
@@ -155,7 +155,7 @@ match::modload::DeckDef ResolveMatchDeck(const LobbySettings& settings) {
         DeckSnapshotHasCards(settings.deck)
             ? DeckDefFromSnapshot(settings.deck)
             : SynthesizeFreestyleDeck(settings);
-    if (def.mods.empty()) def.mods.push_back("vanilla");
+    if (def.mods.empty()) def.mods.push_back("uni");
     return def;
 }
 
@@ -1097,7 +1097,7 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
 
     // INFO: Swap: the catalog is now the mod-folder scan
     //       rather than the legacy in-process RuleRegistry. The base mod
-    //       (`vanilla` or `uni`) is always on, so it is not offered as a
+    //       (`uni` or `uni`) is always on, so it is not offered as a
     //       toggleable rule.
     json available_rules = json::array();
     const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
@@ -1671,7 +1671,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         DeckSnapshotHasCards(lobby.settings.deck)
             ? DeckDefFromSnapshot(lobby.settings.deck)
             : SynthesizeFreestyleDeck(lobby.settings);
-    if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+    if (deck_def.mods.empty()) deck_def.mods.push_back("uni");
 
     // INFO: fail closed at the match boundary: every mod the deck
     //       requires must be present and valid, otherwise a mod that failed

@@ -12,7 +12,7 @@
  * @file play_conditions.hpp
  * @brief Play-context condition evaluators for the restriction pipeline.
  *
- *  ships vanilla play legality as restriction entries whose
+ *  ships uni play legality as restriction entries whose
  * conditions the pipeline evaluates via a `ConditionMatcher`. The generic
  * catalog reasons over the entity store; these predicates instead
  * reason over a `PlayAttempt` — who is acting, what card they are trying, and

@@ -54,7 +54,7 @@ function frame(seq: number, type: string, payload: unknown = {}) {
 	return { action: "match_event", seq, type, payload };
 }
 
-const DEBT_STATUS = { status_kind: "vanilla:draw_debt", magnitude: 2 };
+const DEBT_STATUS = { status_kind: "uni:draw_debt", magnitude: 2 };
 
 function snapshot(fields: Record<string, unknown> = {}, statuses: unknown[] = []) {
 	handler("match_state_updated")({

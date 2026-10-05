@@ -19,7 +19,7 @@
  * @brief adversarial engine tests.
  *
  * Stress cases over the public `MatchInstance` surface: a 1000-card hand
- * match, a deck built from every vanilla kind, and the engine-level
+ * match, a deck built from every uni kind, and the engine-level
  * defense-in-depth assertion that a chain-budget abort leaves the match
  * playable. Every generated match is deterministic (fixed seed).
  */
@@ -64,7 +64,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -108,11 +108,11 @@ std::size_t PileSize(const MatchInstance& engine, ecs::PileKind kind) {
     return 0;
 }
 
-/** @brief Every kind id the vanilla mod declares (kind table coverage). */
+/** @brief Every kind id the uni mod declares (kind table coverage). */
 std::vector<std::string> VanillaKinds(const Content& content) {
     std::vector<std::string> kinds;
     for (const LoadedMod& mod : content.mods) {
-        if (mod.manifest.id != "vanilla") continue;
+        if (mod.manifest.id != "uni") continue;
         for (const CardDef& card : mod.cards) kinds.push_back(card.kind_id);
     }
     return kinds;
@@ -145,7 +145,7 @@ TEST_CASE("engine adversarial: thousand-card hands assemble and play") {
     // INFO: two 1000-card hands plus a draw pile need > 2000 copies, still
     //       inside kMaxInstancesPerKind (4096).
     DeckDef deck = content.classic;
-    deck.cards = {{"vanilla:red_5", 2200}};
+    deck.cards = {{"uni:red_5", 2200}};
     std::unique_ptr<MatchInstance> engine =
         AssembleEngine(content, deck, 2, 1000, 42);
 
@@ -186,8 +186,8 @@ TEST_CASE("engine adversarial: many-kind deck assembles and advances a turn") {
     REQUIRE(LoadContent(content));
 
     const std::vector<std::string> kinds = VanillaKinds(content);
-    // INFO: cover every kind vanilla ships.
-    MESSAGE("vanilla distinct kinds: " << kinds.size());
+    // INFO: cover every kind uni ships.
+    MESSAGE("uni distinct kinds: " << kinds.size());
     REQUIRE(kinds.size() >= 40);
 
     DeckDef deck = content.classic;
@@ -212,7 +212,7 @@ TEST_CASE("engine adversarial: budget abort leaves the match playable") {
     // INFO: red_draw2 has a multi-node, prompt-free on_play graph, so a zero
     //       chain budget aborts at its first node.
     DeckDef deck = content.classic;
-    deck.cards = {{"vanilla:red_draw2", 20}};
+    deck.cards = {{"uni:red_draw2", 20}};
     std::unique_ptr<MatchInstance> engine =
         AssembleEngine(content, deck, 2, 7, 42);
 

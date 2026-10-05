@@ -87,15 +87,15 @@ TEST_CASE("status_ops: apply_status stores a replace instance and emits") {
 
     const OpResult result = h.Invoke(
         "apply_status",
-        json{{"status_kind", "vanilla:draw_debt"},
+        json{{"status_kind", "uni:draw_debt"},
              {"params", {{"magnitude", 2}}},
              {"duration", {{"unit", "turns"}, {"value", 3}}}},
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
+    const Status* status = FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(status != nullptr);
-    CHECK(status->status_id == "vanilla:draw_debt");
+    CHECK(status->status_id == "uni:draw_debt");
     CHECK(status->magnitude == 2);
     CHECK(status->stack_policy == StackPolicy::kReplace);
     CHECK(status->duration.unit == DurationUnit::kTurns);
@@ -105,7 +105,7 @@ TEST_CASE("status_ops: apply_status stores a replace instance and emits") {
 
     const json* event = FindEvent(result, "status_applied");
     REQUIRE(event != nullptr);
-    CHECK((*event)["payload"]["status_kind"] == "vanilla:draw_debt");
+    CHECK((*event)["payload"]["status_kind"] == "uni:draw_debt");
     CHECK((*event)["payload"]["magnitude"] == 2);
     CHECK((*event)["payload"]["duration_unit"] == "turns");
     CHECK((*event)["payload"]["instance"] == 1);
@@ -135,7 +135,7 @@ TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
     Entity target = AddPlayer(h.store, "p0", 0);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "accumulate"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
@@ -144,12 +144,12 @@ TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
     //       magnitudes still add.
     const OpResult fallback = h.Invoke(
         "apply_status",
-        json{{"status_kind", "vanilla:draw_debt"},
+        json{{"status_kind", "uni:draw_debt"},
              {"params", {{"magnitude", 3}}}},
         {{"target", {target}}});
     CHECK(fallback.status == OpStatus::kResolved);
     const Status* accumulated =
-        FindStatus(h.store, target, "vanilla:draw_debt");
+        FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(accumulated != nullptr);
     CHECK(accumulated->magnitude == 5);
     CHECK(accumulated->stack_policy == StackPolicy::kAccumulate);
@@ -157,12 +157,12 @@ TEST_CASE("status_ops: apply_status stack_policy arg overrides existing") {
     // INFO: a present arg is authoritative and overrides the stored policy.
     const OpResult result = h.Invoke(
         "apply_status",
-        json{{"status_kind", "vanilla:draw_debt"},
+        json{{"status_kind", "uni:draw_debt"},
              {"stack_policy", "replace"},
              {"params", {{"magnitude", 4}}}},
         {{"target", {target}}});
     CHECK(result.status == OpStatus::kResolved);
-    const Status* replaced = FindStatus(h.store, target, "vanilla:draw_debt");
+    const Status* replaced = FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(replaced != nullptr);
     CHECK(replaced->magnitude == 4);
     CHECK(replaced->stack_policy == StackPolicy::kReplace);
@@ -174,18 +174,18 @@ TEST_CASE("status_ops: apply_status replace resets magnitude and duration") {
     Entity target = AddPlayer(h.store, "p0", 0);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "replace"},
                   {"params", {{"magnitude", 5}}},
                   {"duration", {{"unit", "turns"}, {"value", 3}}}},
              {{"target", {target}}});
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 2}}},
                   {"duration", {{"unit", "rounds"}, {"value", 7}}}},
              {{"target", {target}}});
 
-    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
+    const Status* status = FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(status != nullptr);
     CHECK(status->magnitude == 2);
     CHECK(status->duration.unit == DurationUnit::kRounds);
@@ -240,27 +240,27 @@ TEST_CASE("status_ops: apply_status cap:N accumulates up to the cap") {
     Entity target = AddPlayer(h.store, "p0", 0);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "cap:5"},
                   {"params", {{"magnitude", 3}}}},
              {{"target", {target}}});
-    const Status* status = FindStatus(h.store, target, "vanilla:draw_debt");
+    const Status* status = FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(status != nullptr);
     CHECK(status->stack_policy == StackPolicy::kCap);
     CHECK(status->cap == 5);
     CHECK(status->magnitude == 3);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 4}}}},
              {{"target", {target}}});
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 5);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 1}}}},
              {{"target", {target}}});
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 5);
 }
 
 TEST_CASE("status_ops: apply_status a different kind coexists") {
@@ -268,7 +268,7 @@ TEST_CASE("status_ops: apply_status a different kind coexists") {
     Entity target = AddPlayer(h.store, "p0", 0);
 
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
     h.Invoke("apply_status",
@@ -277,7 +277,7 @@ TEST_CASE("status_ops: apply_status a different kind coexists") {
              {{"target", {target}}});
 
     CHECK(StatusCount(h.store, target) == 2);
-    const Status* debt = FindStatus(h.store, target, "vanilla:draw_debt");
+    const Status* debt = FindStatus(h.store, target, "uni:draw_debt");
     REQUIRE(debt != nullptr);
     CHECK(debt->magnitude == 2);
     CHECK(debt->instance_id == 1);
@@ -362,20 +362,20 @@ TEST_CASE("status_ops: remove_status removes by kind and emits") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
 
     const OpResult result = h.Invoke(
-        "remove_status", json{{"status_kind", "vanilla:draw_debt"}},
+        "remove_status", json{{"status_kind", "uni:draw_debt"}},
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt") == nullptr);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt") == nullptr);
     CHECK(StatusCount(h.store, target) == 0);
     const json* event = FindEvent(result, "status_removed");
     REQUIRE(event != nullptr);
-    CHECK((*event)["payload"]["status_kind"] == "vanilla:draw_debt");
+    CHECK((*event)["payload"]["status_kind"] == "uni:draw_debt");
     CHECK((*event)["payload"]["instance"] == 1);
     CHECK((*event)["payload"]["target"]["index"] == target.index);
 }
@@ -430,13 +430,13 @@ TEST_CASE("status_ops: remove_status removes by instance id") {
 TEST_CASE("status_ops: remove_status either_of contract") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
-    h.Invoke("apply_status", json{{"status_kind", "vanilla:draw_debt"}},
+    h.Invoke("apply_status", json{{"status_kind", "uni:draw_debt"}},
              {{"target", {target}}});
 
     SUBCASE("status_kind wins when both are present") {
         const OpResult result = h.Invoke(
             "remove_status",
-            json{{"status_kind", "vanilla:draw_debt"}, {"instance", 99}},
+            json{{"status_kind", "uni:draw_debt"}, {"instance", 99}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(StatusCount(h.store, target) == 0);
@@ -496,18 +496,18 @@ TEST_CASE("status_ops: modify_status adjusts and reports the magnitude") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "accumulate"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
 
     const OpResult result = h.Invoke(
         "modify_status",
-        json{{"kind", "vanilla:draw_debt"}, {"delta", 3}},
+        json{{"kind", "uni:draw_debt"}, {"delta", 3}},
         {{"target", {target}}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 5);
     CHECK(result.value["magnitude"] == 5);
     CHECK(result.value["delta"] == 3);
     CHECK(result.events.empty());
@@ -517,34 +517,34 @@ TEST_CASE("status_ops: modify_status clamps delta to declared bounds") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "accumulate"}},
              {{"target", {target}}});
 
     h.Invoke("modify_status",
-             json{{"kind", "vanilla:draw_debt"}, {"delta", 5000}},
+             json{{"kind", "uni:draw_debt"}, {"delta", 5000}},
              {{"target", {target}}});
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 1001);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 1001);
 
     h.Invoke("modify_status",
-             json{{"kind", "vanilla:draw_debt"}, {"delta", -5000}},
+             json{{"kind", "uni:draw_debt"}, {"delta", -5000}},
              {{"target", {target}}});
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 1);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 1);
 }
 
 TEST_CASE("status_ops: modify_status respects the cap ceiling") {
     Harness h;
     Entity target = AddPlayer(h.store, "p0", 0);
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"stack_policy", "cap:5"},
                   {"params", {{"magnitude", 3}}}},
              {{"target", {target}}});
 
     h.Invoke("modify_status",
-             json{{"kind", "vanilla:draw_debt"}, {"delta", 10}},
+             json{{"kind", "uni:draw_debt"}, {"delta", 10}},
              {{"target", {target}}});
-    CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 5);
+    CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 5);
 }
 
 TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
@@ -553,21 +553,21 @@ TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
     Entity dead = AddPlayer(h.store, "ghost", 1);
     h.store.Destroy(dead);
     h.Invoke("apply_status",
-             json{{"status_kind", "vanilla:draw_debt"},
+             json{{"status_kind", "uni:draw_debt"},
                   {"params", {{"magnitude", 2}}}},
              {{"target", {target}}});
 
     SUBCASE("unbound selector") {
         const OpResult result = h.Invoke(
             "modify_status",
-            json{{"kind", "vanilla:draw_debt"}, {"delta", 1}});
+            json{{"kind", "uni:draw_debt"}, {"delta", 1}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.value.is_null());
     }
     SUBCASE("dead entity") {
         const OpResult result = h.Invoke(
             "modify_status",
-            json{{"kind", "vanilla:draw_debt"}, {"delta", 1}},
+            json{{"kind", "uni:draw_debt"}, {"delta", 1}},
             {{"target", {dead}}});
         CHECK(result.status == OpStatus::kResolved);
         CHECK(result.value.is_null());
@@ -576,7 +576,7 @@ TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
         const OpResult result = h.Invoke(
             "modify_status", json{{"delta", 1}}, {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 2);
     }
     SUBCASE("mismatched kind") {
         const OpResult result = h.Invoke(
@@ -584,13 +584,13 @@ TEST_CASE("status_ops: modify_status fail-safe paths are no-ops") {
             json{{"kind", "space:shielded"}, {"delta", 1}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 2);
     }
     SUBCASE("missing delta") {
         const OpResult result = h.Invoke(
-            "modify_status", json{{"kind", "vanilla:draw_debt"}},
+            "modify_status", json{{"kind", "uni:draw_debt"}},
             {{"target", {target}}});
         CHECK(result.status == OpStatus::kResolved);
-        CHECK(FindStatus(h.store, target, "vanilla:draw_debt")->magnitude == 2);
+        CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 2);
     }
 }

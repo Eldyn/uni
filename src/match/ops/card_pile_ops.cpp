@@ -32,7 +32,7 @@
  * condition evaluated per
  * candidate card; an unevaluable filter rejects every candidate. The optional
  * `n_from_debt` arg draws each target's accumulated
- * `vanilla:draw_debt` status magnitude instead of a static `n`.
+ * `uni:draw_debt` status magnitude instead of a static `n`.
  */
 
 namespace match::ops::detail {
@@ -489,7 +489,7 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
     if (targets.empty()) return OpResult::Resolved();
 
     // INFO: `n_from_debt` replaces the static `n` with each
-    //       target's accumulated `vanilla:draw_debt` status magnitude. The
+    //       target's accumulated `uni:draw_debt` status magnitude. The
     //       vocabulary enforces exactly one of `n` / `n_from_debt`.
     bool from_debt = false;
     if (args.Has("n_from_debt") && !args.GetBool("n_from_debt", from_debt)) {

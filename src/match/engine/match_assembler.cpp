@@ -898,7 +898,7 @@ AssemblyResult MatchAssembler::Assemble(
     }
 
     // INFO: `match_start` fires once assembly is done. Dispatching it
-    //       here is what installs the vanilla restriction entries shipped as
+    //       here is what installs the uni restriction entries shipped as
     //       `after:match_start` data; the engine does not re-dispatch it.
     const json settings = deck.settings;
     ecs::HookPayload before;

@@ -27,7 +27,7 @@ import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAudio } from "$stores/audio.svelte";
 import { createPlayLogEmitter } from "$lib/chat/playLog/playLogEmitter";
-import { DRAW_DEBT_STATUS_KINDS } from "$lib/utils/baseMod";
+import { DRAW_DEBT_STATUS_KINDS, baseKindId } from "$lib/utils/baseMod";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -1521,7 +1521,7 @@ function kindOf(card: { type: string; value: string; kind?: string }): string {
 	if (card.kind) return card.kind;
 	const slug = VALUE_SLUG[card.value] ?? card.value;
 	const wild = card.type === "white";
-	return wild ? `vanilla:${slug}` : `vanilla:${card.type}_${slug}`;
+	return baseKindId(wild ? slug : `${card.type}_${slug}`);
 }
 
 /** Computes the local hand's card-N slot as a world-space anchor — ported

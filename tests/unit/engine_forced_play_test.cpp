@@ -68,7 +68,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -136,7 +136,7 @@ MatchAssemblyOptions Players(int count, int starting_cards, uint64_t seed) {
 std::unique_ptr<MatchInstance> MakeEngine(Content& content, int players,
                                           int cards, uint64_t seed) {
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "wp9d1_force"};
+    deck.mods = {"uni", "wp9d1_force"};
     AssemblyResult result = MatchAssembler::Assemble(
         content.mods, deck, Players(players, cards, seed));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
@@ -289,8 +289,8 @@ TEST_CASE("engine: force-play rule leaves an unplayable drawn card in hand") {
     ecs::PileContents* discard = Pile(*engine, ecs::PileKind::kDiscard);
     REQUIRE(discard != nullptr);
     REQUIRE_FALSE(discard->cards.empty());
-    SetCard(*engine, discard->cards.back(), "vanilla:blue_9", "blue", "9");
-    SetCard(*engine, *drawn, "vanilla:red_5", "red", "5");
+    SetCard(*engine, discard->cards.back(), "uni:blue_9", "blue", "9");
+    SetCard(*engine, *drawn, "uni:red_5", "red", "5");
     SetActiveType(*engine, "green");
 
     const std::size_t before = HandSize(*engine, "player0");

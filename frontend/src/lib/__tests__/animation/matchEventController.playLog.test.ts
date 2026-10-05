@@ -222,7 +222,7 @@ describe("matchEventController play log", () => {
 
 	it("logs the played card's kind from the snapshot", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "skip" });
-		storeGame.state.top_card.kind = "vanilla:red_skip";
+		storeGame.state.top_card.kind = "uni:red_skip";
 		const h = harness();
 
 		h.fire({ seq: 7, kind: "play", player: "me", cardId: 2, auto: false });
@@ -230,7 +230,7 @@ describe("matchEventController play log", () => {
 
 		const [line] = chatStore.linesFor("party");
 		expect(line.logKey).toBe("log_play");
-		expect(line.logParams).toMatchObject({ kind: "vanilla:red_skip", color: "red" });
+		expect(line.logParams).toMatchObject({ kind: "uni:red_skip", color: "red" });
 	});
 
 	it("logs a draw stack from a +2 play and its debt toast", async () => {
@@ -242,7 +242,7 @@ describe("matchEventController play log", () => {
 			seq: 2,
 			kind: "toast",
 			target: "bob",
-			statusKind: "vanilla:draw_debt",
+			statusKind: "uni:draw_debt",
 			magnitude: 4,
 			durationUnit: "none",
 			instanceId: 1

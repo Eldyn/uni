@@ -567,7 +567,7 @@ bool MatchSession::MatchesSchema(const nlohmann::json& value,
 }
 
 bool IsBuiltinPromptKind(const std::string& kind) {
-    // INFO: Phase-1 engine/vanilla prompt kinds. Mods
+    // INFO: Phase-1 engine/uni prompt kinds. Mods
     //       may declare NEW kinds; these five are owned by the engine and a
     //       mod declaration for one is ignored so its validator stays fixed.
     static const std::set<std::string, std::less<>> kBuiltins = {

@@ -15,12 +15,12 @@ describe("StreakTracker", () => {
 		expect(tracker.record({ kind: "skip", player: "Bob" }).skipRun).toBe(1);
 	});
 
-	it("keeps the wild run on a uni wild play like a vanilla wild play", () => {
+	it("keeps the wild run on a uni wild play", () => {
 		const tracker = new StreakTracker();
 		const play = (cardKind: string) =>
 			tracker.record({ kind: "play", seq: 1, player: "Ann", cardKind, color: "red" });
 		tracker.record({ kind: "wild", player: "Ann", color: "red" });
-		expect(play("vanilla:wild").wildRun).toBe(1);
+		expect(play("uni:wild").wildRun).toBe(1);
 		expect(play("uni:wild_draw4").wildRun).toBe(1);
 		expect(play("uni:red_3").wildRun).toBe(0);
 	});
@@ -33,7 +33,7 @@ describe("StreakTracker", () => {
 			kind: "play",
 			seq: 1,
 			player: "Ann",
-			cardKind: "vanilla:red_3",
+			cardKind: "uni:red_3",
 			color: "red"
 		});
 		expect(info).toEqual({
@@ -56,7 +56,7 @@ describe("StreakTracker", () => {
 			kind: "play",
 			seq: 1,
 			player: "Bob",
-			cardKind: "vanilla:red_skip",
+			cardKind: "uni:red_skip",
 			color: "red"
 		});
 		expect(tracker.record({ kind: "skip", player: "Ann" }).skipRun).toBe(2);
@@ -69,7 +69,7 @@ describe("StreakTracker", () => {
 			kind: "play",
 			seq: 1,
 			player: "Ann",
-			cardKind: "vanilla:red_reverse",
+			cardKind: "uni:red_reverse",
 			color: "red"
 		});
 		expect(tracker.record({ kind: "reverse" }).reverseRun).toBe(2);
@@ -153,7 +153,7 @@ describe("StreakTracker", () => {
 			kind: "play",
 			seq: 2,
 			player: "Ann",
-			cardKind: "vanilla:wild",
+			cardKind: "uni:wild",
 			color: "red"
 		});
 		expect(afterPlay.wildRun).toBe(1);
@@ -163,8 +163,7 @@ describe("StreakTracker", () => {
 		const t = new StreakTracker();
 		t.record({ kind: "wild", seq: 1, player: "Ann", color: "red" });
 		expect(
-			t.record({ kind: "play", seq: 2, player: "Ann", cardKind: "vanilla:red_5", color: "red" })
-				.wildRun
+			t.record({ kind: "play", seq: 2, player: "Ann", cardKind: "uni:red_5", color: "red" }).wildRun
 		).toBe(0);
 	});
 
@@ -199,7 +198,7 @@ describe("StreakTracker", () => {
 		const t = new StreakTracker();
 		t.record({ kind: "near_win", seq: 1, player: "Bob" });
 		expect(
-			t.record({ kind: "play", seq: 2, player: "Bob", cardKind: "vanilla:red_5", color: "red" })
+			t.record({ kind: "play", seq: 2, player: "Bob", cardKind: "uni:red_5", color: "red" })
 				.nearWinOpen
 		).toBe(false);
 	});
@@ -221,7 +220,7 @@ describe("StreakTracker", () => {
 			kind: "play",
 			seq: 3,
 			player: "Cara",
-			cardKind: "vanilla:red_5",
+			cardKind: "uni:red_5",
 			color: "red"
 		});
 		expect(after.nearWinOpen).toBe(false);

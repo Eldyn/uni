@@ -9,14 +9,14 @@
  * @brief Stats gate: a pure comparator deciding whether a
  * finished match's `player_stats` may be updated.
  *
- * `player_stats` counts vanilla-only matches. A match
- * qualifies when its mod set is exactly `["vanilla"]` AND its deck's kind
- * multiset equals the vanilla classic deck's kind multiset. Match rows and
+ * `player_stats` counts uni-only matches. A match
+ * qualifies when its mod set is exactly `["uni"]` AND its deck's kind
+ * multiset equals the uni classic deck's kind multiset. Match rows and
  * placements are recorded for every match regardless (match history stays
  * complete); this gate governs ONLY the per-player aggregate update.
  *
  * The comparator is pure: no DB, no file IO, no mutable globals beyond the
- * constant vanilla deck. `ExpandKindMultiset` turns a `DeckDef::cards`
+ * constant uni deck. `ExpandKindMultiset` turns a `DeckDef::cards`
  * kind -> count list into a sorted vector of kind string IDs (one entry per
  * card copy), and `DeckKindMultisetsEqual` is sorted-multiset equality over
  * those IDs.
@@ -29,12 +29,12 @@
 namespace match::server {
 
 /**
- * @brief The vanilla classic deck as kind -> count pairs (`DeckDef::cards`).
+ * @brief The uni classic deck as kind -> count pairs (`DeckDef::cards`).
  *
- * Mirrors `mods/vanilla/decks/classic.json`: four colours of 0 x1, 1-9 x2,
+ * Mirrors `mods/uni/decks/classic.json`: four colours of 0 x1, 1-9 x2,
  * skip x2, reverse x2, draw2 x2, plus wild x4 and wild_draw4 x4 (108 cards).
  *
- * @return The canonical vanilla classic deck cards, in declaration order.
+ * @return The canonical uni classic deck cards, in declaration order.
  */
 const std::vector<std::pair<std::string, int>>& VanillaClassicDeckCards();
 
@@ -65,10 +65,10 @@ bool DeckKindMultisetsEqual(const std::vector<std::string>& lhs,
 /**
  * @brief The gate: may `player_stats` be updated for this match?
  *
- * @param mods       The match's active mod set (must be exactly `["vanilla"]`).
+ * @param mods       The match's active mod set (must be exactly `["uni"]`).
  * @param deck_cards The match deck's kind -> count list.
- * @return true when mods is exactly `{"vanilla"}` and the deck kind multiset
- *         equals the vanilla classic deck multiset.
+ * @return true when mods is exactly `{"uni"}` and the deck kind multiset
+ *         equals the uni classic deck multiset.
  */
 bool StatsGateAllows(const std::vector<std::string>& mods,
                      const std::vector<std::pair<std::string, int>>&

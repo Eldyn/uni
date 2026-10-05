@@ -35,7 +35,7 @@ namespace match::modload {
  * @brief `{id, phase: allow|deny, condition}`.
  */
 struct RestrictionEntry {
-    std::string id;              /**< stable entry id, e.g. `vanilla:turn_order`. */
+    std::string id;              /**< stable entry id, e.g. `uni:turn_order`. */
     std::string phase;           /**< "allow" | "deny". */
     nlohmann::json condition;    /**< condition object; null = always. */
 };

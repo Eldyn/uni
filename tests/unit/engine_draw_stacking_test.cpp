@@ -24,9 +24,9 @@
  * @file engine_draw_stacking_test.cpp
  * @brief Draw-stacking tests for the engine MatchInstance.
  *
- * Assembles real `mods/` content (`vanilla` + `draw_stacking`) and asserts the
+ * Assembles real `mods/` content (`uni` + `draw_stacking`) and asserts the
  * engine-owned debt mechanics that the DAG content cannot express: a
- * draw-penalty play opens the window and records its N as `vanilla:draw_debt`
+ * draw-penalty play opens the window and records its N as `uni:draw_debt`
  * on the seat after the player, a stackable response carries the debt on to
  * the seat after the responder and re-opens the window on one budget ledger,
  * the default route makes the victim draw the accumulated debt with
@@ -93,7 +93,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -124,11 +124,11 @@ std::unique_ptr<MatchInstance> Assemble(
                                            std::move(clock));
 }
 
-/** @brief `{"vanilla","draw_stacking"}` match (0.subject). */
+/** @brief `{"uni","draw_stacking"}` match (0.subject). */
 std::unique_ptr<MatchInstance> MakeStackingEngine(
     Content& content, int players, int cards, uint64_t seed,
     match::WindowConfig config, match::NowMs clock) {
-    return Assemble(content, {"vanilla", "draw_stacking"}, players, cards, seed,
+    return Assemble(content, {"uni", "draw_stacking"}, players, cards, seed,
                     config, std::move(clock));
 }
 
@@ -167,7 +167,7 @@ std::optional<ecs::Entity> FindCard(MatchInstance& engine,
     return std::nullopt;
 }
 
-/** @brief Accumulated `vanilla:draw_debt` magnitude on `player` (0 = none). */
+/** @brief Accumulated `uni:draw_debt` magnitude on `player` (0 = none). */
 int64_t DebtOf(MatchInstance& engine, ecs::Entity player) {
     const ecs::Status* debt = match::status::Find(
         engine.Store(), player, ops::kDrawDebtStatusId);
@@ -279,8 +279,8 @@ std::size_t CountNoJumpSignals(const MatchInstance& engine) {
 
 /** @brief Mod load orders of the merged pair; outcomes must not differ. */
 const std::vector<std::vector<std::string>> kMergedLoadOrders = {
-    {"vanilla", "jump_in", "draw_stacking"},
-    {"vanilla", "draw_stacking", "jump_in"}};
+    {"uni", "jump_in", "draw_stacking"},
+    {"uni", "draw_stacking", "jump_in"}};
 
 /** @brief Three seats after player0 played a wild +4 into a merged group. */
 struct Plus4Table {
@@ -503,7 +503,7 @@ TEST_CASE("engine draw_stacking: a second window over the play records once") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     // INFO: both windows open over the same play as one group; the stacking
@@ -524,7 +524,7 @@ TEST_CASE("engine merge: jump_in and draw_stacking open one longest group") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -559,7 +559,7 @@ TEST_CASE("engine merge: CanRespondWindow accepts any member's filter") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -867,7 +867,7 @@ TEST_CASE("engine merge: a jump-in winner skips the stacking default draw") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -887,7 +887,7 @@ TEST_CASE("engine merge: a member's responders scope its accepted cards") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
     const std::optional<ecs::Entity> stack_card =
         FindCard(engine, "yellow", "+2");
@@ -913,7 +913,7 @@ TEST_CASE("engine merge: a wild +4 prompt then one merged group") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     std::unique_ptr<MatchInstance> engine =
-        Assemble(content, {"vanilla", "jump_in", "draw_stacking"}, 3, 7, 42,
+        Assemble(content, {"uni", "jump_in", "draw_stacking"}, 3, 7, 42,
                  FixedWindow(kStackingWindowMs), clock.Fn());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -944,7 +944,7 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -971,7 +971,7 @@ TEST_CASE("engine merge: no responder runs every default once in order") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -1008,7 +1008,7 @@ TEST_CASE("engine merge: the group kind follows the first member") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "draw_stacking", "jump_in"}, clock);
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -1261,7 +1261,7 @@ TEST_CASE("engine hold: a jump_in-only window has no pass at all") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     std::unique_ptr<MatchInstance> engine =
-        Assemble(content, {"vanilla", "jump_in"}, 3, 7, 42,
+        Assemble(content, {"uni", "jump_in"}, 3, 7, 42,
                  FixedWindow(kStackingWindowMs), clock.Fn());
     const ecs::Entity player1 = *engine->FindPlayer("player1");
     const std::optional<ecs::Entity> top = [&]() {

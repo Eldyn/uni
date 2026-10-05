@@ -11,7 +11,7 @@
           "op": "add_restriction",
           "args": {
             "entry_def": {
-              "id": "vanilla:turn_order",
+              "id": "uni:turn_order",
               "phase": "deny",
               "condition": {
                 "plays_out_of_turn": {}
@@ -25,7 +25,7 @@
           "op": "add_restriction",
           "args": {
             "entry_def": {
-              "id": "vanilla:match_type_or_value",
+              "id": "uni:match_type_or_value",
               "phase": "deny",
               "condition": {
                 "plays_mismatch": {}
@@ -39,7 +39,7 @@
           "op": "add_restriction",
           "args": {
             "entry_def": {
-              "id": "vanilla:must_own_card",
+              "id": "uni:must_own_card",
               "phase": "deny",
               "condition": {
                 "plays_unowned": {}

@@ -60,7 +60,7 @@ struct TempModsRoot {
 };
 
 const char* kValidManifest = R"({
-  "id": "vanilla",
+  "id": "uni",
   "name": "UNI Vanilla",
   "version": "1.0.0",
   "api": "1",
@@ -119,16 +119,16 @@ const char* kValidStatuses = R"([
 ])";
 
 const char* kValidMutations = R"([
-  { "id": "nerf_plus4", "target": "vanilla:plus4", "mode": "replace",
+  { "id": "nerf_plus4", "target": "uni:plus4", "mode": "replace",
     "replacement": { "nodes": [ { "id": "n1", "op": "advance_turn", "args": {} } ] } }
 ])";
 
 const char* kValidDeck = R"({
   "id": "classic",
   "name": "Classic",
-  "namespace": "vanilla",
-  "mods": ["vanilla"],
-  "cards": { "vanilla:red_0": 2, "vanilla:plus4": 4 },
+  "namespace": "uni",
+  "mods": ["uni"],
+  "cards": { "uni:red_0": 2, "uni:plus4": 4 },
   "settings": { "match": { "score_limit": 500 } }
 })";
 
@@ -143,25 +143,25 @@ bool HasCheck(const std::vector<LoadError>& errors, const std::string& check) {
 
 TEST_CASE("modloader: valid mod folder loads all artifacts") {
     TempModsRoot tmp;
-    tmp.Write("vanilla", "mod.json", kValidManifest);
-    tmp.WriteEntrySet("vanilla", "cards", kValidCards);
-    tmp.WriteEntrySet("vanilla", "rules", kValidRules);
-    tmp.WriteEntrySet("vanilla", "statuses", kValidStatuses);
-    tmp.WriteEntrySet("vanilla", "mutations", kValidMutations);
-    tmp.Write("vanilla", "decks/classic.json", kValidDeck);
+    tmp.Write("uni", "mod.json", kValidManifest);
+    tmp.WriteEntrySet("uni", "cards", kValidCards);
+    tmp.WriteEntrySet("uni", "rules", kValidRules);
+    tmp.WriteEntrySet("uni", "statuses", kValidStatuses);
+    tmp.WriteEntrySet("uni", "mutations", kValidMutations);
+    tmp.Write("uni", "decks/classic.json", kValidDeck);
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     REQUIRE(result.errors.empty());
     REQUIRE(result.mods.size() == 1);
 
     const LoadedMod& mod = result.mods[0];
-    CHECK(mod.manifest.id == "vanilla");
+    CHECK(mod.manifest.id == "uni");
     CHECK(mod.manifest.name == "UNI Vanilla");
     CHECK(mod.manifest.api == "1");
 
     REQUIRE(mod.cards.size() == 2);
     CHECK(mod.cards[0].id == "plus4");
-    CHECK(mod.cards[0].kind_id == "vanilla:plus4");
+    CHECK(mod.cards[0].kind_id == "uni:plus4");
     CHECK(mod.cards[0].face.kind == FaceKind::kText);
     CHECK(mod.cards[0].face.color == "white");
     CHECK(mod.cards[0].face.art_version == 2);
@@ -175,21 +175,21 @@ TEST_CASE("modloader: valid mod folder loads all artifacts") {
     CHECK(mod.cards[0].window->default_route == "resolve_stack");
 
     REQUIRE(mod.rules.size() == 1);
-    CHECK(mod.rules[0].rule_id == "vanilla:draw_stacking");
+    CHECK(mod.rules[0].rule_id == "uni:draw_stacking");
     REQUIRE(mod.rules[0].hooks.size() == 1);
     CHECK(mod.rules[0].hooks[0].hook == "before:play");
     CHECK(mod.rules[0].hooks[0].where.has_value());
 
     REQUIRE(mod.statuses.size() == 1);
-    CHECK(mod.statuses[0].status_id == "vanilla:shielded");
+    CHECK(mod.statuses[0].status_id == "uni:shielded");
     CHECK(mod.statuses[0].stack_policy == "replace");
 
     REQUIRE(mod.mutations.size() == 1);
     CHECK(mod.mutations[0].mode == "replace");
-    CHECK(mod.mutations[0].target == "vanilla:plus4");
+    CHECK(mod.mutations[0].target == "uni:plus4");
 
     REQUIRE(mod.decks.size() == 1);
-    CHECK(mod.decks[0].deck_id == "vanilla:classic");
+    CHECK(mod.decks[0].deck_id == "uni:classic");
     REQUIRE(mod.decks[0].cards.size() == 2);
     CHECK(mod.decks[0].settings.contains("match"));
 }
@@ -230,7 +230,7 @@ TEST_CASE("modloader: missing manifest yields structured error") {
 
 TEST_CASE("modloader: malformed JSON yields parse error") {
     TempModsRoot tmp;
-    tmp.Write("vanilla", "mod.json", "{ this is not json ");
+    tmp.Write("uni", "mod.json", "{ this is not json ");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     REQUIRE(result.errors.size() == 1);
@@ -631,7 +631,7 @@ TEST_CASE("modloader: mods are returned sorted by manifest id") {
 }
 
 TEST_CASE("modloader: id helpers enforce the syntax") {
-    CHECK(IsValidLocalId("vanilla"));
+    CHECK(IsValidLocalId("uni"));
     CHECK(IsValidLocalId("a"));
     CHECK(IsValidLocalId("a_1"));
     CHECK_FALSE(IsValidLocalId(""));
@@ -639,7 +639,7 @@ TEST_CASE("modloader: id helpers enforce the syntax") {
     CHECK_FALSE(IsValidLocalId("has-dash"));
     CHECK_FALSE(IsValidLocalId(std::string(33, 'a')));
 
-    CHECK(IsValidKindId("vanilla:plus4"));
+    CHECK(IsValidKindId("uni:plus4"));
     CHECK_FALSE(IsValidKindId("plus4"));
     CHECK_FALSE(IsValidKindId("a:b:c"));
     CHECK_FALSE(IsValidKindId(":plus4"));

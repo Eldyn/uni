@@ -10,7 +10,7 @@
 #include <vector>
 
 /**
- * @file vanilla_content_test.cpp
+ * @file uni_content_test.cpp
  * @brief End-to-end content gate for the shipped `mods/` tree.
  *
  * Loads every mod folder through the ModLoader, asserts the scan is
@@ -58,7 +58,7 @@ std::string JoinErrors(const std::vector<LoadError>& errors) {
 
 }  // namespace
 
-TEST_CASE("vanilla content: mods load and validate clean") {
+TEST_CASE("uni content: mods load and validate clean") {
     const fs::path root = ProjectRoot();
     REQUIRE_MESSAGE(!root.empty(), "could not locate the project root");
 
@@ -68,29 +68,29 @@ TEST_CASE("vanilla content: mods load and validate clean") {
     REQUIRE(load.ok());
     REQUIRE_FALSE(load.mods.empty());
 
-    /* INFO: Content coverage: vanilla must declare the standard
+    /* INFO: Content coverage: uni must declare the standard
      *       draw-debt status, accumulated by magnitude. */
-    const LoadedMod* vanilla = nullptr;
+    const LoadedMod* base_mod = nullptr;
     for (const auto& mod : load.mods) {
-        if (mod.manifest.id == "vanilla") vanilla = &mod;
+        if (mod.manifest.id == "uni") base_mod = &mod;
     }
-    REQUIRE_MESSAGE(vanilla != nullptr, "vanilla mod not loaded");
+    REQUIRE_MESSAGE(base_mod != nullptr, "uni mod not loaded");
     bool has_draw_debt = false;
-    for (const auto& status : vanilla->statuses) {
-        if (status.status_id == "vanilla:draw_debt") {
+    for (const auto& status : base_mod->statuses) {
+        if (status.status_id == "uni:draw_debt") {
             has_draw_debt = true;
             CHECK(status.stack_policy == "accumulate");
         }
     }
-    CHECK_MESSAGE(has_draw_debt, "vanilla:draw_debt status is not declared");
+    CHECK_MESSAGE(has_draw_debt, "uni:draw_debt status is not declared");
 
-    /* INFO: Content coverage: vanilla ships the three play-legality
+    /* INFO: Content coverage: uni ships the three play-legality
      *       restriction entries as data. They are delivered by a
      *       rule hook that runs `add_restriction`; collect every declared
      *       entry id and assert the full set is present with the expected
      *       deny condition keyword. */
     std::map<std::string, std::string> declared_restrictions;
-    for (const auto& rule : vanilla->rules) {
+    for (const auto& rule : base_mod->rules) {
         for (const auto& hook : rule.hooks) {
             for (const auto& node : hook.graph.nodes) {
                 if (!node.is_object() || !node.contains("op")
@@ -115,11 +115,11 @@ TEST_CASE("vanilla content: mods load and validate clean") {
         }
     }
     CHECK(declared_restrictions.size() == 3);
-    CHECK(declared_restrictions["vanilla:turn_order"]
+    CHECK(declared_restrictions["uni:turn_order"]
           == "plays_out_of_turn");
-    CHECK(declared_restrictions["vanilla:match_type_or_value"]
+    CHECK(declared_restrictions["uni:match_type_or_value"]
           == "plays_mismatch");
-    CHECK(declared_restrictions["vanilla:must_own_card"]
+    CHECK(declared_restrictions["uni:must_own_card"]
           == "plays_unowned");
 
     const SemanticValidator validator((root / "contract" / "schemas").string());
@@ -147,7 +147,7 @@ TEST_CASE("vanilla content: mods load and validate clean") {
     CHECK_MESSAGE(decks_checked >= 1, "no decks were found under mods/");
 }
 
-TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
+TEST_CASE("uni content: six rule-only mods declare their behaviors") {
     const fs::path root = ProjectRoot();
     REQUIRE_MESSAGE(!root.empty(), "could not locate the project root");
 
@@ -172,7 +172,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                       "rule mod '" << id << "' declares no rules");
     }
 
-    /* INFO: jump_in rescues the vanilla out-of-turn deny with an allow entry;
+    /* INFO: jump_in rescues the uni out-of-turn deny with an allow entry;
      *       no_bluffing adds the deny entry. Collect every entry declared by
      *       any rule graph across the tree. */
     std::map<std::string, std::string> entries;
@@ -312,7 +312,7 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
                     if (op == "remove_status" && args != cur.end()
                         && args->is_object()
                         && args->value("status_kind", "")
-                               == "vanilla:draw_debt") {
+                               == "uni:draw_debt") {
                         stacking_default_clears = true;
                     }
                     cursor = cur.value("next", "");
@@ -475,26 +475,26 @@ TEST_CASE("vanilla content: six rule-only mods declare their behaviors") {
     }
 }
 
-TEST_CASE("vanilla content: reverse expresses the two-player extra advance") {
+TEST_CASE("uni content: reverse expresses the two-player extra advance") {
     const fs::path root = ProjectRoot();
     REQUIRE_MESSAGE(!root.empty(), "could not locate the project root");
 
     LoadResult load = ScanModsDirectory((root / "mods").string());
     REQUIRE_MESSAGE(load.ok(), "mod load failed: " << JoinErrors(load.errors));
 
-    const LoadedMod* vanilla = nullptr;
+    const LoadedMod* base_mod = nullptr;
     for (const auto& mod : load.mods) {
-        if (mod.manifest.id == "vanilla") vanilla = &mod;
+        if (mod.manifest.id == "uni") base_mod = &mod;
     }
-    REQUIRE(vanilla != nullptr);
+    REQUIRE(base_mod != nullptr);
 
     /* INFO: Legacy ReverseEffect flips direction and, with exactly
      *       two players, pushes an extra advance (standard.cpp:43-49). The
-     *       vanilla reverse cards express that as a player_count==2 branch:
+     *       uni reverse cards express that as a player_count==2 branch:
      *       reverse_direction -> advance_turn, with the classic else route a
      *       plain reverse_direction so the 3/4-player case is unchanged. */
     int reverse_cards = 0;
-    for (const auto& card : vanilla->cards) {
+    for (const auto& card : base_mod->cards) {
         bool is_reverse = false;
         for (const auto& tag : card.tags) {
             if (tag == "reverse") is_reverse = true;
@@ -573,5 +573,5 @@ TEST_CASE("vanilla content: reverse expresses the two-player extra advance") {
                       "reverse card '" << card.id
                                        << "' has no extra advance");
     }
-    CHECK_MESSAGE(reverse_cards == 4, "expected four vanilla reverse cards");
+    CHECK_MESSAGE(reverse_cards == 4, "expected four uni reverse cards");
 }

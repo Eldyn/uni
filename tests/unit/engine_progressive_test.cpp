@@ -70,7 +70,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -171,7 +171,7 @@ TEST_CASE("engine: progressive draw-until-playable runs via the op") {
     content.mods.push_back(ProgressiveMod());
 
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "wp9d1b_progressive"};
+    deck.mods = {"uni", "wp9d1b_progressive"};
     AssemblyResult result =
         MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));

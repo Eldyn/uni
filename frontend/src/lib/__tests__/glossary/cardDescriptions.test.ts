@@ -24,16 +24,16 @@ describe("cardDescriptions", () => {
 
 	it("contains keyword markup in action card descriptions", () => {
 		const skipDesc = getCardDescription("skip", "en");
-		expect(skipDesc).toContain("[k=vanilla:skip]");
-		expect(skipDesc).toContain("[k=vanilla:turn]");
+		expect(skipDesc).toContain("[k=uni:skip]");
+		expect(skipDesc).toContain("[k=uni:turn]");
 
 		const draw2Desc = getCardDescription("+2", "en");
-		expect(draw2Desc).toContain("[k=vanilla:draw]");
-		expect(draw2Desc).toContain("[k=vanilla:draw_pile]");
+		expect(draw2Desc).toContain("[k=uni:draw]");
+		expect(draw2Desc).toContain("[k=uni:draw_pile]");
 
 		const wildDesc = getCardDescription("jolly", "en");
-		expect(wildDesc).toContain("[k=vanilla:wild]");
-		expect(wildDesc).toContain("[k=vanilla:color]");
+		expect(wildDesc).toContain("[k=uni:wild]");
+		expect(wildDesc).toContain("[k=uni:color]");
 	});
 
 	it("returns formatted title for colored and wild cards", () => {
@@ -50,36 +50,33 @@ describe("cardDescriptions", () => {
 		expect(wild4.title).toBe("Wild Draw Four (+4)");
 	});
 
-	it("maps a vanilla kind id back to a card value", () => {
-		expect(cardValueFromKind("vanilla:red_draw2")).toBe("+2");
-		expect(cardValueFromKind("vanilla:green_skip")).toBe("skip");
-		expect(cardValueFromKind("vanilla:wild_draw4")).toBe("jolly_draw4");
-		expect(cardValueFromKind("vanilla:blue_7")).toBe("7");
+	it("maps a uni kind id back to a card value", () => {
+		expect(cardValueFromKind("uni:red_draw2")).toBe("+2");
+		expect(cardValueFromKind("uni:green_skip")).toBe("skip");
+		expect(cardValueFromKind("uni:wild_draw4")).toBe("jolly_draw4");
+		expect(cardValueFromKind("uni:blue_7")).toBe("7");
 		expect(cardValueFromKind("mymod:thing")).toBeNull();
-		expect(cardValueFromKind("vanilla:bogus")).toBeNull();
+		expect(cardValueFromKind("uni:bogus")).toBeNull();
 	});
 
 	it("resolves card info from a kind id", () => {
-		expect(cardInfoByKind("vanilla:red_draw2", "en")?.title).toBe(
+		expect(cardInfoByKind("uni:red_draw2", "en")?.title).toBe(
 			getCardTitle({ type: "red", value: "+2" }, "en")
 		);
 		expect(cardInfoByKind("mymod:thing", "en")).toBeNull();
 	});
 
 	it("gives a colour-free play title for a kind id", () => {
-		expect(cardInfoByKind("vanilla:blue_7", "en")?.title).toBe("7");
-		expect(cardInfoByKind("vanilla:red_draw2", "en")?.title).toBe("Draw Two (+2)");
+		expect(cardInfoByKind("uni:blue_7", "en")?.title).toBe("7");
+		expect(cardInfoByKind("uni:red_draw2", "en")?.title).toBe("Draw Two (+2)");
 	});
 });
 
 describe("cardValueFromKind under the uni namespace", () => {
-	it("reads a uni kind like its vanilla twin", () => {
-		expect(cardValueFromKind("uni:red_5")).toBe(cardValueFromKind("vanilla:red_5"));
+	it("reads a uni kind", () => {
 		expect(cardValueFromKind("uni:red_5")).toBe("5");
 		expect(cardValueFromKind("uni:wild_draw4")).toBe("jolly_draw4");
-		expect(cardInfoByKind("uni:red_draw2", "en")).toEqual(
-			cardInfoByKind("vanilla:red_draw2", "en")
-		);
+		expect(cardInfoByKind("uni:red_draw2", "en")?.title).toBeTruthy();
 	});
 
 	it("still rejects other namespaces", () => {

@@ -56,7 +56,7 @@ describe("two clients telling the same joke", () => {
 		];
 		const driveWilds = (emitter: ReturnType<typeof client>["emitter"]) => {
 			for (const { color, seq } of wilds) {
-				emitter.notePlay({ player: "Ann", kind: "vanilla:wild", color }, Promise.resolve(), {
+				emitter.notePlay({ player: "Ann", kind: "uni:wild", color }, Promise.resolve(), {
 					seq
 				});
 			}

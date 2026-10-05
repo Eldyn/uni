@@ -12,11 +12,11 @@
 namespace match::server {
 namespace {
 
-/** @brief Build the vanilla classic deck kind -> count list. */
+/** @brief Build the uni classic deck kind -> count list. */
 std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
     std::vector<std::pair<std::string, int>> cards;
     for (const char* color : {"red", "blue", "green", "yellow"}) {
-        const std::string prefix = std::string("vanilla:") + color + "_";
+        const std::string prefix = std::string("uni:") + color + "_";
         cards.emplace_back(prefix + "0", 1);
         for (int number = 1; number <= 9; ++number) {
             cards.emplace_back(prefix + std::to_string(number), 2);
@@ -25,8 +25,8 @@ std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
         cards.emplace_back(prefix + "reverse", 2);
         cards.emplace_back(prefix + "draw2", 2);
     }
-    cards.emplace_back("vanilla:wild", 4);
-    cards.emplace_back("vanilla:wild_draw4", 4);
+    cards.emplace_back("uni:wild", 4);
+    cards.emplace_back("uni:wild_draw4", 4);
     return cards;
 }
 

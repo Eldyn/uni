@@ -44,7 +44,7 @@ import { storeGame, type GameState } from "$lib/stores/game.svelte";
 const MATCH_START_PAYLOAD = {
 	defs_digest: "digest-1",
 	mods: [],
-	deck_id: "vanilla",
+	deck_id: "uni",
 	deck_name: "Vanilla",
 	settings: {}
 };

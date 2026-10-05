@@ -70,7 +70,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -468,7 +468,7 @@ TEST_CASE("engine hooks: a window pause is parked") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine =
-        MakeEngineWithMods(content, {"vanilla", "jump_in"}, 3, 7, 42);
+        MakeEngineWithMods(content, {"uni", "jump_in"}, 3, 7, 42);
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);

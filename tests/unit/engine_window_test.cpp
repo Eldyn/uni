@@ -91,7 +91,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -126,7 +126,7 @@ std::unique_ptr<MatchInstance> MakeEngine(Content& content, int players,
                                           int cards, uint64_t seed,
                                           match::WindowConfig config,
                                           match::NowMs clock) {
-    return Assemble(content, {"vanilla"}, players, cards, seed, config,
+    return Assemble(content, {"uni"}, players, cards, seed, config,
                     std::move(clock));
 }
 
@@ -335,7 +335,7 @@ TEST_CASE("engine window: opens on a draw-penalty (+2/+4) play") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     std::unique_ptr<MatchInstance> engine = Assemble(
-        content, {"vanilla", "draw_stacking"}, 3, 7, 42, FixedWindow(1000),
+        content, {"uni", "draw_stacking"}, 3, 7, 42, FixedWindow(1000),
         clock.Fn());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
@@ -517,11 +517,11 @@ TEST_CASE("engine window: responses pass through the restriction pipeline") {
     REQUIRE(engine->PlayCard("player0", cards[0]));
     REQUIRE(engine->WindowOpen());
 
-    // INFO: vanilla:turn_order denies the out-of-turn response.
+    // INFO: uni:turn_order denies the out-of-turn response.
     CHECK_FALSE(engine->RespondWindow("player1", others[0]));
     const json* rejected = FindEvent(*engine, "play_rejected");
     REQUIRE(rejected != nullptr);
-    CHECK((*rejected)["payload"]["reason_id"] == "vanilla:turn_order");
+    CHECK((*rejected)["payload"]["reason_id"] == "uni:turn_order");
     CHECK(CountEvents(*engine, "window_response") == 0);
 
     // INFO: an allow entry rescues the otherwise-denied response.

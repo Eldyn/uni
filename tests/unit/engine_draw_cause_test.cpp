@@ -64,7 +64,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -211,7 +211,7 @@ TEST_CASE("engine: progressive keeps drawing without re-entering itself") {
     REQUIRE(LoadContent(content));
 
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "progressive"};
+    deck.mods = {"uni", "progressive"};
     AssemblyResult result =
         MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
     REQUIRE(result.ok());
@@ -239,7 +239,7 @@ TEST_CASE("engine: force play ignores a card drawn by an effect") {
     content.mods.push_back(EffectDrawMod());
 
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "force_play", "draw_cause_test"};
+    deck.mods = {"uni", "force_play", "draw_cause_test"};
     AssemblyResult result =
         MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
     REQUIRE(result.ok());
@@ -268,7 +268,7 @@ TEST_CASE("engine: force play still plays a playable voluntary draw") {
     REQUIRE(LoadContent(content));
 
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "force_play"};
+    deck.mods = {"uni", "force_play"};
     AssemblyResult result =
         MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
     REQUIRE(result.ok());

@@ -13,7 +13,7 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("opens root tooltip with depth 0", () => {
-		const entry = storeTooltipStack.open("vanilla:draw");
+		const entry = storeTooltipStack.open("uni:draw");
 		expect(entry).not.toBeNull();
 		expect(entry?.depth).toBe(0);
 		expect(entry?.parentId).toBeNull();
@@ -21,8 +21,8 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("opens nested child tooltip with incremented depth", () => {
-		const root = storeTooltipStack.open("vanilla:draw");
-		const child = storeTooltipStack.open("vanilla:draw_pile", null, root?.id);
+		const root = storeTooltipStack.open("uni:draw");
+		const child = storeTooltipStack.open("uni:draw_pile", null, root?.id);
 
 		expect(child).not.toBeNull();
 		expect(child?.depth).toBe(1);
@@ -31,24 +31,18 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("prevents cycles by returning existing entry without duplicating", () => {
-		storeTooltipStack.open("vanilla:draw");
-		storeTooltipStack.open("vanilla:turn");
+		storeTooltipStack.open("uni:draw");
+		storeTooltipStack.open("uni:turn");
 		expect(storeTooltipStack.stack).toHaveLength(2);
 
-		const dup = storeTooltipStack.open("vanilla:draw");
-		expect(dup?.keyword).toBe("vanilla:draw");
+		const dup = storeTooltipStack.open("uni:draw");
+		expect(dup?.keyword).toBe("uni:draw");
 		expect(storeTooltipStack.stack).toHaveLength(2);
 	});
 
 	it("enforces maximum depth limit", () => {
 		let currentParentId: string | null = null;
-		const keywords = [
-			"vanilla:draw",
-			"vanilla:turn",
-			"vanilla:color",
-			"vanilla:skip",
-			"vanilla:reverse"
-		];
+		const keywords = ["uni:draw", "uni:turn", "uni:color", "uni:skip", "uni:reverse"];
 
 		for (let i = 0; i < keywords.length; i++) {
 			const entry = storeTooltipStack.open(keywords[i], null, currentParentId);
@@ -65,9 +59,9 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("closing a parent closes all its descendants", () => {
-		const root = storeTooltipStack.open("vanilla:draw");
-		const child1 = storeTooltipStack.open("vanilla:draw_pile", null, root?.id);
-		storeTooltipStack.open("vanilla:play", null, child1?.id);
+		const root = storeTooltipStack.open("uni:draw");
+		const child1 = storeTooltipStack.open("uni:draw_pile", null, root?.id);
+		storeTooltipStack.open("uni:play", null, child1?.id);
 		expect(storeTooltipStack.stack).toHaveLength(3);
 
 		// Close the root
@@ -76,8 +70,8 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("closing a child keeps parent intact", () => {
-		const root = storeTooltipStack.open("vanilla:draw");
-		const child = storeTooltipStack.open("vanilla:draw_pile", null, root?.id);
+		const root = storeTooltipStack.open("uni:draw");
+		const child = storeTooltipStack.open("uni:draw_pile", null, root?.id);
 		expect(storeTooltipStack.stack).toHaveLength(2);
 
 		storeTooltipStack.close(child!.id);
@@ -86,13 +80,13 @@ describe("storeTooltipStack", () => {
 	});
 
 	it("closeTopmost removes only top entry", () => {
-		storeTooltipStack.open("vanilla:draw");
-		storeTooltipStack.open("vanilla:turn");
+		storeTooltipStack.open("uni:draw");
+		storeTooltipStack.open("uni:turn");
 		expect(storeTooltipStack.stack).toHaveLength(2);
 
 		const closed = storeTooltipStack.closeTopmost();
 		expect(closed).toBe(true);
 		expect(storeTooltipStack.stack).toHaveLength(1);
-		expect(storeTooltipStack.stack[0].keyword).toBe("vanilla:draw");
+		expect(storeTooltipStack.stack[0].keyword).toBe("uni:draw");
 	});
 });

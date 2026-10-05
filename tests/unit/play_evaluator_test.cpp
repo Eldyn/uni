@@ -88,7 +88,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -122,7 +122,7 @@ std::unique_ptr<MatchInstance> Assemble(
 std::unique_ptr<MatchInstance> MakeVanillaEngine(
     Content& content, int players, int cards, uint64_t seed,
     match::WindowConfig config, match::NowMs clock) {
-    return Assemble(content, {"vanilla"}, players, cards, seed, config,
+    return Assemble(content, {"uni"}, players, cards, seed, config,
                     std::move(clock));
 }
 

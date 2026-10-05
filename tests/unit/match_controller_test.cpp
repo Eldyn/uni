@@ -97,7 +97,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// New-engine content: the mods folder + the vanilla classic deck, loaded once.
+// New-engine content: the mods folder + the uni classic deck, loaded once.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -132,7 +132,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const match::modload::LoadedMod& mod : out.mods) {
         for (const match::modload::DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -750,7 +750,7 @@ TEST_CASE("A human play that wins the match notifies the lobby store") {
 
     REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
     const std::vector<match::ecs::Entity> wilds =
-        CardsByKind(f.Engine(), "vanilla:wild");
+        CardsByKind(f.Engine(), "uni:wild");
     REQUIRE(wilds.size() >= 2);
     const match::ecs::Entity alice = *f.Engine().FindPlayer("Alice");
     ForceHand(f.Engine(), alice, {wilds[0]});
@@ -788,7 +788,7 @@ TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already ove
     f.OpenBarrierNow();
 
     const std::vector<match::ecs::Entity> wilds =
-        CardsByKind(f.Engine(), "vanilla:wild");
+        CardsByKind(f.Engine(), "uni:wild");
     REQUIRE(wilds.size() >= 2);
     const match::ecs::Entity alice = *f.Engine().FindPlayer("Alice");
     ForceHand(f.Engine(), alice, {wilds[0]});
@@ -914,7 +914,7 @@ TEST_CASE("match_window_response: a jump_in-only window refuses a pass") {
     // INFO: make the +2 legal and leave the acting seat a spare card so the
     //       play does not win outright.
     engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
-    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "vanilla:red_draw2");
+    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "uni:red_draw2");
     REQUIRE(red2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
 
@@ -967,7 +967,7 @@ TEST_CASE("match_window_response: the victim passes only after the hold") {
         .Get<match::ecs::ActiveTypeReq>(engine.Registries().match)
         ->type = "red";
     const std::vector<match::ecs::Entity> red2 =
-        CardsByKind(engine, "vanilla:red_draw2");
+        CardsByKind(engine, "uni:red_draw2");
     REQUIRE(red2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
     REQUIRE(f.router.Dispatch(f.ContextFor(current), json{
@@ -1034,8 +1034,8 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     };
 
     engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
-    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "vanilla:red_draw2");
-    const std::vector<match::ecs::Entity> green2 = CardsByKind(engine, "vanilla:green_draw2");
+    const std::vector<match::ecs::Entity> red2 = CardsByKind(engine, "uni:red_draw2");
+    const std::vector<match::ecs::Entity> green2 = CardsByKind(engine, "uni:green_draw2");
     REQUIRE(red2.size() >= 2);
     REQUIRE(green2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], green2[0]});
@@ -1057,7 +1057,7 @@ TEST_CASE("match_window_response: card_id reaches RespondWindow") {
     for (const json& response : engine.ExportWindow()["responses"]) {
         if (response.value("player", std::string()) == others[1]
             && !response.value("pass", true)
-            && response.value("kind", std::string()) == "vanilla:red_draw2") {
+            && response.value("kind", std::string()) == "uni:red_draw2") {
             responded = true;
         }
     }
@@ -1201,7 +1201,7 @@ TEST_CASE("ScheduleWindowTick arms a timeout while a window is open") {
 
     engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
     const std::vector<match::ecs::Entity> red2 =
-        CardsByKind(engine, "vanilla:red_draw2");
+        CardsByKind(engine, "uni:red_draw2");
     REQUIRE(red2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
 
@@ -1235,7 +1235,7 @@ TEST_CASE("ScheduleWindowTick cancels its timeout once the window closes") {
 
     engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
     const std::vector<match::ecs::Entity> red2 =
-        CardsByKind(engine, "vanilla:red_draw2");
+        CardsByKind(engine, "uni:red_draw2");
     REQUIRE(red2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
 
@@ -1284,7 +1284,7 @@ TEST_CASE("ScheduleWindowTick re-arms the turn driver when the window times out"
 
     engine.Store().Get<match::ecs::ActiveTypeReq>(engine.Registries().match)->type = "red";
     const std::vector<match::ecs::Entity> red2 =
-        CardsByKind(engine, "vanilla:red_draw2");
+        CardsByKind(engine, "uni:red_draw2");
     REQUIRE(red2.size() >= 2);
     ForceHand(engine, *engine.FindPlayer(current), {red2[0], red2[1]});
 
@@ -1393,7 +1393,7 @@ TEST_CASE("ready barrier: play_card is rejected while the barrier is closed") {
     //       would visibly change hand size or the event log if it slipped past
     //       the barrier gate.
     const std::vector<match::ecs::Entity> reds =
-        CardsByKind(engine, "vanilla:red_5");
+        CardsByKind(engine, "uni:red_5");
     REQUIRE_FALSE(reds.empty());
     ForceHand(engine, seat, {reds.front()});
 

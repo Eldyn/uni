@@ -66,7 +66,7 @@ export function getCardInfo(
 	};
 }
 
-const VANILLA_COLORS = ["red", "blue", "green", "yellow"];
+const BASE_COLORS = ["red", "blue", "green", "yellow"];
 
 const VALUE_BY_SLUG: Record<string, CardValue> = {
 	draw2: "+2",
@@ -76,8 +76,8 @@ const VALUE_BY_SLUG: Record<string, CardValue> = {
 
 const KNOWN_VALUES = new Set<string>(ValueMap);
 
-function vanillaSlug(localId: string): string {
-	for (const color of VANILLA_COLORS) {
+function baseSlug(localId: string): string {
+	for (const color of BASE_COLORS) {
 		const prefix = `${color}_`;
 		if (localId.startsWith(prefix)) return localId.slice(prefix.length);
 	}
@@ -87,7 +87,7 @@ function vanillaSlug(localId: string): string {
 export function cardValueFromKind(kindId: string): CardValue | null {
 	const [namespace, localId] = kindId.split(":");
 	if (!isBaseModNamespace(namespace) || !localId) return null;
-	const slug = vanillaSlug(localId);
+	const slug = baseSlug(localId);
 	const value = VALUE_BY_SLUG[slug] ?? slug;
 	return KNOWN_VALUES.has(value) ? (value as CardValue) : null;
 }

@@ -66,7 +66,7 @@ describe("ChatLog play log lines", () => {
 		chatStore.appendLocalLog({
 			kind: "log",
 			key: "log_play",
-			params: { name: "Zed", kind: "vanilla:red_draw2", color: "red" },
+			params: { name: "Zed", kind: "uni:red_draw2", color: "red" },
 			tier: 0
 		});
 		const { container } = render(ChatLog, { props: { channel: "party" } });

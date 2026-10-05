@@ -1,4 +1,4 @@
-import { toLegacyBaseKindId } from "$lib/utils/baseMod";
+import { WILD_KIND_IDS } from "$lib/utils/baseMod";
 import type { LogEvent, StreakInfo } from "./logEvent";
 
 export type { StreakInfo };
@@ -118,8 +118,7 @@ export class StreakTracker {
 			default: {
 				const ownSkip = event.cardKind.endsWith("_skip");
 				const ownReverse = event.cardKind.endsWith("_reverse");
-				const baseKind = toLegacyBaseKindId(event.cardKind);
-				const ownWild = baseKind === "vanilla:wild" || baseKind === "vanilla:wild_draw4";
+				const ownWild = WILD_KIND_IDS.includes(event.cardKind);
 				const escaped = this.state.nearWinOpen && event.player === this.state.nearWinTarget;
 				this.state = {
 					...this.state,

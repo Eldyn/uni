@@ -18,7 +18,7 @@ const TAG_RE = /\[(c|fx|k)=([^\]]*)\]|\[\/(c|fx|k)\]/g;
 
 const PLACEHOLDER_SAMPLES: Record<string, string> = {
 	name: "Ann",
-	kind: "vanilla:red_draw2",
+	kind: "uni:red_draw2",
 	color: "red",
 	colorName: "red",
 	prevColor: "blue",
@@ -59,7 +59,7 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		handSize: 12,
 		victim: "Bob"
 	},
-	play: { kind: "play", seq: 1, player: "Ann", cardKind: "vanilla:red_5", color: "red" },
+	play: { kind: "play", seq: 1, player: "Ann", cardKind: "uni:red_5", color: "red" },
 	keep: { kind: "keep", seq: 10, player: "Ann" },
 	reshuffle: { kind: "reshuffle", seq: 4 },
 	wild: { kind: "wild", seq: 5, player: "Ann", color: "red" },
@@ -67,7 +67,7 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		kind: "auto_play",
 		seq: 6,
 		player: "Ann",
-		cardKind: "vanilla:red_5",
+		cardKind: "uni:red_5",
 		color: "red"
 	},
 	near_win: { kind: "near_win", seq: 7, player: "Ann" },
@@ -234,10 +234,10 @@ describe("play log copy renders for every REACTION_RULES pool key", () => {
 	it("renders the card keyword and localized name in a play line", () => {
 		const text = resolveLogText(
 			"log_play",
-			{ name: "Ann", kind: "vanilla:red_draw2", color: "red" },
+			{ name: "Ann", kind: "uni:red_draw2", color: "red" },
 			{ locale: "en" }
 		);
-		expect(text).toContain("[k=vanilla:red_draw2]");
+		expect(text).toContain("[k=uni:red_draw2]");
 		expect(text).toContain("[c=red]");
 		expect(text).toContain("Draw Two");
 	});

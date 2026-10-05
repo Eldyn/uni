@@ -24,7 +24,7 @@
  * @brief Race mode: finishers leave the rotation, the match ends once the
  *        fixed target finished, the rest rank by fewest cards then seat.
  *
- * Every case assembles a real vanilla classic match and scripts it through
+ * Every case assembles a real uni classic match and scripts it through
  * the public engine surface, like engine_core_test.cpp.
  */
 
@@ -61,7 +61,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -121,7 +121,7 @@ void ForceHandSize(MatchInstance& engine, const std::string& username,
     std::vector<ecs::Entity> pool;
     for (int value = 1; value <= 9; ++value) {
         const std::vector<ecs::Entity> kind = CardsByKind(
-            engine, "vanilla:blue_" + std::to_string(value));
+            engine, "uni:blue_" + std::to_string(value));
         pool.insert(pool.end(), kind.begin(), kind.end());
     }
     std::vector<ecs::Entity> chosen;
@@ -197,7 +197,7 @@ TEST_CASE("race: the client snapshot carries mode, target and placements") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     FinishWithWild(*engine, "player0", wilds[0]);
 
     match::view::ViewBuilder builder(*engine, content.mods);
@@ -223,7 +223,7 @@ TEST_CASE("race: two seats end on the first finisher like standard") {
     REQUIRE(engine->GetRaceTarget() == 1u);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     FinishWithWild(*engine, "player0", wilds[0]);
 
     CHECK(engine->IsMatchOver());
@@ -243,7 +243,7 @@ TEST_CASE("race: four seats at 50% end after two finishers") {
     REQUIRE(engine->GetRaceTarget() == 2u);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 2);
 
     FinishWithWild(*engine, "player0", wilds[0]);
@@ -283,7 +283,7 @@ TEST_CASE("race: losers tied on cards keep seat order") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
 
     FinishWithWild(*engine, "player0", wilds[0]);
     ForceHandSize(*engine, "player2", 3);
@@ -301,7 +301,7 @@ TEST_CASE("race: finished seats leave the turn rotation") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 3);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
 
     FinishWithWild(*engine, "player0", wilds[0]);
     DrawAndPass(*engine, "player1");
@@ -316,7 +316,7 @@ TEST_CASE("race: a finisher's last skip still skips the next live seat") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> skips =
-        CardsByKind(*engine, "vanilla:red_skip");
+        CardsByKind(*engine, "uni:red_skip");
 
     SetActiveType(*engine, "red");
     ForceHand(*engine, "player0", {skips[0]});
@@ -335,7 +335,7 @@ TEST_CASE("race: a finisher's last reverse turns play around them") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> reverses =
-        CardsByKind(*engine, "vanilla:red_reverse");
+        CardsByKind(*engine, "uni:red_reverse");
 
     SetActiveType(*engine, "red");
     ForceHand(*engine, "player0", {reverses[0]});
@@ -354,7 +354,7 @@ TEST_CASE("race: a finisher's last draw two hits the next live seat") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> draw_twos =
-        CardsByKind(*engine, "vanilla:red_draw2");
+        CardsByKind(*engine, "uni:red_draw2");
 
     SetActiveType(*engine, "red");
     ForceHandSize(*engine, "player1", 3);
@@ -372,9 +372,9 @@ TEST_CASE("race: penalties and skips step over an earlier finisher") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 3);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     const std::vector<ecs::Entity> draw_twos =
-        CardsByKind(*engine, "vanilla:red_draw2");
+        CardsByKind(*engine, "uni:red_draw2");
 
     FinishWithWild(*engine, "player0", wilds[0]);
     DrawAndPass(*engine, "player1");
@@ -396,9 +396,9 @@ TEST_CASE("race: reverse with two live seats left acts as a skip") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 3, 2);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     const std::vector<ecs::Entity> reverses =
-        CardsByKind(*engine, "vanilla:red_reverse");
+        CardsByKind(*engine, "uni:red_reverse");
 
     FinishWithWild(*engine, "player0", wilds[0]);
     REQUIRE(engine->GetCurrentPlayerUsername() == "player1");
@@ -414,7 +414,7 @@ TEST_CASE("race: bot takeover after start does not move the target") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 2);
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     const ecs::Entity wild0 = wilds[0];
     const ecs::Entity wild1 = wilds[1];
 
@@ -445,7 +445,7 @@ TEST_CASE("race: a turn_end veto cannot keep a finisher on the turn") {
         [](ecs::HookPayload& payload) { payload.veto = true; });
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     FinishWithWild(*engine, "player0", wilds[0]);
 
     CHECK(engine->GetPlacements() == std::vector<std::string>{"player0"});
@@ -478,7 +478,7 @@ TEST_CASE("race: a round is one cycle of the seats still at the table") {
     std::unique_ptr<MatchInstance> engine = MakeRace(content, 4, 3);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     FinishWithWild(*engine, "player0", wilds[0]);
     engine->Tick();
     CHECK(engine->ExportState()["round"] == 0u);

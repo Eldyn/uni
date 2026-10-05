@@ -1,6 +1,6 @@
 {
   "id": "wild_draw4_debt",
-  "target": "vanilla:wild_draw4",
+  "target": "uni:wild_draw4",
   "mode": "replace",
   "replacement": {
     "nodes": [

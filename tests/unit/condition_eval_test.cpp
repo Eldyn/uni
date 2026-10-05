@@ -144,18 +144,18 @@ struct Fixture : Harness {
         discard_pile.kind = PileKind::kDiscard;
         store.Add(discard, discard_pile);
 
-        self_red = MakeCard(store, "vanilla:red_5", "red");
-        self_blue = MakeCard(store, "vanilla:blue_2", "blue");
-        target_green = MakeCard(store, "vanilla:green_1", "green");
-        discard_top = MakeCard(store, "vanilla:red_7", "red");
+        self_red = MakeCard(store, "uni:red_5", "red");
+        self_blue = MakeCard(store, "uni:blue_2", "blue");
+        target_green = MakeCard(store, "uni:green_1", "green");
+        discard_top = MakeCard(store, "uni:red_7", "red");
         AddToHand(store, self, self_red);
         AddToHand(store, self, self_blue);
         AddToHand(store, target, target_green);
-        AddToPile(store, draw, MakeCard(store, "vanilla:yellow_0", "yellow"));
+        AddToPile(store, draw, MakeCard(store, "uni:yellow_0", "yellow"));
         AddToPile(store, discard, discard_top);
 
         Status status;
-        status.status_id = "vanilla:draw_debt";
+        status.status_id = "uni:draw_debt";
         status.magnitude = 2;
         StatusList statuses;
         statuses.instances.push_back(status);
@@ -165,8 +165,8 @@ struct Fixture : Harness {
         frame.BindSelector("@target", {target});
         frame.BindSelector("@all_players", {self, target});
 
-        registries.card_tags = {{"vanilla:red_5", {"stackable"}},
-                                {"vanilla:red_7", {"stackable"}}};
+        registries.card_tags = {{"uni:red_5", {"stackable"}},
+                                {"uni:red_7", {"stackable"}}};
     }
 };
 
@@ -203,15 +203,15 @@ TEST_CASE("condition_eval: play-context keywords are fail-safe false") {
 TEST_CASE("condition_eval: has_card_kind") {
     Fixture f;
     CHECK(f.Eval(Cond("has_card_kind",
-                      {{"target", "@self"}, {"kind", "vanilla:red_5"}})));
+                      {{"target", "@self"}, {"kind", "uni:red_5"}})));
     CHECK(f.Eval(Cond("has_card_kind",
                       {{"target", "@self"}, {"kind", "red_5"}})));
     CHECK(f.Eval(Cond("has_card_kind",
                       {{"target", "@target"}, {"kind", "green_1"}})));
     CHECK_FALSE(f.Eval(Cond(
-        "has_card_kind", {{"target", "@self"}, {"kind", "vanilla:red_9"}})));
+        "has_card_kind", {{"target", "@self"}, {"kind", "uni:red_9"}})));
     CHECK_FALSE(f.Eval(Cond(
-        "has_card_kind", {{"target", "@nowhere"}, {"kind", "vanilla:red_5"}})));
+        "has_card_kind", {{"target", "@nowhere"}, {"kind", "uni:red_5"}})));
     CHECK_FALSE(f.Eval(Cond("has_card_kind", {{"target", "@self"}})));
     CHECK_FALSE(f.Eval(Cond("has_card_kind", json::array())));
 }
@@ -230,7 +230,7 @@ TEST_CASE("condition_eval: has_card_tag") {
     //       match's tag semantics (the old global table was clobbered by the
     //       most recent assembly).
     MatchRegistries other;
-    other.card_tags["vanilla:red_5"] = {"ghost"};
+    other.card_tags["uni:red_5"] = {"ghost"};
     f.ctx.registries = &other;
     CHECK_FALSE(f.Eval(
         Cond("has_card_tag", {{"target", "@self"}, {"tag", "stackable"}})));
@@ -291,24 +291,24 @@ TEST_CASE("condition_eval: drawn_card_playable") {
     CHECK_FALSE(f.Eval(Cond("drawn_card_playable", json::object())));
 
     // Colour matches the active type.
-    Entity red = MakeCard(f.store, "vanilla:red_3", "red");
+    Entity red = MakeCard(f.store, "uni:red_3", "red");
     f.frame.BindSelector("@drawn_card", {red});
     CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
 
     // Value matches the discard top (blue_7 vs red_7), colour does not.
-    Entity blue_seven = MakeCard(f.store, "vanilla:blue_7", "blue");
+    Entity blue_seven = MakeCard(f.store, "uni:blue_7", "blue");
     f.store.Get<FaceSpec>(blue_seven)->label = "7";
     f.frame.BindSelector("@drawn_card", {blue_seven});
     CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
 
     // Neither colour nor value matches -> not playable.
-    Entity blue_two = MakeCard(f.store, "vanilla:blue_2", "blue");
+    Entity blue_two = MakeCard(f.store, "uni:blue_2", "blue");
     f.store.Get<FaceSpec>(blue_two)->label = "2";
     f.frame.BindSelector("@drawn_card", {blue_two});
     CHECK_FALSE(f.Eval(Cond("drawn_card_playable", json::object())));
 
     // Wild (white face) is always playable.
-    Entity wild = MakeCard(f.store, "vanilla:wild", "white");
+    Entity wild = MakeCard(f.store, "uni:wild", "white");
     f.frame.BindSelector("@drawn_card", {wild});
     CHECK(f.Eval(Cond("drawn_card_playable", json::object())));
 
@@ -334,12 +334,12 @@ TEST_CASE("condition_eval: active_type_is") {
 
 TEST_CASE("condition_eval: top_of_discard kind, tag and type") {
     Fixture f;
-    CHECK(f.Eval(Cond("top_of_discard", {{"kind", "vanilla:red_7"}})));
+    CHECK(f.Eval(Cond("top_of_discard", {{"kind", "uni:red_7"}})));
     CHECK(f.Eval(Cond("top_of_discard", {{"kind", "red_7"}})));
     CHECK(f.Eval(Cond("top_of_discard", {{"tag", "stackable"}})));
     CHECK(f.Eval(Cond("top_of_discard", {{"type", "red"}})));
     CHECK_FALSE(f.Eval(Cond("top_of_discard", {{"type", "blue"}})));
-    CHECK_FALSE(f.Eval(Cond("top_of_discard", {{"kind", "vanilla:blue_2"}})));
+    CHECK_FALSE(f.Eval(Cond("top_of_discard", {{"kind", "uni:blue_2"}})));
     CHECK_FALSE(f.Eval(Cond("top_of_discard", {{"tag", "ghost"}})));
     CHECK_FALSE(f.Eval(Cond("top_of_discard", json::object())));
 
@@ -351,13 +351,13 @@ TEST_CASE("condition_eval: status_active") {
     Fixture f;
     CHECK(f.Eval(Cond(
         "status_active",
-        {{"target", "@self"}, {"status_kind", "vanilla:draw_debt"}})));
+        {{"target", "@self"}, {"status_kind", "uni:draw_debt"}})));
     CHECK_FALSE(f.Eval(Cond(
         "status_active",
-        {{"target", "@self"}, {"status_kind", "vanilla:shielded"}})));
+        {{"target", "@self"}, {"status_kind", "uni:shielded"}})));
     CHECK_FALSE(f.Eval(Cond(
         "status_active",
-        {{"target", "@nowhere"}, {"status_kind", "vanilla:draw_debt"}})));
+        {{"target", "@nowhere"}, {"status_kind", "uni:draw_debt"}})));
     CHECK_FALSE(f.Eval(Cond("status_active", {{"target", "@self"}})));
 
     // INFO: a second, independent instance of another kind also satisfies the
@@ -365,14 +365,14 @@ TEST_CASE("condition_eval: status_active") {
     StatusList* statuses = f.store.Get<StatusList>(f.self);
     REQUIRE(statuses != nullptr);
     Status shielded;
-    shielded.status_id = "vanilla:shielded";
+    shielded.status_id = "uni:shielded";
     statuses->instances.push_back(shielded);
     CHECK(f.Eval(Cond(
         "status_active",
-        {{"target", "@self"}, {"status_kind", "vanilla:shielded"}})));
+        {{"target", "@self"}, {"status_kind", "uni:shielded"}})));
     CHECK(f.Eval(Cond(
         "status_active",
-        {{"target", "@self"}, {"status_kind", "vanilla:draw_debt"}})));
+        {{"target", "@self"}, {"status_kind", "uni:draw_debt"}})));
 }
 
 TEST_CASE("condition_eval: draw_debt comparisons") {

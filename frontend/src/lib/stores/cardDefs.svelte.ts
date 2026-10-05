@@ -47,7 +47,7 @@ export interface KindDef {
 	mod_index: number;
 	/** Position in the owning mod's sorted kind list (bits 23..12). */
 	kind_index: number;
-	/** Full frozen kind id, e.g. `vanilla:red_5`. */
+	/** Full frozen kind id, e.g. `uni:red_5`. */
 	string_id: string;
 	/** Declarative face, always present (normalized to `blank` if omitted). */
 	face: KindFace;

@@ -30,9 +30,9 @@
  * - submitting a chosen candidate's bits resumes the graph with that exact
  *   card entity bound as the `from_prompt` value (server maps what it emits).
  *
- * The synthetic mod kind covers the "same-class" guard for a non-vanilla
+ * The synthetic mod kind covers the "same-class" guard for a non-uni
  * kind; the `modx` mod is second in the deck's mod list so its cards carry a
- * non-zero `mod_index`, not the vanilla zero.
+ * non-zero `mod_index`, not the uni zero.
  */
 
 namespace ecs = match::ecs;

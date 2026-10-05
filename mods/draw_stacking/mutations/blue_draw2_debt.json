@@ -1,6 +1,6 @@
 {
   "id": "blue_draw2_debt",
-  "target": "vanilla:blue_draw2",
+  "target": "uni:blue_draw2",
   "mode": "replace",
   "replacement": {
     "nodes": [

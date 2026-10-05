@@ -1,9 +1,19 @@
 const BASE_MOD_ID = "uni";
 const LEGACY_BASE_MOD_ID = "vanilla";
 
+export function baseKindId(localId: string): string {
+	return `${BASE_MOD_ID}:${localId}`;
+}
+
+export const WILD_KIND_IDS: readonly string[] = [baseKindId("wild"), baseKindId("wild_draw4")];
+
+export const WILD_DRAW_FOUR_KIND_ID = baseKindId("wild_draw4");
+
+export const CLASSIC_DECK_ID = baseKindId("classic");
+
 export const DRAW_DEBT_STATUS_KINDS: readonly string[] = [
 	`${LEGACY_BASE_MOD_ID}:draw_debt`,
-	`${BASE_MOD_ID}:draw_debt`
+	baseKindId("draw_debt")
 ];
 
 export function isBaseModNamespace(namespace: string): boolean {

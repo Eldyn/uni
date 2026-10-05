@@ -45,7 +45,7 @@
  *   `Start` semantics);
  * - subscribes every rule hook and card behavior as a mod system on the
  *   `EventBus` in frozen order (mod list order, then registration order) and
- *   dispatches `match_start`, which is what installs the vanilla restriction
+ *   dispatches `match_start`, which is what installs the uni restriction
  *   entries shipped as `after:match_start` data
  * - installs the `PlayConditionMatcher` and populates the per-match the op
  *   layer `CardTagTable` (`MatchRegistries::card_tags`) from the loaded card

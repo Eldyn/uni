@@ -102,7 +102,7 @@ export interface Card {
 	value: CardValue;
 	/** Whether this card is currently playable (set by the server, only present in the local player's hand). */
 	can_play?: boolean;
-	/** Frozen kind id from the snapshot, e.g. `vanilla:red_5` (present when the
+	/** Frozen kind id from the snapshot, e.g. `uni:red_5` (present when the
 	 *  viewer's aspect mask exposes identity). */
 	kind?: string;
 	/** Declarative face resolved from the `defs` kind table via `kind`. */

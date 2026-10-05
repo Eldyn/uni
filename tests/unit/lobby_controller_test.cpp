@@ -835,13 +835,13 @@ TEST_CASE("deck catalog: lists the classic deck with namespace and mods") {
     const json* classic = nullptr;
     for (const auto& deck : catalog["decks"]) {
         if (deck.value("id", "") == "classic" &&
-            deck.value("namespace", "") == "vanilla") {
+            deck.value("namespace", "") == "uni") {
             classic = &deck;
         }
     }
     REQUIRE(classic != nullptr);
     CHECK(classic->value("name", "") == "Classic");
-    CHECK((*classic)["mods"] == json::array({"vanilla"}));
+    CHECK((*classic)["mods"] == json::array({"uni"}));
 
     // Every entry carries exactly the endpoint's four documented fields.
     for (const auto& deck : catalog["decks"]) {
@@ -864,7 +864,7 @@ TEST_CASE("deck catalog: marks a deck with an unavailable mod invalid") {
     broken.namespace_id = mods[0].manifest.id;
     broken.deck_id = broken.namespace_id + ":" + broken.id;
     broken.name = "Needs Ghost";
-    broken.mods = {"vanilla", "ghost_mod"};
+    broken.mods = {"uni", "ghost_mod"};
     mods[0].decks.push_back(broken);
 
     json catalog = LobbyController::DeckCatalogJson(mods);
@@ -915,14 +915,14 @@ TEST_CASE("deck snapshot: selection loads mods, cards and settings at once") {
     LobbySettings settings;
     settings.active_mods = {"seven_zero"};
     REQUIRE(LobbyController::ApplyDeckSnapshot(
-        settings, mods, "vanilla:classic"));
+        settings, mods, "uni:classic"));
 
     CHECK(settings.deck.value("id", "") == "classic");
     CHECK(settings.deck.value("name", "") == "Classic");
-    CHECK(settings.deck.value("namespace", "") == "vanilla");
-    CHECK(settings.deck["mods"] == json::array({"vanilla"}));
-    CHECK(settings.deck["cards"]["vanilla:wild"] == 4);
-    CHECK(settings.deck["cards"]["vanilla:red_0"] == 1);
+    CHECK(settings.deck.value("namespace", "") == "uni");
+    CHECK(settings.deck["mods"] == json::array({"uni"}));
+    CHECK(settings.deck["cards"]["uni:wild"] == 4);
+    CHECK(settings.deck["cards"]["uni:red_0"] == 1);
     CHECK(settings.deck["settings"]["count_zeros"] == 1);
 
     // Additive: the legacy scalar settings are untouched by deck selection.
@@ -949,13 +949,13 @@ TEST_CASE("settings: host selecting a deck loads the whole snapshot") {
         f.actx(),
         json{{"action", ws::ClientAction::kLobbyUpdateSettings},
              {"request_id", "req-deck"},
-             {"deck_id", "vanilla:classic"}});
+             {"deck_id", "uni:classic"}});
 
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
     CHECK(lp->settings.deck.value("id", "") == "classic");
-    CHECK(lp->settings.deck["mods"] == json::array({"vanilla"}));
-    CHECK(lp->settings.deck["cards"]["vanilla:blue_3"] == 2);
+    CHECK(lp->settings.deck["mods"] == json::array({"uni"}));
+    CHECK(lp->settings.deck["cards"]["uni:blue_3"] == 2);
     CHECK(lp->settings.deck["settings"]["count_zeros"] == 1);
 
     auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
@@ -990,7 +990,7 @@ TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
         f.actx(),
         json{{"action", ws::ClientAction::kLobbyUpdateSettings},
              {"request_id", "req-deck"},
-             {"deck_id", "vanilla:classic"}});
+             {"deck_id", "uni:classic"}});
     f.bus.Clear();
     f.router.Dispatch(
         f.actx(),
@@ -1111,7 +1111,7 @@ void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
 
     match::engine::MatchInstance& engine = lobby->session->Engine();
     const std::vector<match::ecs::Entity> wilds =
-        CardsByKind(engine, "vanilla:wild");
+        CardsByKind(engine, "uni:wild");
     REQUIRE(wilds.size() >= 1);
     const match::ecs::Entity alice_entity = *engine.FindPlayer(alice);
     ForceHand(engine, alice_entity, {wilds[0]});
@@ -1129,7 +1129,7 @@ void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
 
 TEST_SUITE("LobbyController::MatchEnd") {
 
-TEST_CASE("match end: vanilla classic updates player_stats and writes rows") {
+TEST_CASE("match end: uni classic updates player_stats and writes rows") {
     REQUIRE(Database::Get().RunMigrations().has_value());
     const std::string alice = "wp13g_alice";
     const std::string bob = "wp13g_bob";
@@ -1201,10 +1201,10 @@ TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
     std::string code = f.alice_creates();
 
     // INFO: a second, real loaded mod flips the gate while the deck
-    //       multiset stays the vanilla classic one.
+    //       multiset stays the uni classic one.
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
-    lobby->settings.active_mods = {"vanilla", "progressive"};
+    lobby->settings.active_mods = {"uni", "progressive"};
 
     f.bob_joins(code);
     InsertUser(alice);
@@ -1290,7 +1290,7 @@ TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
     REQUIRE(lobby != nullptr);
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
-                     {"namespace", "vanilla"},
+                     {"namespace", "uni"},
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
@@ -1334,14 +1334,14 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     REQUIRE(lobby != nullptr);
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
-                     {"namespace", "vanilla"},
-                     {"mods", json::array({"vanilla"})},
+                     {"namespace", "uni"},
+                     {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
          match::server::VanillaClassicDeckCards()) {
         deck["cards"][kind] = count;
     }
-    deck["cards"]["vanilla:red_0"] = 2;
+    deck["cards"]["uni:red_0"] = 2;
     lobby->settings.deck = std::move(deck);
 
     f.bob_joins(code);

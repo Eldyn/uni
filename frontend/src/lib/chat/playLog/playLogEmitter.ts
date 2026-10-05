@@ -1,6 +1,6 @@
 import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
-import { DRAW_DEBT_STATUS_KINDS, toLegacyBaseKindId } from "$lib/utils/baseMod";
+import { DRAW_DEBT_STATUS_KINDS, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
 export { DRAW_DEBT_STATUS_KINDS };
 import { StreakTracker } from "./streakTracker";
 import type { LogEvent, LogLine } from "./logEvent";
@@ -39,8 +39,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 
 	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
 		const player = escapeLogText(card.player);
-		const cardKind = toLegacyBaseKindId(card.kind);
-		const isWild = cardKind === "vanilla:wild" || cardKind === "vanilla:wild_draw4";
+		const cardKind = card.kind;
+		const isWild = WILD_KIND_IDS.includes(cardKind);
 		emit(
 			card.auto
 				? { kind: "auto_play", seq, player, cardKind: card.kind, color: card.color }
@@ -66,12 +66,12 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		ctx: { seq: number; nearWin?: boolean }
 	): void {
 		const { player, color } = card;
-		const kind = toLegacyBaseKindId(card.kind);
+		const kind = card.kind;
 		const { seq, nearWin } = ctx;
-		const stackAmount = kind === "vanilla:wild_draw4" ? 4 : kind.endsWith("_draw2") ? 2 : null;
+		const stackAmount = kind === WILD_DRAW_FOUR_KIND_ID ? 4 : kind.endsWith("_draw2") ? 2 : null;
 		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;
 
-		const isWild = kind === "vanilla:wild" || kind === "vanilla:wild_draw4";
+		const isWild = WILD_KIND_IDS.includes(kind);
 		if (isWild && color === "white") {
 			// INFO: a new unresolved wild supersedes any earlier one that never
 			//       got its colour pick; only the latest is live.

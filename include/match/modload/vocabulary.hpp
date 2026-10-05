@@ -181,7 +181,7 @@ inline const std::vector<OpSignature>& OpCatalog() {
         {
             // INFO: exactly one of `n` / `n_from_debt`.
             //       `n_from_debt` draws the target's accumulated
-            //       `vanilla:draw_debt` status magnitude (0 when absent).
+            //       `uni:draw_debt` status magnitude (0 when absent).
             OpSignature s;
             s.name = "draw_cards";
             s.args = {Arg("target", ArgType::kSelector),
@@ -525,7 +525,7 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
         {
             // INFO: True when the just-drawn card (frame selector
             //       `@drawn_card`, bound by the engine on a draw hook) is
-            //       playable under the vanilla colour/value rules: wild, or
+            //       playable under the uni colour/value rules: wild, or
             //       colour == active type, or value == discard-top value.
             //       Fail-safe false when no card is bound or facts are unknown.
             ConditionSignature c;

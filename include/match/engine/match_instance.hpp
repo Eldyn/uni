@@ -63,7 +63,7 @@
  *
  * Draw stacking, built on top of the
  * window flow. `draw_cards` gains an optional `n_from_debt` arg that draws a
- * target's accumulated `vanilla:draw_debt` status magnitude; a window node may
+ * target's accumulated `uni:draw_debt` status magnitude; a window node may
  * declare `reopen: true` so a winning response appends its own draw penalty to
  * the debt and re-opens the window on the same budget ledger; and a window that
  * arrives while an op input is parked is deferred rather than dropped, then
@@ -583,7 +583,7 @@ private:
      * The timer layer window timer (suspending the turn clock), emits
      * `window_open` and parks the pause in `pending_window_`. When
      * `fresh_situation` is true and the last play was a `draw_penalty` card,
-     * the engine records that card's N as `vanilla:draw_debt` on the current
+     * the engine records that card's N as `uni:draw_debt` on the current
      * target; a re-open passes false so the response, not the situation, is
      * counted.
      *
@@ -644,7 +644,7 @@ private:
      * @brief Commit the winning response card: move to discard + zone events.
      *
      * when `stacks_penalty` (the window stacks draw penalties) its
-     * own N is appended to the accumulated `vanilla:draw_debt`, which moves
+     * own N is appended to the accumulated `uni:draw_debt`, which moves
      * onto the seat after the responder. The window's `on_response` route
      * remains the resolution continuation; re-opening the window is
      * `CloseWindowRoute`'s.
@@ -653,7 +653,7 @@ private:
                            bool stacks_penalty);
 
     /**
-     * @brief Remove every seat's `vanilla:draw_debt`, emitting removals.
+     * @brief Remove every seat's `uni:draw_debt`, emitting removals.
      *
      * @param keep Seat whose debt is left alone (may be empty).
      * @return the summed magnitude removed.
@@ -698,7 +698,7 @@ private:
      */
     void CloseWindowRoute(const std::string& outcome);
 
-    /** @brief True when `player` carries a positive `vanilla:draw_debt`. */
+    /** @brief True when `player` carries a positive `uni:draw_debt`. */
     bool HoldsDrawDebt(ecs::Entity player) const;
 
     /**

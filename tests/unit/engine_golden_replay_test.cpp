@@ -382,7 +382,7 @@ std::unique_ptr<MatchInstance> BuildScenario(Content& content,
     deck.namespace_id = "golden";
     deck.deck_id = "golden:" + scenario;
     deck.name = "Golden replay " + scenario;
-    deck.mods.push_back("vanilla");
+    deck.mods.push_back("uni");
     if (load.contains("rules") && load["rules"].is_array()) {
         for (const json& rule : load["rules"]) {
             deck.mods.push_back(rule.get<std::string>());

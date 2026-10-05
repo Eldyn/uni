@@ -70,10 +70,10 @@ inline constexpr std::string_view kTurnsElapsedFrameKey = "$turns_elapsed";
  *
  * `draw_cards` with `n_from_debt: true` draws this status's
  * magnitude for its target (0 when the target carries no such instance). The
- * status is declared by `mods/vanilla/rules.json`; the draw-stacking rule
+ * status is declared by `mods/uni/rules.json`; the draw-stacking rule
  * accumulates it and its default route clears it.
  */
-inline constexpr std::string_view kDrawDebtStatusId = "vanilla:draw_debt";
+inline constexpr std::string_view kDrawDebtStatusId = "uni:draw_debt";
 
 // --- traversal -------------------------------------------------------------
 

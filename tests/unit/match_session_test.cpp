@@ -26,7 +26,7 @@
  * @file match_session_test.cpp
  * @brief Headless integration test for `match::server::MatchSession`.
  *
- * Assembles a real 2-player vanilla match, scripts play / prompt-answer /
+ * Assembles a real 2-player uni match, scripts play / prompt-answer /
  * draw / win through the session surface, and asserts the per-recipient
  * `match_event` / `match_state_updated` / `match_over` wire output plus the
  * visibility rules (a non-owner never sees another hand's identity) and the
@@ -81,7 +81,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -229,7 +229,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
     REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -364,7 +364,7 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -439,7 +439,7 @@ TEST_CASE("match session: per-recipient seq persists across batches") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -498,7 +498,7 @@ TEST_CASE("match session: a bound spectator keeps receiving live updates") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -689,11 +689,11 @@ TEST_CASE("match session: defs carries the frozen mods and kind table") {
     }
     CHECK(cursor == defs["kinds"].size());
 
-    // INFO: a vanilla kind appears with the face authored in
-    //       `mods/vanilla/cards.json`, not a blank placeholder.
+    // INFO: a uni kind appears with the face authored in
+    //       `mods/uni/cards.json`, not a blank placeholder.
     const json* wild = nullptr;
     for (const json& kind : defs["kinds"]) {
-        if (kind.value("string_id", std::string()) == "vanilla:wild") {
+        if (kind.value("string_id", std::string()) == "uni:wild") {
             wild = &kind;
         }
     }
@@ -725,7 +725,7 @@ TEST_CASE("match session: match_start carries the retained deck snapshot") {
     REQUIRE(start != nullptr);
 
     const json& start_payload = (*start)["payload"];
-    CHECK(start_payload["deck_id"] == "vanilla:classic");
+    CHECK(start_payload["deck_id"] == "uni:classic");
     CHECK(start_payload["deck_name"] == "Classic");
     REQUIRE(start_payload["settings"].is_object());
     CHECK_FALSE(start_payload["settings"].empty());

@@ -31,7 +31,7 @@
  * @brief Bot policy tests.
  *
  * Two layers: pure heuristic decisions against a hand-built `BotView`, and a
- * full 4-bot vanilla match driven through `MatchSession` until `IsMatchOver()`,
+ * full 4-bot uni match driven through `MatchSession` until `IsMatchOver()`,
  * asserting a bounded completion and well-formed placements.
  */
 
@@ -89,7 +89,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -173,7 +173,7 @@ int DriveToCompletion(MatchSession& session,
 
 }  // namespace
 
-TEST_CASE("bot policy: four-bot vanilla match completes") {
+TEST_CASE("bot policy: four-bot uni match completes") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7);
@@ -514,7 +514,7 @@ struct DebtGroup {
 
 bool OpenDebtGroup(DebtGroup& group) {
     if (!LoadContent(group.content)) return false;
-    group.content.classic.mods = {"vanilla", "jump_in", "draw_stacking"};
+    group.content.classic.mods = {"uni", "jump_in", "draw_stacking"};
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -613,7 +613,7 @@ TEST_CASE("bot policy: a jump-in candidate is still played in the hold") {
 TEST_CASE("bot policy: nobody passes a jump_in-only window") {
     Content content;
     REQUIRE(LoadContent(content));
-    content.classic.mods = {"vanilla", "jump_in"};
+    content.classic.mods = {"uni", "jump_in"};
     StepClock clock;
     MatchAssemblyOptions options;
     options.starting_cards = 7;

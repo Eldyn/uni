@@ -22,7 +22,7 @@
  *
  * `add_restriction` / `remove_restriction` maintain the ordered the store
  * `PlayRestriction` pipeline: entries are data components on the
- * match entity and vanilla ships its entries as removable data. `add` rejects a
+ * match entity and uni ships its entries as removable data. `add` rejects a
  * duplicate id with a `kError` (fail-safe) so the pipeline never carries two
  * entries with the same reason id; a malformed `entry_def` is a `kResolved`
  * no-op. Neither op emits an event: a pipeline denial emits `play_rejected`

@@ -80,7 +80,7 @@ TEST_CASE("restriction_ops: add_restriction appends allow and deny entries") {
         json{{"entry_def", EntryDef("mod:jump_in", "allow")}});
     const OpResult deny =
         h.Invoke("add_restriction",
-                 json{{"entry_def", EntryDef("vanilla:turn_order", "deny")}});
+                 json{{"entry_def", EntryDef("uni:turn_order", "deny")}});
 
     CHECK(allow.status == OpStatus::kResolved);
     CHECK(deny.status == OpStatus::kResolved);
@@ -94,7 +94,7 @@ TEST_CASE("restriction_ops: add_restriction appends allow and deny entries") {
     CHECK(pipeline->entries[0].id == "mod:jump_in");
     CHECK(pipeline->entries[0].phase == RestrictionPhase::kAllow);
     CHECK(pipeline->entries[0].condition == json{{"always", true}});
-    CHECK(pipeline->entries[1].id == "vanilla:turn_order");
+    CHECK(pipeline->entries[1].id == "uni:turn_order");
     CHECK(pipeline->entries[1].phase == RestrictionPhase::kDeny);
     (void)match;
 }
@@ -104,10 +104,10 @@ TEST_CASE("restriction_ops: add_restriction rejects a duplicate id") {
     Entity match = AddMatch(h.store);
 
     h.Invoke("add_restriction",
-             json{{"entry_def", EntryDef("vanilla:turn_order", "deny")}});
+             json{{"entry_def", EntryDef("uni:turn_order", "deny")}});
     const OpResult dup = h.Invoke(
         "add_restriction",
-        json{{"entry_def", EntryDef("vanilla:turn_order", "allow")}});
+        json{{"entry_def", EntryDef("uni:turn_order", "allow")}});
 
     CHECK(dup.status == OpStatus::kError);
     CHECK(dup.error.find("duplicate") != std::string::npos);
@@ -125,7 +125,7 @@ TEST_CASE("restriction_ops: malformed or missing entry_def is a no-op") {
         json(5),
         json{{"phase", "deny"}},
         json{{"id", "no_colon", "phase", "deny"}},
-        json{{"id", "vanilla:x", "phase", "maybe"}},
+        json{{"id", "uni:x", "phase", "maybe"}},
     };
     for (const json& bad : malformed) {
         const OpResult result =

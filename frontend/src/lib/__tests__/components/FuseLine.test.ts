@@ -72,7 +72,7 @@ function snapshot(fields: Record<string, unknown> = {}, statuses: unknown[] = []
 	});
 }
 
-const DEBT = [{ status_kind: "vanilla:draw_debt", magnitude: 2 }];
+const DEBT = [{ status_kind: "uni:draw_debt", magnitude: 2 }];
 
 const HELD_WINDOW = {
 	window_id: "7",

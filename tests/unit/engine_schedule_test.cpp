@@ -89,7 +89,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -112,7 +112,7 @@ std::unique_ptr<MatchInstance> Assemble(Content& content, int players,
                                         match::WindowConfig config,
                                         match::NowMs clock) {
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla"};
+    deck.mods = {"uni"};
     AssemblyResult result = MatchAssembler::Assemble(
         content.mods, deck, Players(players, cards, seed));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));

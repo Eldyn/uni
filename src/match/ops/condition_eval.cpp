@@ -219,7 +219,7 @@ bool EvalTopOfDiscard(ecs::EntityStore& store, const json& args,
 }
 
 /**
- * @brief The just-drawn card is playable under the vanilla colour/value rules.
+ * @brief The just-drawn card is playable under the uni colour/value rules.
  *
  * Reads the frame selector `@drawn_card` (bound by the engine on a `draw` /
  * `draw_attempt` dispatch). Playable means the legacy
@@ -295,7 +295,7 @@ bool EvalStatusActive(ecs::EntityStore& store, const json& args,
 /**
  * @brief Target's accumulated draw debt compared with `cmp`/`n`.
  *
- * Reads the `vanilla:draw_debt` status the engine records; no
+ * Reads the `uni:draw_debt` status the engine records; no
  * debt compares as 0.
  */
 bool EvalDrawDebt(ecs::EntityStore& store, const json& args, OpContext& ctx) {
