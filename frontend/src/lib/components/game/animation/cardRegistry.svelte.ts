@@ -76,7 +76,7 @@ export interface CardMeta {
 
 /**
  * @brief Narrows a card-shaped object to the fields a flight handle needs,
- * omitting resolved face fields that are absent so a plain vanilla card's
+ * omitting resolved face fields that are absent so a plain default card's
  * metadata stays byte-identical to its pre-defs form.
  */
 export function cardMetaFrom(card: {

@@ -121,7 +121,7 @@ describe("cardFaceAtlas", () => {
 });
 
 describe("cardFaceKeyFor defs-face resolution", () => {
-	it("recognizes baked vanilla art labels", () => {
+	it("recognizes baked default art labels", () => {
 		expect(hasStandardFaceArt("5")).toBe(true);
 		expect(hasStandardFaceArt("skip")).toBe(true);
 		expect(hasStandardFaceArt("jolly_draw4")).toBe(true);
@@ -129,7 +129,7 @@ describe("cardFaceKeyFor defs-face resolution", () => {
 		expect(hasStandardFaceArt(undefined)).toBe(false);
 	});
 
-	it("maps a vanilla text face onto the same color/value art plus art_version", () => {
+	it("maps a default text face onto the same color/value art plus art_version", () => {
 		const key = cardFaceKeyFor(
 			{
 				type: "red",

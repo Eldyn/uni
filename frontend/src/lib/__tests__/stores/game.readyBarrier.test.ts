@@ -45,7 +45,7 @@ const MATCH_START_PAYLOAD = {
 	defs_digest: "digest-1",
 	mods: [],
 	deck_id: "uni",
-	deck_name: "Vanilla",
+	deck_name: "Classic",
 	settings: {}
 };
 

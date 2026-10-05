@@ -119,7 +119,7 @@ std::unique_ptr<MatchInstance> Assemble(
                                            std::move(clock));
 }
 
-std::unique_ptr<MatchInstance> MakeVanillaEngine(
+std::unique_ptr<MatchInstance> MakeUniEngine(
     Content& content, int players, int cards, uint64_t seed,
     match::WindowConfig config, match::NowMs clock) {
     return Assemble(content, {"uni"}, players, cards, seed, config,
@@ -289,7 +289,7 @@ TEST_CASE("play_evaluator: CanPlayInTurn mirrors PlayCard for in-hand cards") {
 
     for (const Probe& probe : probes) {
         FakeClock clock;
-        std::unique_ptr<MatchInstance> engine = MakeVanillaEngine(
+        std::unique_ptr<MatchInstance> engine = MakeUniEngine(
             content, 3, 7, 42, FixedWindow(1000), clock.Fn());
 
         const std::string username = "player" + std::to_string(probe.player);
@@ -313,7 +313,7 @@ TEST_CASE("play_evaluator: CanRespond matches the expected responder oracle") {
     Content content;
     REQUIRE(LoadContent(content));
     FakeClock clock;
-    std::unique_ptr<MatchInstance> engine = MakeVanillaEngine(
+    std::unique_ptr<MatchInstance> engine = MakeUniEngine(
         content, 3, 7, 42, FixedWindow(1000), clock.Fn());
     AttachWindowSystem(*engine, WindowGraph(json::object(), "any"));
     AllowAllPlays(*engine);
@@ -372,7 +372,7 @@ TEST_CASE("play_evaluator: repeated verdicts are stable (memoized)") {
     Content content;
     REQUIRE(LoadContent(content));
     FakeClock clock;
-    std::unique_ptr<MatchInstance> engine = MakeVanillaEngine(
+    std::unique_ptr<MatchInstance> engine = MakeUniEngine(
         content, 3, 7, 42, FixedWindow(1000), clock.Fn());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");

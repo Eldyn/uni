@@ -21,20 +21,16 @@ namespace {
 using match::server::DeckKindMultisetsEqual;
 using match::server::ExpandKindMultiset;
 using match::server::StatsGateAllows;
-using match::server::VanillaClassicDeckCards;
+using match::server::UniClassicDeckCards;
 
 using DeckCards = std::vector<std::pair<std::string, int>>;
 
 /** @brief The canonical uni classic deck, copied so tests may mutate. */
-DeckCards ClassicDeck() { return VanillaClassicDeckCards(); }
+DeckCards ClassicDeck() { return UniClassicDeckCards(); }
 
 }  // namespace
 
 TEST_SUITE("StatsGate") {
-
-TEST_CASE("allows: vanilla mods with the classic deck") {
-    CHECK(StatsGateAllows({"vanilla"}, ClassicDeck()));
-}
 
 TEST_CASE("allows: uni mod id with the classic deck") {
     CHECK(StatsGateAllows({"uni"}, ClassicDeck()));
@@ -48,8 +44,8 @@ TEST_CASE("allows: uni mod id with a uni-prefixed classic deck") {
     CHECK(StatsGateAllows({"uni"}, deck));
 }
 
-TEST_CASE("rejects: uni and vanilla together") {
-    CHECK_FALSE(StatsGateAllows({"uni", "vanilla"}, ClassicDeck()));
+TEST_CASE("rejects: uni with another mod id") {
+    CHECK_FALSE(StatsGateAllows({"uni", "seven_zero"}, ClassicDeck()));
 }
 
 TEST_CASE("rejects: changed uni-prefixed deck kind multiset") {
@@ -59,7 +55,7 @@ TEST_CASE("rejects: changed uni-prefixed deck kind multiset") {
 }
 
 TEST_CASE("rejects: extra mod in the set") {
-    CHECK_FALSE(StatsGateAllows({"vanilla", "extra"}, ClassicDeck()));
+    CHECK_FALSE(StatsGateAllows({"uni", "extra"}, ClassicDeck()));
 }
 
 TEST_CASE("rejects: non-base mod set") {

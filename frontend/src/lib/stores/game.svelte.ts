@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { DRAW_DEBT_STATUS_KINDS } from "$lib/utils/baseMod";
+import { DRAW_DEBT_STATUS_KIND } from "$lib/utils/baseMod";
 import type { SessionStore } from "$stores/sessionStore";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
@@ -267,7 +267,7 @@ function holdsDrawDebt(player: { statuses?: unknown[] } | null): boolean {
 		const { status_kind, magnitude } = status as Record<string, unknown>;
 		return (
 			typeof status_kind === "string" &&
-			DRAW_DEBT_STATUS_KINDS.includes(status_kind) &&
+			status_kind === DRAW_DEBT_STATUS_KIND &&
 			typeof magnitude === "number" &&
 			magnitude > 0
 		);

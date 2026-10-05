@@ -30,7 +30,7 @@ export interface CardFaceKey {
 	artVersion?: string;
 }
 
-/** @brief A single composited layer of a vanilla face. */
+/** @brief A single composited layer of a default face. */
 export type FaceLayer = "background" | "value" | "border";
 
 export const ATLAS_PAGE_VERSION = { value: 0 };
@@ -72,7 +72,7 @@ const STANDARD_ART_NAMES = [
 ] as const;
 
 /**
- * @brief True when `name` is one of the pre-baked vanilla art assets.
+ * @brief True when `name` is one of the pre-baked default art assets.
  *
  * Only a `text` face whose label matches a standard asset can be rendered from
  * the existing atlas; modded `image`/`emoji`/`blank` faces have no baked
@@ -83,7 +83,7 @@ export function hasStandardFaceArt(name: string | undefined): name is string {
 }
 
 /**
- * @brief The vanilla face values a `seeded-random-tile` face source may pick
+ * @brief The default face values a `seeded-random-tile` face source may pick
  * from. Excludes the non-value layers (`background`/`back`/`border`)
  * so a random tile is always a legible face.
  */
@@ -130,7 +130,7 @@ export function entryWithOverride(
  *
  * A `text` face supplies the color/label pair and the `art_version` that feeds
  * the face hash. Faces with no baked art — and cards with no defs entry at all
- * — fall back to the card's own `type`/`value`, which is exactly how vanilla
+ * — fall back to the card's own `type`/`value`, which is exactly how default
  * cards rendered before the defs table existed.
  */
 export function cardFaceKeyFor(
@@ -429,7 +429,7 @@ function bakeLayerSlot(slot: AllocatedSlot, layer: FaceLayer): boolean {
 }
 
 /**
- * @brief UV rect for one layer of a vanilla face.
+ * @brief UV rect for one layer of a default face.
  *
  * `inset` mod art is drawn between the background and the value/border, which
  * the single composite slot cannot express — so the renderer requests these

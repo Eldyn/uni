@@ -1,7 +1,7 @@
 import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
-import { DRAW_DEBT_STATUS_KINDS, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
-export { DRAW_DEBT_STATUS_KINDS };
+import { DRAW_DEBT_STATUS_KIND, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
+export { DRAW_DEBT_STATUS_KIND };
 import { StreakTracker } from "./streakTracker";
 import type { LogEvent, LogLine } from "./logEvent";
 

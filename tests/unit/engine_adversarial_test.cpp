@@ -109,7 +109,7 @@ std::size_t PileSize(const MatchInstance& engine, ecs::PileKind kind) {
 }
 
 /** @brief Every kind id the uni mod declares (kind table coverage). */
-std::vector<std::string> VanillaKinds(const Content& content) {
+std::vector<std::string> UniKinds(const Content& content) {
     std::vector<std::string> kinds;
     for (const LoadedMod& mod : content.mods) {
         if (mod.manifest.id != "uni") continue;
@@ -185,7 +185,7 @@ TEST_CASE("engine adversarial: many-kind deck assembles and advances a turn") {
     Content content;
     REQUIRE(LoadContent(content));
 
-    const std::vector<std::string> kinds = VanillaKinds(content);
+    const std::vector<std::string> kinds = UniKinds(content);
     // INFO: cover every kind uni ships.
     MESSAGE("uni distinct kinds: " << kinds.size());
     REQUIRE(kinds.size() >= 40);

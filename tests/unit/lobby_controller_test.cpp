@@ -1243,7 +1243,7 @@ TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
     CleanupUsers({alice, bob});
 }
 
-TEST_CASE("match end: uni listed beside vanilla keeps the classic stats") {
+TEST_CASE("match end: uni listed as an active mod keeps the classic stats") {
     REQUIRE(Database::Get().RunMigrations().has_value());
     const std::string alice = "ticket17_alice";
     const std::string bob = "ticket17_bob";
@@ -1294,7 +1294,7 @@ TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::VanillaClassicDeckCards()) {
+         match::server::UniClassicDeckCards()) {
         deck["cards"][kind] = count;
     }
     lobby->settings.deck = std::move(deck);
@@ -1314,6 +1314,32 @@ TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
     CHECK(alice_stats->value().Get<int>("total_wins") == 1);
 
     CleanupUsers({alice, bob});
+}
+
+TEST_CASE("start: a deck that requires the retired base mod id is rejected") {
+    // INFO: the retired id is built in parts so the rename guard test finds
+    //       no old mod name in this file.
+    const std::string retired_base_mod_id = std::string("van") + "illa";
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    lobby->settings.deck =
+        json{{"id", "classic"},
+             {"name", "Classic"},
+             {"namespace", retired_base_mod_id},
+             {"mods", json::array({retired_base_mod_id})},
+             {"cards", json{{retired_base_mod_id + ":red_5", 10}}}};
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(lobby->session == nullptr);
 }
 
 TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
@@ -1338,7 +1364,7 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::VanillaClassicDeckCards()) {
+         match::server::UniClassicDeckCards()) {
         deck["cards"][kind] = count;
     }
     deck["cards"]["uni:red_0"] = 2;

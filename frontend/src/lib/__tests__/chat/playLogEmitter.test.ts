@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { createPlayLogEmitter, DRAW_DEBT_STATUS_KINDS } from "../../chat/playLog/playLogEmitter";
+import { createPlayLogEmitter, DRAW_DEBT_STATUS_KIND } from "../../chat/playLog/playLogEmitter";
 import type { LogLine } from "../../chat/playLog/logEvent";
 
 const { escaped } = vi.hoisted(() => ({ escaped: [] as string[] }));
@@ -162,7 +162,7 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("exposes the uni draw debt status kind", () => {
-		expect(DRAW_DEBT_STATUS_KINDS).toContain("uni:draw_debt");
+		expect(DRAW_DEBT_STATUS_KIND).toBe("uni:draw_debt");
 	});
 
 	it("logs the wild colour reaction once the colour arrives", async () => {

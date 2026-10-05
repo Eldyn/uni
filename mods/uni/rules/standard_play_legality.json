@@ -1,7 +1,7 @@
 {
   "id": "standard_play_legality",
   "title": "Standard Play Legality",
-  "description": "Vanilla play restrictions. Installed once at match start as the first entries of the play_restriction pipeline; removable via remove_restriction. Order is significant: the first matching deny supplies the rejection reason.",
+  "description": "Uni play restrictions. Installed once at match start as the first entries of the play_restriction pipeline; removable via remove_restriction. Order is significant: the first matching deny supplies the rejection reason.",
   "hooks": [
     {
       "on": "after:match_start",

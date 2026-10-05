@@ -1,5 +1,4 @@
 const BASE_MOD_ID = "uni";
-const LEGACY_BASE_MOD_ID = "vanilla";
 
 export function baseKindId(localId: string): string {
 	return `${BASE_MOD_ID}:${localId}`;
@@ -11,18 +10,8 @@ export const WILD_DRAW_FOUR_KIND_ID = baseKindId("wild_draw4");
 
 export const CLASSIC_DECK_ID = baseKindId("classic");
 
-export const DRAW_DEBT_STATUS_KINDS: readonly string[] = [
-	`${LEGACY_BASE_MOD_ID}:draw_debt`,
-	baseKindId("draw_debt")
-];
+export const DRAW_DEBT_STATUS_KIND = baseKindId("draw_debt");
 
 export function isBaseModNamespace(namespace: string): boolean {
-	return namespace === BASE_MOD_ID || namespace === LEGACY_BASE_MOD_ID;
-}
-
-/** Rewrites a `uni:` kind id to its `vanilla:` form; other ids pass through. */
-export function toLegacyBaseKindId(kindId: string): string {
-	const prefix = `${BASE_MOD_ID}:`;
-	if (!kindId.startsWith(prefix)) return kindId;
-	return `${LEGACY_BASE_MOD_ID}:${kindId.slice(prefix.length)}`;
+	return namespace === BASE_MOD_ID;
 }

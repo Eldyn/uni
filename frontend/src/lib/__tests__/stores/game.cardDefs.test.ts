@@ -146,7 +146,7 @@ describe("storeGame consumes defs + match_start", () => {
 		expect(handCard?.face?.label).toBe("5");
 	});
 
-	it("still parses a card whose kind has no defs entry (vanilla fallback)", () => {
+	it("still parses a card whose kind has no defs entry (default fallback)", () => {
 		handler("match_event")(frame(1, "defs", defsPayload("d1")));
 		handler("match_event")(frame(2, "match_start", matchStart("d1")));
 		handler("match_state_updated")(snapshotWithKind("uni:mystery"));

@@ -36,7 +36,7 @@ namespace match::server {
  *
  * @return The canonical uni classic deck cards, in declaration order.
  */
-const std::vector<std::pair<std::string, int>>& VanillaClassicDeckCards();
+const std::vector<std::pair<std::string, int>>& UniClassicDeckCards();
 
 /**
  * @brief Expand a kind -> count list into a sorted multiset of kind IDs.

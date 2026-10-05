@@ -13,7 +13,7 @@ namespace match::server {
 namespace {
 
 /** @brief Build the uni classic deck kind -> count list. */
-std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
+std::vector<std::pair<std::string, int>> BuildUniClassicCards() {
     std::vector<std::pair<std::string, int>> cards;
     for (const char* color : {"red", "blue", "green", "yellow"}) {
         const std::string prefix = std::string("uni:") + color + "_";
@@ -32,9 +32,9 @@ std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
 
 }  // namespace
 
-const std::vector<std::pair<std::string, int>>& VanillaClassicDeckCards() {
+const std::vector<std::pair<std::string, int>>& UniClassicDeckCards() {
     static const std::vector<std::pair<std::string, int>> kCards =
-        BuildVanillaClassicCards();
+        BuildUniClassicCards();
     return kCards;
 }
 
@@ -42,9 +42,8 @@ std::vector<std::string> ExpandKindMultiset(
     const std::vector<std::pair<std::string, int>>& cards) {
     std::vector<std::string> kinds;
     for (const auto& [kind, count] : cards) {
-        const std::string legacy_kind = modload::ToLegacyBaseKindId(kind);
         for (int i = 0; i < count; ++i) {
-            kinds.push_back(legacy_kind);
+            kinds.push_back(kind);
         }
     }
     std::sort(kinds.begin(), kinds.end());
@@ -69,7 +68,7 @@ bool StatsGateAllows(const std::vector<std::string>& mods,
     }
     return DeckKindMultisetsEqual(
         ExpandKindMultiset(deck_cards),
-        ExpandKindMultiset(VanillaClassicDeckCards()));
+        ExpandKindMultiset(UniClassicDeckCards()));
 }
 
 }  // namespace match::server

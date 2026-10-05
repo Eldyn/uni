@@ -500,7 +500,7 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
         }
         {
             // INFO: Seated (live) player count compared with `cmp`/`n`.
-            //       Vanilla reverse uses it to add the 2-player extra advance
+            //       The uni reverse rule uses it to add the 2-player extra advance
             //       (legacy ReverseEffect::Resolve).
             ConditionSignature c;
             c.keyword = "player_count";

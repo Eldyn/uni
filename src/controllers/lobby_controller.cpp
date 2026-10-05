@@ -128,14 +128,12 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
 
 /**
  * @brief True when `mods` holds a mod that `mod_id` names.
- *
- * The base mod matches under both of its ids.
  */
 bool HasLoadedMod(const std::vector<match::modload::LoadedMod>& mods,
                   const std::string& mod_id) {
     return std::ranges::any_of(
         mods, [&mod_id](const match::modload::LoadedMod& mod) {
-            return match::modload::IsSameModId(mod.manifest.id, mod_id);
+            return mod.manifest.id == mod_id;
         });
 }
 
@@ -1097,7 +1095,7 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
 
     // INFO: Swap: the catalog is now the mod-folder scan
     //       rather than the legacy in-process RuleRegistry. The base mod
-    //       (`uni` or `uni`) is always on, so it is not offered as a
+    //       (`uni`) is always on, so it is not offered as a
     //       toggleable rule.
     json available_rules = json::array();
     const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
@@ -1692,7 +1690,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     for (const auto& mod : loaded.mods) {
         const bool required_by_deck = std::ranges::any_of(
             deck_def.mods, [&mod](const std::string& required) {
-                return match::modload::IsSameModId(mod.manifest.id, required);
+                return mod.manifest.id == required;
             });
         if (required_by_deck) active_mods.push_back(mod);
     }
