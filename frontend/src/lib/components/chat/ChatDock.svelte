@@ -96,21 +96,28 @@
 	   overlap the rightmost "Menu" destination. Above that breakpoint, or
 	   whenever the rail is showing instead, the nav sits to the side rather
 	   than along the bottom, so the default bottom-4 placement is fine. */
+	/* Devices with a home indicator/notch: keep the launcher and panel clear
+	   of the unsafe edge. env() falls back to 0 where unsupported. */
 	.chat-launcher {
-		bottom: calc(1rem + 62px);
+		bottom: calc(1rem + 62px + env(safe-area-inset-bottom, 0px));
+		right: calc(1rem + env(safe-area-inset-right, 0px));
 	}
 
 	@media (min-width: 768px), (max-height: 599px) {
 		.chat-launcher {
-			bottom: 1rem;
+			bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 		}
 	}
 
 	/* The match board owns the bottom edge (hand row, piles) and the top-left
 	   (HUD), so the launcher sits in the free top-right corner instead. */
 	.chat-launcher.chat-launcher-in-game {
-		top: 1rem;
+		top: calc(1rem + env(safe-area-inset-top, 0px));
 		bottom: auto;
+	}
+
+	.chat-panel {
+		padding-bottom: env(safe-area-inset-bottom, 0px);
 	}
 
 	/* Mobile landscape: a rotated phone is wide enough to match `md:`, so the
