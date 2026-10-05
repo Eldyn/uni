@@ -327,7 +327,6 @@
 	"game_spectator_count": "Espectadores: {count}",
 	"game_placement_standings": "Orden de llegada",
 	"game_placement_rank": "#{rank} {name}",
-	"game_podium_finish_title": "¡A META!",
 	"game_podium_first_label": "1º",
 	"game_podium_second_label": "2º",
 	"game_podium_third_label": "3º",

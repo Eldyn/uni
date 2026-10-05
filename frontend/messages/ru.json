@@ -327,7 +327,6 @@
 	"game_spectator_count": "Зрителей: {count}",
 	"game_placement_standings": "Порядок финиша",
 	"game_placement_rank": "#{rank} {name}",
-	"game_podium_finish_title": "ФИНИШ!",
 	"game_podium_first_label": "1-е",
 	"game_podium_second_label": "2-е",
 	"game_podium_third_label": "3-е",

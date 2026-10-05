@@ -6,6 +6,7 @@ const { mockGame, mockAuth } = vi.hoisted(() => ({
 	mockGame: {
 		state: null as null | Record<string, unknown>,
 		placements: [] as string[],
+		raceOutcome: null as "win" | "lose" | null,
 		returnToLobby: vi.fn()
 	},
 	mockAuth: {
@@ -38,13 +39,16 @@ function setEndState(opts: {
 		players: [{ username: opts.placements[0], is_bot: false }]
 	};
 	mockGame.placements = opts.placements;
+	// Mirrors StoreGame.raceOutcome at match end: placed within the winner share.
+	const place = opts.placements.indexOf(mockAuth.username) + 1;
+	mockGame.raceOutcome = place === 0 ? null : place <= (opts.raceTarget ?? 0) ? "win" : "lose";
 }
 
 function titleEl(): HTMLElement {
 	return screen.getByRole("heading", { level: 1 });
 }
 
-describe("GameEndPopup podium finish", () => {
+describe("GameEndPopup race outcome", () => {
 	afterEach(() => {
 		document.body.innerHTML = "";
 	});
@@ -59,24 +63,49 @@ describe("GameEndPopup podium finish", () => {
 		expect(titleEl()).toHaveClass("result--win");
 	});
 
-	it("titles 2nd place YOU FINISHED! even when absent from state.players", () => {
+	it("titles 2nd place VICTORY! inside the winner share, even absent from state.players", () => {
 		mockAuth.username = "Bob";
 		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 
-		expect(titleEl()).toHaveTextContent("YOU FINISHED!");
-		expect(titleEl()).toHaveClass("result--podium");
+		expect(titleEl()).toHaveTextContent("VICTORY!");
+		expect(titleEl()).toHaveClass("result--win");
 	});
 
-	it("titles 3rd place YOU FINISHED! even when absent from state.players", () => {
+	it("titles 3rd place VICTORY! inside the winner share, even absent from state.players", () => {
 		mockAuth.username = "Cara";
 		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
 
 		render(GameEndPopup);
 
-		expect(titleEl()).toHaveTextContent("YOU FINISHED!");
-		expect(titleEl()).toHaveClass("result--podium");
+		expect(titleEl()).toHaveTextContent("VICTORY!");
+		expect(titleEl()).toHaveClass("result--win");
+	});
+
+	it("titles 2nd place YOU LOST! when only one player wins the race", () => {
+		mockAuth.username = "Bob";
+		setEndState({ mode: "race", raceTarget: 1, placements: ["Alice", "Bob", "Cara"] });
+
+		render(GameEndPopup);
+
+		expect(titleEl()).toHaveTextContent("YOU LOST!");
+		expect(titleEl()).toHaveClass("result--lose");
+	});
+
+	it("marks left-behind players in the standings with a loser row", () => {
+		mockAuth.username = "Alice";
+		setEndState({
+			mode: "race",
+			raceTarget: 4,
+			placements: ["Alice", "Bob", "Cara", "Dan", "Eve", "Finn"]
+		});
+
+		render(GameEndPopup);
+
+		const rows = Array.from(document.querySelectorAll(".standing-item"));
+		expect(rows.map((row) => row.classList.contains("is-lost"))).toEqual([false, true, true]);
+		expect(rows[1]).toHaveTextContent("Eve");
 	});
 
 	it("titles a left-behind player YOU LOST! with the loss style", () => {
@@ -89,7 +118,7 @@ describe("GameEndPopup podium finish", () => {
 		expect(titleEl()).toHaveClass("result--lose");
 	});
 
-	it("never shows a podium finish in standard mode", () => {
+	it("titles a standard-mode non-winner YOU LOST!", () => {
 		mockAuth.username = "Bob";
 		setEndState({ mode: "standard", placements: ["Alice", "Bob"] });
 

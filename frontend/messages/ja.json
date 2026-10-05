@@ -327,7 +327,6 @@
 	"game_spectator_count": "観戦者: {count}",
 	"game_placement_standings": "上がり順",
 	"game_placement_rank": "#{rank} {name}",
-	"game_podium_finish_title": "ゴール！",
 	"game_podium_first_label": "1位",
 	"game_podium_second_label": "2位",
 	"game_podium_third_label": "3位",

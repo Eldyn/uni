@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TextEffects from "$components/common/TextEffects.svelte";
 	import Modal from "$lib/components/common/Modal.svelte";
 	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
@@ -17,14 +18,10 @@
 	let winnerName = $derived(storeGame.state?.winner ?? "Unknown");
 	let isMe = $derived(winnerName === storeAuth.username);
 
-	let myRank = $derived.by(() => {
-		const me = storeAuth.username;
-		if (!me) return -1;
-		const idx = storeGame.placements.indexOf(me);
-		return idx === -1 ? -1 : idx + 1;
-	});
 	let raceTarget = $derived(storeGame.state?.race_target ?? 0);
-	let isFinisher = $derived(isRace && !isMe && myRank >= 2 && myRank <= raceTarget);
+	/** Whether the local player is on the winning side. A race wins for everyone
+	 *  who placed within the host's winner share; anything else is a loss. */
+	let didWin = $derived(isRace ? storeGame.raceOutcome === "win" : isMe);
 
 	/** Whether a ranked player is a bot. The LOBBY roster is checked first: match
 	 *  players are erased from `state.players` the moment they shed their hand, so
@@ -44,13 +41,24 @@
 		return isBot ? BOT_COLOR : playerColorFor(idx);
 	}
 
-	let podium = $derived(storeGame.placements.slice(0, 3));
+	const MAX_PODIUM_SIZE = 3;
+	// A race never stands a loser on the podium: with fewer winners than steps,
+	// the podium shrinks and the rest go in the standings list.
+	let podiumSize = $derived(
+		Math.min(MAX_PODIUM_SIZE, raceTarget > 0 ? raceTarget : MAX_PODIUM_SIZE)
+	);
+	let podium = $derived(storeGame.placements.slice(0, podiumSize));
+	let runnersUp = $derived(storeGame.placements.slice(podiumSize));
+	function isLoser(name: string): boolean {
+		const place = storeGame.placements.indexOf(name) + 1;
+		return raceTarget > 0 && place > raceTarget;
+	}
 
 	let hasPlayedResultSfx = $state(false);
 	$effect(() => {
 		if (!isVictory || hasPlayedResultSfx) return;
 		hasPlayedResultSfx = true;
-		if (isMe || isFinisher) {
+		if (didWin) {
 			// PLACEHOLDER-SFX: sfx.match.victory
 			storeAudio.playSfx("sfx.match.victory");
 		} else {
@@ -88,43 +96,44 @@
 			titleId="end-title"
 			contentClass="end-content pixel-corners"
 		>
-			<h1
-				id="end-title"
-				class="result {isMe ? 'result--win' : isFinisher ? 'result--podium' : 'result--lose'}"
-			>
-				{isMe
+			<h1 id="end-title" class="result {didWin ? 'result--win' : 'result--lose'}">
+				{didWin
 					? m.game_victory_title({}, { locale: storeI18n.locale })
-					: isFinisher
-						? m.game_podium_finish_title({}, { locale: storeI18n.locale })
-						: m.game_defeat_title({}, { locale: storeI18n.locale })}
+					: m.game_defeat_title({}, { locale: storeI18n.locale })}
 			</h1>
 
-			<div class="avatar-stage">
-				<div class="avatar-glow"></div>
-				<div class="avatar-frame">
-					{@render avatarSprite(winnerName, 96)}
-					<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
+			{#if !isRace}
+				<div class="avatar-stage">
+					<div class="avatar-glow"></div>
+					<div class="avatar-frame">
+						{@render avatarSprite(winnerName, 96)}
+						<img class="crown" src="/assets/crown_host.gif" alt="Winner crown" />
+					</div>
 				</div>
-			</div>
 
-			<p class="winner-line">
-				{m.game_winner_label({ name: winnerName }, { locale: storeI18n.locale })}
-			</p>
+				<p class="winner-line pixel-corners">
+					<TextEffects
+						text={m.game_winner_label({ name: winnerName }, { locale: storeI18n.locale })}
+						effect="shine"
+						font="var(--pypx)"
+						color="var(--gold)"
+						shineBaseColor="var(--gold)"
+						shineSpeed={2.2}
+					/>
+				</p>
+			{/if}
 
 			{#if isRace && podium.length > 0}
 				<div class="podium">
 					{#each podium as name, i}
-						<div class="podium-slot podium-slot--{i}">
+						<div class="podium-slot podium-slot--{i}" class:is-local={name === storeAuth.username}>
 							<div class="podium-avatar">
 								{@render avatarSprite(name, 48)}
 								{#if i === 0}
 									<img class="podium-crown" src="/assets/crown_host.gif" alt="" />
 								{/if}
 							</div>
-							<div
-								class="podium-block rank-{i === 0 ? 'gold' : i === 1 ? 'silver' : 'bronze'}"
-								style="border-color: {colorForRankedName(name)};"
-							>
+							<div class="podium-block rank-{i === 0 ? 'gold' : i === 1 ? 'silver' : 'bronze'}">
 								<span class="podium-rank-label">
 									{i === 0
 										? m.game_podium_first_label({}, { locale: storeI18n.locale })
@@ -138,16 +147,22 @@
 					{/each}
 				</div>
 
-				{#if storeGame.placements.length > 3}
+				{#if runnersUp.length > 0}
 					<div class="race-results pixel-corners">
 						<h2 class="standings-heading">
 							{m.game_placement_standings({}, { locale: storeI18n.locale })}
 						</h2>
 						<ol class="standings-list">
-							{#each storeGame.placements as name, i}
-								<li class="standing-item {name === storeAuth.username ? 'is-local' : ''}">
-									<span class="rank">#{i + 1}</span>
+							{#each runnersUp as name, i (name)}
+								{@const isLocal = name === storeAuth.username}
+								<li class="standing-item" class:is-local={isLocal} class:is-lost={isLoser(name)}>
+									<span class="rank">#{i + podiumSize + 1}</span>
 									<span class="name">{name}</span>
+									{#if isBotFor(name)}
+										<i class="pia pixelart-icons-font-robot marker" aria-hidden="true"></i>
+									{:else if isLocal}
+										<i class="pia pixelart-icons-font-user marker" aria-hidden="true"></i>
+									{/if}
 								</li>
 							{/each}
 						</ol>
@@ -177,8 +192,7 @@
 	:global(.end-content) {
 		text-align: center;
 		color: var(--text-h);
-		max-width: max-content;
-		width: 90%;
+		width: min(92vw, 30rem);
 		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
@@ -203,11 +217,6 @@
 		color: var(--danger);
 		text-shadow: 3px 3px 0px var(--pixel-shadow);
 	}
-	.result--podium {
-		color: var(--gold);
-		text-shadow: 3px 3px 0px var(--pixel-shadow);
-	}
-
 	/* Stage gives the winner's icon the visual spotlight. */
 	.avatar-stage {
 		position: relative;
@@ -274,11 +283,24 @@
 		}
 	}
 
+	/* Plaque under the avatar, matching the race list panel's tinted look. */
 	.winner-line {
-		font-family: "Pixel", sans-serif;
+		font-family: var(--pypx);
 		font-size: 1.15rem;
 		margin: 0;
 		line-height: 1.4;
+		max-width: 100%;
+		box-sizing: border-box;
+		padding: 10px 16px;
+		overflow-wrap: anywhere;
+		color: var(--gold);
+		text-shadow: 2px 2px 0 var(--pixel-shadow);
+		background: color-mix(in srgb, var(--accent) 14%, var(--surface-deep));
+	}
+	/* The shine text is clipped to its glyphs and painted transparent, so an
+	   inherited drop shadow would show through it as a dark smudge. */
+	.winner-line :global(.shine) {
+		text-shadow: none;
 	}
 	.winner-name {
 		color: var(--gold);
@@ -290,13 +312,16 @@
 
 	.race-results {
 		width: 100%;
-		background: var(--surface-2);
-		padding: 10px 14px;
+		background: color-mix(in srgb, var(--accent) 14%, var(--surface-deep));
+		padding: 12px 16px;
 		box-sizing: border-box;
+		max-height: 30vh;
+		overflow-y: auto;
 	}
 
 	.standings-heading {
-		font-size: 0.9rem;
+		font-family: var(--pypx);
+		font-size: 0.8rem;
 		margin: 0 0 8px 0;
 		color: var(--text-h);
 		text-transform: uppercase;
@@ -313,25 +338,72 @@
 	}
 
 	.standing-item {
+		font-family: var(--tiny);
 		display: flex;
-		justify-content: space-between;
-		font-size: 0.9rem;
-		padding: 3px 8px;
+		align-items: center;
+		gap: 12px;
+		text-align: left;
+		font-size: 1rem;
+		line-height: 1.25;
+		min-height: 2.25rem;
+		box-sizing: border-box;
+		padding: 0 12px;
 		color: var(--text);
 	}
 
 	.standing-item.is-local {
-		background: var(--surface-3);
-		color: var(--brand, #38bdf8);
+		background: #3a1b5c;
+		box-shadow: inset 0 0 0 4px var(--accent);
+		color: var(--text-h);
 		font-weight: bold;
 	}
 
 	.standing-item .rank {
+		flex: none;
+		min-width: 2.5em;
 		font-weight: bold;
 		color: var(--warning, #f59e0b);
 	}
 
-	/* Rank colors copied in locally — the .rank-silver/.rank-bronze
+	.standing-item .name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.standing-item:nth-child(even) {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+	}
+
+	/* Players left behind: a red wash, with the same lighter/darker alternation
+	   the other rows use, and a struck-through name. */
+	.standing-item.is-lost {
+		background: color-mix(in srgb, var(--danger) 16%, transparent);
+	}
+
+	.standing-item.is-lost:nth-child(even) {
+		background: color-mix(in srgb, var(--danger) 30%, transparent);
+	}
+
+	.standing-item.is-lost .name {
+		text-decoration: line-through;
+		text-decoration-thickness: 2px;
+	}
+
+	.standing-item.is-lost.is-local {
+		background: color-mix(in srgb, var(--danger) 40%, #3a1b5c);
+	}
+
+	.standing-item .marker {
+		flex: none;
+		width: 1em;
+		text-align: center;
+		line-height: 1;
+	}
+
+	/* Rank colors copied in locally —  .rank-silver/.rank-bronze
 	   copies are scoped inside GameHud.svelte, so this component self-copies
 	   all three to avoid depending on another component's scoped <style>. */
 	.rank-gold {
@@ -350,9 +422,13 @@
 		justify-content: center;
 		gap: 12px;
 		margin: 8px 0;
+		width: 100%;
 	}
 
+	/* Slots shrink with the modal instead of overflowing it on narrow phones. */
 	.podium-slot {
+		flex: 0 1 88px;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -360,9 +436,8 @@
 	}
 
 	.podium-block {
-		width: 64px;
-		border: 3px solid;
-		border-radius: 4px 4px 0 0;
+		width: 100%;
+		border: 3px solid currentColor;
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
@@ -374,15 +449,31 @@
 	   explicitly a placeholder for real pedestal art later. */
 	.podium-slot--0 .podium-block {
 		height: 90px;
-		background: var(--surface-3);
 	}
 	.podium-slot--1 .podium-block {
 		height: 65px;
-		background: var(--surface-2);
 	}
 	.podium-slot--2 .podium-block {
 		height: 45px;
-		background: var(--surface-2);
+	}
+
+	/* Classic podium order: 2nd | 1st | 3rd. */
+	.podium-slot--0 {
+		order: 2;
+	}
+	.podium-slot--1 {
+		order: 1;
+	}
+	.podium-slot--2 {
+		order: 3;
+	}
+
+	.podium-block {
+		background: color-mix(in srgb, currentColor 18%, var(--surface-2));
+	}
+
+	.podium-slot.is-local .podium-name {
+		color: var(--accent);
 	}
 
 	/* The podium avatar and its crown share one 48px box so the crown overlays
@@ -404,16 +495,24 @@
 	}
 
 	.podium-rank-label {
+		font-family: var(--tiny);
 		font-weight: bold;
-		font-size: 0.8rem;
+		font-size: 0.9rem;
 		color: var(--text-h);
 	}
 
 	.podium-name {
-		font-size: 0.75rem;
-		max-width: 70px;
+		font-family: var(--tiny);
+		font-size: 0.85rem;
+		max-width: 100%;
+		line-height: 1.4;
+		height: 2.8em;
+		text-align: center;
+		overflow-wrap: anywhere;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 </style>

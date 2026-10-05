@@ -327,7 +327,6 @@
 	"game_spectator_count": "[Spéctåtõrs: {count} ~~~~~~]",
 	"game_placement_standings": "[Fíñíšh õrdér ~]",
 	"game_placement_rank": "[#{rank} {name} ~~~~]",
-	"game_podium_finish_title": "[ÝÕÜ FÍÑÍŠHÉD! ~]",
 	"game_podium_first_label": "[Fîrst ~]",
 	"game_podium_second_label": "[Sêcôñd ~]",
 	"game_podium_third_label": "[Thírd ~]",
