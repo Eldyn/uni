@@ -9,7 +9,7 @@
 	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
 	import { onDestroy, untrack } from "svelte";
 	import { gsap } from "gsap";
-	import { loadSilhouette } from "./textures";
+	import { loadSilhouette, loadTexture } from "./textures";
 	import { turnRimTexture } from "./turnRimTexture";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
@@ -60,13 +60,20 @@
 	let currentFrame = 0;
 	let frameElapsed = 0;
 
+	// A spectator's POV can be a bot, which has its own full-colour sheet.
+	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
+
 	$effect(() => {
 		let cancelled = false;
-		loadSilhouette("/assets/base_player_strip.png").then((t) => {
+		const pending = isBot
+			? loadTexture("/assets/bot_animated_strip.png")
+			: loadSilhouette("/assets/base_player_strip.png");
+		pending.then((t) => {
 			if (cancelled) return;
 			const tex = t.clone();
 			tex.repeat.set(1 / FRAME_COUNT, 1);
 			tex.offset.x = 0;
+			tex.needsUpdate = true;
 			avatarTexture = tex;
 		});
 		return () => {
@@ -84,7 +91,7 @@
 		}
 	});
 
-	let baseColor = $derived(new Color(color));
+	let baseColor = $derived(isBot ? new Color("#ffffff") : new Color(color));
 	let effectiveColor = $derived(dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor);
 
 	// Skip mark: the local player can lose a turn too (any seat can be skipped).
@@ -185,7 +192,7 @@
 		<T.PlaneGeometry args={[TURN_RIM_SIZE, TURN_RIM_SIZE]} />
 		<T.MeshBasicMaterial
 			map={rimTexture}
-			color={baseColor}
+			color={effectiveColor}
 			transparent
 			opacity={rimOpacity}
 			depthWrite={false}
