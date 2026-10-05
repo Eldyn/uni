@@ -236,7 +236,7 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     (void)ctx;
     const std::optional<ecs::Entity> match = FindMatch(store);
     if (!match.has_value()) return OpResult::Resolved();
-    const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
+    ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
     if (meta == nullptr) return OpResult::Resolved();
 
     const std::vector<ecs::Entity> players = PlayersBySeat(store);
@@ -333,6 +333,7 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     //       stale past deadline from expiring the incoming player in `Tick`.
     incoming_turn->turn_deadline_ms = 0;
 
+    ++meta->turn;
     const json payload = TurnAdvancePayload(from, incoming, step,
                                             incoming_turn->turn_deadline_ms,
                                             skipped);
@@ -396,7 +397,7 @@ OpResult OpRedirectTurn(ecs::EntityStore& store, const OpArgs& args,
     if (FinishedRace(store, *target)) return OpResult::Resolved();
     const std::optional<ecs::Entity> match = FindMatch(store);
     if (!match.has_value()) return OpResult::Resolved();
-    const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
+    ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
     if (meta == nullptr) return OpResult::Resolved();
 
     std::optional<ecs::Entity> from = FindCurrentPlayer(store);
@@ -417,6 +418,7 @@ OpResult OpRedirectTurn(ecs::EntityStore& store, const OpArgs& args,
     ecs::TurnState* jump_turn = EnsureTurnState(store, *target);
     if (jump_turn == nullptr) return OpResult::Resolved();
     jump_turn->is_current = true;
+    ++meta->turn;
 
     const json payload = TurnAdvancePayload(from, *target,
                                             DirectionStep(meta->direction),

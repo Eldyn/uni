@@ -300,6 +300,28 @@ nlohmann::json MakeEvent(std::string_view type, nlohmann::json payload) {
                           {"payload", std::move(payload)}};
 }
 
+void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
+                      nlohmann::json& event) {
+    if (!event.is_object() || event.contains("causal_frame")) return;
+    nlohmann::json actor = nullptr;
+    if (frame.actor.has_value()) {
+        const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(*frame.actor);
+        if (info != nullptr) actor = info->username;
+    }
+    uint32_t turn = 0;
+    uint32_t round = 0;
+    for (ecs::Entity match : store.EntitiesWith<ecs::MatchMeta>()) {
+        const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(match);
+        turn = meta->turn;
+        round = meta->round;
+        break;
+    }
+    event["causal_frame"] = nlohmann::json{{"actor", std::move(actor)},
+                                           {"cause", frame.cause},
+                                           {"turn", turn},
+                                           {"round", round}};
+}
+
 void BindLastRoll(ResolutionFrame& frame, int64_t total,
                   nlohmann::json outcomes) {
     frame.BindPromptValue(std::string(kLastRollFrameKey),

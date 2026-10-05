@@ -101,6 +101,29 @@ std::optional<ecs::Entity> EnvelopeEntity(const json& envelope,
     return EntityFromJson(*it);
 }
 
+/**
+ * @brief Set the match's causal frame for one entry point.
+ *
+ * The previous frame returns when the scope ends, so a nested entry point
+ * (a forced play inside a window route) restores its caller's frame.
+ */
+class CausalScope {
+public:
+    CausalScope(ops::CausalFrame& slot, std::optional<ecs::Entity> actor,
+                std::string_view cause)
+        : slot_(slot), saved_(slot) {
+        slot_.actor = actor;
+        slot_.cause = std::string(cause);
+    }
+    CausalScope(const CausalScope&) = delete;
+    CausalScope& operator=(const CausalScope&) = delete;
+    ~CausalScope() { slot_ = std::move(saved_); }
+
+private:
+    ops::CausalFrame& slot_;
+    ops::CausalFrame saved_;
+};
+
 }  // namespace
 
 // --- construction / start --------------------------------------------------
@@ -125,6 +148,9 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
         //        every input is refused rather than dereferencing null.
         finished_ = true;
         return;
+    }
+    if (assembly_->resolver != nullptr) {
+        assembly_->resolver->SetCausalSource(&causal_frame_);
     }
     Start();
 }
@@ -232,6 +258,7 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player, ops::kCausePlay);
 
     // INFO:  - while a playable voluntary draw holds the turn, only the
     //       holder may act and only by playing the held card. Clearing the
@@ -376,6 +403,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
     if (!player.has_value()) return false;
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value() || !(*current == *player)) return false;
+    const CausalScope causal_scope(causal_frame_, player, ops::kCauseDraw);
 
     // INFO:  - a held playable draw owns the turn until it is played, kept
     //       or the turn clock expires; the holder cannot draw again.
@@ -461,6 +489,8 @@ bool MatchInstance::KeepDrawn(const std::string& username) {
         return false;
     }
 
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseKeepDrawn);
     awaiting_play_drawn_.reset();
     AdvanceTurn();
     return true;
@@ -470,6 +500,8 @@ bool MatchInstance::SubmitInput(const std::string& username,
                                 const nlohmann::json& value) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
     if (!pending_input_.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, FindPlayer(username),
+                                   ops::kCausePromptAnswer);
 
     // INFO: Defence in depth - a card prompt must be answered with a
     //       `CompactCardV2.bits` integer that maps to a live card. Validate it
@@ -605,8 +637,12 @@ void MatchInstance::Tick() {
     const match::MatchTimerTick tick =
         timers_.Tick(store, registries.match, *current);
     if (tick.window_timeout) {
+        const CausalScope causal_scope(causal_frame_, std::nullopt,
+                                       ops::kCauseWindowTimeout);
         CloseWindowRoute("timeout");
     } else if (tick.window_early_closed) {
+        const CausalScope causal_scope(causal_frame_, std::nullopt,
+                                       ops::kCauseWindowResponse);
         CloseWindowRoute(pending_window_.has_value()
                                  && pending_window_->has_winner
                              ? "response"
@@ -615,6 +651,8 @@ void MatchInstance::Tick() {
         // INFO: engine default for a lapsed turn clock; the engine may refine
         //       the AFK/bot takeover policy. A parked play/keep choice is
         //       dropped with the turn it belonged to.
+        const CausalScope causal_scope(causal_frame_, current,
+                                       ops::kCauseTurnTimerExpired);
         awaiting_play_drawn_.reset();
         AdvanceTurn();
     }
@@ -645,12 +683,13 @@ void MatchInstance::AdvanceTurn() {
     // INFO: Reuse the `advance_turn` op so the direction / extra-turn /
     //       one-shot-skip bookkeeping exists in exactly one place.
     ops::ResolutionFrame frame;
+    frame.causal = causal_frame_;
     ops::OpContext context(assembly_->bus, assembly_->budget, frame);
     ops::OpArgs args("advance_turn");
     ops::OpResult result = assembly_->runtime.Invoke(
         "advance_turn", assembly_->store, args, context);
     for (json& event : result.events) {
-        events_.push_back(std::move(event));
+        PushEvent(std::move(event));
     }
 
     if (before.has_value()) {
@@ -1275,7 +1314,7 @@ int32_t MatchInstance::RemoveDrawDebt(std::optional<ecs::Entity> keep) {
             json payload = json{{"target", EntityJson(holder)},
                                 {"status_kind", removed.status_id},
                                 {"instance", removed.instance_id}};
-            events_.push_back(ops::MakeEvent("status_removed", payload));
+            PushEvent(ops::MakeEvent("status_removed", payload));
             BridgeRunEvent(events_.back());
         }
     }
@@ -1314,7 +1353,7 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
                         {"status_kind", applied.status_id},
                         {"magnitude", applied.magnitude},
                         {"instance", applied.instance_id}};
-    events_.push_back(ops::MakeEvent("status_applied", payload));
+    PushEvent(ops::MakeEvent("status_applied", payload));
     BridgeRunEvent(events_.back());
 }
 
@@ -1517,6 +1556,8 @@ bool MatchInstance::RespondWindow(const std::string& username,
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseWindowResponse);
     if (std::find(window->responders.begin(), window->responders.end(),
                   *player)
         == window->responders.end()) {
@@ -1612,6 +1653,8 @@ bool MatchInstance::PassWindow(const std::string& username) {
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseWindowResponse);
     if (std::find(window->responders.begin(), window->responders.end(),
                   *player)
         == window->responders.end()) {
@@ -1777,7 +1820,7 @@ void MatchInstance::CollectRuns() {
         const HookRun run = assembly_->runs[collected_runs_++];
 
         for (const json& event : run.events) {
-            events_.push_back(event);
+            PushEvent(event);
             BridgeRunEvent(event);
         }
 
@@ -1999,7 +2042,7 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
     const resolver::ResolveResult result = assembly_->resolver->Resolve(
         graph, std::string(), context, frame, std::string(), true);
     for (const json& event : result.events) {
-        events_.push_back(event);
+        PushEvent(event);
         BridgeRunEvent(event);
     }
 
@@ -2028,7 +2071,7 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
 
 void MatchInstance::AppendEvents(const resolver::ResolveResult& result) {
     for (const json& event : result.events) {
-        events_.push_back(event);
+        PushEvent(event);
         BridgeRunEvent(event);
     }
     CollectRuns();
@@ -2545,7 +2588,12 @@ std::vector<nlohmann::json> MatchInstance::TakeEvents() {
 // --- private helpers -------------------------------------------------------
 
 void MatchInstance::Emit(std::string_view type, nlohmann::json payload) {
-    events_.push_back(ops::MakeEvent(type, std::move(payload)));
+    PushEvent(ops::MakeEvent(type, std::move(payload)));
+}
+
+void MatchInstance::PushEvent(nlohmann::json event) {
+    ops::StampCausalFrame(assembly_->store, causal_frame_, event);
+    events_.push_back(std::move(event));
 }
 
 }  // namespace match::engine

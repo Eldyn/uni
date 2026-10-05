@@ -501,6 +501,9 @@ private:
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
 
+    /** @brief Stamp `event` with the current causal frame and queue it. */
+    void PushEvent(nlohmann::json event);
+
     /** @brief The live current-turn player, or nullopt. */
     std::optional<ecs::Entity> CurrentPlayer() const;
 
@@ -877,6 +880,8 @@ private:
 
     std::unique_ptr<MatchAssembly> assembly_;
     std::vector<nlohmann::json> events_;
+    /** @brief Actor and cause of the entry point now running. */
+    ops::CausalFrame causal_frame_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

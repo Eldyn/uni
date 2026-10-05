@@ -104,6 +104,7 @@ ResolveResult Resolver::Resolve(const modload::BehaviorGraph& graph,
                                 bool must_apply,
                                 std::vector<std::string> pending) {
     ResolveResult result;
+    if (causal_source_ != nullptr) frame.causal = *causal_source_;
     if (!mod_id.empty() && event_bus_.IsDisarmed(mod_id)) {
         result.skipped_disarmed = true;
         result.disarmed = true;
@@ -141,6 +142,7 @@ ResolveResult Resolver::ResumeWindow(const modload::BehaviorGraph& graph,
                                      const ResolveResult& pause,
                                      const std::string& route_node) {
     ResolveResult result;
+    if (causal_source_ != nullptr) frame.causal = *causal_source_;
     if (!mod_id.empty() && event_bus_.IsDisarmed(mod_id)) {
         result.skipped_disarmed = true;
         result.disarmed = true;
@@ -819,7 +821,9 @@ void Resolver::AppendEvent(WalkState& state,
         return;
     }
     ++budgets_.events;
-    state.result->events.push_back(event);
+    nlohmann::json stamped = event;
+    ops::StampCausalFrame(store_, state.frame->causal, stamped);
+    state.result->events.push_back(std::move(stamped));
 }
 
 bool Resolver::IsDroppableEvent(const nlohmann::json& event) {

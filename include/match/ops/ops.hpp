@@ -78,6 +78,43 @@ struct InputRequest {
     nlohmann::json payload = nlohmann::json::object();  /**< envelope body. */
 };
 
+/** @brief Cause labels of the causal frame. */
+inline constexpr std::string_view kCauseSystem = "system";
+inline constexpr std::string_view kCausePlay = "play";
+inline constexpr std::string_view kCauseDraw = "draw";
+inline constexpr std::string_view kCauseKeepDrawn = "keep_drawn";
+inline constexpr std::string_view kCausePromptAnswer = "prompt_answer";
+inline constexpr std::string_view kCauseWindowResponse = "window_response";
+inline constexpr std::string_view kCauseWindowTimeout = "window_timeout";
+inline constexpr std::string_view kCauseTurnTimerExpired =
+    "turn_timer_expired";
+
+/**
+ * @struct CausalFrame
+ * @brief Who caused an engine event and why.
+ *
+ * `actor` is the seat that caused the event. An empty `actor` means the
+ * table: the engine itself caused the event. System events use these actors:
+ * - turn timer expiry: the seat whose clock lapsed (`kCauseTurnTimerExpired`);
+ * - window timeout: empty, no seat acted (`kCauseWindowTimeout`);
+ * - bot move: the bot seat, because a bot plays through its own seat with
+ *   the same `kCausePlay` / `kCauseDraw` causes as a human.
+ * The turn and round are read from `MatchMeta` when the event is stamped.
+ */
+struct CausalFrame {
+    std::optional<ecs::Entity> actor;  /**< causing seat, empty = the table. */
+    std::string cause{kCauseSystem};   /**< cause label (`kCause*`). */
+};
+
+/**
+ * @brief Add `causal_frame` to `event` unless it already has one.
+ *
+ * The stamp holds `actor` (username or null), `cause`, and the `turn` and
+ * `round` from `MatchMeta`. Defined in `op_helpers.cpp`.
+ */
+void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
+                      nlohmann::json& event);
+
 /**
  * @struct ResolutionFrame
  * @brief Bound context selectors and prompt results for one resolution.
@@ -95,6 +132,7 @@ struct ResolutionFrame {
         prompt_values;  /**< prompt node id -> bound result. */
     std::map<std::string, nlohmann::json, std::less<>>
         facts;  /**< engine-bound hook payload facts (e.g. `draw_cause`). */
+    CausalFrame causal;  /**< actor and cause stamped on emitted events. */
 
     /** @brief Bound entities for `token`, or nullptr when unbound. */
     const std::vector<ecs::Entity>* FindSelector(
@@ -524,7 +562,11 @@ public:
         if (it == ops_.end() || it->second == nullptr) {
             return OpResult::Error("unknown op: " + name);
         }
-        return it->second(store, args, ctx);
+        OpResult result = it->second(store, args, ctx);
+        for (nlohmann::json& event : result.events) {
+            StampCausalFrame(store, ctx.frame.causal, event);
+        }
+        return result;
     }
 
 private:

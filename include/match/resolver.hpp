@@ -297,6 +297,17 @@ public:
     }
 
     /**
+     * @brief Bind the causal frame that fresh chains inherit.
+     *
+     * `Resolve` and `ResumeWindow` copy it into the chain's frame, so an op
+     * stamps its events with the actor and cause that started the chain. The
+     * owner (the match instance) keeps the frame alive and updates it.
+     */
+    void SetCausalSource(const ops::CausalFrame* source) {
+        causal_source_ = source;
+    }
+
+    /**
      * @brief The seat after `anchor` in the current play direction, the same
      *        step `@next_player` takes from the current player.
      */
@@ -392,6 +403,7 @@ private:
     ConditionRegistry& conditions_;
     ResolverConfig config_;
     const engine::MatchRegistries* registries_ = nullptr;
+    const ops::CausalFrame* causal_source_ = nullptr;
 };
 
 }  // namespace match::resolver
