@@ -738,6 +738,64 @@ TEST_CASE("view snapshot: own-hand can_play equals PlayEvaluator verdicts") {
     CHECK_FALSE(EvaluatorVerdict(*engine, player1, *red2));
 }
 
+TEST_CASE("view snapshot: jump_in window lights the responder's identical card") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    DeckDef deck = content.classic;
+    deck.mods = {"vanilla", "jump_in"};
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = 42;
+    for (int i = 0; i < 3; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, deck, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    MatchInstance engine(std::move(result.assembly), FixedWindow(1000),
+                         clock.Fn());
+    ViewBuilder builder(engine, content.mods);
+
+    const ecs::Entity player0 = *engine.FindPlayer("player0");
+    const ecs::Entity player1 = *engine.FindPlayer("player1");
+    const std::optional<ecs::Entity> played = FindCard(engine, "red", "6");
+    REQUIRE(played.has_value());
+    std::optional<ecs::Entity> twin;
+    for (ecs::Entity card : engine.Registries().cards) {
+        const ecs::FaceSpec* face = engine.Store().Get<ecs::FaceSpec>(card);
+        if (card != *played && face != nullptr && face->color == "red"
+            && face->label == "6") {
+            twin = card;
+        }
+    }
+    REQUIRE(twin.has_value());
+    const std::optional<ecs::Entity> filler = FindCard(engine, "blue", "5");
+    REQUIRE(filler.has_value());
+    ForceHand(engine, player0, {*played});
+    ForceHand(engine, player1, {*twin, *filler});
+    engine.Store().Get<ecs::ActiveTypeReq>(engine.Registries().match)->type =
+        "red";
+    REQUIRE(engine.PlayCard("player0", *played));
+    REQUIRE(engine.WindowOpen());
+
+    EventSink sink;
+    const json view = builder.BuildSnapshot(Viewer::Player("player1"), sink);
+    const json* row = FindPlayerState(view["match_state"], "player1");
+    REQUIRE(row != nullptr);
+    CHECK(EntryWithBits((*row)["hand"], engine.Registries().CardId(*twin)->bits)
+              ->at("can_play")
+          == true);
+    CHECK(EntryWithBits((*row)["hand"],
+                        engine.Registries().CardId(*filler)->bits)
+              ->at("can_play")
+          == false);
+    (void)player0;
+    (void)player1;
+}
+
 TEST_CASE("view snapshot: own-hand can_play uses CanRespond in a window") {
     Content content;
     REQUIRE(LoadContent(content));
