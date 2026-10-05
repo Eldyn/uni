@@ -114,6 +114,24 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 		variants: [sfxPath("untick.m4a")],
 		volume: 0.2
 	},
+	"sfx.table.reverse": {
+		id: "sfx.table.reverse",
+		variants: [sfxPath("reverse.m4a")],
+		volume: 0.4,
+		minIntervalMs: 200
+	},
+	"sfx.table.reverse-flip": {
+		id: "sfx.table.reverse-flip",
+		variants: [sfxPath("reverse-flip.m4a")],
+		volume: 0.4,
+		minIntervalMs: 200
+	},
+	"sfx.table.mat-color": {
+		id: "sfx.table.mat-color",
+		variants: [sfxPath("mat-color.m4a")],
+		volume: 0.4,
+		minIntervalMs: 300
+	},
 	"sfx.match.victory": {
 		id: "sfx.match.victory",
 		variants: [sfxPath("victory.m4a")],

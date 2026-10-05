@@ -1192,7 +1192,14 @@ export function createMatchEventBeatController(deps: {
 		});
 		deferTurnMotion(() => {
 			if (cueFires) storeTurnCue.fire();
-			storeDirectionRing.reverseTo(beat.direction);
+			if (storeDirectionRing.reverseTo(beat.direction)) {
+				// INFO: positive play runs counter-clockwise on screen, so the
+				//       swoop plays forward turning counter-clockwise and
+				//       reversed turning clockwise.
+				storeAudio.playSfx(
+					storeDirectionRing.sign === 1 ? "sfx.table.reverse" : "sfx.table.reverse-flip"
+				);
+			}
 		});
 		playLog.noteTurn({
 			skipped: beat.skipped,
@@ -1406,6 +1413,7 @@ export function createMatchEventBeatController(deps: {
 			const { originUv, maxRadius } = pendingWildRipple;
 			pendingWildRipple = null;
 			playLog.noteWildColor(state.active_type);
+			storeAudio.playSfx("sfx.table.mat-color");
 			storeMatRipple.startMatRipple(
 				CARD_COLOR_MAP[state.active_type] ?? MAT_INITIAL_COLOR,
 				"wild",
