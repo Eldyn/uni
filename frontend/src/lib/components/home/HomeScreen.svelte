@@ -3,6 +3,14 @@
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import { censorText, loadCensorData } from "$utils/censor.svelte";
+
+	// Lobby names are player-authored, so mask profanities the same way chat
+	// and the lobby surfaces do. censorText() re-runs reactively once the word
+	// list resolves, so the resume button fills in uncensored text no earlier.
+	$effect(() => {
+		loadCensorData();
+	});
 
 	let joinCode = $state("");
 	let joining = $state(false);
@@ -74,7 +82,7 @@
 		>
 			<span
 				>{m.home_continue_lobby(
-					{ name: storeLobby.current.name },
+					{ name: censorText(storeLobby.current.name) },
 					{ locale: storeI18n.locale }
 				)}</span
 			>

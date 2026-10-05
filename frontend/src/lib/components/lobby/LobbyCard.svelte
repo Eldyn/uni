@@ -7,6 +7,7 @@
 	import { filled, joinInfo, type BrowseLobby } from "$lib/utils/lobbyBrowse";
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { censorText, loadCensorData } from "$utils/censor.svelte";
 
 	let {
 		lobby,
@@ -18,6 +19,14 @@
 		cardW: number;
 		onjoin: (inviteCode: string) => void;
 	} = $props();
+
+	// Lobby names are player-authored, so mask profanities the same way chat
+	// does. loadCensorData() pulls the word list on first card; censorText()
+	// re-runs reactively once it resolves and stays a no-op until then.
+	$effect(() => {
+		loadCensorData();
+	});
+	const displayName = $derived(censorText(lobby.name));
 
 	const ruleById = $derived(new Map(storeCatalog.rules.map((r) => [r.id, r])));
 	const ruleTitle = (id: string): string => {
@@ -72,7 +81,7 @@
 		<div class="flex min-w-0 items-center gap-2">
 			<span class="h-2 w-2 shrink-0 {join.dot}" title={join.title} aria-hidden="true"></span>
 			<span class="sr-only">{join.title}</span>
-			<span class="truncate font-heading text-base text-text-h">{lobby.name}</span>
+			<span class="truncate font-heading text-base text-text-h">{displayName}</span>
 		</div>
 		<div class="flex shrink-0 items-center gap-1.5">
 			<div class="flex items-center gap-1">

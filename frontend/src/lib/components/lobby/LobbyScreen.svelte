@@ -9,6 +9,7 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 	import { computeSeatLayout } from "$utils/lobbySeatLayout";
+	import { censorText, loadCensorData } from "$utils/censor.svelte";
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import Modal from "$components/common/Modal.svelte";
@@ -16,6 +17,14 @@
 	import TextEffects from "$components/common/TextEffects.svelte";
 
 	let isHost = $derived(storeAuth.username === storeLobby.current?.host);
+
+	// Lobby names are player-authored, so mask profanities the same way chat
+	// does. Censoring applies to the read-only display only; the edit input is
+	// left alone so the host edits the real name, not a masked copy.
+	$effect(() => {
+		loadCensorData();
+	});
+	let displayName = $derived(censorText(storeLobby.current?.name ?? ""));
 
 	let isEditingName = $state(false);
 	let editedName = $state("");
@@ -80,6 +89,12 @@
 
 	const SEAT_GAP = 8;
 
+	// The seat grid is measured off the padded scroll area, so the inner
+	// wrapper's padding (px-3 py-4, up to sm:px-6) has to come off before the
+	// cards are fitted to it.
+	const SEAT_BOX_PAD_X = 48;
+	const SEAT_BOX_PAD_Y = 32;
+
 	let tableSeats = $derived(storeLobby.current?.settings.max_players ?? SEAT_COLORS.length);
 	let emptySeats = $derived(Math.max(0, tableSeats - (storeLobby.current?.members.length ?? 0)));
 	let readyCount = $derived(
@@ -89,8 +104,8 @@
 
 	let seatLayout = $derived(
 		computeSeatLayout({
-			boxWidth: seatBoxWidth,
-			boxHeight: seatBoxHeight,
+			boxWidth: Math.max(0, seatBoxWidth - SEAT_BOX_PAD_X),
+			boxHeight: Math.max(0, seatBoxHeight - SEAT_BOX_PAD_Y),
 			count: tableSeats,
 			gap: SEAT_GAP
 		})
@@ -158,10 +173,9 @@
 		}
 	}
 
-	// Desktop and mobile both render the lobby name in the secondary header, so
-	// the primary TopBar's centre slot stays free. On mobile the settings and
-	// exit controls are promoted into the TopBar's left cluster instead (see
-	// lobbyActionsSlot).
+	// Desktop and both axes of the rail layout render the lobby name and the
+	// settings/exit controls in the secondary header; only the phone
+	// (bottom-nav) layout promotes the controls into the TopBar instead.
 	$effect(() => {
 		storeTopbarContent.actions = lobbyActionsSlot;
 		return () => {
@@ -181,7 +195,7 @@
 {#snippet lobbyNameSlot()}
 	{#if isEditingName && isHost}
 		<input
-			class="lobby-name w-full max-w-full truncate border-none bg-transparent p-0 text-center outline-none md:text-left [clip-path:none!important]"
+			class="lobby-name lobby-name-text w-full max-w-full truncate border-none bg-transparent p-0 text-center outline-none md:text-left [clip-path:none!important]"
 			bind:value={editedName}
 			onblur={saveName}
 			onkeydown={(e) => e.key === "Enter" && saveName()}
@@ -191,14 +205,15 @@
 	{:else if isHost}
 		<button
 			type="button"
-			class="lobby-name block w-full max-w-full truncate border-none bg-transparent p-0 text-center md:text-left [clip-path:none!important]"
+			class="lobby-name lobby-name--editable group inline-flex max-w-full min-w-0 items-center gap-1 border-none bg-transparent p-0 text-left [clip-path:none!important]"
 			onclick={startEditing}
 		>
-			{storeLobby.current?.name}
+			<span class="lobby-name-text truncate">{displayName}</span>
+			<i class="pia pixelart-icons-font-pencil text-xs" aria-hidden="true"></i>
 		</button>
 	{:else}
-		<span class="lobby-name block w-full max-w-full truncate text-center md:text-left"
-			>{storeLobby.current?.name}</span
+		<span class="lobby-name lobby-name-text block w-full max-w-full truncate text-left"
+			>{displayName}</span
 		>
 	{/if}
 {/snippet}
@@ -226,9 +241,10 @@
 	class="flex h-full w-full flex-col overflow-hidden bg-cover bg-center"
 	style="background-image: url('/assets/bg_full.png'); image-rendering: pixelated;"
 >
-	<!-- Lobby bar: name pinned left, invite code pinned right. On mobile the
-	     settings/exit controls live up in the TopBar's left cluster instead. -->
-	<header class="shell-topbar-secondary flex-nowrap">
+	<!-- Lobby bar: name pinned left, invite code pinned right. Only the phone
+	     (bottom-nav) layout moves the settings/exit controls up into the
+	     TopBar's left cluster instead. -->
+	<header class="lobby-bar shell-topbar-secondary flex-nowrap">
 		<div class="flex min-w-0 flex-1 items-center gap-2">
 			{@render lobbyNameSlot()}
 		</div>
@@ -279,7 +295,7 @@
 				</div>
 			</div>
 
-			<div class="hidden items-center gap-2 md:flex">
+			<div class="lobby-secondary-actions">
 				<button
 					class="btn pixel-corners flex h-11 w-11 items-center justify-center p-0"
 					onclick={() => (settingsOpen = true)}
@@ -561,7 +577,7 @@
 	     chrome so it reads as breathing over the felt. A 1fr/auto/1fr grid keeps
 	     START dead centre while the ready readout gets its own cell, so the two
 	     can never overlap on narrow screens (the readout truncates instead). -->
-	<footer class="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
+	<footer class="lobby-actionbar grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
 		<div class="flex min-w-0 items-center gap-2 font-tiny text-xs text-white/85 sm:text-sm">
 			<i class="pia pixelart-icons-font-check shrink-0 opacity-70" aria-hidden="true"></i>
 			<span class="truncate"
@@ -749,21 +765,87 @@
 	}
 
 	/* Lobby name, rendered into the primary TopBar on desktop and the secondary
-	   header on mobile. TinyUnicode (--micro) covers far more scripts than Pypx,
-	   so it's the first choice for arbitrary player-entered lobby names; bolded
-	   via font-weight since the family ships only one weight. If this renders
-	   broken glyphs for some scripts in practice, swap to .pypx-thick
-	   (app.css) instead — Latin-only but guaranteed to render cleanly. */
+	   header on mobile. LanaPixel (--tiny, exposed as font-tiny) covers far
+	   more scripts than Pypx, so it's the first choice for arbitrary
+	   player-entered lobby names; bolded via font-weight since the family
+	   ships only one weight. If this renders broken glyphs for some scripts in
+	   practice, swap to .pypx-thick (app.css) instead — Latin-only but
+	   guaranteed to render cleanly. */
 	:global(.lobby-name) {
-		font-family: var(--micro);
+		font-family: var(--tiny);
 		font-weight: 700;
 		font-size: 1rem;
 		color: var(--text-h);
 		text-shadow: 2px 2px 0 var(--pixel-shadow);
 	}
+
+	/* `truncate` sets `overflow: hidden`, which clips the pixel glyphs' side
+	   bearing and cap at the box edge. Padding on the truncating element itself
+	   restores the few pixels the glyphs overhang — a hair vertically for the
+	   cap/ascender, plus an equal horizontal pad so the visible text stays
+	   centred within the truncated box. */
+	:global(.lobby-name-text) {
+		padding: 1px 3px;
+	}
 	@media (min-width: 640px) {
 		:global(.lobby-name) {
 			font-size: 1.125rem;
+		}
+	}
+
+	/* Hosts can rename by clicking the name; the pencil glyph (and the
+	   underline on hover/focus) signal that affordance to mouse and keyboard
+	   users alike. */
+	:global(.lobby-name--editable) {
+		cursor: pointer;
+	}
+	:global(.lobby-name--editable:hover > span),
+	:global(.lobby-name--editable:focus-visible > span) {
+		text-decoration: underline;
+	}
+	:global(.lobby-name--editable .pia) {
+		color: var(--text);
+		opacity: 0.6;
+	}
+	:global(.lobby-name--editable:hover .pia),
+	:global(.lobby-name--editable:focus-visible .pia) {
+		opacity: 1;
+	}
+
+	/* Seat cards, invitation code and name, laid out by the fit-to-box math. */
+	.lobby-secondary-actions {
+		display: none;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	/* Mirrors the shell's rail breakpoint (wide or short viewport): there the
+	   promoted TopBar controls are hidden, so the secondary header keeps them. */
+	@media (min-width: 768px), (max-height: 599px) {
+		.lobby-secondary-actions {
+			display: flex;
+		}
+	}
+
+	/* Short landscape (phone/tablet on their side): the fixed chrome above and
+	   below the table — the secondary header and the pinned action bar — eats
+	   the vertical room the dealt seats need, so they render tiny with a wide
+	   empty band across the felt. Trim both bars and let the seat grid, which
+	   is sized to the box they leave behind, take the reclaimed height. */
+	@media (orientation: landscape) and (max-height: 599px) {
+		.lobby-bar {
+			padding-top: 6px;
+			padding-bottom: 6px;
+		}
+		.lobby-actionbar {
+			padding-top: 6px;
+			padding-bottom: 6px;
+		}
+		:global(.invite-code) {
+			font-size: 1.5rem;
+		}
+		:global(.start-letters) {
+			font-size: clamp(1.5rem, 7vh, 2.5rem);
 		}
 	}
 
