@@ -140,7 +140,7 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 	"sfx.match.defeat": {
 		id: "sfx.match.defeat",
 		variants: [sfxPath("defeat.m4a")],
-		volume: 0.25
+		volume: 0.12
 	}
 };
 
