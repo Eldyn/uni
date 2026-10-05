@@ -20,7 +20,7 @@ function autoplayAlreadyAllowed(): boolean {
 }
 
 export function whenAutoplayAllowed(): Promise<void> {
-	if (autoplayAlreadyAllowed()) return Promise.resolve();
+	if (typeof document === "undefined" || autoplayAlreadyAllowed()) return Promise.resolve();
 
 	return new Promise((resolve) => {
 		const onGesture = () => {
