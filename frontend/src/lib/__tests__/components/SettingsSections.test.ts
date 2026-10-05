@@ -16,7 +16,9 @@ vi.mock("$stores/i18n.svelte", () => ({
 }));
 vi.mock("$stores/auth.svelte", () => ({ storeAuth: { username: "eldyn", logout: vi.fn() } }));
 vi.mock("$stores/lobby.svelte", () => ({ storeLobby: { isInLobby: false, leave: vi.fn() } }));
-vi.mock("$stores/game.svelte", () => ({ storeGame: { state: null, returnToLobby: vi.fn() } }));
+vi.mock("$stores/game.svelte", () => ({
+	storeGame: { state: null, returnToLobby: vi.fn(), quitMatch: vi.fn() }
+}));
 vi.mock("$stores/renderSettings.svelte", () => ({
 	storeRenderSettings: {
 		drawPileThickness: "full",
@@ -169,6 +171,22 @@ describe("SettingsSections", () => {
 		storeGame.state = {} as never;
 		const { getByText } = render(SettingsSections, { props: { showDangerZone: true } });
 		expect(getByText("Quit match")).toBeInTheDocument();
+		storeGame.state = null;
+	});
+
+	it("quits an in-progress match through the real leave flow and closes the modal", async () => {
+		const { storeGame } = await import("$stores/game.svelte");
+		const { storeNavigation } = await import("$stores/navigation.svelte");
+		storeGame.state = {} as never;
+		const { getByText } = render(SettingsSections, { props: { showDangerZone: true } });
+
+		await fireEvent.click(getByText("Quit match"));
+
+		// quitMatch (server-backed leave), not returnToLobby (client-only),
+		// otherwise the still-running match re-syncs the player onto the loader.
+		expect(storeGame.quitMatch).toHaveBeenCalled();
+		expect(storeGame.returnToLobby).not.toHaveBeenCalled();
+		expect(storeNavigation.closeSettings).toHaveBeenCalled();
 		storeGame.state = null;
 	});
 });

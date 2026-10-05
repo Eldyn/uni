@@ -3,6 +3,7 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeOrientation } from "$stores/orientation.svelte";
@@ -51,6 +52,14 @@
 	};
 
 	const inMatch = $derived(storeGame.state !== null);
+
+	function quitMatch() {
+		// Close the modal first: quitMatch tears the match down and navigates
+		// away, after which the App-level mount gate would keep the settings
+		// modal open over the lobby browser on the next lobby entry.
+		storeNavigation.closeSettings();
+		storeGame.quitMatch();
+	}
 
 	let privacyMode = $state(
 		typeof localStorage !== "undefined" && localStorage.getItem("uni_privacy_mode") === "true"
@@ -272,7 +281,7 @@
 			<button
 				class="btn-secondary self-start"
 				style="--pc-border: var(--danger); color: var(--danger);"
-				onclick={() => storeGame.returnToLobby()}
+				onclick={quitMatch}
 			>
 				{m.settings_quit_match({}, { locale: storeI18n.locale })}
 			</button>

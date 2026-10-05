@@ -540,6 +540,30 @@ class StoreGame implements SessionStore {
 	 * @brief Stops the active timers and closes the match screen, returning to the lobby.
 	 */
 	returnToLobby() {
+		this.#teardownMatch();
+		// The backing lobby may already be gone (aborted match, evicted seat).
+		// Falling back to the lobby browser beats parking on the game screen
+		// with no match to show, where the loader shows forever.
+		storeNavigation.goto(storeLobby.isInLobby ? "lobby" : "lobbies");
+	}
+
+	/**
+	 * @brief Quits a still-running match: performs the real leave (the server
+	 * honours quit_deletes_match / bot-replacement) before tearing down local
+	 * state.
+	 *
+	 * Unlike returnToLobby(), this must notify the server. A client-only
+	 * teardown leaves the match alive, so the next snapshot re-syncs the client
+	 * straight back onto the game screen — where `match_begin` has already been
+	 * consumed, stranding the player on the loader.
+	 */
+	quitMatch() {
+		this.#teardownMatch();
+		storeLobby.leave();
+	}
+
+	/** Clears every piece of per-match client state. Leaves navigation to the caller. */
+	#teardownMatch() {
 		this.#clearTimer();
 		this.#matchStartedAt = null;
 		this.#turnStartedAt = null;
@@ -562,7 +586,6 @@ class StoreGame implements SessionStore {
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
-		storeNavigation.goto("lobby");
 	}
 
 	/**
@@ -1128,7 +1151,7 @@ class StoreGame implements SessionStore {
 	 * @brief Declares a pass on the currently open response window.
 	 *
 	 * No-op unless a window is open and the local player is one of its
-	 * responders; all other players (spectators included) can only watch.
+	 * responders; all other players can only watch.
 	 */
 	passWindow(): void {
 		const window = this.activeWindow;
