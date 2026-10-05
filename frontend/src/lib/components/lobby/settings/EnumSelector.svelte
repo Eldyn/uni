@@ -49,9 +49,6 @@
 	{@const opt = optionByValue.get(v)}
 	<span class="enum-option">
 		<span class="enum-option__label">{opt?.label}</span>
-		{#if opt?.description}
-			<span class="enum-option__desc">{opt.description}</span>
-		{/if}
 	</span>
 {/snippet}
 
@@ -171,12 +168,6 @@
 		font-family: var(--tiny);
 		font-size: 15px;
 		color: var(--text-h);
-	}
-
-	.enum-option__desc {
-		font-family: var(--tiny);
-		font-size: 13px;
-		color: var(--text);
 	}
 
 	/* Tooltip wraps a single control here, so its default full-width
