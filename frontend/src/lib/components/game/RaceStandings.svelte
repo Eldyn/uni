@@ -9,27 +9,29 @@
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
+	let expanded = $state(false);
 	let visible = $derived(storeGame.state?.mode === "race" && storeGame.placements.length > 0);
 </script>
 
 {#if visible}
-	<div class="standings pixel-bordered">
-		<span class="standings-title">
-			{m.game_placement_standings({}, { locale: storeI18n.locale })}
-		</span>
+	{@const title = m.game_placement_standings({}, { locale: storeI18n.locale })}
+	<div class="standings pixel-bordered" class:expanded>
+		<button
+			type="button"
+			class="standings-toggle"
+			aria-expanded={expanded}
+			aria-label={title}
+			{title}
+			onclick={() => (expanded = !expanded)}
+		>
+			<i class="pia pixelart-icons-font-trophy"></i>
+		</button>
+		<span class="standings-title">{title}</span>
 		<ol class="standings-list">
 			{#each storeGame.placements as name, i (name)}
 				{@const rank = i + 1}
 				{@const rankClass =
-					storeGame.state?.is_over === true
-						? rank === 1
-							? "text-gold"
-							: rank === 2
-								? "rank-silver"
-								: rank === 3
-									? "rank-bronze"
-									: ""
-						: ""}
+					rank === 1 ? "rank-gold" : rank === 2 ? "rank-silver" : rank === 3 ? "rank-bronze" : ""}
 				<li class="placement-chip {rankClass}" class:is-me={name === storeAuth.username}>
 					{m.game_placement_rank({ rank, name }, { locale: storeI18n.locale })}
 				</li>
@@ -78,6 +80,7 @@
 	}
 
 	.placement-chip {
+		font-family: var(--tiny);
 		display: flex;
 		align-items: center;
 		padding: 2px 6px;
@@ -87,8 +90,14 @@
 		text-overflow: ellipsis;
 	}
 
+	/* Same own-row treatment as the stats leaderboard. */
 	.placement-chip.is-me {
-		box-shadow: inset 0 0 0 3px var(--accent);
+		background: #3a1b5c;
+		box-shadow: inset 0 0 0 4px var(--accent);
+	}
+
+	.rank-gold {
+		color: var(--gold);
 	}
 
 	.rank-silver {
@@ -99,10 +108,34 @@
 		color: #cd7f32;
 	}
 
+	.standings-toggle {
+		display: none;
+		align-items: center;
+		justify-content: center;
+		padding: 2px;
+		background: none;
+		border: none;
+		color: inherit;
+		font-size: 1.25rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	/* The list overlaps the table on narrow screens, so it collapses behind
+	   the trophy button until tapped. */
 	@media (max-width: 700px) {
 		.standings {
 			top: 4.5rem;
 			max-width: 55vw;
+		}
+
+		.standings-toggle {
+			display: flex;
+		}
+
+		.standings:not(.expanded) .standings-title,
+		.standings:not(.expanded) .standings-list {
+			display: none;
 		}
 	}
 </style>

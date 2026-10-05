@@ -50,18 +50,21 @@ describe("RaceStandings", () => {
 		expect(chips()).toHaveLength(0);
 	});
 
-	it("numbers live finishers in finishing order with no medals", () => {
-		mockGameState.placements = ["firstOut", "secondOut"];
+	it("numbers live finishers in finishing order and medals them as they finish", () => {
+		mockGameState.placements = ["firstOut", "secondOut", "thirdOut", "fourthOut"];
 
 		render(RaceStandings);
 
 		const rendered = chips();
-		expect(rendered).toHaveLength(2);
+		expect(rendered).toHaveLength(4);
 		expect(rendered[0]).toHaveTextContent("#1 firstOut");
 		expect(rendered[1]).toHaveTextContent("#2 secondOut");
-		expect(rendered[0]).not.toHaveClass("text-gold");
-		expect(rendered[0]).not.toHaveClass("rank-silver");
-		expect(rendered[1]).not.toHaveClass("rank-bronze");
+		expect(rendered[0]).toHaveClass("rank-gold");
+		expect(rendered[1]).toHaveClass("rank-silver");
+		expect(rendered[2]).toHaveClass("rank-bronze");
+		expect(rendered[3]).not.toHaveClass("rank-gold");
+		expect(rendered[3]).not.toHaveClass("rank-silver");
+		expect(rendered[3]).not.toHaveClass("rank-bronze");
 	});
 
 	it("numbers finished placements best-first and medals the podium", () => {
@@ -75,7 +78,7 @@ describe("RaceStandings", () => {
 		expect(rendered[0]).toHaveTextContent("#1 winner");
 		expect(rendered[1]).toHaveTextContent("#2 runnerUp");
 		expect(rendered[2]).toHaveTextContent("#3 third");
-		expect(rendered[0]).toHaveClass("text-gold");
+		expect(rendered[0]).toHaveClass("rank-gold");
 		expect(rendered[1]).toHaveClass("rank-silver");
 		expect(rendered[2]).toHaveClass("rank-bronze");
 	});
