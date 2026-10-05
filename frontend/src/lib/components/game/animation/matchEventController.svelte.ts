@@ -708,7 +708,7 @@ export function createMatchEventBeatController(deps: {
 	 *  and turn over in flight; cards arriving in the local hand are the real new
 	 *  ones and turn face up as they land. Both seats' arcs stay hidden (the
 	 *  in-flight count) until their cards have landed, so nothing overlaps. */
-	function handleHandTransfers(transfers: HandTransfer[]): void {
+	function handleHandTransfers(transfers: HandTransfer[], sfxId: string): void {
 		const state = storeGame.state;
 		if (!state) return;
 		const moving = transfers.filter((t) => t.count > 0 && t.from !== t.to);
@@ -717,6 +717,12 @@ export function createMatchEventBeatController(deps: {
 		const placement = deps.getPlacement();
 		const localUsername = resolveLocalUsername(state);
 		const opponentScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
+		// INFO: one sound for the whole transfer, louder when the viewer's own
+		//       hand is part of it.
+		const takesPart =
+			!storeGame.isSpectator &&
+			moving.some((t) => t.from === localUsername || t.to === localUsername);
+		playBoardSfx(sfxId, { gain: takesPart ? 1 : OPPONENT_ACTION_SFX_GAIN });
 		const outgoingLayout = deps.bus.localHandSnapshot;
 		const outgoingIds = outgoingLayout.orderIds.filter((id) => id !== state.top_card?.id);
 
@@ -736,7 +742,6 @@ export function createMatchEventBeatController(deps: {
 			const flight = flights[index];
 			if (!flight || flight.landed) return;
 			flight.landed = true;
-			playDrawSfx(flight.toLocal ? ownDrawSfxGain() : OPPONENT_ACTION_SFX_GAIN);
 			flight.onLand();
 		};
 
@@ -1252,13 +1257,19 @@ export function createMatchEventBeatController(deps: {
 				handleTurn(beat);
 				return;
 			case "hands_swap":
-				handleHandTransfers([
-					{ from: beat.a, to: beat.b, count: beat.aSize },
-					{ from: beat.b, to: beat.a, count: beat.bSize }
-				]);
+				handleHandTransfers(
+					[
+						{ from: beat.a, to: beat.b, count: beat.aSize },
+						{ from: beat.b, to: beat.a, count: beat.bSize }
+					],
+					"sfx.hands.swap"
+				);
 				return;
 			case "hands_pass":
-				handleHandTransfers(handPassTransfers(beat.players, beat.handSizes, beat.direction));
+				handleHandTransfers(
+					handPassTransfers(beat.players, beat.handSizes, beat.direction),
+					"sfx.hands.pass"
+				);
 				return;
 			case "toast":
 				// Toast state lives in the store; map-and-drop per

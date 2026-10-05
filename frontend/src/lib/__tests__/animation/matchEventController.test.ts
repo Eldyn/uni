@@ -844,22 +844,39 @@ describe("createMatchEventBeatController", () => {
 			expect(turnedOver).toEqual(expect.arrayContaining(["31", "32"]));
 		});
 
-		it("plays a draw sound for each card as it lands", () => {
+		it("plays one swap sound, louder when the player is in the swap", () => {
 			storeAuth.username = "me";
 			storeGame.state = threeSeatState([7]);
 			const h = harness();
 			const playSfx = vi.spyOn(storeAudio, "playSfx").mockImplementation(() => {});
 
 			h.fire({ seq: 9, kind: "hands_swap", a: "bob", b: "cara", aSize: 2, bSize: 1 });
-			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
-				AnimationBeat[]
-			];
-			for (const step of beats[0]!.filter((candidate) => candidate.op === "move")) {
-				(step.payload?.onComplete as () => void)();
-			}
+			h.fire({ seq: 10, kind: "hands_swap", a: "me", b: "bob", aSize: 1, bSize: 2 });
 
-			const drawSounds = playSfx.mock.calls.filter(([id]) => id === "sfx.action.draw-card");
-			expect(drawSounds).toHaveLength(3);
+			const swaps = playSfx.mock.calls.filter(([id]) => id === "sfx.hands.swap");
+			expect(swaps).toHaveLength(2);
+			expect(swaps[0]![1]!.gain).toBeLessThan(swaps[1]![1]!.gain!);
+			expect(playSfx.mock.calls.some(([id]) => id === "sfx.action.draw-card")).toBe(false);
+			playSfx.mockRestore();
+		});
+
+		it("plays one rotation sound for a pass", () => {
+			storeAuth.username = "me";
+			storeGame.state = threeSeatState([7]);
+			const h = harness();
+			const playSfx = vi.spyOn(storeAudio, "playSfx").mockImplementation(() => {});
+
+			h.fire({
+				seq: 9,
+				kind: "hands_pass",
+				direction: "forward",
+				players: ["me", "bob", "cara"],
+				handSizes: [1, 2, 1]
+			});
+
+			const passes = playSfx.mock.calls.filter(([id]) => id === "sfx.hands.pass");
+			expect(passes).toHaveLength(1);
+			expect(passes[0]![1]!.gain).toBe(1);
 			playSfx.mockRestore();
 		});
 

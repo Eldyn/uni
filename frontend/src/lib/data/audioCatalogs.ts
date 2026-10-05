@@ -126,6 +126,18 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 		volume: 0.4,
 		minIntervalMs: 300
 	},
+	"sfx.hands.swap": {
+		id: "sfx.hands.swap",
+		variants: [sfxPath("hands-swap.m4a")],
+		volume: 0.4,
+		minIntervalMs: 200
+	},
+	"sfx.hands.pass": {
+		id: "sfx.hands.pass",
+		variants: [sfxPath("hands-pass.m4a")],
+		volume: 0.4,
+		minIntervalMs: 200
+	},
 	"sfx.match.victory": {
 		id: "sfx.match.victory",
 		variants: [sfxPath("victory.m4a")],
