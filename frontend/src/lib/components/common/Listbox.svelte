@@ -129,10 +129,10 @@
 					role="option"
 					aria-selected={opt === selected}
 					tabindex={i === activeIndex ? 0 : -1}
-					class="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-surface-deep {opt ===
+					class="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-surface-deep focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent {opt ===
 					selected
-						? 'bg-surface-deep'
-						: ''}"
+						? 'bg-surface-deep ring-1 ring-inset ring-accent'
+						: 'hover:ring-1 hover:ring-inset hover:ring-accent/40'}"
 					onclick={() => choose(opt)}
 					onfocus={() => (activeIndex = i)}
 				>
