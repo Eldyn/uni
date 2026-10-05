@@ -674,7 +674,9 @@ export function createMatchEventBeatController(deps: {
 		const placement = deps.getPlacement();
 		const localUsername = resolveLocalUsername(state);
 		const opponentScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
-		const previousHand = deps.bus.previousLocalHandSnapshot ?? deps.bus.localHandSnapshot;
+		// INFO: LocalHand3D has not re-laid-out for this snapshot yet, so its
+		//       current layout is still the hand the outgoing cards leave from.
+		const outgoingHand = deps.bus.localHandSnapshot;
 
 		const localSteps: AnimationStep[] = [];
 		const opponentSteps: AnimationStep[] = [];
@@ -699,7 +701,7 @@ export function createMatchEventBeatController(deps: {
 			for (let slot = 0; slot < count; slot++) {
 				const startPose = fromIsLocal
 					? {
-							position: localHandSlotAnchor(count, slot, placement, previousHand),
+							position: localHandSlotAnchor(count, slot, placement, outgoingHand),
 							spinDeg: 0,
 							scale: placement.handScale
 						}
@@ -762,11 +764,15 @@ export function createMatchEventBeatController(deps: {
 		const pendingIncoming = new Map(incomingByPlayer);
 		const remainingLocal = new Set(localRealIds);
 		const landedSynthetic = new Set<string>();
+		let finishing = false;
 		const landSynthetic = (index: number): void => {
 			const id = syntheticIds[index];
 			if (id === undefined || landedSynthetic.has(id)) return;
 			landedSynthetic.add(id);
 			const landing = syntheticLanding[index]!;
+			if (!finishing) {
+				playDrawSfx(landing.localHand ? ownDrawSfxGain() : OPPONENT_ACTION_SFX_GAIN);
+			}
 			if (!landing.localHand && (pendingIncoming.get(landing.to) ?? 0) > 0) {
 				pendingIncoming.set(landing.to, pendingIncoming.get(landing.to)! - 1);
 				deps.bus.removeInFlightDraw(landing.to, 1);
@@ -782,6 +788,7 @@ export function createMatchEventBeatController(deps: {
 					placement,
 					slotAnchorKeys: localTargets,
 					onCardComplete: (index) => {
+						playDrawSfx(ownDrawSfxGain());
 						const id = localRealIds[index];
 						if (id === undefined || !remainingLocal.has(id)) return;
 						remainingLocal.delete(id);
@@ -806,7 +813,6 @@ export function createMatchEventBeatController(deps: {
 			);
 		}
 
-		storeAudio.playSfx("sfx.action.draw-card", { gain: OPPONENT_ACTION_SFX_GAIN });
 		deps.cardRegistry
 			.enqueue([[...localSteps, ...opponentSteps]], resolveCardTarget)
 			.finally(() => {
@@ -816,6 +822,7 @@ export function createMatchEventBeatController(deps: {
 					if (left > 0) deps.bus.removeInFlightDraw(player, left);
 				}
 				pendingIncoming.clear();
+				finishing = true;
 				for (let i = 0; i < syntheticIds.length; i++) landSynthetic(i);
 				for (const key of [...localTargets, ...syntheticTargets]) {
 					pendingTransferAnchors.delete(key);
