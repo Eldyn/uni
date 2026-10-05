@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "Wähle, wie ein Match gewonnen wird. Jeder Modus ändert die Siegbedingung.",
 	"lobby_mode_standard": "Standard",
 	"lobby_mode_standard_desc": "Der klassische Weg zu gewinnen: Lege als Erster alle Karten deiner Hand ab.",
-	"lobby_mode_race": "Rennen",
+	"lobby_mode_race": "Wettkampf",
 	"lobby_mode_race_desc": "Die ersten Spieler, die ihre Hand leeren, gewinnen. Sobald genug fertig sind, verlieren alle anderen.",
 	"lobby_settings_race_percent": "Gewinnende Spieler",
 	"lobby_settings_race_percent_desc": "Anteil der Plätze, die gewinnen. Das Spiel endet, sobald so viele Spieler ihre Hand geleert haben.",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "Spiele außer der Reihe, wenn du exakt dieselbe Karte (gleiche Farbe und gleicher Wert) wie die oberste Karte hast.",
 	"glossary_progressive_title": "Fortlaufend",
 	"glossary_progressive_desc": "Karten mit demselben Wert wie die oberste Karte können im selben [k=vanilla:turn]Zug[/k] aneinandergehängt werden.",
-	"glossary_race_title": "Rennen",
+	"glossary_race_title": "Wettkampf",
 	"glossary_race_desc": "Die ersten Spieler, die ihre Hand leeren, gewinnen. Das Spiel endet, sobald genug fertig sind; alle anderen verlieren.",
 	"glossary_tag_rule": "Regel",
 	"glossary_tag_action": "Aktion",
@@ -474,5 +474,6 @@
 	"log_color_red": "Rot",
 	"log_color_yellow": "Gelb",
 	"log_color_green": "Grün",
-	"log_color_blue": "Blau"
+	"log_color_blue": "Blau",
+	"deck_desc_classic": "Das Standarddeck mit 108 Karten: Zahlen von 0 bis 9 in vier Farben, dazu Aussetzen, Richtungswechsel, +2, Joker und Joker +4."
 }

@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "Scegli come si vince una partita. Ogni modalita' cambia la condizione di vittoria.",
 	"lobby_mode_standard": "Standard",
 	"lobby_mode_standard_desc": "Il modo classico per vincere: sii il primo a liberarti di tutte le carte in mano.",
-	"lobby_mode_race": "Corsa",
+	"lobby_mode_race": "Gara",
 	"lobby_mode_race_desc": "I primi giocatori a svuotare la mano vincono. Quando ne hanno finito abbastanza, tutti gli altri perdono.",
 	"lobby_settings_race_percent": "Giocatori che vincono",
 	"lobby_settings_race_percent_desc": "Quota di posti che vincono. La partita finisce quando tanti giocatori hanno svuotato la mano.",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "Gioca fuori turno se possiedi una carta esattamente identica (stesso colore e valore) a quella in cima.",
 	"glossary_progressive_title": "Progressivo",
 	"glossary_progressive_desc": "Le carte che corrispondono al valore della carta in cima possono essere concatenate nello stesso [k=vanilla:turn]turno[/k].",
-	"glossary_race_title": "Corsa",
+	"glossary_race_title": "Gara",
 	"glossary_race_desc": "I primi giocatori a svuotare la mano vincono. La partita finisce quando ne hanno finito abbastanza e tutti gli altri perdono.",
 	"glossary_tag_rule": "Regola",
 	"glossary_tag_action": "Azione",
@@ -474,5 +474,6 @@
 	"log_color_red": "rosso",
 	"log_color_yellow": "giallo",
 	"log_color_green": "verde",
-	"log_color_blue": "blu"
+	"log_color_blue": "blu",
+	"deck_desc_classic": "Il mazzo standard da 108 carte: numeri da 0 a 9 in quattro colori, più salta, inverti, +2, jolly e jolly +4."
 }

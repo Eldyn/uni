@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "Elige cómo se gana una partida. Cada modo cambia la condición de victoria.",
 	"lobby_mode_standard": "Estándar",
 	"lobby_mode_standard_desc": "La forma clásica de ganar: sé el primero en deshacerte de todas tus cartas.",
-	"lobby_mode_race": "Carrera",
+	"lobby_mode_race": "Competición",
 	"lobby_mode_race_desc": "Los primeros jugadores en vaciar su mano ganan. Cuando terminan los suficientes, todos los demás pierden.",
 	"lobby_settings_race_percent": "Jugadores que ganan",
 	"lobby_settings_race_percent_desc": "Parte de los puestos que ganan. La partida termina cuando tantos jugadores han vaciado su mano.",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "Juega fuera de turno si tienes exactamente la misma carta (mismo color y valor) que la carta superior.",
 	"glossary_progressive_title": "Progresivo",
 	"glossary_progressive_desc": "Las cartas que coinciden con el valor de la carta superior se pueden encadenar en el mismo [k=vanilla:turn]turno[/k].",
-	"glossary_race_title": "Carrera",
+	"glossary_race_title": "Competición",
 	"glossary_race_desc": "Los primeros jugadores en vaciar su mano ganan. La partida termina cuando han terminado los suficientes y todos los demás pierden.",
 	"glossary_tag_rule": "Regla",
 	"glossary_tag_action": "Acción",
@@ -474,5 +474,6 @@
 	"log_color_red": "rojo",
 	"log_color_yellow": "amarillo",
 	"log_color_green": "verde",
-	"log_color_blue": "azul"
+	"log_color_blue": "azul",
+	"deck_desc_classic": "La baraja estándar de 108 cartas: números del 0 al 9 en cuatro colores, más salto, reversa, +2, comodín y comodín +4."
 }

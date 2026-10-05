@@ -17,6 +17,14 @@
 		oncommit: (id: string) => void;
 	} = $props();
 
+	// INFO: Built-in decks carry a translated blurb; a mod's own deck has none
+	//       here, so it falls back to the namespace that ships it.
+	function deckDescription(deckId: string): string | undefined {
+		const locale = { locale: storeI18n.locale };
+		if (deckId === "vanilla:classic") return m.deck_desc_classic({}, locale);
+		return undefined;
+	}
+
 	// INFO: The empty value is freestyle (no deck snapshot); every catalogue
 	// deck commits its full id. Freestyle is a dev-only entry.
 	let options = $derived([
@@ -26,7 +34,7 @@
 		...storeDeckCatalog.decks.map((deck) => ({
 			value: deck.id,
 			label: deck.name,
-			description: deck.namespace
+			description: deckDescription(deck.id) ?? deck.namespace
 		}))
 	]);
 

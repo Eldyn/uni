@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "选择比赛如何分出胜负。每种模式都会改变胜利条件。",
 	"lobby_mode_standard": "标准",
 	"lobby_mode_standard_desc": "经典的获胜方式：率先出完手中的所有牌。",
-	"lobby_mode_race": "竞速",
+	"lobby_mode_race": "竞赛",
 	"lobby_mode_race_desc": "最先出完手牌的玩家获胜。当足够多的玩家出完后，其余玩家全部落败。",
 	"lobby_settings_race_percent": "获胜玩家数",
 	"lobby_settings_race_percent_desc": "获胜席位所占的比例。达到这个人数后，对局结束。",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "若拥有与顶牌完全相同（同颜色同数值）的牌，可在非自己回合时抢先打出。",
 	"glossary_progressive_title": "连击出牌",
 	"glossary_progressive_desc": "与顶牌数值相同的牌可在同一[k=vanilla:turn]回合[/k]内连续打出。",
-	"glossary_race_title": "竞速",
+	"glossary_race_title": "竞赛",
 	"glossary_race_desc": "最先出完手牌的玩家获胜。出完的人数足够时对局结束，其余玩家全部落败。",
 	"glossary_tag_rule": "规则",
 	"glossary_tag_action": "动作",
@@ -474,5 +474,6 @@
 	"log_color_red": "红色",
 	"log_color_yellow": "黄色",
 	"log_color_green": "绿色",
-	"log_color_blue": "蓝色"
+	"log_color_blue": "蓝色",
+	"deck_desc_classic": "标准的 108 张牌组：四种颜色的 0 到 9 数字牌，加上跳过、反转、+2、万能牌和万能 +4。"
 }

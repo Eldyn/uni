@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "試合の勝ち方を選択します。モードごとに勝利条件が変わります。",
 	"lobby_mode_standard": "スタンダード",
 	"lobby_mode_standard_desc": "最も基本的な勝利方法：手札を最初にすべて出し切った人が勝ちです。",
-	"lobby_mode_race": "レース",
+	"lobby_mode_race": "競技",
 	"lobby_mode_race_desc": "手札を最初に出し切ったプレイヤーから勝利します。十分な人数が上がると、残りは全員敗北です。",
 	"lobby_settings_race_percent": "勝利する人数",
 	"lobby_settings_race_percent_desc": "勝利する席の割合です。その人数が手札を出し切ると試合が終わります。",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "一番上のカードと完全に同一（同じ色・同じ数字）のカードを持っていれば、手番外でも割り込んで出せます。",
 	"glossary_progressive_title": "プログレッシブ",
 	"glossary_progressive_desc": "一番上のカードと数字が一致するカードを同じ[k=vanilla:turn]手番[/k]内で連続して出せます。",
-	"glossary_race_title": "レース",
+	"glossary_race_title": "競技",
 	"glossary_race_desc": "手札を最初に出し切ったプレイヤーから勝利します。十分な人数が上がると試合が終わり、残りは全員敗北です。",
 	"glossary_tag_rule": "ルール",
 	"glossary_tag_action": "アクション",
@@ -474,5 +474,6 @@
 	"log_color_red": "赤",
 	"log_color_yellow": "黄",
 	"log_color_green": "緑",
-	"log_color_blue": "青"
+	"log_color_blue": "青",
+	"deck_desc_classic": "標準の108枚デックです。4色の0から9までの数字カードに、スキップ、リバース、+2、ワイルド、ワイルド+4が入っています。"
 }

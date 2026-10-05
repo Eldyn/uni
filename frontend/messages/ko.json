@@ -313,7 +313,7 @@
 	"lobby_settings_game_mode_desc": "승리 방식을 선택합니다. 각 모드는 승리 조건을 바꿉니다.",
 	"lobby_mode_standard": "스탠다드",
 	"lobby_mode_standard_desc": "가장 기본적인 승리 방식: 손패를 가장 먼저 모두 비우세요.",
-	"lobby_mode_race": "레이스",
+	"lobby_mode_race": "대결",
 	"lobby_mode_race_desc": "손패를 가장 먼저 비운 플레이어가 승리합니다. 충분한 인원이 끝내면 나머지는 모두 패배합니다.",
 	"lobby_settings_race_percent": "승리하는 플레이어",
 	"lobby_settings_race_percent_desc": "승리하는 자리의 비율입니다. 그 인원이 손패를 비우면 경기가 끝납니다.",
@@ -364,7 +364,7 @@
 	"glossary_jump_in_desc": "맨 위 카드와 색상과 값이 완전히 동일한 카드가 있다면 차례가 아니어도 즉시 낼 수 있습니다.",
 	"glossary_progressive_title": "연계 내기",
 	"glossary_progressive_desc": "맨 위 카드와 숫자가 같은 카드를 같은 [k=vanilla:turn]차례[/k]에 연속으로 묶어 낼 수 있습니다.",
-	"glossary_race_title": "레이스",
+	"glossary_race_title": "대결",
 	"glossary_race_desc": "손패를 가장 먼저 비운 플레이어가 승리합니다. 충분한 인원이 끝내면 경기가 종료되고 나머지는 모두 패배합니다.",
 	"glossary_tag_rule": "규칙",
 	"glossary_tag_action": "액션",
@@ -474,5 +474,6 @@
 	"log_color_red": "빨강",
 	"log_color_yellow": "노랑",
 	"log_color_green": "초록",
-	"log_color_blue": "파랑"
+	"log_color_blue": "파랑",
+	"deck_desc_classic": "108장으로 이루어진 기본 덱입니다. 네 가지 색의 0부터 9까지 숫자 카드와 건너뛰기, 방향 전환, +2, 와일드, 와일드 +4가 들어 있습니다."
 }
