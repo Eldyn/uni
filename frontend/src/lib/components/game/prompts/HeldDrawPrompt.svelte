@@ -10,11 +10,11 @@
 	import { worldToScreenPercent } from "../layout/screenProjection";
 	import { DRAW_HOVER_LIFT } from "../animation/baseBeats.svelte";
 
-	// The owner's post-draw choice, shown as a centered prompt exactly like the
-	// colour picker rather than a quiet HUD button. Playing routes through the
-	// store's normal play path (the same one the hand calls), so a drawn wild
-	// still opens the colour prompt through the usual pipeline. Renders nothing
-	// for any viewer that is not the owner — the card id only reaches its owner.
+	// The owner's post-draw choice: one line of text and two large buttons.
+	// Playing routes through the store's normal play path (the same one the hand
+	// calls), so a drawn wild still opens the colour prompt through the usual
+	// pipeline. Renders nothing for any viewer that is not the owner — the card
+	// id only reaches its owner.
 	let heldCardId = $derived.by(() => {
 		const pending = storeGame.state?.pendingPlayDrawn ?? null;
 		if (!pending || pending.card === undefined) return null;
@@ -24,9 +24,9 @@
 
 	const layout = useGameLayoutContext();
 
-	// Desktop: float the prompt just above the parked card at the draw pile, where
-	// the pointer already is after a draw. Mobile (or before the camera/geometry
-	// exists) stays centered, which is the better fit on the rail layout.
+	// Desktop: float the prompt above the parked card at the draw pile, clear of
+	// its top edge, where the pointer already is after a draw. Mobile (or before
+	// the camera/geometry exists) stays centered, the better fit on the rail layout.
 	let anchor = $derived.by(() => {
 		if (!layout || layout.viewportClass === "mobile") return null;
 		const camera = storeBoardCamera.camera;
@@ -67,7 +67,7 @@
 				<button
 					type="button"
 					use:autofocus={{ enabled: true, key: heldCardId }}
-					class="btn pixel-corners held-draw-button"
+					class="btn btn-md pixel-corners held-draw-button"
 					disabled={storeGame.isActionPending}
 					onclick={handlePlay}
 				>
@@ -75,7 +75,7 @@
 				</button>
 				<button
 					type="button"
-					class="btn pixel-corners held-draw-button"
+					class="btn btn-secondary btn-md pixel-corners held-draw-button"
 					disabled={storeGame.isActionPending}
 					onclick={handleDraw}
 				>
@@ -96,9 +96,11 @@
 		pointer-events: auto;
 	}
 
-	/* Desktop: sit just above the parked card at the draw pile. */
+	/* Desktop: sit above the parked card at the draw pile. The anchor is the
+	   card's centre, so lift by the card's half height (the HeldDrawCard hit
+	   target is 1.5 card sizes tall) plus a gap. */
 	.inline-action-container.anchored {
-		transform: translate(-50%, calc(-100% - 18px));
+		transform: translate(-50%, calc(-100% - var(--cardSize, 5em) * 0.75 - 12px));
 	}
 
 	.cute-bubble {
@@ -147,7 +149,23 @@
 	}
 
 	.held-draw-button {
-		min-width: 90px;
+		flex: 1 1 0;
+		min-width: 110px;
+		min-height: 52px;
 		text-transform: uppercase;
+	}
+
+	@media (max-width: 480px) {
+		.cute-bubble {
+			padding: 16px 18px;
+		}
+
+		.inline-action-container {
+			width: min(92vw, 360px);
+		}
+
+		.held-draw-text {
+			font-size: 1.05rem;
+		}
 	}
 </style>
