@@ -32,7 +32,7 @@ jobs:
       # conanfile.py and the profile decide the resolved dependency graph, so
       # they key the cache. A miss just pays the build cost; a hit skips it.
       - name: Cache Conan packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.conan2
           key: conan-${{ runner.os }}-${{ hashFiles('conanfile.py', 'conan/**') }}
