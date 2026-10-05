@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { createPlayLogEmitter } from "../../chat/playLog/playLogEmitter";
+import { createPlayLogEmitter, DRAW_DEBT_STATUS_KINDS } from "../../chat/playLog/playLogEmitter";
 import type { LogLine } from "../../chat/playLog/logEvent";
 
 const { escaped } = vi.hoisted(() => ({ escaped: [] as string[] }));
@@ -151,6 +151,18 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[0].key).toBe("log_play");
 		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
 		expect(lines[1].params).toEqual({ name: "Ann", color: "red", prevColor: "" });
+	});
+
+	it("logs a wild colour reaction for a uni wild", async () => {
+		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "red" }, Promise.resolve(), {
+			seq: 4
+		});
+		await flush();
+		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+	});
+
+	it("exposes one draw debt status kind for both base ids", () => {
+		expect(DRAW_DEBT_STATUS_KINDS).toEqual(["vanilla:draw_debt", "uni:draw_debt"]);
 	});
 
 	it("logs the wild colour reaction once the colour arrives", async () => {

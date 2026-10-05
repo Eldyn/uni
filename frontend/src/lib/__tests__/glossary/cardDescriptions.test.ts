@@ -71,3 +71,18 @@ describe("cardDescriptions", () => {
 		expect(cardInfoByKind("vanilla:red_draw2", "en")?.title).toBe("Draw Two (+2)");
 	});
 });
+
+describe("cardValueFromKind under the uni namespace", () => {
+	it("reads a uni kind like its vanilla twin", () => {
+		expect(cardValueFromKind("uni:red_5")).toBe(cardValueFromKind("vanilla:red_5"));
+		expect(cardValueFromKind("uni:red_5")).toBe("5");
+		expect(cardValueFromKind("uni:wild_draw4")).toBe("jolly_draw4");
+		expect(cardInfoByKind("uni:red_draw2", "en")).toEqual(
+			cardInfoByKind("vanilla:red_draw2", "en")
+		);
+	});
+
+	it("still rejects other namespaces", () => {
+		expect(cardValueFromKind("seven_zero:red_5")).toBeNull();
+	});
+});

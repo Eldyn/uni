@@ -13,6 +13,15 @@ describe("namespaced glossary", () => {
 		expect(entry?.description).toContain("[k=vanilla:draw]");
 	});
 
+	it("resolves the uni namespace beside vanilla", () => {
+		expect(getGlossaryEntry("uni:turn", "en")?.title).toBe(
+			getGlossaryEntry("vanilla:turn", "en")?.title
+		);
+		expect(hasGlossaryKeyword("uni:turn")).toBe(true);
+		expect(getGlossaryEntry("uni:red_draw2", "en")?.title).toBeTruthy();
+		expect(getGlossaryEntry("uni:nope", "en")).toBeNull();
+	});
+
 	it("returns null for an unknown keyword", () => {
 		expect(getGlossaryEntry("vanilla:nope", "en")).toBeNull();
 		expect(getGlossaryEntry("nope", "en")).toBeNull();

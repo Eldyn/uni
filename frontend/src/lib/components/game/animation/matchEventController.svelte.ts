@@ -26,7 +26,8 @@ import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAudio } from "$stores/audio.svelte";
-import { createPlayLogEmitter, DRAW_DEBT_STATUS_KIND } from "$lib/chat/playLog/playLogEmitter";
+import { createPlayLogEmitter } from "$lib/chat/playLog/playLogEmitter";
+import { DRAW_DEBT_STATUS_KINDS } from "$lib/utils/baseMod";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -1283,7 +1284,7 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "toast":
 				// Toast state lives in the store; map-and-drop per
-				if (beat.statusKind === DRAW_DEBT_STATUS_KIND) {
+				if (DRAW_DEBT_STATUS_KINDS.includes(beat.statusKind)) {
 					playLog.noteDebt(beat.target, beat.magnitude);
 				}
 				return;

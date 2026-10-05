@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { DRAW_DEBT_STATUS_KINDS } from "$lib/utils/baseMod";
 import type { SessionStore } from "$stores/sessionStore";
 import { storeAudio } from "./audio.svelte";
 import { storeAnalytics } from "./analytics.svelte";
@@ -254,19 +255,22 @@ export interface WindowAction {
 	enabled: boolean;
 }
 
-const DRAW_DEBT_STATUS_ID = "vanilla:draw_debt";
-
 interface ClockSpan {
 	durationMs: number;
 	deadlineAt: number;
 }
 
-/** True when the player carries a positive `vanilla:draw_debt` status. */
+/** True when the player carries a positive draw debt status. */
 function holdsDrawDebt(player: { statuses?: unknown[] } | null): boolean {
 	return (player?.statuses ?? []).some((status) => {
 		if (typeof status !== "object" || status === null) return false;
 		const { status_kind, magnitude } = status as Record<string, unknown>;
-		return status_kind === DRAW_DEBT_STATUS_ID && typeof magnitude === "number" && magnitude > 0;
+		return (
+			typeof status_kind === "string" &&
+			DRAW_DEBT_STATUS_KINDS.includes(status_kind) &&
+			typeof magnitude === "number" &&
+			magnitude > 0
+		);
 	});
 }
 

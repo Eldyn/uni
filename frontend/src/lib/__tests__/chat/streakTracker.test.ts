@@ -15,6 +15,16 @@ describe("StreakTracker", () => {
 		expect(tracker.record({ kind: "skip", player: "Bob" }).skipRun).toBe(1);
 	});
 
+	it("keeps the wild run on a uni wild play like a vanilla wild play", () => {
+		const tracker = new StreakTracker();
+		const play = (cardKind: string) =>
+			tracker.record({ kind: "play", seq: 1, player: "Ann", cardKind, color: "red" });
+		tracker.record({ kind: "wild", player: "Ann", color: "red" });
+		expect(play("vanilla:wild").wildRun).toBe(1);
+		expect(play("uni:wild_draw4").wildRun).toBe(1);
+		expect(play("uni:red_3").wildRun).toBe(0);
+	});
+
 	it("clears every run on a normal play", () => {
 		const tracker = new StreakTracker();
 		tracker.record({ kind: "skip", player: "Ann" });

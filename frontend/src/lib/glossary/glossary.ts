@@ -4,6 +4,7 @@
  */
 
 import * as m from "$lib/paraglide/messages.js";
+import { toLegacyBaseKindId } from "$lib/utils/baseMod";
 import { cardInfoByKind } from "$lib/glossary/cardDescriptions";
 import { storeI18n } from "$stores/i18n.svelte";
 
@@ -171,7 +172,7 @@ export const GLOSSARY_REGISTRY: Record<string, GlossaryDefinition> = {
  * Resolves a keyword definition. Fails soft by returning null for unknown keywords.
  */
 export function getGlossaryEntry(keyword: string, locale?: string): GlossaryEntry | null {
-	const def = GLOSSARY_REGISTRY[keyword];
+	const def = GLOSSARY_REGISTRY[toLegacyBaseKindId(keyword)];
 	if (def) {
 		return {
 			id: def.id,

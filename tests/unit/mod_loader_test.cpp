@@ -194,6 +194,25 @@ TEST_CASE("modloader: valid mod folder loads all artifacts") {
     CHECK(mod.decks[0].settings.contains("match"));
 }
 
+TEST_CASE("modloader: a uni mod folder loads beside a vanilla mod folder") {
+    TempModsRoot tmp;
+    for (const char* id : {"uni", "vanilla"}) {
+        const std::string manifest =
+            std::string(R"({ "id": ")") + id +
+            R"(", "name": "Base", "version": "1.0.0", "api": "1" })";
+        tmp.Write(id, "mod.json", manifest);
+        tmp.WriteEntrySet(id, "cards", kValidCards);
+    }
+
+    LoadResult result = ScanModsDirectory(tmp.root.string());
+    REQUIRE(result.errors.empty());
+    REQUIRE(result.mods.size() == 2);
+    CHECK(result.mods[0].manifest.id == "uni");
+    CHECK(result.mods[0].cards[0].kind_id == "uni:plus4");
+    CHECK(result.mods[1].manifest.id == "vanilla");
+    CHECK(result.mods[1].cards[0].kind_id == "vanilla:plus4");
+}
+
 TEST_CASE("modloader: missing manifest yields structured error") {
     TempModsRoot tmp;
     tmp.Write("orphan", "cards/c1.json",

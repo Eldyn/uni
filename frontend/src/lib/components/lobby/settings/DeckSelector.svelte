@@ -3,6 +3,7 @@
 	import { storeDeckCatalog } from "$stores/deckCatalog.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import { toLegacyBaseKindId } from "$lib/utils/baseMod";
 
 	//@ts-ignore
 	declare const __DEV_CONTENT__: boolean;
@@ -21,13 +22,13 @@
 	//       here, so it falls back to the namespace that ships it.
 	function deckDescription(deckId: string): string | undefined {
 		const locale = { locale: storeI18n.locale };
-		if (deckId === "vanilla:classic") return m.deck_desc_classic({}, locale);
+		if (toLegacyBaseKindId(deckId) === "vanilla:classic") return m.deck_desc_classic({}, locale);
 		return undefined;
 	}
 
 	function deckName(deckId: string, serverName: string): string {
 		const locale = { locale: storeI18n.locale };
-		if (deckId === "vanilla:classic") return m.deck_name_classic({}, locale);
+		if (toLegacyBaseKindId(deckId) === "vanilla:classic") return m.deck_name_classic({}, locale);
 		return serverName;
 	}
 

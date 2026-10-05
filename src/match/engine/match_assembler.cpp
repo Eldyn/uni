@@ -2,6 +2,7 @@
 
 #include "match/content_wiring.hpp"
 #include "match/engine/mutation_compiler.hpp"
+#include "match/modload/base_mod.hpp"
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 
@@ -175,6 +176,22 @@ std::optional<ecs::Entity> PayloadEntity(const json& data,
 /** @brief Stable `Entity` map key (index in the high 32 bits). */
 uint64_t EntityKey(ecs::Entity entity) {
     return (static_cast<uint64_t>(entity.index) << 32) | entity.generation;
+}
+
+/**
+ * @brief Finds the loaded mod a deck id names.
+ *
+ * An exact id wins. Otherwise the base mod matches under its other id.
+ */
+const modload::LoadedMod* FindLoadedMod(
+    const std::vector<modload::LoadedMod>& mods, const std::string& id) {
+    for (const modload::LoadedMod& mod : mods) {
+        if (mod.manifest.id == id) return &mod;
+    }
+    for (const modload::LoadedMod& mod : mods) {
+        if (modload::IsSameModId(mod.manifest.id, id)) return &mod;
+    }
+    return nullptr;
 }
 
 /** @brief True when the card kind declares the (legacy numeric) `numbered`. */
@@ -477,16 +494,14 @@ AssemblyResult MatchAssembler::Assemble(
             return fail("assembly.duplicate_mod",
                         "mod '" + id + "' listed more than once");
         }
-        const modload::LoadedMod* found = nullptr;
-        for (const modload::LoadedMod& mod : mods) {
-            if (mod.manifest.id == id) {
-                found = &mod;
-                break;
-            }
-        }
+        const modload::LoadedMod* found = FindLoadedMod(mods, id);
         if (found == nullptr) {
             return fail("assembly.unknown_mod", "loaded mod '" + id
                                                     + "' is not available");
+        }
+        if (std::ranges::find(active, found) != active.end()) {
+            return fail("assembly.duplicate_mod",
+                        "mod '" + id + "' listed more than once");
         }
         active.push_back(found);
         registries.mods.push_back(

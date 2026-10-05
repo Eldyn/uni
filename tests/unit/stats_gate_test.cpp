@@ -36,6 +36,28 @@ TEST_CASE("allows: vanilla mods with the classic deck") {
     CHECK(StatsGateAllows({"vanilla"}, ClassicDeck()));
 }
 
+TEST_CASE("allows: uni mod id with the classic deck") {
+    CHECK(StatsGateAllows({"uni"}, ClassicDeck()));
+}
+
+TEST_CASE("allows: uni mod id with a uni-prefixed classic deck") {
+    DeckCards deck = ClassicDeck();
+    for (auto& [kind, count] : deck) {
+        kind = "uni:" + kind.substr(kind.find(':') + 1);
+    }
+    CHECK(StatsGateAllows({"uni"}, deck));
+}
+
+TEST_CASE("rejects: uni and vanilla together") {
+    CHECK_FALSE(StatsGateAllows({"uni", "vanilla"}, ClassicDeck()));
+}
+
+TEST_CASE("rejects: changed uni-prefixed deck kind multiset") {
+    DeckCards deck = ClassicDeck();
+    deck.emplace_back("uni:custom_card", 1);
+    CHECK_FALSE(StatsGateAllows({"uni"}, deck));
+}
+
 TEST_CASE("rejects: extra mod in the set") {
     CHECK_FALSE(StatsGateAllows({"vanilla", "extra"}, ClassicDeck()));
 }

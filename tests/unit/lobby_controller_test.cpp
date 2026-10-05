@@ -1243,6 +1243,79 @@ TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
     CleanupUsers({alice, bob});
 }
 
+TEST_CASE("match end: uni listed beside vanilla keeps the classic stats") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "ticket17_alice";
+    const std::string bob = "ticket17_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    lobby->settings.active_mods = {"uni"};
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    auto alice_stats = Database::Get().QueryOne(
+        "SELECT total_wins FROM player_stats WHERE username = ?;", {alice});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK(alice_stats->value().Get<int>("total_wins") == 1);
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "ticket17d_alice";
+    const std::string bob = "ticket17d_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    json deck = json{{"id", "classic"},
+                     {"name", "Classic"},
+                     {"namespace", "vanilla"},
+                     {"mods", json::array({"uni"})},
+                     {"cards", json::object()}};
+    for (const auto& [kind, count] :
+         match::server::VanillaClassicDeckCards()) {
+        deck["cards"][kind] = count;
+    }
+    lobby->settings.deck = std::move(deck);
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    auto alice_stats = Database::Get().QueryOne(
+        "SELECT total_wins FROM player_stats WHERE username = ?;", {alice});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK(alice_stats->value().Get<int>("total_wins") == 1);
+
+    CleanupUsers({alice, bob});
+}
+
 TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     REQUIRE(Database::Get().RunMigrations().has_value());
     const std::string alice = "wp13d_alice";

@@ -4,6 +4,7 @@
  */
 
 import * as m from "$lib/paraglide/messages.js";
+import { isBaseModNamespace } from "$lib/utils/baseMod";
 import { ValueMap } from "$lib/generated/schemas";
 import { storeI18n } from "$stores/i18n.svelte";
 import type { CardValue } from "$stores/game.svelte";
@@ -85,7 +86,7 @@ function vanillaSlug(localId: string): string {
 
 export function cardValueFromKind(kindId: string): CardValue | null {
 	const [namespace, localId] = kindId.split(":");
-	if (namespace !== "vanilla" || !localId) return null;
+	if (!isBaseModNamespace(namespace) || !localId) return null;
 	const slug = vanillaSlug(localId);
 	const value = VALUE_BY_SLUG[slug] ?? slug;
 	return KNOWN_VALUES.has(value) ? (value as CardValue) : null;

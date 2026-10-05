@@ -1,5 +1,7 @@
 #include <match/server/stats_gate.hpp>
 
+#include <match/modload/base_mod.hpp>
+
 #include <algorithm>
 
 /**
@@ -40,8 +42,9 @@ std::vector<std::string> ExpandKindMultiset(
     const std::vector<std::pair<std::string, int>>& cards) {
     std::vector<std::string> kinds;
     for (const auto& [kind, count] : cards) {
+        const std::string legacy_kind = modload::ToLegacyBaseKindId(kind);
         for (int i = 0; i < count; ++i) {
-            kinds.push_back(kind);
+            kinds.push_back(legacy_kind);
         }
     }
     std::sort(kinds.begin(), kinds.end());
@@ -61,7 +64,7 @@ bool DeckKindMultisetsEqual(const std::vector<std::string>& lhs,
 bool StatsGateAllows(const std::vector<std::string>& mods,
                      const std::vector<std::pair<std::string, int>>&
                          deck_cards) {
-    if (mods.size() != 1 || mods.front() != "vanilla") {
+    if (mods.size() != 1 || !modload::IsBaseModId(mods.front())) {
         return false;
     }
     return DeckKindMultisetsEqual(

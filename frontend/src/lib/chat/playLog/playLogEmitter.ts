@@ -1,9 +1,9 @@
 import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
+import { DRAW_DEBT_STATUS_KINDS, toLegacyBaseKindId } from "$lib/utils/baseMod";
+export { DRAW_DEBT_STATUS_KINDS };
 import { StreakTracker } from "./streakTracker";
 import type { LogEvent, LogLine } from "./logEvent";
-
-export const DRAW_DEBT_STATUS_KIND = "vanilla:draw_debt";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
 export type TurnInfo = { skipped: string[]; direction: number; seq: number; actor?: string };
@@ -39,7 +39,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 
 	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
 		const player = escapeLogText(card.player);
-		const isWild = card.kind === "vanilla:wild" || card.kind === "vanilla:wild_draw4";
+		const cardKind = toLegacyBaseKindId(card.kind);
+		const isWild = cardKind === "vanilla:wild" || cardKind === "vanilla:wild_draw4";
 		emit(
 			card.auto
 				? { kind: "auto_play", seq, player, cardKind: card.kind, color: card.color }
@@ -64,7 +65,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		landed: Promise<unknown>,
 		ctx: { seq: number; nearWin?: boolean }
 	): void {
-		const { player, kind, color } = card;
+		const { player, color } = card;
+		const kind = toLegacyBaseKindId(card.kind);
 		const { seq, nearWin } = ctx;
 		const stackAmount = kind === "vanilla:wild_draw4" ? 4 : kind.endsWith("_draw2") ? 2 : null;
 		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;

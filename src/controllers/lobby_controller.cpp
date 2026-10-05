@@ -10,6 +10,7 @@
 #include <common/env.hpp>
 #include <common/ws.hpp>
 #include <common/payloads.hpp>
+#include <match/modload/base_mod.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/modload/asset_index.hpp>
 #include <match/engine/match_assembler.hpp>
@@ -104,7 +105,7 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
     def.deck_id = "vanilla:classic";
     def.mods.push_back("vanilla");
     for (const std::string& mod : settings.active_mods) {
-        if (mod == "vanilla") continue;
+        if (match::modload::IsBaseModId(mod)) continue;
         def.mods.push_back(mod);
     }
 
@@ -123,6 +124,19 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
     def.cards.emplace_back("vanilla:wild_draw4",
                            settings.count_wild_draw_four);
     return def;
+}
+
+/**
+ * @brief True when `mods` holds a mod that `mod_id` names.
+ *
+ * The base mod matches under both of its ids.
+ */
+bool HasLoadedMod(const std::vector<match::modload::LoadedMod>& mods,
+                  const std::string& mod_id) {
+    return std::ranges::any_of(
+        mods, [&mod_id](const match::modload::LoadedMod& mod) {
+            return match::modload::IsSameModId(mod.manifest.id, mod_id);
+        });
 }
 
 /**
@@ -1082,8 +1096,9 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
 
     // INFO: Swap: the catalog is now the mod-folder scan
-    //       rather than the legacy in-process RuleRegistry. `vanilla` is the
-    //       always-on base mod, so it is not offered as a toggleable rule.
+    //       rather than the legacy in-process RuleRegistry. The base mod
+    //       (`vanilla` or `uni`) is always on, so it is not offered as a
+    //       toggleable rule.
     json available_rules = json::array();
     const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
     const match::modload::LoadResult& loaded = snapshot->loaded;
@@ -1092,7 +1107,7 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
                      "'");
     } else {
         for (const auto& mod : loaded.mods) {
-            if (mod.manifest.id == "vanilla") continue;
+            if (match::modload::IsBaseModId(mod.manifest.id)) continue;
             available_rules.push_back({
                 {"id",          mod.manifest.id},
                 {"label",       mod.manifest.name},
@@ -1108,9 +1123,6 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
 
 json LobbyController::DeckCatalogJson(
     const std::vector<match::modload::LoadedMod>& mods) {
-    std::set<std::string> loaded_ids;
-    for (const auto& mod : mods) loaded_ids.insert(mod.manifest.id);
-
     json decks = json::array();
     for (const auto& mod : mods) {
         for (const auto& deck : mod.decks) {
@@ -1119,7 +1131,7 @@ json LobbyController::DeckCatalogJson(
             //       start refuses it (fail closed at the match boundary).
             bool valid = true;
             for (const auto& required : deck.mods) {
-                if (loaded_ids.count(required) == 0) {
+                if (!HasLoadedMod(mods, required)) {
                     valid = false;
                     break;
                 }
@@ -1665,14 +1677,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     //       requires must be present and valid, otherwise a mod that failed
     //       validation would be silently dropped from the match.
     for (const auto& required : deck_def.mods) {
-        bool present = false;
-        for (const auto& mod : loaded.mods) {
-            if (mod.manifest.id == required) {
-                present = true;
-                break;
-            }
-        }
-        if (!present) {
+        if (!HasLoadedMod(loaded.mods, required)) {
             Logger::Error("[Lobby] Start failed: deck requires unavailable mod '",
                           required, "'");
             broadcaster_.SendError(context.socket, context.op_code,
@@ -1685,10 +1690,11 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
 
     std::vector<match::modload::LoadedMod> active_mods;
     for (const auto& mod : loaded.mods) {
-        if (std::ranges::find(deck_def.mods, mod.manifest.id)
-            != deck_def.mods.end()) {
-            active_mods.push_back(mod);
-        }
+        const bool required_by_deck = std::ranges::any_of(
+            deck_def.mods, [&mod](const std::string& required) {
+                return match::modload::IsSameModId(mod.manifest.id, required);
+            });
+        if (required_by_deck) active_mods.push_back(mod);
     }
 
     match::engine::MatchAssemblyOptions options;
