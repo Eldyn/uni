@@ -474,5 +474,6 @@
 	"log_color_yellow": "黄",
 	"log_color_green": "緑",
 	"log_color_blue": "青",
+	"deck_name_classic": "クラシック",
 	"deck_desc_classic": "標準の108枚デックです。4色の0から9までの数字カードに、スキップ、リバース、+2、ワイルド、ワイルド+4が入っています。"
 }

@@ -474,5 +474,6 @@
 	"log_color_yellow": "노랑",
 	"log_color_green": "초록",
 	"log_color_blue": "파랑",
+	"deck_name_classic": "클래식",
 	"deck_desc_classic": "108장으로 이루어진 기본 덱입니다. 네 가지 색의 0부터 9까지 숫자 카드와 건너뛰기, 방향 전환, +2, 와일드, 와일드 +4가 들어 있습니다."
 }

@@ -474,5 +474,6 @@
 	"log_color_yellow": "giallo",
 	"log_color_green": "verde",
 	"log_color_blue": "blu",
+	"deck_name_classic": "Classico",
 	"deck_desc_classic": "Il mazzo standard da 108 carte: numeri da 0 a 9 in quattro colori, più salta, inverti, +2, jolly e jolly +4."
 }

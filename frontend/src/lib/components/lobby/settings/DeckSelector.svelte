@@ -25,6 +25,12 @@
 		return undefined;
 	}
 
+	function deckName(deckId: string, serverName: string): string {
+		const locale = { locale: storeI18n.locale };
+		if (deckId === "vanilla:classic") return m.deck_name_classic({}, locale);
+		return serverName;
+	}
+
 	// INFO: The empty value is freestyle (no deck snapshot); every catalogue
 	// deck commits its full id. Freestyle is a dev-only entry.
 	let options = $derived([
@@ -33,7 +39,7 @@
 			: []),
 		...storeDeckCatalog.decks.map((deck) => ({
 			value: deck.id,
-			label: deck.name,
+			label: deckName(deck.id, deck.name),
 			description: deckDescription(deck.id) ?? deck.namespace
 		}))
 	]);

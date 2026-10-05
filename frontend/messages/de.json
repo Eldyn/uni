@@ -474,5 +474,6 @@
 	"log_color_yellow": "Gelb",
 	"log_color_green": "Grün",
 	"log_color_blue": "Blau",
+	"deck_name_classic": "Klassisch",
 	"deck_desc_classic": "Das Standarddeck mit 108 Karten: Zahlen von 0 bis 9 in vier Farben, dazu Aussetzen, Richtungswechsel, +2, Joker und Joker +4."
 }

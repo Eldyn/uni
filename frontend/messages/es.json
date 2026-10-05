@@ -474,5 +474,6 @@
 	"log_color_yellow": "amarillo",
 	"log_color_green": "verde",
 	"log_color_blue": "azul",
+	"deck_name_classic": "Clásica",
 	"deck_desc_classic": "La baraja estándar de 108 cartas: números del 0 al 9 en cuatro colores, más salto, reversa, +2, comodín y comodín +4."
 }

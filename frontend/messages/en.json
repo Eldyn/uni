@@ -474,5 +474,6 @@
 	"log_color_yellow": "yellow",
 	"log_color_green": "green",
 	"log_color_blue": "blue",
+	"deck_name_classic": "Classic",
 	"deck_desc_classic": "The standard 108-card deck: numbers 0 to 9 in four colours, plus skip, reverse, +2, wild and wild +4."
 }
