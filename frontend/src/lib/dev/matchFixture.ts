@@ -53,6 +53,9 @@ const OPPONENT_NAMES = [
  * @interface MatchFixtureOptions
  * @brief Fully resolved knobs of a synthetic match, after query parsing.
  */
+/** Cards left in the fixture's draw pile, so both centre piles render. */
+const FIXTURE_DRAW_PILE_SIZE = 40;
+
 export interface MatchFixtureOptions {
 	/** Total seats at the table, local player included. */
 	players: number;
@@ -205,6 +208,7 @@ export function buildMatchFixture(options: MatchFixtureOptions): GameState {
 		play_direction: options.direction,
 		top_card: topCard,
 		players,
-		pending_draws: options.pendingDraws
+		pending_draws: options.pendingDraws,
+		draw_pile_size: FIXTURE_DRAW_PILE_SIZE
 	};
 }
