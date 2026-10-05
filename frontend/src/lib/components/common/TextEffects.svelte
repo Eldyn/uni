@@ -24,7 +24,7 @@
 		// still gets its color instead of silently resetting to the default.
 		shineBaseColor = "",
 		// shake
-		shakeIntensity = 3, // max px displacement
+		shakeIntensity = 0.1, // max displacement in em, so it scales with the font
 		shakeSpeed = 0.4 // seconds per shake cycle
 	}: {
 		text: string;
@@ -73,7 +73,7 @@
 {:else if effect === "shake"}
 	<span
 		class="char-wrap {className}"
-		style="{fontStyle}{colorStyle} --amp: {shakeIntensity}px; --speed: {shakeSpeed}s"
+		style="{fontStyle}{colorStyle} --amp: {shakeIntensity}em; --speed: {shakeSpeed}s"
 	>
 		{#each chars as char, i}
 			<span class="char shake-char" style="--i: {i}" aria-hidden={i > 0 ? "true" : undefined}
@@ -164,22 +164,22 @@
 			transform: translate(0, 0);
 		}
 		15% {
-			transform: translate(calc(var(--amp, 3px) * -1), calc(var(--amp, 3px) * 0.5));
+			transform: translate(calc(var(--amp, 0.1em) * -1), calc(var(--amp, 0.1em) * 0.5));
 		}
 		30% {
-			transform: translate(calc(var(--amp, 3px) * 0.8), calc(var(--amp, 3px) * -0.6));
+			transform: translate(calc(var(--amp, 0.1em) * 0.8), calc(var(--amp, 0.1em) * -0.6));
 		}
 		45% {
-			transform: translate(calc(var(--amp, 3px) * -0.5), calc(var(--amp, 3px) * -0.9));
+			transform: translate(calc(var(--amp, 0.1em) * -0.5), calc(var(--amp, 0.1em) * -0.9));
 		}
 		60% {
-			transform: translate(calc(var(--amp, 3px) * 0.9), calc(var(--amp, 3px) * 0.3));
+			transform: translate(calc(var(--amp, 0.1em) * 0.9), calc(var(--amp, 0.1em) * 0.3));
 		}
 		75% {
-			transform: translate(calc(var(--amp, 3px) * -0.7), calc(var(--amp, 3px) * 0.7));
+			transform: translate(calc(var(--amp, 0.1em) * -0.7), calc(var(--amp, 0.1em) * 0.7));
 		}
 		90% {
-			transform: translate(calc(var(--amp, 3px) * 0.4), calc(var(--amp, 3px) * -0.4));
+			transform: translate(calc(var(--amp, 0.1em) * 0.4), calc(var(--amp, 0.1em) * -0.4));
 		}
 		100% {
 			transform: translate(0, 0);

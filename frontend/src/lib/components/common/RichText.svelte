@@ -5,6 +5,7 @@
 	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 	import { hasGlossaryKeyword } from "$lib/glossary/glossary";
 	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 
 	let {
 		text,
@@ -32,7 +33,7 @@
 
 	const segments = $derived(
 		parseRichText(text, { allowKeywords, allowLogTags: logTags }).map((segment) =>
-			segment.effect === "shake" && !storeAnimation.enabled
+			segment.effect === "shake" && (!storeAnimation.enabled || storeWebglCapability.reducedMotion)
 				? { ...segment, effect: undefined }
 				: segment
 		)

@@ -182,13 +182,13 @@ describe("parseRichText", () => {
 
 describe("fxRenderProps", () => {
 	it("reproduces TextEffects' defaults at intensity/speed 1", () => {
-		expect(fxRenderProps("shake")).toEqual({ shakeIntensity: 3, shakeSpeed: 0.4 });
+		expect(fxRenderProps("shake")).toEqual({ shakeIntensity: 0.1, shakeSpeed: 0.4 });
 		expect(fxRenderProps("undulate")).toEqual({ amplitude: 10, speed: 1.2 });
 		expect(fxRenderProps("shine")).toEqual({ shineSpeed: 2.5 });
 	});
 
 	it("maps intensity and speed levels onto per-effect tuning", () => {
-		expect(fxRenderProps("shake", 3, 0)).toEqual({ shakeIntensity: 8, shakeSpeed: 0.6 });
+		expect(fxRenderProps("shake", 3, 0)).toEqual({ shakeIntensity: 0.25, shakeSpeed: 0.6 });
 		expect(fxRenderProps("undulate", 2, 3)).toEqual({ amplitude: 16, speed: 0.55 });
 		expect(fxRenderProps("shine", 1, 3)).toEqual({ shineSpeed: 1.0 });
 	});

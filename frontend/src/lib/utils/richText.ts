@@ -326,7 +326,7 @@ export function fxRenderProps(effect: RichEffect, intensity = 1, speed = 1) {
 	switch (effect) {
 		case "shake":
 			return {
-				shakeIntensity: [0, 3, 5, 8][intensity],
+				shakeIntensity: [0, 0.1, 0.16, 0.25][intensity],
 				shakeSpeed: [0.6, 0.4, 0.28, 0.18][speed]
 			};
 		case "undulate":
