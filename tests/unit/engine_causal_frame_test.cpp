@@ -366,3 +366,48 @@ TEST_CASE("causal frame: a bot move names the bot seat as actor") {
     CHECK((*drawn)["causal_frame"]["actor"] == "bot0");
     CHECK((*drawn)["causal_frame"]["cause"] == "draw");
 }
+
+TEST_CASE("causal frame: each engine event has a growing event id") {
+    Content content = LoadContent();
+    FakeClock clock;
+    auto engine = MakeEngine(content, 2, match::WindowConfig{}, clock.Fn());
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> card = FindNumberedCard(*engine, "5");
+    REQUIRE(card.has_value());
+    ForceHand(*engine, player0, {*card});
+    engine->TakeEvents();
+
+    REQUIRE(engine->PlayCard("player0", *card));
+
+    const std::vector<json> events = engine->Events();
+    REQUIRE(events.size() > 1);
+    int64_t previous_id = -1;
+    for (const json& event : events) {
+        REQUIRE(event.contains("event_id"));
+        const int64_t event_id = event["event_id"].get<int64_t>();
+        CHECK(event_id > previous_id);
+        previous_id = event_id;
+    }
+}
+
+TEST_CASE("causal frame: a rule chain event names the played card event") {
+    Content content = LoadContent();
+    FakeClock clock;
+    auto engine = MakeEngine(content, 2, match::WindowConfig{}, clock.Fn());
+    AttachSystem(*engine, SignalGraph("chain:signal"));
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> card = FindNumberedCard(*engine, "5");
+    REQUIRE(card.has_value());
+    ForceHand(*engine, player0, {*card});
+    engine->TakeEvents();
+
+    REQUIRE(engine->PlayCard("player0", *card));
+
+    const std::vector<json> events = engine->Events();
+    const json* played = FindEvent(events, "card_played");
+    const json* signal = FindSignal(events, "chain:signal");
+    REQUIRE(played != nullptr);
+    REQUIRE(signal != nullptr);
+    CHECK_FALSE((*played)["causal_frame"].contains("cause_event"));
+    CHECK((*signal)["causal_frame"]["cause_event"] == (*played)["event_id"]);
+}

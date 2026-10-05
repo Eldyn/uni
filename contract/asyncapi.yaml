@@ -54,6 +54,7 @@ channels:
           - $ref: "#/components/messages/MatchWindowResponse"
           - $ref: "#/components/messages/MatchExit"
           - $ref: "#/components/messages/MatchClientReady"
+          - $ref: "#/components/messages/MatchSnapshotRequest"
           - $ref: "#/components/messages/LobbyListRequest"
           - $ref: "#/components/messages/LobbyCreate"
           - $ref: "#/components/messages/LobbyJoin"
@@ -506,6 +507,24 @@ components:
           action:
             type: string
             enum: ["match_client_ready"]
+
+    MatchSnapshotRequest:
+      name: match_snapshot_request
+      title: Request A New Snapshot (after a sequence gap)
+      description: >
+        Sent by a client that sees a gap in the `sequence` of its client
+        events. The server answers with `match_state_updated`; its
+        `seq_watermark` is the `sequence` of the next packet for this
+        recipient. The server rate limits the request per recipient (default
+        one per 1000 ms, environment variable
+        `SNAPSHOT_REQUEST_MIN_INTERVAL_MS`); a request inside the interval
+        gets no answer. Empty payload.
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["match_snapshot_request"]
 
     MatchSubmitInput:
       name: match_submit_input
@@ -1049,26 +1068,33 @@ components:
             attributes the spectator to whoever's turn it is.
 
     # --- Event-stream packet payloads -----------------------
-    # The MatchEvent envelope is {seq, type, payload}; the named *Payload
-    # schemas below describe the inner `payload` object for each packet `type`.
+    # The MatchEvent envelope is the client event envelope. The named *Payload
+    # schemas below describe the inner `payload` object for each packet `id`.
     #
     # Versioning convention (x-packet-v1): every packet payload schema carries
     # a top-level `x-packet-version: "1"` marker. Evolve payloads additively;
     # bump the marker only on a breaking change. Clients MUST ignore unknown
-    # `type` strings (and unknown trailing fields) without error.
+    # `id` strings (and unknown trailing fields) without error.
 
-    # Event-stream envelope. The MatchEvent message references this
-    # schema. `seq` is a per-match monotonic uint32; per-recipient filtering may
-    # drop a packet for one viewer but never renumbers, so each recipient's
-    # stream is gap-free. The server emits in resolution order and the transport
-    # preserves per-connection order. On a seq gap > 1 the client flushes its
-    # animation queue, marks itself desynced, and reconciles from the next
-    # state snapshot. FORWARD-COMPAT (normative): unknown `type` strings MUST be
-    # ignored by clients, never treated as errors. The valid `type` values are
-    # pinned by components.x-packet-types; the inner payload shape per `type` is
+    # Event-stream envelope. The MatchEvent message references this schema.
+    # Each recipient has its own `sequence`. It grows by one for each packet
+    # that this recipient receives, and session packets (prompts, defs, ...)
+    # use the same counter. An event that goes to one seat only never makes a
+    # gap for another seat. On a `sequence` gap the client flushes its
+    # animation queue, sends `match_snapshot_request`, and reconciles from the
+    # snapshot. `cause` is the `sequence` of the causing client event as this
+    # recipient knows it. It is absent when there is no cause or when the
+    # recipient cannot see the causing event. `actor` is the username of the
+    # seat that caused the event. It is absent for a table event.
+    # FORWARD-COMPAT (normative): unknown `id` strings MUST be ignored by
+    # clients, never treated as errors. The valid `id` values are pinned by
+    # components.x-packet-types; the inner payload shape per `id` is
     # described by the named *Payload schemas below, versioned by name via the
-    # x-packet-v1 marker (`x-packet-version: "1"`); new packet types are added
+    # x-packet-v1 marker (`x-packet-version: "1"`); new packet ids are added
     # additively.
+    #
+    # TODO: `seq` and `type` are the old names of `sequence` and `id`. They
+    #       carry the same values. Remove them when no client reads them.
     #
     # WARN: `payload` (here, and the same for SignalPayload.payload and
     #       PromptOpenPayload.payload) is intentionally opaque: the external
@@ -1077,30 +1103,59 @@ components:
     #       parses its contents (toJson() -> `{}`, fromJson() discards). Do NOT
     #       assume the C++ generated struct round-trips this field; consumers
     #       must carry/parse raw JSON for it (the view layer and the session
-    # layer). WARN: `seq` is a uint32 on the wire but asyncapi_gencpp emits
-    #       every integer as C++ `int` (32-bit signed), so the 4294967295
-    #       maximum does not fit and the generated range check is inert. The
-    #       view layer and the controller must handle the uint32 range
-    #       explicitly (carry raw JSON or widen); no schema change is made here.
+    # layer). WARN: `sequence` is a uint32 on the wire but asyncapi_gencpp
+    #       emits every integer as C++ `int` (32-bit signed), so the
+    #       4294967295 maximum does not fit and the generated range check is
+    #       inert. The view layer and the controller must handle the uint32
+    #       range explicitly (carry raw JSON or widen); no schema change is
+    #       made here.
     MatchEventPayload:
       type: object
       x-packet-version: "1"
       required: [seq, type, payload]
       properties:
-        seq:
+        sequence:
           type: integer
           minimum: 0
           maximum: 4294967295
           description: >
-            Per-match monotonic sequence number (uint32); gap-free per
-            recipient. Generated C++ type is `int` (see WARN above).
+            Per-recipient sequence number (uint32); gap-free per recipient.
+            Generated C++ type is `int` (see WARN above).
+        id:
+          type: string
+          description: >
+            Namespaced name of what happened. Unknown values MUST be ignored
+            by clients.
+        actor:
+          type: string
+          description: Username of the seat that caused the event.
+        cause:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: >
+            The `sequence` of the causing client event, in the sequence space
+            of this recipient. Absent when the recipient cannot see it.
+        turn:
+          type: integer
+          minimum: 0
+          description: The turn number of the event.
+        round:
+          type: integer
+          minimum: 0
+          description: The round number of the event.
+        seq:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: Old name of `sequence`. Same value.
         type:
           type: string
-          description: Packet discriminator. Unknown values MUST be ignored by clients.
+          description: Old name of `id`. Same value.
         payload:
           type: object
           additionalProperties: true
-          description: Type-specific payload object (see the named *Payload schemas).
+          description: Id-specific payload object (see the named *Payload schemas).
 
     # Compact wire identity: bits 31..24 mod_index, 23..12
     # kind_index, 11..0 instance_id. Serialized as a plain integer.

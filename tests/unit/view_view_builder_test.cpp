@@ -678,3 +678,140 @@ TEST_CASE("view filter: pending prompt reaches only its target") {
             .has_value());
     CHECK(other_sink.NextSeq() == 0u);
 }
+
+namespace {
+
+json PublicRoundEvent(int64_t event_id, const json& cause_event = nullptr) {
+    json frame = json{{"actor", "player0"},
+                      {"cause", "play"},
+                      {"turn", 3},
+                      {"round", 1}};
+    if (!cause_event.is_null()) frame["cause_event"] = cause_event;
+    return json{{"type", "round_advance"},
+                {"event_id", event_id},
+                {"causal_frame", frame},
+                {"payload", json{{"round", 1}}}};
+}
+
+json RejectedPlayEvent(int64_t event_id) {
+    return json{{"type", "play_rejected"},
+                {"event_id", event_id},
+                {"causal_frame", json{{"actor", "player0"},
+                                      {"cause", "play"},
+                                      {"turn", 3},
+                                      {"round", 1}}},
+                {"payload", json{{"player", "player0"},
+                                 {"reason_id", "not_your_turn"}}}};
+}
+
+}  // namespace
+
+TEST_CASE("view envelope: an event carries the new fields beside the old") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+
+    const std::optional<json> wrapped =
+        builder.Wrap(PublicRoundEvent(5), Viewer::Player("player1"), sink);
+
+    REQUIRE(wrapped.has_value());
+    CHECK((*wrapped)["sequence"] == 0u);
+    CHECK((*wrapped)["id"] == "round_advance");
+    CHECK((*wrapped)["actor"] == "player0");
+    CHECK((*wrapped)["turn"] == 3);
+    CHECK((*wrapped)["round"] == 1);
+    CHECK((*wrapped)["payload"]["round"] == 1);
+    CHECK_FALSE(wrapped->contains("cause"));
+    CHECK((*wrapped)["seq"] == 0u);
+    CHECK((*wrapped)["type"] == "round_advance");
+}
+
+TEST_CASE("view envelope: a table event has no actor") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+    json event = PublicRoundEvent(5);
+    event["causal_frame"]["actor"] = nullptr;
+
+    const std::optional<json> wrapped =
+        builder.Wrap(event, Viewer::Player("player1"), sink);
+
+    REQUIRE(wrapped.has_value());
+    CHECK_FALSE(wrapped->contains("actor"));
+}
+
+TEST_CASE("view envelope: cause is rewritten into the seat sequence space") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json log = json::array({RejectedPlayEvent(1), PublicRoundEvent(2),
+                                  PublicRoundEvent(3, 2),
+                                  PublicRoundEvent(4, 1)});
+
+    EventSink sink_player0;
+    std::vector<json> seen_by_player0;
+    for (const json& event : log) {
+        const std::optional<json> wrapped =
+            builder.Wrap(event, Viewer::Player("player0"), sink_player0);
+        if (wrapped.has_value()) seen_by_player0.push_back(*wrapped);
+    }
+    EventSink sink_player1;
+    std::vector<json> seen_by_player1;
+    for (const json& event : log) {
+        const std::optional<json> wrapped =
+            builder.Wrap(event, Viewer::Player("player1"), sink_player1);
+        if (wrapped.has_value()) seen_by_player1.push_back(*wrapped);
+    }
+
+    REQUIRE(seen_by_player0.size() == 4);
+    CHECK(seen_by_player0[2]["sequence"] == 2u);
+    CHECK(seen_by_player0[2]["cause"] == 1u);
+    CHECK(seen_by_player0[3]["sequence"] == 3u);
+    CHECK(seen_by_player0[3]["cause"] == 0u);
+
+    REQUIRE(seen_by_player1.size() == 3);
+    CHECK(seen_by_player1[1]["sequence"] == 1u);
+    CHECK(seen_by_player1[1]["cause"] == 0u);
+    CHECK(seen_by_player1[2]["sequence"] == 2u);
+    CHECK_FALSE(seen_by_player1[2].contains("cause"));
+}
+
+TEST_CASE("view envelope: the same event has a different sequence per seat") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink_player0;
+    EventSink sink_player1;
+    const json hidden = RejectedPlayEvent(1);
+    const json shared = PublicRoundEvent(2);
+
+    builder.Wrap(hidden, Viewer::Player("player0"), sink_player0);
+    builder.Wrap(hidden, Viewer::Player("player1"), sink_player1);
+    const std::optional<json> for_player0 =
+        builder.Wrap(shared, Viewer::Player("player0"), sink_player0);
+    const std::optional<json> for_player1 =
+        builder.Wrap(shared, Viewer::Player("player1"), sink_player1);
+
+    REQUIRE(for_player0.has_value());
+    REQUIRE(for_player1.has_value());
+    CHECK((*for_player0)["sequence"] == 1u);
+    CHECK((*for_player1)["sequence"] == 0u);
+}
+
+TEST_CASE("view envelope: a session packet takes the same counter") {
+    EventSink sink;
+    const json first = sink.Wrap("defs", json::object());
+    const json second = sink.Wrap("players_ready", json::object());
+
+    CHECK(first["sequence"] == 0u);
+    CHECK(first["id"] == "defs");
+    CHECK(second["sequence"] == 1u);
+    CHECK_FALSE(second.contains("cause"));
+}

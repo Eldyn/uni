@@ -1,6 +1,7 @@
 #pragma once
 
 #include <controllers/ilobby_store.hpp>
+#include <match/view/view_builder.hpp>
 #include <transport/iaction_router.hpp>
 #include <transport/ibroadcaster.hpp>
 #include <transport/itimer_service.hpp>
@@ -104,6 +105,21 @@ private:
      * @param message JSON payload (unused).
      */
     void HandleClientReady(WsContext context, const nlohmann::json& message);
+
+    /**
+     * @brief Handles a `match_snapshot_request` from a seat or spectator that
+     * saw a gap in its `sequence`. The session rate limits the request.
+     * @param context Context of the calling socket.
+     * @param message JSON payload (unused).
+     */
+    void HandleSnapshotRequest(WsContext context, const nlohmann::json& message);
+
+    /**
+     * @brief Builds the snapshot inputs that the lobby owns (spectator counts).
+     * @param current_lobby Lobby whose members are counted.
+     * @return Snapshot options for `MatchSession`.
+     */
+    match::view::SnapshotOptions BuildSnapshotOptions(Lobby* current_lobby);
 
     // --- Core Match Flow ---
 

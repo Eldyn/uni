@@ -233,11 +233,52 @@ std::string StableDigest(std::string_view data) {
 nlohmann::json EventSink::Wrap(const std::string& type,
                                nlohmann::json payload) {
     nlohmann::json envelope = nlohmann::json::object();
+    envelope["sequence"] = next_seq_;
+    envelope["id"] = type;
+    envelope["payload"] = std::move(payload);
+    // TODO: remove `seq` and `type` after the client reads only `sequence`
+    //       and `id`.
     envelope["seq"] = next_seq_;
     envelope["type"] = type;
-    envelope["payload"] = std::move(payload);
     ++next_seq_;
     return envelope;
+}
+
+nlohmann::json EventSink::WrapEngineEvent(const std::string& type,
+                                          nlohmann::json payload,
+                                          const nlohmann::json& engine_event) {
+    const uint32_t sequence = next_seq_;
+    nlohmann::json envelope = Wrap(type, std::move(payload));
+
+    const nlohmann::json frame = engine_event.value("causal_frame",
+                                                     nlohmann::json::object());
+    if (frame.contains("actor") && frame["actor"].is_string()) {
+        envelope["actor"] = frame["actor"];
+    }
+    if (frame.contains("turn")) envelope["turn"] = frame["turn"];
+    if (frame.contains("round")) envelope["round"] = frame["round"];
+
+    if (frame.contains("cause_event") && frame["cause_event"].is_number()) {
+        const auto cause = sequence_by_event_id_.find(
+            frame["cause_event"].get<int64_t>());
+        if (cause != sequence_by_event_id_.end()) {
+            envelope["cause"] = cause->second;
+        }
+    }
+    if (engine_event.contains("event_id")
+        && engine_event["event_id"].is_number()) {
+        RememberSequence(engine_event["event_id"].get<int64_t>(), sequence);
+    }
+    return envelope;
+}
+
+void EventSink::RememberSequence(int64_t event_id, uint32_t sequence) {
+    sequence_by_event_id_[event_id] = sequence;
+    remembered_event_ids_.push_back(event_id);
+    if (remembered_event_ids_.size() > kCauseMemoryLimit) {
+        sequence_by_event_id_.erase(remembered_event_ids_.front());
+        remembered_event_ids_.pop_front();
+    }
 }
 
 std::optional<nlohmann::json> EventSink::WrapPublic(
@@ -261,7 +302,7 @@ std::optional<nlohmann::json> EventSink::WrapPublic(
     const std::optional<nlohmann::json> projected =
         ProjectPublicEvent(type, payload, match);
     if (!projected.has_value()) return std::nullopt;
-    return Wrap(type, *projected);
+    return WrapEngineEvent(type, *projected, engine_event);
 }
 
 std::optional<nlohmann::json> ProjectPublicEvent(

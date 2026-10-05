@@ -949,3 +949,141 @@ TEST_CASE("MatchSession ready barrier: no timeout omits timeout_ms") {
     REQUIRE(packets.size() == 1);
     CHECK_FALSE(packets[0]["payload"].contains("timeout_ms"));
 }
+
+namespace {
+
+struct TwoSeatSession {
+    std::unique_ptr<match::server::MatchSession> session;
+    AppWebSocket* socket0 = PlayerSocket(0);
+    AppWebSocket* socket1 = PlayerSocket(1);
+    uint32_t wild0 = 0;
+    uint32_t wild2 = 0;
+};
+
+TwoSeatSession MakeTwoSeatSession() {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 4);
+    ForceHand(*engine, *engine->FindPlayer("player0"), {wilds[0], wilds[1]});
+    ForceHand(*engine, *engine->FindPlayer("player1"), {wilds[2], wilds[3]});
+
+    TwoSeatSession result;
+    result.wild0 = BitsOf(*engine, wilds[0]);
+    result.wild2 = BitsOf(*engine, wilds[2]);
+    result.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), std::move(content.mods),
+        match::server::MatchSession::SocketMap{{"player0", result.socket0},
+                                               {"player1", result.socket1}});
+    return result;
+}
+
+std::vector<json> MatchEventsFor(const FakeBroadcaster& fake,
+                                 AppWebSocket* socket) {
+    std::vector<json> events;
+    for (const json& packet : PacketsFor(fake, socket)) {
+        if (packet.value("action", std::string()) == "match_event") {
+            events.push_back(packet);
+        }
+    }
+    return events;
+}
+
+}  // namespace
+
+TEST_CASE("match session: a seat that misses events gets its own sequence") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE_FALSE(seats.session->PlayCard("player1", seats.wild2));
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
+    const std::vector<json> events1 = MatchEventsFor(fake, seats.socket1);
+    const json* played0 = FindEvent(events0, "card_played");
+    const json* played1 = FindEvent(events1, "card_played");
+    REQUIRE(played0 != nullptr);
+    REQUIRE(played1 != nullptr);
+    CHECK(FindEvent(events0, "play_rejected") == nullptr);
+    CHECK(FindEvent(events1, "play_rejected") != nullptr);
+    CHECK((*played0)["sequence"] != (*played1)["sequence"]);
+    CHECK((*played0)["actor"] == "player0");
+}
+
+TEST_CASE("match session: a one seat event leaves no gap for the other seat") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE_FALSE(seats.session->PlayCard("player1", seats.wild2));
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    for (AppWebSocket* socket : {seats.socket0, seats.socket1}) {
+        const std::vector<json> events = MatchEventsFor(fake, socket);
+        REQUIRE_FALSE(events.empty());
+        for (std::size_t index = 0; index < events.size(); ++index) {
+            CHECK(events[index]["sequence"] == index);
+        }
+    }
+}
+
+TEST_CASE("match session: a prompt takes its sequence from the seat counter") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
+    const json* prompt = FindEvent(events0, "prompt_open");
+    REQUIRE(prompt != nullptr);
+    CHECK((*prompt)["sequence"] == events0.size() - 1);
+    CHECK((*prompt)["id"] == "prompt_open");
+}
+
+TEST_CASE("match session: a snapshot request is answered with a watermark") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+    const std::size_t events_before =
+        MatchEventsFor(fake, seats.socket1).size();
+    fake.Clear();
+
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player1", match::view::SnapshotOptions{}));
+
+    const std::vector<json> packets = PacketsFor(fake, seats.socket1);
+    const json* snapshot = FindPacket(packets, "match_state_updated");
+    REQUIRE(snapshot != nullptr);
+    CHECK((*snapshot)["match_state"]["seq_watermark"] == events_before);
+    CHECK(PacketsFor(fake, seats.socket0).empty());
+}
+
+TEST_CASE("match session: a flood of snapshot requests is limited") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    seats.session->SetSnapshotRequestIntervalMs(60'000);
+    FakeBroadcaster fake;
+
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player1", match::view::SnapshotOptions{}));
+    const std::size_t sent_after_first = fake.sent.size();
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        CHECK_FALSE(seats.session->HandleSnapshotRequest(
+            fake, "player1", match::view::SnapshotOptions{}));
+    }
+    CHECK(fake.sent.size() == sent_after_first);
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player0", match::view::SnapshotOptions{}));
+}
+
+TEST_CASE("match session: an unknown recipient gets no snapshot") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    CHECK_FALSE(seats.session->HandleSnapshotRequest(
+        fake, "stranger", match::view::SnapshotOptions{}));
+    CHECK(fake.sent.empty());
+}

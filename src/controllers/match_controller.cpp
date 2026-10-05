@@ -198,6 +198,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kMatchSnapshotRequest,
+                      [this](WsContext context, const json& message) {
+        HandleSnapshotRequest(context, message);
+        return true;
+    });
+
     lobby_store.OnGameStarted([this](Lobby* active_lobby) {
         if (active_lobby == nullptr || !active_lobby->session) return;
         // INFO: `defs` + `match_start` go out once, before any
@@ -554,12 +560,12 @@ void MatchController::HandleSpectatorView(WsContext context, const json& message
 }
 
 /**
- * @brief Broadcasts each connected recipient their filtered match snapshot.
- * @param current_lobby Target room pointer whose context needs to be synchronized.
+ * @brief Builds the snapshot inputs that the lobby owns (spectator counts).
+ * @param current_lobby Lobby whose members are counted.
+ * @return Snapshot options for `MatchSession`.
  */
-void MatchController::BroadcastMatchState(Lobby* current_lobby) {
-    if (!current_lobby || !current_lobby->session) return;
-
+match::view::SnapshotOptions MatchController::BuildSnapshotOptions(
+    Lobby* current_lobby) {
     // Per-player spectator counts: each viewer sees how many people are
     // watching a given player's POV, not the whole lobby's spectator total. A
     // spectator with no explicit POV choice is attributed to whoever's turn it
@@ -574,8 +580,18 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
             member.viewed_username.empty() ? current_turn : member.viewed_username;
         options.spectator_counts[target]++;
     }
+    return options;
+}
 
-    current_lobby->session->BroadcastSnapshot(broadcaster_, options);
+/**
+ * @brief Broadcasts each connected recipient their filtered match snapshot.
+ * @param current_lobby Target room pointer whose context needs to be synchronized.
+ */
+void MatchController::BroadcastMatchState(Lobby* current_lobby) {
+    if (!current_lobby || !current_lobby->session) return;
+
+    current_lobby->session->BroadcastSnapshot(
+        broadcaster_, BuildSnapshotOptions(current_lobby));
     if (current_lobby->session->Engine().IsMatchOver()) {
         lobby_store_.NotifyMatchOver(current_lobby->id);
     }
@@ -600,6 +616,19 @@ void MatchController::HandleClientReady(WsContext context, const json&) {
     if (active_lobby == nullptr || !active_lobby->session) return;
     active_lobby->session->MarkSeatReady(context.socket_data->username, broadcaster_);
     TryOpenReadyBarrier(active_lobby);
+}
+
+/**
+ * @brief Answers a recipient's `match_snapshot_request` (rate limited).
+ * @param context Context of the calling socket.
+ * @param message JSON payload (unused).
+ */
+void MatchController::HandleSnapshotRequest(WsContext context, const json&) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (active_lobby == nullptr || !active_lobby->session) return;
+    active_lobby->session->HandleSnapshotRequest(
+        broadcaster_, context.socket_data->username,
+        BuildSnapshotOptions(active_lobby));
 }
 
 /**

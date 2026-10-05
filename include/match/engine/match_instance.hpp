@@ -882,6 +882,8 @@ private:
     std::vector<nlohmann::json> events_;
     /** @brief Actor and cause of the entry point now running. */
     ops::CausalFrame causal_frame_;
+    /** Next `event_id`; grows for the whole match, `TakeEvents` keeps it. */
+    int64_t next_event_id_ = 0;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

@@ -99,18 +99,23 @@ inline constexpr std::string_view kCauseTurnTimerExpired =
  * - window timeout: empty, no seat acted (`kCauseWindowTimeout`);
  * - bot move: the bot seat, because a bot plays through its own seat with
  *   the same `kCausePlay` / `kCauseDraw` causes as a human.
- * The turn and round are read from `MatchMeta` when the event is stamped.
+ * `cause_event` names the engine event that the later events of the same
+ * entry point come from (the `card_played` event of a play). It is empty
+ * until that event is emitted. The turn and round are read from `MatchMeta`
+ * when the event is stamped.
  */
 struct CausalFrame {
     std::optional<ecs::Entity> actor;  /**< causing seat, empty = the table. */
     std::string cause{kCauseSystem};   /**< cause label (`kCause*`). */
+    /** `event_id` of the engine event that started this entry point. */
+    std::optional<int64_t> cause_event;
 };
 
 /**
  * @brief Add `causal_frame` to `event` unless it already has one.
  *
- * The stamp holds `actor` (username or null), `cause`, and the `turn` and
- * `round` from `MatchMeta`. Defined in `op_helpers.cpp`.
+ * The stamp holds `actor` (username or null), `cause`, `cause_event` (only
+ * when set), and the `turn` and `round` from `MatchMeta`. Defined in `op_helpers.cpp`.
  */
 void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
                       nlohmann::json& event);

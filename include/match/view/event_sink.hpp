@@ -3,9 +3,11 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <deque>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 /**
  * @file event_sink.hpp
@@ -62,9 +64,26 @@ public:
      *
      * @param type    Wire packet type (one of the `x-packet-types`).
      * @param payload Projected payload object.
-     * @return The `{seq, type, payload}` envelope.
+     * @return The `{sequence, id, payload, seq, type}` envelope.
      */
     nlohmann::json Wrap(const std::string& type, nlohmann::json payload);
+
+    /**
+     * @brief Wrap a projected engine event with its causal frame.
+     *
+     * Adds `actor` (omitted for the table), `turn`, `round` and `cause` to
+     * the envelope. `cause` is the `sequence` that THIS stream gave to the
+     * causing event (`causal_frame.cause_event`). When this stream never
+     * received the causing event, `cause` is omitted.
+     *
+     * @param type         Wire packet type.
+     * @param payload      Projected payload object.
+     * @param engine_event The engine descriptor (`event_id`, `causal_frame`).
+     * @return The envelope.
+     */
+    nlohmann::json WrapEngineEvent(const std::string& type,
+                                   nlohmann::json payload,
+                                   const nlohmann::json& engine_event);
 
     /**
      * @brief Project and wrap an engine descriptor when it is public.
@@ -86,10 +105,21 @@ public:
     uint32_t NextSeq() const { return next_seq_; }
 
     /** @brief Reset the stream to the first seq (new match / resend). */
-    void Reset() { next_seq_ = 0; }
+    void Reset() {
+        next_seq_ = 0;
+        sequence_by_event_id_.clear();
+        remembered_event_ids_.clear();
+    }
 
 private:
+    /** Number of engine event ids that one stream remembers for `cause`. */
+    static constexpr std::size_t kCauseMemoryLimit = 512;
+
+    void RememberSequence(int64_t event_id, uint32_t sequence);
+
     uint32_t next_seq_ = 0;
+    std::unordered_map<int64_t, uint32_t> sequence_by_event_id_;
+    std::deque<int64_t> remembered_event_ids_;
 };
 
 /**

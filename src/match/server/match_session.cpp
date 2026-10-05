@@ -259,6 +259,32 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                      match::view::Viewer::Spectator(), sink));
 }
 
+bool MatchSession::HandleSnapshotRequest(
+    IBroadcaster& broadcaster, const std::string& username,
+    const match::view::SnapshotOptions& options) {
+    const auto seat_socket = sockets_.find(username);
+    const auto viewer_socket = viewers_.find(username);
+    const bool is_seat = seat_socket != sockets_.end();
+    if (!is_seat && viewer_socket == viewers_.end()) return false;
+    AppWebSocket* socket =
+        is_seat ? seat_socket->second : viewer_socket->second;
+    if (socket == nullptr) return false;
+
+    const int64_t now_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    if (!snapshot_request_limiter_.Allow(username, now_ms)) return false;
+
+    match::view::EventSink& sink =
+        is_seat ? sinks_.at(username) : viewer_sinks_.at(username);
+    const match::view::Viewer viewer =
+        is_seat ? match::view::Viewer::Player(username)
+                : match::view::Viewer::Spectator();
+    broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, options));
+    return true;
+}
+
 void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     if (match_start_sent_) return;
 

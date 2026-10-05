@@ -3,6 +3,7 @@
 #include <match/engine/match_instance.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/server/ready_barrier.hpp>
+#include <match/server/snapshot_request_limiter.hpp>
 #include <match/view/view_builder.hpp>
 #include <transport/ibroadcaster.hpp>
 
@@ -299,6 +300,27 @@ public:
      */
     bool BroadcastMatchOver(IBroadcaster& broadcaster);
 
+    /**
+     * @brief Answer a `match_snapshot_request` from a seat or a spectator.
+     *
+     * Sends the current snapshot. Its `seq_watermark` is the `sequence` of
+     * the next packet of the recipient, so the client continues from it. A
+     * recipient that asks again inside the rate limit interval gets nothing.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @param username    Requesting seat or spectator.
+     * @param options     Snapshot inputs the lobby owns.
+     * @return true when a snapshot was sent.
+     */
+    bool HandleSnapshotRequest(IBroadcaster& broadcaster,
+                               const std::string& username,
+                               const match::view::SnapshotOptions& options);
+
+    /** @brief Set the minimum time between two requests of one recipient. */
+    void SetSnapshotRequestIntervalMs(int64_t min_interval_ms) {
+        snapshot_request_limiter_.SetMinIntervalMs(min_interval_ms);
+    }
+
     // --- ready barrier
 
     /**
@@ -436,6 +458,9 @@ private:
     std::unordered_map<std::string, std::string> prompt_outcome_;
     /** Prompt kind -> validated `response_schema` (mods + built-ins). */
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
+    /** Rate limit for `match_snapshot_request`. */
+    SnapshotRequestLimiter snapshot_request_limiter_ =
+        SnapshotRequestLimiter::FromEnv();
     /** Load barrier: seats pending the client's ready report. */
     ReadyBarrier ready_barrier_;
     /** Barrier timeout armed by the controller (0 = none) and its start. */

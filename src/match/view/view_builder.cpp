@@ -648,12 +648,12 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
         const std::optional<json> filtered =
             ProjectFiltered(*this, type, payload, viewer);
         if (!filtered.has_value()) return std::nullopt;
-        return sink.Wrap(type, *filtered);
+        return sink.WrapEngineEvent(type, *filtered, engine_event);
     }
     const std::optional<json> projected =
         ProjectPublicEvent(type, payload, match_);
     if (!projected.has_value()) return std::nullopt;
-    return sink.Wrap(type, *projected);
+    return sink.WrapEngineEvent(type, *projected, engine_event);
 }
 
 std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(

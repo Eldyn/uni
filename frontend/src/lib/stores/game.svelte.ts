@@ -33,6 +33,9 @@ import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 
 export const TYPE_MAP = TypeMap;
 
+/** INFO: longer than the server default of 1000 ms between two requests. */
+const SNAPSHOT_REQUEST_RETRY_MS = 1500;
+
 export type CardType = (typeof TypeMap)[number];
 export type CardValue = (typeof ValueMap)[number];
 
@@ -287,6 +290,9 @@ class StoreGame implements SessionStore {
 
 	/** True after a seq gap, until the next snapshot reconciles the watermark. */
 	desynced = $state(false);
+
+	/** Time of the last `match_snapshot_request`, or null when none is open. */
+	#lastSnapshotRequestAt: number | null = null;
 
 	/** Beats mapped from `match_event` frames, held until the next snapshot is applied. */
 	#pendingBeats: MatchEventBeat[] = [];
@@ -597,6 +603,7 @@ class StoreGame implements SessionStore {
 		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
+		this.#lastSnapshotRequestAt = null;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
 		this.readyProgress = null;
@@ -836,6 +843,7 @@ class StoreGame implements SessionStore {
 			) {
 				this.lastSeq = wm > 0 ? wm - 1 : null;
 				this.desynced = false;
+				this.#lastSnapshotRequestAt = null;
 			}
 
 			// INFO: drain AFTER state is applied.
@@ -869,6 +877,24 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Asks the server for a new snapshot after a sequence gap.
+	 *
+	 * The server rate limits the request and stays silent when it refuses, so
+	 * the store asks again on a later frame once the retry delay has passed.
+	 */
+	#requestSnapshot() {
+		const now = Date.now();
+		if (
+			this.#lastSnapshotRequestAt !== null &&
+			now - this.#lastSnapshotRequestAt < SNAPSHOT_REQUEST_RETRY_MS
+		) {
+			return;
+		}
+		this.#lastSnapshotRequestAt = now;
+		ws.emit(ClientAction.MatchSnapshotRequest);
+	}
+
+	/**
 	 * @brief Handles one `match_event` frame: advances the seq watermark,
 	 * raises a desync on a gap, and buffers the mapped beat for the next
 	 * snapshot drain.
@@ -877,7 +903,7 @@ class StoreGame implements SessionStore {
 		const env = MatchEventPayloadSchema.safeParse(data);
 		if (!env.success) return;
 
-		const seq = env.data.seq;
+		const seq = env.data.sequence ?? env.data.seq;
 		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
 			this.desynced = true;
 			// INFO: the snapshot reconciles state; drop the pre-gap backlog rather
@@ -886,6 +912,7 @@ class StoreGame implements SessionStore {
 			for (const h of this.#desyncHandlers) h();
 		}
 		this.lastSeq = seq;
+		if (this.desynced) this.#requestSnapshot();
 
 		switch (env.data.type) {
 			case "defs": {
@@ -1230,6 +1257,7 @@ class StoreGame implements SessionStore {
 		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
+		this.#lastSnapshotRequestAt = null;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
 		this.readyProgress = null;

@@ -316,10 +316,14 @@ void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
         round = meta->round;
         break;
     }
-    event["causal_frame"] = nlohmann::json{{"actor", std::move(actor)},
-                                           {"cause", frame.cause},
-                                           {"turn", turn},
-                                           {"round", round}};
+    nlohmann::json stamp = nlohmann::json{{"actor", std::move(actor)},
+                                          {"cause", frame.cause},
+                                          {"turn", turn},
+                                          {"round", round}};
+    if (frame.cause_event.has_value()) {
+        stamp["cause_event"] = *frame.cause_event;
+    }
+    event["causal_frame"] = std::move(stamp);
 }
 
 void BindLastRoll(ResolutionFrame& frame, int64_t total,

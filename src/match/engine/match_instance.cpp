@@ -114,6 +114,7 @@ public:
         : slot_(slot), saved_(slot) {
         slot_.actor = actor;
         slot_.cause = std::string(cause);
+        slot_.cause_event.reset();
     }
     CausalScope(const CausalScope&) = delete;
     CausalScope& operator=(const CausalScope&) = delete;
@@ -2593,6 +2594,13 @@ void MatchInstance::Emit(std::string_view type, nlohmann::json payload) {
 
 void MatchInstance::PushEvent(nlohmann::json event) {
     ops::StampCausalFrame(assembly_->store, causal_frame_, event);
+    const int64_t event_id = next_event_id_++;
+    event["event_id"] = event_id;
+    const bool starts_play_chain =
+        event.value("type", std::string()) == "card_played";
+    if (starts_play_chain && !causal_frame_.cause_event.has_value()) {
+        causal_frame_.cause_event = event_id;
+    }
     events_.push_back(std::move(event));
 }
 

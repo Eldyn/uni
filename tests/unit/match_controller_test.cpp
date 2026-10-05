@@ -1347,6 +1347,34 @@ TEST_CASE("ready barrier: last match_client_ready opens the barrier") {
     CHECK(f.Engine().CurrentTurnDeadlineMs() > 0);
 }
 
+TEST_CASE("snapshot request: a seat gets a snapshot and a flood is limited") {
+    MatchFixture f;
+    f.SetupMatch(two_humans(), LobbySettings{});
+    f.OpenBarrierNow();
+    f.store.lobby.session->SetSnapshotRequestIntervalMs(60'000);
+    AppWebSocket* alice_socket = MatchFixture::SeatSocket(0);
+    auto count_snapshots_for_alice = [&]() {
+        std::size_t count = 0;
+        for (const SentFrame& frame : f.bus.sent) {
+            if (frame.to != alice_socket) continue;
+            const json packet = json::parse(frame.payload);
+            if (packet.value("action", std::string()) == "match_state_updated") {
+                ++count;
+            }
+        }
+        return count;
+    };
+    const std::size_t snapshots_before = count_snapshots_for_alice();
+
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        f.router.Dispatch(
+            f.ContextFor("Alice"),
+            json{{"action", ws::ClientAction::kMatchSnapshotRequest}});
+    }
+
+    CHECK(count_snapshots_for_alice() == snapshots_before + 1);
+}
+
 TEST_CASE("ready barrier: timeout opens the barrier with a pending human") {
     MatchFixture f;
     f.SetupMatch(two_humans(), LobbySettings{});
