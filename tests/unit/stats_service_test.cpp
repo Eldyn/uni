@@ -6,12 +6,25 @@ namespace {
 
 // stats_test_* usernames avoid colliding with rows other test files insert.
 void CleanupTestRows() {
-    auto result = Database::Get().Exec(
+    auto stats = Database::Get().Exec(
         "DELETE FROM player_stats WHERE username LIKE 'stats_test_%';");
+    REQUIRE(stats.has_value());
+    auto users = Database::Get().Exec(
+        "DELETE FROM users WHERE username LIKE 'stats_test_%';");
+    REQUIRE(users.has_value());
+}
+
+// The leaderboard joins `users`, so every ranked player needs an account row.
+void InsertUserRow(const std::string& username) {
+    auto result = Database::Get().Exec(
+        "INSERT OR IGNORE INTO users (username, pass_hash, salt, email) "
+        "VALUES (?, 'h', 's', ?);",
+        {username, username + "@stats.test"});
     REQUIRE(result.has_value());
 }
 
 void InsertStatsRow(const std::string& username, int wins, int losses) {
+    InsertUserRow(username);
     auto result = Database::Get().Exec(
         "INSERT INTO player_stats (username, total_wins, total_losses) VALUES (?, ?, ?);",
         {username, wins, losses});
@@ -127,9 +140,28 @@ TEST_CASE("GetLeaderboard: empty table returns an empty result, not an error") {
     }
 }
 
+TEST_CASE("GetLeaderboard: excludes rows without a registered account (bots)") {
+    StatsFixture f;
+    StatsService svc;
+    // A legacy bot aggregate: a player_stats row with no matching users row.
+    // Bots get no account, so the leaderboard join must hide it even though the
+    // aggregate still exists in storage.
+    auto orphan = Database::Get().Exec(
+        "INSERT INTO player_stats (username, total_wins, total_losses) "
+        "VALUES ('stats_test_botlegacy', 999, 0);");
+    REQUIRE(orphan.has_value());
+
+    auto result = svc.GetLeaderboard();
+    REQUIRE(result.has_value());
+    for (const auto& entry : *result) {
+        CHECK(entry.username != "stats_test_botlegacy");
+    }
+}
+
 TEST_CASE("GetUserStats: per-color/value card-play counters round-trip") {
     StatsFixture f;
     StatsService svc;
+    InsertUserRow("stats_test_ivy");
     auto insert = Database::Get().Exec(
         "INSERT INTO player_stats (username, total_wins, total_losses, "
         "cards_played_red, cards_played_draw4, cards_played_jolly) "

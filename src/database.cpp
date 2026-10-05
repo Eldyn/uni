@@ -159,6 +159,12 @@ static constexpr Migration MIGRATIONS[] = {
     // ciphertext to (sender, recipient); legacy rows stay 0 and decrypt without
     // AAD.
     { 9, "ALTER TABLE chat_dms ADD COLUMN aad_version INTEGER NOT NULL DEFAULT 0;" },
+    // Migration v10: drop orphaned player_stats aggregates. Bots and guests
+    // never have a `users` row (auth reserves bot names; guests are DB-less), so
+    // any aggregate without a matching account is stale bot/legacy data. The
+    // leaderboard ranks only registered accounts, so these rows are unreachable
+    // anyway — this removes them from storage too.
+    { 10, "DELETE FROM player_stats WHERE username NOT IN (SELECT username FROM users);" },
 };
 
 }  // namespace

@@ -5,9 +5,11 @@ StatsService::StatsService(Database& db) : db_(db) {}
 Result<UserStats> StatsService::GetUserStats(const std::string& username) {
     auto row_result = db_.QueryOne(R"(
         WITH RankedPlayers AS (
-            SELECT *,
-                   RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank
-            FROM player_stats
+            SELECT ps.*,
+                   RANK() OVER (
+                       ORDER BY ps.total_wins DESC, ps.total_losses ASC) as rank
+            FROM player_stats ps
+            JOIN users u ON u.username = ps.username
         )
         SELECT * FROM RankedPlayers WHERE username = ?;
     )", {username});
@@ -54,9 +56,11 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
 
 Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
     auto rows_result = db_.Query(R"(
-        SELECT username, total_wins, total_losses,
-               DENSE_RANK() OVER (ORDER BY total_wins DESC, total_losses ASC) as rank
-        FROM player_stats
+        SELECT ps.username, ps.total_wins, ps.total_losses,
+               DENSE_RANK() OVER (
+                   ORDER BY ps.total_wins DESC, ps.total_losses ASC) as rank
+        FROM player_stats ps
+        JOIN users u ON u.username = ps.username
         ORDER BY rank ASC
         LIMIT 50;
     )");
