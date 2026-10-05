@@ -5,7 +5,7 @@
 # Vite's outDir is "../public", so the bundle lands in /app/public.
 # The schema generator reads the root contract/asyncapi.yaml, so it is copied too.
 # =============================================================================
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci
