@@ -230,6 +230,7 @@ if(UNI_BUILD_TESTS)
         src/match/engine/match_instance.cpp
         src/match/engine/play_evaluator.cpp
         src/match/engine/mutation_compiler.cpp
+        src/match/view/event_projector.cpp
         src/match/view/event_sink.cpp
         src/match/view/defs_builder.cpp
         src/match/view/view_builder.cpp

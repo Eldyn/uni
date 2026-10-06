@@ -211,6 +211,8 @@ TEST_CASE("view filter: cards_drawn identities are owner only") {
     const ecs::Entity card1 = engine->Registries().cards[1];
     const uint32_t bits0 = engine->Registries().CardId(card0)->bits;
     const uint32_t bits1 = engine->Registries().CardId(card1)->bits;
+    // INFO: a drawn card already sits in the hand of the drawer.
+    ForceHand(*engine, player0, {card0, card1});
 
     const json event = json{
         {"type", "cards_drawn"},

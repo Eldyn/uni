@@ -1,6 +1,7 @@
 #include "match/modload/mod_loader.hpp"
 
 #include "common/env.hpp"
+#include "common/environment.hpp"
 #include "logger.hpp"
 
 #include <common/contract.hpp>
@@ -57,13 +58,7 @@ bool DepthGuardCallback(int depth, nlohmann::json::parse_event_t,
  *       never ship. A production build defines UNI_PROD_BUILD, and
  *       UNI_ENV=production also excludes them, so a stray test mod cannot
  *       reach a release even when only one of the two is set. */
-bool DevContentAllowed() {
-#ifdef UNI_PROD_BUILD
-    return false;
-#else
-    return Env::Get("UNI_ENV", "development") != "production";
-#endif
-}
+bool DevContentAllowed() { return !IsProductionEnvironment(); }
 
 /* INFO: loader errors are collected, never thrown, so a bad folder yields a
  *       structured report instead of aborting the whole scan. */

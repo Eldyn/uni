@@ -254,7 +254,7 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*roll)["spec"].get<std::string>().find("sides")
           != std::string::npos);
     CHECK((*roll)["outcomes"].size() == 2);
-    CHECK((*roll)["roll_counter"] == 7);
+    CHECK((*roll)["roll_counter"] == 0);
 
     // INFO: `signal` is NOT an `all`-visibility row: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder` per

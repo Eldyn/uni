@@ -4,6 +4,7 @@
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/engine/play_evaluator.hpp>
+#include <match/view/event_projector.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
@@ -527,7 +528,8 @@ json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
 }
 
 /** @brief The open response window in its uniform wire shape, or null. */
-json BuildWindow(const match::engine::MatchInstance& match) {
+json BuildWindow(const match::engine::MatchInstance& match,
+                 const Viewer& viewer) {
     if (!match.WindowOpen()) return json(nullptr);
     const json window = match.ExportWindow();
     if (!window.is_object()) return json(nullptr);
@@ -542,7 +544,13 @@ json BuildWindow(const match::engine::MatchInstance& match) {
             if (response.value("pass", false)) {
                 entry["passed"] = true;
             } else if (response.contains("card")) {
-                entry["card"] = CardBitsFor(match, response["card"]);
+                // INFO: a losing offer stays in its owner's hand, so only the
+                //       owner may see which card it was.
+                const bool lost = response.value("outcome", std::string())
+                                  == "lost";
+                if (!lost || ViewerIs(viewer, entry["player"])) {
+                    entry["card"] = CardBitsFor(match, response["card"]);
+                }
             }
             entry["outcome"] = response.value("outcome", std::string());
             responses.push_back(std::move(entry));
@@ -644,16 +652,20 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
     std::string type;
     json payload;
     if (!DescriptorBody(engine_event, type, payload)) return std::nullopt;
-    if (IsFilteredType(type)) {
-        const std::optional<json> filtered =
-            ProjectFiltered(*this, type, payload, viewer);
-        if (!filtered.has_value()) return std::nullopt;
-        return sink.WrapEngineEvent(type, *filtered, engine_event);
-    }
     const std::optional<json> projected =
-        ProjectPublicEvent(type, payload, match_);
+        IsFilteredType(type) ? ProjectFiltered(*this, type, payload, viewer)
+                             : ProjectPublicEvent(type, payload, match_);
     if (!projected.has_value()) return std::nullopt;
-    return sink.WrapEngineEvent(type, *projected, engine_event);
+
+    const json frame = engine_event.value("causal_frame", json::object());
+    const std::string actor =
+        frame.contains("actor") && frame["actor"].is_string()
+            ? frame["actor"].get<std::string>()
+            : std::string();
+    const SeatRoles roles = ResolveSeatRoles(match_, type, payload, actor);
+    return sink.WrapEngineEvent(
+        type, ProjectForViewer(match_, type, *projected, roles, viewer),
+        engine_event);
 }
 
 std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
@@ -786,7 +798,7 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         BuildPile(match, viewer, registries.draw_pile, viewer_entity, false);
     state["discard_pile"] =
         BuildPile(match, viewer, registries.discard_pile, viewer_entity, true);
-    state["window"] = BuildWindow(match);
+    state["window"] = BuildWindow(match, viewer);
     state["prompts"] = BuildPrompts(match, viewer);
     if (json prompt_wait = BuildPromptWait(match); !prompt_wait.is_null()) {
         state["prompt_wait"] = std::move(prompt_wait);

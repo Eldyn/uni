@@ -1,6 +1,7 @@
 #include <match/rng.hpp>
 
 #include <common/env.hpp>
+#include <common/environment.hpp>
 #include <match/ops/op_helpers.hpp>
 
 #include <random>
@@ -24,6 +25,9 @@ uint64_t Rng::RandomSeed() {
 }
 
 std::optional<uint64_t> Rng::SeedFromEnv() {
+    // INFO: a fixed seed makes every shuffle and roll predictable, so a
+    //       production process never reads it.
+    if (IsProductionEnvironment()) return std::nullopt;
     const std::string raw = Env::Get("UNI_SEED");
     if (raw.empty()) return std::nullopt;
     try {

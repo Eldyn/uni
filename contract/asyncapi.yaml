@@ -1681,6 +1681,9 @@ components:
         roll_counter:
           type: integer
           minimum: 0
+          description: >-
+            Number of public rolls that this stream has received, counted from
+            1. It is not the engine counter, which also counts hidden draws.
 
     OutcomeResultPayload:
       type: object
@@ -1699,7 +1702,9 @@ components:
         counter:
           type: integer
           minimum: 0
-          description: The op counter consumed by the table pick.
+          description: >-
+            Number of public rolls that this stream has received, counted from
+            1. It is not the engine counter, which also counts hidden draws.
 
     SignalPayload:
       type: object

@@ -4,6 +4,7 @@
 #include <match/ecs/components.hpp>
 #include <match/ecs/entity_store.hpp>
 #include <match/engine/match_instance.hpp>
+#include <match/view/event_projector.hpp>
 #include <match/view/view_util.hpp>
 
 #include <nlohmann/json.hpp>
@@ -85,8 +86,9 @@ json ProjectRollResult(const json& payload) {
                                            : std::string("{}");
     out["outcomes"] =
         payload.contains("outcomes") ? payload["outcomes"] : json::array();
-    // INFO: the engine key is `counter`; the wire key is `roll_counter`.
-    out["roll_counter"] = payload.value("counter", 0);
+    // INFO: the sink stamps `roll_counter` with the public roll ordinal. The
+    //       engine `counter` also counts hidden draws and is never sent.
+    out["roll_counter"] = 0;
     return out;
 }
 
@@ -94,12 +96,12 @@ json ProjectOutcomeResult(const json& payload) {
     json out = json::object();
     // INFO: the engine already carries the fully
     //       namespaced ids under the wire keys `table`/`key`; `value` is the
-    //       picked (or nested-rolled) outcome value and `counter` the op
-    //       counter the pick consumed.
+    //       picked (or nested-rolled) outcome value. The sink stamps
+    //       `counter` with the public roll ordinal.
     out["table"] = payload.value("table", std::string());
     out["key"] = payload.value("key", std::string());
     out["value"] = payload.value("value", 0);
-    out["counter"] = payload.value("counter", 0);
+    out["counter"] = 0;
     return out;
 }
 
@@ -248,6 +250,13 @@ nlohmann::json EventSink::WrapEngineEvent(const std::string& type,
                                           nlohmann::json payload,
                                           const nlohmann::json& engine_event) {
     const uint32_t sequence = next_seq_;
+    // INFO: the engine counter counts every random draw, hidden ones too. A
+    //       seat gets the number of public rolls it has seen instead.
+    if (type == "roll_result") {
+        payload["roll_counter"] = ++roll_ordinal_;
+    } else if (type == "outcome_result") {
+        payload["counter"] = ++roll_ordinal_;
+    }
     nlohmann::json envelope = Wrap(type, std::move(payload));
 
     const nlohmann::json frame = engine_event.value("causal_frame",
@@ -302,7 +311,11 @@ std::optional<nlohmann::json> EventSink::WrapPublic(
     const std::optional<nlohmann::json> projected =
         ProjectPublicEvent(type, payload, match);
     if (!projected.has_value()) return std::nullopt;
-    return WrapEngineEvent(type, *projected, engine_event);
+    return WrapEngineEvent(
+        type,
+        ProjectForViewer(match, type, *projected, SeatRoles{},
+                         Viewer::Spectator()),
+        engine_event);
 }
 
 std::optional<nlohmann::json> ProjectPublicEvent(

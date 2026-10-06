@@ -24,4 +24,17 @@ TEST_CASE("rejects production without live email") {
     CHECK_THROWS_AS(ValidateBootConfigOrThrow(), std::runtime_error);
     unsetenv("UNI_ENV");
 }
+TEST_CASE("rejects production with a fixed random seed") {
+    setenv("JWT_SECRET", std::string(32, 'a').c_str(), 1);
+    setenv("PASSWORD_PEPPER", "pepper", 1);
+    setenv("EMAIL_MODE", "live", 1);
+    setenv("EMAIL_KEY", "key", 1);
+    setenv("UNI_ENV", "production", 1);
+    unsetenv("UNI_SEED");
+    CHECK_NOTHROW(ValidateBootConfigOrThrow());
+    setenv("UNI_SEED", "42", 1);
+    CHECK_THROWS_AS(ValidateBootConfigOrThrow(), std::runtime_error);
+    unsetenv("UNI_SEED");
+    unsetenv("UNI_ENV");
+}
 }  // TEST_SUITE

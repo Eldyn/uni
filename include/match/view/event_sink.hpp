@@ -76,6 +76,10 @@ public:
      * causing event (`causal_frame.cause_event`). When this stream never
      * received the causing event, `cause` is omitted.
      *
+     * A roll event gets the public roll ordinal of this stream (1, 2, 3, ...)
+     * in place of the engine counter. The engine counter also counts hidden
+     * random draws (a reshuffle), so it must never reach a seat.
+     *
      * @param type         Wire packet type.
      * @param payload      Projected payload object.
      * @param engine_event The engine descriptor (`event_id`, `causal_frame`).
@@ -107,6 +111,7 @@ public:
     /** @brief Reset the stream to the first seq (new match / resend). */
     void Reset() {
         next_seq_ = 0;
+        roll_ordinal_ = 0;
         sequence_by_event_id_.clear();
         remembered_event_ids_.clear();
     }
@@ -118,6 +123,7 @@ private:
     void RememberSequence(int64_t event_id, uint32_t sequence);
 
     uint32_t next_seq_ = 0;
+    uint32_t roll_ordinal_ = 0;
     std::unordered_map<int64_t, uint32_t> sequence_by_event_id_;
     std::deque<int64_t> remembered_event_ids_;
 };
