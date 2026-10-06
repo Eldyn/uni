@@ -27,6 +27,12 @@ bool IsSeat(const std::string& seat, const Viewer& viewer) {
     return !viewer.is_spectator && !seat.empty() && viewer.username == seat;
 }
 
+/** @brief True for a spectator of a seat whose owner has privacy mode off. */
+bool SpectatorSeesOwner(const std::string& owner, const Viewer& viewer) {
+    return viewer.is_spectator && !owner.empty()
+           && !viewer.SeesCardBacksOf(owner);
+}
+
 bool GrantsIdentity(const match::engine::MatchInstance& match,
                     ecs::Entity target, ecs::Entity viewer) {
     const ecs::VisibilityGrant* grant =
@@ -80,6 +86,30 @@ void ScrubHiddenHandles(const match::engine::MatchInstance& match,
     }
 }
 
+/**
+ * @brief True when a spectator must not see a card in this zone.
+ *
+ * The draw pile has no owner, so its order stays hidden. A hand follows the
+ * Streamer/Privacy Mode of its owner.
+ */
+bool IsCardHiddenFromSpectator(const match::engine::MatchInstance& match,
+                               const ecs::InZone& in_zone,
+                               const Viewer& viewer) {
+    switch (in_zone.zone.kind) {
+        case ecs::ZoneKind::kDrawPile:
+            return true;
+        case ecs::ZoneKind::kHand: {
+            const ecs::PlayerInfo* owner =
+                match.Store().Get<ecs::PlayerInfo>(in_zone.zone.owner);
+            return owner == nullptr || viewer.SeesCardBacksOf(owner->username);
+        }
+        case ecs::ZoneKind::kDiscardPile:
+        case ecs::ZoneKind::kLimbo:
+            return false;
+    }
+    return false;
+}
+
 }  // namespace
 
 bool AudienceAllows(Audience audience, const SeatRoles& roles,
@@ -92,7 +122,8 @@ bool AudienceAllows(Audience audience, const SeatRoles& roles,
         case Audience::kTarget:
             return IsSeat(roles.target, viewer);
         case Audience::kOwner:
-            return IsSeat(roles.owner, viewer);
+            return IsSeat(roles.owner, viewer)
+                   || SpectatorSeesOwner(roles.owner, viewer);
         case Audience::kNone:
             return false;
     }
@@ -122,9 +153,11 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
 
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
                       ecs::Entity card, const Viewer& viewer) {
-    if (viewer.is_spectator) return false;
     const ecs::InZone* in_zone = match.Store().Get<ecs::InZone>(card);
     if (in_zone == nullptr) return false;
+    if (viewer.is_spectator) {
+        return IsCardHiddenFromSpectator(match, *in_zone, viewer);
+    }
     const std::optional<ecs::Entity> viewer_entity =
         match.FindPlayer(viewer.username);
 

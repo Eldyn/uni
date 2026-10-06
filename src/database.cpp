@@ -165,6 +165,11 @@ static constexpr Migration MIGRATIONS[] = {
     // leaderboard ranks only registered accounts, so these rows are unreachable
     // anyway — this removes them from storage too.
     { 10, "DELETE FROM player_stats WHERE username NOT IN (SELECT username FROM users);" },
+    // Migration v11: per-user Streamer/Privacy Mode. 0 shows the hidden cards
+    // of the seat to spectators; 1 shows card backs. Guests have no row and
+    // keep the setting for the socket session only.
+    { 11, "ALTER TABLE users "
+          "ADD COLUMN privacy_mode INTEGER NOT NULL DEFAULT 0;" },
 };
 
 }  // namespace

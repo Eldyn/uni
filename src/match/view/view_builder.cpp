@@ -113,10 +113,14 @@ std::optional<json> ProjectCardsDrawn(
         out["source_pile"] = payload.value("source_pile", std::string());
     }
     if (payload.contains("held")) out["held"] = payload["held"];
-    // INFO: 14.2 owner-only identities. The current emitters carry no `cards`
+    // INFO: 14.2 owner identities. The current emitters carry no `cards`
     //       array, so this is count-only until the descriptor supplies one;
-    //       when it does, only the owner ever sees it.
-    if (ViewerIs(viewer, owner) && payload.contains("cards")) {
+    //       when it does, only the owner and the spectators of a seat with
+    //       privacy mode off see it.
+    const bool spectator_sees_owner =
+        viewer.is_spectator && !viewer.SeesCardBacksOf(owner);
+    if ((ViewerIs(viewer, owner) || spectator_sees_owner)
+        && payload.contains("cards")) {
         out["cards"] = NormalizeCards(match, payload["cards"]);
     }
     return out;
@@ -374,7 +378,7 @@ bool EvaluatorCanPlay(const match::engine::PlayEvaluator& evaluator,
  * @brief Visible hand entries, or nullopt when only the count is visible.
  *
  * A spectator sees every aspect unless the owner opted into
- * `privacy_from_spectators`; a player sees their own hand in full and any
+ * privacy mode; a player sees their own hand in full and any
  * other hand through `VisibilityGrant` aspects (the hand entity's grants OR
  * each card's own grants, so a `choose_card` reveal survives the snapshot).
  */
@@ -395,7 +399,7 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
             match.Store().Get<ecs::PlayerInfo>(player);
         const std::string owner =
             info == nullptr ? std::string() : info->username;
-        hand_mask = options.PrivacyOn(owner) ? 0u : kAllAspects;
+        hand_mask = viewer.SeesCardBacksOf(owner) ? 0u : kAllAspects;
     } else if (own) {
         hand_mask = kAllAspects;
     } else if (viewer_entity.has_value()) {
@@ -444,7 +448,7 @@ json BuildStatuses(const ViewBuilder& builder,
             builder.StatusHidden(status.status_id) || status.hidden;
         bool visible = !hidden;
         if (hidden && viewer.is_spectator) {
-            visible = !options.PrivacyOn(owner);
+            visible = !viewer.SeesCardBacksOf(owner);
         } else if (hidden && viewer_entity.has_value()) {
             visible = *viewer_entity == player;
         }
@@ -492,12 +496,14 @@ json BuildPlayer(const ViewBuilder& builder,
  * @brief One pile: count always, top for discard, cards when granted.
  *
  * Base visibility: draw pile count only, discard top identity + count.
- * A `VisibilityGrant` on the pile entity (or spectator omniscience) exposes
+ * A `VisibilityGrant` on the pile entity (or a spectator on the discard
+ * pile) exposes
  * the listed cards with the granted aspects.
  */
 json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
                ecs::Entity pile, std::optional<ecs::Entity> viewer_entity,
                bool is_discard) {
+    // INFO: the draw pile has no owner, so a spectator never gets its order.
     const ecs::PileContents* contents =
         match.Store().Get<ecs::PileContents>(pile);
     json out = json::object();
@@ -513,7 +519,7 @@ json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
 
     uint32_t mask = 0u;
     if (viewer.is_spectator) {
-        mask = kAllAspects;
+        mask = is_discard ? kAllAspects : 0u;
     } else if (viewer_entity.has_value()) {
         mask = GrantMask(match, pile, *viewer_entity);
     }
@@ -691,13 +697,6 @@ std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
     //       packet leaves before the deadline is armed.
     out["duration_ms"] = pending->value("duration_ms", int64_t{0});
     return sink.Wrap("prompt_open", out);
-}
-
-bool SnapshotOptions::PrivacyOn(const std::string& username) const {
-    for (const std::string& private_user : privacy_from_spectators) {
-        if (private_user == username) return true;
-    }
-    return false;
 }
 
 nlohmann::json ViewBuilder::BuildSnapshot(const Viewer& viewer,

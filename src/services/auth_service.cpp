@@ -426,3 +426,19 @@ VoidResult AuthService::RevokeAllSessions(const std::string& username) {
     if (!res) return std::unexpected(res.error());
     return {};
 }
+
+bool AuthService::GetPrivacyMode(const std::string& username) {
+    auto row_result = Database::Get().QueryOne(
+        "SELECT privacy_mode FROM users WHERE username = ?;", {username});
+    if (!row_result || !row_result->has_value()) return false;
+    return row_result->value().Get<int>("privacy_mode") == 1;
+}
+
+VoidResult AuthService::SetPrivacyMode(const std::string& username,
+                                       bool enabled) {
+    auto res = Database::Get().Exec(
+        "UPDATE users SET privacy_mode = ? WHERE username = ?;",
+        {enabled ? 1 : 0, username});
+    if (!res) return std::unexpected(res.error());
+    return {};
+}

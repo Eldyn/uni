@@ -27,7 +27,7 @@
  * snapshot exposes only the viewer's own hand identity, the draw pile count
  * and the discard top; `VisibilityGrant` aspects reveal another hand or a
  * pile; spectators are omniscient except for players opted into
- * `privacy_from_spectators`; own-hand entries carry `can_play`.
+ * the private seats of the spectator; own-hand entries carry `can_play`.
  */
 
 namespace fs = std::filesystem;
@@ -423,10 +423,8 @@ TEST_CASE("view snapshot: pending_play_drawn reveals the drawn card to the owner
 
     // SPECTATOR with the drawer's hand private: with the hand hidden, the drawn
     // identity appears NOWHERE in the JSON - the new field leaks nothing.
-    SnapshotOptions private_options;
-    private_options.privacy_from_spectators = {"player0"};
-    const json private_spec = builder.BuildSnapshot(
-        Viewer::Spectator(), sink, private_options);
+    const json private_spec =
+        builder.BuildSnapshot(Viewer::Spectator({"player0"}), sink);
     const json& private_choice =
         private_spec["match_state"]["pending_play_drawn"];
     REQUIRE(private_choice.is_object());
@@ -550,10 +548,10 @@ TEST_CASE("view snapshot: spectator is omniscient") {
         if (status["status_kind"] == "uni:draw_debt") hidden_seen = true;
     }
     CHECK(hidden_seen);
-    CHECK(state["draw_pile"].contains("cards"));
+    CHECK_FALSE(state["draw_pile"].contains("cards"));
 }
 
-TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
+TEST_CASE("view snapshot: a private seat is stripped for a spectator") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
@@ -564,14 +562,9 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
     ApplyStatus(*engine, player0, "uni:draw_debt", true);
     ApplyStatus(*engine, player1, "uni:draw_debt", true);
 
-    SnapshotOptions options;
-    options.privacy_from_spectators = {"player1"};
-    CHECK(options.PrivacyOn("player1"));
-    CHECK_FALSE(options.PrivacyOn("player0"));
-
     EventSink sink;
     const json snapshot =
-        builder.BuildSnapshot(Viewer::Spectator(), sink, options);
+        builder.BuildSnapshot(Viewer::Spectator({"player1"}), sink);
     const json& state = snapshot["match_state"];
 
     const json* private_player = FindPlayerState(state, "player1");

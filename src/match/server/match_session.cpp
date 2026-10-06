@@ -217,6 +217,32 @@ bool MatchSession::UnbindViewer(const std::string& username) {
     return true;
 }
 
+void MatchSession::SetSeatPrivacy(const std::string& username, bool enabled) {
+    const auto position = std::ranges::find(private_seats_, username);
+    if (enabled && position == private_seats_.end()) {
+        private_seats_.push_back(username);
+    } else if (!enabled && position != private_seats_.end()) {
+        private_seats_.erase(position);
+    }
+}
+
+match::view::Viewer MatchSession::SpectatorViewer() const {
+    return match::view::Viewer::Spectator(private_seats_);
+}
+
+bool MatchSession::DemoteSeatToSpectator(const std::string& username) {
+    auto seat = sockets_.extract(username);
+    if (seat.empty()) return false;
+    auto sink = sinks_.extract(username);
+    viewers_[username] = seat.mapped();
+    if (!sink.empty()) {
+        viewer_sinks_.insert_or_assign(username, std::move(sink.mapped()));
+    }
+    prompt_signature_.erase(username);
+    prompt_outcome_.erase(username);
+    return true;
+}
+
 void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 const std::string& username,
                                 bool is_spectator) {
@@ -241,13 +267,12 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
 
     // INFO: a bound spectator keeps its persistent stream so `defs` is only
     //       sent once and `seq` stays monotonic across later live updates; an
-    //       unknown recipient still gets a one-off omniscient view.
+    //       unknown recipient still gets a one-off spectator view.
     const auto viewer = viewer_sinks_.find(username);
     if (viewer != viewer_sinks_.end()) {
         EnsureDefs(broadcaster, socket, viewer->second);
-        broadcaster.SendJson(socket,
-                             builder_.BuildSnapshot(match::view::Viewer::Spectator(),
-                                                    viewer->second));
+        broadcaster.SendJson(
+            socket, builder_.BuildSnapshot(SpectatorViewer(), viewer->second));
         SendBarrierPacket(
             broadcaster, socket, viewer->second,
             ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
@@ -255,8 +280,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
         return;
     }
     match::view::EventSink sink;
-    broadcaster.SendJson(socket, builder_.BuildSnapshot(
-                                     match::view::Viewer::Spectator(), sink));
+    broadcaster.SendJson(socket,
+                         builder_.BuildSnapshot(SpectatorViewer(), sink));
 }
 
 bool MatchSession::HandleSnapshotRequest(
@@ -280,7 +305,7 @@ bool MatchSession::HandleSnapshotRequest(
         is_seat ? sinks_.at(username) : viewer_sinks_.at(username);
     const match::view::Viewer viewer =
         is_seat ? match::view::Viewer::Player(username)
-                : match::view::Viewer::Spectator();
+                : SpectatorViewer();
     broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, options));
     return true;
 }
@@ -419,13 +444,13 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
             (*packet)["action"] = "match_event";
             broadcaster.SendJson(socket, *packet);
         }
-        // INFO: Spectators get the same event stream through
-        //       the omniscient spectator view on their own persistent sink.
+        // INFO: Spectators get the same event stream through the spectator
+        //       view on their own persistent sink. The viewer is built for
+        //       each event, so a setting change applies to the next one.
         for (const auto& [username, socket] : viewers_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(
-                events[cursor_], match::view::Viewer::Spectator(),
-                viewer_sinks_.at(username));
+                events[cursor_], SpectatorViewer(), viewer_sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
             broadcaster.SendJson(socket, *packet);
@@ -521,12 +546,12 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         broadcaster.SendJson(socket, snapshot);
     }
     // INFO: Spectators keep receiving snapshots after their
-    //       initial join snapshot (omniscient view, own seq watermark).
+    //       initial join snapshot (spectator view, own seq watermark).
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            match::view::Viewer::Spectator(), viewer_sinks_.at(username), options);
+            SpectatorViewer(), viewer_sinks_.at(username), options);
         broadcaster.SendJson(socket, snapshot);
     }
     BroadcastMatchOver(broadcaster);

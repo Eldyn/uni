@@ -173,7 +173,11 @@ TEST_CASE("audience: actor, target and owner fields reach only that seat") {
                                             Viewer::Player("player0")));
     CHECK(match::view::AudienceAllows(Audience::kOwner, roles,
                                       Viewer::Player("player2")));
+    CHECK(match::view::AudienceAllows(Audience::kOwner, roles,
+                                      Viewer::Spectator()));
     CHECK_FALSE(match::view::AudienceAllows(Audience::kOwner, roles,
+                                            Viewer::Spectator({"player2"})));
+    CHECK_FALSE(match::view::AudienceAllows(Audience::kOwner, SeatRoles{},
                                             Viewer::Spectator()));
     CHECK_FALSE(match::view::AudienceAllows(Audience::kNone, roles,
                                             Viewer::Player("player0")));

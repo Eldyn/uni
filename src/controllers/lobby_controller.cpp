@@ -16,6 +16,7 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
+#include <services/auth_service.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
@@ -610,6 +611,9 @@ void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
  * @param sd Extracted metadata context state owned by the underlying connection.
  */
 void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
+    // INFO: the saved setting is the truth for an account. A guest has no row,
+    //       so it starts with the default (off) and may set it on the socket.
+    sd->privacy_mode = AuthService::GetPrivacyMode(sd->username);
     Lobby* lobby = FindLobbyForUser(sd->username);
     if (!lobby) return;
 
@@ -618,6 +622,10 @@ void LobbyController::OnOpen(AppWebSocket* ws, PerSocketData* sd) {
             Logger::Log("[Lobby] Reconnect: ", sd->username, " back in lobby ", lobby->id);
 
             member.socket          = ws;
+            member.privacy_mode    = sd->privacy_mode;
+            if (lobby->session && !member.is_spectator) {
+                lobby->session->SetSeatPrivacy(sd->username, sd->privacy_mode);
+            }
             member.is_connected    = true;
             member.disconnected_at = steady_clock::time_point{};
             sd->lobby_code         = lobby->invite_code;
@@ -1740,6 +1748,9 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         std::move(engine), std::move(active_mods), std::move(sockets));
     lobby.match_id =
         "match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode();
+    for (const LobbyMember* member : seated) {
+        lobby.session->SetSeatPrivacy(member->username, member->privacy_mode);
+    }
 
     for (auto& cb : on_game_started_) cb(&lobby);
 
@@ -1927,14 +1938,22 @@ Lobby* LobbyController::FindLobbyForUser(const std::string& username) {
 
 void LobbyController::HandleUserUpdatePrivacy(WsContext context, const nlohmann::json& message) {
     bool privacy = ws::GetOr<bool>(message, "privacy_mode", false);
-    if (context.socket_data) {
-        context.socket_data->privacy_mode = privacy;
+    if (!context.socket_data) return;
+    if (context.socket_data->privacy_mode == privacy) return;
+    context.socket_data->privacy_mode = privacy;
+    const std::string& username = context.socket_data->username;
+    if (auto saved = AuthService::SetPrivacyMode(username, privacy); !saved) {
+        Logger::Warn("[Lobby] Privacy mode not saved for '", username,
+                     "': ", saved.error().message);
     }
     Lobby* lobby = GetLobbyById(context.socket_data->lobby_id);
     if (lobby) {
-        LobbyMember* member = lobby->FindMember(context.socket_data->username);
+        LobbyMember* member = lobby->FindMember(username);
         if (member) {
             member->privacy_mode = privacy;
+            if (lobby->session && !member->is_spectator) {
+                lobby->session->SetSeatPrivacy(username, privacy);
+            }
             BroadcastUpdate(*lobby);
         }
     }

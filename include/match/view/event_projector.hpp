@@ -57,7 +57,8 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
  *
  * A card is hidden while it sits in the hand of another seat or in the draw
  * pile, unless a visibility grant with the identity aspect covers it. A
- * spectator sees every card (spectator privacy is a separate rule).
+ * spectator never sees the draw pile. A spectator sees a hand unless the owner
+ * of the hand has Streamer/Privacy Mode on (`Viewer::private_seats`).
  */
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
                       ecs::Entity card, const Viewer& viewer);

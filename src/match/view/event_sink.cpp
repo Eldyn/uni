@@ -314,7 +314,7 @@ std::optional<nlohmann::json> EventSink::WrapPublic(
     return WrapEngineEvent(
         type,
         ProjectForViewer(match, type, *projected, SeatRoles{},
-                         Viewer::Spectator()),
+                         Viewer::PublicSpectator()),
         engine_event);
 }
 

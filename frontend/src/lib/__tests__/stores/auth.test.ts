@@ -51,6 +51,44 @@ describe("auth store", () => {
 		expect(storeAuth.emailVerified).toBe(true);
 	});
 
+	it("checkSession stores the saved privacy mode from /auth/me", async () => {
+		localStorage.removeItem("uni_privacy_mode");
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(JSON.stringify({ username: "streamer", privacy_mode: true }), { status: 200 })
+		);
+		await storeAuth.checkSession();
+		expect(localStorage.getItem("uni_privacy_mode")).toBe("true");
+	});
+
+	it("checkSession replaces a stale local privacy mode with the saved one", async () => {
+		localStorage.setItem("uni_privacy_mode", "true");
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(JSON.stringify({ username: "viewer", privacy_mode: false }), { status: 200 })
+		);
+		await storeAuth.checkSession();
+		expect(localStorage.getItem("uni_privacy_mode")).toBe("false");
+	});
+
+	it("checkSession keeps the local privacy mode when the server sends none", async () => {
+		localStorage.setItem("uni_privacy_mode", "true");
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(JSON.stringify({ username: "olduser" }), { status: 200 })
+		);
+		await storeAuth.checkSession();
+		expect(localStorage.getItem("uni_privacy_mode")).toBe("true");
+	});
+
+	it("login stores the saved privacy mode", async () => {
+		localStorage.removeItem("uni_privacy_mode");
+		vi.mocked(fetch).mockResolvedValue(
+			new Response(JSON.stringify({ status: "ok", username: "streamer", privacy_mode: true }), {
+				status: 200
+			})
+		);
+		await storeAuth.login("streamer@example.com", "password123");
+		expect(localStorage.getItem("uni_privacy_mode")).toBe("true");
+	});
+
 	it("setLoggedOut resets emailVerified to false", () => {
 		storeAuth.emailVerified = true;
 		storeAuth.isLoggedIn = true;

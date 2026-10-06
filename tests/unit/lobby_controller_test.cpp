@@ -5,6 +5,7 @@
 #include <common/payloads.hpp>
 #include <common/ws.hpp>
 #include <database.hpp>
+#include <services/auth_service.hpp>
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
@@ -381,6 +382,122 @@ TEST_CASE("start: succeeds once every human member is ready") {
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
     CHECK(lp->session != nullptr);
+}
+
+static void InsertPrivacyUser(const std::string& username) {
+    REQUIRE(Database::Get()
+                .Exec("INSERT OR IGNORE INTO users "
+                      "(username, pass_hash, salt, email) "
+                      "VALUES (?, 'h', 's', ?);",
+                      {username, username + "@privacy.test"})
+                .has_value());
+}
+
+static void DeletePrivacyUsers(const std::vector<std::string>& usernames) {
+    for (const std::string& username : usernames) {
+        (void)Database::Get().Exec("DELETE FROM users WHERE username = ?;",
+                                   {username});
+    }
+}
+
+static json update_privacy_msg(bool privacy_mode) {
+    return {{"action", ws::ClientAction::kUserUpdatePrivacy},
+            {"privacy_mode", privacy_mode}};
+}
+
+static bool SpectatorSeesBacksOf(const Lobby& lobby,
+                                 const std::string& username) {
+    return lobby.session->SpectatorViewer().SeesCardBacksOf(username);
+}
+
+TEST_CASE("privacy: the seat setting reaches the session at match start") {
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.privacy_mode = true;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    CHECK(SpectatorSeesBacksOf(*lp, "alice"));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+}
+
+TEST_CASE("privacy: a change during the match reaches the session") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+
+    f.router.Dispatch(f.bctx(), update_privacy_msg(true));
+    CHECK(SpectatorSeesBacksOf(*lp, "bob"));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "alice"));
+
+    f.router.Dispatch(f.bctx(), update_privacy_msg(false));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+}
+
+TEST_CASE("privacy: the setting of a registered user is saved") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_saved");
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_saved";
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    CHECK(AuthService::GetPrivacyMode("privacy_saved"));
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK_FALSE(AuthService::GetPrivacyMode("privacy_saved"));
+    DeletePrivacyUsers({"privacy_saved"});
+}
+
+TEST_CASE("privacy: an unchanged value does not write the database again") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_same");
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_same";
+    REQUIRE(AuthService::SetPrivacyMode("privacy_same", true).has_value());
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK(AuthService::GetPrivacyMode("privacy_same"));
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK_FALSE(AuthService::GetPrivacyMode("privacy_same"));
+    DeletePrivacyUsers({"privacy_same"});
+}
+
+TEST_CASE("privacy: a guest keeps the setting for the session only") {
+    LobbyFixture f;
+    f.alice_sd.username = "Guest#PRIV1";
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    CHECK(f.alice_sd.privacy_mode);
+    CHECK_FALSE(AuthService::GetPrivacyMode("Guest#PRIV1"));
+}
+
+TEST_CASE("privacy: opening a socket loads the saved setting") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_loaded");
+    REQUIRE(AuthService::SetPrivacyMode("privacy_loaded", true).has_value());
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_loaded";
+
+    f.lobby.OnOpen(f.alice_sock, &f.alice_sd);
+    CHECK(f.alice_sd.privacy_mode);
+
+    f.bob_sd.username = "Guest#PRIV2";
+    f.lobby.OnOpen(f.bob_sock, &f.bob_sd);
+    CHECK_FALSE(f.bob_sd.privacy_mode);
+    DeletePrivacyUsers({"privacy_loaded"});
 }
 
 TEST_CASE("start: a race lobby hands the seated race target to the engine") {

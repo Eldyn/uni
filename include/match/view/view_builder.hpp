@@ -34,8 +34,8 @@
  * untouched. Payload JSON is built directly against.
  *
  * The view layer adds `BuildSnapshot` over the same builder: base
- * visibility, `VisibilityGrant` aspects, spectator omniscience with
- * per-player `privacy_from_spectators`, and the own-hand playability flag.
+ * visibility, `VisibilityGrant` aspects, per-seat spectator
+ * privacy (`Viewer::private_seats`), and the own-hand playability flag.
  */
 
 namespace match::engine {
@@ -60,6 +60,13 @@ namespace match::view {
 struct Viewer {
     std::string username;         /**< player username; empty for spectator. */
     bool is_spectator = false;    /**< true for a non-seated connection. */
+    /**
+     * Owners with Streamer/Privacy Mode on. A spectator sees card backs for
+     * the seats of these owners. Empty for a player.
+     */
+    std::vector<std::string> private_seats;
+    /** True for the public projection: no seat owner shows hidden cards. */
+    bool hides_every_seat = false;
 
     /** @brief A seated player viewer. */
     static Viewer Player(std::string username) {
@@ -69,11 +76,32 @@ struct Viewer {
         return viewer;
     }
 
-    /** @brief An anonymous spectator viewer. */
-    static Viewer Spectator() {
+    /**
+     * @brief An anonymous spectator viewer.
+     *
+     * @param private_seats Owners whose seats show card backs.
+     */
+    static Viewer Spectator(std::vector<std::string> private_seats = {}) {
         Viewer viewer;
         viewer.is_spectator = true;
+        viewer.private_seats = std::move(private_seats);
         return viewer;
+    }
+
+    /** @brief A spectator that sees card backs for every seat. */
+    static Viewer PublicSpectator() {
+        Viewer viewer = Spectator();
+        viewer.hides_every_seat = true;
+        return viewer;
+    }
+
+    /** @brief True when this spectator sees card backs for `owner`. */
+    bool SeesCardBacksOf(const std::string& owner) const {
+        if (hides_every_seat) return true;
+        for (const std::string& private_owner : private_seats) {
+            if (private_owner == owner) return true;
+        }
+        return false;
     }
 };
 
@@ -81,16 +109,11 @@ struct Viewer {
  * @struct SnapshotOptions
  * @brief Per-match snapshot inputs the engine does not own.
  *
- * The lobby owns the phase-1 per-player `privacy_from_spectators` toggle, so
- * the flag is supplied here rather than stored on the engine.
- * A listed player's hidden aspects (hand identity/colour/value/position and
- * hidden statuses) are stripped from spectator views; every other
- * player stays fully visible to a spectator (spectators default omniscient).
+ * A private seat (`Viewer::private_seats`) shows no hand identity, colour,
+ * value or position and no hidden status to a spectator. Every other seat
+ * stays visible. The draw pile never lists its cards to a spectator.
  */
 struct SnapshotOptions {
-    /** Usernames whose hidden aspects are hidden from spectators. */
-    std::vector<std::string> privacy_from_spectators;
-
     /**
      * Connected spectators watching each player's POV, keyed by the watched
      * player's username. A spectator with no explicit choice is attributed to
@@ -101,8 +124,6 @@ struct SnapshotOptions {
     /** Total connected spectators in the lobby (all POVs). */
     int spectator_count = 0;
 
-    /** @brief True when `username` opted into spectator privacy. */
-    bool PrivacyOn(const std::string& username) const;
 };
 
 
@@ -182,7 +203,7 @@ public:
      * pile count only, discard top identity + count, played/public info);
      * `VisibilityGrant` entries reveal the granted aspects of another hand or
      * a pile. A spectator is omniscient except for players opted into
-     * `privacy_from_spectators`. Own-hand entries carry a `can_play` flag
+     * the private seats. Own-hand entries carry a `can_play` flag
      *
      * The watermark is `sink.NextSeq()`, so a caller builds the viewer's
      * packets into `sink` first and then the snapshot reconciles exactly the
@@ -200,7 +221,7 @@ public:
      *
      * @param viewer  Recipient to build for.
      * @param sink    The viewer's stream, read for the seq watermark.
-     * @param options Lobby-owned snapshot options (`privacy_from_spectators`).
+     * @param options Lobby-owned snapshot options (spectator counts).
      * @return The `match_state_updated` envelope.
      */
     nlohmann::json BuildSnapshot(const Viewer& viewer, const EventSink& sink,

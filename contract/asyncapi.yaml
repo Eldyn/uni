@@ -1050,7 +1050,13 @@ components:
           type: string
         privacy_mode:
           type: boolean
-          description: Whether streamer / privacy mode is enabled (hides hand from spectators).
+          description: >-
+            Whether Streamer/Privacy Mode is enabled. When true, a spectator
+            sees card backs for the seat of this player; when false, a
+            spectator sees the hidden cards of the seat. The server saves the
+            value for an account (default false) and keeps it for the socket
+            session of a guest. The change reaches a spectator at the next
+            client event.
 
     SpectatorViewPayload:
       type: object

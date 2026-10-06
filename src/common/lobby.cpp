@@ -239,6 +239,7 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
             if (settings.bot_count > 0) settings.bot_count--;
             member.is_spectator = false;
             member.privacy_mode = user_privacy;
+            if (session) session->SetSeatPrivacy(username, user_privacy);
 
             result.outcome = JoinOutcome::kHijackedBot;
             result.old_bot_name = old_bot_name;
@@ -288,7 +289,11 @@ Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_soc
     lobby.invite_code                 = code;
     lobby.host                        = host;
     lobby.name                        = name;
-    lobby.members.emplace_back(host, host_socket, true, false, 0);
+    const PerSocketData* host_data =
+        host_socket != nullptr ? host_socket->getUserData() : nullptr;
+    const bool host_privacy = host_data != nullptr && host_data->privacy_mode;
+    lobby.members.emplace_back(host, host_socket, true, false, 0,
+                               /*is_spectator=*/false, host_privacy);
     lobby.settings.Sanitize(max_players_ceiling);
 
     return lobby;

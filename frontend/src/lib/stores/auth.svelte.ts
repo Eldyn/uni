@@ -67,11 +67,13 @@ class StoreAuth {
 					}).then((res) => (res.ok ? res.json() : null));
 
 			if (data && typeof data === "object") {
-				const { username, avatar, email_verified } = data as {
+				const { username, avatar, email_verified, privacy_mode } = data as {
 					username: string;
 					avatar?: string;
 					email_verified?: boolean;
+					privacy_mode?: boolean;
 				};
+				this.#adoptSavedPrivacyMode(privacy_mode);
 				this.#setLoggedIn(username, avatar || "", Boolean(email_verified));
 				return true;
 			}
@@ -207,6 +209,7 @@ class StoreAuth {
 
 			if (res.ok) {
 				const data = await res.json();
+				this.#adoptSavedPrivacyMode(data.privacy_mode);
 				this.#setLoggedIn(data.username, data.avatar || "", Boolean(data.email_verified));
 				await this.#resyncSocket();
 				storeAnalytics.track("login");
@@ -313,6 +316,19 @@ class StoreAuth {
 		if (!ws.isConnected) return;
 		ws.disconnect(1000, "identity changed");
 		await ws.connect();
+	}
+
+	/**
+	 * @brief Makes the saved Streamer/Privacy Mode of the account the local value.
+	 *
+	 * The server keeps the setting for an account, so a new device or a stale
+	 * local value must not override it. The settings toggle and the socket
+	 * handshake read the local value. A missing value leaves it unchanged.
+	 */
+	#adoptSavedPrivacyMode(savedPrivacyMode: unknown): void {
+		if (typeof savedPrivacyMode !== "boolean") return;
+		if (typeof localStorage === "undefined") return;
+		localStorage.setItem("uni_privacy_mode", String(savedPrivacyMode));
 	}
 
 	#setLoggedIn(username: string, avatar: string = "", emailVerified: boolean = false): void {

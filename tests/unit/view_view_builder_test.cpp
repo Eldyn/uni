@@ -237,10 +237,21 @@ TEST_CASE("view filter: cards_drawn identities are owner only") {
     CHECK((*other)["payload"]["source_pile"] == "draw_pile");
     CHECK_FALSE((*other)["payload"].contains("cards"));
 
-    const std::optional<json> spectator =
+    // INFO: a spectator follows the privacy setting of the drawing seat.
+    const std::optional<json> open_spectator =
         WrapOne(builder, Viewer::Spectator(), event);
-    REQUIRE(spectator.has_value());
-    CHECK_FALSE((*spectator)["payload"].contains("cards"));
+    REQUIRE(open_spectator.has_value());
+    CHECK((*open_spectator)["payload"]["cards"].size() == 2);
+
+    const std::optional<json> private_spectator =
+        WrapOne(builder, Viewer::Spectator({"player0"}), event);
+    REQUIRE(private_spectator.has_value());
+    CHECK_FALSE((*private_spectator)["payload"].contains("cards"));
+
+    const std::optional<json> other_private_spectator =
+        WrapOne(builder, Viewer::Spectator({"player1"}), event);
+    REQUIRE(other_private_spectator.has_value());
+    CHECK((*other_private_spectator)["payload"]["cards"].size() == 2);
 }
 
 TEST_CASE("view filter: hidden statuses are owner only") {

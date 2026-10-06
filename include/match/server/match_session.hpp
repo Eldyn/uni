@@ -193,8 +193,8 @@ public:
      * @brief Register (or rebind) a spectator viewer socket.
      *
      * Spectators are not engine seats: they receive a persistent per-viewer
-     * event stream built with the omniscient spectator view, so a mid-match
-     * joiner keeps receiving `match_event` / `match_state_updated` /
+     * event stream built with the spectator view (`SpectatorViewer`), so a
+     * mid-match joiner keeps receiving `match_event` / `match_state_updated` /
      * `match_over` after their initial snapshot. Additive: seated behaviour
      * is untouched.
      *
@@ -209,6 +209,33 @@ public:
      * @return true when a spectator entry existed and was removed.
      */
     bool UnbindViewer(const std::string& username);
+
+    /**
+     * @brief Set the Streamer/Privacy Mode of the owner of a seat.
+     *
+     * The setting applies to every spectator packet that the session builds
+     * after this call: a spectator that joins later and the next client event
+     * and snapshot of a spectator that watches now.
+     *
+     * @param username Owner of the seat.
+     * @param enabled  True: spectators see card backs for this seat.
+     */
+    void SetSeatPrivacy(const std::string& username, bool enabled);
+
+    /** @brief The spectator viewer with the current private seats. */
+    match::view::Viewer SpectatorViewer() const;
+
+    /**
+     * @brief Turn a seat into a spectator (an eliminated seat).
+     *
+     * The socket and the stream of the seat move to the spectator registry.
+     * The `sequence` of the stream continues without a gap. The seat gets the
+     * spectator projection from the next packet.
+     *
+     * @param username Username of the seat.
+     * @return true when the seat existed and moved.
+     */
+    bool DemoteSeatToSpectator(const std::string& username);
 
     // --- wire output --------------------------------------------------------
 
@@ -449,6 +476,8 @@ private:
     SocketMap sockets_;
     /** Spectator viewer sockets (no engine seat);. */
     SocketMap viewers_;
+    /** Owners with Streamer/Privacy Mode on, without duplicate. */
+    std::vector<std::string> private_seats_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
     std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;

@@ -14,6 +14,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <map>
@@ -183,10 +184,56 @@ std::vector<HiddenCard> HiddenFrom(const MatchInstance& engine,
     return hidden;
 }
 
+/**
+ * @brief The cards a spectator must not learn about right now.
+ *
+ * Every card of the draw pile, and every card in the hand of a seat whose
+ * owner has Streamer/Privacy Mode on.
+ */
+std::vector<HiddenCard> HiddenFromSpectator(
+    const MatchInstance& engine,
+    const std::vector<std::string>& private_seats) {
+    const std::vector<ecs::Entity> offered = PubliclyOfferedCards(engine);
+    std::vector<HiddenCard> hidden;
+    const auto add = [&](const std::vector<ecs::Entity>& cards) {
+        for (ecs::Entity card : cards) {
+            bool is_offered = false;
+            for (ecs::Entity entry : offered) is_offered |= entry == card;
+            if (!is_offered) hidden.push_back(HiddenCardOf(engine, card));
+        }
+    };
+    for (const std::string& username : private_seats) {
+        const ecs::Hand* hand = engine.Store().Get<ecs::Hand>(
+            *engine.FindPlayer(username));
+        if (hand != nullptr) add(hand->cards);
+    }
+    const ecs::PileContents* draw_pile = engine.Store().Get<ecs::PileContents>(
+        engine.Registries().draw_pile);
+    if (draw_pile != nullptr) add(draw_pile->cards);
+    return hidden;
+}
+
 struct LeakReport {
     std::size_t frames_scanned = 0;
     std::vector<std::string> findings;
 };
+
+/** @brief The spectator of a scan and the privacy setting of each seat. */
+struct SpectatorPlan {
+    std::vector<std::string> private_seats;
+    /** Seat whose setting flips at `flip_step` (empty: no flip). */
+    std::string flip_seat;
+    int flip_step = 0;
+};
+
+AppWebSocket* SpectatorSocket() {
+    return reinterpret_cast<AppWebSocket*>(static_cast<std::uintptr_t>(0x400));
+}
+
+bool ContainsSeat(const std::vector<std::string>& seats,
+                  const std::string& seat) {
+    return std::ranges::find(seats, seat) != seats.end();
+}
 
 /** @brief Scan every frame sent to `socket` since the last call. */
 void ScanSentFrames(const FakeBroadcaster& fake, AppWebSocket* socket,
@@ -212,7 +259,7 @@ void ScanSentFrames(const FakeBroadcaster& fake, AppWebSocket* socket,
  * Frames are scanned right after each action against the hidden set that
  * the engine state implies at that moment.
  */
-LeakReport PlayAndScan(uint64_t seed) {
+LeakReport PlayAndScan(uint64_t seed, const SpectatorPlan& plan = {}) {
     Content content;
     REQUIRE(LoadContent(content));
     const std::vector<std::string> bots = {"bot0", "bot1", "bot2", "bot3"};
@@ -230,11 +277,25 @@ LeakReport PlayAndScan(uint64_t seed) {
     LeakReport report;
     std::map<std::string, std::size_t> cursors;
 
+    std::vector<std::string> private_seats = plan.private_seats;
+    for (const std::string& seat : private_seats) {
+        session.SetSeatPrivacy(seat, true);
+    }
+    const bool has_spectator = !plan.private_seats.empty()
+                               || !plan.flip_seat.empty();
+    if (has_spectator) session.BindViewer("watcher", SpectatorSocket());
+    std::size_t spectator_cursor = 0;
+
     const auto scan_all = [&]() {
         for (const std::string& bot : bots) {
             ScanSentFrames(fake, sockets[bot], cursors[bot], bot,
                            HiddenFrom(session.Engine(), bot), report);
         }
+        if (!has_spectator) return;
+        const std::vector<HiddenCard> hidden =
+            HiddenFromSpectator(session.Engine(), private_seats);
+        ScanSentFrames(fake, SpectatorSocket(), spectator_cursor, "watcher",
+                       hidden, report);
     };
 
     session.EmitMatchStart(fake);
@@ -263,6 +324,16 @@ LeakReport PlayAndScan(uint64_t seed) {
                 session.Engine().GetCurrentPlayerUsername();
             if (!current.empty()) acted = BotStep(session, policy, current);
         }
+        if (!plan.flip_seat.empty() && steps == plan.flip_step) {
+            const bool now_private =
+                !ContainsSeat(private_seats, plan.flip_seat);
+            session.SetSeatPrivacy(plan.flip_seat, now_private);
+            if (now_private) {
+                private_seats.push_back(plan.flip_seat);
+            } else {
+                std::erase(private_seats, plan.flip_seat);
+            }
+        }
         session.Tick();
         session.EmitEvents(fake);
         session.BroadcastSnapshot(fake);
@@ -284,6 +355,113 @@ TEST_CASE("leak: no byte sent to a seat names a card of another hand") {
             FAIL_CHECK("seed " << seed << ": " << finding);
         }
     }
+}
+
+TEST_CASE("leak: no byte sent to a spectator names a private card") {
+    SpectatorPlan plan;
+    plan.private_seats = {"bot1", "bot3"};
+    for (const uint64_t seed : {7u, 11u, 23u}) {
+        const LeakReport report = PlayAndScan(seed, plan);
+        CHECK(report.frames_scanned > 200);
+        for (const std::string& finding : report.findings) {
+            FAIL_CHECK("seed " << seed << ": " << finding);
+        }
+    }
+}
+
+TEST_CASE("leak: a spectator of an all-open table never gets the draw pile") {
+    SpectatorPlan plan;
+    plan.flip_seat = "bot0";
+    plan.flip_step = 1000000;
+    for (const uint64_t seed : {7u, 11u}) {
+        const LeakReport report = PlayAndScan(seed, plan);
+        CHECK(report.frames_scanned > 200);
+        for (const std::string& finding : report.findings) {
+            FAIL_CHECK("seed " << seed << ": " << finding);
+        }
+    }
+}
+
+TEST_CASE("leak: a setting that changes mid match leaks nothing afterward") {
+    SpectatorPlan plan;
+    plan.private_seats = {"bot2"};
+    plan.flip_seat = "bot0";
+    plan.flip_step = 40;
+    for (const uint64_t seed : {7u, 11u}) {
+        const LeakReport report = PlayAndScan(seed, plan);
+        for (const std::string& finding : report.findings) {
+            FAIL_CHECK("seed " << seed << ": " << finding);
+        }
+    }
+}
+
+TEST_CASE("leak: the spectator scan finds an injected leak") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    MatchSession::SocketMap socket_map;
+    for (int index = 0; index < 4; ++index) {
+        socket_map["bot" + std::to_string(index)] = SeatSocket(index);
+    }
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7);
+    MatchSession session(std::move(engine), std::move(content.mods),
+                         socket_map);
+    session.SetSeatPrivacy("bot1", true);
+    session.BindViewer("watcher", SpectatorSocket());
+    FakeBroadcaster fake;
+    session.EmitMatchStart(fake);
+    session.SendSnapshot(fake, SpectatorSocket(), "watcher", true);
+
+    const std::vector<HiddenCard> hidden =
+        HiddenFromSpectator(session.Engine(), {"bot1"});
+    REQUIRE_FALSE(hidden.empty());
+    LeakReport clean_report;
+    std::size_t cursor = 0;
+    ScanSentFrames(fake, SpectatorSocket(), cursor, "watcher", hidden,
+                   clean_report);
+    REQUIRE(clean_report.frames_scanned > 0);
+    CHECK(clean_report.findings.empty());
+
+    // INFO: the first pile card stands for an omniscient snapshot of the old
+    //       kind that listed the draw pile in order.
+    const ecs::PileContents* draw_pile = session.Engine().Store()
+        .Get<ecs::PileContents>(session.Engine().Registries().draw_pile);
+    const HiddenCard pile_card =
+        HiddenCardOf(session.Engine(), draw_pile->cards.front());
+    fake.Send(SpectatorSocket(),
+              json{{"action", "match_state_updated"},
+                   {"match_state",
+                    json{{"draw_pile",
+                          json{{"cards", json::array({pile_card.bits})}}}}}}
+                  .dump());
+    LeakReport leak_report;
+    ScanSentFrames(fake, SpectatorSocket(), cursor, "watcher", hidden,
+                   leak_report);
+    CHECK(leak_report.findings.size() == 1);
+}
+
+TEST_CASE("leak: a spectator of an open seat does see its cards") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    MatchSession::SocketMap socket_map;
+    for (int index = 0; index < 4; ++index) {
+        socket_map["bot" + std::to_string(index)] = SeatSocket(index);
+    }
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7);
+    const ecs::Entity open_card =
+        engine->Store().Get<ecs::Hand>(*engine->FindPlayer("bot0"))
+            ->cards.front();
+    const HiddenCard open = HiddenCardOf(*engine, open_card);
+    MatchSession session(std::move(engine), std::move(content.mods),
+                         socket_map);
+    session.SetSeatPrivacy("bot1", true);
+    session.BindViewer("watcher", SpectatorSocket());
+    FakeBroadcaster fake;
+    session.SendSnapshot(fake, SpectatorSocket(), "watcher", true);
+
+    LeakReport report;
+    std::size_t cursor = 0;
+    ScanSentFrames(fake, SpectatorSocket(), cursor, "watcher", {open}, report);
+    CHECK(report.findings.size() == 1);
 }
 
 TEST_CASE("leak: the scanner finds an injected leak") {
