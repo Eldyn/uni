@@ -1290,6 +1290,23 @@ export function createMatchEventBeatController(deps: {
 		presentSkips(storeGame.state?.current_turn ?? "", [beat.target]);
 	}
 
+	/** Logs a place from the `placement_set` event. The snapshot path at the end
+	 *  of `syncState` stays as the fallback and finds the seat already placed. */
+	function handlePlacement(beat: Extract<MatchEventBeat, { kind: "placement" }>): void {
+		playLog.notePlacement(
+			beat.target,
+			beat.place,
+			beat.isElimination,
+			Math.max(1, storeGame.state?.race_target ?? 0)
+		);
+	}
+
+	/** Logs the win line from the `match_ended` event. The snapshot path stays
+	 *  as the fallback and finds the winner already logged. */
+	function handleMatchEnd(beat: Extract<MatchEventBeat, { kind: "match_end" }>): void {
+		playLog.noteMatchEnded(beat.target || null, beat.targets.length);
+	}
+
 	/** Logs a keep from the `drawn_card_kept` event. The snapshot that clears the
 	 *  hold finds the line already logged. The pose of the held card still
 	 *  follows `pendingPlayDrawn` in `syncState`. */
@@ -1356,6 +1373,12 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "keep":
 				handleKeep(beat);
+				return;
+			case "placement":
+				handlePlacement(beat);
+				return;
+			case "match_end":
+				handleMatchEnd(beat);
 				return;
 			case "active_color":
 				handleActiveColor(beat);

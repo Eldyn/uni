@@ -28,7 +28,9 @@ import {
 	ActiveTypeChangedPayloadSchema,
 	RestrictionAddedPayloadSchema,
 	RestrictionRemovedPayloadSchema,
-	TurnTimerChangedPayloadSchema
+	TurnTimerChangedPayloadSchema,
+	PlacementSetPayloadSchema,
+	MatchEndedPayloadSchema
 } from "$lib/generated/schemas";
 
 /**
@@ -108,6 +110,10 @@ export type MatchEventBeat =
 			actor?: string;
 	  }
 	| { seq: number; kind: "active_color"; color: string; previousColor: string }
+	/** A seat took a place; `isElimination` is true for a seat that is out. */
+	| { seq: number; kind: "placement"; target: string; place: number; isElimination: boolean }
+	/** The match ended; `target` is the winner, `targets` the placed seats. */
+	| { seq: number; kind: "match_end"; target: string; targets: string[] }
 	/** A client event that has no presentation yet; the controller ignores it. */
 	| { seq: number; kind: "ignored"; eventId: string }
 	| {
@@ -247,6 +253,22 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 			const parsed = TurnSkippedPayloadSchema.safeParse(payload);
 			if (!parsed.success) return null;
 			return { seq, kind: "skip", target: parsed.data.target, actor };
+		}
+		case "placement_set": {
+			const parsed = PlacementSetPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return {
+				seq,
+				kind: "placement",
+				target: parsed.data.target,
+				place: parsed.data.place,
+				isElimination: parsed.data.is_elimination
+			};
+		}
+		case "match_ended": {
+			const parsed = MatchEndedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "match_end", target: parsed.data.target, targets: parsed.data.targets };
 		}
 		case "active_type_changed": {
 			const parsed = ActiveTypeChangedPayloadSchema.safeParse(payload);

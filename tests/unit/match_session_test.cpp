@@ -407,6 +407,65 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
 }
 
+TEST_CASE("match session: prompt_opened and prompt_answered sit beside the "
+          "old names") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 4);
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player0, {wilds[0], wilds[1]});
+    ForceHand(*engine, player1, {wilds[2], wilds[3]});
+    const uint32_t wild0 = BitsOf(*engine, wilds[0]);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    REQUIRE(session.PlayCard("player0", wild0));
+    session.EmitEvents(fake);
+    REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
+    session.EmitEvents(fake);
+
+    const std::vector<json> s0_packets = PacketsFor(fake, s0);
+    const std::vector<json> s1_packets = PacketsFor(fake, s1);
+    const json* opened = FindEvent(s0_packets, "prompt_opened");
+    const json* old_opened = FindEvent(s0_packets, "prompt_open");
+    REQUIRE(opened != nullptr);
+    REQUIRE(old_opened != nullptr);
+    CHECK((*opened)["payload"] == (*old_opened)["payload"]);
+    CHECK((*opened)["sequence"].get<uint32_t>()
+          == (*old_opened)["sequence"].get<uint32_t>() + 1);
+
+    const json* answered = FindEvent(s0_packets, "prompt_answered");
+    const json* old_closed = FindEvent(s0_packets, "prompt_close");
+    REQUIRE(answered != nullptr);
+    REQUIRE(old_closed != nullptr);
+    CHECK((*answered)["payload"]["outcome"] == "answered");
+    CHECK((*answered)["payload"]["prompt_id"] == "choose_color");
+
+    CHECK(FindEvent(s1_packets, "prompt_opened") == nullptr);
+    CHECK(FindEvent(s1_packets, "prompt_answered") == nullptr);
+
+    for (const std::vector<json>* packets : {&s0_packets, &s1_packets}) {
+        uint32_t previous = 0;
+        bool first = true;
+        for (const json& packet : *packets) {
+            if (!packet.contains("sequence")) continue;
+            const uint32_t sequence = packet["sequence"].get<uint32_t>();
+            if (!first) CHECK(sequence == previous + 1);
+            previous = sequence;
+            first = false;
+        }
+    }
+}
+
 TEST_CASE("match session: KeepDrawn forwards to the engine for the owner only") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -1039,8 +1098,48 @@ TEST_CASE("match session: a prompt takes its sequence from the seat counter") {
     const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
     const json* prompt = FindEvent(events0, "prompt_open");
     REQUIRE(prompt != nullptr);
-    CHECK((*prompt)["sequence"] == events0.size() - 1);
+    CHECK((*prompt)["sequence"] == events0.size() - 2);
     CHECK((*prompt)["id"] == "prompt_open");
+    CHECK(events0.back()["id"] == "prompt_opened");
+    CHECK(events0.back()["sequence"] == events0.size() - 1);
+}
+
+TEST_CASE("match session: a seat that reconnects with a prompt pending keeps "
+          "one prompt and a gap-free sequence") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+    const std::size_t first_count =
+        MatchEventsFor(fake, seats.socket0).size();
+    REQUIRE(first_count > 0);
+
+    REQUIRE(seats.session->BindSocket("player0", nullptr));
+    REQUIRE(seats.session->BindSocket("player0", seats.socket0));
+    fake.Clear();
+    seats.session->EmitEvents(fake);
+    // INFO: the prompt is already open for this seat. A reconnect sends no
+    //       second prompt packet under either name; the snapshot carries it.
+    const std::vector<json> quiet = MatchEventsFor(fake, seats.socket0);
+    CHECK(FindEvent(quiet, "prompt_open") == nullptr);
+    CHECK(FindEvent(quiet, "prompt_opened") == nullptr);
+
+    REQUIRE(seats.session->SubmitInput("player0", "choose_color",
+                                       json("red")));
+    fake.Clear();
+    seats.session->EmitEvents(fake);
+    const std::vector<json> answered = MatchEventsFor(fake, seats.socket0);
+    const json* closed = FindEvent(answered, "prompt_close");
+    const json* new_closed = FindEvent(answered, "prompt_answered");
+    REQUIRE(closed != nullptr);
+    REQUIRE(new_closed != nullptr);
+    CHECK((*new_closed)["sequence"].get<uint32_t>()
+          == (*closed)["sequence"].get<uint32_t>() + 1);
+    CHECK(answered.front()["sequence"] == first_count);
+    for (std::size_t index = 0; index < answered.size(); ++index) {
+        CHECK(answered[index]["sequence"] == first_count + index);
+    }
 }
 
 TEST_CASE("match session: a snapshot request is answered with a watermark") {

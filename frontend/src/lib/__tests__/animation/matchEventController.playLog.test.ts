@@ -527,6 +527,39 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toHaveLength(2);
 	});
 
+	it("logs a win and a place once from the events, then the snapshot adds nothing", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			winner: "bob",
+			placements: ["bob", "me"]
+		});
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "placement", target: "bob", place: 1, isElimination: false });
+		h.fire({ seq: 2, kind: "placement", target: "me", place: 2, isElimination: false });
+		h.fire({ seq: 3, kind: "match_end", target: "bob", targets: ["bob", "me"] });
+		h.controller.syncState();
+		await flush();
+
+		expect(partyKeys()).toEqual([
+			expect.stringMatching(/^log_left_behind/),
+			expect.stringMatching(/^log_win/)
+		]);
+	});
+
+	it("logs the win once when the snapshot comes before the match end event", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
+			winner: "bob",
+			placements: ["bob"]
+		});
+		const h = harness();
+
+		h.controller.syncState();
+		h.fire({ seq: 3, kind: "match_end", target: "bob", targets: ["bob"] });
+		await flush();
+
+		expect(partyKeys()).toEqual([expect.stringMatching(/^log_win/)]);
+	});
+
 	it("does not log a win for an aborted match's empty winner", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
 			winner: "",

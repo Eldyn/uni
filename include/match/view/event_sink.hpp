@@ -112,6 +112,7 @@ public:
     void Reset() {
         next_seq_ = 0;
         roll_ordinal_ = 0;
+        old_roll_name_pending_ = false;
         sequence_by_event_id_.clear();
         remembered_event_ids_.clear();
     }
@@ -124,6 +125,8 @@ private:
 
     uint32_t next_seq_ = 0;
     uint32_t roll_ordinal_ = 0;
+    /** True when the last roll packet used an old name. */
+    bool old_roll_name_pending_ = false;
     std::unordered_map<int64_t, uint32_t> sequence_by_event_id_;
     std::deque<int64_t> remembered_event_ids_;
 };
@@ -134,7 +137,7 @@ private:
  * Handles the `all`-visibility rows of the table: `card_played`,
  * `reshuffle`, `turn_advance`, `round_advance`, `placement`, `window_open`,
  * `window_response`, `window_close`, `auto_played`, `match_end`,
- * `roll_result`, `chain_aborted` and `mod_disarmed`. `match_start` is
+ * `roll_result`. `match_start` is
  * content-derived and built by `DefsBuilder::BuildMatchStart`. `signal` is
  * not handled here: its audience is declared per mod manifest and resolved
  * per recipient by `ViewBuilder`. All other types return `nullopt`

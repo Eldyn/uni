@@ -500,6 +500,11 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         }
         (*packet)["action"] = "match_event";
         broadcaster.SendJson(socket, *packet);
+        // TODO: remove the old name when ticket 24 removes the old names.
+        json opened =
+            sinks_.at(username).Wrap("prompt_opened", (*packet)["payload"]);
+        opened["action"] = "match_event";
+        broadcaster.SendJson(socket, opened);
         last = signature;
         // INFO: a fresh prompt starts from the default outcome; a stale
         //       answer from a replaced prompt must not leak forward.
@@ -527,6 +532,10 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
     json packet = sinks_.at(username).Wrap("prompt_close", std::move(payload));
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
+    json answered =
+        sinks_.at(username).Wrap("prompt_answered", packet["payload"]);
+    answered["action"] = "match_event";
+    broadcaster.SendJson(socket, answered);
     outcome = "cancelled";
 }
 

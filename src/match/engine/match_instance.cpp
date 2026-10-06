@@ -32,6 +32,30 @@
 namespace match::engine {
 namespace {
 
+/** @brief One old event name and the new name that is emitted beside it. */
+struct EventAlias {
+    std::string_view old_name;
+    std::string_view new_name;
+};
+
+// TODO: remove this table when the old names go (ticket 24).
+constexpr EventAlias kEventAliases[] = {
+    {"window_open", "window_opened"},
+    {"window_response", "window_responded"},
+    {"window_close", "window_closed"},
+    {"roll_result", "outcome_rolled"},
+    {"outcome_result", "outcome_rolled"},
+    {"placement", "placement_set"},
+    {"match_end", "match_ended"},
+};
+
+std::optional<std::string_view> NewNameOf(std::string_view old_name) {
+    for (const EventAlias& alias : kEventAliases) {
+        if (alias.old_name == old_name) return alias.new_name;
+    }
+    return std::nullopt;
+}
+
 using nlohmann::json;
 
 /** @brief Entity handle as a JSON object. */
@@ -2606,6 +2630,19 @@ void MatchInstance::Emit(std::string_view type, nlohmann::json payload) {
 }
 
 void MatchInstance::PushEvent(nlohmann::json event) {
+    const std::optional<std::string_view> new_name =
+        NewNameOf(event.value("type", std::string()));
+    if (new_name.has_value()) {
+        nlohmann::json beside = event;
+        beside["type"] = std::string(*new_name);
+        PushEventOnce(std::move(event));
+        PushEventOnce(std::move(beside));
+        return;
+    }
+    PushEventOnce(std::move(event));
+}
+
+void MatchInstance::PushEventOnce(nlohmann::json event) {
     ops::StampCausalFrame(assembly_->store, causal_frame_, event);
     const int64_t event_id = next_event_id_++;
     event["event_id"] = event_id;

@@ -312,6 +312,45 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		});
 	}
 
+	/**
+	 * Logs one place from the `placement_set` event. The snapshot path in
+	 * `noteGameEnd` stays as the fallback and finds the seat already placed,
+	 * in either order. A first place takes no line: the winner line is its
+	 * line. `isElimination` marks a seat that is out, not one that finished.
+	 */
+	function notePlacement(
+		player: string,
+		place: number,
+		isElimination: boolean,
+		finisherCount = 1
+	): void {
+		if (seenPlacements.has(player)) return;
+		seenPlacements.add(player);
+		if (place < 2) return;
+		const finished = !isElimination && place <= finisherCount;
+		enqueue(() =>
+			emit({
+				kind: "elimination",
+				seq: place,
+				player: escapeLogText(player),
+				place,
+				finished
+			})
+		);
+	}
+
+	/**
+	 * Logs the win line from the `match_ended` event. The snapshot path in
+	 * `noteGameEnd` stays as the fallback and finds the winner already
+	 * logged, in either order.
+	 */
+	function noteMatchEnded(winner: string | null | undefined, placedCount: number): void {
+		if (!winner || winner === seenWinner) return;
+		seenWinner = winner;
+		const winnerName = escapeLogText(winner);
+		enqueue(() => emit({ kind: "win", seq: placedCount, player: winnerName }));
+	}
+
 	function reset(): void {
 		generation += 1;
 		tail = Promise.resolve();
@@ -340,6 +379,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteKeepGuess,
 		settleKeeps,
 		noteGameEnd,
+		notePlacement,
+		noteMatchEnded,
 		reset
 	};
 }

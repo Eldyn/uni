@@ -105,19 +105,6 @@ json ProjectOutcomeResult(const json& payload) {
     return out;
 }
 
-json ProjectChainAborted(const json& payload) {
-    // INFO: the resolver emits a flat `{type, mod, node}` descriptor; the
-    //       packet adds `reason` (unset at the abort site today).
-    return json{{"mod", payload.value("mod", std::string())},
-                {"node", payload.value("node", std::string())},
-                {"reason", payload.value("reason", std::string())}};
-}
-
-json ProjectModDisarmed(const json& payload) {
-    return json{{"mod_id", payload.value("mod", std::string())},
-                {"reason", payload.value("reason", std::string())}};
-}
-
 json ProjectWindowOpen(const json& payload) {
     json out = json::object();
     // INFO: The packet carries `deadline` as ms REMAINING. The engine
@@ -175,6 +162,67 @@ json ProjectWindowClose(const match::engine::MatchInstance& match,
     if (payload.contains("card") && payload["card"].is_object()) {
         out["card"] = CardBitsFor(match, payload["card"]);
     }
+    return out;
+}
+
+/** @brief Move `from` to `to` inside `out` when `from` exists. */
+void RenameKey(json& out, const std::string& from, const std::string& to) {
+    if (!out.contains(from)) return;
+    out[to] = std::move(out[from]);
+    out.erase(from);
+}
+
+json ProjectOutcomeRolled(const json& payload) {
+    json out = payload.contains("table") ? ProjectOutcomeResult(payload)
+                                         : ProjectRollResult(payload);
+    out.erase("roll_counter");
+    out.erase("counter");
+    out["roll_ordinal"] = 0;
+    return out;
+}
+
+json ProjectPlacementSet(const match::engine::MatchInstance& match,
+                         const json& payload) {
+    // INFO: `is_elimination` is the seam for a later elimination mechanic;
+    //       no engine path sets it, so a finish is never an elimination.
+    return json{
+        {"target", ResolvePlayer(match, payload.value("player", json()))},
+        {"place", payload.value("place", 0)},
+        {"is_elimination", payload.value("is_elimination", false)}};
+}
+
+json ProjectMatchEnded(const match::engine::MatchInstance& match) {
+    json out = ProjectMatchEnd(match);
+    json targets = json::array();
+    for (const json& placement : out["placements"]) {
+        targets.push_back(placement["player"]);
+    }
+    json ended = json::object();
+    ended["target"] = out["winner"];
+    ended["targets"] = std::move(targets);
+    ended["final_digest"] = out["final_digest"];
+    return ended;
+}
+
+json ProjectWindowOpened(const json& payload) {
+    json out = ProjectWindowOpen(payload);
+    RenameKey(out, "responders", "targets");
+    return out;
+}
+
+json ProjectWindowResponded(const match::engine::MatchInstance& match,
+                            const json& payload) {
+    json out = ProjectWindowResponse(match, payload);
+    RenameKey(out, "player", "target");
+    out["window_id"] = std::to_string(payload.value("window", 0));
+    return out;
+}
+
+json ProjectWindowClosed(const match::engine::MatchInstance& match,
+                         const json& payload) {
+    json out = ProjectWindowClose(match, payload);
+    RenameKey(out, "winner", "target");
+    out["window_id"] = std::to_string(payload.value("id", 0));
     return out;
 }
 
@@ -309,8 +357,16 @@ nlohmann::json EventSink::WrapEngineEvent(const std::string& type,
     //       seat gets the number of public rolls it has seen instead.
     if (type == "roll_result") {
         payload["roll_counter"] = ++roll_ordinal_;
+        old_roll_name_pending_ = true;
     } else if (type == "outcome_result") {
         payload["counter"] = ++roll_ordinal_;
+        old_roll_name_pending_ = true;
+    } else if (type == "outcome_rolled") {
+        // INFO: the new event follows its old event, so it repeats that
+        //       ordinal. TODO: count here when the old names go (ticket 24).
+        if (!old_roll_name_pending_) ++roll_ordinal_;
+        old_roll_name_pending_ = false;
+        payload["roll_ordinal"] = roll_ordinal_;
     }
     nlohmann::json envelope = Wrap(type, std::move(payload));
 
@@ -420,12 +476,19 @@ std::optional<nlohmann::json> ProjectPublicEvent(
         return nlohmann::json{{"round", body.value("round", 0)}};
     }
     if (type == "placement") {
-        return nlohmann::json{{"player", body.value("player", "")},
-                              {"place", body.value("place", 0)}};
+        return nlohmann::json{
+            {"player", ResolvePlayer(match, body.value("player", json()))},
+            {"place", body.value("place", 0)}};
     }
+    if (type == "placement_set") return ProjectPlacementSet(match, body);
     if (type == "window_open") return ProjectWindowOpen(body);
     if (type == "window_response") return ProjectWindowResponse(match, body);
     if (type == "window_close") return ProjectWindowClose(match, body);
+    if (type == "window_opened") return ProjectWindowOpened(body);
+    if (type == "window_responded") {
+        return ProjectWindowResponded(match, body);
+    }
+    if (type == "window_closed") return ProjectWindowClosed(match, body);
     if (type == "auto_played") return ProjectAutoPlayed(match, body);
     if (type == "hands_swapped") return ProjectHandsSwapped(match, body);
     if (type == "hands_passed") return ProjectHandsPassed(match, body);
@@ -438,13 +501,15 @@ std::optional<nlohmann::json> ProjectPublicEvent(
         return ProjectCardZone(match, body);
     }
     if (type == "match_end") return ProjectMatchEnd(match);
+    if (type == "match_ended") return ProjectMatchEnded(match);
+    if (type == "outcome_rolled") return ProjectOutcomeRolled(body);
     if (type == "roll_result") return ProjectRollResult(body);
     if (type == "outcome_result") return ProjectOutcomeResult(body);
     // INFO: `signal` is NOT `all`-visibility: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder`. It must
     //       not be broadcast from the public projector (review fix 2).
-    if (type == "chain_aborted") return ProjectChainAborted(body);
-    if (type == "mod_disarmed") return ProjectModDisarmed(body);
+    //       `chain_aborted` and `mod_disarmed` have audience none and no
+    //       projection, so they never reach a seat or a spectator.
     return std::nullopt;
 }
 

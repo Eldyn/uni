@@ -501,8 +501,14 @@ private:
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
 
-    /** @brief Stamp `event` with the current causal frame and queue it. */
+    /**
+     * @brief Queue `event`; a type with a new name also queues the same
+     * payload under that name right after it.
+     */
     void PushEvent(nlohmann::json event);
+
+    /** @brief Stamp `event` with the current causal frame and queue it. */
+    void PushEventOnce(nlohmann::json event);
 
     /** @brief The live current-turn player, or nullopt. */
     std::optional<ecs::Entity> CurrentPlayer() const;

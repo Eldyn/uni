@@ -138,6 +138,29 @@ inline constexpr FieldRule kPlacement[] = {
     {"player", Audience::kAll},
     {"place", Audience::kAll},
 };
+// INFO: `is_elimination` is false for a normal finish. No engine path sets
+//       it yet; a later elimination mechanic sets the engine key of the same
+//       name and the field reaches the wire unchanged.
+inline constexpr FieldRule kPlacementSet[] = {
+    {"target", Audience::kAll},
+    {"place", Audience::kAll},
+    {"is_elimination", Audience::kAll},
+};
+inline constexpr FieldRule kMatchEnded[] = {
+    {"target", Audience::kAll},
+    {"targets", Audience::kAll},
+    {"final_digest", Audience::kAll},
+};
+// INFO: `roll_ordinal` is the public roll ordinal, never the engine counter
+//       (the engine counter also counts hidden draws).
+inline constexpr FieldRule kOutcomeRolled[] = {
+    {"spec", Audience::kAll},
+    {"outcomes", Audience::kAll},
+    {"table", Audience::kAll},
+    {"key", Audience::kAll},
+    {"value", Audience::kAll},
+    {"roll_ordinal", Audience::kAll},
+};
 inline constexpr FieldRule kWindowOpen[] = {
     {"deadline_ms", Audience::kAll},
     {"responders", Audience::kAll},
@@ -156,6 +179,30 @@ inline constexpr FieldRule kWindowResponse[] = {
 inline constexpr FieldRule kWindowClose[] = {
     {"outcome", Audience::kAll},
     {"winner", Audience::kAll},
+    {"card", Audience::kAll, FieldKind::kPlayedCard},
+};
+inline constexpr FieldRule kWindowOpened[] = {
+    {"window_id", Audience::kAll},
+    {"kind", Audience::kAll},
+    {"kinds", Audience::kAll},
+    {"targets", Audience::kAll},
+    {"deadline_ms", Audience::kAll},
+    {"duration_ms", Audience::kAll},
+    {"hold_ms", Audience::kAll},
+    {"eligible_filter_digest", Audience::kAll},
+};
+// INFO: a losing response keeps its card hidden from every other seat; the
+//       `owner` key `player` names the seat that responded.
+inline constexpr FieldRule kWindowResponded[] = {
+    {"window_id", Audience::kAll},
+    {"target", Audience::kAll},
+    {"passed", Audience::kAll},
+    {"card", Audience::kAll, FieldKind::kOfferedCard},
+};
+inline constexpr FieldRule kWindowClosed[] = {
+    {"window_id", Audience::kAll},
+    {"outcome", Audience::kAll},
+    {"target", Audience::kAll},
     {"card", Audience::kAll, FieldKind::kPlayedCard},
 };
 inline constexpr FieldRule kAutoPlayed[] = {
@@ -196,16 +243,13 @@ inline constexpr FieldRule kOutcomeResult[] = {
     {"value", Audience::kAll},
     {"counter", Audience::kAll},
 };
-inline constexpr FieldRule kChainAborted[] = {
-    {"mod", Audience::kAll},
-    {"node", Audience::kAll},
-    {"reason", Audience::kAll},
-};
-inline constexpr FieldRule kModDisarmed[] = {
-    {"mod_id", Audience::kAll},
-    {"reason", Audience::kAll},
-};
+// INFO: `chain_aborted` and `mod_disarmed` are diagnostics (spec open item
+//       6). They name mod nodes and mod ids, which can leak hidden rule
+//       data, so their audience is `none`: no seat and no spectator gets
+//       them, and the server log keeps them. The rows declare no field and
+//       the projector builds no packet for them.
 inline constexpr FieldRule kPlayRejected[] = {
+    {"target", Audience::kTarget},
     {"player", Audience::kTarget},
     {"reason_id", Audience::kTarget},
 };
@@ -260,6 +304,15 @@ inline constexpr FieldRule kStatusRemoved[] = {
     {"status_kind", Audience::kAll},
     {"instance_id", Audience::kAll},
 };
+// INFO: a hidden status stays hidden from every seat but its target; the
+//       filter in the view builder decides, before this table is read.
+inline constexpr FieldRule kStatusModified[] = {
+    {"target", Audience::kAll},
+    {"status_kind", Audience::kAll},
+    {"magnitude", Audience::kAll},
+    {"delta", Audience::kAll},
+    {"instance_id", Audience::kAll},
+};
 inline constexpr FieldRule kPromptOpen[] = {
     {"prompt_id", Audience::kTarget},
     {"kind", Audience::kTarget},
@@ -268,6 +321,21 @@ inline constexpr FieldRule kPromptOpen[] = {
     {"deadline_ms", Audience::kTarget},
 };
 inline constexpr FieldRule kPromptClose[] = {
+    {"prompt_id", Audience::kTarget},
+    {"outcome", Audience::kTarget},
+};
+// INFO: the session sends the prompt packets to the seat that must answer, so
+//       the audience is the target seat. The payload gets the handle scrub
+//       only; it is mod data and the table does not widen it.
+inline constexpr FieldRule kPromptOpened[] = {
+    {"prompt_id", Audience::kTarget},
+    {"kind", Audience::kTarget},
+    {"payload", Audience::kTarget},
+    {"response_schema", Audience::kTarget},
+    {"deadline_ms", Audience::kTarget},
+    {"duration_ms", Audience::kTarget},
+};
+inline constexpr FieldRule kPromptAnswered[] = {
     {"prompt_id", Audience::kTarget},
     {"outcome", Audience::kTarget},
 };
@@ -296,6 +364,13 @@ inline constexpr EventRule kEvents[] = {
     {"window_open", "", "", kWindowOpen},
     {"window_response", "", "player", kWindowResponse},
     {"window_close", "", "", kWindowClose},
+    {"placement_set", "", "", kPlacementSet},
+    {"match_ended", "", "", kMatchEnded},
+    {"outcome_rolled", "", "", kOutcomeRolled},
+    {"status_modified", "", "", kStatusModified},
+    {"window_opened", "", "", kWindowOpened},
+    {"window_responded", "", "player", kWindowResponded},
+    {"window_closed", "", "", kWindowClosed},
     {"auto_played", "", "", kAutoPlayed},
     {"hands_swapped", "", "", kHandsSwapped},
     {"hands_passed", "", "", kHandsPassed},
@@ -307,8 +382,8 @@ inline constexpr EventRule kEvents[] = {
     {"match_end", "", "", kMatchEnd},
     {"roll_result", "", "", kRollResult},
     {"outcome_result", "", "", kOutcomeResult},
-    {"chain_aborted", "", "", kChainAborted},
-    {"mod_disarmed", "", "", kModDisarmed},
+    {"chain_aborted", "", "", {}},
+    {"mod_disarmed", "", "", {}},
     {"play_rejected", "player", "", kPlayRejected},
     {"cards_drawn", "", "player", kCardsDrawn},
     {"drawn_card_kept", "", "player", kDrawnCardKept},
@@ -316,6 +391,8 @@ inline constexpr EventRule kEvents[] = {
     {"status_removed", "", "", kStatusRemoved},
     {"prompt_open", "target", "", kPromptOpen},
     {"prompt_close", "target", "", kPromptClose},
+    {"prompt_opened", "target", "", kPromptOpened},
+    {"prompt_answered", "target", "", kPromptAnswered},
     {"visibility_granted", "viewer", "", kVisibility},
     {"visibility_revoked", "viewer", "", kVisibility},
     {"signal", "", "", kSignal},

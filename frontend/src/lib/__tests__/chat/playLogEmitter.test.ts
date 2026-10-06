@@ -353,6 +353,54 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
 	});
 
+	it("logs a place from the placement event and the snapshot adds no second line", async () => {
+		emitter.notePlacement("Bob", 2, false);
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^log_left_behind/),
+			expect.stringMatching(/^log_win/)
+		]);
+		expect(lines[0].params).toEqual({ name: "Bob", place: 2 });
+	});
+
+	it("logs a place once when the snapshot guess comes before the event", async () => {
+		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("takes no line for a first place; the match end line is the win line", async () => {
+		emitter.notePlacement("Ann", 1, false);
+		emitter.noteMatchEnded("Ann", 1);
+		emitter.noteGameEnd("Ann", ["Ann"]);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_win/)]);
+	});
+
+	it("logs the win once when the snapshot comes before the match end event", async () => {
+		emitter.noteGameEnd("Ann", ["Ann"]);
+		emitter.noteMatchEnded("Ann", 1);
+		await flush();
+		expect(lines).toHaveLength(1);
+	});
+
+	it("words an elimination place as left behind even inside the finisher count", async () => {
+		emitter.notePlacement("Bob", 2, true, 3);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_left_behind/)]);
+	});
+
+	it("reset forgets the placement ledger", async () => {
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		emitter.reset();
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
 	it("reset clears the game-end trackers", async () => {
 		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
 		await flush();

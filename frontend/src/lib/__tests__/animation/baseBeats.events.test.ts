@@ -180,6 +180,26 @@ describe("mapMatchEventPacket", () => {
 		expect(beat).toEqual({ seq: 9, kind: "skip", target: "bob", actor: "alice" });
 	});
 
+	it("maps placement_set to a placement beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(10, "placement_set", { target: "bob", place: 2, is_elimination: false })
+		);
+		expect(beat).toEqual({
+			seq: 10,
+			kind: "placement",
+			target: "bob",
+			place: 2,
+			isElimination: false
+		});
+	});
+
+	it("maps match_ended to a match end beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(11, "match_ended", { target: "ann", targets: ["ann", "bob"], final_digest: "x" })
+		);
+		expect(beat).toEqual({ seq: 11, kind: "match_end", target: "ann", targets: ["ann", "bob"] });
+	});
+
 	it("maps turn_skipped without an actor", () => {
 		const beat = mapMatchEventPacket(frame(9, "turn_skipped", { target: "bob" }));
 		expect(beat).toEqual({ seq: 9, kind: "skip", target: "bob", actor: undefined });

@@ -83,6 +83,7 @@ bool IsFilteredType(const std::string& type) {
     return type == "play_rejected" || type == "cards_drawn"
            || type == "drawn_card_kept"
            || type == "status_applied" || type == "status_removed"
+           || type == "status_modified"
            || type == "prompt_open" || type == "prompt_close"
            || type == "visibility_granted"
            || type == "visibility_revoked" || type == "signal";
@@ -94,7 +95,8 @@ std::optional<json> ProjectPlayRejected(
     const std::string player =
         ResolvePlayer(match, payload.value("player", json()));
     if (!ViewerIs(viewer, player)) return std::nullopt;
-    return json{{"player", player},
+    return json{{"target", player},
+                {"player", player},
                 {"reason_id", payload.value("reason_id", std::string())}};
 }
 
@@ -158,6 +160,24 @@ std::optional<json> ProjectStatusApplied(
     out["status_kind"] = kind;
     out["magnitude"] = payload.value("magnitude", 0);
     out["duration_unit"] = payload.value("duration_unit", std::string());
+    out["instance_id"] = payload.value("instance", 0);
+    return out;
+}
+
+std::optional<json> ProjectStatusModified(
+    const ViewBuilder& builder, const match::engine::MatchInstance& match,
+    const json& payload, const Viewer& viewer) {
+    const std::string kind = payload.value("status_kind", std::string());
+    const bool hidden =
+        builder.StatusHidden(kind) || payload.value("hidden", false);
+    const std::string target =
+        ResolvePlayer(match, payload.value("target", json()));
+    if (hidden && !ViewerIs(viewer, target)) return std::nullopt;
+    json out = json::object();
+    out["target"] = target;
+    out["status_kind"] = kind;
+    out["magnitude"] = payload.value("magnitude", 0);
+    out["delta"] = payload.value("delta", 0);
     out["instance_id"] = payload.value("instance", 0);
     return out;
 }
@@ -254,6 +274,9 @@ std::optional<json> ProjectFiltered(const ViewBuilder& builder,
     }
     if (type == "status_removed") {
         return ProjectStatusRemoved(builder, match, body, viewer);
+    }
+    if (type == "status_modified") {
+        return ProjectStatusModified(builder, match, body, viewer);
     }
     if (type == "prompt_open") return ProjectPromptOpen(match, body, viewer);
     if (type == "prompt_close") return ProjectPromptClose(match, body, viewer);

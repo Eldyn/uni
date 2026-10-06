@@ -88,6 +88,8 @@ components:
   # the envelope `payload` object. Add new packet types here additively.
   # This map is documentation/registry only; the codegens ignore unknown
   # `x-` extensions, so adding it changes no generated artifact.
+  # `chain_aborted` and `mod_disarmed` are server-only diagnostics (audience
+  # `none`): they never leave the server, so they have no packet type.
   x-packet-types:
     match_start: MatchStartPayload
     players_ready: PlayersReadyPayload
@@ -110,9 +112,14 @@ components:
     window_open: WindowOpenPayload
     window_response: WindowResponsePayload
     window_close: WindowClosePayload
+    window_opened: WindowOpenedPayload
+    window_responded: WindowRespondedPayload
+    window_closed: WindowClosedPayload
     auto_played: AutoPlayedPayload
     prompt_open: PromptOpenPayload
     prompt_close: PromptClosePayload
+    prompt_opened: PromptOpenedPayload
+    prompt_answered: PromptAnsweredPayload
     turn_advance: TurnAdvancePayload
     direction_changed: DirectionChangedPayload
     turn_skipped: TurnSkippedPayload
@@ -125,12 +132,14 @@ components:
     roll_result: RollResultPayload
     outcome_result: OutcomeResultPayload
     signal: SignalPayload
-    chain_aborted: ChainAbortedPayload
-    mod_disarmed: ModDisarmedPayload
     visibility_granted: VisibilityGrantedPayload
     visibility_revoked: VisibilityRevokedPayload
     placement: PlacementPayload
     match_end: MatchEndPayload
+    outcome_rolled: OutcomeRolledPayload
+    status_modified: StatusModifiedPayload
+    placement_set: PlacementSetPayload
+    match_ended: MatchEndedPayload
 
   # -------------------------------------------------------------------------
   # Messages
@@ -1381,6 +1390,11 @@ components:
       x-packet-version: "1"
       required: [player, reason_id]
       properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat whose play the engine rejected; the generic name of
+            `player`. Only that seat receives the packet.
         player:
           $ref: "#/components/schemas/PlayerRef"
         reason_id:
@@ -1702,6 +1716,76 @@ components:
         card:
           $ref: "#/components/schemas/CompactCardV2"
 
+    WindowOpenedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [window_id, targets, deadline_ms, eligible_filter_digest]
+      description: >
+        The new name of `window_open`. The server sends both while the old
+        name exists. `targets` is the old `responders`.
+      properties:
+        window_id:
+          type: string
+        kind:
+          type: string
+          pattern: "^[a-z0-9_:.-]{1,32}$"
+        kinds:
+          type: array
+          items:
+            type: string
+            pattern: "^[a-z0-9_:.-]{1,32}$"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+        deadline_ms:
+          type: integer
+          minimum: 0
+          description: Ms REMAINING at the open.
+        duration_ms:
+          type: integer
+          minimum: 0
+        hold_ms:
+          type: integer
+          minimum: 0
+        eligible_filter_digest:
+          type: string
+
+    WindowRespondedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [window_id, target]
+      description: >
+        The new name of `window_response`. `target` is the seat that
+        responded. A losing response hides `card` from every other seat.
+      properties:
+        window_id:
+          type: string
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        passed:
+          type: boolean
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+
+    WindowClosedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [window_id, outcome]
+      description: >
+        The new name of `window_close`. `target` is the winning seat; it is
+        absent when the window closed by default.
+      properties:
+        window_id:
+          type: string
+        outcome:
+          type: string
+          enum: ["default", "winner"]
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+
     AutoPlayedPayload:
       type: object
       x-packet-version: "1"
@@ -1772,6 +1856,46 @@ components:
       type: object
       x-packet-version: "1"
       required: [prompt_id, outcome]
+      properties:
+        prompt_id:
+          type: string
+        outcome:
+          type: string
+          enum: ["answered", "timed_out", "cancelled"]
+
+    PromptOpenedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, kind, payload, response_schema, deadline_ms]
+      description: >
+        The new name of `prompt_open`; the payload is the same. The server
+        sends both while the old name exists. Only the seat that must answer
+        receives it.
+      properties:
+        duration_ms:
+          type: integer
+          minimum: 0
+        prompt_id:
+          type: string
+        kind:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        response_schema:
+          type: object
+          additionalProperties: true
+        deadline_ms:
+          type: integer
+          minimum: 0
+
+    PromptAnsweredPayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, outcome]
+      description: >
+        The new name of `prompt_close`; the payload is the same. `outcome`
+        says how the prompt ended: answered, timed out, or cancelled.
       properties:
         prompt_id:
           type: string
@@ -1947,28 +2071,6 @@ components:
           type: object
           additionalProperties: true
 
-    ChainAbortedPayload:
-      type: object
-      x-packet-version: "1"
-      required: [mod, node, reason]
-      properties:
-        mod:
-          type: string
-        node:
-          type: string
-        reason:
-          type: string
-
-    ModDisarmedPayload:
-      type: object
-      x-packet-version: "1"
-      required: [mod_id, reason]
-      properties:
-        mod_id:
-          type: string
-        reason:
-          type: string
-
     VisibilityGrantedPayload:
       type: object
       x-packet-version: "1"
@@ -1992,6 +2094,87 @@ components:
           type: array
           items:
             type: string
+
+    OutcomeRolledPayload:
+      type: object
+      x-packet-version: "1"
+      required: [roll_ordinal]
+      description: >
+        The new name of `roll_result` and `outcome_result`. A dice roll carries
+        `spec` and `outcomes`; an outcome pick carries `table`, `key` and
+        `value`. `roll_ordinal` counts the public rolls that this stream has
+        received; it is never the engine counter, which also counts hidden
+        draws.
+      properties:
+        spec:
+          type: string
+        outcomes:
+          type: array
+          items:
+            type: integer
+        table:
+          type: string
+        key:
+          type: string
+        value:
+          type: integer
+        roll_ordinal:
+          type: integer
+          minimum: 1
+
+    StatusModifiedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, status_kind, magnitude, delta, instance_id]
+      description: >
+        A status changed its magnitude. A hidden status is sent to its
+        target seat only, like `status_applied`.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        status_kind:
+          type: string
+        magnitude:
+          type: integer
+        delta:
+          type: integer
+          description: The change that the op asked for, after the range clamp.
+        instance_id:
+          type: integer
+
+    PlacementSetPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, place, is_elimination]
+      description: >
+        The new name of `placement`. `is_elimination` is false for a normal
+        finish. No engine path sets it to true yet; it is the seam for a later
+        elimination mechanic.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        place:
+          type: integer
+          minimum: 1
+        is_elimination:
+          type: boolean
+
+    MatchEndedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, targets, final_digest]
+      description: >
+        The new name of `match_end`. `target` is the winner (empty when there
+        is none). `targets` lists every placed seat, best first.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+        final_digest:
+          type: string
 
     PlacementPayload:
       type: object

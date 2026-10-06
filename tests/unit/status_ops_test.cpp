@@ -510,7 +510,10 @@ TEST_CASE("status_ops: modify_status adjusts and reports the magnitude") {
     CHECK(FindStatus(h.store, target, "uni:draw_debt")->magnitude == 5);
     CHECK(result.value["magnitude"] == 5);
     CHECK(result.value["delta"] == 3);
-    CHECK(result.events.empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "status_modified");
+    CHECK(result.events[0]["payload"]["magnitude"] == 5);
+    CHECK(result.events[0]["payload"]["delta"] == 3);
 }
 
 TEST_CASE("status_ops: modify_status clamps delta to declared bounds") {

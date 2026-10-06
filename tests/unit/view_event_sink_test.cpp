@@ -319,33 +319,28 @@ TEST_CASE("view event sink: hand movement events carry public data only") {
     CHECK((*redistributed).size() == 2);
 }
 
-TEST_CASE("view event sink: flat abort descriptors wrap correctly") {
+TEST_CASE("view event sink: flat abort descriptors are server-only") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
 
     match::view::EventSink sink;
-    const std::optional<json> aborted = sink.WrapPublic(
-        json{{"type", "chain_aborted"}, {"mod", "m"}, {"node", "n"}},
-        *engine);
-    REQUIRE(aborted.has_value());
-    CHECK((*aborted)["seq"] == 0u);
-    CHECK((*aborted)["payload"]["mod"] == "m");
-    CHECK((*aborted)["payload"]["node"] == "n");
-    REQUIRE((*aborted)["payload"]["reason"].is_string());
-
-    const std::optional<json> disarmed = sink.WrapPublic(
-        json{{"type", "mod_disarmed"}, {"mod", "m"}}, *engine);
-    REQUIRE(disarmed.has_value());
-    CHECK((*disarmed)["seq"] == 1u);
-    CHECK((*disarmed)["payload"]["mod_id"] == "m");
+    // INFO: the diagnostic events have audience none (event contract, open
+    //       item 6): no packet leaves the server and no sequence is used.
+    const json aborted =
+        json{{"type", "chain_aborted"}, {"mod", "m"}, {"node", "n"}};
+    CHECK_FALSE(sink.WrapPublic(aborted, *engine).has_value());
+    CHECK_FALSE(sink.WrapPublic(json{{"type", "mod_disarmed"}, {"mod", "m"}},
+                                *engine)
+                    .has_value());
+    CHECK(sink.NextSeq() == 0u);
 
     // INFO: an event that is not a public packet is dropped and does not
     //       consume a seq, so the stream stays gap-free.
     CHECK_FALSE(
         sink.WrapPublic(json{{"type", "card_left_zone"}}, *engine)
             .has_value());
-    CHECK(sink.NextSeq() == 2u);
+    CHECK(sink.NextSeq() == 0u);
 }
 
 TEST_CASE("view event sink: a played card and turn wrap gap-free") {
