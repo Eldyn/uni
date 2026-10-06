@@ -89,6 +89,37 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
+	it("logs a reverse from a direction event, even for the first direction seen", async () => {
+		emitter.noteDirection({ direction: -1, seq: 1 });
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+	});
+
+	it("does not log the same reverse again when the turn advance follows", async () => {
+		emitter.noteDirection({ direction: -1, seq: 1 });
+		emitter.noteTurn(turn([], -1, 2));
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+	});
+
+	it("logs one reverse when the turn advance comes before the direction event", async () => {
+		emitter.noteTurn(turn([], 1, 1));
+		emitter.noteTurn(turn([], -1, 2));
+		emitter.noteDirection({ direction: -1, seq: 3 });
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+	});
+
+	it("logs two direction events that no turn advance separates", async () => {
+		emitter.noteDirection({ direction: -1, seq: 1 });
+		emitter.noteDirection({ direction: 1, seq: 2 });
+		emitter.noteTurn(turn([], 1, 3));
+		await flush();
+		expect(lines).toHaveLength(2);
+		expect(lines[0]!.key).toBe("log_reverse");
+		expect(lines[1]!.key.startsWith("log_reverse_back")).toBe(true);
+	});
+
 	it("holds a play's lines until its card has landed", async () => {
 		let land!: () => void;
 		const landed = new Promise<void>((resolve) => (land = resolve));

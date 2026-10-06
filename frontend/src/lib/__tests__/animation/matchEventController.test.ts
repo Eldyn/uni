@@ -1244,6 +1244,70 @@ describe("createMatchEventBeatController", () => {
 		expect(storeDirectionRing.sign).toBe(1);
 	});
 
+	it("queues one ring flip for a direction event and none for its turn advance", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		const h = harness();
+
+		h.fire({ seq: 40, kind: "direction", direction: -1 });
+		h.fire({
+			seq: 41,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction: -1,
+			deadlineMs: 1,
+			skipped: []
+		});
+
+		await vi.waitFor(() => {
+			expect(storeDirectionRing.token).toBe(1);
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(storeDirectionRing.token).toBe(1);
+		expect(storeDirectionRing.takeFlips()).toEqual([-1]);
+	});
+
+	it("flips the ring once for a lone turn beat when the direction event was dropped", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		const h = harness();
+		const turnBeat = (seq: number, direction: number): MatchEventBeat => ({
+			seq,
+			kind: "turn",
+			from: "me",
+			to: "bob",
+			direction,
+			deadlineMs: 1,
+			skipped: []
+		});
+
+		h.fire(turnBeat(60, 1));
+		h.fire(turnBeat(61, -1));
+
+		await vi.waitFor(() => {
+			expect(storeDirectionRing.token).toBe(1);
+		});
+		expect(storeDirectionRing.takeFlips()).toEqual([-1]);
+	});
+
+	it("flips the ring twice for two direction events inside one turn", async () => {
+		storeAuth.username = "me";
+		storeGame.state = baseState();
+		storeDirectionRing.reset();
+		const h = harness();
+
+		h.fire({ seq: 50, kind: "direction", direction: -1 });
+		h.fire({ seq: 51, kind: "direction", direction: 1 });
+
+		await vi.waitFor(() => {
+			expect(storeDirectionRing.token).toBe(2);
+		});
+		expect(storeDirectionRing.takeFlips()).toEqual([-1, 1]);
+	});
+
 	it("waits for the implicated play's landing before firing the turn cue", async () => {
 		storeAuth.username = "me";
 		storeGame.state = baseState();

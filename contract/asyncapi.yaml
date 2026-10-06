@@ -108,6 +108,7 @@ components:
     prompt_open: PromptOpenPayload
     prompt_close: PromptClosePayload
     turn_advance: TurnAdvancePayload
+    direction_changed: DirectionChangedPayload
     round_advance: RoundAdvancePayload
     roll_result: RollResultPayload
     outcome_result: OutcomeResultPayload
@@ -1663,6 +1664,17 @@ components:
             turn's highlight is presented.
           items:
             $ref: "#/components/schemas/PlayerRef"
+
+    DirectionChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [direction]
+      properties:
+        direction:
+          type: integer
+          description: >
+            The play direction after the change: `1` forward, `-1` reverse. The
+            envelope `actor` is the seat that caused the change.
 
     RoundAdvancePayload:
       type: object

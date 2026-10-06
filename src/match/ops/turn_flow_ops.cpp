@@ -367,11 +367,10 @@ OpResult OpReverseDirection(ecs::EntityStore& store, const OpArgs& args,
     meta->direction = meta->direction == ecs::Direction::kForward
                           ? ecs::Direction::kReverse
                           : ecs::Direction::kForward;
-    // INFO: No event exists for a direction flip; the new direction rides
-    //       the next `turn_advance`. With two players forward/reverse already
-    //       land on the same opponent, so no extra advance is queued.
-    return OpResult::Resolved(
-        json{{"direction", static_cast<int>(meta->direction)}});
+    const json payload = {{"direction", static_cast<int>(meta->direction)}};
+    OpResult result = OpResult::Resolved(payload);
+    result.events.push_back(MakeEvent("direction_changed", payload));
+    return result;
 }
 
 OpResult OpExtraTurn(ecs::EntityStore& store, const OpArgs& args,

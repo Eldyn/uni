@@ -331,6 +331,9 @@ std::optional<nlohmann::json> ProjectPublicEvent(
                                body.value("discard_size", 0)}};
     }
     if (type == "turn_advance") return ProjectTurnAdvance(match, body);
+    if (type == "direction_changed") {
+        return nlohmann::json{{"direction", body.value("direction", 0)}};
+    }
     if (type == "round_advance") {
         return nlohmann::json{{"round", body.value("round", 0)}};
     }

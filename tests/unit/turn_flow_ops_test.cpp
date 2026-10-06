@@ -291,8 +291,12 @@ TEST_CASE("turn_flow_ops: reverse_direction flips forward and reverse") {
     const OpResult second = h.Invoke("reverse_direction", json::object());
     CHECK(second.value["direction"] == 1);
     CHECK(h.store.Get<MatchMeta>(match)->direction == Direction::kForward);
-    CHECK(first.events.empty());
-    CHECK(second.events.empty());
+    const json* first_event = FindEvent(first, "direction_changed");
+    REQUIRE(first_event != nullptr);
+    CHECK((*first_event)["payload"]["direction"] == -1);
+    const json* second_event = FindEvent(second, "direction_changed");
+    REQUIRE(second_event != nullptr);
+    CHECK((*second_event)["payload"]["direction"] == 1);
 }
 
 TEST_CASE("turn_flow_ops: extra_turn increments and preserves the skip bit") {

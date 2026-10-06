@@ -21,6 +21,24 @@
  *
  * Field names are the wire names. `target_key` and `owner_key` name the
  * engine descriptor key that holds the seat of that role.
+ *
+ * How to add a core event (the pattern of `direction_changed`):
+ *
+ * 1. The op that changes the state pushes `MakeEvent(<id>, <payload>)` into
+ *    `OpResult::events`. The event comes from the primitive, so a mutation
+ *    that still reaches the primitive still emits it. The engine adds the
+ *    causal frame (`actor`, `cause`, `turn`, `round`); the op does not.
+ * 2. Add a `FieldRule` array and one `kEvents` row below. The `<id>` names
+ *    what changed, not the op.
+ * 3. Add one `if (type == ...)` line in `ProjectPublicEvent`
+ *    (`event_sink.cpp`) that builds the wire payload.
+ * 4. Add the type to `x-packet-types` and its payload schema in
+ *    `contract/asyncapi.yaml`, then run `npm run generate:contract`.
+ * 5. Client: map the type in `matchEventMap.ts` to a beat, and handle the
+ *    beat in `matchEventController.svelte.ts`. Never infer it from a
+ *    snapshot.
+ * 6. Add a test that asserts one event for each mutation path (replace,
+ *    wrap, hook). Copy tests/unit/engine_direction_changed_test.cpp.
  */
 
 namespace match::view {
@@ -75,6 +93,9 @@ inline constexpr FieldRule kTurnAdvance[] = {
     {"direction", Audience::kAll},
     {"deadline_ms", Audience::kAll},
     {"skipped", Audience::kAll},
+};
+inline constexpr FieldRule kDirectionChanged[] = {
+    {"direction", Audience::kAll},
 };
 inline constexpr FieldRule kRoundAdvance[] = {
     {"round", Audience::kAll},
@@ -191,6 +212,7 @@ inline constexpr EventRule kEvents[] = {
     {"card_played", "", "", kCardPlayed},
     {"reshuffle", "", "", kReshuffle},
     {"turn_advance", "", "", kTurnAdvance},
+    {"direction_changed", "", "", kDirectionChanged},
     {"round_advance", "", "", kRoundAdvance},
     {"placement", "", "", kPlacement},
     {"window_open", "", "", kWindowOpen},

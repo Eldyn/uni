@@ -121,6 +121,15 @@ describe("mapMatchEventPacket", () => {
 		});
 	});
 
+	it("maps direction_changed to a direction beat", () => {
+		const beat = mapMatchEventPacket(frame(8, "direction_changed", { direction: -1 }));
+		expect(beat).toEqual({ seq: 8, kind: "direction", direction: -1 });
+	});
+
+	it("drops a direction_changed frame with an invalid payload", () => {
+		expect(mapMatchEventPacket(frame(8, "direction_changed", {}))).toBeNull();
+	});
+
 	it("carries the skipped seats named on turn_advance", () => {
 		const beat = mapMatchEventPacket(
 			frame(10, "turn_advance", {

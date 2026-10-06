@@ -152,6 +152,28 @@ describe("matchEventController play log", () => {
 		expect(chatStore.linesFor("global")).toEqual([]);
 	});
 
+	it("posts one reverse line for a direction event and its turn advance", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "direction", direction: -1 });
+		h.fire(skipTurn([], -1));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_reverse"]);
+	});
+
+	it("posts one reverse line when the direction event is dropped", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn([], 1));
+		h.fire(skipTurn([], -1));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_reverse"]);
+	});
+
 	it("posts nothing when the player is not in a lobby", async () => {
 		storeLobby.current = null;
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });

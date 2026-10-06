@@ -15,7 +15,8 @@ import {
 	HandsPassedPayloadSchema,
 	StatusAppliedPayloadSchema,
 	AutoPlayedPayloadSchema,
-	TurnAdvancePayloadSchema
+	TurnAdvancePayloadSchema,
+	DirectionChangedPayloadSchema
 } from "$lib/generated/schemas";
 
 /**
@@ -73,6 +74,7 @@ export type MatchEventBeat =
 			 *  presenting the incoming turn. */
 			skipped: string[];
 	  }
+	| { seq: number; kind: "direction"; direction: number }
 	| {
 			seq: number;
 			kind: "toast";
@@ -180,6 +182,11 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				deadlineMs: parsed.data.deadline_ms,
 				skipped: parsed.data.skipped ?? []
 			};
+		}
+		case "direction_changed": {
+			const parsed = DirectionChangedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "direction", direction: parsed.data.direction };
 		}
 		case "status_applied": {
 			const parsed = StatusAppliedPayloadSchema.safeParse(payload);

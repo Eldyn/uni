@@ -93,6 +93,18 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		enqueue(() => emitPlayReactions({ player, kind, color, auto }, seq, nearWin), landed);
 	}
 
+	/**
+	 * Logs a reverse from a `direction_changed` event. It records the new
+	 * direction at once, so the `turn_advance` that follows sees no change and
+	 * logs no second reverse. `noteTurn` stays the fallback for a stream that
+	 * has no direction event.
+	 */
+	function noteDirection({ direction, seq }: { direction: number; seq: number }): void {
+		if (lastDirection === direction) return;
+		lastDirection = direction;
+		enqueue(() => emit({ kind: "reverse", seq }));
+	}
+
 	function noteTurn({ skipped, direction, seq, actor }: TurnInfo): void {
 		const reversed = lastDirection !== null && direction !== lastDirection;
 		lastDirection = direction;
@@ -213,6 +225,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	return {
 		notePlay,
 		noteWildColor,
+		noteDirection,
 		noteTurn,
 		noteDraw,
 		noteDebt,

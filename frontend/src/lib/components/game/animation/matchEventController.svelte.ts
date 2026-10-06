@@ -1202,6 +1202,16 @@ export function createMatchEventBeatController(deps: {
 		}
 	}
 
+	/** Flips the ring and logs the reverse from the `direction_changed` event.
+	 *  The ring and the play log both remember the new direction, so the
+	 *  `turn_advance` that follows shows no second reverse. */
+	function handleDirection(beat: Extract<MatchEventBeat, { kind: "direction" }>): void {
+		deferTurnMotion(() => {
+			if (storeDirectionRing.reverseTo(beat.direction)) playBoardSfx("sfx.table.reverse");
+		});
+		playLog.noteDirection({ direction: beat.direction, seq: beat.seq });
+	}
+
 	/** Presents the skipped-seat X and gates the incoming turn's highlight.
 	 *  The engine silently consumes one-shot skips and names the skipped seats
 	 *  on the `turn_advance` payload; the store holds the outgoing player's
@@ -1266,6 +1276,9 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "turn":
 				handleTurn(beat);
+				return;
+			case "direction":
+				handleDirection(beat);
 				return;
 			case "hands_swap":
 				handleHandTransfers(
