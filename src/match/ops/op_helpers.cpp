@@ -175,6 +175,11 @@ std::vector<ecs::Entity> HandOf(const ecs::EntityStore& store,
     return hand == nullptr ? std::vector<ecs::Entity>() : hand->cards;
 }
 
+std::size_t HandSizeOf(const ecs::EntityStore& store, ecs::Entity player) {
+    const ecs::Hand* hand = store.Get<ecs::Hand>(player);
+    return hand == nullptr ? 0 : hand->cards.size();
+}
+
 const ecs::Hand* HandComponent(const ecs::EntityStore& store,
                                ecs::Entity player) {
     return store.Get<ecs::Hand>(player);

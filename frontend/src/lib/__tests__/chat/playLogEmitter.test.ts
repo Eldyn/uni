@@ -247,6 +247,83 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[0].params).toEqual({ name: "Ann" });
 	});
 
+	it("logs one keep when the event comes before the snapshot guess", async () => {
+		emitter.noteKeep("Ann", 9);
+		emitter.noteKeepGuess("Ann", 10);
+		emitter.settleKeeps();
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+	});
+
+	it("logs one keep when the snapshot guess comes before the event", async () => {
+		emitter.noteKeepGuess("Ann", 10);
+		emitter.settleKeeps();
+		emitter.noteKeep("Ann", 9);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+	});
+
+	it("keeps a guess as the fallback when no event comes", async () => {
+		emitter.noteKeepGuess("Ann", 10);
+		emitter.settleKeeps();
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+	});
+
+	it("forgets a settled keep so a later keep logs again", async () => {
+		emitter.noteKeep("Ann", 9);
+		emitter.noteKeepGuess("Ann", 10);
+		emitter.settleKeeps();
+		emitter.noteTurn(turn([]));
+		emitter.noteKeepGuess("Ann", 20);
+		emitter.settleKeeps();
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("keeps the event ledger through a turn beat until the snapshot", async () => {
+		emitter.noteKeep("Ann", 9);
+		emitter.noteTurn(turn([]));
+		emitter.noteKeepGuess("Ann", 10);
+		emitter.settleKeeps();
+		await flush();
+		expect(lines).toHaveLength(1);
+	});
+
+	it("logs two keeps by one seat when no snapshot comes between them", async () => {
+		emitter.noteKeep("Ann", 9);
+		emitter.noteKeep("Ann", 20);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("logs the draw line and the penalty line of one debt draw", async () => {
+		emitter.notePlay(
+			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 5 }
+		);
+		emitter.noteDebt("Bob", 2);
+		emitter.noteDraw({ seq: 6, player: "Bob", count: 2 }, { handSize: 5 });
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_play",
+			"log_draw_stack",
+			expect.stringMatching(/^log_draw_/)
+		]);
+	});
+
+	it("logs the penalty line from the debt status with no card moved", async () => {
+		emitter.notePlay(
+			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
+			Promise.resolve(),
+			{ seq: 5 }
+		);
+		emitter.noteDebt("Bob", 2);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_draw_stack"]);
+	});
+
 	it("logs a win and each later placement once", async () => {
 		emitter.noteGameEnd("Ann", ["Ann"]);
 		await flush();

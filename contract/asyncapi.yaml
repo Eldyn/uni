@@ -96,6 +96,7 @@ components:
     card_played: CardPlayedPayload
     play_rejected: PlayRejectedPayload
     cards_drawn: CardsDrawnPayload
+    drawn_card_kept: DrawnCardKeptPayload
     reshuffle: ReshufflePayload
     hands_swapped: HandsSwappedPayload
     hands_passed: HandsPassedPayload
@@ -1385,11 +1386,30 @@ components:
       x-packet-version: "1"
       required: [player, count, source_pile]
       properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that draws. Equals `player`, the name this payload used
+            before the event contract. The envelope `actor` is the seat that
+            caused the draw. The server always sends it.
         player:
           $ref: "#/components/schemas/PlayerRef"
+          description: Old name of `target`. Removed with the old guess path.
         count:
           type: integer
           minimum: 0
+        hand_size_after:
+          type: integer
+          minimum: 0
+          description: >
+            The size of the drawer hand after the draw. Public. The server
+            always sends it.
+        from_debt:
+          type: boolean
+          description: >
+            True when the draw pays a draw debt. The size of the debt is the
+            `magnitude` of the `uni:draw_debt` status event, not this event.
+            The server always sends it.
         source_pile:
           type: string
         held:
@@ -1402,6 +1422,23 @@ components:
           description: Owner-only card identities; other viewers receive count only.
           items:
             $ref: "#/components/schemas/CompactCardV2"
+
+    DrawnCardKeptPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that kept the drawn card. The event ends the play-or-keep
+            choice that a held `cards_drawn` opened. The clock can choose for
+            the seat; the cause then reads turn_timer_expired. The envelope
+            `actor` is that seat.
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The kept card. Owner only: other viewers receive no `card`.
 
     ReshufflePayload:
       type: object

@@ -64,6 +64,44 @@ describe("mapMatchEventPacket", () => {
 		});
 	});
 
+	it("maps the contract fields of cards_drawn onto the draw beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(30, "cards_drawn", {
+				target: "alice",
+				player: "alice",
+				count: 2,
+				hand_size_after: 9,
+				from_debt: true,
+				source_pile: "draw"
+			})
+		);
+		expect(beat).toEqual({
+			seq: 30,
+			kind: "draw",
+			player: "alice",
+			count: 2,
+			sourcePile: "draw",
+			cardIds: [],
+			handSizeAfter: 9,
+			fromDebt: true
+		});
+	});
+
+	it("maps drawn_card_kept to a keep beat with the owner-only card", () => {
+		expect(
+			mapMatchEventPacket(frame(31, "drawn_card_kept", { target: "alice", card: 77 }))
+		).toEqual({ seq: 31, kind: "keep", player: "alice", cardId: 77 });
+		expect(mapMatchEventPacket(frame(32, "drawn_card_kept", { target: "bob" }))).toEqual({
+			seq: 32,
+			kind: "keep",
+			player: "bob"
+		});
+	});
+
+	it("drops a drawn_card_kept with no target", () => {
+		expect(mapMatchEventPacket(frame(33, "drawn_card_kept", {}))).toBeNull();
+	});
+
 	// NOTE: patchwork. Server-authored hand movement events.
 	it("maps hands_swapped to a hands_swap beat", () => {
 		const beat = mapMatchEventPacket(

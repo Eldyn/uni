@@ -544,7 +544,9 @@ const std::set<std::string>& EventWhereFields(const std::string& type) {
     static const std::map<std::string, std::set<std::string>> k{
         {"card_played", {"player", "card", "from_zone_ordinal"}},
         {"auto_played", {"player", "card", "trigger_summary"}},
-        {"cards_drawn", {"player", "count", "source_pile", "cards"}},
+        {"cards_drawn",
+         {"target", "player", "count", "hand_size_after", "from_debt",
+          "source_pile", "cards"}},
         {"reshuffle", {"draw_size", "discard_size"}},
         {"turn_advance", {"from", "to", "direction", "deadline_ms"}},
         {"status_applied",

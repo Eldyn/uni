@@ -197,11 +197,18 @@ inline constexpr FieldRule kPlayRejected[] = {
     {"reason_id", Audience::kTarget},
 };
 inline constexpr FieldRule kCardsDrawn[] = {
+    {"target", Audience::kAll},
     {"player", Audience::kAll},
     {"count", Audience::kAll},
+    {"hand_size_after", Audience::kAll},
+    {"from_debt", Audience::kAll},
     {"source_pile", Audience::kAll},
     {"held", Audience::kAll},
     {"cards", Audience::kOwner, FieldKind::kCardList},
+};
+inline constexpr FieldRule kDrawnCardKept[] = {
+    {"target", Audience::kAll},
+    {"card", Audience::kOwner, FieldKind::kCard},
 };
 inline constexpr FieldRule kStatusApplied[] = {
     {"target", Audience::kAll},
@@ -261,6 +268,7 @@ inline constexpr EventRule kEvents[] = {
     {"mod_disarmed", "", "", kModDisarmed},
     {"play_rejected", "player", "", kPlayRejected},
     {"cards_drawn", "", "player", kCardsDrawn},
+    {"drawn_card_kept", "", "player", kDrawnCardKept},
     {"status_applied", "", "", kStatusApplied},
     {"status_removed", "", "", kStatusRemoved},
     {"prompt_open", "target", "", kPromptOpen},

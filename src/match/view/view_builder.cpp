@@ -81,6 +81,7 @@ bool DescriptorBody(const json& engine_event, std::string& type,
 /** @brief Types handled by the per-recipient filter (not `all`). */
 bool IsFilteredType(const std::string& type) {
     return type == "play_rejected" || type == "cards_drawn"
+           || type == "drawn_card_kept"
            || type == "status_applied" || type == "status_removed"
            || type == "prompt_open" || type == "prompt_close"
            || type == "visibility_granted"
@@ -103,8 +104,11 @@ std::optional<json> ProjectCardsDrawn(
     const std::string owner =
         ResolvePlayer(match, payload.value("player", json()));
     json out = json::object();
+    out["target"] = owner;
     out["player"] = owner;
     out["count"] = payload.value("count", 0);
+    out["hand_size_after"] = payload.value("hand_size_after", 0);
+    out["from_debt"] = payload.value("from_debt", false);
     // INFO: the engine descriptor key is `source`; the packet key is
     //       `source_pile`.
     if (payload.contains("source")) {
@@ -113,15 +117,26 @@ std::optional<json> ProjectCardsDrawn(
         out["source_pile"] = payload.value("source_pile", std::string());
     }
     if (payload.contains("held")) out["held"] = payload["held"];
-    // INFO: 14.2 owner identities. The current emitters carry no `cards`
-    //       array, so this is count-only until the descriptor supplies one;
-    //       when it does, only the owner and the spectators of a seat with
-    //       privacy mode off see it.
+    // INFO: owner identities. The engine descriptor carries `cards` as
+    //       entities; this turns them into packed bits and gives them to the
+    //       owner and to the spectators of a seat with privacy mode off. The
+    //       `cards` rule in the audience table filters again as the last
+    //       gate, so a card that is hidden from a viewer never leaves.
     const bool spectator_sees_owner =
         viewer.is_spectator && !viewer.SeesCardBacksOf(owner);
     if ((ViewerIs(viewer, owner) || spectator_sees_owner)
         && payload.contains("cards")) {
         out["cards"] = NormalizeCards(match, payload["cards"]);
+    }
+    return out;
+}
+
+std::optional<json> ProjectDrawnCardKept(
+    const match::engine::MatchInstance& match, const json& payload) {
+    json out = json::object();
+    out["target"] = ResolvePlayer(match, payload.value("player", json()));
+    if (payload.contains("card")) {
+        out["card"] = CardBitsFor(match, payload["card"]);
     }
     return out;
 }
@@ -233,6 +248,7 @@ std::optional<json> ProjectFiltered(const ViewBuilder& builder,
         return ProjectPlayRejected(match, body, viewer);
     }
     if (type == "cards_drawn") return ProjectCardsDrawn(match, body, viewer);
+    if (type == "drawn_card_kept") return ProjectDrawnCardKept(match, body);
     if (type == "status_applied") {
         return ProjectStatusApplied(builder, match, body, viewer);
     }

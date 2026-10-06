@@ -528,6 +528,13 @@ private:
     void AdvanceTurn();
 
     /**
+     * @brief Emit `drawn_card_kept` for a play/keep choice that ends in a keep.
+     *
+     * Called by `KeepDrawn` and by the turn clock that drops the choice.
+     */
+    void EmitDrawnCardKept(const PendingPlayDrawn& pending);
+
+    /**
      * @brief Move the discard (except its top) back onto the draw pile and
      *        shuffle it with the match RNG (legacy `ReshuffleDiscardIntoDraw`).
      *

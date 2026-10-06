@@ -122,6 +122,9 @@ std::optional<ecs::Entity> FindPile(ecs::EntityStore& store,
 std::vector<ecs::Entity> HandOf(const ecs::EntityStore& store,
                                 ecs::Entity player);
 
+/** @brief Number of cards in `player`'s hand; 0 when not a hand carrier. */
+std::size_t HandSizeOf(const ecs::EntityStore& store, ecs::Entity player);
+
 /**
  * @brief `player`'s live `hand` component, or nullptr (dead/missing).
  */

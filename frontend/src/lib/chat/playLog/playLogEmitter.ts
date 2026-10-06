@@ -39,6 +39,13 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	const announcedSkips = new Map<string, SkipInfo[]>();
 	const skipsLoggedByEvent = new Map<string, number>();
 	const skipsLoggedByGuess = new Map<string, number>();
+	// INFO: the drawn_card_kept event and the snapshot that clears the hold
+	//       both tell of one keep. The event wins; these ledgers make the first
+	//       line stand for both, in either order. The event ledger lives until
+	//       the snapshot that follows the event. The guess ledger lives until
+	//       the next turn beat.
+	const keepsLoggedByEvent = new Map<string, number>();
+	const keepsLoggedByGuess = new Map<string, number>();
 
 	function takeCount(ledger: Map<string, number>, seat: string): boolean {
 		const count = ledger.get(seat) ?? 0;
@@ -148,6 +155,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 			// INFO: the guesses of the turn before are settled; the events of
 			//       this turn are consumed below and settled after.
 			skipsLoggedByGuess.clear();
+			keepsLoggedByGuess.clear();
 			for (const player of skipped) {
 				if (takeCount(skipsLoggedByEvent, player)) continue;
 				const announced = announcedSkips.get(player)?.shift();
@@ -231,12 +239,35 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	}
 
 	/**
-	 * Emits the line for a resolved play/keep decision that ended in a keep.
-	 * Carries the player only: the kept card stays hidden, so a spectator never
-	 * learns its face from the log.
+	 * Logs a keep from a `drawn_card_kept` event. The snapshot guess for the same
+	 * keep logs nothing more, and a guess that is already logged makes this event
+	 * log nothing more. The line carries the player only: the kept card stays
+	 * hidden, so a spectator never learns its face from the log.
 	 */
 	function noteKeep(player: string, seq: number): void {
-		enqueue(() => emit({ kind: "keep", seq, player: escapeLogText(player) }));
+		enqueue(() => {
+			if (takeCount(keepsLoggedByGuess, player)) return;
+			emit({ kind: "keep", seq, player: escapeLogText(player) });
+			addCount(keepsLoggedByEvent, player);
+		});
+	}
+
+	/**
+	 * Logs a keep that a snapshot shows: the hold cleared with no play. This is
+	 * the fallback for a stream that has no `drawn_card_kept` event.
+	 */
+	function noteKeepGuess(player: string, seq: number): void {
+		enqueue(() => {
+			if (takeCount(keepsLoggedByEvent, player)) return;
+			emit({ kind: "keep", seq, player: escapeLogText(player) });
+			addCount(keepsLoggedByGuess, player);
+		});
+	}
+
+	/** Forgets the keep events that a snapshot has settled, after the steps that
+	 *  are queued now. The controller calls it for each snapshot. */
+	function settleKeeps(): void {
+		enqueue(() => keepsLoggedByEvent.clear());
 	}
 
 	/**
@@ -291,6 +322,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		seenWinner = null;
 		seenPlacements.clear();
 		clearSkipLedgers();
+		keepsLoggedByEvent.clear();
+		keepsLoggedByGuess.clear();
 	}
 
 	return {
@@ -304,6 +337,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteDebt,
 		noteReshuffle,
 		noteKeep,
+		noteKeepGuess,
+		settleKeeps,
 		noteGameEnd,
 		reset
 	};

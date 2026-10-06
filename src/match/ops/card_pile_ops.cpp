@@ -549,6 +549,8 @@ OpResult OpDrawCards(ecs::EntityStore& store, const OpArgs& args,
             "cards_drawn",
             json{{"player", EntityJson(target)}, {"count", drawn},
                  {"source", std::string(PileToken(source_kind))},
+                 {"hand_size_after", HandSizeOf(store, target)},
+                 {"from_debt", from_debt},
                  {"cards", std::move(drawn_cards)}}));
         total_drawn += drawn;
     }
@@ -608,6 +610,8 @@ OpResult OpDrawUntilPlayable(ecs::EntityStore& store, const OpArgs& args,
             "cards_drawn",
             json{{"player", EntityJson(target)}, {"count", drawn},
                  {"source", std::string(PileToken(source_kind))},
+                 {"hand_size_after", HandSizeOf(store, target)},
+                 {"from_debt", false},
                  {"cards", std::move(drawn_cards)}}));
         total_drawn += drawn;
     }

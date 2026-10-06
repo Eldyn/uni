@@ -10,6 +10,7 @@ import {
 	MatchEventPayloadSchema,
 	CardPlayedPayloadSchema,
 	CardsDrawnPayloadSchema,
+	DrawnCardKeptPayloadSchema,
 	ReshufflePayloadSchema,
 	HandsSwappedPayloadSchema,
 	HandsPassedPayloadSchema,
@@ -57,6 +58,18 @@ export type MatchEventBeat =
 			/** True when the draw is held for the drawer's play-or-keep choice. */
 			held?: boolean;
 			cardIds: number[];
+			/** The drawer's hand size after the draw; absent from an old server. */
+			handSizeAfter?: number;
+			/** True when the draw pays a draw debt. */
+			fromDebt?: boolean;
+	  }
+	| {
+			seq: number;
+			kind: "keep";
+			/** The seat that kept the drawn card. */
+			player: string;
+			/** The kept card; sent to the owner only. */
+			cardId?: number;
 	  }
 	| { seq: number; kind: "reshuffle"; drawSize: number; discardSize: number }
 	// NOTE: patchwork. Server-authored hand movement; sizes are pre-move hands.
@@ -147,12 +160,19 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 			return {
 				seq,
 				kind: "draw",
-				player: parsed.data.player,
+				player: parsed.data.target ?? parsed.data.player,
 				count: parsed.data.count,
 				sourcePile: parsed.data.source_pile,
 				held: parsed.data.held,
-				cardIds: parsed.data.cards ?? []
+				cardIds: parsed.data.cards ?? [],
+				handSizeAfter: parsed.data.hand_size_after,
+				fromDebt: parsed.data.from_debt
 			};
+		}
+		case "drawn_card_kept": {
+			const parsed = DrawnCardKeptPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "keep", player: parsed.data.target, cardId: parsed.data.card };
 		}
 		case "reshuffle": {
 			const parsed = ReshufflePayloadSchema.safeParse(payload);

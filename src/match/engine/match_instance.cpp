@@ -462,6 +462,9 @@ bool MatchInstance::DrawCard(const std::string& username) {
                              {"count", 1},
                              {"source", "draw_pile"},
                              {"held", holds_turn},
+                             {"hand_size_after",
+                              ops::HandSizeOf(store, *player)},
+                             {"from_debt", false},
                              {"cards", json::array({EntityJson(*card)})}});
 
     // INFO: An `after:draw` graph may request a forced play of the
@@ -481,6 +484,12 @@ bool MatchInstance::DrawCard(const std::string& username) {
     return true;
 }
 
+void MatchInstance::EmitDrawnCardKept(const PendingPlayDrawn& pending) {
+    Emit("drawn_card_kept",
+         json{{"player", PlayerUsername(assembly_->store, pending.player)},
+              {"card", EntityJson(pending.card)}});
+}
+
 bool MatchInstance::KeepDrawn(const std::string& username) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
     if (!awaiting_play_drawn_.has_value()) return false;
@@ -492,6 +501,7 @@ bool MatchInstance::KeepDrawn(const std::string& username) {
 
     const CausalScope causal_scope(causal_frame_, player,
                                    ops::kCauseKeepDrawn);
+    EmitDrawnCardKept(*awaiting_play_drawn_);
     awaiting_play_drawn_.reset();
     AdvanceTurn();
     return true;
@@ -654,6 +664,9 @@ void MatchInstance::Tick() {
         //       dropped with the turn it belonged to.
         const CausalScope causal_scope(causal_frame_, current,
                                        ops::kCauseTurnTimerExpired);
+        if (awaiting_play_drawn_.has_value()) {
+            EmitDrawnCardKept(*awaiting_play_drawn_);
+        }
         awaiting_play_drawn_.reset();
         AdvanceTurn();
     }

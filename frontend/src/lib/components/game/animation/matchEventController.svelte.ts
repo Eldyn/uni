@@ -548,7 +548,7 @@ export function createMatchEventBeatController(deps: {
 
 	function handleDraw(beat: Extract<MatchEventBeat, { kind: "draw" }>): void {
 		const state = storeGame.state;
-		if (!state) return;
+		if (!state || beat.count <= 0) return;
 
 		const isLocalDraw = beat.player === resolveLocalUsername(state);
 		if (!isLocalDraw) {
@@ -563,7 +563,9 @@ export function createMatchEventBeatController(deps: {
 		//       variant keys match every other client.
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
 		const localPostCount =
-			state.players?.find((p) => p.username === beat.player)?.card_count ?? localHand.length;
+			beat.handSizeAfter ??
+			state.players?.find((p) => p.username === beat.player)?.card_count ??
+			localHand.length;
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
 			{ handSize: localPostCount }
@@ -948,7 +950,7 @@ export function createMatchEventBeatController(deps: {
 		playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: player.card_count }
+			{ handSize: beat.handSizeAfter ?? player.card_count }
 		);
 		deps.cardRegistry.clearDecoration(cardId);
 		deps.cardRegistry.seedPose(cardId, {
@@ -1031,7 +1033,7 @@ export function createMatchEventBeatController(deps: {
 
 		playLog.noteDraw(
 			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: player.card_count }
+			{ handSize: beat.handSizeAfter ?? player.card_count }
 		);
 
 		const isTurn = state.current_turn === beat.player;
@@ -1290,6 +1292,13 @@ export function createMatchEventBeatController(deps: {
 		presentSkips(storeGame.state?.current_turn ?? "", [beat.target]);
 	}
 
+	/** Logs a keep from the `drawn_card_kept` event. The snapshot that clears the
+	 *  hold finds the line already logged. The pose of the held card still
+	 *  follows `pendingPlayDrawn` in `syncState`. */
+	function handleKeep(beat: Extract<MatchEventBeat, { kind: "keep" }>): void {
+		playLog.noteKeep(beat.player, beat.seq);
+	}
+
 	/** Starts the wild ripple and logs the wild line from the `active_type_changed`
 	 *  event. The snapshot path in `syncState` stays as the fallback and finds the
 	 *  ripple already started. */
@@ -1346,6 +1355,9 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "skip":
 				handleSkip(beat);
+				return;
+			case "keep":
+				handleKeep(beat);
 				return;
 			case "active_color":
 				handleActiveColor(beat);
@@ -1507,15 +1519,17 @@ export function createMatchEventBeatController(deps: {
 
 		// INFO: a hold that clears with no play beat landed was a keep (an
 		//       explicit keep and a turn-timer timeout are indistinguishable
-		//       here). Emitted from the snapshot transition because the server
-		//       sends no keep match_event; the card face never enters the line.
+		//       here). A fallback for a stream with no drawn_card_kept event: the
+		//       event wins and this guess logs nothing more. The card face never
+		//       enters the line.
 		const pendingPlayer = state.pendingPlayDrawn?.player ?? null;
 		if (prevPendingPlayer !== null && pendingPlayer === null && !pendingResolvedByPlay) {
-			playLog.noteKeep(prevPendingPlayer, state.seq_watermark ?? 0);
+			playLog.noteKeepGuess(prevPendingPlayer, state.seq_watermark ?? 0);
 		}
 		for (const heldPlayer of [...heldOpponentCards.keys()]) {
 			if (pendingPlayer !== heldPlayer) releaseOpponentHeldDraw(heldPlayer, state);
 		}
+		playLog.settleKeeps();
 		prevPendingPlayer = pendingPlayer;
 		pendingResolvedByPlay = false;
 

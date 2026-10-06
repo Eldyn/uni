@@ -663,6 +663,33 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
     }
 }
 
+TEST_CASE("engine jump_in debt: the draw that pays the kept debt is from_debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    ecs::Entity jump4{};
+    Plus4Table table = OpenPlus4JumpTable(
+        content, {"uni", "jump_in", "draw_stacking"}, clock, jump4);
+    MatchInstance& engine = *table.engine;
+    REQUIRE(engine.RespondWindow("player2", jump4));
+    clock.now = kJumpInHoldMs;
+    engine.Tick();
+    REQUIRE(DebtOf(engine, table.player0) == 8);
+
+    clock.now = 2 * kStackingWindowMs;
+    engine.Tick();
+
+    const json* drawn = nullptr;
+    for (const json& event : engine.Events()) {
+        if (event.value("type", "") == "cards_drawn") drawn = &event;
+    }
+    REQUIRE(drawn != nullptr);
+    CHECK((*drawn)["payload"]["count"] == 8);
+    CHECK((*drawn)["payload"]["from_debt"] == true);
+    CHECK((*drawn)["payload"]["hand_size_after"]
+          == HandSize(engine, table.player0));
+}
+
 TEST_CASE("engine jump_in debt: a victim pass with a winner keeps the debt") {
     Content content;
     REQUIRE(LoadContent(content));
