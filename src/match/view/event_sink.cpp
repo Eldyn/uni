@@ -178,30 +178,85 @@ json ProjectWindowClose(const match::engine::MatchInstance& match,
     return out;
 }
 
-// NOTE: patchwork. Server-authored hand-movement events, projected to
-//       public data only (usernames and pre-move hand sizes, no card ids).
+/** @brief Copy `key` as a username when the descriptor names a seat. */
+void CopySeat(const match::engine::MatchInstance& match, const json& payload,
+              const std::string& key, json& out) {
+    if (!payload.contains(key)) return;
+    const std::string username = UsernameFor(match, payload[key]);
+    if (!username.empty()) out[key] = username;
+}
+
+json UsernameList(const match::engine::MatchInstance& match,
+                  const json& payload, const std::string& key) {
+    json usernames = json::array();
+    if (!payload.contains(key) || !payload[key].is_array()) return usernames;
+    for (const json& entry : payload[key]) {
+        usernames.push_back(UsernameFor(match, entry));
+    }
+    return usernames;
+}
+
 json ProjectHandsSwapped(const match::engine::MatchInstance& match,
                          const json& payload) {
-    return json{{"a", UsernameFor(match, payload.value("a", json()))},
-                {"b", UsernameFor(match, payload.value("b", json()))},
-                {"a_size", payload.value("a_size", 0)},
-                {"b_size", payload.value("b_size", 0)}};
+    return json{{"source", UsernameFor(match, payload.value("source", json()))},
+                {"target", UsernameFor(match, payload.value("target", json()))},
+                {"count", payload.value("count", 0)},
+                {"target_count", payload.value("target_count", 0)}};
 }
 
 json ProjectHandsPassed(const match::engine::MatchInstance& match,
                         const json& payload) {
-    json players = json::array();
-    if (payload.contains("players") && payload["players"].is_array()) {
-        for (const json& entry : payload["players"]) {
-            players.push_back(UsernameFor(match, entry));
-        }
-    }
-    json hand_sizes = payload.contains("hand_sizes")
-                          ? payload["hand_sizes"]
-                          : json::array();
     return json{{"direction", payload.value("direction", std::string())},
-                {"players", std::move(players)},
-                {"hand_sizes", std::move(hand_sizes)}};
+                {"targets", UsernameList(match, payload, "targets")},
+                {"counts", payload.value("counts", json::array())}};
+}
+
+json ProjectHandsRedistributed(const match::engine::MatchInstance& match,
+                               const json& payload) {
+    return json{{"targets", UsernameList(match, payload, "targets")},
+                {"counts", payload.value("counts", json::array())}};
+}
+
+/**
+ * @brief Add the packed identity of `payload.card` when one exists.
+ *
+ * A card that the assembly never indexed (a created card) has no packed
+ * identity, and bits 0 name nothing, so the field stays out.
+ */
+void CopyCardBits(const match::engine::MatchInstance& match,
+                  const json& payload, json& out) {
+    if (!payload.contains("card")) return;
+    const uint32_t bits = CardBitsFor(match, payload["card"]);
+    if (bits != 0u) out["card"] = bits;
+}
+
+json ProjectCardMoved(const match::engine::MatchInstance& match,
+                      const json& payload) {
+    json out = json::object();
+    CopyCardBits(match, payload, out);
+    out["from_zone"] = payload.value("from_zone", std::string());
+    out["to_zone"] = payload.value("to_zone", std::string());
+    CopySeat(match, payload, "source", out);
+    CopySeat(match, payload, "target", out);
+    return out;
+}
+
+json ProjectCardRemoved(const match::engine::MatchInstance& match,
+                        const json& payload) {
+    json out = json::object();
+    CopyCardBits(match, payload, out);
+    out["from_zone"] = payload.value("from_zone", std::string());
+    CopySeat(match, payload, "target", out);
+    return out;
+}
+
+/** @brief The `card_created` and `card_replaced` body: a zone and a seat. */
+json ProjectCardZone(const match::engine::MatchInstance& match,
+                     const json& payload) {
+    json out = json::object();
+    out["zone"] = payload.value("zone", std::string());
+    CopySeat(match, payload, "target", out);
+    return out;
 }
 
 json ProjectAutoPlayed(const match::engine::MatchInstance& match,
@@ -374,6 +429,14 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "auto_played") return ProjectAutoPlayed(match, body);
     if (type == "hands_swapped") return ProjectHandsSwapped(match, body);
     if (type == "hands_passed") return ProjectHandsPassed(match, body);
+    if (type == "hands_redistributed") {
+        return ProjectHandsRedistributed(match, body);
+    }
+    if (type == "card_moved") return ProjectCardMoved(match, body);
+    if (type == "card_removed") return ProjectCardRemoved(match, body);
+    if (type == "card_created" || type == "card_replaced") {
+        return ProjectCardZone(match, body);
+    }
     if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "roll_result") return ProjectRollResult(body);
     if (type == "outcome_result") return ProjectOutcomeResult(body);

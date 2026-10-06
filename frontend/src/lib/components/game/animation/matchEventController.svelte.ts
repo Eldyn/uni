@@ -679,8 +679,6 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
-	// NOTE: patchwork. Built-in animation for the server-authored hands_swapped
-	//       / hands_passed events; meant to move to the rule mod later.
 	/** A whole hand moving between two seats: `count` cards leave `from`'s
 	 *  pre-move slots and land in `to`'s post-move slots. */
 	interface HandTransfer {

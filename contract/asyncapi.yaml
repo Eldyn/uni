@@ -100,6 +100,11 @@ components:
     reshuffle: ReshufflePayload
     hands_swapped: HandsSwappedPayload
     hands_passed: HandsPassedPayload
+    hands_redistributed: HandsRedistributedPayload
+    card_moved: CardMovedPayload
+    card_created: CardCreatedPayload
+    card_removed: CardRemovedPayload
+    card_replaced: CardReplacedPayload
     status_applied: StatusAppliedPayload
     status_removed: StatusRemovedPayload
     window_open: WindowOpenPayload
@@ -1452,50 +1457,140 @@ components:
           type: integer
           minimum: 0
 
-    # NOTE: patchwork. Server-authored for now; a later pass makes the event
-    #       data-driven or mod-declared, with the mod owning the animation.
-    # Public data only: pre-move hand sizes, never card ids.
+    # The hand events carry seats and counts only. A hand count is public; the
+    # cards of a hand are not, so no hand event names a card.
     HandsSwappedPayload:
       type: object
-      x-packet-version: "1"
-      required: [a, b, a_size, b_size]
+      x-packet-version: "2"
+      required: [source, target, count, target_count]
       properties:
-        a:
+        source:
           $ref: "#/components/schemas/PlayerRef"
-        b:
+          description: >
+            The seat that gives `count` cards to `target` (the op argument
+            `a`). The envelope `actor` is the seat that caused the swap. It can
+            differ from `source`, for example when a mod swaps two other seats.
+        target:
           $ref: "#/components/schemas/PlayerRef"
-        a_size:
+          description: The other seat. It gives `target_count` cards back.
+        count:
           type: integer
           minimum: 0
-          description: Cards that moved from `a` to `b` (a's pre-swap hand size).
-        b_size:
+          description: Hand size of `source` before the swap.
+        target_count:
           type: integer
           minimum: 0
-          description: Cards that moved from `b` to `a` (b's pre-swap hand size).
+          description: Hand size of `target` before the swap.
 
-    # NOTE: patchwork. See HandsSwappedPayload.
     HandsPassedPayload:
       type: object
-      x-packet-version: "1"
-      required: [direction, players, hand_sizes]
+      x-packet-version: "2"
+      required: [direction, targets, counts]
       properties:
         direction:
           type: string
           enum: [forward, backward]
           description: >
-            `forward` moves each hand to the next seat in `players`, `backward`
+            `forward` moves each hand to the next seat in `targets`, `backward`
             to the previous one (wrapping).
-        players:
+        targets:
           type: array
           items:
             $ref: "#/components/schemas/PlayerRef"
           description: Seats in order.
-        hand_sizes:
+        counts:
           type: array
           items:
             type: integer
             minimum: 0
-          description: Pre-move hand size of each seat, parallel to `players`.
+          description: Hand size of each seat before the pass, parallel to `targets`.
+
+    HandsRedistributedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [targets, counts]
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+          description: Seats in order.
+        counts:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          description: >
+            Hand size of each seat after all hands were collected and dealt
+            again, parallel to `targets`. No card identity is sent; a seat
+            reads its new hand from the snapshot.
+
+    CardMovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [from_zone, to_zone]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The moved card. The server fixes who sees it when it emits the
+            event: everyone for a move into the discard pile, else only the
+            seat that owns the `target` hand. Nobody sees it for a move into
+            the draw pile or limbo.
+        from_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        to_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        source:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand the card left. Absent for a pile.
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand the card entered. Absent for a pile.
+
+    CardCreatedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [zone]
+      properties:
+        zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand got the card. Absent for a pile.
+
+    CardRemovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [from_zone]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The removed card. Owner only: the seat that lost the card, and the
+            spectators of that seat when its privacy mode is off.
+        from_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that lost the card. Absent for a pile.
+
+    CardReplacedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [zone]
+      properties:
+        zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat whose hand holds the card. Absent for a pile. The new
+            identity is never sent; the snapshot carries it.
+
+    CardZoneKind:
+      type: string
+      enum: [hand, draw_pile, discard_pile, limbo]
 
     StatusAppliedPayload:
       type: object

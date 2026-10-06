@@ -102,10 +102,14 @@ describe("mapMatchEventPacket", () => {
 		expect(mapMatchEventPacket(frame(33, "drawn_card_kept", {}))).toBeNull();
 	});
 
-	// NOTE: patchwork. Server-authored hand movement events.
 	it("maps hands_swapped to a hands_swap beat", () => {
 		const beat = mapMatchEventPacket(
-			frame(6, "hands_swapped", { a: "alice", b: "bob", a_size: 3, b_size: 1 })
+			frame(6, "hands_swapped", {
+				source: "alice",
+				target: "bob",
+				count: 3,
+				target_count: 1
+			})
 		);
 		expect(beat).toEqual({
 			seq: 6,
@@ -121,8 +125,8 @@ describe("mapMatchEventPacket", () => {
 		const beat = mapMatchEventPacket(
 			frame(7, "hands_passed", {
 				direction: "backward",
-				players: ["alice", "bob", "cara"],
-				hand_sizes: [3, 1, 2]
+				targets: ["alice", "bob", "cara"],
+				counts: [3, 1, 2]
 			})
 		);
 		expect(beat).toEqual({
@@ -135,7 +139,7 @@ describe("mapMatchEventPacket", () => {
 	});
 
 	it("drops malformed hand movement payloads", () => {
-		expect(mapMatchEventPacket(frame(8, "hands_swapped", { a: "alice" }))).toBeNull();
+		expect(mapMatchEventPacket(frame(8, "hands_swapped", { source: "alice" }))).toBeNull();
 		expect(mapMatchEventPacket(frame(9, "hands_passed", { direction: "forward" }))).toBeNull();
 	});
 
@@ -205,7 +209,13 @@ describe("mapMatchEventPacket", () => {
 		["extra_turn_granted", { target: "bob" }],
 		["restriction_added", { restriction_id: "mod:rule", phase: "deny" }],
 		["restriction_removed", { restriction_id: "mod:rule" }],
-		["turn_timer_changed", { target: "bob", duration_ms: 5000 }]
+		["turn_timer_changed", { target: "bob", duration_ms: 5000 }],
+		["hands_redistributed", { targets: ["alice", "bob"], counts: [2, 3] }],
+		["card_moved", { card: 4097, from_zone: "hand", to_zone: "hand", target: "bob" }],
+		["card_moved", { from_zone: "hand", to_zone: "limbo", source: "alice" }],
+		["card_created", { zone: "hand", target: "bob" }],
+		["card_removed", { from_zone: "hand", target: "bob" }],
+		["card_replaced", { zone: "hand", target: "bob" }]
 	])("maps %s to a beat that the client ignores", (type, payload) => {
 		expect(mapMatchEventPacket(frame(11, type, payload))).toEqual({
 			seq: 11,
@@ -218,7 +228,12 @@ describe("mapMatchEventPacket", () => {
 		["extra_turn_granted", {}],
 		["restriction_added", { restriction_id: "mod:rule" }],
 		["restriction_removed", {}],
-		["turn_timer_changed", { target: "bob" }]
+		["turn_timer_changed", { target: "bob" }],
+		["hands_redistributed", { targets: ["alice"] }],
+		["card_moved", { from_zone: "hand" }],
+		["card_created", {}],
+		["card_removed", { target: "bob" }],
+		["card_replaced", {}]
 	])("drops a %s frame with an invalid payload", (type, payload) => {
 		expect(mapMatchEventPacket(frame(11, type, payload))).toBeNull();
 	});

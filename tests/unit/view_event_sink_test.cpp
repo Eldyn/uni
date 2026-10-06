@@ -271,7 +271,6 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
                     .has_value());
 }
 
-// NOTE: patchwork. Covers the server-authored hand-movement events.
 TEST_CASE("view event sink: hand movement events carry public data only") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -284,30 +283,40 @@ TEST_CASE("view event sink: hand movement events carry public data only") {
 
     const std::optional<json> swapped = match::view::ProjectPublicEvent(
         "hands_swapped",
-        json{{"a", EntityRef(player0)}, {"b", EntityRef(player1)},
-             {"a_size", 5}, {"b_size", 2}},
+        json{{"source", EntityRef(player0)}, {"target", EntityRef(player1)},
+             {"count", 5}, {"target_count", 2}},
         *engine);
     REQUIRE(swapped.has_value());
-    CHECK((*swapped)["a"] == "player0");
-    CHECK((*swapped)["b"] == "player1");
-    CHECK((*swapped)["a_size"] == 5);
-    CHECK((*swapped)["b_size"] == 2);
+    CHECK((*swapped)["source"] == "player0");
+    CHECK((*swapped)["target"] == "player1");
+    CHECK((*swapped)["count"] == 5);
+    CHECK((*swapped)["target_count"] == 2);
     CHECK((*swapped).size() == 4);
 
+    const json seats = json::array(
+        {EntityRef(player0), EntityRef(player1), EntityRef(player2)});
     const std::optional<json> passed = match::view::ProjectPublicEvent(
         "hands_passed",
-        json{{"direction", "forward"},
-             {"players", json::array({EntityRef(player0), EntityRef(player1),
-                                      EntityRef(player2)})},
-             {"hand_sizes", json::array({7, 3, 4})}},
+        json{{"direction", "forward"}, {"targets", seats},
+             {"counts", json::array({7, 3, 4})}},
         *engine);
     REQUIRE(passed.has_value());
     CHECK((*passed)["direction"] == "forward");
-    REQUIRE((*passed)["players"].size() == 3);
-    CHECK((*passed)["players"][0] == "player0");
-    CHECK((*passed)["players"][2] == "player2");
-    CHECK((*passed)["hand_sizes"] == json::array({7, 3, 4}));
+    REQUIRE((*passed)["targets"].size() == 3);
+    CHECK((*passed)["targets"][0] == "player0");
+    CHECK((*passed)["targets"][2] == "player2");
+    CHECK((*passed)["counts"] == json::array({7, 3, 4}));
     CHECK((*passed).size() == 3);
+
+    const std::optional<json> redistributed =
+        match::view::ProjectPublicEvent(
+            "hands_redistributed",
+            json{{"targets", seats}, {"counts", json::array({3, 2, 2})}},
+            *engine);
+    REQUIRE(redistributed.has_value());
+    CHECK((*redistributed)["targets"][1] == "player1");
+    CHECK((*redistributed)["counts"] == json::array({3, 2, 2}));
+    CHECK((*redistributed).size() == 2);
 }
 
 TEST_CASE("view event sink: flat abort descriptors wrap correctly") {

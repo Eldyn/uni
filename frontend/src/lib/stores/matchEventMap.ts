@@ -14,6 +14,11 @@ import {
 	ReshufflePayloadSchema,
 	HandsSwappedPayloadSchema,
 	HandsPassedPayloadSchema,
+	HandsRedistributedPayloadSchema,
+	CardMovedPayloadSchema,
+	CardCreatedPayloadSchema,
+	CardRemovedPayloadSchema,
+	CardReplacedPayloadSchema,
 	StatusAppliedPayloadSchema,
 	AutoPlayedPayloadSchema,
 	TurnAdvancePayloadSchema,
@@ -72,7 +77,7 @@ export type MatchEventBeat =
 			cardId?: number;
 	  }
 	| { seq: number; kind: "reshuffle"; drawSize: number; discardSize: number }
-	// NOTE: patchwork. Server-authored hand movement; sizes are pre-move hands.
+	/** `a` gives `aSize` cards to `b` and `b` gives `bSize` cards back. */
 	| { seq: number; kind: "hands_swap"; a: string; b: string; aSize: number; bSize: number }
 	| {
 			seq: number;
@@ -190,10 +195,10 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 			return {
 				seq,
 				kind: "hands_swap",
-				a: parsed.data.a,
-				b: parsed.data.b,
-				aSize: parsed.data.a_size,
-				bSize: parsed.data.b_size
+				a: parsed.data.source,
+				b: parsed.data.target,
+				aSize: parsed.data.count,
+				bSize: parsed.data.target_count
 			};
 		}
 		case "hands_passed": {
@@ -203,8 +208,8 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				seq,
 				kind: "hands_pass",
 				direction: parsed.data.direction === "backward" ? "backward" : "forward",
-				players: parsed.data.players,
-				handSizes: parsed.data.hand_sizes
+				players: parsed.data.targets,
+				handSizes: parsed.data.counts
 			};
 		}
 		case "turn_advance": {
@@ -261,6 +266,16 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 			return ignoredBeat(seq, type, RestrictionRemovedPayloadSchema.safeParse(payload).success);
 		case "turn_timer_changed":
 			return ignoredBeat(seq, type, TurnTimerChangedPayloadSchema.safeParse(payload).success);
+		case "hands_redistributed":
+			return ignoredBeat(seq, type, HandsRedistributedPayloadSchema.safeParse(payload).success);
+		case "card_moved":
+			return ignoredBeat(seq, type, CardMovedPayloadSchema.safeParse(payload).success);
+		case "card_created":
+			return ignoredBeat(seq, type, CardCreatedPayloadSchema.safeParse(payload).success);
+		case "card_removed":
+			return ignoredBeat(seq, type, CardRemovedPayloadSchema.safeParse(payload).success);
+		case "card_replaced":
+			return ignoredBeat(seq, type, CardReplacedPayloadSchema.safeParse(payload).success);
 		default:
 			return null;
 	}

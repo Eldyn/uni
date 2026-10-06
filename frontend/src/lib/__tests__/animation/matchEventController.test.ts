@@ -768,7 +768,6 @@ describe("createMatchEventBeatController", () => {
 		});
 	});
 
-	// NOTE: patchwork. Built-in hand-movement animations; see matchEventController.
 	describe("hand movement beats", () => {
 		const threeSeatState = (hand: number[] = []) =>
 			({

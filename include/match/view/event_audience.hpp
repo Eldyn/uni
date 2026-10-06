@@ -59,6 +59,13 @@ enum class FieldKind {
     kCardList,    /**< Array of packed card identity bits. */
     kPlayedCard,  /**< Card bits that the act of playing made public. */
     kOfferedCard, /**< Public only when the offer won; else owner only. */
+    /**
+     * Card bits whose visibility the op fixed when it emitted the event: the
+     * engine key `card_public` makes it public, else only the owner sees it.
+     * The zone of the card at projection time is never read, so a later move
+     * of the card cannot reveal it.
+     */
+    kZoneCard,
 };
 
 /** @brief One declared payload field. */
@@ -156,16 +163,22 @@ inline constexpr FieldRule kAutoPlayed[] = {
     {"card", Audience::kAll, FieldKind::kPlayedCard},
     {"trigger_summary", Audience::kAll},
 };
+// INFO: the hand events carry seats and counts only. A hand count is public;
+//       the cards of a hand are not, so no hand event names a card.
 inline constexpr FieldRule kHandsSwapped[] = {
-    {"a", Audience::kAll},
-    {"b", Audience::kAll},
-    {"a_size", Audience::kAll},
-    {"b_size", Audience::kAll},
+    {"source", Audience::kAll},
+    {"target", Audience::kAll},
+    {"count", Audience::kAll},
+    {"target_count", Audience::kAll},
 };
 inline constexpr FieldRule kHandsPassed[] = {
     {"direction", Audience::kAll},
-    {"players", Audience::kAll},
-    {"hand_sizes", Audience::kAll},
+    {"targets", Audience::kAll},
+    {"counts", Audience::kAll},
+};
+inline constexpr FieldRule kHandsRedistributed[] = {
+    {"targets", Audience::kAll},
+    {"counts", Audience::kAll},
 };
 inline constexpr FieldRule kMatchEnd[] = {
     {"winner", Audience::kAll},
@@ -209,6 +222,31 @@ inline constexpr FieldRule kCardsDrawn[] = {
 inline constexpr FieldRule kDrawnCardKept[] = {
     {"target", Audience::kAll},
     {"card", Audience::kOwner, FieldKind::kCard},
+};
+// INFO: the op decides who sees `card` of `card_moved` when it emits the
+//       event: everyone for a move into the discard pile, else only the seat
+//       that owns the `target` hand. The draw pile and limbo show it to nobody.
+inline constexpr FieldRule kCardMoved[] = {
+    {"card", Audience::kAll, FieldKind::kZoneCard},
+    {"from_zone", Audience::kAll},
+    {"to_zone", Audience::kAll},
+    {"source", Audience::kAll},
+    {"target", Audience::kAll},
+};
+inline constexpr FieldRule kCardCreated[] = {
+    {"target", Audience::kAll},
+    {"zone", Audience::kAll},
+};
+// INFO: a removed card sits in limbo, which is public. The `owner` audience
+//       keeps the identity with the seat that lost the card.
+inline constexpr FieldRule kCardRemoved[] = {
+    {"target", Audience::kAll},
+    {"from_zone", Audience::kAll},
+    {"card", Audience::kOwner, FieldKind::kCard},
+};
+inline constexpr FieldRule kCardReplaced[] = {
+    {"target", Audience::kAll},
+    {"zone", Audience::kAll},
 };
 inline constexpr FieldRule kStatusApplied[] = {
     {"target", Audience::kAll},
@@ -261,6 +299,11 @@ inline constexpr EventRule kEvents[] = {
     {"auto_played", "", "", kAutoPlayed},
     {"hands_swapped", "", "", kHandsSwapped},
     {"hands_passed", "", "", kHandsPassed},
+    {"hands_redistributed", "", "", kHandsRedistributed},
+    {"card_moved", "", "target", kCardMoved},
+    {"card_created", "", "", kCardCreated},
+    {"card_removed", "", "target", kCardRemoved},
+    {"card_replaced", "", "", kCardReplaced},
     {"match_end", "", "", kMatchEnd},
     {"roll_result", "", "", kRollResult},
     {"outcome_result", "", "", kOutcomeResult},

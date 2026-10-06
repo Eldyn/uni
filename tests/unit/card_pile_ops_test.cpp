@@ -452,6 +452,15 @@ TEST_CASE("card_pile_ops: move_card relocates and fires zone hooks") {
     CHECK(left_after == 1);
     CHECK(entered_before == 1);
     CHECK(entered_after == 1);
+
+    REQUIRE(result.events.size() == 1);
+    const json& payload = result.events[0]["payload"];
+    CHECK(result.events[0]["type"] == "card_moved");
+    CHECK(payload["from_zone"] == "hand");
+    CHECK(payload["to_zone"] == "discard_pile");
+    CHECK(payload["source"]["index"] == a.index);
+    CHECK_FALSE(payload.contains("target"));
+    CHECK(payload["card"]["index"] == card.index);
 }
 
 TEST_CASE("card_pile_ops: move_card to hand uses the acting player") {
@@ -469,6 +478,14 @@ TEST_CASE("card_pile_ops: move_card to hand uses the acting player") {
     CHECK(CardInZone(h.store, card, ZoneKind::kHand));
     CHECK(HandOf(h.store, a) == std::vector<Entity>{card});
     CHECK(PileOf(h.store, discard).empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["target"]["index"] == a.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("source"));
+
+    // INFO: a reorder inside the same hand changes no zone and emits nothing.
+    const OpResult reorder = h.Invoke(
+        "move_card", json{{"to_zone", "hand"}}, {{"card", {card}}});
+    CHECK(reorder.events.empty());
 }
 
 TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
@@ -614,7 +631,6 @@ TEST_CASE("card_pile_ops: pass_hands rotates in both directions") {
     CHECK(HandOf(h.store, c) == std::vector<Entity>{c1});
 }
 
-// NOTE: patchwork. `hands_passed` is server-authored for now.
 TEST_CASE("card_pile_ops: pass_hands emits hands_passed with pre-move sizes") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
@@ -630,10 +646,10 @@ TEST_CASE("card_pile_ops: pass_hands emits hands_passed with pre-move sizes") {
     const json& event = result.events[0];
     CHECK(event["type"] == "hands_passed");
     CHECK(event["payload"]["direction"] == "backward");
-    CHECK(event["payload"]["hand_sizes"] == json::array({2, 1, 0}));
-    REQUIRE(event["payload"]["players"].size() == 3);
-    CHECK(event["payload"]["players"][0]["index"] == a.index);
-    CHECK(event["payload"]["players"][2]["index"] == c.index);
+    CHECK(event["payload"]["counts"] == json::array({2, 1, 0}));
+    REQUIRE(event["payload"]["targets"].size() == 3);
+    CHECK(event["payload"]["targets"][0]["index"] == a.index);
+    CHECK(event["payload"]["targets"][2]["index"] == c.index);
 }
 
 TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
@@ -653,15 +669,14 @@ TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
     CHECK(HandOf(h.store, a) == std::vector<Entity>{b1});
     CHECK(HandOf(h.store, b) == std::vector<Entity>{a1, a2});
 
-    // NOTE: patchwork. `hands_swapped` is server-authored for now; sizes are
-    //       the pre-swap hands and no card ids ride the event.
+    // INFO: the counts are the pre-swap hands and no card ids ride the event.
     REQUIRE(result.events.size() == 1);
     const json& event = result.events[0];
     CHECK(event["type"] == "hands_swapped");
-    CHECK(event["payload"]["a"]["index"] == a.index);
-    CHECK(event["payload"]["b"]["index"] == b.index);
-    CHECK(event["payload"]["a_size"] == 2);
-    CHECK(event["payload"]["b_size"] == 1);
+    CHECK(event["payload"]["source"]["index"] == a.index);
+    CHECK(event["payload"]["target"]["index"] == b.index);
+    CHECK(event["payload"]["count"] == 2);
+    CHECK(event["payload"]["target_count"] == 1);
     CHECK_FALSE(event["payload"].contains("cards"));
 }
 
@@ -692,6 +707,14 @@ TEST_CASE("card_pile_ops: redistribute_hands deals evenly by seat order") {
     CHECK(HandOf(h.store, a) == std::vector<Entity>{a1, b1, b2});
     CHECK(HandOf(h.store, b) == std::vector<Entity>{c1, c2});
     CHECK(HandOf(h.store, c) == std::vector<Entity>{c3, c4});
+
+    REQUIRE(result.events.size() == 1);
+    const json& event = result.events[0];
+    CHECK(event["type"] == "hands_redistributed");
+    CHECK(event["payload"]["counts"] == json::array({3, 2, 2}));
+    REQUIRE(event["payload"]["targets"].size() == 3);
+    CHECK(event["payload"]["targets"][1]["index"] == b.index);
+    CHECK_FALSE(event["payload"].contains("cards"));
 }
 
 TEST_CASE("card_pile_ops: materialize_card creates a new hand instance") {
@@ -707,6 +730,12 @@ TEST_CASE("card_pile_ops: materialize_card creates a new hand instance") {
     CHECK(CardKindId(h.store, card) == "space:black_hole");
     CHECK(CardInZone(h.store, card, ZoneKind::kHand));
     CHECK(result.value["card"]["index"] == card.index);
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_created");
+    CHECK(result.events[0]["payload"]["zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("kind"));
 }
 
 TEST_CASE("card_pile_ops: remove_card sends a card to limbo") {
@@ -720,6 +749,16 @@ TEST_CASE("card_pile_ops: remove_card sends a card to limbo") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(CardInZone(h.store, card, ZoneKind::kLimbo));
     CHECK(HandOf(h.store, player).empty());
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_removed");
+    CHECK(result.events[0]["payload"]["from_zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK(result.events[0]["payload"]["card"]["index"] == card.index);
+
+    const OpResult again =
+        h.Invoke("remove_card", json::object(), {{"card", {card}}});
+    CHECK(again.events.empty());
 }
 
 TEST_CASE("card_pile_ops: replace_card transmutes the kind") {
@@ -734,6 +773,17 @@ TEST_CASE("card_pile_ops: replace_card transmutes the kind") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(CardKindId(h.store, card) == "space:black_hole");
     CHECK(HandOf(h.store, player) == std::vector<Entity>{card});
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_replaced");
+    CHECK(result.events[0]["payload"]["zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("kind"));
+
+    const OpResult same_kind = h.Invoke(
+        "replace_card", json{{"kind", "space:black_hole"}},
+        {{"card", {card}}});
+    CHECK(same_kind.events.empty());
 }
 
 TEST_CASE("card_pile_ops: peek_pile reveals top-n and emits an event") {

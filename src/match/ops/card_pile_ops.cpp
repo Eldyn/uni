@@ -259,6 +259,49 @@ bool MoveWithZoneHooks(ecs::EntityStore& store, ecs::Entity card,
     return true;
 }
 
+/** @brief True when both zones name the same pile or the same hand. */
+bool SameZone(const ecs::ZoneRef& first, const ecs::ZoneRef& second) {
+    if (first.kind != second.kind) return false;
+    return first.kind != ecs::ZoneKind::kHand || first.owner == second.owner;
+}
+
+/** @brief Add `key` with the seat that owns `zone`; a pile adds nothing. */
+void AddZoneSeat(json& payload, std::string_view key,
+                 const ecs::ZoneRef& zone) {
+    if (zone.kind == ecs::ZoneKind::kHand) {
+        payload[std::string(key)] = EntityJson(zone.owner);
+    }
+}
+
+/** @brief The `card_moved` event of a card that went from `from` to `to`. */
+json CardMovedEvent(ecs::Entity card, const ecs::ZoneRef& from,
+                    const ecs::ZoneRef& to) {
+    json payload = json{{"card", EntityJson(card)},
+                        {"from_zone", std::string(ZoneToken(from.kind))},
+                        {"to_zone", std::string(ZoneToken(to.kind))}};
+    AddZoneSeat(payload, "source", from);
+    AddZoneSeat(payload, "target", to);
+    // INFO: the identity is public only in the discard pile. The engine
+    //       fixes this now, so a later move of the card cannot reveal it.
+    payload["card_public"] = to.kind == ecs::ZoneKind::kDiscardPile;
+    return MakeEvent("card_moved", std::move(payload));
+}
+
+/**
+ * @brief Move `card` to `to` and push `card_moved` when its zone changed.
+ *
+ * @return false when the move failed.
+ */
+bool MoveAndAnnounce(ecs::EntityStore& store, ecs::Entity card,
+                     const ecs::ZoneRef& to, OpContext& ctx,
+                     std::vector<json>& events) {
+    const std::optional<ecs::ZoneRef> from = FindCardZone(store, card);
+    if (!from.has_value()) return false;
+    if (!MoveWithZoneHooks(store, card, to, ctx)) return false;
+    if (!SameZone(*from, to)) events.push_back(CardMovedEvent(card, *from, to));
+    return true;
+}
+
 /**
  * @brief Ensure `kind`'s pile has a drawable card, reshuffling when needed.
  *
@@ -655,8 +698,13 @@ OpResult OpMoveCard(ecs::EntityStore& store, const OpArgs& args,
         if (!store.Has<ecs::Hand>(to.owner)) return OpResult::Resolved();
     }
 
-    if (!MoveWithZoneHooks(store, *card, to, ctx)) return OpResult::Resolved();
-    return OpResult::Resolved(json{{"card", EntityJson(*card)}});
+    std::vector<json> events;
+    if (!MoveAndAnnounce(store, *card, to, ctx, events)) {
+        return OpResult::Resolved();
+    }
+    OpResult result = OpResult::Resolved(json{{"card", EntityJson(*card)}});
+    result.events = std::move(events);
+    return result;
 }
 
 OpResult OpPlayCard(ecs::EntityStore& store, const OpArgs& args,
@@ -761,11 +809,15 @@ OpResult OpTransferCard(ecs::EntityStore& store, const OpArgs& args,
     if (matches.empty()) return OpResult::Resolved();
 
     const ecs::Entity picked = matches.front();
-    if (!MoveWithZoneHooks(store, picked,
-                           ecs::ZoneRef{ecs::ZoneKind::kHand, *to}, ctx)) {
+    std::vector<json> events;
+    if (!MoveAndAnnounce(store, picked,
+                         ecs::ZoneRef{ecs::ZoneKind::kHand, *to}, ctx,
+                         events)) {
         return OpResult::Resolved();
     }
-    return OpResult::Resolved(json{{"card", EntityJson(picked)}});
+    OpResult result = OpResult::Resolved(json{{"card", EntityJson(picked)}});
+    result.events = std::move(events);
+    return result;
 }
 
 OpResult OpPassHands(ecs::EntityStore& store, const OpArgs& args,
@@ -796,22 +848,21 @@ OpResult OpPassHands(ecs::EntityStore& store, const OpArgs& args,
 
     const int count = static_cast<int>(players.size());
     json seats = json::array();
-    json hand_sizes = json::array();
+    json counts = json::array();
     for (int i = 0; i < count; ++i) {
         const int dst = ((i + step) % count + count) % count;
         seats.push_back(EntityJson(players[static_cast<std::size_t>(i)]));
-        hand_sizes.push_back(hands[static_cast<std::size_t>(i)].size());
+        counts.push_back(hands[static_cast<std::size_t>(i)].size());
         SetHandOrder(store, players[static_cast<std::size_t>(dst)],
                      hands[static_cast<std::size_t>(i)]);
     }
     OpResult result = OpResult::Resolved(json{{"count", count}});
-    // NOTE: patchwork. The server authors `hands_passed` for now so the
-    //       client can animate the rotation; this becomes data-driven (or
-    //       mod-declared, with the mod owning the animation) later.
+    // INFO: `counts` are the hand sizes before the pass, parallel to
+    //       `targets`.
     result.events.push_back(MakeEvent(
         "hands_passed", json{{"direction", direction},
-                             {"players", std::move(seats)},
-                             {"hand_sizes", std::move(hand_sizes)}}));
+                             {"targets", std::move(seats)},
+                             {"counts", std::move(counts)}}));
     return result;
 }
 
@@ -833,14 +884,13 @@ OpResult OpSwapHands(ecs::EntityStore& store, const OpArgs& args,
     SetHandOrder(store, *b, hand_a);
     OpResult result = OpResult::Resolved(
         json{{"a", EntityJson(*a)}, {"b", EntityJson(*b)}});
-    // NOTE: patchwork. Sizes are the PRE-swap hands: `a_size` cards moved
-    //       from `a` to `b` and `b_size` from `b` to `a`. Server-authored for
-    //       now, to be replaced by a data-driven / mod-declared event.
+    // INFO: the counts are the hands before the swap: `count` cards moved
+    //       from `source` to `target`, `target_count` cards the other way.
     result.events.push_back(MakeEvent(
-        "hands_swapped", json{{"a", EntityJson(*a)},
-                              {"b", EntityJson(*b)},
-                              {"a_size", hand_a.size()},
-                              {"b_size", hand_b.size()}}));
+        "hands_swapped", json{{"source", EntityJson(*a)},
+                              {"target", EntityJson(*b)},
+                              {"count", hand_a.size()},
+                              {"target_count", hand_b.size()}}));
     return result;
 }
 
@@ -868,6 +918,8 @@ OpResult OpRedistributeHands(ecs::EntityStore& store, const OpArgs& args,
     const std::size_t base = total / count;
     const std::size_t remainder = total % count;
     std::size_t cursor = 0;
+    json seats = json::array();
+    json counts = json::array();
     for (std::size_t i = 0; i < count; ++i) {
         // INFO: deterministic deal; the first `remainder` seats (seat order)
         //       take one extra card.
@@ -876,9 +928,17 @@ OpResult OpRedistributeHands(ecs::EntityStore& store, const OpArgs& args,
                                             pool.begin() + cursor + take);
         cursor += take;
         SetHandOrder(store, players[i], deal);
+        seats.push_back(EntityJson(players[i]));
+        counts.push_back(take);
     }
-    return OpResult::Resolved(
-        json{{"total", total}, {"players", count}});
+    // INFO: `counts` are the new hand sizes. No card identity rides the
+    //       event; a seat reads its new hand from the snapshot.
+    OpResult result =
+        OpResult::Resolved(json{{"total", total}, {"players", count}});
+    result.events.push_back(MakeEvent(
+        "hands_redistributed",
+        json{{"targets", std::move(seats)}, {"counts", std::move(counts)}}));
+    return result;
 }
 
 OpResult OpMaterializeCard(ecs::EntityStore& store, const OpArgs& args,
@@ -918,21 +978,35 @@ OpResult OpMaterializeCard(ecs::EntityStore& store, const OpArgs& args,
         store.Destroy(card);
         return OpResult::Resolved();
     }
-    return OpResult::Resolved(json{{"card", EntityJson(card)}});
+    // INFO: a created card has no packed identity, so the event names the
+    //       zone and the seat only.
+    json created = json{{"zone", std::string(ZoneToken(to.kind))}};
+    AddZoneSeat(created, "target", to);
+    OpResult result = OpResult::Resolved(json{{"card", EntityJson(card)}});
+    result.events.push_back(MakeEvent("card_created", std::move(created)));
+    return result;
 }
 
 OpResult OpRemoveCard(ecs::EntityStore& store, const OpArgs& args,
                       OpContext& ctx) {
     const std::optional<ecs::Entity> card = args.FirstEntity("card");
     if (!card.has_value() || !store.IsAlive(*card)) return OpResult::Resolved();
-    if (!FindCardZone(store, *card).has_value()) return OpResult::Resolved();
+    const std::optional<ecs::ZoneRef> from = FindCardZone(store, *card);
+    if (!from.has_value()) return OpResult::Resolved();
 
     if (!MoveWithZoneHooks(
             store, *card, ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}},
             ctx)) {
         return OpResult::Resolved();
     }
-    return OpResult::Resolved(json{{"card", EntityJson(*card)}});
+    OpResult result = OpResult::Resolved(json{{"card", EntityJson(*card)}});
+    if (from->kind != ecs::ZoneKind::kLimbo) {
+        json removed = json{{"card", EntityJson(*card)},
+                            {"from_zone", std::string(ZoneToken(from->kind))}};
+        AddZoneSeat(removed, "target", *from);
+        result.events.push_back(MakeEvent("card_removed", std::move(removed)));
+    }
+    return result;
 }
 
 OpResult OpReplaceCard(ecs::EntityStore& store, const OpArgs& args,
@@ -946,9 +1020,19 @@ OpResult OpReplaceCard(ecs::EntityStore& store, const OpArgs& args,
     }
     ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(*card);
     if (identity == nullptr) return OpResult::Resolved();
+    const bool changed = identity->kind_id != kind;
     identity->kind_id = kind;
-    return OpResult::Resolved(
+    OpResult result = OpResult::Resolved(
         json{{"card", EntityJson(*card)}, {"kind", kind}});
+    const std::optional<ecs::ZoneRef> zone = FindCardZone(store, *card);
+    if (changed && zone.has_value()) {
+        // INFO: the new kind is card identity, so it never rides the event.
+        json replaced = json{{"zone", std::string(ZoneToken(zone->kind))}};
+        AddZoneSeat(replaced, "target", *zone);
+        result.events.push_back(
+            MakeEvent("card_replaced", std::move(replaced)));
+    }
+    return result;
 }
 
 OpResult OpPeekPile(ecs::EntityStore& store, const OpArgs& args,
