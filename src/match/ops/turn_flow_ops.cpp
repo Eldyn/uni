@@ -60,14 +60,22 @@ bool SkipPending(const ecs::TurnState& turn) {
     return (turn.extra_turns_pending & kSkipFlag) != 0u;
 }
 
-/** @brief Arm a one-shot skip, preserving any extra-turn count. */
-void SetSkipPending(ecs::TurnState& turn) {
+/**
+ * @brief Arm a one-shot skip, preserving any extra-turn count.
+ *
+ * The flag remembers `actor`. A second skip on the same seat keeps the flag
+ * one-shot and replaces the actor with the latest one.
+ */
+void SetSkipPending(ecs::TurnState& turn,
+                    const std::optional<ecs::Entity>& actor) {
     turn.extra_turns_pending |= kSkipFlag;
+    turn.skip_actor = actor;
 }
 
 /** @brief Consume a pending skip, preserving any extra-turn count. */
 void ConsumeSkip(ecs::TurnState& turn) {
     turn.extra_turns_pending &= kExtraMask;
+    turn.skip_actor.reset();
 }
 
 /** @brief Add one extra turn, saturating at the 31-bit ceiling. */
@@ -228,12 +236,28 @@ json TurnAdvancePayload(const std::optional<ecs::Entity>& from,
                 {"skipped", std::move(skipped_json)}};
 }
 
+/**
+ * @brief The `turn_skipped` event of a consumed skip flag.
+ *
+ * The actor is the seat that set the flag, not the seat that causes the
+ * advance, so the event carries its own causal frame.
+ */
+json SkippedEvent(const ecs::EntityStore& store, const OpContext& ctx,
+                  ecs::Entity target,
+                  const std::optional<ecs::Entity>& actor) {
+    json event =
+        MakeEvent("turn_skipped", json{{"target", EntityJson(target)}});
+    CausalFrame frame = ctx.frame.causal;
+    frame.actor = actor;
+    StampCausalFrame(store, frame, event);
+    return event;
+}
+
 }  // namespace
 
 OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
                        OpContext& ctx) {
     (void)args;
-    (void)ctx;
     const std::optional<ecs::Entity> match = FindMatch(store);
     if (!match.has_value()) return OpResult::Resolved();
     ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(*match);
@@ -262,6 +286,7 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
     //       seat takes it, independent of direction (there is no "previous").
     int incoming_index = 0;
     std::vector<ecs::Entity> skipped;
+    std::vector<json> skip_events;
     if (current_index >= 0) {
         ecs::TurnState* current_turn = store.Get<ecs::TurnState>(*from);
         // INFO: a race finisher has left the table, so a queued extra turn
@@ -289,6 +314,8 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
                 if (FinishedRace(store, seat)) continue;
                 ecs::TurnState* candidate = store.Get<ecs::TurnState>(seat);
                 if (candidate != nullptr && SkipPending(*candidate)) {
+                    skip_events.push_back(
+                        SkippedEvent(store, ctx, seat, candidate->skip_actor));
                     ConsumeSkip(*candidate);
                     skipped.push_back(seat);
                     continue;
@@ -338,19 +365,19 @@ OpResult OpAdvanceTurn(ecs::EntityStore& store, const OpArgs& args,
                                             incoming_turn->turn_deadline_ms,
                                             skipped);
     OpResult result = OpResult::Resolved(payload);
+    for (json& event : skip_events) result.events.push_back(std::move(event));
     result.events.push_back(MakeEvent("turn_advance", payload));
     return result;
 }
 
 OpResult OpSkipTurn(ecs::EntityStore& store, const OpArgs& args,
                     OpContext& ctx) {
-    (void)ctx;
     const std::optional<ecs::Entity> target = TargetPlayer(store, args);
     if (!target.has_value()) return OpResult::Resolved();
 
     ecs::TurnState* turn = EnsureTurnState(store, *target);
     if (turn == nullptr) return OpResult::Resolved();
-    SetSkipPending(*turn);
+    SetSkipPending(*turn, ctx.frame.causal.actor);
     return OpResult::Resolved(
         json{{"target", EntityJson(*target)}, {"skip_pending", true}});
 }
@@ -382,9 +409,12 @@ OpResult OpExtraTurn(ecs::EntityStore& store, const OpArgs& args,
     ecs::TurnState* turn = EnsureTurnState(store, *target);
     if (turn == nullptr) return OpResult::Resolved();
     AddExtraTurn(*turn);
-    return OpResult::Resolved(
+    OpResult result = OpResult::Resolved(
         json{{"target", EntityJson(*target)},
              {"extra_turns_pending", ExtraTurns(*turn)}});
+    result.events.push_back(
+        MakeEvent("extra_turn_granted", json{{"target", EntityJson(*target)}}));
+    return result;
 }
 
 OpResult OpRedirectTurn(ecs::EntityStore& store, const OpArgs& args,
@@ -456,10 +486,14 @@ OpResult OpSetTurnTimer(ecs::EntityStore& store, const OpArgs& args,
     //            absolute deadline and owns expiry; the op layer records the ms
     //            value only and never reads a clock.
     turn->turn_deadline_ms = spec.value;
-    return OpResult::Resolved(
+    OpResult result = OpResult::Resolved(
         json{{"target", EntityJson(*target)},
              {"deadline_ms", spec.value},
              {"unit", std::string(UnitToken(spec.unit))}});
+    result.events.push_back(MakeEvent(
+        "turn_timer_changed", json{{"target", EntityJson(*target)},
+                                   {"duration_ms", spec.value}}));
+    return result;
 }
 
 }  // namespace match::ops::detail

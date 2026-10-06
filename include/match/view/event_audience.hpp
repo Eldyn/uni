@@ -97,6 +97,33 @@ inline constexpr FieldRule kTurnAdvance[] = {
 inline constexpr FieldRule kDirectionChanged[] = {
     {"direction", Audience::kAll},
 };
+inline constexpr FieldRule kTurnSkipped[] = {
+    {"target", Audience::kAll},
+};
+inline constexpr FieldRule kExtraTurnGranted[] = {
+    {"target", Audience::kAll},
+};
+inline constexpr FieldRule kActiveTypeChanged[] = {
+    {"color", Audience::kAll},
+    {"previous_color", Audience::kAll},
+};
+// INFO: the restriction condition is mod data and is never declared, so it
+//       stays `kNone`.
+inline constexpr FieldRule kRestrictionAdded[] = {
+    {"restriction_id", Audience::kAll},
+    {"phase", Audience::kAll},
+};
+inline constexpr FieldRule kRestrictionRemoved[] = {
+    {"restriction_id", Audience::kAll},
+};
+// INFO: only the `set_turn_timer` op emits this event. The engine arms,
+//       suspends, resumes and resets the turn timer every turn and emits
+//       nothing for that; the client reads those deadlines from the turn
+//       and state packets. `duration_ms` is relative, not an epoch time.
+inline constexpr FieldRule kTurnTimerChanged[] = {
+    {"target", Audience::kAll},
+    {"duration_ms", Audience::kAll},
+};
 inline constexpr FieldRule kRoundAdvance[] = {
     {"round", Audience::kAll},
 };
@@ -213,6 +240,12 @@ inline constexpr EventRule kEvents[] = {
     {"reshuffle", "", "", kReshuffle},
     {"turn_advance", "", "", kTurnAdvance},
     {"direction_changed", "", "", kDirectionChanged},
+    {"turn_skipped", "", "", kTurnSkipped},
+    {"extra_turn_granted", "", "", kExtraTurnGranted},
+    {"active_type_changed", "", "", kActiveTypeChanged},
+    {"restriction_added", "", "", kRestrictionAdded},
+    {"restriction_removed", "", "", kRestrictionRemoved},
+    {"turn_timer_changed", "", "", kTurnTimerChanged},
     {"round_advance", "", "", kRoundAdvance},
     {"placement", "", "", kPlacement},
     {"window_open", "", "", kWindowOpen},

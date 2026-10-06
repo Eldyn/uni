@@ -443,4 +443,51 @@ describe("createPlayLogEmitter", () => {
 		expect(blockedIndex).toBeGreaterThan(drawIndex);
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
+
+	it("takes the blocker of a skip from the event, not from the turn guess", async () => {
+		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
+			seq: 1,
+			nearWin: true
+		});
+		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3 });
+		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
+		await flush();
+
+		expect(lines.filter((line) => line.key === "log_skip")).toHaveLength(1);
+		const blocked = lines.find((line) => line.key.startsWith("log_blocked_"));
+		expect(blocked?.params).toEqual({ blocker: "Cy", target: "Bob" });
+	});
+
+	it("takes the blocker of a skip from the event when the turn comes first", async () => {
+		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
+			seq: 1,
+			nearWin: true
+		});
+		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
+		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3 });
+		await flush();
+
+		expect(lines.filter((line) => line.key === "log_skip")).toHaveLength(1);
+		const blocked = lines.find((line) => line.key.startsWith("log_blocked_"));
+		expect(blocked?.params).toEqual({ blocker: "Cy", target: "Bob" });
+	});
+
+	it("logs a repeated skip of one seat once for each event", async () => {
+		emitter.noteSkipped({ target: "Ann", seq: 1 });
+		emitter.noteTurn(turn(["Ann"], 1, 2));
+		emitter.noteSkipped({ target: "Ann", seq: 3 });
+		emitter.noteTurn(turn(["Ann"], 1, 4));
+		await flush();
+
+		expect(lines.filter((line) => line.key.startsWith("log_skip"))).toHaveLength(2);
+	});
+
+	it("logs a later skip after an event whose turn advance never came", async () => {
+		emitter.noteSkipped({ target: "Ann", seq: 1 });
+		emitter.settleSkips();
+		emitter.noteTurn(turn(["Ann"], 1, 2));
+		await flush();
+
+		expect(lines.filter((line) => line.key.startsWith("log_skip"))).toHaveLength(2);
+	});
 });

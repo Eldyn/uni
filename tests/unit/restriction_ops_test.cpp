@@ -84,7 +84,8 @@ TEST_CASE("restriction_ops: add_restriction appends allow and deny entries") {
 
     CHECK(allow.status == OpStatus::kResolved);
     CHECK(deny.status == OpStatus::kResolved);
-    CHECK(allow.events.empty());
+    REQUIRE(allow.events.size() == 1);
+    CHECK(allow.events[0]["type"] == "restriction_added");
     CHECK(allow.value["id"] == "mod:jump_in");
     CHECK(allow.value["phase"] == "allow");
 
@@ -111,6 +112,7 @@ TEST_CASE("restriction_ops: add_restriction rejects a duplicate id") {
 
     CHECK(dup.status == OpStatus::kError);
     CHECK(dup.error.find("duplicate") != std::string::npos);
+    CHECK(dup.events.empty());
     const PlayRestriction* pipeline = GetPipeline(h.store, match);
     REQUIRE(pipeline != nullptr);
     REQUIRE(pipeline->entries.size() == 1);
@@ -157,7 +159,8 @@ TEST_CASE("restriction_ops: remove_restriction drops every matching id") {
         "remove_restriction", json{{"entry_id", "mod:a"}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(result.events.empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "restriction_removed");
     CHECK(result.value["id"] == "mod:a");
     CHECK(result.value["removed"] == 2);
     const PlayRestriction* pipeline = GetPipeline(h.store, match);
@@ -214,6 +217,27 @@ TEST_CASE("restriction_ops: set_active_type writes the match requirement") {
     REQUIRE(req != nullptr);
     REQUIRE(req->type.has_value());
     CHECK(*req->type == "space:shielded");
+}
+
+TEST_CASE("restriction_ops: set_active_type emits only on a real change") {
+    Harness h;
+    AddMatch(h.store);
+
+    const OpResult first =
+        h.Invoke("set_active_type", json{{"type", "green"}});
+    REQUIRE(first.events.size() == 1);
+    CHECK(first.events[0]["payload"]["color"] == "green");
+    CHECK(first.events[0]["payload"]["previous_color"] == "");
+
+    const OpResult same =
+        h.Invoke("set_active_type", json{{"type", "green"}});
+    CHECK(same.status == OpStatus::kResolved);
+    CHECK(same.events.empty());
+
+    const OpResult changed =
+        h.Invoke("set_active_type", json{{"type", "blue"}});
+    REQUIRE(changed.events.size() == 1);
+    CHECK(changed.events[0]["payload"]["previous_color"] == "green");
 }
 
 TEST_CASE("restriction_ops: set_active_type binds a prompt result") {

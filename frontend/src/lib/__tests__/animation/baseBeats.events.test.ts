@@ -130,6 +130,61 @@ describe("mapMatchEventPacket", () => {
 		expect(mapMatchEventPacket(frame(8, "direction_changed", {}))).toBeNull();
 	});
 
+	it("maps turn_skipped to a skip beat with the actor", () => {
+		const beat = mapMatchEventPacket({
+			...frame(9, "turn_skipped", { target: "bob" }),
+			actor: "alice"
+		});
+		expect(beat).toEqual({ seq: 9, kind: "skip", target: "bob", actor: "alice" });
+	});
+
+	it("maps turn_skipped without an actor", () => {
+		const beat = mapMatchEventPacket(frame(9, "turn_skipped", { target: "bob" }));
+		expect(beat).toEqual({ seq: 9, kind: "skip", target: "bob", actor: undefined });
+	});
+
+	it("drops a turn_skipped frame with an invalid payload", () => {
+		expect(mapMatchEventPacket(frame(9, "turn_skipped", {}))).toBeNull();
+	});
+
+	it("maps active_type_changed to an active color beat", () => {
+		const beat = mapMatchEventPacket(
+			frame(10, "active_type_changed", { color: "blue", previous_color: "red" })
+		);
+		expect(beat).toEqual({
+			seq: 10,
+			kind: "active_color",
+			color: "blue",
+			previousColor: "red"
+		});
+	});
+
+	it("drops an active_type_changed frame with an invalid payload", () => {
+		expect(mapMatchEventPacket(frame(10, "active_type_changed", { color: "blue" }))).toBeNull();
+	});
+
+	it.each([
+		["extra_turn_granted", { target: "bob" }],
+		["restriction_added", { restriction_id: "mod:rule", phase: "deny" }],
+		["restriction_removed", { restriction_id: "mod:rule" }],
+		["turn_timer_changed", { target: "bob", duration_ms: 5000 }]
+	])("maps %s to a beat that the client ignores", (type, payload) => {
+		expect(mapMatchEventPacket(frame(11, type, payload))).toEqual({
+			seq: 11,
+			kind: "ignored",
+			eventId: type
+		});
+	});
+
+	it.each([
+		["extra_turn_granted", {}],
+		["restriction_added", { restriction_id: "mod:rule" }],
+		["restriction_removed", {}],
+		["turn_timer_changed", { target: "bob" }]
+	])("drops a %s frame with an invalid payload", (type, payload) => {
+		expect(mapMatchEventPacket(frame(11, type, payload))).toBeNull();
+	});
+
 	it("carries the skipped seats named on turn_advance", () => {
 		const beat = mapMatchEventPacket(
 			frame(10, "turn_advance", {

@@ -109,6 +109,12 @@ components:
     prompt_close: PromptClosePayload
     turn_advance: TurnAdvancePayload
     direction_changed: DirectionChangedPayload
+    turn_skipped: TurnSkippedPayload
+    extra_turn_granted: ExtraTurnGrantedPayload
+    active_type_changed: ActiveTypeChangedPayload
+    restriction_added: RestrictionAddedPayload
+    restriction_removed: RestrictionRemovedPayload
+    turn_timer_changed: TurnTimerChangedPayload
     round_advance: RoundAdvancePayload
     roll_result: RollResultPayload
     outcome_result: OutcomeResultPayload
@@ -1675,6 +1681,80 @@ components:
           description: >
             The play direction after the change: `1` forward, `-1` reverse. The
             envelope `actor` is the seat that caused the change.
+
+    TurnSkippedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that lost its turn. The event marks the turn advance that
+            skips it. The envelope `actor` is the seat that caused the skip.
+
+    ExtraTurnGrantedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that gets an extra turn. The envelope `actor` is the seat
+            that caused it.
+
+    ActiveTypeChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [color, previous_color]
+      properties:
+        color:
+          type: string
+          description: The active color after the change. Empty when cleared.
+        previous_color:
+          type: string
+          description: The active color before the change. Empty when none.
+
+    RestrictionAddedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [restriction_id, phase]
+      properties:
+        restriction_id:
+          type: string
+        phase:
+          type: string
+          enum: ["allow", "deny"]
+          description: >
+            The condition of the restriction is mod data and is never sent.
+
+    RestrictionRemovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [restriction_id]
+      properties:
+        restriction_id:
+          type: string
+
+    TurnTimerChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, duration_ms]
+      description: >
+        A mod changed the turn timer of a seat with the `set_turn_timer` op.
+        Only that op emits this event. The engine arms, suspends, resumes and
+        resets the turn timer every turn and emits nothing for that; the
+        client reads those deadlines from the turn and state packets.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: >
+            The new turn time in milliseconds. It is a relative duration, not
+            an epoch time.
 
     RoundAdvancePayload:
       type: object

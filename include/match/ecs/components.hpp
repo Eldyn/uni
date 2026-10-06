@@ -174,6 +174,8 @@ struct TurnState {
     bool is_current = false;
     int64_t turn_deadline_ms = 0;  /**< absolute epoch ms; 0 = none. */
     uint32_t extra_turns_pending = 0;
+    /** The seat that set the pending skip; empty = the table did. */
+    std::optional<Entity> skip_actor;
 };
 
 // --- status ----------------------------------------------------------------

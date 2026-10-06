@@ -6,6 +6,7 @@ import { StreakTracker } from "./streakTracker";
 import type { LogEvent, LogLine } from "./logEvent";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
+export type SkipInfo = { target: string; actor?: string; seq: number };
 export type TurnInfo = { skipped: string[]; direction: number; seq: number; actor?: string };
 
 type PendingWild = {
@@ -32,6 +33,40 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	let pendingStack: PendingStack | null = null;
 	let seenWinner: string | null = null;
 	const seenPlacements = new Set<string>();
+	// INFO: the turn_skipped event and the turn advance both tell of one skip.
+	//       The event wins: it names the real actor. These ledgers make the
+	//       first line stand for both, in either order of arrival.
+	const announcedSkips = new Map<string, SkipInfo[]>();
+	const skipsLoggedByEvent = new Map<string, number>();
+	const skipsLoggedByGuess = new Map<string, number>();
+
+	function takeCount(ledger: Map<string, number>, seat: string): boolean {
+		const count = ledger.get(seat) ?? 0;
+		if (count === 0) return false;
+		ledger.set(seat, count - 1);
+		return true;
+	}
+
+	function addCount(ledger: Map<string, number>, seat: string): void {
+		ledger.set(seat, (ledger.get(seat) ?? 0) + 1);
+	}
+
+	/** Forgets what a turn advance or a snapshot has settled. A dropped packet
+	 *  then cannot make a stale count swallow a later skip line. */
+	function clearSkipLedgers(): void {
+		announcedSkips.clear();
+		skipsLoggedByEvent.clear();
+		skipsLoggedByGuess.clear();
+	}
+
+	function emitSkip(seq: number, player: string, actor: string | undefined): void {
+		emit({
+			kind: "skip",
+			seq,
+			player: escapeLogText(player),
+			actor: actor ? escapeLogText(actor) : undefined
+		});
+	}
 
 	function emit(event: LogEvent): void {
 		for (const line of buildLogLines(event, tracker.record(event))) post(line);
@@ -110,14 +145,49 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		lastDirection = direction;
 		enqueue(() => {
 			if (reversed) emit({ kind: "reverse", seq });
+			// INFO: the guesses of the turn before are settled; the events of
+			//       this turn are consumed below and settled after.
+			skipsLoggedByGuess.clear();
 			for (const player of skipped) {
-				emit({
-					kind: "skip",
-					seq,
-					player: escapeLogText(player),
-					actor: actor ? escapeLogText(actor) : undefined
-				});
+				if (takeCount(skipsLoggedByEvent, player)) continue;
+				const announced = announcedSkips.get(player)?.shift();
+				if (announced) {
+					emitSkip(announced.seq, player, announced.actor);
+					addCount(skipsLoggedByEvent, player);
+					continue;
+				}
+				emitSkip(seq, player, actor);
+				addCount(skipsLoggedByGuess, player);
 			}
+			announcedSkips.clear();
+			skipsLoggedByEvent.clear();
+		});
+	}
+
+	/**
+	 * Logs a skip from a `turn_skipped` event, with the seat that caused it.
+	 * The `noteTurn` guess for the same skip logs nothing more, and a guess
+	 * that is already logged makes this event log nothing more.
+	 */
+	function noteSkipped(info: SkipInfo): void {
+		const pending = announcedSkips.get(info.target) ?? [];
+		pending.push(info);
+		announcedSkips.set(info.target, pending);
+		enqueue(() => {
+			const announced = announcedSkips.get(info.target)?.shift();
+			if (!announced) return;
+			if (takeCount(skipsLoggedByGuess, info.target)) return;
+			emitSkip(announced.seq, info.target, announced.actor);
+			addCount(skipsLoggedByEvent, info.target);
+		});
+	}
+
+	/** Settles the skip ledgers after the steps that are queued now. The
+	 *  controller calls it for each snapshot. */
+	function settleSkips(): void {
+		enqueue(() => {
+			announcedSkips.clear();
+			skipsLoggedByEvent.clear();
 		});
 	}
 
@@ -220,6 +290,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		pendingStack = null;
 		seenWinner = null;
 		seenPlacements.clear();
+		clearSkipLedgers();
 	}
 
 	return {
@@ -227,6 +298,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteWildColor,
 		noteDirection,
 		noteTurn,
+		noteSkipped,
+		settleSkips,
 		noteDraw,
 		noteDebt,
 		noteReshuffle,

@@ -334,6 +334,33 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "direction_changed") {
         return nlohmann::json{{"direction", body.value("direction", 0)}};
     }
+    if (type == "turn_skipped" || type == "extra_turn_granted") {
+        return nlohmann::json{
+            {"target", body.contains("target")
+                           ? UsernameFor(match, body["target"])
+                           : std::string()}};
+    }
+    if (type == "turn_timer_changed") {
+        return nlohmann::json{
+            {"target", body.contains("target")
+                           ? UsernameFor(match, body["target"])
+                           : std::string()},
+            {"duration_ms", body.value("duration_ms", 0)}};
+    }
+    if (type == "active_type_changed") {
+        return nlohmann::json{
+            {"color", body.value("color", std::string())},
+            {"previous_color", body.value("previous_color", std::string())}};
+    }
+    if (type == "restriction_added") {
+        return nlohmann::json{
+            {"restriction_id", body.value("restriction_id", std::string())},
+            {"phase", body.value("phase", std::string())}};
+    }
+    if (type == "restriction_removed") {
+        return nlohmann::json{
+            {"restriction_id", body.value("restriction_id", std::string())}};
+    }
     if (type == "round_advance") {
         return nlohmann::json{{"round", body.value("round", 0)}};
     }

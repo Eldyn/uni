@@ -174,6 +174,85 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual(["log_reverse"]);
 	});
 
+	it("posts one skip line for a skip event and its turn advance", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip"]);
+	});
+
+	it("posts one skip line when the turn advance comes before the event", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 2, kind: "skip", target: "bob", actor: "me" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip"]);
+	});
+
+	it("posts one skip line when the event comes after the line was posted", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire(skipTurn(["bob"]));
+		await flush();
+		h.fire({ seq: 2, kind: "skip", target: "bob", actor: "me" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip"]);
+	});
+
+	it("posts the skip line from the event when the turn advance is dropped", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip"]);
+	});
+
+	it("posts one skip line for each skipped seat", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
+		h.fire({ seq: 2, kind: "skip", target: "carol", actor: "me" });
+		h.fire(skipTurn(["bob", "carol"]));
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
+	});
+
+	it("logs a later skip after a skip event whose turn advance never came", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
+		await flush();
+		h.controller.syncState();
+		h.fire(skipTurn(["bob"]));
+		await flush();
+
+		expect(partyKeys().filter((key) => key?.startsWith("log_skip"))).toHaveLength(2);
+	});
+
+	it("ignores a turn-flow event that has no presentation", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "ignored", eventId: "restriction_added" });
+		await flush();
+
+		expect(partyKeys()).toEqual([]);
+	});
+
 	it("posts nothing when the player is not in a lobby", async () => {
 		storeLobby.current = null;
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
@@ -339,6 +418,53 @@ describe("matchEventController play log", () => {
 		h.controller.syncState();
 		await flush();
 		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+	});
+
+	it("logs the wild colour reaction from the event, before any snapshot", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "white");
+		const h = harness();
+
+		h.fire({ seq: 21, kind: "play", player: "me", cardId: 2, auto: false });
+		h.fire({ seq: 22, kind: "active_color", color: "green", previousColor: "white" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+	});
+
+	it("logs one wild colour reaction when the snapshot follows the event", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "white");
+		const h = harness();
+
+		h.fire({ seq: 21, kind: "play", player: "me", cardId: 2, auto: false });
+		h.fire({ seq: 22, kind: "active_color", color: "green", previousColor: "white" });
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "green");
+		h.controller.syncState();
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+	});
+
+	it("logs one wild colour reaction when the event follows the snapshot", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "white");
+		const h = harness();
+
+		h.fire({ seq: 21, kind: "play", player: "me", cardId: 2, auto: false });
+		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "green");
+		h.controller.syncState();
+		h.fire({ seq: 22, kind: "active_color", color: "green", previousColor: "white" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+	});
+
+	it("logs no wild reaction for a color change that no wild caused", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 22, kind: "active_color", color: "blue", previousColor: "red" });
+		await flush();
+
+		expect(partyKeys()).toEqual([]);
 	});
 
 	it("logs a reshuffle reaction after the pile is reshuffled", async () => {

@@ -206,4 +206,52 @@ describe("matchEventController — mat ripple ordering", () => {
 		expect(storeMatRipple.toColor).toBe(CARD_COLOR_MAP["green"]);
 		expect(storeMatRipple.fromColor).not.toBe(storeMatRipple.toColor);
 	});
+
+	it("starts the wild ripple from the active_type_changed event, once", () => {
+		storeGame.state = baseState({
+			active_type: "white",
+			top_card: { id: 3, type: "white", value: "wild" }
+		});
+		storeAuth.username = "me";
+		const h = harness();
+		h.fire({ seq: 1, kind: "play", player: "me", cardId: 3, auto: false });
+		storeMatRipple.syncColor(RED);
+		h.land();
+
+		h.fire({ seq: 2, kind: "active_color", color: "green", previousColor: "white" });
+		const rippleToColor = storeMatRipple.toColor;
+		expect(rippleToColor).toBe(CARD_COLOR_MAP["green"]);
+
+		// The snapshot that follows must not start a second ripple.
+		storeMatRipple.active = false;
+		storeGame.state = baseState({
+			active_type: "green",
+			top_card: { id: 3, type: "white", value: "wild" }
+		});
+		h.controller.syncState();
+		expect(storeMatRipple.active).toBe(false);
+	});
+
+	it("starts the wild ripple once when the snapshot comes before the event", () => {
+		storeGame.state = baseState({
+			active_type: "white",
+			top_card: { id: 3, type: "white", value: "wild" }
+		});
+		storeAuth.username = "me";
+		const h = harness();
+		h.fire({ seq: 1, kind: "play", player: "me", cardId: 3, auto: false });
+		storeMatRipple.syncColor(RED);
+		h.land();
+
+		storeGame.state = baseState({
+			active_type: "green",
+			top_card: { id: 3, type: "white", value: "wild" }
+		});
+		h.controller.syncState();
+		expect(storeMatRipple.active).toBe(true);
+
+		storeMatRipple.active = false;
+		h.fire({ seq: 2, kind: "active_color", color: "green", previousColor: "white" });
+		expect(storeMatRipple.active).toBe(false);
+	});
 });

@@ -96,9 +96,25 @@ export function createMatchEventBeatController(deps: {
 	let lastPlayedBy: string | null = null;
 	function resetPlayLog(): void {
 		playLog.reset();
+		skipsPresentedByTurn.clear();
+		skipsPresentedByEvent.clear();
 		lastPlayedBy = null;
 		prevPendingPlayer = null;
 		pendingResolvedByPlay = false;
+	}
+	// INFO: the turn_skipped event and the turn advance both tell of one skip.
+	//       The first to arrive presents the X mark and plays the sound; the
+	//       second one only settles the ledger.
+	const skipsPresentedByTurn = new Map<string, number>();
+	const skipsPresentedByEvent = new Map<string, number>();
+	function takeSkipCount(ledger: Map<string, number>, seat: string): boolean {
+		const count = ledger.get(seat) ?? 0;
+		if (count === 0) return false;
+		ledger.set(seat, count - 1);
+		return true;
+	}
+	function addSkipCount(ledger: Map<string, number>, seat: string): void {
+		ledger.set(seat, (ledger.get(seat) ?? 0) + 1);
 	}
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
@@ -1218,6 +1234,7 @@ export function createMatchEventBeatController(deps: {
 	 *  highlight until the marks clear (click-to-skip ends it early). A no-op
 	 *  when animations are disabled, so the turn simply moves on. */
 	function handleTurn(beat: Extract<MatchEventBeat, { kind: "turn" }>): void {
+		skipsPresentedByTurn.clear();
 		const cueFires = shouldFireTurnCue({
 			previousTurn: beat.from || null,
 			currentTurn: beat.to,
@@ -1234,14 +1251,61 @@ export function createMatchEventBeatController(deps: {
 			seq: beat.seq,
 			actor: lastPlayedBy ?? undefined
 		});
-		if (beat.skipped.length === 0) return;
-		const localSkipped = beat.skipped.includes(storeGame.localPlayer?.username ?? "");
+		if (beat.skipped.length === 0) {
+			skipsPresentedByEvent.clear();
+			return;
+		}
+		const freshSkips = beat.skipped.filter((seat) => {
+			if (takeSkipCount(skipsPresentedByEvent, seat)) return false;
+			addSkipCount(skipsPresentedByTurn, seat);
+			return true;
+		});
+		skipsPresentedByEvent.clear();
+		if (freshSkips.length === 0) {
+			// The events already presented the marks; only gate the highlight.
+			if (storeTurnSkip.marks.length > 0) storeTurnSkip.presentingTurn = beat.from || null;
+			return;
+		}
+		presentSkips(beat.from, freshSkips);
+	}
+
+	/** Plays the skip sound and stamps the X over the skipped seats. */
+	function presentSkips(from: string, skippedSeats: string[]): void {
+		const localSkipped = skippedSeats.includes(storeGame.localPlayer?.username ?? "");
 		playBoardSfx("sfx.invalid", {
 			gain: localSkipped && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
 		});
 		if (!storeAnimation.enabled) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
-		storeTurnSkip.present(beat.from, beat.skipped, durationMs);
+		const keptMarks = storeTurnSkip.marks.filter((seat) => !skippedSeats.includes(seat));
+		storeTurnSkip.present(from, [...keptMarks, ...skippedSeats], durationMs);
+	}
+
+	/** Logs and presents a skip from the `turn_skipped` event. The `turn_advance`
+	 *  that follows names the same seat and presents nothing more. */
+	function handleSkip(beat: Extract<MatchEventBeat, { kind: "skip" }>): void {
+		playLog.noteSkipped({ target: beat.target, actor: beat.actor, seq: beat.seq });
+		if (takeSkipCount(skipsPresentedByTurn, beat.target)) return;
+		addSkipCount(skipsPresentedByEvent, beat.target);
+		presentSkips(storeGame.state?.current_turn ?? "", [beat.target]);
+	}
+
+	/** Starts the wild ripple and logs the wild line from the `active_type_changed`
+	 *  event. The snapshot path in `syncState` stays as the fallback and finds the
+	 *  ripple already started. */
+	function handleActiveColor(beat: Extract<MatchEventBeat, { kind: "active_color" }>): void {
+		if (!beat.color || beat.color === "white") return;
+		playLog.noteWildColor(beat.color);
+		if (!pendingWildRipple) return;
+		const { originUv, maxRadius } = pendingWildRipple;
+		pendingWildRipple = null;
+		playBoardSfx("sfx.table.mat-color");
+		storeMatRipple.startMatRipple(
+			CARD_COLOR_MAP[beat.color] ?? MAT_INITIAL_COLOR,
+			"wild",
+			originUv,
+			maxRadius
+		);
 	}
 
 	/** Snaps every board animation to its end state and drops turn motion still
@@ -1279,6 +1343,14 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "direction":
 				handleDirection(beat);
+				return;
+			case "skip":
+				handleSkip(beat);
+				return;
+			case "active_color":
+				handleActiveColor(beat);
+				return;
+			case "ignored":
 				return;
 			case "hands_swap":
 				handleHandTransfers(
@@ -1418,6 +1490,8 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		deps.bus.setActiveType(state.active_type as CardType);
+		skipsPresentedByEvent.clear();
+		playLog.settleSkips();
 
 		lastLocalHandCards = new Map(
 			(state.players?.find((p) => p.username === resolveLocalUsername(state))?.hand ?? []).map(

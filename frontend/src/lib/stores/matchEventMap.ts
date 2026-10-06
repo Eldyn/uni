@@ -16,7 +16,13 @@ import {
 	StatusAppliedPayloadSchema,
 	AutoPlayedPayloadSchema,
 	TurnAdvancePayloadSchema,
-	DirectionChangedPayloadSchema
+	DirectionChangedPayloadSchema,
+	TurnSkippedPayloadSchema,
+	ExtraTurnGrantedPayloadSchema,
+	ActiveTypeChangedPayloadSchema,
+	RestrictionAddedPayloadSchema,
+	RestrictionRemovedPayloadSchema,
+	TurnTimerChangedPayloadSchema
 } from "$lib/generated/schemas";
 
 /**
@@ -77,6 +83,17 @@ export type MatchEventBeat =
 	| { seq: number; kind: "direction"; direction: number }
 	| {
 			seq: number;
+			kind: "skip";
+			/** The seat that lost its turn. */
+			target: string;
+			/** The seat that caused the skip; absent for a system skip. */
+			actor?: string;
+	  }
+	| { seq: number; kind: "active_color"; color: string; previousColor: string }
+	/** A client event that has no presentation yet; the controller ignores it. */
+	| { seq: number; kind: "ignored"; eventId: string }
+	| {
+			seq: number;
 			kind: "toast";
 			target: string;
 			statusKind: string;
@@ -97,7 +114,7 @@ export type MatchEventBeat =
 export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 	const envelope = MatchEventPayloadSchema.safeParse(raw);
 	if (!envelope.success) return null;
-	const { seq, type, payload } = envelope.data;
+	const { seq, type, payload, actor } = envelope.data;
 
 	switch (type) {
 		case "card_played": {
@@ -201,7 +218,35 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				instanceId: parsed.data.instance_id
 			};
 		}
+		case "turn_skipped": {
+			const parsed = TurnSkippedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "skip", target: parsed.data.target, actor };
+		}
+		case "active_type_changed": {
+			const parsed = ActiveTypeChangedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return {
+				seq,
+				kind: "active_color",
+				color: parsed.data.color,
+				previousColor: parsed.data.previous_color
+			};
+		}
+		case "extra_turn_granted":
+			return ignoredBeat(seq, type, ExtraTurnGrantedPayloadSchema.safeParse(payload).success);
+		case "restriction_added":
+			return ignoredBeat(seq, type, RestrictionAddedPayloadSchema.safeParse(payload).success);
+		case "restriction_removed":
+			return ignoredBeat(seq, type, RestrictionRemovedPayloadSchema.safeParse(payload).success);
+		case "turn_timer_changed":
+			return ignoredBeat(seq, type, TurnTimerChangedPayloadSchema.safeParse(payload).success);
 		default:
 			return null;
 	}
+}
+
+/** The beat of a valid client event that the client has no presentation for. */
+function ignoredBeat(seq: number, eventId: string, valid: boolean): MatchEventBeat | null {
+	return valid ? { seq, kind: "ignored", eventId } : null;
 }
