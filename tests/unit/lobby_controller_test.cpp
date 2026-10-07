@@ -1007,6 +1007,42 @@ TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
     CHECK(lp->settings.deck.value("id", "") == "classic");
 }
 
+TEST_CASE("start: toggled rule mods apply beside a selected deck") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+
+    // INFO: reproduce the production shape - a deck snapshot is selected, then
+    //       a rule is toggled on top of it. The rule must reach the match.
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-deck"},
+             {"deck_id", "vanilla:classic"}});
+    f.router.Dispatch(
+        f.actx(),
+        json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+             {"request_id", "req-rule"},
+             {"active_mods", json::array({"draw_stacking"})}});
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+
+    std::vector<std::string> ids;
+    for (const match::ecs::ModRef& mod :
+         lp->session->Engine().Registries().mods) {
+        ids.push_back(mod.id);
+    }
+    CHECK(std::find(ids.begin(), ids.end(), "vanilla") != ids.end());
+    CHECK(std::find(ids.begin(), ids.end(), "draw_stacking") != ids.end());
+}
+
 } // TEST_SUITE
 
 // ---------------------------------------------------------------------------

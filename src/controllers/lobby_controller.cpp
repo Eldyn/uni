@@ -89,8 +89,8 @@ match::modload::DeckDef DeckDefFromSnapshot(const json& deck) {
  *
  * Freestyle lobbies carry no deck snapshot, so the pool is rebuilt from the
  * legacy scalar `count_*` fields (mirroring `MatchInstance::GenerateDeck`)
- * with the kind ids of `mods/vanilla/decks/classic.json`. Any `active_mods`
- * rule selection is appended after `vanilla` so the base cards stay present.
+ * with the kind ids of `mods/vanilla/decks/classic.json`. The base mod is
+ * seeded here; the lobby's toggled `active_mods` are appended by the caller.
  *
  * @param settings Lobby settings holding the `count_*` tuning.
  * @return DeckDef The synthesized freestyle deck.
@@ -103,10 +103,6 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
     def.namespace_id = "vanilla";
     def.deck_id = "vanilla:classic";
     def.mods.push_back("vanilla");
-    for (const std::string& mod : settings.active_mods) {
-        if (mod == "vanilla") continue;
-        def.mods.push_back(mod);
-    }
 
     for (const char* color : {"red", "blue", "green", "yellow"}) {
         const std::string prefix = std::string("vanilla:") + color + "_";
@@ -136,12 +132,33 @@ match::modload::DeckDef SynthesizeFreestyleDeck(
  * @param settings Lobby settings to resolve.
  * @return DeckDef The resolved deck definition, always carrying a mod list.
  */
+/**
+ * @brief Appends the lobby's toggled rule mods to a resolved deck.
+ *
+ * Rule toggles live in `active_mods` and are independent of the deck snapshot,
+ * so they are merged onto whichever deck was resolved. The base mod skips the
+ * list, and a mod already present is not added twice.
+ *
+ * @param def      Deck to extend (mutated in place).
+ * @param settings Lobby settings holding `active_mods`.
+ */
+void AppendActiveMods(match::modload::DeckDef& def,
+                      const LobbySettings& settings) {
+    for (const std::string& mod : settings.active_mods) {
+        if (mod == "vanilla") continue;
+        if (std::ranges::find(def.mods, mod) == def.mods.end()) {
+            def.mods.push_back(mod);
+        }
+    }
+}
+
 match::modload::DeckDef ResolveMatchDeck(const LobbySettings& settings) {
     match::modload::DeckDef def =
         DeckSnapshotHasCards(settings.deck)
             ? DeckDefFromSnapshot(settings.deck)
             : SynthesizeFreestyleDeck(settings);
     if (def.mods.empty()) def.mods.push_back("vanilla");
+    AppendActiveMods(def, settings);
     return def;
 }
 
@@ -1660,6 +1677,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
             ? DeckDefFromSnapshot(lobby.settings.deck)
             : SynthesizeFreestyleDeck(lobby.settings);
     if (deck_def.mods.empty()) deck_def.mods.push_back("vanilla");
+    AppendActiveMods(deck_def, lobby.settings);
 
     // INFO: fail closed at the match boundary: every mod the deck
     //       requires must be present and valid, otherwise a mod that failed
