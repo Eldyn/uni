@@ -9,6 +9,12 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-07
+
+### Fixed
+
+- **Toggled rule mods now reach the match.** A production lobby always starts from the classic deck snapshot, and the server added the toggled rules (`draw_stacking`, `seven_zero`, `jump_in` and the rest) to the deck only on the freestyle path. Every toggled rule was therefore dropped before assembly: the mods loaded and validated, but the match played as standard UNI. The server now adds `active_mods` to whichever deck it resolves, so the classic deck and the rules work together. A development lobby has no deck snapshot, which is why the bug never appeared locally.
+
 ## [0.6.0] - 2026-10-05
 
 UI Glow Up, 3D Table, 16 Players! The table is now a 3D scene, a match can hold up to 16 players, and nearly every screen around the game got reworked to match.
@@ -513,7 +519,8 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/Eldyn/uni/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Eldyn/uni/compare/v0.5.5...v0.6.0
 [0.5.0]: https://github.com/Eldyn/uni/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/Eldyn/uni/compare/v0.4.7...v0.4.8
