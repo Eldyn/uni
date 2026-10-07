@@ -773,7 +773,7 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     }
 
     // INFO: one legality authority per snapshot; `can_play` is derived from it
-    //replacing the deleted view-local copy.
+    // replacing the deleted view-local copy.
     const match::engine::PlayEvaluator evaluator = match.MakePlayEvaluator();
 
     json players = json::array();

@@ -451,9 +451,9 @@ OpResult OpSetTurnTimer(ecs::EntityStore& store, const OpArgs& args,
 
     ecs::TurnState* turn = EnsureTurnState(store, *target);
     if (turn == nullptr) return OpResult::Resolved();
-    // TODO: The timer subsystem converts this ms duration into an
-    //            absolute deadline and owns expiry; the op layer records the ms
-    //            value only and never reads a clock.
+    // TODO(eldyn): The timer subsystem converts this ms duration into an
+    //   absolute deadline and owns expiry; the op layer records the ms value
+    //   only and never reads a clock.
     turn->turn_deadline_ms = spec.value;
     return OpResult::Resolved(
         json{{"target", EntityJson(*target)},
