@@ -771,6 +771,9 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
     std::string type;
     json payload;
     if (!DescriptorBody(engine_event, type, payload)) return std::nullopt;
+    if (type == "mod_event") {
+        return WrapModEvent(engine_event, payload, viewer, sink);
+    }
     const std::optional<json> projected =
         IsFilteredType(type) ? ProjectFiltered(*this, type, payload, viewer)
                              : ProjectPublicEvent(type, payload, match_);
@@ -785,6 +788,22 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
     return sink.WrapEngineEvent(
         type, ProjectForViewer(match_, type, *projected, roles, viewer),
         engine_event);
+}
+
+std::optional<nlohmann::json> ViewBuilder::WrapModEvent(
+    const nlohmann::json& engine_event, const nlohmann::json& body,
+    const Viewer& viewer, EventSink& sink) const {
+    const json frame = engine_event.value("causal_frame", json::object());
+    const std::string actor =
+        frame.contains("actor") && frame["actor"].is_string()
+            ? frame["actor"].get<std::string>()
+            : std::string();
+    json envelope = sink.WrapEngineEvent(
+        "mod_event", ProjectModEventForViewer(match_, body, actor, viewer),
+        engine_event);
+    // INFO: the wire `type` stays `mod_event`; the `id` names the mod event.
+    envelope["id"] = body.value("id", std::string());
+    return envelope;
 }
 
 nlohmann::json ViewBuilder::BuildTail(const Viewer& viewer,

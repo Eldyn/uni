@@ -1,5 +1,8 @@
 #include "match/modload/semantic_validator.hpp"
 
+#include "logger.hpp"
+#include "match/modload/base_mod.hpp"
+#include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
 #include "match/modload/vocabulary.hpp"
 
@@ -599,6 +602,7 @@ struct Buckets {
     std::vector<LoadError> selector;
     std::vector<LoadError> tables;
     std::vector<LoadError> entities;
+    std::vector<LoadError> events;
     std::vector<LoadError> presentations;
     std::vector<LoadError> outcome;
     std::vector<LoadError> asset;
@@ -640,6 +644,7 @@ class Checker {
         CheckConflicts();
         CheckDeck();
         CheckEntities();
+        CheckEvents();
         CheckPresentations();
         CheckOutcomeResolvers();
         CheckAssetDependencies();
@@ -685,6 +690,9 @@ class Checker {
             for (const auto& table : mod->tables) {
                 table_ids_.insert(table.table_id);
             }
+            for (const auto& event : mod->events) {
+                event_ids_.insert(event.event_id);
+            }
         }
     }
 
@@ -705,6 +713,13 @@ class Checker {
                 const std::string entry_id = id->get<std::string>();
                 /* INFO: syntax is reported by CheckRestrictionEntry. */
                 if (!IsValidKindId(entry_id)) continue;
+                const std::string violation =
+                    NamespaceRuleViolation(ns, entry_id);
+                if (!violation.empty()) {
+                    buckets_.ids.push_back(Err(
+                        "id.namespace", artifact,
+                        ArtifactPathFor(ns, artifact + ".json"), violation));
+                }
                 if (!restriction_ids_.insert(entry_id).second) {
                     buckets_.ids.push_back(Err(
                         "id.duplicate", artifact,
@@ -898,6 +913,45 @@ class Checker {
                                 + inserted.first->second + "' and '"
                                 + component.name + "')"));
                     }
+                }
+            }
+        }
+    }
+
+    /* INFO: the namespace rule, unique ids and non-empty field names. The
+     *       closed word lists are the schema's job (check 1). */
+    void CheckEvents() {
+        std::set<std::string> seen;
+        for (const LoadedMod* mod : mods_) {
+            for (const auto& event : mod->events) {
+                const std::string path =
+                    mod->path + "/events/" + event.id + ".json";
+                const std::string violation =
+                    NamespaceRuleViolation(mod->manifest.id, event.event_id);
+                if (!violation.empty()) {
+                    buckets_.events.push_back(
+                        Err("event.id.namespace", "events", path, violation));
+                }
+                if (!seen.insert(event.event_id).second) {
+                    buckets_.events.push_back(Err(
+                        "event.id.duplicate", "events", path,
+                        "duplicate event id '" + event.event_id + "'"));
+                }
+                for (const auto& field : event.fields) {
+                    if ((field.name == event_keys::kTargetRole
+                         || field.name == event_keys::kOwnerRole)
+                        && field.type != event_keys::kSeatType) {
+                        buckets_.events.push_back(Err(
+                            "event.field.role_type", "events", path,
+                            "event '" + event.event_id + "' field '"
+                                + field.name
+                                + "' names a seat role and must be a seat"));
+                    }
+                    if (IsValidLocalId(field.name)) continue;
+                    buckets_.events.push_back(Err(
+                        "event.field.name", "events", path,
+                        "event '" + event.event_id + "' field '" + field.name
+                            + "' must match [a-z0-9_]+ (1-32)"));
                 }
             }
         }
@@ -1882,6 +1936,15 @@ class Checker {
                     CheckTableRef(value.get<std::string>(), ctx.ns, ctx);
                 }
                 break;
+            case ArgType::kEventRef:
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be an event id"));
+                } else {
+                    CheckEventRef(value.get<std::string>(), ctx);
+                }
+                break;
             case ArgType::kBindingName: {
                 // INFO: `^\$?[a-z0-9_]+$`; the leading `$` is
                 //       optional (a bare name is still a frame key, never a
@@ -2269,6 +2332,26 @@ class Checker {
         CheckReference(raw, ns, table_ids_, "ref.table", "table", ctx);
     }
 
+    /* INFO: a mod emits only events of its own namespace, so a rule cannot
+     *       forge a `uni:` event. The id must be defined in the active set. */
+    void CheckEventRef(const std::string& raw, const GraphCtx& ctx) {
+        if (!IsValidKindId(raw)) {
+            buckets_.refs.push_back(Err("ref.event", ctx.artifact, ctx.path,
+                                        "malformed event ref '" + raw + "'"));
+            return;
+        }
+        if (RefNamespace(raw) != ctx.ns) {
+            buckets_.refs.push_back(Err(
+                "ref.event.namespace", ctx.artifact, ctx.path,
+                "mod '" + ctx.ns + "' cannot emit event '" + raw
+                    + "' of another namespace"));
+            return;
+        }
+        if (event_ids_.count(raw)) return;
+        buckets_.refs.push_back(Err("ref.event", ctx.artifact, ctx.path,
+                                    "unresolved event ref '" + raw + "'"));
+    }
+
     void CheckConflicts() {
         for (const auto& [target, list] : mutations_by_target_) {
             const MutationDef* repl = nullptr;
@@ -2467,6 +2550,7 @@ class Checker {
     std::set<std::string> tags_;
     std::set<std::string> restriction_ids_;
     std::set<std::string> table_ids_;
+    std::set<std::string> event_ids_;
     std::vector<std::pair<std::string, std::string>> removed_restrictions_;
     std::map<std::string, std::vector<const MutationDef*>> mutations_by_target_;
 };
@@ -2611,6 +2695,15 @@ std::vector<LoadError> SchemaErrors(
                 errors.insert(errors.end(), local.begin(), local.end());
             }
         }
+        if (!mod->events.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kEvents);
+            for (const auto& event : mod->events) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, event.raw, "events",
+                    base + "/events/" + event.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
         if (!mod->presentations.empty()) {
             /* INFO: presentations are one definition per file;
              *       semantic checks (kind/target/trigger) report the rest. */
@@ -2635,6 +2728,53 @@ std::vector<LoadError> SchemaErrors(
 
 }  // namespace
 
+namespace {
+
+/* INFO: runs the stages of `kValidationStageOrder` in order. Inside a stage
+ *       the errors of the base mod come first. The "streaks" and "texts"
+ *       stages have no checks yet; they keep their place in the order. */
+std::vector<LoadError> FirstFailingStage(
+    const Buckets& buckets, const std::vector<const LoadedMod*>& mods) {
+    std::string base_prefix;
+    for (const LoadedMod* mod : mods) {
+        if (IsBaseModId(mod->manifest.id)) base_prefix = mod->path + "/";
+    }
+    const auto base_first = [&](std::vector<LoadError> errors) {
+        std::stable_partition(
+            errors.begin(), errors.end(), [&](const LoadError& error) {
+                return !base_prefix.empty()
+                       && error.path.rfind(base_prefix, 0) == 0;
+            });
+        return errors;
+    };
+    const std::vector<const std::vector<LoadError>*> old_style_kinds = {
+        &buckets.ids,       &buckets.refs,      &buckets.tables,
+        &buckets.ops,       &buckets.graph,     &buckets.conflicts,
+        &buckets.deck,      &buckets.selector,  &buckets.entities,
+        &buckets.outcome,   &buckets.asset};
+    for (const std::string_view stage : kValidationStageOrder) {
+        std::vector<LoadError> found;
+        if (stage == "uni") {
+            for (const auto* list : old_style_kinds) {
+                if (!list->empty()) {
+                    found = *list;
+                    break;
+                }
+            }
+        } else if (stage == "events") {
+            found = buckets.events;
+        } else if (stage == "presentations") {
+            found = buckets.presentations;
+        }
+        // TODO: the "streaks" stage lands with the streak ticket and the
+        //       "texts" stage with the texts ticket.
+        if (!found.empty()) return base_first(std::move(found));
+    }
+    return {};
+}
+
+}  // namespace
+
 std::vector<LoadError> SemanticValidator::ValidateMod(
     const LoadedMod& mod) const {
     std::vector<const LoadedMod*> mods = {&mod};
@@ -2644,17 +2784,7 @@ std::vector<LoadError> SemanticValidator::ValidateMod(
 
     Checker checker(mods, /*match_set=*/false, nullptr);
     checker.Run();
-    const Buckets& buckets = checker.buckets();
-    const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.tables,
-        &buckets.ops,
-        &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector,  &buckets.entities, &buckets.presentations,
-        &buckets.outcome,   &buckets.asset};
-    for (const auto* list : order) {
-        if (!list->empty()) return *list;
-    }
-    return {};
+    return FirstFailingStage(checker.buckets(), mods);
 }
 
 std::vector<LoadError> SemanticValidator::ValidateMatchSet(
@@ -2670,17 +2800,39 @@ std::vector<LoadError> SemanticValidator::ValidateMatchSet(
 
     Checker checker(mod_ptrs, /*match_set=*/true, &deck);
     checker.Run();
-    const Buckets& buckets = checker.buckets();
-    const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.tables,
-        &buckets.ops,
-        &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector,  &buckets.entities, &buckets.presentations,
-        &buckets.outcome,   &buckets.asset};
-    for (const auto* list : order) {
-        if (!list->empty()) return *list;
+    return FirstFailingStage(checker.buckets(), mod_ptrs);
+}
+
+void ValidateLoadedMods(LoadResult& result,
+                        const SemanticValidator& validator) {
+    const SemanticValidator::CompiledSchema& mod_schema =
+        validator.Schema(schema_files::kMod);
+    if (mod_schema.missing) {
+        Logger::Error("[Mods] schema directory unreadable; the validation ",
+                      "stages are skipped: ", mod_schema.error);
+        return;
     }
-    return {};
+    std::vector<LoadedMod> kept;
+    for (LoadedMod& mod : result.mods) {
+        std::vector<LoadError> errors = validator.ValidateMod(mod);
+        if (errors.empty()) {
+            kept.push_back(std::move(mod));
+            continue;
+        }
+        for (ModReport& report : result.reports) {
+            if (report.mod_id == mod.manifest.id) {
+                report.ok = false;
+                report.errors.insert(report.errors.end(), errors.begin(),
+                                     errors.end());
+            }
+        }
+        for (const LoadError& error : errors) {
+            Logger::Error("[Mods] rejected '", mod.manifest.id, "': ",
+                          error.check, " ", error.message);
+            result.errors.push_back(error);
+        }
+    }
+    result.mods = std::move(kept);
 }
 
 }  // namespace match::modload

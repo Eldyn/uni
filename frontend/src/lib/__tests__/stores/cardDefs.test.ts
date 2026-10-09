@@ -232,3 +232,58 @@ describe("storeCardDefs kind table", () => {
 		expect(storeCardDefs.lookupByStringId("uni:red_0")?.face.label).toBe("0");
 	});
 });
+
+describe("storeCardDefs cache key", () => {
+	beforeEach(() => {
+		storeCardDefs.reset();
+	});
+
+	function withMods(digest: string, mods: Record<string, unknown>[]) {
+		return { defs_digest: digest, mods, kinds: [] };
+	}
+
+	it("builds the key from the id, version and hash of every mod", () => {
+		storeCardDefs.ingestDefs(
+			withMods("d1", [
+				{ id: "uni", version: "1.0.0", hash: "aa", index: 0 },
+				{ id: "test", version: "2.0.0", hash: "bb", index: 1 }
+			])
+		);
+		expect(storeCardDefs.cacheKey).toBe("uni@1.0.0#aa|test@2.0.0#bb");
+	});
+
+	it("keeps the key and the generation for the same version and hash", () => {
+		const mods = [{ id: "uni", version: "1.0.0", hash: "aa", index: 0 }];
+		storeCardDefs.ingestDefs(withMods("d1", mods));
+		const generation = storeCardDefs.cacheGeneration;
+		storeCardDefs.ingestDefs(withMods("d1", mods));
+		expect(storeCardDefs.cacheGeneration).toBe(generation);
+	});
+
+	it("invalidates when the hash changes", () => {
+		storeCardDefs.ingestDefs(withMods("d1", [{ id: "uni", version: "1", hash: "aa", index: 0 }]));
+		const generation = storeCardDefs.cacheGeneration;
+		const key = storeCardDefs.cacheKey;
+		storeCardDefs.ingestDefs(withMods("d2", [{ id: "uni", version: "1", hash: "ab", index: 0 }]));
+		expect(storeCardDefs.cacheKey).not.toBe(key);
+		expect(storeCardDefs.cacheGeneration).toBe(generation + 1);
+	});
+
+	it("invalidates when the version changes", () => {
+		storeCardDefs.ingestDefs(withMods("d1", [{ id: "uni", version: "1", hash: "aa", index: 0 }]));
+		const generation = storeCardDefs.cacheGeneration;
+		storeCardDefs.ingestDefs(withMods("d2", [{ id: "uni", version: "2", hash: "aa", index: 0 }]));
+		expect(storeCardDefs.cacheGeneration).toBe(generation + 1);
+	});
+
+	it("accepts a server that sends no hash", () => {
+		storeCardDefs.ingestDefs(withMods("d1", [{ id: "uni", version: "1", index: 0 }]));
+		expect(storeCardDefs.cacheKey).toBe("uni@1#");
+	});
+
+	it("clears the key on reset", () => {
+		storeCardDefs.ingestDefs(withMods("d1", [{ id: "uni", version: "1", hash: "aa", index: 0 }]));
+		storeCardDefs.reset();
+		expect(storeCardDefs.cacheKey).toBeNull();
+	});
+});

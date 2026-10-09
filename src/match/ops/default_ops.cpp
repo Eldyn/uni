@@ -73,6 +73,7 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         {"add_placement", &detail::OpAddPlacement},
         // scheduling and meta.
         {"emit_signal", &detail::OpEmitSignal},
+        {"emit_event", &detail::OpEmitEvent},
         {"call_original", &detail::OpCallOriginal},
     };
 

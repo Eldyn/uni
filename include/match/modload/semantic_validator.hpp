@@ -3,8 +3,10 @@
 #include "match/modload/artifacts.hpp"
 #include "match/modload/restriction.hpp"
 
+#include <array>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /**
@@ -43,7 +45,19 @@ inline constexpr const char* kDeck = "deck.schema.json";
 inline constexpr const char* kTables = "tables.schema.json";
 inline constexpr const char* kEntities = "entities.schema.json";
 inline constexpr const char* kPresentations = "presentations.schema.json";
+inline constexpr const char* kEvents = "events.schema.json";
 }  // namespace schema_files
+
+/**
+ * @brief The order of the validation stages. The first stage that reports an
+ *        error ends the run.
+ *
+ * "uni" holds the checks of the old-style kinds; the errors of the `uni` mod
+ * come first inside every stage. "streaks" and "texts" are later tickets: the
+ * slots keep their place and have no checks yet.
+ */
+inline constexpr std::array<std::string_view, 5> kValidationStageOrder = {
+    "uni", "events", "streaks", "presentations", "texts"};
 
 /**
  * @struct SchemaViolation
@@ -143,5 +157,20 @@ class SemanticValidator {
     std::string schema_dir_;
     mutable std::map<std::string, CompiledSchema> schema_cache_;
 };
+
+/**
+ * @brief Runs the ordered validation stages on every loaded mod and removes
+ *        the mods that fail.
+ *
+ * A failing mod leaves `result.mods`; its errors join `result.errors` and its
+ * report turns `ok = false`. A schema directory that cannot be read is logged
+ * and the stages are skipped (the loader checks stay in force), so a
+ * deployment mistake cannot remove every mod.
+ *
+ * @param result    The scan result to check; changed in place.
+ * @param validator The validator with the schema directory.
+ */
+void ValidateLoadedMods(LoadResult& result,
+                        const SemanticValidator& validator);
 
 }  // namespace match::modload

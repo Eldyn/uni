@@ -138,7 +138,7 @@ export type MatchEventBeat =
 export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 	const envelope = MatchEventPayloadSchema.safeParse(raw);
 	if (!envelope.success) return null;
-	const { seq, type, payload, actor } = envelope.data;
+	const { seq, type, payload, actor, id } = envelope.data;
 
 	switch (type) {
 		case "card_played": {
@@ -298,6 +298,10 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 			return ignoredBeat(seq, type, CardRemovedPayloadSchema.safeParse(payload).success);
 		case "card_replaced":
 			return ignoredBeat(seq, type, CardReplacedPayloadSchema.safeParse(payload).success);
+		case "mod_event":
+			// A mod event names itself in the envelope `id`. No presentation
+			// exists yet, so the client ignores it without a stall.
+			return id ? { seq, kind: "ignored", eventId: id } : null;
 		default:
 			return null;
 	}

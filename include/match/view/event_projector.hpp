@@ -66,6 +66,25 @@ bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
                       ecs::Entity card, const Viewer& viewer);
 
 /**
+ * @brief Project the payload of a mod event for one viewer.
+ *
+ * Reads the field audiences from the event definition in the match
+ * registries. A field that the definition does not declare, or declares with
+ * the audience `none`, is never sent. The target role is the seat in the field
+ * `target`; the owner role is the seat in the field `owner`.
+ *
+ * @param match       The live match.
+ * @param engine_body Engine descriptor body: `{id, payload, retention}`.
+ * @param actor       Username from the causal frame; empty for none.
+ * @param viewer      The recipient.
+ * @return The fields this viewer may see; an empty object for none.
+ */
+nlohmann::json ProjectModEventForViewer(
+    const match::engine::MatchInstance& match,
+    const nlohmann::json& engine_body, const std::string& actor,
+    const Viewer& viewer);
+
+/**
  * @brief Project a wire payload for one viewer.
  *
  * Drops every undeclared field and every field outside its audience. Drops

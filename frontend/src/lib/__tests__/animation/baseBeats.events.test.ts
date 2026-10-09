@@ -244,6 +244,25 @@ describe("mapMatchEventPacket", () => {
 		});
 	});
 
+	it("maps a mod event to an ignored beat that names the mod event id", () => {
+		expect(
+			mapMatchEventPacket({
+				...frame(12, "mod_event", { target: "alice", count: 3 }),
+				id: "my_mod:apple_eaten"
+			})
+		).toEqual({ seq: 12, kind: "ignored", eventId: "my_mod:apple_eaten" });
+	});
+
+	it("maps a mod event with an empty payload to an ignored beat", () => {
+		expect(
+			mapMatchEventPacket({ ...frame(13, "mod_event", {}), id: "my_mod:secret_only" })
+		).toEqual({ seq: 13, kind: "ignored", eventId: "my_mod:secret_only" });
+	});
+
+	it("ignores a mod event that has no id", () => {
+		expect(mapMatchEventPacket(frame(14, "mod_event", {}))).toBeNull();
+	});
+
 	it.each([
 		["extra_turn_granted", {}],
 		["restriction_added", { restriction_id: "mod:rule" }],

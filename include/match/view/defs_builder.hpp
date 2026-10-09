@@ -32,8 +32,10 @@ public:
     /**
      * @brief Build the `defs` packet from frozen registries.
      *
-     * Shape: `{defs_digest, mods: [{id, version, index}],
-     * kinds: [{index, string_id, face, tags}]}`. `mods` follows the frozen
+     * Shape: `{defs_digest, mods: [{id, version, hash, index}],
+     * kinds: [{index, string_id, face, tags}], events: [...]}`. `hash` is the
+     * SHA-256 content hash of the mod folder (`mod_hash.hpp`); the client cache
+     * is keyed by `version` and `hash`. `mods` follows the frozen
      * priority order; `kinds` is grouped by mod in that order and each kind's
      * `index` is its `kind_index` within its owning mod. The mod a
      * kind belongs to is the namespace prefix of `string_id`.
@@ -49,7 +51,8 @@ public:
     /**
      * @brief Recompute the FNV-1a digest a `defs` payload advertises.
      *
-     * Digests the `mods` + `kinds` + `entities` + `presentations` subtrees
+     * Digests the `mods` + `kinds` + `entities` + `presentations` + `events`
+     * subtrees
      * only, so setting or clearing `defs_digest` does not change the result.
      *
      * @param defs_payload A payload produced by `Build`.

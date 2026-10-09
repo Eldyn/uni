@@ -1,0 +1,14 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:event": {
+    "uni:description": { "uni:identifier": "test:apple_eaten" },
+    "uni:payload": {
+      "uni:fields": {
+        "target": { "uni:type": "seat", "uni:audience": "all" },
+        "color": { "uni:type": "color", "uni:audience": "actor" },
+        "count": { "uni:type": "integer", "uni:audience": "all" },
+        "secret": { "uni:type": "string" }
+      }
+    }
+  }
+}

@@ -76,6 +76,7 @@ enum class ArgType {
     kComparison,        /**< comparison token (lt/lte/eq/ne/gt/gte). */
     kStackPolicy,       /**< replace|accumulate|independent|cap:N. */
     kTableRef,          /**< outcome table ref: local id or `namespace:id`. */
+    kEventRef,          /**< event definition ref: `namespace:id`. */
     kBindingName,       /**< frame binding key, e.g. "$last_outcome". */
     kObject,            /**< JSON object. */
     kArray,             /**< JSON array. */
@@ -446,6 +447,13 @@ inline const std::vector<OpSignature>& OpCatalog() {
             OpSignature s;
             s.name = "emit_signal";
             s.args = {Arg("name", ArgType::kString),
+                      Arg("payload", ArgType::kObject, false)};
+            add(std::move(s));
+        }
+        {
+            OpSignature s;
+            s.name = "emit_event";
+            s.args = {Arg("id", ArgType::kEventRef),
                       Arg("payload", ArgType::kObject, false)};
             add(std::move(s));
         }

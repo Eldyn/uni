@@ -65,6 +65,20 @@ bool IsValidLocalId(const std::string& id);
 /** @brief True when `id` matches `namespace:local` with both parts valid. */
 bool IsValidKindId(const std::string& id);
 
+/**
+ * @brief The namespace rule: a mod defines ids only in its own namespace, and
+ *        only the `uni` mod defines `uni:` ids.
+ *
+ * References to ids of another namespace are not definitions and are not
+ * checked here.
+ *
+ * @param mod_id  The mod that defines the id.
+ * @param full_id The defined id, expected as `namespace:name`.
+ * @return An empty string when the id is allowed; else the reason.
+ */
+std::string NamespaceRuleViolation(const std::string& mod_id,
+                                   const std::string& full_id);
+
 /** @brief Parses an integer from a JSON scalar (int or numeric string). */
 bool ParseApiVersion(const nlohmann::json& value, int& out);
 

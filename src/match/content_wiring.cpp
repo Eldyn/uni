@@ -69,4 +69,14 @@ void LoadPresentations(
     out = std::move(registry);
 }
 
+void LoadEvents(const std::vector<modload::EventDef>& events,
+                modload::EventRegistry& out) {
+    modload::EventRegistry registry;
+    for (const modload::EventDef& event : events) {
+        if (event.event_id.empty()) continue;
+        registry[event.event_id] = event;
+    }
+    out = std::move(registry);
+}
+
 }  // namespace match::wiring

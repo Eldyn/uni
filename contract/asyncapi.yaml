@@ -122,6 +122,7 @@ components:
     prompt_answered: PromptAnsweredPayload
     turn_advance: TurnAdvancePayload
     direction_changed: DirectionChangedPayload
+    mod_event: ModEventPayload
     turn_skipped: TurnSkippedPayload
     extra_turn_granted: ExtraTurnGrantedPayload
     active_type_changed: ActiveTypeChangedPayload
@@ -1316,6 +1317,12 @@ components:
           type: string
         version:
           type: string
+        hash:
+          type: string
+          description: >
+            SHA-256 (lowercase hex) of the files of the mod in a canonical
+            order. The client cache is keyed by `version` and `hash`. Absent
+            from a server that predates it.
         index:
           type: integer
           minimum: 0
@@ -1395,6 +1402,36 @@ components:
           additionalProperties: true
           description: >
             Component name to its verbatim parameter object; the client entity runtime interprets them.
+
+    # Per-event entry in the `defs` packet. The field audiences stay on the
+    # server.
+    EventDefinitionManifest:
+      type: object
+      required: [id, def_hash, retention, fields]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:name` id of the mod event.
+        def_hash:
+          type: string
+        retention:
+          type: string
+          enum: [transient, until_turn_end, until_round_end, log]
+        fields:
+          type: array
+          items:
+            type: object
+            required: [name, type]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [seat, color, integer, number, boolean, string]
+        context:
+          type: array
+          items:
+            type: string
 
     # Per-presentation entry in the `defs` packet.
     PresentationDef:
@@ -1486,6 +1523,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PresentationDef"
+        events:
+          type: array
+          description: >
+            Event definitions of the active mods. A client with no presentation
+            for an event ignores it.
+          items:
+            $ref: "#/components/schemas/EventDefinitionManifest"
 
     CardPlayedPayload:
       type: object
@@ -2041,6 +2085,25 @@ components:
             turn's highlight is presented.
           items:
             $ref: "#/components/schemas/PlayerRef"
+
+    ModEventPayload:
+      type: object
+      x-packet-version: "1"
+      additionalProperties: true
+      description: >
+        The `payload` of a mod event. The envelope `type` is `mod_event` and
+        the envelope `id` is the namespaced id of the mod event, for example
+        `my_mod:apple_eaten`. The keys are the payload fields that the event
+        definition (`events/<name>.json`) declares. The server sends a field
+        only to the seats in its declared audience; a field with no declared
+        audience is never sent. A client with no presentation for the `id`
+        ignores the event. The `sequence` rules are those of every other client
+        event.
+
+        WARN: the event id, the retention, the timing, and the field names
+        and types (in the `defs` manifest) are public to every client. Do not
+        put a hidden fact in them. A string value is at most 256 bytes and a
+        payload at most 1024 bytes; the server drops a larger event.
 
     DirectionChangedPayload:
       type: object

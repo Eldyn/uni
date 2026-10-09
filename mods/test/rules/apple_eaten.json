@@ -1,0 +1,21 @@
+{
+  "id": "apple_eaten",
+  "title": "Apple Eaten",
+  "description": "acceptance: emits the test:apple_eaten mod event, a mod event that no presentation uses. Gated by a condition that never matches shipped content, so it validates the emit_event wiring without changing live behaviour.",
+  "hooks": [
+    {
+      "on": "after:play",
+      "where": { "outcome_is": { "key": "never" } },
+      "nodes": [
+        {
+          "id": "n1",
+          "op": "emit_event",
+          "args": {
+            "id": "test:apple_eaten",
+            "payload": { "target": "@self", "color": "red", "count": 1 }
+          }
+        }
+      ]
+    }
+  ]
+}

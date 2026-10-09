@@ -458,6 +458,23 @@ inline const FieldRule* FindFieldRule(const EventRule& rule,
     return nullptr;
 }
 
+/** @brief The retention that a word of an event definition names. */
+inline Retention RetentionFromWord(std::string_view word) {
+    if (word == "transient") return Retention::kTransient;
+    if (word == "until_turn_end") return Retention::kUntilTurnEnd;
+    if (word == "until_round_end") return Retention::kUntilRoundEnd;
+    return Retention::kLog;
+}
+
+/** @brief The audience that a word of an event definition names. */
+inline Audience AudienceFromWord(std::string_view word) {
+    if (word == "all") return Audience::kAll;
+    if (word == "actor") return Audience::kActor;
+    if (word == "target") return Audience::kTarget;
+    if (word == "owner") return Audience::kOwner;
+    return Audience::kNone;
+}
+
 /**
  * @brief The retention of one engine event.
  *
@@ -468,6 +485,18 @@ inline const FieldRule* FindFieldRule(const EventRule& rule,
  */
 inline Retention RetentionOf(std::string_view event_type,
                              const nlohmann::json& payload) {
+    // INFO: a mod event carries the retention of its definition. The
+    //       `emit_event` op copies it into the engine descriptor, so a rule
+    //       cannot choose it. The default is `kLog`.
+    if (event_type == "mod_event") {
+        const auto word = payload.is_object() ? payload.find("retention")
+                                               : payload.end();
+        if (!payload.is_object() || word == payload.end()
+            || !word->is_string()) {
+            return Retention::kLog;
+        }
+        return RetentionFromWord(word->get<std::string>());
+    }
     const EventRule* rule = FindEventRule(event_type);
     if (rule == nullptr) return Retention::kLog;
     if (event_type == "cards_drawn" && payload.is_object()) {

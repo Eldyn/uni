@@ -13,6 +13,7 @@
 #include <match/modload/base_mod.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/modload/asset_index.hpp>
+#include <match/modload/semantic_validator.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
@@ -1217,6 +1218,18 @@ bool LobbyController::ApplyDeckSnapshot(
     return true;
 }
 
+match::modload::LoadResult LobbyController::ScanAndValidateMods() const {
+    match::modload::LoadResult loaded =
+        match::modload::ScanModsDirectory(mods_root_);
+    if (loaded.fatal()) return loaded;
+    // INFO: the ordered validation stages (uni, events, streaks,
+    //       presentations, texts) run at load; a failing mod is left out.
+    const match::modload::SemanticValidator validator(
+        Env::Get("UNI_SCHEMA_DIR", "contract/schemas"));
+    match::modload::ValidateLoadedMods(loaded, validator);
+    return loaded;
+}
+
 std::shared_ptr<const LobbyController::ModsSnapshot>
 LobbyController::HttpModsSnapshot() {
     constexpr auto kTtl = std::chrono::seconds(5);
@@ -1227,8 +1240,7 @@ LobbyController::HttpModsSnapshot() {
     }
     // INFO: unauthenticated routes share one short-lived scan so request rate
     //       cannot drive filesystem parsing and validation.
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
+    match::modload::LoadResult loaded = ScanAndValidateMods();
     auto index = match::modload::AssetIndex::Build(loaded);
     mods_snapshot_ = std::make_shared<const ModsSnapshot>(
         ModsSnapshot{std::move(loaded), std::move(index), now});
@@ -1663,8 +1675,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     //       no legacy fallback) and is reported as an internal error.
     lobby.session.reset();
 
-    match::modload::LoadResult loaded =
-        match::modload::ScanModsDirectory(mods_root_);
+    match::modload::LoadResult loaded = ScanAndValidateMods();
     if (loaded.fatal()) {
         Logger::Error("[Lobby] Start failed: mods root unreadable for '",
                       mods_root_, "'");

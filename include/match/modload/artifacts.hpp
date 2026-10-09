@@ -344,6 +344,30 @@ struct PresentationDef {
 };
 
 /**
+ * @struct EventFieldDef
+ * @brief One payload field of an event definition.
+ */
+struct EventFieldDef {
+    std::string name;      /**< Wire field name. */
+    std::string type;      /**< Closed word, see `event_keys::kFieldTypes`. */
+    std::string audience;  /**< Closed word; `none` when the file omits it. */
+};
+
+/**
+ * @struct EventDef
+ * @brief One `events/<name>.json` event definition (format version 1).
+ */
+struct EventDef {
+    std::string id;                      /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;            /**< Owning mod id. */
+    std::string event_id;                /**< Full `namespace:id`. */
+    std::string retention;               /**< Closed word; `log` by default. */
+    std::vector<EventFieldDef> fields;   /**< Fields, name-sorted. */
+    std::vector<std::string> context;    /**< Requested streak names. */
+    nlohmann::json raw;                  /**< Verbatim file object. */
+};
+
+/**
  * @brief Full-`namespace:id` -> entity def, sorted.
  *
  * Mirrors `ops::TableRegistry`: a per-match, read-only collection the assembler
@@ -356,6 +380,11 @@ using EntityRegistry = std::map<std::string, EntityDef, std::less<>>;
  */
 using PresentationRegistry =
     std::map<std::string, PresentationDef, std::less<>>;
+
+/**
+ * @brief Full-`namespace:id` -> event definition, sorted.
+ */
+using EventRegistry = std::map<std::string, EventDef, std::less<>>;
 
 /**
  * @struct SettingDecl
@@ -428,6 +457,7 @@ struct LoadedMod {
     std::string folder;                 /**< Folder name on disk. */
     std::string path;                   /**< Absolute/relative folder path. */
     ModManifest manifest;
+    std::string content_hash;           /**< SHA-256 hex of the folder. */
     std::vector<CardDef> cards;
     std::vector<RuleDef> rules;
     std::vector<StatusDef> statuses;
@@ -437,6 +467,7 @@ struct LoadedMod {
     std::vector<TableDef> tables;
     std::vector<EntityDef> entities;
     std::vector<PresentationDef> presentations;
+    std::vector<EventDef> events;
 };
 
 /**

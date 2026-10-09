@@ -797,6 +797,7 @@ AssemblyResult MatchAssembler::Assemble(
     {
         std::vector<modload::EntityDef> active_entities;
         std::vector<modload::PresentationDef> active_presentations;
+        std::vector<modload::EventDef> active_events;
         for (const modload::LoadedMod* mod : active) {
             for (const modload::EntityDef& entity : mod->entities) {
                 active_entities.push_back(entity);
@@ -805,10 +806,14 @@ AssemblyResult MatchAssembler::Assemble(
                  mod->presentations) {
                 active_presentations.push_back(presentation);
             }
+            for (const modload::EventDef& event : mod->events) {
+                active_events.push_back(event);
+            }
         }
         wiring::LoadEntities(active_entities, assembly->registries.entities);
         wiring::LoadPresentations(active_presentations,
                                   assembly->registries.presentations);
+        wiring::LoadEvents(active_events, assembly->registries.events);
     }
 
     // --- systems: rules then card behaviors, frozen order -------

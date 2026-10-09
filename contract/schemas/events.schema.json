@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/events.schema.json",
+  "title": "Event definition (events/<name>.json), format version 1",
+  "description": "One event that a mod defines. The key names are listed in include/match/modload/event_definition_keys.hpp; a test compares both. A mod defines ids only in its own namespace, and only the uni mod defines uni: ids (loader check `event.id.namespace`). A payload field that sets no audience has the audience `none`.",
+  "type": "object",
+  "required": ["uni:format_version", "uni:event"],
+  "additionalProperties": false,
+  "properties": {
+    "uni:format_version": {
+      "type": "string",
+      "pattern": "^1(\\.[0-9]+){0,2}$",
+      "description": "Version of the file style. This build reads major version 1."
+    },
+    "uni:event": {
+      "type": "object",
+      "required": ["uni:description"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:description": {
+          "type": "object",
+          "required": ["uni:identifier"],
+          "additionalProperties": false,
+          "properties": {
+            "uni:identifier": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+              "description": "Full event id, namespace:name. The namespace is the id of the defining mod."
+            }
+          }
+        },
+        "uni:retention": {
+          "type": "string",
+          "enum": ["transient", "until_turn_end", "until_round_end", "log"],
+          "description": "How long the server keeps the event for a late joiner. The default is log."
+        },
+        "uni:payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "uni:fields": {
+              "type": "object",
+              "description": "Payload field name to its declaration.",
+              "additionalProperties": {
+                "type": "object",
+                "required": ["uni:type"],
+                "additionalProperties": false,
+                "properties": {
+                  "uni:type": {
+                    "type": "string",
+                    "enum": [
+                      "seat",
+                      "color",
+                      "integer",
+                      "number",
+                      "boolean",
+                      "string"
+                    ]
+                  },
+                  "uni:audience": {
+                    "type": "string",
+                    "enum": ["all", "actor", "target", "owner", "none"],
+                    "description": "Who may receive the field. The default is none."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "uni:context": {
+          "type": "array",
+          "description": "Streak values that the event requests. Streaks are a later ticket; the names are not resolved yet.",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

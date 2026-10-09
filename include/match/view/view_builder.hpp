@@ -277,6 +277,11 @@ public:
     const match::engine::MatchInstance& Match() const { return match_; }
 
 private:
+    /** @brief Wrap a mod event: `type` is `mod_event`, `id` the event id. */
+    std::optional<nlohmann::json> WrapModEvent(
+        const nlohmann::json& engine_event, const nlohmann::json& body,
+        const Viewer& viewer, EventSink& sink) const;
+
     const match::engine::MatchInstance& match_;
     /** status_id -> declared `hidden`. */
     std::unordered_map<std::string, bool> hidden_status_;

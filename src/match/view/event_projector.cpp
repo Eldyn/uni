@@ -220,4 +220,48 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
     return projected;
 }
 
+namespace {
+
+std::string SeatInField(const modload::EventDef& definition,
+                        const json& payload, const std::string& name) {
+    for (const modload::EventFieldDef& field : definition.fields) {
+        if (field.name != name || field.type != "seat") continue;
+        const auto value = payload.find(name);
+        if (value != payload.end() && value->is_string()) {
+            return value->get<std::string>();
+        }
+    }
+    return std::string();
+}
+
+}  // namespace
+
+json ProjectModEventForViewer(const match::engine::MatchInstance& match,
+                              const json& engine_body,
+                              const std::string& actor, const Viewer& viewer) {
+    json projected = json::object();
+    if (!engine_body.is_object()) return projected;
+    const auto definition = match.Registries().events.find(
+        engine_body.value("id", std::string()));
+    const auto payload = engine_body.find("payload");
+    if (definition == match.Registries().events.end()
+        || payload == engine_body.end() || !payload->is_object()) {
+        return projected;
+    }
+    SeatRoles roles;
+    roles.actor = actor;
+    // INFO: a role comes only from a field that the definition types `seat`.
+    roles.target = SeatInField(definition->second, *payload, "target");
+    roles.owner = SeatInField(definition->second, *payload, "owner");
+    for (const modload::EventFieldDef& field : definition->second.fields) {
+        const auto value = payload->find(field.name);
+        if (value == payload->end()) continue;
+        if (!AudienceAllows(AudienceFromWord(field.audience), roles, viewer)) {
+            continue;
+        }
+        projected[field.name] = *value;
+    }
+    return projected;
+}
+
 }  // namespace match::view

@@ -71,6 +71,7 @@ OpResult OpAddPlacement(ecs::EntityStore&, const OpArgs&, OpContext&);
 
 // --- scheduling and meta ---------------------------------------------
 OpResult OpEmitSignal(ecs::EntityStore&, const OpArgs&, OpContext&);
+OpResult OpEmitEvent(ecs::EntityStore&, const OpArgs&, OpContext&);
 /** WARN: `call_original` is a `wrap`-mutation marker, not a normal op body. */
 OpResult OpCallOriginal(ecs::EntityStore&, const OpArgs&, OpContext&);
 

@@ -155,6 +155,14 @@ struct MatchRegistries {
      */
     modload::PresentationRegistry presentations;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> event definition for this match.
+     *
+     * Same per-match rule as `entities`. The `emit_event` op validates a mod
+     * event against it, and the view layer reads the field audiences from it.
+     */
+    modload::EventRegistry events;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 

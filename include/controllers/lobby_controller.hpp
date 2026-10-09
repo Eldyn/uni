@@ -252,6 +252,9 @@ private:
     /** @brief Returns the cached snapshot, rescanning once it is older than the TTL. */
     std::shared_ptr<const ModsSnapshot> HttpModsSnapshot();
 
+    /** @brief Scans `mods_root_` and runs the ordered validation stages. */
+    match::modload::LoadResult ScanAndValidateMods() const;
+
     /**
      * @brief True when `username` already holds a seat in a lobby other than
      * `except_lobby_id` (0 = any lobby). Clears a stale username->lobby mapping.

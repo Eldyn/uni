@@ -81,6 +81,15 @@ void LoadPresentations(
     modload::PresentationRegistry& out);
 
 /**
+ * @brief Build full-`namespace:id` -> event definition into `out`.
+ *
+ * Replaces `out` with an entry for every event declared across the loaded
+ * mods; per-match like `LoadEntities`.
+ */
+void LoadEvents(const std::vector<modload::EventDef>& events,
+                modload::EventRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

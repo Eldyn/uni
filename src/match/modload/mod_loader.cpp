@@ -3,12 +3,17 @@
 #include "common/env.hpp"
 #include "common/environment.hpp"
 #include "logger.hpp"
+#include "match/modload/base_mod.hpp"
+#include "match/modload/event_definition_keys.hpp"
+#include "match/modload/mod_hash.hpp"
 
 #include <common/contract.hpp>
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -942,6 +947,195 @@ bool ScanPresentationsDirectory(const fs::path& dir,
     return ok;
 }
 
+/* INFO: `major[.minor[.patch]]`, each part digits only, major supported. */
+bool IsSupportedFormatVersion(const std::string& text) {
+    std::size_t start = 0;
+    int parts = 0;
+    int major = -1;
+    while (start <= text.size()) {
+        const std::size_t dot = text.find('.', start);
+        const std::size_t end = dot == std::string::npos ? text.size() : dot;
+        if (end == start) return false;
+        int value = 0;
+        const auto parsed =
+            std::from_chars(text.data() + start, text.data() + end, value);
+        if (parsed.ec != std::errc() || parsed.ptr != text.data() + end) {
+            return false;
+        }
+        if (parts == 0) major = value;
+        ++parts;
+        if (dot == std::string::npos) break;
+        start = dot + 1;
+    }
+    return parts <= 3 && major == event_keys::kSupportedFormatMajor;
+}
+
+/* INFO: a mod version enters the client cache key `id@version#hash|...`, so
+ *       it may not hold `|` or `#`. */
+bool IsValidModVersion(const std::string& version) {
+    if (version.empty()) return false;
+    return std::all_of(version.begin(), version.end(), [](unsigned char c) {
+        return std::isalnum(c) || c == '.' || c == '+' || c == '-';
+    });
+}
+
+/* INFO: one event definition per file, version 1 style. Structural checks
+ *       and the namespace rule only; the closed word lists (type, audience,
+ *       retention) are the schema's and the semantic validator's job. */
+bool ParseEventEntry(const nlohmann::json& entry,
+                     const std::string& mod_id,
+                     EventDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    namespace keys = event_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "event.shape", "events", path,
+                 "event file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "event.format_version", "events", path,
+                 "event file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto event = entry.find(std::string(keys::kEvent));
+    if (event == entry.end() || !event->is_object()) {
+        AddError(errors, "event.shape", "events", path,
+                 "event file needs a '" + std::string(keys::kEvent)
+                     + "' object");
+        return false;
+    }
+    const auto description = event->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == event->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "event.identifier", "events", path,
+                 "event needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "event.id.namespace", "events", path, violation);
+        return false;
+    }
+    out.event_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.retention = std::string(keys::kDefaultRetention);
+    const auto retention = event->find(std::string(keys::kRetention));
+    if (retention != event->end()) {
+        if (!retention->is_string()) {
+            AddError(errors, "event.retention", "events", path,
+                     "event '" + identifier + "' retention must be a string");
+            return false;
+        }
+        out.retention = retention->get<std::string>();
+    }
+    out.raw = entry;
+
+    const auto payload = event->find(std::string(keys::kPayload));
+    if (payload != event->end() && payload->is_object()) {
+        const auto fields = payload->find(std::string(keys::kFields));
+        if (fields != payload->end() && fields->is_object()) {
+            /* INFO: nlohmann objects iterate in key order, so the fields
+             *       are name-sorted without an explicit sort. */
+            if (fields->size() > keys::kMaxEventFields) {
+                AddError(errors, "event.fields.count", "events", path,
+                         "event '" + identifier + "' declares "
+                             + std::to_string(fields->size())
+                             + " fields; the maximum is "
+                             + std::to_string(keys::kMaxEventFields));
+                return false;
+            }
+            for (auto it = fields->begin(); it != fields->end(); ++it) {
+                EventFieldDef field;
+                field.name = it.key();
+                field.audience = std::string(keys::kDefaultAudience);
+                if (!it.value().is_object()) {
+                    AddError(errors, "event.field.shape", "events", path,
+                             "field '" + field.name + "' must be an object");
+                    return false;
+                }
+                const auto type = it.value().find(std::string(keys::kType));
+                if (type != it.value().end()) {
+                    if (!type->is_string()) {
+                        AddError(errors, "event.field.type", "events", path,
+                                 "field '" + field.name
+                                     + "' type must be a string");
+                        return false;
+                    }
+                    field.type = type->get<std::string>();
+                }
+                const auto audience =
+                    it.value().find(std::string(keys::kAudience));
+                if (audience != it.value().end()) {
+                    if (!audience->is_string()) {
+                        AddError(errors, "event.field.audience", "events",
+                                 path,
+                                 "field '" + field.name
+                                     + "' audience must be a string");
+                        return false;
+                    }
+                    field.audience = audience->get<std::string>();
+                }
+                if ((field.name == keys::kTargetRole
+                     || field.name == keys::kOwnerRole)
+                    && field.type != keys::kSeatType) {
+                    AddError(errors, "event.field.role_type", "events", path,
+                             "field '" + field.name
+                                 + "' names a seat role and must have type '"
+                                 + std::string(keys::kSeatType) + "'");
+                    return false;
+                }
+                out.fields.push_back(std::move(field));
+            }
+        }
+    }
+    const auto context = event->find(std::string(keys::kContext));
+    if (context != event->end() && context->is_array()) {
+        for (const nlohmann::json& name : *context) {
+            if (name.is_string()) {
+                out.context.push_back(name.get<std::string>());
+            }
+        }
+    }
+    return true;
+}
+
+bool ScanEventsDirectory(const fs::path& dir,
+                         const std::string& mod_id,
+                         std::vector<EventDef>& out,
+                         std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "events", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "events")) {
+            ok = false;
+            continue;
+        }
+        EventDef event;
+        if (!ParseEventEntry(entry, mod_id, event, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(event.event_id).second) {
+            AddError(errors, "event.id.duplicate", "events", file.string(),
+                     "duplicate event id '" + event.event_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(event));
+    }
+    return ok;
+}
+
 bool ParseDeckFile(const fs::path& path,
                    const std::string& ns,
                    DeckDef& out,
@@ -1387,7 +1581,7 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets", "tables", "entities", "presentations"};
+        "assets", "tables", "entities", "presentations", "events"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -1455,6 +1649,23 @@ bool IsValidKindId(const std::string& id) {
         && IsValidLocalId(id.substr(colon + 1));
 }
 
+std::string NamespaceRuleViolation(const std::string& mod_id,
+                                   const std::string& full_id) {
+    if (!IsValidKindId(full_id)) {
+        return "id '" + full_id
+               + "' needs the form namespace:name; an id with no namespace "
+                 "could collide with a core event";
+    }
+    const std::string id_namespace = full_id.substr(0, full_id.find(':'));
+    if (id_namespace == mod_id) return std::string();
+    if (IsBaseModId(id_namespace)) {
+        return "mod '" + mod_id + "' defines the uni id '" + full_id
+               + "'; only the uni mod defines uni: ids";
+    }
+    return "mod '" + mod_id + "' defines id '" + full_id
+           + "' outside its own namespace";
+}
+
 bool ParseApiVersion(const nlohmann::json& value, int& out) {
     if (value.is_number_integer()) {
         out = value.get<int>();
@@ -1493,6 +1704,19 @@ bool ParseModFolder(const std::string& folder_path,
         return false;
     }
 
+    if (IsBaseModId(manifest.id) && folder_name != kBaseModId) {
+        AddError(errors, "manifest.id.reserved", "mod", manifest_path.string(),
+                 "manifest id 'uni' is reserved for the folder 'uni'");
+        return false;
+    }
+
+    if (!IsValidModVersion(manifest.version)) {
+        AddError(errors, "manifest.version", "mod", manifest_path.string(),
+                 "manifest version '" + manifest.version
+                     + "' may hold only letters, digits, '.', '+' and '-'");
+        return false;
+    }
+
     int api = 0;
     if (!ParseApiVersion(manifest.raw.at("api"), api)) {
         AddError(errors, "manifest.api", "mod", manifest_path.string(),
@@ -1511,6 +1735,12 @@ bool ParseModFolder(const std::string& folder_path,
     loaded.folder = folder_name;
     loaded.path = folder_path;
     loaded.manifest = std::move(manifest);
+    loaded.content_hash = ComputeModContentHash(folder_path);
+    if (loaded.content_hash.empty()) {
+        AddError(errors, "mod.hash", "mod", manifest_path.string(),
+                 "cannot read every file of the mod to compute its hash");
+        return false;
+    }
 
     /* INFO: Entry sets are directories; a missing directory is an empty
      *       set, so a mod declares only the content it ships. */
@@ -1546,6 +1776,10 @@ bool ParseModFolder(const std::string& folder_path,
     if (!ScanEntitiesDirectory(root / "entities", loaded.manifest.id,
                                loaded.entities, errors)) {
         ok = false;
+    }
+    if (!ScanEventsDirectory(root / "events", loaded.manifest.id,
+                             loaded.events, errors)) {
+        return false;
     }
     if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,
                                     loaded.presentations, errors)) {

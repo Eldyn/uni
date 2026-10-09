@@ -112,6 +112,25 @@ json ManifestArray(const Registry& registry) {
     return out;
 }
 
+/**
+ * @brief The `defs` manifest entry of an event definition.
+ *
+ * The client needs the id, the retention, and the field types. The field
+ * audiences are server policy and stay on the server.
+ */
+json EventManifestEntry(const match::modload::EventDef& event) {
+    json fields = json::array();
+    for (const match::modload::EventFieldDef& field : event.fields) {
+        fields.push_back(json{{"name", field.name}, {"type", field.type}});
+    }
+    json entry = json{{"id", event.event_id},
+                      {"retention", event.retention},
+                      {"fields", std::move(fields)},
+                      {"context", event.context}};
+    entry["def_hash"] = StableDigest(entry.dump());
+    return entry;
+}
+
 }  // namespace
 
 nlohmann::json DefsBuilder::Build(
@@ -139,8 +158,15 @@ nlohmann::json DefsBuilder::Build(
     json mods_json = json::array();
     for (std::size_t i = 0; i < registries.mods.size(); ++i) {
         const match::ecs::ModRef& mod = registries.mods[i];
+        std::string content_hash;
+        for (const LoadedMod& loaded : mods) {
+            if (loaded.manifest.id == mod.id) {
+                content_hash = loaded.content_hash;
+            }
+        }
         mods_json.push_back(json{{"id", mod.id},
                                  {"version", mod.version},
+                                 {"hash", content_hash},
                                  {"index", static_cast<int>(i)}});
     }
 
@@ -183,6 +209,11 @@ nlohmann::json DefsBuilder::Build(
     //       tables they are published here, hash-addressed per def.
     defs["entities"] = ManifestArray(registries.entities);
     defs["presentations"] = ManifestArray(registries.presentations);
+    json events_json = json::array();
+    for (const auto& [event_id, event] : registries.events) {
+        events_json.push_back(EventManifestEntry(event));
+    }
+    defs["events"] = std::move(events_json);
     defs["defs_digest"] = Digest(defs);
     return defs;
 }
@@ -204,6 +235,9 @@ std::string DefsBuilder::Digest(const nlohmann::json& defs_payload) {
     basis["presentations"] = defs_payload.contains("presentations")
                                  ? defs_payload["presentations"]
                                  : nlohmann::json::array();
+    basis["events"] = defs_payload.contains("events")
+                          ? defs_payload["events"]
+                          : nlohmann::json::array();
     return StableDigest(basis.dump());
 }
 

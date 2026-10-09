@@ -388,6 +388,7 @@ private:
             case modload::ArgType::kAspectMask:
             case modload::ArgType::kDuration:
             case modload::ArgType::kTableRef:
+            case modload::ArgType::kEventRef:
             case modload::ArgType::kBindingName:
             case modload::ArgType::kAny:
                 return true;
