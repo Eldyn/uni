@@ -9,7 +9,8 @@
   },
   "tags": [
     "wild",
-    "action"
+    "action",
+    "uni:wild"
   ],
   "behavior": {
     "on_play": {

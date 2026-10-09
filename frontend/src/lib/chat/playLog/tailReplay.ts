@@ -2,6 +2,7 @@ import { WILD_KIND_IDS } from "$lib/utils/baseMod";
 import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
 import { StreakTracker } from "./streakTracker";
+import { withServerStreaks, type EventContext } from "./serverStreaks";
 import type { LogEvent, LogLine } from "./logEvent";
 
 /** One replayed client event of the snapshot `tail`. */
@@ -12,6 +13,7 @@ export type TailEnvelope = {
 	type: string;
 	actor?: string;
 	replayed?: boolean;
+	context?: EventContext;
 	payload: Record<string, unknown>;
 };
 
@@ -43,8 +45,9 @@ export function replayTailToLog(
 	const tracker = new StreakTracker();
 	let pendingWild: { player: string; kind: string; sequence: number; auto: boolean } | null = null;
 
-	function emit(event: LogEvent): void {
-		for (const line of buildLogLines(event, tracker.record(event))) post(line);
+	function emit(event: LogEvent, context?: EventContext): void {
+		const streak = withServerStreaks(tracker.record(event), context);
+		for (const line of buildLogLines(event, streak)) post(line);
 	}
 
 	function emitPlay(
@@ -88,14 +91,17 @@ export function replayTailToLog(
 			const player = seat("target");
 			if (player === undefined) continue;
 			const actor = text(entry.actor);
-			emit({
-				kind: "skip",
-				seq: sequence,
-				player,
-				actor: actor === undefined ? undefined : escapeLogText(actor)
-			});
+			emit(
+				{
+					kind: "skip",
+					seq: sequence,
+					player,
+					actor: actor === undefined ? undefined : escapeLogText(actor)
+				},
+				entry.context
+			);
 		} else if (id === "direction_changed") {
-			emit({ kind: "reverse", seq: sequence });
+			emit({ kind: "reverse", seq: sequence }, entry.context);
 		} else if (id === "cards_drawn") {
 			const player = seat("target") ?? seat("player");
 			if (player === undefined) continue;

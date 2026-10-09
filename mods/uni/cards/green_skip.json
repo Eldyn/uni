@@ -11,7 +11,8 @@
     "colored",
     "action",
     "green",
-    "skip"
+    "skip",
+    "uni:skip"
   ],
   "behavior": {
     "on_play": {

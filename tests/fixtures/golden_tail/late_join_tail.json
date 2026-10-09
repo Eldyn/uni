@@ -5,7 +5,12 @@
     "payload": {
       "card": 192512,
       "from_zone_ordinal": 0,
-      "player": "bot0"
+      "player": "bot0",
+      "tags": [
+        "colored",
+        "numbered",
+        "yellow"
+      ]
     },
     "replayed": true,
     "round": 0,
@@ -20,7 +25,12 @@
     "payload": {
       "card": 172033,
       "from_zone_ordinal": 0,
-      "player": "bot1"
+      "player": "bot1",
+      "tags": [
+        "colored",
+        "numbered",
+        "yellow"
+      ]
     },
     "replayed": true,
     "round": 0,
@@ -35,7 +45,12 @@
     "payload": {
       "card": 110593,
       "from_zone_ordinal": 1,
-      "player": "bot2"
+      "player": "bot2",
+      "tags": [
+        "colored",
+        "numbered",
+        "red"
+      ]
     },
     "replayed": true,
     "round": 0,
@@ -50,7 +65,12 @@
     "payload": {
       "card": 172032,
       "from_zone_ordinal": 0,
-      "player": "bot0"
+      "player": "bot0",
+      "tags": [
+        "colored",
+        "numbered",
+        "yellow"
+      ]
     },
     "replayed": true,
     "round": 1,
@@ -65,7 +85,12 @@
     "payload": {
       "card": 192513,
       "from_zone_ordinal": 0,
-      "player": "bot1"
+      "player": "bot1",
+      "tags": [
+        "colored",
+        "numbered",
+        "yellow"
+      ]
     },
     "replayed": true,
     "round": 1,
@@ -80,7 +105,12 @@
     "payload": {
       "card": 159747,
       "from_zone_ordinal": 1,
-      "player": "bot0"
+      "player": "bot0",
+      "tags": [
+        "wild",
+        "action",
+        "uni:wild"
+      ]
     },
     "replayed": true,
     "round": 2,
@@ -108,7 +138,12 @@
     "payload": {
       "card": 36865,
       "from_zone_ordinal": 0,
-      "player": "bot1"
+      "player": "bot1",
+      "tags": [
+        "colored",
+        "numbered",
+        "blue"
+      ]
     },
     "replayed": true,
     "round": 2,
@@ -123,7 +158,12 @@
     "payload": {
       "card": 8193,
       "from_zone_ordinal": 0,
-      "player": "bot2"
+      "player": "bot2",
+      "tags": [
+        "colored",
+        "numbered",
+        "blue"
+      ]
     },
     "replayed": true,
     "round": 2,
@@ -138,7 +178,14 @@
     "payload": {
       "card": 40960,
       "from_zone_ordinal": 1,
-      "player": "bot0"
+      "player": "bot0",
+      "tags": [
+        "colored",
+        "action",
+        "blue",
+        "draw_penalty",
+        "stackable"
+      ]
     },
     "replayed": true,
     "round": 3,
@@ -150,6 +197,9 @@
   {
     "actor": "bot0",
     "cause": 9,
+    "context": {
+      "uni:skip_run": 1
+    },
     "id": "turn_skipped",
     "payload": {
       "target": "bot1"
@@ -167,7 +217,14 @@
     "payload": {
       "card": 49153,
       "from_zone_ordinal": 0,
-      "player": "bot2"
+      "player": "bot2",
+      "tags": [
+        "colored",
+        "action",
+        "blue",
+        "skip",
+        "uni:skip"
+      ]
     },
     "replayed": true,
     "round": 3,
@@ -179,6 +236,9 @@
   {
     "actor": "bot2",
     "cause": 11,
+    "context": {
+      "uni:skip_run": 1
+    },
     "id": "turn_skipped",
     "payload": {
       "target": "bot0"
@@ -196,7 +256,12 @@
     "payload": {
       "card": 24577,
       "from_zone_ordinal": 2,
-      "player": "bot1"
+      "player": "bot1",
+      "tags": [
+        "colored",
+        "numbered",
+        "blue"
+      ]
     },
     "replayed": true,
     "round": 3,
@@ -223,7 +288,12 @@
     "payload": {
       "card": 16384,
       "from_zone_ordinal": 0,
-      "player": "bot2"
+      "player": "bot2",
+      "tags": [
+        "colored",
+        "numbered",
+        "blue"
+      ]
     },
     "replayed": true,
     "round": 4,

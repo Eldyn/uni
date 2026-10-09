@@ -51,4 +51,18 @@ uint32_t CardBitsFor(const match::engine::MatchInstance& match,
     return id.has_value() ? id->bits : 0u;
 }
 
+std::string KindIdFor(const match::engine::MatchInstance& match,
+                      const nlohmann::json& value) {
+    ecs::Entity entity{};
+    if (!EntityFromJson(value, entity)) return std::string();
+    const std::optional<ecs::CompactCardV2> id =
+        match.Registries().CardId(entity);
+    if (!id.has_value()) return std::string();
+    const auto& kinds = match.Registries().kinds_by_mod;
+    if (id->ModIndex() >= kinds.size()) return std::string();
+    const std::vector<std::string>& of_mod = kinds[id->ModIndex()];
+    if (id->KindIndex() >= of_mod.size()) return std::string();
+    return of_mod[id->KindIndex()];
+}
+
 }  // namespace match::view

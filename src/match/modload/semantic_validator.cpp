@@ -4,6 +4,9 @@
 #include "match/modload/base_mod.hpp"
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
+#include "match/modload/streak_definition_keys.hpp"
+#include "match/streak/state_values.hpp"
+#include "match/view/event_audience.hpp"
 #include "match/modload/vocabulary.hpp"
 
 #include <algorithm>
@@ -603,6 +606,7 @@ struct Buckets {
     std::vector<LoadError> tables;
     std::vector<LoadError> entities;
     std::vector<LoadError> events;
+    std::vector<LoadError> streaks;
     std::vector<LoadError> presentations;
     std::vector<LoadError> outcome;
     std::vector<LoadError> asset;
@@ -645,6 +649,7 @@ class Checker {
         CheckDeck();
         CheckEntities();
         CheckEvents();
+        CheckStreaks();
         CheckPresentations();
         CheckOutcomeResolvers();
         CheckAssetDependencies();
@@ -692,6 +697,9 @@ class Checker {
             }
             for (const auto& event : mod->events) {
                 event_ids_.insert(event.event_id);
+            }
+            for (const auto& streak : mod->streaks) {
+                streak_ids_.insert(streak.streak_id);
             }
         }
     }
@@ -955,6 +963,259 @@ class Checker {
                 }
             }
         }
+    }
+
+    /* INFO: the result of looking up one payload field of a client event. */
+    enum class FieldLookup { kDeferred, kNoEvent, kNoField, kHidden, kPublic };
+
+    const EventDef* FindModEvent(const std::string& event_id) const {
+        for (const LoadedMod* mod : mods_) {
+            for (const EventDef& event : mod->events) {
+                if (event.event_id == event_id) return &event;
+            }
+        }
+        return nullptr;
+    }
+
+    bool ModInSet(const std::string& mod_id) const {
+        for (const LoadedMod* mod : mods_) {
+            if (mod->manifest.id == mod_id) return true;
+        }
+        return false;
+    }
+
+    /* INFO: an empty `field` asks for the event only. A reference to a mod
+     *       that is not in the set is deferred while one mod is validated
+     *       alone, and unknown once the match set is complete. */
+    FieldLookup LookupEventField(const std::string& event_id,
+                                 const std::string& field) const {
+        const std::size_t colon = event_id.find(':');
+        if (colon == std::string::npos) {
+            if (!match::view::IsStreakFeedable(event_id)) {
+                return FieldLookup::kNoEvent;
+            }
+            if (field.empty()) return FieldLookup::kPublic;
+            const match::view::EventRule* rule =
+                match::view::FindEventRule(event_id);
+            const match::view::FieldRule* declared =
+                rule == nullptr ? nullptr
+                                : match::view::FindFieldRule(*rule, field);
+            if (declared == nullptr) return FieldLookup::kNoField;
+            return declared->audience == match::view::Audience::kAll
+                       ? FieldLookup::kPublic
+                       : FieldLookup::kHidden;
+        }
+        const EventDef* definition = FindModEvent(event_id);
+        if (definition == nullptr) {
+            const bool owner_known = ModInSet(event_id.substr(0, colon));
+            return (owner_known || match_set_) ? FieldLookup::kNoEvent
+                                               : FieldLookup::kDeferred;
+        }
+        if (field.empty()) return FieldLookup::kPublic;
+        for (const EventFieldDef& declared : definition->fields) {
+            if (declared.name != field) continue;
+            return declared.audience == "all" ? FieldLookup::kPublic
+                                              : FieldLookup::kHidden;
+        }
+        return FieldLookup::kNoField;
+    }
+
+    void CheckStreakField(const std::string& path, const StreakDef& streak,
+                          const std::string& event_id,
+                          const std::string& field, const char* role) {
+        switch (LookupEventField(event_id, field)) {
+            case FieldLookup::kNoField:
+                buckets_.streaks.push_back(Err(
+                    "streak.field.unknown", "streaks", path,
+                    "streak '" + streak.streak_id + "' " + role + " '" + field
+                        + "' is not a payload field of '" + event_id + "'"));
+                break;
+            case FieldLookup::kHidden:
+                buckets_.streaks.push_back(Err(
+                    "streak.field.audience", "streaks", path,
+                    "streak '" + streak.streak_id + "' " + role + " '" + field
+                        + "' of '" + event_id
+                        + "' does not have the audience 'all'; a streak "
+                          "value is public"));
+                break;
+            default:
+                break;
+        }
+    }
+
+    bool TagExists(const std::string& tag) const {
+        return tags_.count(tag) != 0;
+    }
+
+    void CheckStreakTag(const std::string& path, const StreakDef& streak,
+                        const std::string& tag) {
+        const std::size_t colon = tag.find(':');
+        const bool well_formed =
+            colon != std::string::npos && colon > 0
+            && IsValidLocalId(tag.substr(0, colon))
+            && IsValidLocalId(tag.substr(colon + 1));
+        if (!well_formed) {
+            buckets_.streaks.push_back(Err(
+                "streak.tag.syntax", "streaks", path,
+                "streak '" + streak.streak_id + "' tag '" + tag
+                    + "' must be 'namespace:name'"));
+            return;
+        }
+        const bool owner_known = ModInSet(tag.substr(0, colon));
+        if ((owner_known || match_set_) && !TagExists(tag)) {
+            buckets_.streaks.push_back(Err(
+                "streak.tag.unknown", "streaks", path,
+                "streak '" + streak.streak_id + "' tag '" + tag
+                    + "' is carried by no card kind"));
+        }
+    }
+
+    void CheckStreakMatcher(const std::string& path, const StreakDef& streak,
+                            const StreakMatcherDef& matcher) {
+        const FieldLookup event = LookupEventField(matcher.event, "");
+        if (event == FieldLookup::kNoEvent) {
+            buckets_.streaks.push_back(Err(
+                "streak.event.unknown", "streaks", path,
+                "streak '" + streak.streak_id + "' matches '" + matcher.event
+                    + "', which is no client event that a streak may read"));
+            return;
+        }
+        for (const StreakTestDef& test : matcher.tests) {
+            namespace keys = streak_keys;
+            const bool known =
+                std::find(keys::kMatcherTests.begin(),
+                          keys::kMatcherTests.end(), test.test)
+                != keys::kMatcherTests.end();
+            if (!known) {
+                buckets_.streaks.push_back(Err(
+                    "streak.test.unknown", "streaks", path,
+                    "streak '" + streak.streak_id + "' uses the unknown test '"
+                        + test.test + "'"));
+                continue;
+            }
+            if (test.test == keys::kRelationTest) {
+                buckets_.streaks.push_back(Err(
+                    "streak.test.relation", "streaks", path,
+                    "streak '" + streak.streak_id
+                        + "' uses 'relation'; it depends on the viewer and "
+                          "is for presentations only"));
+                continue;
+            }
+            if (test.test == keys::kHasTag) {
+                CheckStreakField(path, streak, matcher.event,
+                                 std::string(keys::kTagsField), "tag source");
+                CheckStreakTag(path, streak, test.tag);
+                continue;
+            }
+            if (test.field.empty() == test.state.empty()) {
+                buckets_.streaks.push_back(Err(
+                    "streak.test.shape", "streaks", path,
+                    "streak '" + streak.streak_id + "' test '" + test.test
+                        + "' needs exactly one of a field and a state value"));
+                continue;
+            }
+            if (!test.state.empty()) {
+                if (!match::streak::IsStateValueName(test.state)) {
+                    buckets_.streaks.push_back(Err(
+                        "streak.state.unknown", "streaks", path,
+                        "streak '" + streak.streak_id
+                            + "' reads the unknown state value '" + test.state
+                            + "'"));
+                }
+                continue;
+            }
+            CheckStreakField(path, streak, matcher.event, test.field,
+                             "test field");
+        }
+    }
+
+    /* INFO: the streak stage: ids, type, matcher, field audiences, and the
+     *       resolution of the `uni:context` names of every event. */
+    void CheckStreaks() {
+        std::set<std::string> seen;
+        for (const LoadedMod* mod : mods_) {
+            for (const StreakDef& streak : mod->streaks) {
+                const std::string path =
+                    mod->path + "/streaks/" + streak.id + ".json";
+                const std::string violation =
+                    NamespaceRuleViolation(mod->manifest.id, streak.streak_id);
+                if (!violation.empty()) {
+                    buckets_.streaks.push_back(Err(
+                        "streak.id.namespace", "streaks", path, violation));
+                }
+                if (!seen.insert(streak.streak_id).second) {
+                    buckets_.streaks.push_back(Err(
+                        "streak.id.duplicate", "streaks", path,
+                        "duplicate streak id '" + streak.streak_id + "'"));
+                }
+                CheckStreakDefinition(path, streak);
+            }
+            for (const EventDef& event : mod->events) {
+                for (const std::string& name : event.context) {
+                    CheckContextName(
+                        mod->path + "/events/" + event.id + ".json", event,
+                        name);
+                }
+            }
+        }
+    }
+
+    void CheckStreakDefinition(const std::string& path,
+                               const StreakDef& streak) {
+        namespace keys = streak_keys;
+        const bool known_type =
+            std::find(keys::kStreakTypes.begin(), keys::kStreakTypes.end(),
+                      streak.type)
+            != keys::kStreakTypes.end();
+        if (!known_type) {
+            buckets_.streaks.push_back(Err(
+                "streak.type.unknown", "streaks", path,
+                "streak '" + streak.streak_id + "' has the unknown type '"
+                    + streak.type + "'"));
+        }
+        if (streak.type == keys::kLastValue && streak.value_field.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.value_field.missing", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' has the type last_value and needs a value field"));
+        }
+        if (streak.type != keys::kLastValue && !streak.value_field.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.value_field.unexpected", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' sets a value field, but only last_value reads one"));
+        }
+        if (streak.type != keys::kRun && !streak.reset_on.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.reset_on.unexpected", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' sets reset events, but only a run resets"));
+        }
+        CheckStreakMatcher(path, streak, streak.matcher);
+        if (!streak.group_by.empty()) {
+            CheckStreakField(path, streak, streak.matcher.event,
+                             streak.group_by, "group field");
+        }
+        if (!streak.value_field.empty()) {
+            CheckStreakField(path, streak, streak.matcher.event,
+                             streak.value_field, "value field");
+        }
+        for (const StreakMatcherDef& reset : streak.reset_on) {
+            CheckStreakMatcher(path, streak, reset);
+        }
+    }
+
+    void CheckContextName(const std::string& path, const EventDef& event,
+                          const std::string& name) {
+        if (streak_ids_.count(name) != 0) return;
+        const std::size_t colon = name.find(':');
+        const bool owner_known =
+            colon != std::string::npos && ModInSet(name.substr(0, colon));
+        if (!owner_known && !match_set_) return;
+        buckets_.streaks.push_back(Err(
+            "streak.context.unresolved", "events", path,
+            "event '" + event.event_id + "' asks for the context '" + name
+                + "', which no loaded mod defines as a streak"));
     }
 
     /* INFO: modifier kinds, forbidden `mode`, target grammar and
@@ -2551,6 +2812,7 @@ class Checker {
     std::set<std::string> restriction_ids_;
     std::set<std::string> table_ids_;
     std::set<std::string> event_ids_;
+    std::set<std::string> streak_ids_;
     std::vector<std::pair<std::string, std::string>> removed_restrictions_;
     std::map<std::string, std::vector<const MutationDef*>> mutations_by_target_;
 };
@@ -2704,6 +2966,15 @@ std::vector<LoadError> SchemaErrors(
                 errors.insert(errors.end(), local.begin(), local.end());
             }
         }
+        if (!mod->streaks.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kStreaks);
+            for (const auto& streak : mod->streaks) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, streak.raw, "streaks",
+                    base + "/streaks/" + streak.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
         if (!mod->presentations.empty()) {
             /* INFO: presentations are one definition per file;
              *       semantic checks (kind/target/trigger) report the rest. */
@@ -2763,11 +3034,12 @@ std::vector<LoadError> FirstFailingStage(
             }
         } else if (stage == "events") {
             found = buckets.events;
+        } else if (stage == "streaks") {
+            found = buckets.streaks;
         } else if (stage == "presentations") {
             found = buckets.presentations;
         }
-        // TODO: the "streaks" stage lands with the streak ticket and the
-        //       "texts" stage with the texts ticket.
+        // TODO: the "texts" stage lands with the texts ticket.
         if (!found.empty()) return base_first(std::move(found));
     }
     return {};

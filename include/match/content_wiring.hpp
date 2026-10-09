@@ -90,6 +90,15 @@ void LoadEvents(const std::vector<modload::EventDef>& events,
                 modload::EventRegistry& out);
 
 /**
+ * @brief Build full-`namespace:id` -> streak definition into `out`.
+ *
+ * Replaces `out` with an entry for every streak declared across the loaded
+ * mods; per-match like `LoadEvents`.
+ */
+void LoadStreaks(const std::vector<modload::StreakDef>& streaks,
+                 modload::StreakRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

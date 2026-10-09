@@ -235,6 +235,9 @@ if(UNI_BUILD_TESTS)
         src/match/view/event_projector.cpp
         src/match/view/event_sink.cpp
         src/match/view/event_tail.cpp
+        src/match/view/streak_view.cpp
+        src/match/streak/matcher.cpp
+        src/match/streak/streak_engine.cpp
         src/match/view/defs_builder.cpp
         src/match/view/view_builder.cpp
         src/match/view/view_util.cpp

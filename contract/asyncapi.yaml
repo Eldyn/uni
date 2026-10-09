@@ -852,10 +852,13 @@ components:
         streaks:
           type: object
           description: >
-            Streak values, near-win window and block state by streak name.
-            Always empty today. TODO: tickets 14 and 15 (server streaks) fill
-            it.
-          additionalProperties: true
+            The current value of every `uni` streak, by streak id (for
+            example `uni:skip_run`). A client reads the same values as a
+            continuous player read from the envelope `context`. The values
+            are public to all seats and spectators. TODO: ticket 15 adds
+            the near-win window and the block state.
+          additionalProperties:
+            $ref: "#/components/schemas/StreakValue"
 
     Username:
       type: string
@@ -1234,6 +1237,32 @@ components:
     #       inert. The view layer and the controller must handle the uint32
     #       range explicitly (carry raw JSON or widen); no schema change is
     #       made here.
+    StreakValue:
+      description: >
+        The value of one streak. A `run` streak and an ungrouped `total`
+        streak give an integer. A grouped `total` streak gives an object
+        from group to count. A `last_value` streak gives an object with
+        `last` and `previous`. A streak reads payload fields with the
+        audience `all` only, so a value never holds hidden information.
+      oneOf:
+        - type: integer
+          minimum: 0
+        - type: object
+          additionalProperties: true
+
+    StreakContext:
+      type: object
+      description: >
+        The streak values that an event asked for (`uni:context`, and a
+        table of core events in `event_audience.hpp`: `direction_changed`
+        asks for `uni:reverse_run`, `turn_skipped` asks for
+        `uni:skip_run`). The value is the value AFTER the event. The
+        object is public to every seat and spectator. It is absent when the
+        event asks for nothing. The size is at most `UNI_CONTEXT_SIZE_MAX`
+        bytes (default 512).
+      additionalProperties:
+        $ref: "#/components/schemas/StreakValue"
+
     MatchEventPayload:
       type: object
       x-packet-version: "1"
@@ -1277,6 +1306,8 @@ components:
         type:
           type: string
           description: Old name of `id`. Same value.
+        context:
+          $ref: "#/components/schemas/StreakContext"
         replayed:
           type: boolean
           description: >

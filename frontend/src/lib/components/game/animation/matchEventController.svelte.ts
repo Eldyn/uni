@@ -1231,7 +1231,11 @@ export function createMatchEventBeatController(deps: {
 		deferTurnMotion(() => {
 			if (storeDirectionRing.reverseTo(beat.direction)) playBoardSfx("sfx.table.reverse");
 		});
-		playLog.noteDirection({ direction: beat.direction, seq: beat.seq });
+		playLog.noteDirection({
+			direction: beat.direction,
+			seq: beat.seq,
+			context: beat.context
+		});
 	}
 
 	/** Presents the skipped-seat X and gates the incoming turn's highlight.
@@ -1290,7 +1294,12 @@ export function createMatchEventBeatController(deps: {
 	/** Logs and presents a skip from the `turn_skipped` event. The `turn_advance`
 	 *  that follows names the same seat and presents nothing more. */
 	function handleSkip(beat: Extract<MatchEventBeat, { kind: "skip" }>): void {
-		playLog.noteSkipped({ target: beat.target, actor: beat.actor, seq: beat.seq });
+		playLog.noteSkipped({
+			target: beat.target,
+			actor: beat.actor,
+			seq: beat.seq,
+			context: beat.context
+		});
 		if (takeSkipCount(skipsPresentedByTurn, beat.target)) return;
 		addSkipCount(skipsPresentedByEvent, beat.target);
 		presentSkips(storeGame.state?.current_turn ?? "", [beat.target]);

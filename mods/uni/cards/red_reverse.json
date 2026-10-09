@@ -11,7 +11,8 @@
     "colored",
     "action",
     "red",
-    "reverse"
+    "reverse",
+    "uni:reverse"
   ],
   "behavior": {
     "on_play": {

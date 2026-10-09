@@ -368,6 +368,47 @@ struct EventDef {
 };
 
 /**
+ * @struct StreakTestDef
+ * @brief One test of a streak matcher (closed list, see
+ *        `streak_definition_keys.hpp`).
+ */
+struct StreakTestDef {
+    std::string test;    /**< equals | in | exists | has_tag | relation. */
+    std::string field;   /**< Payload field name; empty when unused. */
+    std::string state;   /**< State value name; empty when unused. */
+    nlohmann::json value;                       /**< equals. */
+    nlohmann::json values = nlohmann::json::array();  /**< in. */
+    std::string tag;       /**< has_tag: full `namespace:name` tag. */
+    std::string relation;  /**< relation: `self` or `other`. */
+    bool negate = false;
+};
+
+/**
+ * @struct StreakMatcherDef
+ * @brief The client event id and the tests that all must hold.
+ */
+struct StreakMatcherDef {
+    std::string event;                   /**< Client event id. */
+    std::vector<StreakTestDef> tests;
+};
+
+/**
+ * @struct StreakDef
+ * @brief One `streaks/<name>.json` streak definition (format version 1).
+ */
+struct StreakDef {
+    std::string id;                      /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;            /**< Owning mod id. */
+    std::string streak_id;               /**< Full `namespace:id`. */
+    std::string type;                    /**< run | total | last_value. */
+    StreakMatcherDef matcher;
+    std::string group_by;                /**< Payload field; may be empty. */
+    std::string value_field;             /**< last_value only. */
+    std::vector<StreakMatcherDef> reset_on;
+    nlohmann::json raw;                  /**< Verbatim file object. */
+};
+
+/**
  * @brief Full-`namespace:id` -> entity def, sorted.
  *
  * Mirrors `ops::TableRegistry`: a per-match, read-only collection the assembler
@@ -385,6 +426,11 @@ using PresentationRegistry =
  * @brief Full-`namespace:id` -> event definition, sorted.
  */
 using EventRegistry = std::map<std::string, EventDef, std::less<>>;
+
+/**
+ * @brief Full-`namespace:id` -> streak definition, sorted.
+ */
+using StreakRegistry = std::map<std::string, StreakDef, std::less<>>;
 
 /**
  * @struct SettingDecl
@@ -468,6 +514,7 @@ struct LoadedMod {
     std::vector<EntityDef> entities;
     std::vector<PresentationDef> presentations;
     std::vector<EventDef> events;
+    std::vector<StreakDef> streaks;
 };
 
 /**

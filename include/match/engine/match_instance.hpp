@@ -7,6 +7,7 @@
 #include <match/engine/play_evaluator.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/streak/streak_engine.hpp>
 #include <match/scheduler.hpp>
 #include <match/timers.hpp>
 
@@ -427,6 +428,8 @@ public:
     const ecs::EntityStore& Store() const { return assembly_->store; }
     /** @brief Frozen per-match registries. */
     const MatchRegistries& Registries() const { return assembly_->registries; }
+    /** @brief The streak values of this match. */
+    const match::streak::StreakEngine& Streaks() const { return streaks_; }
 
 private:
     /** @brief One accepted play's provenance, for the state JSON. */
@@ -498,6 +501,12 @@ private:
         ecs::Entity player{};  /**< acting player. */
         ecs::Entity card{};    /**< card to play through the normal pipeline. */
     };
+
+    /**
+     * @brief Run the one streak pass for a stamped base event and attach the
+     *        requested `context` to its descriptor.
+     */
+    void ObserveStreaks(nlohmann::json& event);
 
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
@@ -916,6 +925,9 @@ private:
     int64_t next_event_id_ = 0;
     /** Chain length of each mod event that the engine kept, by event id. */
     std::map<int64_t, uint32_t> mod_event_chain_lengths_;
+
+    /** @brief The values of the streaks of this match. */
+    match::streak::StreakEngine streaks_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

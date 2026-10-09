@@ -36,6 +36,18 @@ json ProjectCardPlayed(const match::engine::MatchInstance& match,
                       ? CardBitsFor(match, payload["card"])
                       : 0u;
     out["from_zone_ordinal"] = payload.value("from_ordinal", 0);
+    // INFO: the played card is public at this moment (the `card` field above
+    //       is public too), so the tags of its kind are public. A streak
+    //       reads them with the `has_tag` test.
+    json tags = json::array();
+    const auto& table = match.Registries().card_tags;
+    const auto declared =
+        payload.contains("card") ? table.find(KindIdFor(match, payload["card"]))
+                                 : table.end();
+    if (declared != table.end()) {
+        for (const std::string& tag : declared->second) tags.push_back(tag);
+    }
+    out["tags"] = std::move(tags);
     return out;
 }
 
@@ -374,6 +386,12 @@ nlohmann::json EventSink::WrapEngineEvent(const std::string& type,
                                                      nlohmann::json::object());
     if (frame.contains("actor") && frame["actor"].is_string()) {
         envelope["actor"] = frame["actor"];
+    }
+    // INFO: the streak values after the event. They are public to every
+    //       seat, so every viewer gets the same object.
+    if (engine_event.contains("context")
+        && engine_event["context"].is_object()) {
+        envelope["context"] = engine_event["context"];
     }
     if (frame.contains("turn")) envelope["turn"] = frame["turn"];
     if (frame.contains("round")) envelope["round"] = frame["round"];

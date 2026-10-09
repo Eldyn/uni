@@ -3,6 +3,8 @@
 #include <nlohmann/json.hpp>
 
 #include <span>
+#include <string>
+#include <vector>
 #include <string_view>
 
 /**
@@ -111,6 +113,7 @@ inline constexpr FieldRule kCardPlayed[] = {
     {"player", Audience::kAll},
     {"card", Audience::kAll, FieldKind::kPlayedCard},
     {"from_zone_ordinal", Audience::kAll},
+    {"tags", Audience::kAll},
 };
 inline constexpr FieldRule kReshuffle[] = {
     {"draw_size", Audience::kAll},
@@ -439,7 +442,53 @@ inline constexpr EventRule kEvents[] = {
     {"signal", "", "", kSignal, Retention::kTransient},
 };
 
+/**
+ * @brief The core events that a streak may read.
+ *
+ * A streak value goes to every seat, so a streak reads a core event only when
+ * the event reaches every seat with its `all` fields. The list leaves out the
+ * events that go to one seat (`play_rejected`, `prompt_*`, `visibility_*`),
+ * the hidden status events, the diagnostics, and the old names of an alias
+ * pair (a streak would count one fact two times).
+ */
+inline constexpr std::string_view kStreakFeedableEvents[] = {
+    "card_played",        "cards_drawn",      "drawn_card_kept",
+    "turn_skipped",       "direction_changed", "turn_advance",
+    "extra_turn_granted", "active_type_changed", "reshuffle",
+    "round_advance",      "placement_set",    "match_ended",
+    "hands_swapped",      "hands_passed",     "hands_redistributed",
+};
+
+/** @brief One row of the table of requested contexts. */
+struct ContextRequest {
+    std::string_view event_type;
+    std::string_view streak_id;
+};
+
+/**
+ * @brief The streak values that the server attaches to a core event.
+ *
+ * ONE table, next to the retention. The `uni` mod defines the streaks. The
+ * server writes the value AFTER the event is applied under the full streak id
+ * in the envelope `context`. A mod event asks for its streaks with
+ * `uni:context` in its definition. A name that no loaded mod defines is
+ * skipped.
+ */
+inline constexpr ContextRequest kCoreContext[] = {
+    {"direction_changed", "uni:reverse_run"},
+    {"turn_skipped", "uni:skip_run"},
+};
+
 }  // namespace audience_table
+
+/** @brief True when a streak may read the core event `event_type`. */
+inline bool IsStreakFeedable(std::string_view event_type) {
+    for (const std::string_view feedable :
+         audience_table::kStreakFeedableEvents) {
+        if (feedable == event_type) return true;
+    }
+    return false;
+}
 
 /** @brief The rule of `event_type`, or `nullptr` when nobody declared it. */
 inline const EventRule* FindEventRule(std::string_view event_type) {
@@ -504,6 +553,16 @@ inline Retention RetentionOf(std::string_view event_type,
         if (payload.value("from_debt", false)) return Retention::kLog;
     }
     return rule->retention;
+}
+
+/** @brief The streak ids that the core event `event_type` requests. */
+inline std::vector<std::string> CoreContextNames(std::string_view event_type) {
+    std::vector<std::string> names;
+    for (const audience_table::ContextRequest& row :
+         audience_table::kCoreContext) {
+        if (row.event_type == event_type) names.emplace_back(row.streak_id);
+    }
+    return names;
 }
 
 /** @brief The audience of a field; `kNone` when the table lacks it. */

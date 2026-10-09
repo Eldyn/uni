@@ -12,7 +12,8 @@
     "wild_draw4",
     "action",
     "draw_penalty",
-    "stackable"
+    "stackable",
+    "uni:wild"
   ],
   "behavior": {
     "on_play": {

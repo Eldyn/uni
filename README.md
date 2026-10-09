@@ -242,6 +242,8 @@ default; a value above the maximum is clamped to the maximum.
 | `UNI_MOD_EVENT_PAYLOAD_MAX` | `1024` | `65536` | bytes of one serialized payload |
 | `UNI_MOD_CAUSE_CHAIN_MAX` | `16` | `1000` | length of a chain of mod events |
 | `UNI_MOD_VIOLATION_TURNS` | `3` | `1000` | distinct turns of a break before a disarm |
+| `UNI_STREAK_COST_MAX` | `2048` | `1000000` | streak evaluations in one turn |
+| `UNI_CONTEXT_SIZE_MAX` | `512` | `65536` | bytes of the `context` of one event |
 
 `0` is valid for the first three (the mod emits no event); for
 `UNI_MOD_VIOLATION_TURNS` it gives `1`. The chain length of a mod event is 1
@@ -254,6 +256,16 @@ mod, budget and turn). A core event is never dropped. A mod that breaks a
 budget in `UNI_MOD_VIOLATION_TURNS` distinct turns is disarmed through the
 same path as a chain abort (`UNI_CHAIN_BUDGET`): its rules stop and the match
 goes on. `UNI_CHAIN_BUDGET` and `UNI_EVENT_BUDGET` keep their old meaning.
+
+A streak is a counter that the engine updates from client events (files in
+`streaks/` of a mod). The engine runs one pass for each base client event; a
+derived event does not feed a streak. A streak reads payload fields with the
+audience `all` only. `UNI_STREAK_COST_MAX` is the most streak evaluations in
+one turn: the engine skips the streaks past the limit and logs a line, and it
+never drops a core event. `UNI_CONTEXT_SIZE_MAX` is the most bytes of the
+`context` object of one event: the engine leaves out a value that does not
+fit and logs a line. `card_played` gives the tags of the played card to the
+matcher only when the card is public at that moment.
 
 ## 📚 Documentation
 

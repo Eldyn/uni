@@ -296,7 +296,8 @@ TEST_CASE("snapshot context: holds the engine-owned values") {
     CHECK(context["timers"]["turn_remaining_ms"] == 0);
     CHECK(context["timers"]["window_remaining_ms"] == 0);
     REQUIRE(context["streaks"].is_object());
-    CHECK(context["streaks"].empty());
+    CHECK(context["streaks"]["uni:skip_run"] == 0);
+    CHECK(context["streaks"]["uni:reverse_run"] == 0);
 }
 
 TEST_CASE("snapshot context: a hidden debt counts for its owner only") {

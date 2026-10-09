@@ -3,10 +3,16 @@ import { escapeLogText } from "./logRichText";
 import { DRAW_DEBT_STATUS_KIND, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
 export { DRAW_DEBT_STATUS_KIND };
 import { StreakTracker } from "./streakTracker";
+import { withServerStreaks, type EventContext } from "./serverStreaks";
 import type { LogEvent, LogLine } from "./logEvent";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
-export type SkipInfo = { target: string; actor?: string; seq: number };
+export type SkipInfo = {
+	target: string;
+	actor?: string;
+	seq: number;
+	context?: EventContext;
+};
 export type TurnInfo = { skipped: string[]; direction: number; seq: number; actor?: string };
 
 type PendingWild = {
@@ -66,17 +72,26 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		skipsLoggedByGuess.clear();
 	}
 
-	function emitSkip(seq: number, player: string, actor: string | undefined): void {
-		emit({
-			kind: "skip",
-			seq,
-			player: escapeLogText(player),
-			actor: actor ? escapeLogText(actor) : undefined
-		});
+	function emitSkip(
+		seq: number,
+		player: string,
+		actor: string | undefined,
+		context?: EventContext
+	): void {
+		emit(
+			{
+				kind: "skip",
+				seq,
+				player: escapeLogText(player),
+				actor: actor ? escapeLogText(actor) : undefined
+			},
+			context
+		);
 	}
 
-	function emit(event: LogEvent): void {
-		for (const line of buildLogLines(event, tracker.record(event))) post(line);
+	function emit(event: LogEvent, context?: EventContext): void {
+		const streak = withServerStreaks(tracker.record(event), context);
+		for (const line of buildLogLines(event, streak)) post(line);
 	}
 
 	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
@@ -141,10 +156,18 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	 * logs no second reverse. `noteTurn` stays the fallback for a stream that
 	 * has no direction event.
 	 */
-	function noteDirection({ direction, seq }: { direction: number; seq: number }): void {
+	function noteDirection({
+		direction,
+		seq,
+		context
+	}: {
+		direction: number;
+		seq: number;
+		context?: EventContext;
+	}): void {
 		if (lastDirection === direction) return;
 		lastDirection = direction;
-		enqueue(() => emit({ kind: "reverse", seq }));
+		enqueue(() => emit({ kind: "reverse", seq }, context));
 	}
 
 	function noteTurn({ skipped, direction, seq, actor }: TurnInfo): void {
@@ -160,7 +183,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 				if (takeCount(skipsLoggedByEvent, player)) continue;
 				const announced = announcedSkips.get(player)?.shift();
 				if (announced) {
-					emitSkip(announced.seq, player, announced.actor);
+					emitSkip(announced.seq, player, announced.actor, announced.context);
 					addCount(skipsLoggedByEvent, player);
 					continue;
 				}
@@ -185,7 +208,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 			const announced = announcedSkips.get(info.target)?.shift();
 			if (!announced) return;
 			if (takeCount(skipsLoggedByGuess, info.target)) return;
-			emitSkip(announced.seq, info.target, announced.actor);
+			emitSkip(announced.seq, info.target, announced.actor, announced.context);
 			addCount(skipsLoggedByEvent, info.target);
 		});
 	}

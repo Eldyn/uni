@@ -5,6 +5,8 @@
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 #include "match/status.hpp"
+#include "match/view/event_audience.hpp"
+#include "match/view/streak_view.hpp"
 
 #include <logger.hpp>
 
@@ -177,6 +179,7 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
     if (assembly_->resolver != nullptr) {
         assembly_->resolver->SetCausalSource(&causal_frame_);
     }
+    streaks_.SetDefinitions(assembly_->registries.streaks);
     Start();
 }
 
@@ -2677,6 +2680,26 @@ std::optional<uint32_t> MatchInstance::AdmitModEvent(nlohmann::json& event) {
     return std::nullopt;
 }
 
+void MatchInstance::ObserveStreaks(nlohmann::json& event) {
+    if (streaks_.Empty()) return;
+    const std::optional<match::streak::ClientEventView> view =
+        match::view::BuildStreakEventView(*this, event);
+    if (!view.has_value()) return;
+    streaks_.Observe(*view);
+
+    std::vector<std::string> requested;
+    if (event.value("type", std::string()) == "mod_event") {
+        const auto definition = assembly_->registries.events.find(view->id);
+        if (definition != assembly_->registries.events.end()) {
+            requested = definition->second.context;
+        }
+    } else {
+        requested = match::view::CoreContextNames(view->id);
+    }
+    nlohmann::json context = streaks_.ContextFor(requested);
+    if (!context.is_null()) event["context"] = std::move(context);
+}
+
 void MatchInstance::DisarmOffender(const std::string& mod_id) {
     if (!assembly_->bus.Disarm(mod_id)) return;
     Logger::Error("[ModEventBudget] mod '", mod_id,
@@ -2699,6 +2722,7 @@ void MatchInstance::PushEventOnce(nlohmann::json event) {
         causal_frame_.mod_cause_event = event_id;
     }
     event["event_id"] = event_id;
+    ObserveStreaks(event);
     const bool starts_play_chain =
         event.value("type", std::string()) == "card_played";
     if (starts_play_chain && !causal_frame_.cause_event.has_value()) {

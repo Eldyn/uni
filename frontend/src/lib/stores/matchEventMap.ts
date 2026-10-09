@@ -6,6 +6,7 @@
  * `storeGame`) and creating an import cycle.
  */
 
+import type { EventContext } from "$lib/chat/playLog/serverStreaks";
 import {
 	MatchEventPayloadSchema,
 	CardPlayedPayloadSchema,
@@ -100,7 +101,7 @@ export type MatchEventBeat =
 			 *  presenting the incoming turn. */
 			skipped: string[];
 	  }
-	| { seq: number; kind: "direction"; direction: number }
+	| { seq: number; kind: "direction"; direction: number; context?: EventContext }
 	| {
 			seq: number;
 			kind: "skip";
@@ -108,6 +109,8 @@ export type MatchEventBeat =
 			target: string;
 			/** The seat that caused the skip; absent for a system skip. */
 			actor?: string;
+			/** Server streak values after this event (`uni:skip_run`). */
+			context?: EventContext;
 	  }
 	| { seq: number; kind: "active_color"; color: string; previousColor: string }
 	/** A seat took a place; `isElimination` is true for a seat that is out. */
@@ -234,7 +237,12 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 		case "direction_changed": {
 			const parsed = DirectionChangedPayloadSchema.safeParse(payload);
 			if (!parsed.success) return null;
-			return { seq, kind: "direction", direction: parsed.data.direction };
+			return {
+				seq,
+				kind: "direction",
+				direction: parsed.data.direction,
+				context: envelope.data.context
+			};
 		}
 		case "status_applied": {
 			const parsed = StatusAppliedPayloadSchema.safeParse(payload);
@@ -252,7 +260,13 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 		case "turn_skipped": {
 			const parsed = TurnSkippedPayloadSchema.safeParse(payload);
 			if (!parsed.success) return null;
-			return { seq, kind: "skip", target: parsed.data.target, actor };
+			return {
+				seq,
+				kind: "skip",
+				target: parsed.data.target,
+				actor,
+				context: envelope.data.context
+			};
 		}
 		case "placement_set": {
 			const parsed = PlacementSetPayloadSchema.safeParse(payload);

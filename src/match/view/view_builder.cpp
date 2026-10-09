@@ -650,8 +650,9 @@ int64_t VisibleDrawDebt(const ViewBuilder& builder,
  * snapshot already shows it: `hold` carries the card for its owner only, and
  * the timers and the debt are public table state.
  *
- * INFO: `streaks` stays empty until the server streak mechanism fills it
- *       (tickets 14 and 15: streak values, near-win window, block state).
+ * INFO: `streaks` holds the current value of every `uni` streak, not only the
+ *       requested ones. Ticket 15 adds the near-win window and the block
+ *       state.
  */
 json BuildContext(const match::engine::MatchInstance& match,
                   const json& state, int64_t draw_debt, json hold,
@@ -687,7 +688,7 @@ json BuildContext(const match::engine::MatchInstance& match,
              {"window_remaining_ms", remaining_until(window_deadline_ms)}};
     context["last_event_sequence"] =
         sink.NextSeq() == 0 ? json(nullptr) : json(sink.NextSeq() - 1);
-    context["streaks"] = json::object();
+    context["streaks"] = match.Streaks().AllValues();
     return context;
 }
 

@@ -5,6 +5,7 @@
 #include "logger.hpp"
 #include "match/modload/base_mod.hpp"
 #include "match/modload/event_definition_keys.hpp"
+#include "match/modload/streak_definition_keys.hpp"
 #include "match/modload/mod_hash.hpp"
 
 #include <common/contract.hpp>
@@ -1136,6 +1137,167 @@ bool ScanEventsDirectory(const fs::path& dir,
     return ok;
 }
 
+/* INFO: one matcher, version 1 style. Shape only; the closed word lists and
+ *       the field checks are the schema's and the validator's job. */
+bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
+                        std::vector<LoadError>& errors,
+                        const std::string& path) {
+    namespace keys = streak_keys;
+    if (!entry.is_object()
+        || !ParseStringField(entry, std::string(keys::kMatcherEvent),
+                             out.event)) {
+        AddError(errors, "streak.matcher", "streaks", path,
+                 "a matcher needs an object with '"
+                     + std::string(keys::kMatcherEvent) + "'");
+        return false;
+    }
+    const auto tests = entry.find(std::string(keys::kTests));
+    if (tests == entry.end()) return true;
+    if (!tests->is_array() || tests->size() > keys::kMaxMatcherTests) {
+        AddError(errors, "streak.matcher", "streaks", path,
+                 "'" + std::string(keys::kTests) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxMatcherTests)
+                     + " tests");
+        return false;
+    }
+    for (const nlohmann::json& item : *tests) {
+        StreakTestDef test;
+        if (!item.is_object()
+            || !ParseStringField(item, std::string(keys::kTest), test.test)) {
+            AddError(errors, "streak.matcher", "streaks", path,
+                     "a test needs an object with '"
+                         + std::string(keys::kTest) + "'");
+            return false;
+        }
+        (void)ParseStringField(item, std::string(keys::kField), test.field);
+        (void)ParseStringField(item, std::string(keys::kState), test.state);
+        (void)ParseStringField(item, std::string(keys::kTag), test.tag);
+        (void)ParseStringField(item, std::string(keys::kRelation),
+                               test.relation);
+        const auto value = item.find(std::string(keys::kValue));
+        if (value != item.end()) test.value = *value;
+        const auto values = item.find(std::string(keys::kValues));
+        if (values != item.end() && values->is_array()) test.values = *values;
+        const auto negate = item.find(std::string(keys::kNegate));
+        test.negate =
+            negate != item.end() && negate->is_boolean() && negate->get<bool>();
+        out.tests.push_back(std::move(test));
+    }
+    return true;
+}
+
+/* INFO: one streak definition per file, version 1 style. Structural checks
+ *       and the namespace rule only. */
+bool ParseStreakEntry(const nlohmann::json& entry, const std::string& mod_id,
+                      StreakDef& out, std::vector<LoadError>& errors,
+                      const std::string& path) {
+    namespace keys = streak_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "streak.shape", "streaks", path,
+                 "streak file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "streak.format_version", "streaks", path,
+                 "streak file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto streak = entry.find(std::string(keys::kStreak));
+    if (streak == entry.end() || !streak->is_object()) {
+        AddError(errors, "streak.shape", "streaks", path,
+                 "streak file needs a '" + std::string(keys::kStreak)
+                     + "' object");
+        return false;
+    }
+    const auto description = streak->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == streak->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "streak.identifier", "streaks", path,
+                 "streak needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "streak.id.namespace", "streaks", path, violation);
+        return false;
+    }
+    out.streak_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    if (!ParseStringField(*streak, std::string(keys::kType), out.type)) {
+        AddError(errors, "streak.type", "streaks", path,
+                 "streak '" + identifier + "' needs a string '"
+                     + std::string(keys::kType) + "'");
+        return false;
+    }
+    const auto matcher = streak->find(std::string(keys::kMatcher));
+    if (matcher == streak->end()
+        || !ParseStreakMatcher(*matcher, out.matcher, errors, path)) {
+        if (matcher == streak->end()) {
+            AddError(errors, "streak.matcher", "streaks", path,
+                     "streak '" + identifier + "' needs a '"
+                         + std::string(keys::kMatcher) + "'");
+        }
+        return false;
+    }
+    (void)ParseStringField(*streak, std::string(keys::kGroupBy), out.group_by);
+    (void)ParseStringField(*streak, std::string(keys::kValueField),
+                           out.value_field);
+    const auto reset_on = streak->find(std::string(keys::kResetOn));
+    if (reset_on != streak->end()) {
+        if (!reset_on->is_array()
+            || reset_on->size() > keys::kMaxResetMatchers) {
+            AddError(errors, "streak.matcher", "streaks", path,
+                     "'" + std::string(keys::kResetOn)
+                         + "' must be an array of at most "
+                         + std::to_string(keys::kMaxResetMatchers)
+                         + " matchers");
+            return false;
+        }
+        for (const nlohmann::json& item : *reset_on) {
+            StreakMatcherDef reset;
+            if (!ParseStreakMatcher(item, reset, errors, path)) return false;
+            out.reset_on.push_back(std::move(reset));
+        }
+    }
+    return true;
+}
+
+bool ScanStreaksDirectory(const fs::path& dir, const std::string& mod_id,
+                          std::vector<StreakDef>& out,
+                          std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "streaks", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "streaks")) {
+            ok = false;
+            continue;
+        }
+        StreakDef streak;
+        if (!ParseStreakEntry(entry, mod_id, streak, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(streak.streak_id).second) {
+            AddError(errors, "streak.id.duplicate", "streaks", file.string(),
+                     "duplicate streak id '" + streak.streak_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(streak));
+    }
+    return ok;
+}
+
 bool ParseDeckFile(const fs::path& path,
                    const std::string& ns,
                    DeckDef& out,
@@ -1779,6 +1941,10 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanEventsDirectory(root / "events", loaded.manifest.id,
                              loaded.events, errors)) {
+        return false;
+    }
+    if (!ScanStreaksDirectory(root / "streaks", loaded.manifest.id,
+                              loaded.streaks, errors)) {
         return false;
     }
     if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,

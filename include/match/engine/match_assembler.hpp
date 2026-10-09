@@ -163,6 +163,14 @@ struct MatchRegistries {
      */
     modload::EventRegistry events;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> streak definition for this match.
+     *
+     * Filled once at assembly from the active mods. The streak engine of the
+     * match reads it when the match starts.
+     */
+    modload::StreakRegistry streaks;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 
