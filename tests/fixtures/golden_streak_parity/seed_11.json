@@ -1,798 +1,2991 @@
 [
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_9",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_9",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_4",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_4",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_reverse",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_reverse",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
   }
  },
  {
   "event": "direction_changed",
-  "log_event": {
-   "kind": "reverse"
-  },
-  "old": {
-   "reverse_run": 1,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "kind": "reverse"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 1,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 1,
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": null,
-  "old": {
-   "reverse_run": 1,
-   "skip_run": 0
-  },
+  "log_events": [],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": null,
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 0
   }
  },
  {
   "event": "active_type_changed",
-  "log_event": {
-   "card_kind": "wild",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:wild",
+    "kind": "play",
+    "player": "bot1"
+   },
+   {
+    "color": "green",
+    "kind": "wild",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 1
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 1
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {},
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 0,
+   "wild_run": 1
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 1,
+    "kind": "draw",
+    "penalty": false,
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 1,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 1,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_draw2",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_draw2",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 1,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 2,
+    "kind": "draw",
+    "penalty": true,
+    "player": "bot2",
+    "victim": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 2,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot3",
+    "kind": "skip",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 2,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 2,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_draw2",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_draw2",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 2,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 2,
+    "kind": "draw",
+    "penalty": true,
+    "player": "bot0",
+    "victim": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot1",
+    "kind": "skip",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_3",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_3",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_8",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_8",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_8",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_8",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_6",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_6",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_0",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_0",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_4",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_4",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 3,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 1,
+    "kind": "draw",
+    "penalty": false,
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_8",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_8",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "blue_8",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:blue_8",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "blue_draw2",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:blue_draw2",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 1,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 4,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 2,
+    "kind": "draw",
+    "penalty": true,
+    "player": "bot1",
+    "victim": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot2",
+    "kind": "skip",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "blue_6",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:blue_6",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "blue_0",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:blue_0",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_0",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_0",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_8",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_8",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": null,
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "green",
+    "previous": null
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 0
   }
  },
  {
   "event": "active_type_changed",
-  "log_event": {
-   "card_kind": "wild_draw4",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:wild_draw4",
+    "kind": "play",
+    "player": "bot0"
+   },
+   {
+    "color": "red",
+    "kind": "wild",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 5,
+   "wild_run": 1
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 4,
+    "kind": "draw",
+    "penalty": true,
+    "player": "bot3",
+    "victim": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "kind": "skip",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_5",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_5",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_9",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_9",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_7",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_7",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_5",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_5",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "red_6",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:red_6",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_6",
-   "kind": "play",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_6",
+    "kind": "play",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 2,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 6,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 1,
+    "kind": "draw",
+    "penalty": false,
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 7,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_9",
-   "kind": "play",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_9",
+    "kind": "play",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 7,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": null
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_skip",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_skip",
+    "kind": "play",
+    "player": "bot2"
+   },
+   {
+    "kind": "near_win",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": false,
+    "target": null
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot2",
+    "kind": "skip",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_skip",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_skip",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot0",
+    "kind": "skip",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "round_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 1,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 7,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 1,
+    "kind": "draw",
+    "penalty": false,
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 8,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "yellow_skip",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:yellow_skip",
+    "kind": "play",
+    "player": "bot2"
+   },
+   {
+    "kind": "near_win",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": false,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 8,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot1"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot2",
+    "kind": "skip",
+    "player": "bot1"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 8,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 3,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 8,
+   "wild_run": 0
   }
  },
  {
   "event": "cards_drawn",
-  "log_event": {
-   "kind": "draw"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "count": 1,
+    "kind": "draw",
+    "penalty": false,
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 9,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_skip",
-   "kind": "play",
-   "player": "bot0"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_skip",
+    "kind": "play",
+    "player": "bot0"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 9,
+   "wild_run": 0
   }
  },
  {
   "event": "turn_skipped",
-  "log_event": {
-   "kind": "skip",
-   "player": "bot3"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 1
-  },
+  "log_events": [
+   {
+    "actor": "bot0",
+    "kind": "skip",
+    "player": "bot3"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 1
+   "skip_run": 1,
+   "total_draws": 9,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "turn_advance",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": true,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 1,
+   "total_draws": 9,
+   "wild_run": 0
   }
  },
  {
   "event": "card_played",
-  "log_event": {
-   "card_kind": "green_2",
-   "kind": "play",
-   "player": "bot2"
-  },
-  "old": {
-   "reverse_run": 0,
-   "skip_run": 0
-  },
+  "log_events": [
+   {
+    "card_kind": "uni:green_2",
+    "kind": "play",
+    "player": "bot2"
+   }
+  ],
   "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": true,
+    "target": "bot2"
+   },
    "reverse_run": 0,
-   "skip_run": 0
+   "skip_run": 0,
+   "total_draws": 9,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "placement_set",
+  "log_events": [],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": false,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 9,
+   "wild_run": 0
+  }
+ },
+ {
+  "event": "match_ended",
+  "log_events": [
+   {
+    "kind": "win",
+    "player": "bot2"
+   }
+  ],
+  "server": {
+   "blocked": false,
+   "draw_run": {
+    "bot0": 4,
+    "bot1": 2,
+    "bot2": 2,
+    "bot3": 1
+   },
+   "last_wild_color": {
+    "last": "red",
+    "previous": "green"
+   },
+   "near_win": {
+    "open": false,
+    "target": "bot2"
+   },
+   "near_win_before": {
+    "open": false,
+    "target": "bot2"
+   },
+   "reverse_run": 0,
+   "skip_run": 0,
+   "total_draws": 9,
+   "wild_run": 0
   }
  }
 ]

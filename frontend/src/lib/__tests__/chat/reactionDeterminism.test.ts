@@ -14,7 +14,9 @@ function client() {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function drive(emitter: ReturnType<typeof client>["emitter"], seqs: number[]) {
-	for (const seq of seqs) emitter.noteTurn({ skipped: ["Ann"], direction: 1, seq });
+	seqs.forEach((seq, index) => {
+		emitter.noteSkipped({ target: "Ann", seq, context: { "uni:skip_run": index + 1 } });
+	});
 }
 
 describe("two clients telling the same joke", () => {
@@ -55,11 +57,12 @@ describe("two clients telling the same joke", () => {
 			{ color: "green", seq: 3 }
 		];
 		const driveWilds = (emitter: ReturnType<typeof client>["emitter"]) => {
-			for (const { color, seq } of wilds) {
-				emitter.notePlay({ player: "Ann", kind: "uni:wild", color }, Promise.resolve(), {
+			wilds.forEach(({ color, seq }, index) => {
+				emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "white" }, Promise.resolve(), {
 					seq
 				});
-			}
+				emitter.noteWildColor(color, { "uni:wild_run": index + 1 });
+			});
 		};
 		driveWilds(a.emitter);
 		driveWilds(b.emitter);

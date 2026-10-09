@@ -99,6 +99,12 @@ void LoadStreaks(const std::vector<modload::StreakDef>& streaks,
                  modload::StreakRegistry& out);
 
 /**
+ * @brief Build full-`namespace:id` -> derived event definition into `out`.
+ */
+void LoadDerived(const std::vector<modload::DerivedEventDef>& derived,
+                 modload::DerivedRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

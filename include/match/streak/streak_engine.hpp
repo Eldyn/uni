@@ -80,6 +80,15 @@ class StreakEngine {
     /** @brief Run the one evaluation pass for one base client event. */
     void Observe(const ClientEventView& event);
 
+    /**
+     * @brief Charge one evaluation of `turn` against the cost limit.
+     *
+     * The derived engine calls it, so derived evaluations count toward
+     * `UNI_STREAK_COST_MAX` with the streak evaluations. False when the turn
+     * has used the limit; the caller then skips the evaluation.
+     */
+    bool TryCharge(int64_t turn);
+
     /** @brief The value of one streak; null for an unknown id. */
     nlohmann::json ValueOf(const std::string& streak_id) const;
 

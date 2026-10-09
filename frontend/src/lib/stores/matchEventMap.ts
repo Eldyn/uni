@@ -26,6 +26,8 @@ import {
 	DirectionChangedPayloadSchema,
 	TurnSkippedPayloadSchema,
 	ExtraTurnGrantedPayloadSchema,
+	NearWinEnteredPayloadSchema,
+	BlockedPayloadSchema,
 	ActiveTypeChangedPayloadSchema,
 	RestrictionAddedPayloadSchema,
 	RestrictionRemovedPayloadSchema,
@@ -70,6 +72,8 @@ export type MatchEventBeat =
 			handSizeAfter?: number;
 			/** True when the draw pays a draw debt. */
 			fromDebt?: boolean;
+			/** Server streak values after this event (`uni:draw_run`, ...). */
+			context?: EventContext;
 	  }
 	| {
 			seq: number;
@@ -112,7 +116,18 @@ export type MatchEventBeat =
 			/** Server streak values after this event (`uni:skip_run`). */
 			context?: EventContext;
 	  }
-	| { seq: number; kind: "active_color"; color: string; previousColor: string }
+	| {
+			seq: number;
+			kind: "active_color";
+			color: string;
+			previousColor: string;
+			/** Server streak values after this event (`uni:wild_run`, ...). */
+			context?: EventContext;
+	  }
+	/** A seat is one card from the win; derived from the play before it. */
+	| { seq: number; kind: "near_win"; target: string }
+	/** The near-win seat lost its turn or drew; `actor` caused it. */
+	| { seq: number; kind: "blocked"; target: string; actor?: string }
 	/** A seat took a place; `isElimination` is true for a seat that is out. */
 	| { seq: number; kind: "placement"; target: string; place: number; isElimination: boolean }
 	/** The match ended; `target` is the winner, `targets` the placed seats. */
@@ -180,7 +195,8 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				held: parsed.data.held,
 				cardIds: parsed.data.cards ?? [],
 				handSizeAfter: parsed.data.hand_size_after,
-				fromDebt: parsed.data.from_debt
+				fromDebt: parsed.data.from_debt,
+				context: envelope.data.context
 			};
 		}
 		case "drawn_card_kept": {
@@ -291,8 +307,19 @@ export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 				seq,
 				kind: "active_color",
 				color: parsed.data.color,
-				previousColor: parsed.data.previous_color
+				previousColor: parsed.data.previous_color,
+				context: envelope.data.context
 			};
+		}
+		case "near_win_entered": {
+			const parsed = NearWinEnteredPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "near_win", target: parsed.data.target };
+		}
+		case "blocked": {
+			const parsed = BlockedPayloadSchema.safeParse(payload);
+			if (!parsed.success) return null;
+			return { seq, kind: "blocked", target: parsed.data.target, actor };
 		}
 		case "extra_turn_granted":
 			return ignoredBeat(seq, type, ExtraTurnGrantedPayloadSchema.safeParse(payload).success);

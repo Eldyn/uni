@@ -280,18 +280,36 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual(["log_play", "log_skip"]);
 	});
 
-	it("escalates a repeated skip, and a desync resets the streak (Review Focus 5)", async () => {
+	it("escalates a repeated skip from the server run; a desync drops queued lines", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
+		const skip = (run: number): MatchEventBeat => ({
+			seq: 1,
+			kind: "skip",
+			target: "bob",
+			actor: "me",
+			context: { "uni:skip_run": run }
+		});
 
-		h.fire(skipTurn(["bob"]));
-		h.fire(skipTurn(["bob"]));
+		h.fire(skip(1));
+		h.fire(skip(2));
 		await flush();
 		h.desync();
-		h.fire(skipTurn(["bob"]));
+		h.fire(skip(1));
 		await flush();
 
 		expect(partyKeys()).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
+	});
+
+	it("counts no skip on the client: a skip beat with no context is a first skip", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 1, kind: "skip", target: "bob" });
+		h.fire({ seq: 1, kind: "skip", target: "bob" });
+		await flush();
+
+		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
 	});
 
 	it("resets the streak when the match is cleared", async () => {
@@ -360,7 +378,15 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
 
-		h.fire({ seq: 1, kind: "draw", player: "me", count: 1, sourcePile: "draw", cardIds: [99] });
+		h.fire({
+			seq: 1,
+			kind: "draw",
+			player: "me",
+			count: 1,
+			sourcePile: "draw",
+			cardIds: [99],
+			context: { "uni:draw_run": { me: 1 }, "uni:total_draws": 1 }
+		});
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
@@ -370,7 +396,15 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
 
-		h.fire({ seq: 2, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 2,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			cardIds: [],
+			context: { "uni:draw_run": { bob: 1 }, "uni:total_draws": 1 }
+		});
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
@@ -390,7 +424,15 @@ describe("matchEventController play log", () => {
 
 		// INFO: the server withholds card identities from a spectator, so the
 		//       beat carries no ids even though bob is the viewed/"local" player.
-		h.fire({ seq: 1, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 1,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			cardIds: [],
+			context: { "uni:draw_run": { bob: 1 }, "uni:total_draws": 1 }
+		});
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
@@ -478,7 +520,7 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual([expect.stringMatching(/^log_reshuffle/)]);
 	});
 
-	it("logs a near-win when a non-draw play leaves the actor at one card", async () => {
+	it("logs a near-win from the near-win event after the play", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
 			players: [
 				{ username: "me", card_count: 1, is_bot: false, hand: [] },
@@ -488,12 +530,13 @@ describe("matchEventController play log", () => {
 		const h = harness();
 
 		h.fire({ seq: 23, kind: "play", player: "me", cardId: 2, auto: false });
+		h.fire({ seq: 24, kind: "near_win", target: "me" });
 		await flush();
 
 		expect(partyKeys()).toEqual(["log_play", expect.stringMatching(/^log_near_win/)]);
 	});
 
-	it("does not log a near-win when the played card is a draw card", async () => {
+	it("does not guess a near-win from the card count: only the event logs it", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "+2" }, "red", {
 			players: [
 				{ username: "me", card_count: 1, is_bot: false, hand: [] },
@@ -573,7 +616,7 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual([]);
 	});
 
-	it("logs a blocked retort when the near-win target is skipped by the last player", async () => {
+	it("logs a blocked retort from the blocked event, after the skip line", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
 			players: [
 				{ username: "me", card_count: 4, is_bot: false, hand: [] },
@@ -583,22 +626,18 @@ describe("matchEventController play log", () => {
 		});
 		const h = harness();
 
-		// bob's near-win play opens the window
 		h.fire({ seq: 30, kind: "play", player: "bob", cardId: 2, auto: false });
+		h.fire({ seq: 31, kind: "near_win", target: "bob" });
 		await flush();
 
-		// ann plays next, becoming the last player before the skip turn
-		storeGame.state = stateWithTop({ id: 3, type: "blue", value: "7" }, "blue", {
-			players: [
-				{ username: "me", card_count: 4, is_bot: false, hand: [] },
-				{ username: "bob", card_count: 1, is_bot: false, hand: [] },
-				{ username: "ann", card_count: 2, is_bot: false, hand: [] }
-			]
+		h.fire({
+			seq: 33,
+			kind: "skip",
+			target: "bob",
+			actor: "ann",
+			context: { "uni:skip_run": 1 }
 		});
-		h.fire({ seq: 31, kind: "play", player: "ann", cardId: 3, auto: false });
-		await flush();
-
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 34, kind: "blocked", target: "bob", actor: "ann" });
 		await flush();
 
 		const keys = partyKeys();
@@ -607,5 +646,16 @@ describe("matchEventController play log", () => {
 		expect(blockedIndex).toBeGreaterThan(keys.indexOf("log_skip"));
 		const blockedLine = chatStore.linesFor("party")[blockedIndex];
 		expect(blockedLine.logParams).toEqual({ blocker: "ann", target: "bob" });
+	});
+
+	it("derives no blocked line from the skip itself", async () => {
+		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
+		const h = harness();
+
+		h.fire({ seq: 30, kind: "play", player: "bob", cardId: 2, auto: false });
+		h.fire({ seq: 33, kind: "skip", target: "bob", actor: "ann" });
+		await flush();
+
+		expect(partyKeys().some((key) => key?.startsWith("log_blocked_"))).toBe(false);
 	});
 });

@@ -585,7 +585,9 @@ void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
  * @param lobby Reference to the checked targeted room instance.
  */
 void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
-    if (lobby.session && lobby.members.size() < 2) {
+    const bool has_human = std::ranges::any_of(
+        lobby.members, [](const LobbyMember& m) { return !m.is_bot; });
+    if (lobby.session && (lobby.members.size() < 2 || !has_human)) {
         Logger::Info("[Lobby] Match aborted for lobby ", lobby.id, " due to disconnections.");
 
         // INFO: The engine never removes a mid-game seat, so an
@@ -593,7 +595,7 @@ void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
         //       persisted as a completed match (mirroring the pre-swap
         //       `RecordMatchCompleted(winner)`); with no survivors left only
         //       the aborted ledger rows are recorded.
-        if (lobby.members.size() == 1) {
+        if (lobby.members.size() == 1 && has_human) {
             const std::string& winner = lobby.members.front().username;
             RecordMatchResult(lobby, winner);
             for (auto& cb : on_match_aborted_) cb(&lobby, winner);

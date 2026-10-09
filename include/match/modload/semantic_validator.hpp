@@ -47,6 +47,7 @@ inline constexpr const char* kEntities = "entities.schema.json";
 inline constexpr const char* kPresentations = "presentations.schema.json";
 inline constexpr const char* kEvents = "events.schema.json";
 inline constexpr const char* kStreaks = "streaks.schema.json";
+inline constexpr const char* kDerived = "derived.schema.json";
 }  // namespace schema_files
 
 /**
@@ -57,8 +58,8 @@ inline constexpr const char* kStreaks = "streaks.schema.json";
  * come first inside every stage. "texts" is a later ticket: the slot keeps its
  * place and has no checks yet.
  */
-inline constexpr std::array<std::string_view, 5> kValidationStageOrder = {
-    "uni", "events", "streaks", "presentations", "texts"};
+inline constexpr std::array<std::string_view, 6> kValidationStageOrder = {
+    "uni", "events", "streaks", "derived", "presentations", "texts"};
 
 /**
  * @struct SchemaViolation

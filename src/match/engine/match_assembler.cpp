@@ -799,6 +799,7 @@ AssemblyResult MatchAssembler::Assemble(
         std::vector<modload::PresentationDef> active_presentations;
         std::vector<modload::EventDef> active_events;
         std::vector<modload::StreakDef> active_streaks;
+        std::vector<modload::DerivedEventDef> active_derived;
         for (const modload::LoadedMod* mod : active) {
             for (const modload::EntityDef& entity : mod->entities) {
                 active_entities.push_back(entity);
@@ -813,12 +814,17 @@ AssemblyResult MatchAssembler::Assemble(
             for (const modload::StreakDef& streak : mod->streaks) {
                 active_streaks.push_back(streak);
             }
+            for (const modload::DerivedEventDef& derived :
+                 mod->derived_events) {
+                active_derived.push_back(derived);
+            }
         }
         wiring::LoadEntities(active_entities, assembly->registries.entities);
         wiring::LoadPresentations(active_presentations,
                                   assembly->registries.presentations);
         wiring::LoadEvents(active_events, assembly->registries.events);
         wiring::LoadStreaks(active_streaks, assembly->registries.streaks);
+        wiring::LoadDerived(active_derived, assembly->registries.derived);
     }
 
     // --- systems: rules then card behaviors, frozen order -------

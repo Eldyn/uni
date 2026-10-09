@@ -7,6 +7,7 @@
 #include <match/engine/play_evaluator.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/streak/derived_engine.hpp>
 #include <match/streak/streak_engine.hpp>
 #include <match/scheduler.hpp>
 #include <match/timers.hpp>
@@ -430,6 +431,8 @@ public:
     const MatchRegistries& Registries() const { return assembly_->registries; }
     /** @brief The streak values of this match. */
     const match::streak::StreakEngine& Streaks() const { return streaks_; }
+    /** @brief The derived event windows of this match. */
+    const match::streak::DerivedEngine& Derived() const { return derived_; }
 
 private:
     /** @brief One accepted play's provenance, for the state JSON. */
@@ -503,10 +506,24 @@ private:
     };
 
     /**
-     * @brief Run the one streak pass for a stamped base event and attach the
-     *        requested `context` to its descriptor.
+     * @brief Run the one streak pass and the one derived pass for a stamped
+     *        base event and attach the requested `context` to its descriptor.
+     *
+     * @return The derived events that follow the base event.
      */
-    void ObserveStreaks(nlohmann::json& event);
+    std::vector<match::streak::Derivation> ObserveStreaks(
+        nlohmann::json& event);
+
+    /**
+     * @brief Append the derived events of a base event to the log.
+     *
+     * Each derived event takes the frame of its base event with the base
+     * `event_id` as `cause_event`. It is marked `derived` and never goes
+     * through `ObserveStreaks`, so it cannot feed a streak.
+     */
+    void PushDerivedEvents(
+        int64_t base_event_id, const nlohmann::json& base_frame,
+        const std::vector<match::streak::Derivation>& derivations);
 
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
@@ -690,6 +707,9 @@ private:
      */
     void CommitWinningPlay(ecs::Entity player, ecs::Entity card,
                            bool stacks_penalty);
+
+    /** @brief Sets the match's active type to the played card's colour. */
+    void AdoptPlayedColor(ecs::Entity card, const std::string& kind_id);
 
     /**
      * @brief Remove every seat's `uni:draw_debt`, emitting removals.
@@ -928,6 +948,8 @@ private:
 
     /** @brief The values of the streaks of this match. */
     match::streak::StreakEngine streaks_;
+    /** @brief The windows and blocks of the derived events. */
+    match::streak::DerivedEngine derived_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

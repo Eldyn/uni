@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { resolveLogText } from "../../chat/playLog/logText";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
-import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
+import type { LogEvent, StreakValues } from "../../chat/playLog/logEvent";
 import type { ReactionContext } from "../../chat/playLog/reactionContext";
 
 const localeCatalogs = import.meta.glob<Record<string, string>>("../../../../messages/*.json", {
@@ -33,16 +33,14 @@ const PLACEHOLDER_SAMPLES: Record<string, string> = {
 	place: "1"
 };
 
-const EMPTY_STREAK: StreakInfo = {
+const EMPTY_STREAK: StreakValues = {
 	skipRun: 0,
 	reverseRun: 0,
 	drawRun: 0,
 	totalDraws: 0,
 	wildRun: 0,
 	lastWildColor: null,
-	prevWildColor: null,
-	nearWinTarget: null,
-	nearWinOpen: false
+	prevWildColor: null
 };
 
 const SAMPLE_EVENTS: Record<string, LogEvent> = {
@@ -71,8 +69,8 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 		color: "red"
 	},
 	near_win: { kind: "near_win", seq: 7, player: "Ann" },
-	blocked_skip: { kind: "skip", seq: 8, player: "Ann", actor: "Bob" },
-	blocked_draw: {
+	blocked: { kind: "blocked", seq: 8, player: "Ann", blocker: "Bob" },
+	penalty_draw: {
 		kind: "draw",
 		seq: 9,
 		player: "Bob",
@@ -88,10 +86,8 @@ const SAMPLE_EVENTS: Record<string, LogEvent> = {
 	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
 };
 
-const SAMPLE_STREAKS: Record<string, Partial<StreakInfo>> = {
-	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" },
-	blocked_skip: { nearWinTarget: "Ann", nearWinOpen: true },
-	blocked_draw: { nearWinTarget: "Ann", nearWinOpen: true }
+const SAMPLE_STREAKS: Record<string, Partial<StreakValues>> = {
+	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" }
 };
 
 const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {

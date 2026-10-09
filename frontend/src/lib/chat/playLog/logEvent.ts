@@ -14,6 +14,7 @@ export type LogEvent =
 	| { kind: "keep"; seq: number; player: string }
 	| { kind: "wild"; seq: number; player: string; color: string }
 	| { kind: "near_win"; seq: number; player: string }
+	| { kind: "blocked"; seq: number; player: string; blocker?: string }
 	| { kind: "win"; seq: number; player: string }
 	| { kind: "elimination"; seq: number; player: string; place: number; finished: boolean }
 	| {
@@ -29,7 +30,8 @@ export type LogEvent =
 			actor?: string;
 	  };
 
-export type StreakInfo = {
+/** The server streak values that the play log rules read. */
+export type StreakValues = {
 	skipRun: number;
 	reverseRun: number;
 	drawRun: number;
@@ -37,8 +39,6 @@ export type StreakInfo = {
 	wildRun: number;
 	lastWildColor: string | null;
 	prevWildColor: string | null;
-	nearWinTarget: string | null;
-	nearWinOpen: boolean;
 };
 
 export type LogLine = {

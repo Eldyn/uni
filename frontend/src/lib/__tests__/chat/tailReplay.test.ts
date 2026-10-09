@@ -15,9 +15,10 @@ function envelope(
 	sequence: number,
 	id: string,
 	payload: Record<string, unknown>,
-	actor?: string
+	actor?: string,
+	context?: Record<string, unknown>
 ): TailEnvelope {
-	return { sequence, seq: sequence, id, type: id, actor, replayed: true, payload };
+	return { sequence, seq: sequence, id, type: id, actor, replayed: true, payload, context };
 }
 
 function replay(tail: TailEnvelope[]): LogLine[] {
@@ -88,5 +89,84 @@ describe("replayTailToLog", () => {
 		const plain = replay([envelope(0, "cards_drawn", { target: "Bob", count: 1 }, "Bob")]);
 		expect(debt.map((line) => line.key)).toEqual(["log_draw_stack"]);
 		expect(plain[0].key).not.toMatch(/stack/);
+	});
+
+	it("logs the near-win line from the near_win_entered event, after the play", () => {
+		const lines = replay([
+			envelope(
+				0,
+				"card_played",
+				{ player: "Ann", card: RED_FIVE_BITS, from_zone_ordinal: 0 },
+				"Ann"
+			),
+			envelope(1, "near_win_entered", { target: "Ann" }, "Ann")
+		]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_play",
+			expect.stringMatching(/^log_near_win/)
+		]);
+		expect(lines[1].params).toEqual({ name: "Ann" });
+	});
+
+	it("keeps the near-win line of a wild between its play line and its wild line", () => {
+		const lines = replay([
+			envelope(0, "card_played", { player: "Ann", card: WILD_BITS, from_zone_ordinal: 0 }, "Ann"),
+			envelope(1, "near_win_entered", { target: "Ann" }, "Ann"),
+			envelope(2, "active_type_changed", { color: "blue", previous_color: "red" }, "Ann", {
+				"uni:wild_run": 1
+			})
+		]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_play",
+			expect.stringMatching(/^log_near_win/),
+			expect.stringMatching(/^log_wild_reaction/)
+		]);
+	});
+
+	it("logs the blocked line from the blocked event with the envelope actor", () => {
+		const lines = replay([
+			envelope(0, "turn_skipped", { target: "Bob" }, "Ann", { "uni:skip_run": 1 }),
+			envelope(1, "blocked", { target: "Bob" }, "Ann")
+		]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_skip",
+			expect.stringMatching(/^log_blocked_/)
+		]);
+		expect(lines[1].params).toEqual({ blocker: "Ann", target: "Bob" });
+	});
+
+	it("logs no blocked line when the envelope has no actor", () => {
+		const lines = replay([envelope(0, "blocked", { target: "Bob" })]);
+		expect(lines).toEqual([]);
+	});
+
+	it("reads the draw counts and the wild run from the envelope context", () => {
+		const lines = replay([
+			envelope(
+				0,
+				"cards_drawn",
+				{ target: "Ann", player: "Ann", count: 1, hand_size_after: 3, held: false },
+				"Ann",
+				{ "uni:draw_run": { Ann: 4, Bob: 1 }, "uni:total_draws": 5 }
+			),
+			envelope(1, "card_played", { player: "Bob", card: WILD_BITS, from_zone_ordinal: 0 }, "Bob"),
+			envelope(2, "active_type_changed", { color: "green", previous_color: "red" }, "Bob", {
+				"uni:wild_run": 3,
+				"uni:last_wild_color": { last: "green", previous: "blue" }
+			})
+		]);
+		expect(lines[0].key).toMatch(/^log_draw_many/);
+		const wild = lines.find((line) => line.key.startsWith("log_wild_reaction"));
+		expect(wild?.key).toMatch(/^log_wild_reaction_third/);
+		expect(wild?.params.prevColor).toBe("blue");
+	});
+
+	it("counts nothing itself: a tail with no context reads as no streak info", () => {
+		const lines = replay([
+			envelope(0, "turn_skipped", { target: "Bob" }, "Ann"),
+			envelope(1, "turn_skipped", { target: "Bob" }, "Ann"),
+			envelope(2, "turn_skipped", { target: "Bob" }, "Ann")
+		]);
+		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip", "log_skip"]);
 	});
 });

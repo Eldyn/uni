@@ -2,8 +2,7 @@ import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
 import { DRAW_DEBT_STATUS_KIND, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
 export { DRAW_DEBT_STATUS_KIND };
-import { StreakTracker } from "./streakTracker";
-import { withServerStreaks, type EventContext } from "./serverStreaks";
+import { readStreaks, type EventContext } from "./serverStreaks";
 import type { LogEvent, LogLine } from "./logEvent";
 
 export type PlayedCard = { player: string; kind: string; color: string; auto?: boolean };
@@ -27,11 +26,11 @@ type PendingStack = { player: string; amount: number; seq: number };
 
 /**
  * Turns match beats into play-log lines, in order and only once the card they
- * belong to has landed. Owns the per-match streak state, so a `reset()` on
- * match end or resync means a late join never sees a streak it did not watch.
+ * belong to has landed. The streak values come from the server (the envelope
+ * `context`); the emitter counts nothing. A `reset()` on match end or resync
+ * drops the queued steps.
  */
 export function createPlayLogEmitter(post: (line: LogLine) => void) {
-	const tracker = new StreakTracker();
 	let generation = 0;
 	let tail: Promise<unknown> = Promise.resolve();
 	let lastDirection: number | null = null;
@@ -89,12 +88,17 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		);
 	}
 
-	function emit(event: LogEvent, context?: EventContext): void {
-		const streak = withServerStreaks(tracker.record(event), context);
-		for (const line of buildLogLines(event, streak)) post(line);
+	/** `seat` is the raw seat id; the per-seat draw count is keyed by it. */
+	function emit(event: LogEvent, context?: EventContext, seat?: string): void {
+		for (const line of buildLogLines(event, readStreaks(context, seat))) post(line);
 	}
 
-	function emitPlayReactions(card: PlayedCard, seq: number, nearWin: boolean | undefined): void {
+	function emitPlayReactions(
+		card: PlayedCard,
+		seq: number,
+		nearWin: boolean | undefined,
+		context?: EventContext
+	): void {
 		const player = escapeLogText(card.player);
 		const cardKind = card.kind;
 		const isWild = WILD_KIND_IDS.includes(cardKind);
@@ -104,7 +108,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 				: { kind: "play", seq, player, cardKind: card.kind, color: card.color }
 		);
 		if (nearWin) emit({ kind: "near_win", seq, player });
-		if (isWild) emit({ kind: "wild", seq, player, color: card.color });
+		if (isWild) emit({ kind: "wild", seq, player, color: card.color }, context);
 	}
 
 	function enqueue(step: () => void, landed: Promise<unknown> = Promise.resolve()): void {
@@ -117,14 +121,10 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 			});
 	}
 
-	function notePlay(
-		card: PlayedCard,
-		landed: Promise<unknown>,
-		ctx: { seq: number; nearWin?: boolean }
-	): void {
+	function notePlay(card: PlayedCard, landed: Promise<unknown>, ctx: { seq: number }): void {
 		const { player, color } = card;
 		const kind = card.kind;
-		const { seq, nearWin } = ctx;
+		const { seq } = ctx;
 		const stackAmount = kind === WILD_DRAW_FOUR_KIND_ID ? 4 : kind.endsWith("_draw2") ? 2 : null;
 		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;
 
@@ -132,7 +132,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		if (isWild && color === "white") {
 			// INFO: a new unresolved wild supersedes any earlier one that never
 			//       got its colour pick; only the latest is live.
-			pendingWild = { player, kind, landed, seq, nearWin, auto: card.auto };
+			pendingWild = { player, kind, landed, seq, auto: card.auto };
 			enqueue(() => undefined, landed);
 			return;
 		}
@@ -140,14 +140,40 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		// INFO: any resolved play closes the window for an unresolved wild from
 		//       before it — no wild colour is coming for that one now.
 		pendingWild = null;
-		enqueue(() => emitPlayReactions(card, seq, nearWin), landed);
+		enqueue(() => emitPlayReactions(card, seq, false), landed);
 	}
 
-	function noteWildColor(color: string): void {
+	function noteWildColor(color: string, context?: EventContext): void {
 		if (!pendingWild) return;
 		const { player, kind, landed, seq, nearWin, auto } = pendingWild;
 		pendingWild = null;
-		enqueue(() => emitPlayReactions({ player, kind, color, auto }, seq, nearWin), landed);
+		enqueue(() => emitPlayReactions({ player, kind, color, auto }, seq, nearWin, context), landed);
+	}
+
+	/**
+	 * Logs the near-win line from a `near_win_entered` event. The event follows
+	 * its play at once. A wild that still waits for its color holds the line
+	 * back, so it stays between the play line and the wild line.
+	 */
+	function noteNearWin(player: string, seq: number): void {
+		if (pendingWild !== null && pendingWild.player === player) {
+			pendingWild.nearWin = true;
+			return;
+		}
+		enqueue(() => emit({ kind: "near_win", seq, player: escapeLogText(player) }));
+	}
+
+	/** Logs the blocked retort from a `blocked` event. The seat that caused it
+	 *  is the envelope actor; with none, the line stays out. */
+	function noteBlocked(target: string, blocker: string | undefined, seq: number): void {
+		enqueue(() =>
+			emit({
+				kind: "blocked",
+				seq,
+				player: escapeLogText(target),
+				blocker: blocker ? escapeLogText(blocker) : undefined
+			})
+		);
 	}
 
 	/**
@@ -223,18 +249,22 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	}
 
 	function noteDraw(
-		beat: { seq: number; player: string; count: number },
+		beat: { seq: number; player: string; count: number; context?: EventContext },
 		ctx: { handSize: number }
 	): void {
 		enqueue(() =>
-			emit({
-				kind: "draw",
-				seq: beat.seq,
-				player: escapeLogText(beat.player),
-				count: beat.count,
-				penalty: false,
-				handSize: ctx.handSize
-			})
+			emit(
+				{
+					kind: "draw",
+					seq: beat.seq,
+					player: escapeLogText(beat.player),
+					count: beat.count,
+					penalty: false,
+					handSize: ctx.handSize
+				},
+				beat.context,
+				beat.player
+			)
 		);
 	}
 
@@ -377,7 +407,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	function reset(): void {
 		generation += 1;
 		tail = Promise.resolve();
-		tracker.reset();
 		lastDirection = null;
 		pendingWild = null;
 		pendingStack = null;
@@ -391,6 +420,8 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	return {
 		notePlay,
 		noteWildColor,
+		noteNearWin,
+		noteBlocked,
 		noteDirection,
 		noteTurn,
 		noteSkipped,

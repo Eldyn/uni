@@ -1,0 +1,101 @@
+{
+ "near_win": {
+  "near_win_entered": {
+   "open": true,
+   "target": "player0"
+  }
+ },
+ "tail": [
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:turn_order"
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 0,
+   "sequence": 0,
+   "turn": 0,
+   "type": "restriction_added"
+  },
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:match_type_or_value"
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 1,
+   "sequence": 1,
+   "turn": 0,
+   "type": "restriction_added"
+  },
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:must_own_card"
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 2,
+   "sequence": 2,
+   "turn": 0,
+   "type": "restriction_added"
+  },
+  {
+   "actor": "player0",
+   "id": "card_played",
+   "payload": {
+    "card": 126976,
+    "from_zone_ordinal": 0,
+    "player": "player0",
+    "tags": [
+     "colored",
+     "numbered",
+     "red"
+    ]
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 3,
+   "sequence": 3,
+   "turn": 0,
+   "type": "card_played"
+  },
+  {
+   "actor": "player0",
+   "cause": 3,
+   "id": "near_win_entered",
+   "payload": {
+    "target": "player0"
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 4,
+   "sequence": 4,
+   "turn": 0,
+   "type": "near_win_entered"
+  },
+  {
+   "actor": "player0",
+   "cause": 3,
+   "id": "turn_advance",
+   "payload": {
+    "deadline_ms": 0,
+    "direction": 1,
+    "from": "player0",
+    "skipped": [],
+    "to": "player1"
+   },
+   "replayed": true,
+   "round": 0,
+   "seq": 5,
+   "sequence": 5,
+   "turn": 1,
+   "type": "turn_advance"
+  }
+ ]
+}

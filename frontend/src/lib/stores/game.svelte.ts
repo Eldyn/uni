@@ -81,7 +81,11 @@ const SnapshotContextSchema = z.object({
 		})
 		.optional(),
 	last_event_sequence: z.number().int().nullable().optional(),
-	streaks: z.record(z.string(), z.unknown()).optional()
+	streaks: z.record(z.string(), z.unknown()).optional(),
+	// INFO: the derived event windows, keyed by the event id that opens them.
+	near_win: z
+		.record(z.string(), z.object({ target: z.string().nullable(), open: z.boolean() }))
+		.optional()
 });
 
 export type SnapshotContext = z.infer<typeof SnapshotContextSchema>;

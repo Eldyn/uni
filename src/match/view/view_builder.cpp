@@ -651,8 +651,11 @@ int64_t VisibleDrawDebt(const ViewBuilder& builder,
  * the timers and the debt are public table state.
  *
  * INFO: `streaks` holds the current value of every `uni` streak, not only the
- *       requested ones. Ticket 15 adds the near-win window and the block
- *       state.
+ *       requested ones. `near_win` holds the derived event windows, keyed by
+ *       the event id (`near_win_entered`): `{target, open}`. The windows are
+ *       engine-owned state, not streak values, because closing a window
+ *       compares an event with the seat of the window; a matcher cannot.
+ *       `blocked` has no state of its own: it reads the window.
  */
 json BuildContext(const match::engine::MatchInstance& match,
                   const json& state, int64_t draw_debt, json hold,
@@ -689,6 +692,8 @@ json BuildContext(const match::engine::MatchInstance& match,
     context["last_event_sequence"] =
         sink.NextSeq() == 0 ? json(nullptr) : json(sink.NextSeq() - 1);
     context["streaks"] = match.Streaks().AllValues();
+    const json windows = match.Derived().WindowsContext();
+    if (!windows.is_null()) context["near_win"] = windows;
     return context;
 }
 

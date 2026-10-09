@@ -24,6 +24,8 @@ function setup() {
 }
 
 const turn = (skipped: string[], direction = 1, seq = 1) => ({ skipped, direction, seq });
+const skipRun = (run: number) => ({ "uni:skip_run": run });
+const reverseRun = (run: number) => ({ "uni:reverse_run": run });
 
 describe("createPlayLogEmitter", () => {
 	let lines: LogLine[];
@@ -34,10 +36,10 @@ describe("createPlayLogEmitter", () => {
 		escaped.length = 0;
 	});
 
-	it("logs a skip per skipped seat, escalating on the same player", async () => {
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.noteTurn(turn(["Ann"]));
+	it("logs a skip per skipped seat, escalating with the server run", async () => {
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(2) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(3) });
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual([
@@ -47,12 +49,21 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
+	it("counts no skip itself: a turn guess has no run and reads as a first skip", async () => {
+		emitter.noteTurn(turn(["Ann"]));
+		emitter.noteTurn(turn(["Ann"]));
+		emitter.noteTurn(turn(["Ann"]));
+		await flush();
+
+		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip", "log_skip"]);
+	});
+
 	it("threads the turn seq so a streak pool actually rotates (Review Focus)", async () => {
-		emitter.noteTurn(turn(["Ann"], 1, 1));
-		emitter.noteTurn(turn(["Ann"], 1, 1));
-		emitter.noteTurn(turn(["Ann"], 1, 1));
-		emitter.noteTurn(turn(["Ann"], 1, 1));
-		emitter.noteTurn(turn(["Ann"], 1, 2));
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(2) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(3) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(4) });
+		emitter.noteSkipped({ target: "Ann", seq: 2, context: skipRun(5) });
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual([
@@ -76,17 +87,25 @@ describe("createPlayLogEmitter", () => {
 		expect(lines).toEqual([]);
 	});
 
-	it("logs a reverse when the direction flips, escalating on repeats", async () => {
+	it("logs a reverse when the direction flips, escalating with the server run", async () => {
+		emitter.noteDirection({ direction: -1, seq: 1, context: reverseRun(1) });
+		emitter.noteDirection({ direction: 1, seq: 1, context: reverseRun(2) });
+		emitter.noteDirection({ direction: -1, seq: 1, context: reverseRun(3) });
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_reverse",
+			expect.stringMatching(/^log_reverse_back/),
+			"log_reverse_again"
+		]);
+	});
+
+	it("logs a reverse from a turn guess as a first reverse", async () => {
 		emitter.noteTurn(turn([], 1));
 		emitter.noteTurn(turn([], -1));
 		emitter.noteTurn(turn([], 1));
 		emitter.noteTurn(turn([], -1));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			"log_reverse",
-			"log_reverse_back",
-			"log_reverse_again"
-		]);
+		expect(lines.map((line) => line.key)).toEqual(["log_reverse", "log_reverse", "log_reverse"]);
 	});
 
 	it("logs a reverse from a direction event, even for the first direction seen", async () => {
@@ -111,8 +130,8 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("logs two direction events that no turn advance separates", async () => {
-		emitter.noteDirection({ direction: -1, seq: 1 });
-		emitter.noteDirection({ direction: 1, seq: 2 });
+		emitter.noteDirection({ direction: -1, seq: 1, context: reverseRun(1) });
+		emitter.noteDirection({ direction: 1, seq: 2, context: reverseRun(2) });
 		emitter.noteTurn(turn([], 1, 3));
 		await flush();
 		expect(lines).toHaveLength(2);
@@ -221,11 +240,11 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
 	});
 
-	it("logs a near-win reaction carried by the play", async () => {
+	it("logs a near-win reaction from the near-win event after the play", async () => {
 		emitter.notePlay({ player: "Ann", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 6,
-			nearWin: true
+			seq: 6
 		});
+		emitter.noteNearWin("Ann", 7);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			"log_play",
@@ -500,12 +519,12 @@ describe("createPlayLogEmitter", () => {
 		expect(lines).toHaveLength(3);
 	});
 
-	it("a reset mid-streak makes the next skip a first skip (Review Focus 5)", async () => {
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.noteTurn(turn(["Ann"]));
+	it("a reset drops the queued lines; the next skip reads its own server run", async () => {
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(2) });
 		await flush();
 		emitter.reset();
-		emitter.noteTurn(turn(["Ann"]));
+		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
 	});
@@ -533,15 +552,13 @@ describe("createPlayLogEmitter", () => {
 		expect(escaped).toContain("Ann");
 	});
 
-	it("logs a blocked retort when the near-win target is skipped", async () => {
+	it("logs a blocked retort from the blocked event, after the skip line", async () => {
 		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 1,
-			nearWin: true
+			seq: 1
 		});
-		emitter.notePlay({ player: "Ann", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 2
-		});
-		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 3, actor: "Ann" });
+		emitter.noteNearWin("Bob", 2);
+		emitter.noteSkipped({ target: "Bob", actor: "Ann", seq: 3, context: skipRun(1) });
+		emitter.noteBlocked("Bob", "Ann", 4);
 		await flush();
 
 		const skipIndex = lines.findIndex((line) => line.key === "log_skip");
@@ -551,15 +568,12 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
 
-	it("logs a blocked retort when the near-win target is penalty-drawn", async () => {
-		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 1,
-			nearWin: true
-		});
+	it("logs a blocked retort for a penalty draw after the stack line", async () => {
 		emitter.notePlay({ player: "Ann", kind: "uni:red_draw2", color: "red" }, Promise.resolve(), {
 			seq: 2
 		});
 		emitter.noteDebt("Bob", 2);
+		emitter.noteBlocked("Bob", "Ann", 3);
 		await flush();
 
 		const drawIndex = lines.findIndex((line) => line.key === "log_draw_stack");
@@ -569,32 +583,38 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
 
-	it("takes the blocker of a skip from the event, not from the turn guess", async () => {
-		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 1,
-			nearWin: true
-		});
-		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3 });
-		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
+	it("logs no blocked line when the event names no blocker", async () => {
+		emitter.noteBlocked("Bob", undefined, 4);
 		await flush();
-
-		expect(lines.filter((line) => line.key === "log_skip")).toHaveLength(1);
-		const blocked = lines.find((line) => line.key.startsWith("log_blocked_"));
-		expect(blocked?.params).toEqual({ blocker: "Cy", target: "Bob" });
+		expect(lines).toEqual([]);
 	});
 
-	it("takes the blocker of a skip from the event when the turn comes first", async () => {
+	it("derives no blocked line from a skip: only the blocked event logs it", async () => {
 		emitter.notePlay({ player: "Bob", kind: "uni:red_5", color: "red" }, Promise.resolve(), {
-			seq: 1,
-			nearWin: true
+			seq: 1
 		});
+		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3, context: skipRun(1) });
 		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
-		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3 });
 		await flush();
 
 		expect(lines.filter((line) => line.key === "log_skip")).toHaveLength(1);
-		const blocked = lines.find((line) => line.key.startsWith("log_blocked_"));
-		expect(blocked?.params).toEqual({ blocker: "Cy", target: "Bob" });
+		expect(lines.some((line) => line.key.startsWith("log_blocked_"))).toBe(false);
+		expect(lines.some((line) => line.key.startsWith("log_near_win"))).toBe(false);
+	});
+
+	it("holds the near-win line of a wild until its play line", async () => {
+		emitter.notePlay({ player: "Bob", kind: "uni:wild", color: "white" }, Promise.resolve(), {
+			seq: 1
+		});
+		emitter.noteNearWin("Bob", 2);
+		emitter.noteWildColor("blue", { "uni:wild_run": 1 });
+		await flush();
+
+		expect(lines.map((line) => line.key)).toEqual([
+			"log_play",
+			expect.stringMatching(/^log_near_win/),
+			expect.stringMatching(/^log_wild_reaction/)
+		]);
 	});
 
 	it("logs a repeated skip of one seat once for each event", async () => {

@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:streak": {
+    "uni:description": { "uni:identifier": "uni:total_draws" },
+    "uni:type": "total",
+    "uni:matcher": { "uni:event": "cards_drawn" }
+  }
+}

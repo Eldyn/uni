@@ -1,4 +1,4 @@
-import type { LogEvent, LogLine, StreakInfo } from "./logEvent";
+import type { LogEvent, LogLine, StreakValues } from "./logEvent";
 import type { ReactionContext } from "./reactionContext";
 import type { ReactionRule } from "./reactionRules";
 import { selectReactions } from "./reactionRules";
@@ -99,20 +99,13 @@ export const REACTION_RULES: ReactionRule[] = [
 	},
 	{
 		id: "blocked",
-		match: (c) => {
-			if (!c.nearWinOpen || c.nearWinTarget === null) return false;
-			const e = c.event;
-			if (e.kind === "skip") return e.player === c.nearWinTarget && !!e.actor;
-			if (e.kind === "draw" && e.penalty) return e.victim === c.nearWinTarget && !!e.actor;
-			return false;
-		},
+		match: (c) => c.event.kind === "blocked" && !!c.event.blocker,
 		group: () => "generic",
 		pools: { generic: [{ key: "log_blocked_1" }, { key: "log_blocked_2" }] },
-		params: (c) => {
-			const e = c.event;
-			const blocker = e.kind === "skip" || e.kind === "draw" ? (e.actor ?? "") : "";
-			return { blocker, target: c.nearWinTarget ?? "" };
-		}
+		params: (c) => ({
+			blocker: c.event.kind === "blocked" ? (c.event.blocker ?? "") : "",
+			target: c.event.kind === "blocked" ? c.event.player : ""
+		})
 	},
 	{
 		id: "reshuffle",
@@ -178,7 +171,7 @@ export const REACTION_RULES: ReactionRule[] = [
 	}
 ];
 
-export function buildLogLines(event: LogEvent, streak: StreakInfo): LogLine[] {
+export function buildLogLines(event: LogEvent, streak: StreakValues): LogLine[] {
 	const ctx: ReactionContext = { seq: event.seq, event, ...streak };
 	return selectReactions(ctx, REACTION_RULES).map((r) => ({
 		kind: "log",

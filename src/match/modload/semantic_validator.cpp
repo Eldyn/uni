@@ -2,6 +2,7 @@
 
 #include "logger.hpp"
 #include "match/modload/base_mod.hpp"
+#include "match/modload/derived_definition_keys.hpp"
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
 #include "match/modload/streak_definition_keys.hpp"
@@ -607,6 +608,7 @@ struct Buckets {
     std::vector<LoadError> entities;
     std::vector<LoadError> events;
     std::vector<LoadError> streaks;
+    std::vector<LoadError> derived;
     std::vector<LoadError> presentations;
     std::vector<LoadError> outcome;
     std::vector<LoadError> asset;
@@ -650,6 +652,7 @@ class Checker {
         CheckEntities();
         CheckEvents();
         CheckStreaks();
+        CheckDerived();
         CheckPresentations();
         CheckOutcomeResolvers();
         CheckAssetDependencies();
@@ -1020,20 +1023,49 @@ class Checker {
         return FieldLookup::kNoField;
     }
 
-    void CheckStreakField(const std::string& path, const StreakDef& streak,
+    /* INFO: who owns a matcher in a message: a streak or a derived event.
+     *       The two kinds share the matcher checks and report to their own
+     *       stage. */
+    struct MatcherOwner {
+        std::string streak_id;
+        bool derived = false;
+    };
+
+    static MatcherOwner OwnerOf(const StreakDef& streak) {
+        return MatcherOwner{streak.streak_id, false};
+    }
+
+    std::vector<LoadError>& Bucket(const MatcherOwner& owner) {
+        return owner.derived ? buckets_.derived : buckets_.streaks;
+    }
+
+    static std::string CheckId(const MatcherOwner& owner,
+                               const std::string& name) {
+        return (owner.derived ? "derived." : "streak.") + name;
+    }
+
+    static const char* StageOf(const MatcherOwner& owner) {
+        return owner.derived ? "derived" : "streaks";
+    }
+
+    static std::string Label(const MatcherOwner& owner) {
+        return owner.derived ? "derived event" : "streak";
+    }
+
+    void CheckStreakField(const std::string& path, const MatcherOwner& streak,
                           const std::string& event_id,
                           const std::string& field, const char* role) {
         switch (LookupEventField(event_id, field)) {
             case FieldLookup::kNoField:
-                buckets_.streaks.push_back(Err(
-                    "streak.field.unknown", "streaks", path,
-                    "streak '" + streak.streak_id + "' " + role + " '" + field
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "field.unknown"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' " + role + " '" + field
                         + "' is not a payload field of '" + event_id + "'"));
                 break;
             case FieldLookup::kHidden:
-                buckets_.streaks.push_back(Err(
-                    "streak.field.audience", "streaks", path,
-                    "streak '" + streak.streak_id + "' " + role + " '" + field
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "field.audience"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' " + role + " '" + field
                         + "' of '" + event_id
                         + "' does not have the audience 'all'; a streak "
                           "value is public"));
@@ -1047,7 +1079,7 @@ class Checker {
         return tags_.count(tag) != 0;
     }
 
-    void CheckStreakTag(const std::string& path, const StreakDef& streak,
+    void CheckStreakTag(const std::string& path, const MatcherOwner& streak,
                         const std::string& tag) {
         const std::size_t colon = tag.find(':');
         const bool well_formed =
@@ -1055,28 +1087,28 @@ class Checker {
             && IsValidLocalId(tag.substr(0, colon))
             && IsValidLocalId(tag.substr(colon + 1));
         if (!well_formed) {
-            buckets_.streaks.push_back(Err(
-                "streak.tag.syntax", "streaks", path,
-                "streak '" + streak.streak_id + "' tag '" + tag
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "tag.syntax"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' tag '" + tag
                     + "' must be 'namespace:name'"));
             return;
         }
         const bool owner_known = ModInSet(tag.substr(0, colon));
         if ((owner_known || match_set_) && !TagExists(tag)) {
-            buckets_.streaks.push_back(Err(
-                "streak.tag.unknown", "streaks", path,
-                "streak '" + streak.streak_id + "' tag '" + tag
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "tag.unknown"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' tag '" + tag
                     + "' is carried by no card kind"));
         }
     }
 
-    void CheckStreakMatcher(const std::string& path, const StreakDef& streak,
+    void CheckStreakMatcher(const std::string& path, const MatcherOwner& streak,
                             const StreakMatcherDef& matcher) {
         const FieldLookup event = LookupEventField(matcher.event, "");
         if (event == FieldLookup::kNoEvent) {
-            buckets_.streaks.push_back(Err(
-                "streak.event.unknown", "streaks", path,
-                "streak '" + streak.streak_id + "' matches '" + matcher.event
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "event.unknown"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' matches '" + matcher.event
                     + "', which is no client event that a streak may read"));
             return;
         }
@@ -1087,16 +1119,16 @@ class Checker {
                           keys::kMatcherTests.end(), test.test)
                 != keys::kMatcherTests.end();
             if (!known) {
-                buckets_.streaks.push_back(Err(
-                    "streak.test.unknown", "streaks", path,
-                    "streak '" + streak.streak_id + "' uses the unknown test '"
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.unknown"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' uses the unknown test '"
                         + test.test + "'"));
                 continue;
             }
             if (test.test == keys::kRelationTest) {
-                buckets_.streaks.push_back(Err(
-                    "streak.test.relation", "streaks", path,
-                    "streak '" + streak.streak_id
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.relation"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id
                         + "' uses 'relation'; it depends on the viewer and "
                           "is for presentations only"));
                 continue;
@@ -1108,17 +1140,17 @@ class Checker {
                 continue;
             }
             if (test.field.empty() == test.state.empty()) {
-                buckets_.streaks.push_back(Err(
-                    "streak.test.shape", "streaks", path,
-                    "streak '" + streak.streak_id + "' test '" + test.test
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.shape"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' test '" + test.test
                         + "' needs exactly one of a field and a state value"));
                 continue;
             }
             if (!test.state.empty()) {
                 if (!match::streak::IsStateValueName(test.state)) {
-                    buckets_.streaks.push_back(Err(
-                        "streak.state.unknown", "streaks", path,
-                        "streak '" + streak.streak_id
+                    Bucket(streak).push_back(Err(
+                        CheckId(streak, "state.unknown"), StageOf(streak), path,
+                        Label(streak) + " '" + streak.streak_id
                             + "' reads the unknown state value '" + test.state
                             + "'"));
                 }
@@ -1160,6 +1192,71 @@ class Checker {
         }
     }
 
+    /* INFO: the derived stage: ids, the emitted core event, the base events
+     *       and fields that the matchers read, and the window of a block.
+     *       The matcher checks are the streak checks; they report to this
+     *       stage for a derived event. */
+    void CheckDerived() {
+        std::set<std::string> seen;
+        std::set<std::string> emitted;
+        std::map<std::string, const DerivedEventDef*> windows;
+        for (const LoadedMod* mod : mods_) {
+            for (const DerivedEventDef& derived : mod->derived_events) {
+                if (derived.kind == derived_keys::kWindowKind) {
+                    windows[derived.derived_id] = &derived;
+                }
+            }
+        }
+        for (const LoadedMod* mod : mods_) {
+            for (const DerivedEventDef& derived : mod->derived_events) {
+                const std::string path =
+                    mod->path + "/derived/" + derived.id + ".json";
+                if (!seen.insert(derived.derived_id).second) {
+                    buckets_.derived.push_back(Err(
+                        "derived.id.duplicate", "derived", path,
+                        "duplicate derived event id '" + derived.derived_id
+                            + "'"));
+                }
+                if (!match::view::IsDerivedEvent(derived.emits)) {
+                    buckets_.derived.push_back(Err(
+                        "derived.emits.unknown", "derived", path,
+                        "derived event '" + derived.derived_id + "' emits '"
+                            + derived.emits
+                            + "', which is no derived core event"));
+                } else if (!emitted.insert(derived.emits).second) {
+                    buckets_.derived.push_back(Err(
+                        "derived.emits.duplicate", "derived", path,
+                        "derived event '" + derived.derived_id + "' emits '"
+                            + derived.emits
+                            + "', which another definition emits too"));
+                }
+                if (derived.kind == derived_keys::kBlockKind) {
+                    const auto window = windows.find(derived.window_of);
+                    if (window == windows.end()) {
+                        buckets_.derived.push_back(Err(
+                            "derived.window.unknown", "derived", path,
+                            "derived event '" + derived.derived_id
+                                + "' names the window '" + derived.window_of
+                                + "', which no loaded mod defines as a "
+                                  "window"));
+                    }
+                }
+                const MatcherOwner owner{derived.derived_id, true};
+                for (const auto* list :
+                     {&derived.open_on, &derived.close_on,
+                      &derived.block_on}) {
+                    for (const DerivedSeatMatcherDef& seat_matcher : *list) {
+                        CheckStreakMatcher(path, owner, seat_matcher.matcher);
+                        CheckStreakField(path, owner,
+                                         seat_matcher.matcher.event,
+                                         seat_matcher.seat_field,
+                                         "seat field");
+                    }
+                }
+            }
+        }
+    }
+
     void CheckStreakDefinition(const std::string& path,
                                const StreakDef& streak) {
         namespace keys = streak_keys;
@@ -1191,17 +1288,17 @@ class Checker {
                 "streak '" + streak.streak_id
                     + "' sets reset events, but only a run resets"));
         }
-        CheckStreakMatcher(path, streak, streak.matcher);
+        CheckStreakMatcher(path, OwnerOf(streak), streak.matcher);
         if (!streak.group_by.empty()) {
-            CheckStreakField(path, streak, streak.matcher.event,
+            CheckStreakField(path, OwnerOf(streak), streak.matcher.event,
                              streak.group_by, "group field");
         }
         if (!streak.value_field.empty()) {
-            CheckStreakField(path, streak, streak.matcher.event,
+            CheckStreakField(path, OwnerOf(streak), streak.matcher.event,
                              streak.value_field, "value field");
         }
         for (const StreakMatcherDef& reset : streak.reset_on) {
-            CheckStreakMatcher(path, streak, reset);
+            CheckStreakMatcher(path, OwnerOf(streak), reset);
         }
     }
 
@@ -2975,6 +3072,15 @@ std::vector<LoadError> SchemaErrors(
                 errors.insert(errors.end(), local.begin(), local.end());
             }
         }
+        if (!mod->derived_events.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kDerived);
+            for (const auto& derived : mod->derived_events) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, derived.raw, "derived",
+                    base + "/derived/" + derived.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
         if (!mod->presentations.empty()) {
             /* INFO: presentations are one definition per file;
              *       semantic checks (kind/target/trigger) report the rest. */
@@ -3036,6 +3142,8 @@ std::vector<LoadError> FirstFailingStage(
             found = buckets.events;
         } else if (stage == "streaks") {
             found = buckets.streaks;
+        } else if (stage == "derived") {
+            found = buckets.derived;
         } else if (stage == "presentations") {
             found = buckets.presentations;
         }

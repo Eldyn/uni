@@ -12,7 +12,8 @@
     "action",
     "red",
     "draw_penalty",
-    "stackable"
+    "stackable",
+    "uni:draw_penalty"
   ],
   "behavior": {
     "on_play": {

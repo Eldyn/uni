@@ -10,14 +10,28 @@ import { Howl, Howler } from "howler";
 import { MUSIC_CATALOG, type MusicChannelDef, type MusicTrackDef } from "$data/audioCatalogs";
 import { playSyncedChannels } from "$lib/audio/multiChannelSync";
 import { assetUrl } from "$lib/utils/assetUrl";
+import { isMobileDevice } from "$lib/audio/audioLogic";
 
 const DEFAULT_CROSSFADE_MS = 500;
 
-// INFO: Music tracks are multi-MB, so they play through a streaming <audio>
-//       element (starts after the first chunks) instead of being downloaded
-//       and decoded whole by Web Audio. Streamed tracks bypass Howler.ctx, so
-//       suspendForHidden() has to pause them separately.
-const STREAM_MUSIC = true;
+// INFO: Music tracks are multi-MB, so on desktop they play through a streaming
+//       <audio> element (starts after the first chunks) instead of being
+//       downloaded and decoded whole by Web Audio. Streamed tracks bypass
+//       Howler.ctx, so suspendForHidden() has to pause them separately.
+//       Mobile browsers surface any <audio> element as an OS media notification
+//       with a seek bar, so there the track is decoded through Web Audio.
+function shouldStreamMusic(): boolean {
+	try {
+		return !isMobileDevice({
+			userAgent: navigator.userAgent ?? "",
+			touchPrimary:
+				typeof window.matchMedia === "function" &&
+				window.matchMedia("(pointer: coarse) and (hover: none)").matches
+		});
+	} catch {
+		return true;
+	}
+}
 
 interface SingleHandle {
 	kind: "single";
@@ -172,7 +186,7 @@ export class MusicPlayer {
 			src: [def.src],
 			loop: def.loop ?? false,
 			volume: 0,
-			html5: STREAM_MUSIC
+			html5: shouldStreamMusic()
 		});
 		howl.play();
 		howl.fade(0, this.#volume, fadeMs);
@@ -213,7 +227,7 @@ export class MusicPlayer {
 		//       nested def's own loop flag, the playlist owns advancing.
 		const howl = new Howl({
 			src: [trackDef.src],
-			html5: STREAM_MUSIC,
+			html5: shouldStreamMusic(),
 			loop: false,
 			volume: this.#volume,
 			onend: () => {

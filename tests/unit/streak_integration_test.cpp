@@ -226,8 +226,11 @@ TEST_CASE("streak context: an event that asks for nothing has no context") {
     DrawOnce(*engine);
     for (const json& packet :
          Packets(*engine, content, Viewer::PublicSpectator())) {
-        if (packet.value("id", "") == kEventId) continue;
-        CHECK_MESSAGE(!packet.contains("context"), packet.value("id", ""));
+        const std::string id = packet.value("id", "");
+        if (id == kEventId) continue;
+        // INFO: a core event that the table asks a context for has one.
+        if (!match::view::CoreContextNames(id).empty()) continue;
+        CHECK_MESSAGE(!packet.contains("context"), id);
     }
 }
 

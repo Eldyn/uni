@@ -1,8 +1,7 @@
 import { WILD_KIND_IDS } from "$lib/utils/baseMod";
 import { buildLogLines } from "./logBuilder";
 import { escapeLogText } from "./logRichText";
-import { StreakTracker } from "./streakTracker";
-import { withServerStreaks, type EventContext } from "./serverStreaks";
+import { readStreaks, type EventContext } from "./serverStreaks";
 import type { LogEvent, LogLine } from "./logEvent";
 
 /** One replayed client event of the snapshot `tail`. */
@@ -33,21 +32,26 @@ function count(value: unknown): number {
 /**
  * Feeds a snapshot `tail` to the play log and to nothing else. A replayed
  * event is stale, so this starts no animation, no sound and no timer, and it
- * never touches the match state. A fresh streak tracker makes the lines
- * depend on the tail only, so a late joiner never sees a streak it did not
- * watch.
+ * never touches the match state. The streak values come from the `context`
+ * of each replayed envelope, so the lines depend on the tail only. The near
+ * win and blocked lines come from the `near_win_entered` and `blocked`
+ * events.
  */
 export function replayTailToLog(
 	tail: readonly TailEnvelope[],
 	resolveKind: KindResolver,
 	post: (line: LogLine) => void
 ): void {
-	const tracker = new StreakTracker();
-	let pendingWild: { player: string; kind: string; sequence: number; auto: boolean } | null = null;
+	let pendingWild: {
+		player: string;
+		kind: string;
+		sequence: number;
+		auto: boolean;
+		nearWin: boolean;
+	} | null = null;
 
-	function emit(event: LogEvent, context?: EventContext): void {
-		const streak = withServerStreaks(tracker.record(event), context);
-		for (const line of buildLogLines(event, streak)) post(line);
+	function emit(event: LogEvent, context?: EventContext, seat?: string): void {
+		for (const line of buildLogLines(event, readStreaks(context, seat))) post(line);
 	}
 
 	function emitPlay(
@@ -55,10 +59,13 @@ export function replayTailToLog(
 		kind: string,
 		color: string,
 		sequence: number,
-		auto: boolean
+		auto: boolean,
+		nearWin: boolean,
+		context?: EventContext
 	): void {
 		emit({ kind: auto ? "auto_play" : "play", seq: sequence, player, cardKind: kind, color });
-		if (WILD_KIND_IDS.includes(kind)) emit({ kind: "wild", seq: sequence, player, color });
+		if (nearWin) emit({ kind: "near_win", seq: sequence, player });
+		if (WILD_KIND_IDS.includes(kind)) emit({ kind: "wild", seq: sequence, player, color }, context);
 	}
 
 	for (const entry of tail) {
@@ -76,17 +83,43 @@ export function replayTailToLog(
 			if (player === undefined || resolved === undefined) continue;
 			const auto = id === "auto_played";
 			if (WILD_KIND_IDS.includes(resolved.kind) && resolved.color === "white") {
-				pendingWild = { player, kind: resolved.kind, sequence, auto };
+				pendingWild = { player, kind: resolved.kind, sequence, auto, nearWin: false };
 				continue;
 			}
 			pendingWild = null;
-			emitPlay(player, resolved.kind, resolved.color, sequence, auto);
+			emitPlay(player, resolved.kind, resolved.color, sequence, auto, false);
 		} else if (id === "active_type_changed") {
 			const color = text(payload.color);
 			if (pendingWild === null || color === undefined) continue;
 			const wild = pendingWild;
 			pendingWild = null;
-			emitPlay(wild.player, wild.kind, color, wild.sequence, wild.auto);
+			emitPlay(
+				wild.player,
+				wild.kind,
+				color,
+				wild.sequence,
+				wild.auto,
+				wild.nearWin,
+				entry.context
+			);
+		} else if (id === "near_win_entered") {
+			const player = seat("target");
+			if (player === undefined) continue;
+			if (pendingWild !== null && pendingWild.player === player) {
+				pendingWild.nearWin = true;
+			} else {
+				emit({ kind: "near_win", seq: sequence, player });
+			}
+		} else if (id === "blocked") {
+			const player = seat("target");
+			if (player === undefined) continue;
+			const actor = text(entry.actor);
+			emit({
+				kind: "blocked",
+				seq: sequence,
+				player,
+				blocker: actor === undefined ? undefined : escapeLogText(actor)
+			});
 		} else if (id === "turn_skipped") {
 			const player = seat("target");
 			if (player === undefined) continue;
@@ -106,16 +139,21 @@ export function replayTailToLog(
 			const player = seat("target") ?? seat("player");
 			if (player === undefined) continue;
 			const penalty = payload.from_debt === true;
-			emit({
-				kind: "draw",
-				seq: sequence,
-				player,
-				count: count(payload.count),
-				penalty,
-				total: penalty ? count(payload.count) : undefined,
-				victim: penalty ? player : undefined,
-				handSize: typeof payload.hand_size_after === "number" ? payload.hand_size_after : undefined
-			});
+			emit(
+				{
+					kind: "draw",
+					seq: sequence,
+					player,
+					count: count(payload.count),
+					penalty,
+					total: penalty ? count(payload.count) : undefined,
+					victim: penalty ? player : undefined,
+					handSize:
+						typeof payload.hand_size_after === "number" ? payload.hand_size_after : undefined
+				},
+				entry.context,
+				text(payload.target) ?? text(payload.player)
+			);
 		} else if (id === "drawn_card_kept") {
 			const player = seat("target");
 			if (player !== undefined) emit({ kind: "keep", seq: sequence, player });

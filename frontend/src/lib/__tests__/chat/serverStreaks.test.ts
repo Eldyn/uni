@@ -1,23 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createPlayLogEmitter } from "../../chat/playLog/playLogEmitter";
 import { replayTailToLog, type TailEnvelope } from "../../chat/playLog/tailReplay";
-import { withServerStreaks } from "../../chat/playLog/serverStreaks";
-import type { LogLine, StreakInfo } from "../../chat/playLog/logEvent";
+import { NO_STREAKS, readStreaks } from "../../chat/playLog/serverStreaks";
+import type { LogLine } from "../../chat/playLog/logEvent";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const keys = (lines: LogLine[]) => lines.map((line) => line.key);
-
-const LOCAL: StreakInfo = {
-	skipRun: 1,
-	reverseRun: 1,
-	drawRun: 0,
-	totalDraws: 0,
-	wildRun: 0,
-	lastWildColor: null,
-	prevWildColor: null,
-	nearWinTarget: null,
-	nearWinOpen: false
-};
 
 function skipEntry(sequence: number, target: string, run: number): TailEnvelope {
 	return {
@@ -43,23 +31,55 @@ function reverseEntry(sequence: number, run: number): TailEnvelope {
 	};
 }
 
-describe("withServerStreaks", () => {
-	it("keeps the local value when the context is missing", () => {
-		expect(withServerStreaks(LOCAL, undefined)).toBe(LOCAL);
-		expect(withServerStreaks(LOCAL, {})).toBe(LOCAL);
+describe("readStreaks", () => {
+	it("reads no streak info as zero values", () => {
+		expect(readStreaks(undefined)).toBe(NO_STREAKS);
+		expect(readStreaks({})).toEqual(NO_STREAKS);
+		expect(NO_STREAKS.skipRun + NO_STREAKS.drawRun + NO_STREAKS.totalDraws).toBe(0);
+		expect(NO_STREAKS.lastWildColor).toBeNull();
 	});
 
-	it("takes the server run values when the context has them", () => {
-		const merged = withServerStreaks(LOCAL, { "uni:skip_run": 3, "uni:reverse_run": 2 });
-		expect(merged.skipRun).toBe(3);
-		expect(merged.reverseRun).toBe(2);
-		expect(merged.drawRun).toBe(LOCAL.drawRun);
+	it("reads every server value from the context", () => {
+		const values = readStreaks(
+			{
+				"uni:skip_run": 3,
+				"uni:reverse_run": 2,
+				"uni:draw_run": { Ann: 4, Bob: 1 },
+				"uni:total_draws": 9,
+				"uni:wild_run": 2,
+				"uni:last_wild_color": { last: "blue", previous: "red" }
+			},
+			"Ann"
+		);
+		expect(values).toEqual({
+			skipRun: 3,
+			reverseRun: 2,
+			drawRun: 4,
+			totalDraws: 9,
+			wildRun: 2,
+			lastWildColor: "blue",
+			prevWildColor: "red"
+		});
+	});
+
+	it("reads the draw run of the named seat only", () => {
+		const context = { "uni:draw_run": { Ann: 4, Bob: 1 } };
+		expect(readStreaks(context, "Bob").drawRun).toBe(1);
+		expect(readStreaks(context, "Cy").drawRun).toBe(0);
+		expect(readStreaks(context).drawRun).toBe(0);
 	});
 
 	it("ignores a malformed value", () => {
-		expect(withServerStreaks(LOCAL, { "uni:skip_run": "3" }).skipRun).toBe(1);
-		expect(withServerStreaks(LOCAL, { "uni:skip_run": -1 }).skipRun).toBe(1);
-		expect(withServerStreaks(LOCAL, { "uni:skip_run": 1.5 }).skipRun).toBe(1);
+		expect(readStreaks({ "uni:skip_run": "3" }).skipRun).toBe(0);
+		expect(readStreaks({ "uni:skip_run": -1 }).skipRun).toBe(0);
+		expect(readStreaks({ "uni:skip_run": 1.5 }).skipRun).toBe(0);
+		expect(readStreaks({ "uni:draw_run": 5 }, "Ann").drawRun).toBe(0);
+		expect(readStreaks({ "uni:draw_run": [1] }, "Ann").drawRun).toBe(0);
+		expect(readStreaks({ "uni:last_wild_color": "blue" }).lastWildColor).toBeNull();
+		expect(readStreaks({ "uni:last_wild_color": { last: 3, previous: "" } })).toMatchObject({
+			lastWildColor: null,
+			prevWildColor: null
+		});
 	});
 });
 
@@ -80,14 +100,56 @@ describe("play log with the server context", () => {
 		expect(keys(lines)).toEqual(["log_reverse_again"]);
 	});
 
-	it("falls back to the local count when the context is missing", async () => {
+	it("counts nothing itself: a missing context reads as a first skip", async () => {
 		const lines: LogLine[] = [];
 		const emitter = createPlayLogEmitter((line) => lines.push(line));
 		emitter.noteSkipped({ target: "Bob", seq: 1 });
 		emitter.noteSkipped({ target: "Bob", seq: 2 });
+		emitter.noteSkipped({ target: "Bob", seq: 3 });
 		await flush();
-		expect(keys(lines)[0]).toBe("log_skip");
-		expect(["log_skip_again", "log_skip_again_2"]).toContain(keys(lines)[1]);
+		expect(keys(lines)).toEqual(["log_skip", "log_skip", "log_skip"]);
+	});
+
+	it("uses the server draw counts for the drawing seat", async () => {
+		const lines: LogLine[] = [];
+		const emitter = createPlayLogEmitter((line) => lines.push(line));
+		emitter.noteDraw(
+			{
+				seq: 1,
+				player: "Ann",
+				count: 1,
+				context: { "uni:draw_run": { Ann: 4, Bob: 1 }, "uni:total_draws": 5 }
+			},
+			{ handSize: 3 }
+		);
+		emitter.noteDraw(
+			{
+				seq: 2,
+				player: "Bob",
+				count: 1,
+				context: { "uni:draw_run": { Ann: 4, Bob: 1 }, "uni:total_draws": 1 }
+			},
+			{ handSize: 3 }
+		);
+		await flush();
+		expect(keys(lines)[0]).toMatch(/^log_draw_many/);
+		expect(keys(lines)[1]).toMatch(/^log_draw_first/);
+	});
+
+	it("uses the server wild run and colors", async () => {
+		const lines: LogLine[] = [];
+		const emitter = createPlayLogEmitter((line) => lines.push(line));
+		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "white" }, Promise.resolve(), {
+			seq: 1
+		});
+		emitter.noteWildColor("blue", {
+			"uni:wild_run": 3,
+			"uni:last_wild_color": { last: "blue", previous: "red" }
+		});
+		await flush();
+		const wild = lines.find((line) => line.key.startsWith("log_wild_reaction"));
+		expect(wild?.key).toMatch(/^log_wild_reaction_third/);
+		expect(wild?.params.prevColor).toBe("red");
 	});
 });
 

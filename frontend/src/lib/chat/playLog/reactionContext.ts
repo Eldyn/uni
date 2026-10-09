@@ -1,3 +1,3 @@
-import type { LogEvent, StreakInfo } from "./logEvent";
+import type { LogEvent, StreakValues } from "./logEvent";
 
-export type ReactionContext = { seq: number; event: LogEvent } & StreakInfo;
+export type ReactionContext = { seq: number; event: LogEvent } & StreakValues;

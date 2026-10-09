@@ -295,12 +295,13 @@ TEST_CASE("event definition: the schema and the key table agree") {
     }
 }
 
-TEST_CASE("validation order: uni, events, streaks, presentations, texts") {
+TEST_CASE("validation order: uni, events, streaks, derived, presentations, "
+          "texts") {
     const std::vector<std::string_view> order(
         match::modload::kValidationStageOrder.begin(),
         match::modload::kValidationStageOrder.end());
     const std::vector<std::string_view> expected = {
-        "uni", "events", "streaks", "presentations", "texts"};
+        "uni", "events", "streaks", "derived", "presentations", "texts"};
     CHECK(order == expected);
 }
 

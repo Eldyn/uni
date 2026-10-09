@@ -89,4 +89,14 @@ void LoadStreaks(const std::vector<modload::StreakDef>& streaks,
     out = std::move(registry);
 }
 
+void LoadDerived(const std::vector<modload::DerivedEventDef>& derived,
+                 modload::DerivedRegistry& out) {
+    modload::DerivedRegistry registry;
+    for (const modload::DerivedEventDef& definition : derived) {
+        if (definition.derived_id.empty()) continue;
+        registry[definition.derived_id] = definition;
+    }
+    out = std::move(registry);
+}
+
 }  // namespace match::wiring

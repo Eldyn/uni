@@ -180,6 +180,7 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
         assembly_->resolver->SetCausalSource(&causal_frame_);
     }
     streaks_.SetDefinitions(assembly_->registries.streaks);
+    derived_.SetDefinitions(assembly_->registries.derived);
     Start();
 }
 
@@ -372,18 +373,7 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
 
     last_play_ = LastPlay{*player, card, static_cast<uint32_t>(hand_index)};
 
-    if (ecs::ActiveTypeReq* req =
-            store.Get<ecs::ActiveTypeReq>(registries.match)) {
-        const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
-        if (face != nullptr && !face->color.empty()) {
-            req->type = face->color;
-        } else {
-            const auto facts = assembly_->card_facts.find(kind_id);
-            if (facts != assembly_->card_facts.end()) {
-                req->type = facts->second.color;
-            }
-        }
-    }
+    AdoptPlayedColor(card, kind_id);
 
     // INFO: `after:play` is the resolver drain point for the played card's
     //       behavior graph. A pause stops the flow for SubmitInput.
@@ -1222,6 +1212,23 @@ void MatchInstance::OpenWindowGroup(std::vector<WindowPause> windows) {
     OpenWindow(std::move(group));
 }
 
+void MatchInstance::AdoptPlayedColor(ecs::Entity card,
+                                      const std::string& kind_id) {
+    ecs::EntityStore& store = assembly_->store;
+    ecs::ActiveTypeReq* req =
+        store.Get<ecs::ActiveTypeReq>(assembly_->registries.match);
+    if (req == nullptr) return;
+    const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
+    if (face != nullptr && !face->color.empty()) {
+        req->type = face->color;
+        return;
+    }
+    const auto facts = assembly_->card_facts.find(kind_id);
+    if (facts != assembly_->card_facts.end()) {
+        req->type = facts->second.color;
+    }
+}
+
 void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
                                       bool stacks_penalty) {
     ecs::EntityStore& store = assembly_->store;
@@ -1261,6 +1268,7 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"from_ordinal", ordinal.value_or(0)}});
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
+    AdoptPlayedColor(card, kind);
 
     // INFO: Each response appends its own N to the debt, which
     //       passes on to the seat after the responder.
@@ -2680,11 +2688,12 @@ std::optional<uint32_t> MatchInstance::AdmitModEvent(nlohmann::json& event) {
     return std::nullopt;
 }
 
-void MatchInstance::ObserveStreaks(nlohmann::json& event) {
-    if (streaks_.Empty()) return;
+std::vector<match::streak::Derivation> MatchInstance::ObserveStreaks(
+    nlohmann::json& event) {
+    if (streaks_.Empty() && derived_.Empty()) return {};
     const std::optional<match::streak::ClientEventView> view =
         match::view::BuildStreakEventView(*this, event);
-    if (!view.has_value()) return;
+    if (!view.has_value()) return {};
     streaks_.Observe(*view);
 
     std::vector<std::string> requested;
@@ -2698,6 +2707,29 @@ void MatchInstance::ObserveStreaks(nlohmann::json& event) {
     }
     nlohmann::json context = streaks_.ContextFor(requested);
     if (!context.is_null()) event["context"] = std::move(context);
+
+    return derived_.Evaluate(
+        *view, [this](int64_t turn, const std::string&) {
+            return streaks_.TryCharge(turn);
+        });
+}
+
+void MatchInstance::PushDerivedEvents(
+    int64_t base_event_id, const nlohmann::json& base_frame,
+    const std::vector<match::streak::Derivation>& derivations) {
+    for (const match::streak::Derivation& derivation : derivations) {
+        nlohmann::json event = ops::MakeEvent(
+            derivation.event_id, nlohmann::json{{"target", derivation.seat}});
+        nlohmann::json frame = base_frame;
+        frame["cause_event"] = base_event_id;
+        frame["actor"] = derivation.actor.empty()
+                             ? nlohmann::json(nullptr)
+                             : nlohmann::json(derivation.actor);
+        event["causal_frame"] = std::move(frame);
+        event["derived"] = true;
+        event["event_id"] = next_event_id_++;
+        events_.push_back(std::move(event));
+    }
 }
 
 void MatchInstance::DisarmOffender(const std::string& mod_id) {
@@ -2722,13 +2754,16 @@ void MatchInstance::PushEventOnce(nlohmann::json event) {
         causal_frame_.mod_cause_event = event_id;
     }
     event["event_id"] = event_id;
-    ObserveStreaks(event);
+    const std::vector<match::streak::Derivation> derivations =
+        ObserveStreaks(event);
     const bool starts_play_chain =
         event.value("type", std::string()) == "card_played";
     if (starts_play_chain && !causal_frame_.cause_event.has_value()) {
         causal_frame_.cause_event = event_id;
     }
+    const nlohmann::json base_frame = event["causal_frame"];
     events_.push_back(std::move(event));
+    PushDerivedEvents(event_id, base_frame, derivations);
 }
 
 }  // namespace match::engine

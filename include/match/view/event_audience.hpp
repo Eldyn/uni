@@ -368,6 +368,14 @@ inline constexpr FieldRule kVisibility[] = {
     {"target", Audience::kTarget},
     {"aspects", Audience::kTarget},
 };
+// INFO: a derived event names one seat. The seat is public: the hand count
+//       that opens a near-win window is public too.
+inline constexpr FieldRule kNearWinEntered[] = {
+    {"target", Audience::kAll},
+};
+inline constexpr FieldRule kBlocked[] = {
+    {"target", Audience::kAll},
+};
 inline constexpr FieldRule kSignal[] = {
     {"name", Audience::kAll},
     {"payload", Audience::kAll},
@@ -440,6 +448,8 @@ inline constexpr EventRule kEvents[] = {
     {"visibility_granted", "viewer", "", kVisibility, Retention::kTransient},
     {"visibility_revoked", "viewer", "", kVisibility, Retention::kTransient},
     {"signal", "", "", kSignal, Retention::kTransient},
+    {"near_win_entered", "", "", kNearWinEntered, Retention::kLog},
+    {"blocked", "", "", kBlocked, Retention::kLog},
 };
 
 /**
@@ -457,6 +467,18 @@ inline constexpr std::string_view kStreakFeedableEvents[] = {
     "extra_turn_granted", "active_type_changed", "reshuffle",
     "round_advance",      "placement_set",    "match_ended",
     "hands_swapped",      "hands_passed",     "hands_redistributed",
+};
+
+/**
+ * @brief The derived core events (spec "Streaks and derived events").
+ *
+ * The engine emits a derived event after a base client event. No streak and
+ * no derived event definition reads one: `kStreakFeedableEvents` leaves them
+ * out, so a derived event cannot feed a streak.
+ */
+inline constexpr std::string_view kDerivedEvents[] = {
+    "near_win_entered",
+    "blocked",
 };
 
 /** @brief One row of the table of requested contexts. */
@@ -477,9 +499,21 @@ struct ContextRequest {
 inline constexpr ContextRequest kCoreContext[] = {
     {"direction_changed", "uni:reverse_run"},
     {"turn_skipped", "uni:skip_run"},
+    {"cards_drawn", "uni:draw_run"},
+    {"cards_drawn", "uni:total_draws"},
+    {"active_type_changed", "uni:wild_run"},
+    {"active_type_changed", "uni:last_wild_color"},
 };
 
 }  // namespace audience_table
+
+/** @brief True when `event_type` is a derived core event. */
+inline bool IsDerivedEvent(std::string_view event_type) {
+    for (const std::string_view derived : audience_table::kDerivedEvents) {
+        if (derived == event_type) return true;
+    }
+    return false;
+}
 
 /** @brief True when a streak may read the core event `event_type`. */
 inline bool IsStreakFeedable(std::string_view event_type) {

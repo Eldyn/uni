@@ -514,9 +514,6 @@ export function createMatchEventBeatController(deps: {
 			}
 		});
 		const playedKind = kindOf(top);
-		const isDrawCard = playedKind.endsWith("_draw2") || playedKind.endsWith("_draw4");
-		const actor = state.players?.find((p) => p.username === beat.player);
-		const nearWin = !isDrawCard && actor?.card_count === 1;
 		lastPlayedBy = beat.player;
 		playLog.notePlay(
 			{
@@ -526,7 +523,7 @@ export function createMatchEventBeatController(deps: {
 				auto: beat.auto
 			},
 			landed,
-			{ seq: beat.seq, nearWin }
+			{ seq: beat.seq }
 		);
 	}
 
@@ -573,7 +570,7 @@ export function createMatchEventBeatController(deps: {
 			state.players?.find((p) => p.username === beat.player)?.card_count ??
 			localHand.length;
 		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ seq: beat.seq, player: beat.player, count: beat.count, context: beat.context },
 			{ handSize: localPostCount }
 		);
 
@@ -953,7 +950,7 @@ export function createMatchEventBeatController(deps: {
 		heldOpponentCards.set(beat.player, { cardId, parked, hidesArc });
 		playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
 		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ seq: beat.seq, player: beat.player, count: beat.count, context: beat.context },
 			{ handSize: beat.handSizeAfter ?? player.card_count }
 		);
 		deps.cardRegistry.clearDecoration(cardId);
@@ -1036,7 +1033,7 @@ export function createMatchEventBeatController(deps: {
 		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
 
 		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
+			{ seq: beat.seq, player: beat.player, count: beat.count, context: beat.context },
 			{ handSize: beat.handSizeAfter ?? player.card_count }
 		);
 
@@ -1334,7 +1331,7 @@ export function createMatchEventBeatController(deps: {
 	 *  ripple already started. */
 	function handleActiveColor(beat: Extract<MatchEventBeat, { kind: "active_color" }>): void {
 		if (!beat.color || beat.color === "white") return;
-		playLog.noteWildColor(beat.color);
+		playLog.noteWildColor(beat.color, beat.context);
 		if (!pendingWildRipple) return;
 		const { originUv, maxRadius } = pendingWildRipple;
 		pendingWildRipple = null;
@@ -1394,6 +1391,12 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "match_end":
 				handleMatchEnd(beat);
+				return;
+			case "near_win":
+				playLog.noteNearWin(beat.target, beat.seq);
+				return;
+			case "blocked":
+				playLog.noteBlocked(beat.target, beat.actor, beat.seq);
 				return;
 			case "active_color":
 				handleActiveColor(beat);

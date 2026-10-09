@@ -469,6 +469,11 @@ std::optional<nlohmann::json> ProjectPublicEvent(
                            ? UsernameFor(match, body["target"])
                            : std::string()}};
     }
+    // INFO: a derived event names its seat by username already.
+    if (IsDerivedEvent(type)) {
+        return nlohmann::json{
+            {"target", ResolvePlayer(match, body.value("target", json()))}};
+    }
     if (type == "turn_timer_changed") {
         return nlohmann::json{
             {"target", body.contains("target")

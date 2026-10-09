@@ -13,9 +13,7 @@ const base: ReactionContext = {
 	totalDraws: 0,
 	wildRun: 0,
 	lastWildColor: null,
-	prevWildColor: null,
-	nearWinTarget: null,
-	nearWinOpen: false
+	prevWildColor: null
 };
 
 const rule: ReactionRule = {
@@ -105,65 +103,42 @@ it("every event kind is matched by at least one rule", () => {
 });
 
 describe("blocked rule", () => {
-	it("fires when the near-win target is skipped, naming the actor", () => {
-		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+	const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+
+	it("fires for a blocked event and names the blocker and the target", () => {
 		const ctx: ReactionContext = {
 			...base,
-			event: { kind: "skip", seq: 4, player: "Bob", actor: "Ann" },
-			nearWinOpen: true,
-			nearWinTarget: "Bob"
+			event: { kind: "blocked", seq: 4, player: "Bob", blocker: "Ann" }
 		};
 		expect(blocked.match(ctx)).toBe(true);
 		expect(blocked.params(ctx)).toEqual({ blocker: "Ann", target: "Bob" });
 	});
 
-	it("fires when the near-win target is penalty-drawn, naming the actor", () => {
-		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
-		const ctx: ReactionContext = {
-			...base,
-			event: {
-				kind: "draw",
-				seq: 4,
-				player: "Ann",
-				victim: "Bob",
-				count: 2,
-				penalty: true,
-				actor: "Ann"
-			},
-			nearWinOpen: true,
-			nearWinTarget: "Bob"
-		};
-		expect(blocked.match(ctx)).toBe(true);
-		expect(blocked.params(ctx)).toEqual({ blocker: "Ann", target: "Bob" });
+	it("stays out when the event has no blocker", () => {
+		expect(blocked.match({ ...base, event: { kind: "blocked", seq: 4, player: "Bob" } })).toBe(
+			false
+		);
 	});
 
-	it("does not fire when the window is closed", () => {
-		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
-		const ctx: ReactionContext = {
-			...base,
-			event: { kind: "skip", seq: 4, player: "Bob", actor: "Ann" },
-			nearWinOpen: false,
-			nearWinTarget: "Bob"
-		};
-		expect(blocked.match(ctx)).toBe(false);
-	});
-
-	it("does not fire for a different target or a missing actor", () => {
-		const blocked = REACTION_RULES.find((r) => r.id === "blocked")!;
+	it("does not fire for a skip or a penalty draw: the server event decides", () => {
 		expect(
 			blocked.match({
 				...base,
-				event: { kind: "skip", seq: 4, player: "Cy", actor: "Ann" },
-				nearWinOpen: true,
-				nearWinTarget: "Bob"
+				event: { kind: "skip", seq: 4, player: "Bob", actor: "Ann" }
 			})
 		).toBe(false);
 		expect(
 			blocked.match({
 				...base,
-				event: { kind: "skip", seq: 4, player: "Bob" },
-				nearWinOpen: true,
-				nearWinTarget: "Bob"
+				event: {
+					kind: "draw",
+					seq: 4,
+					player: "Ann",
+					victim: "Bob",
+					count: 2,
+					penalty: true,
+					actor: "Ann"
+				}
 			})
 		).toBe(false);
 	});

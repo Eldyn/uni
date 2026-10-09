@@ -36,7 +36,7 @@
 <style>
 	.target-hint {
 		position: fixed;
-		top: 14%;
+		bottom: 32%;
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 200;

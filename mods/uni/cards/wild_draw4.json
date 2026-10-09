@@ -13,7 +13,8 @@
     "action",
     "draw_penalty",
     "stackable",
-    "uni:wild"
+    "uni:wild",
+    "uni:draw_penalty"
   ],
   "behavior": {
     "on_play": {

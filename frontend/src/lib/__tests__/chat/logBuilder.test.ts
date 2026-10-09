@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildLogLines } from "../../chat/playLog/logBuilder";
-import type { LogEvent, StreakInfo } from "../../chat/playLog/logEvent";
+import type { LogEvent, StreakValues } from "../../chat/playLog/logEvent";
 
-const streak = (overrides: Partial<StreakInfo> = {}): StreakInfo => ({
+const streak = (overrides: Partial<StreakValues> = {}): StreakValues => ({
 	skipRun: 0,
 	reverseRun: 0,
 	drawRun: 0,
@@ -10,12 +10,10 @@ const streak = (overrides: Partial<StreakInfo> = {}): StreakInfo => ({
 	wildRun: 0,
 	lastWildColor: null,
 	prevWildColor: null,
-	nearWinTarget: null,
-	nearWinOpen: false,
 	...overrides
 });
 
-const keyOf = (event: LogEvent, info: StreakInfo = streak()): string =>
+const keyOf = (event: LogEvent, info: StreakValues = streak()): string =>
 	buildLogLines(event, info)[0]?.key ?? "";
 
 describe("buildLogLines", () => {
@@ -103,7 +101,7 @@ describe("draw reaction groups", () => {
 		penalty: false,
 		...over
 	});
-	const withDraws = (drawRun: number, totalDraws: number): StreakInfo =>
+	const withDraws = (drawRun: number, totalDraws: number): StreakValues =>
 		streak({ drawRun, totalDraws });
 
 	it.each([
@@ -115,7 +113,7 @@ describe("draw reaction groups", () => {
 		["many", draw(), withDraws(4, 5), /^log_draw_many/],
 		["generic", draw(), withDraws(2, 3), /^log_draw_generic/]
 	])("group %s picks %s", (_group, event, info, expected) => {
-		const key = keyOf(event as LogEvent, info as StreakInfo);
+		const key = keyOf(event as LogEvent, info as StreakValues);
 		if (typeof expected === "string") expect(key).toBe(expected);
 		else expect(key).toMatch(expected as RegExp);
 	});

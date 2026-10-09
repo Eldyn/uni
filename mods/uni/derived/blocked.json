@@ -1,0 +1,18 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:derived_event": {
+    "uni:description": { "uni:identifier": "uni:blocked" },
+    "uni:emits": "blocked",
+    "uni:window_of": "uni:near_win_entered",
+    "uni:block_on": [
+      { "uni:event": "turn_skipped", "uni:seat_field": "target" },
+      {
+        "uni:event": "cards_drawn",
+        "uni:seat_field": "target",
+        "uni:tests": [
+          { "uni:test": "exists", "uni:field": "held", "uni:negate": true }
+        ]
+      }
+    ]
+  }
+}

@@ -4,6 +4,7 @@
 #include "common/environment.hpp"
 #include "logger.hpp"
 #include "match/modload/base_mod.hpp"
+#include "match/modload/derived_definition_keys.hpp"
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/streak_definition_keys.hpp"
 #include "match/modload/mod_hash.hpp"
@@ -1141,12 +1142,14 @@ bool ScanEventsDirectory(const fs::path& dir,
  *       the field checks are the schema's and the validator's job. */
 bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
                         std::vector<LoadError>& errors,
-                        const std::string& path) {
+                        const std::string& path,
+                        const std::string& check = "streak.matcher",
+                        const std::string& artifact = "streaks") {
     namespace keys = streak_keys;
     if (!entry.is_object()
         || !ParseStringField(entry, std::string(keys::kMatcherEvent),
                              out.event)) {
-        AddError(errors, "streak.matcher", "streaks", path,
+        AddError(errors, check, artifact, path,
                  "a matcher needs an object with '"
                      + std::string(keys::kMatcherEvent) + "'");
         return false;
@@ -1154,7 +1157,7 @@ bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
     const auto tests = entry.find(std::string(keys::kTests));
     if (tests == entry.end()) return true;
     if (!tests->is_array() || tests->size() > keys::kMaxMatcherTests) {
-        AddError(errors, "streak.matcher", "streaks", path,
+        AddError(errors, check, artifact, path,
                  "'" + std::string(keys::kTests) + "' must be an array of at "
                      "most " + std::to_string(keys::kMaxMatcherTests)
                      + " tests");
@@ -1164,7 +1167,7 @@ bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
         StreakTestDef test;
         if (!item.is_object()
             || !ParseStringField(item, std::string(keys::kTest), test.test)) {
-            AddError(errors, "streak.matcher", "streaks", path,
+            AddError(errors, check, artifact, path,
                      "a test needs an object with '"
                          + std::string(keys::kTest) + "'");
             return false;
@@ -1294,6 +1297,159 @@ bool ScanStreaksDirectory(const fs::path& dir, const std::string& mod_id,
             continue;
         }
         out.push_back(std::move(streak));
+    }
+    return ok;
+}
+
+/* INFO: one list of seat matchers of a derived event: a matcher plus the
+ *       payload field that names the seat. */
+bool ParseSeatMatchers(const nlohmann::json& parent, std::string_view key,
+                       std::vector<DerivedSeatMatcherDef>& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path) {
+    const auto list = parent.find(std::string(key));
+    if (list == parent.end()) return true;
+    if (!list->is_array() || list->empty()
+        || list->size() > derived_keys::kMaxSeatMatchers) {
+        AddError(errors, "derived.matcher", "derived", path,
+                 "'" + std::string(key) + "' must be an array of 1 to "
+                     + std::to_string(derived_keys::kMaxSeatMatchers)
+                     + " matchers");
+        return false;
+    }
+    for (const nlohmann::json& item : *list) {
+        DerivedSeatMatcherDef seat_matcher;
+        if (!ParseStreakMatcher(item, seat_matcher.matcher, errors, path,
+                                "derived.matcher", "derived")) {
+            return false;
+        }
+        if (!ParseStringField(item, std::string(derived_keys::kSeatField),
+                              seat_matcher.seat_field)
+            || seat_matcher.seat_field.empty()) {
+            AddError(errors, "derived.matcher", "derived", path,
+                     "a matcher of '" + std::string(key) + "' needs '"
+                         + std::string(derived_keys::kSeatField) + "'");
+            return false;
+        }
+        out.push_back(std::move(seat_matcher));
+    }
+    return true;
+}
+
+/* INFO: one derived event definition per file, version 1 style. Structural
+ *       checks and the namespace rule only. Only the `uni` mod may define
+ *       derived events: they are core events. */
+bool ParseDerivedEntry(const nlohmann::json& entry, const std::string& mod_id,
+                       DerivedEventDef& out, std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = derived_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "derived.shape", "derived", path,
+                 "derived event file must be a JSON object");
+        return false;
+    }
+    const auto version =
+        entry.find(std::string(streak_keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "derived.format_version", "derived", path,
+                 "derived event file needs '"
+                     + std::string(streak_keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto body = entry.find(std::string(keys::kDerivedEvent));
+    if (body == entry.end() || !body->is_object()) {
+        AddError(errors, "derived.shape", "derived", path,
+                 "derived event file needs a '"
+                     + std::string(keys::kDerivedEvent) + "' object");
+        return false;
+    }
+    const auto description =
+        body->find(std::string(streak_keys::kDescription));
+    std::string identifier;
+    if (description == body->end() || !description->is_object()
+        || !ParseStringField(*description,
+                             std::string(streak_keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "derived.identifier", "derived", path,
+                 "derived event needs '"
+                     + std::string(streak_keys::kDescription) + "."
+                     + std::string(streak_keys::kIdentifier) + "'");
+        return false;
+    }
+    std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (violation.empty() && mod_id != "uni") {
+        violation = "mod '" + mod_id
+                    + "' cannot define a derived event: derived events are "
+                      "core events and only the uni mod defines them";
+    }
+    if (!violation.empty()) {
+        AddError(errors, "derived.id.namespace", "derived", path, violation);
+        return false;
+    }
+    out.derived_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    if (!ParseStringField(*body, std::string(keys::kEmits), out.emits)) {
+        AddError(errors, "derived.emits", "derived", path,
+                 "derived event '" + identifier + "' needs a string '"
+                     + std::string(keys::kEmits) + "'");
+        return false;
+    }
+    if (!ParseSeatMatchers(*body, keys::kOpenOn, out.open_on, errors, path)
+        || !ParseSeatMatchers(*body, keys::kCloseOn, out.close_on, errors,
+                              path)
+        || !ParseSeatMatchers(*body, keys::kBlockOn, out.block_on, errors,
+                              path)) {
+        return false;
+    }
+    (void)ParseStringField(*body, std::string(keys::kWindowOf),
+                           out.window_of);
+    const bool is_window = !out.open_on.empty();
+    const bool is_block = !out.block_on.empty() && !out.window_of.empty();
+    const bool stray_window_keys = !out.close_on.empty() && !is_window;
+    const bool stray_block_keys =
+        (!out.block_on.empty() || !out.window_of.empty()) && !is_block;
+    if (is_window == is_block || stray_window_keys || stray_block_keys) {
+        AddError(errors, "derived.kind", "derived", path,
+                 "derived event '" + identifier + "' must set either '"
+                     + std::string(keys::kOpenOn) + "' (a window) or '"
+                     + std::string(keys::kBlockOn) + "' with '"
+                     + std::string(keys::kWindowOf) + "' (a block)");
+        return false;
+    }
+    out.kind = std::string(is_window ? keys::kWindowKind : keys::kBlockKind);
+    return true;
+}
+
+bool ScanDerivedDirectory(const fs::path& dir, const std::string& mod_id,
+                          std::vector<DerivedEventDef>& out,
+                          std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "derived", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "derived")) {
+            ok = false;
+            continue;
+        }
+        DerivedEventDef derived;
+        if (!ParseDerivedEntry(entry, mod_id, derived, errors,
+                               file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(derived.derived_id).second) {
+            AddError(errors, "derived.id.duplicate", "derived", file.string(),
+                     "duplicate derived event id '" + derived.derived_id
+                         + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(derived));
     }
     return ok;
 }
@@ -1945,6 +2101,10 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanStreaksDirectory(root / "streaks", loaded.manifest.id,
                               loaded.streaks, errors)) {
+        return false;
+    }
+    if (!ScanDerivedDirectory(root / "derived", loaded.manifest.id,
+                              loaded.derived_events, errors)) {
         return false;
     }
     if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,

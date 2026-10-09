@@ -137,6 +137,17 @@ void StreakEngine::Observe(const ClientEventView& event) {
     }
 }
 
+bool StreakEngine::TryCharge(int64_t turn) {
+    if (turn != cost_turn_) {
+        cost_turn_ = turn;
+        evaluations_ = 0;
+        logged_skips_.clear();
+    }
+    if (evaluations_ >= limits_.cost_max_per_turn) return false;
+    ++evaluations_;
+    return true;
+}
+
 nlohmann::json StreakEngine::ValueOf(const std::string& streak_id) const {
     const auto found = runtimes_.find(streak_id);
     if (found == runtimes_.end()) return nlohmann::json();

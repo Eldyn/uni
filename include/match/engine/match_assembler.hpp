@@ -171,6 +171,14 @@ struct MatchRegistries {
      */
     modload::StreakRegistry streaks;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> derived event definition.
+     *
+     * Same per-match rule as `streaks`. The derived engine of the match reads
+     * it when the match starts.
+     */
+    modload::DerivedRegistry derived;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 

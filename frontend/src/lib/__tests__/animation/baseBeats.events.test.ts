@@ -328,4 +328,37 @@ describe("mapMatchEventPacket", () => {
 		expect(mapMatchEventPacket(frame(9, "card_played", { player: "alice" }))).toBeNull();
 		expect(mapMatchEventPacket(null)).toBeNull();
 	});
+
+	it("maps near_win_entered to a near-win beat", () => {
+		expect(mapMatchEventPacket(frame(5, "near_win_entered", { target: "alice" }))).toEqual({
+			seq: 5,
+			kind: "near_win",
+			target: "alice"
+		});
+	});
+
+	it("maps blocked to a blocked beat with the envelope actor", () => {
+		expect(
+			mapMatchEventPacket({ ...frame(6, "blocked", { target: "alice" }), actor: "bob" })
+		).toEqual({ seq: 6, kind: "blocked", target: "alice", actor: "bob" });
+	});
+
+	it("drops a derived event whose payload is malformed", () => {
+		expect(mapMatchEventPacket(frame(7, "near_win_entered", {}))).toBeNull();
+		expect(mapMatchEventPacket(frame(8, "blocked", { target: 4 }))).toBeNull();
+	});
+
+	it("carries the envelope context on a draw and a color change", () => {
+		const context = { "uni:total_draws": 3 };
+		const draw = mapMatchEventPacket({
+			...frame(9, "cards_drawn", { player: "alice", count: 1, source_pile: "draw" }),
+			context
+		});
+		expect(draw).toMatchObject({ kind: "draw", context });
+		const color = mapMatchEventPacket({
+			...frame(10, "active_type_changed", { color: "blue", previous_color: "red" }),
+			context: { "uni:wild_run": 2 }
+		});
+		expect(color).toMatchObject({ kind: "active_color", context: { "uni:wild_run": 2 } });
+	});
 });

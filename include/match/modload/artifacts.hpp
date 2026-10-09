@@ -409,6 +409,39 @@ struct StreakDef {
 };
 
 /**
+ * @struct DerivedSeatMatcherDef
+ * @brief A matcher plus the payload field that names the seat it concerns.
+ */
+struct DerivedSeatMatcherDef {
+    StreakMatcherDef matcher;
+    std::string seat_field;              /**< Payload field with a seat. */
+};
+
+/**
+ * @struct DerivedEventDef
+ * @brief One `derived/<name>.json` derived event definition (version 1).
+ *
+ * Two kinds, told apart by the keys that the file sets:
+ *
+ * - `window`: `open_on` opens a window for a seat and the engine emits the
+ *   derived event; `close_on` closes it.
+ * - `block`: `block_on` matches an event that concerns the seat of the open
+ *   window `window_of`; the engine emits the derived event.
+ */
+struct DerivedEventDef {
+    std::string id;                      /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;            /**< Owning mod id. */
+    std::string derived_id;              /**< Full `namespace:id`. */
+    std::string emits;                   /**< Core client event id. */
+    std::string kind;                    /**< window | block. */
+    std::vector<DerivedSeatMatcherDef> open_on;
+    std::vector<DerivedSeatMatcherDef> close_on;
+    std::vector<DerivedSeatMatcherDef> block_on;
+    std::string window_of;               /**< block: the window def id. */
+    nlohmann::json raw;                  /**< Verbatim file object. */
+};
+
+/**
  * @brief Full-`namespace:id` -> entity def, sorted.
  *
  * Mirrors `ops::TableRegistry`: a per-match, read-only collection the assembler
@@ -431,6 +464,11 @@ using EventRegistry = std::map<std::string, EventDef, std::less<>>;
  * @brief Full-`namespace:id` -> streak definition, sorted.
  */
 using StreakRegistry = std::map<std::string, StreakDef, std::less<>>;
+
+/**
+ * @brief Full-`namespace:id` -> derived event definition, sorted.
+ */
+using DerivedRegistry = std::map<std::string, DerivedEventDef, std::less<>>;
 
 /**
  * @struct SettingDecl
@@ -515,6 +553,7 @@ struct LoadedMod {
     std::vector<PresentationDef> presentations;
     std::vector<EventDef> events;
     std::vector<StreakDef> streaks;
+    std::vector<DerivedEventDef> derived_events;
 };
 
 /**

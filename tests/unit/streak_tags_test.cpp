@@ -151,6 +151,19 @@ TEST_CASE("tags: the base cards carry the skip, reverse, and wild tags") {
     CHECK(wilds == 2);
 }
 
+TEST_CASE("tags: the draw cards carry the draw penalty tag") {
+    const Content content = LoadContent();
+    int draw_cards = 0;
+    for (const CardDef& card : BaseMod(content).cards) {
+        const bool draws = card.id.size() > 5
+                           && (card.id.rfind("_draw2") == card.id.size() - 6
+                               || card.id.rfind("_draw4") == card.id.size() - 6);
+        CHECK_MESSAGE(HasTag(card.tags, "uni:draw_penalty") == draws, card.id);
+        draw_cards += draws ? 1 : 0;
+    }
+    CHECK(draw_cards == 5);
+}
+
 TEST_CASE("tags: the audience table makes the card_played tags public") {
     CHECK(match::view::AudienceOf("card_played", "tags")
           == match::view::Audience::kAll);

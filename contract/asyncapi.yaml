@@ -125,6 +125,8 @@ components:
     mod_event: ModEventPayload
     turn_skipped: TurnSkippedPayload
     extra_turn_granted: ExtraTurnGrantedPayload
+    near_win_entered: NearWinEnteredPayload
+    blocked: BlockedPayload
     active_type_changed: ActiveTypeChangedPayload
     restriction_added: RestrictionAddedPayload
     restriction_removed: RestrictionRemovedPayload
@@ -855,10 +857,20 @@ components:
             The current value of every `uni` streak, by streak id (for
             example `uni:skip_run`). A client reads the same values as a
             continuous player read from the envelope `context`. The values
-            are public to all seats and spectators. TODO: ticket 15 adds
-            the near-win window and the block state.
+            are public to all seats and spectators.
           additionalProperties:
             $ref: "#/components/schemas/StreakValue"
+        near_win:
+          type: object
+          description: >
+            The derived event windows, keyed by the event id that opens them
+            (`near_win_entered`). The windows are engine-owned state, not
+            streak values: closing a window compares an event with the seat
+            of the window. `blocked` has no state of its own; it reads the
+            window. A late joiner shows the same near-win cue as a
+            continuous player from this object and from the tail.
+          additionalProperties:
+            $ref: "#/components/schemas/DerivedWindow"
 
     Username:
       type: string
@@ -1250,13 +1262,28 @@ components:
         - type: object
           additionalProperties: true
 
+    DerivedWindow:
+      type: object
+      required: [target, open]
+      properties:
+        target:
+          type: [string, "null"]
+          description: >
+            The seat of the last window. Null until a window opens. It stays
+            after the window closes.
+        open:
+          type: boolean
+          description: True while the window is open.
+
     StreakContext:
       type: object
       description: >
         The streak values that an event asked for (`uni:context`, and a
         table of core events in `event_audience.hpp`: `direction_changed`
         asks for `uni:reverse_run`, `turn_skipped` asks for
-        `uni:skip_run`). The value is the value AFTER the event. The
+        `uni:skip_run`, `cards_drawn` asks for `uni:draw_run` and
+        `uni:total_draws`, `active_type_changed` asks for `uni:wild_run` and
+        `uni:last_wild_color`). The value is the value AFTER the event. The
         object is public to every seat and spectator. It is absent when the
         event asks for nothing. The size is at most `UNI_CONTEXT_SIZE_MAX`
         bytes (default 512).
@@ -2176,6 +2203,39 @@ components:
           description: >
             The seat that gets an extra turn. The envelope `actor` is the seat
             that caused it.
+
+    NearWinEnteredPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      description: >
+        A derived event (spec "Streaks and derived events"). The engine emits
+        it right after the base event that left a seat with one card. The
+        envelope `cause` is the `sequence` of that base event and the
+        envelope `actor` is the seat that played. The retention is `log`.
+        The seat is public: a hand count is public. A late joiner reads the
+        open window in `context.near_win` of the snapshot.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that has one card left.
+
+    BlockedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      description: >
+        A derived event. The engine emits it right after the base event
+        (a skip or a forced draw) that hit the seat of the open near-win
+        window. The engine reads the window as it was BEFORE the base event,
+        so the same event can block and close the window. The envelope
+        `cause` is the `sequence` of the base event. The envelope `actor` is
+        the seat that caused it; when the base event has no actor, it is the
+        seat that acted last. The retention is `log`.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat of the near-win window that was blocked.
 
     ActiveTypeChangedPayload:
       type: object
