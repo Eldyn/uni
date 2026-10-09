@@ -30,7 +30,8 @@ import {
 } from "$lib/generated/schemas";
 import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schemas";
 import type { CardBus } from "$components/game/card-bus.svelte";
-import { mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
+import { bindingOnlyBeat, mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
+import { bindingRegistry } from "$lib/presentation/eventBindings";
 
 export const TYPE_MAP = TypeMap;
 
@@ -1011,6 +1012,7 @@ class StoreGame implements SessionStore {
 				// INFO: the full kind table arrives ahead of the first snapshot;
 				// held unconfirmed until match_start proves the digest.
 				storeCardDefs.ingestDefs(env.data.payload);
+				bindingRegistry.ingestDefs(env.data.payload);
 				break;
 			}
 			case "match_start": {
@@ -1098,7 +1100,9 @@ class StoreGame implements SessionStore {
 			}
 		}
 
-		const beat = mapMatchEventPacket(data);
+		const beat =
+			mapMatchEventPacket(data) ??
+			bindingOnlyBeat(data, (eventId) => bindingRegistry.forEvent(eventId).length > 0);
 		if (beat) {
 			// Tally match depth from the wire (all seats), not just local actions.
 			if (beat.kind === "play") {
@@ -1363,6 +1367,7 @@ class StoreGame implements SessionStore {
 		storeSpectator.reset();
 		storeTableSpin.reset();
 		storeCardDefs.reset();
+		bindingRegistry.clear();
 	}
 }
 

@@ -1516,6 +1516,28 @@ components:
             type: object
             additionalProperties: true
 
+    PresentationBindingDef:
+      type: object
+      description: >
+        An entry of `defs.presentations[]`. It is either an old-style
+        PresentationDef (keys `target`, `modifiers`) or a presentation binding
+        (key `uni:binding`), so only `id` and `def_hash` are required here.
+        One presentation binding (format version 1). The verbatim file object
+        with `id` set to the full `namespace:local` id. The shape is
+        `contract/schemas/bindings.schema.json`: the keys `uni:format_version`
+        and `uni:binding` stay in the open object, because a key with a colon
+        cannot be a generated struct member. The data is static and public:
+        it holds no audience and no event value. The matcher runs on the
+        client, on the event as the server projected it for the viewer.
+      required: [id, def_hash]
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+
     MatchStartPayload:
       type: object
       x-packet-version: "1"
@@ -1579,8 +1601,14 @@ components:
             $ref: "#/components/schemas/EntityDef"
         presentations:
           type: array
+          description: >
+            Two kinds in one array. An old-style presentation has `target` and
+            `modifiers` (PresentationDef). A presentation binding has the key
+            `uni:binding` (PresentationBindingDef) and binds a client event id
+            to beats, sounds, a play log line, and a glossary key. The client
+            tells them apart by that key.
           items:
-            $ref: "#/components/schemas/PresentationDef"
+            $ref: "#/components/schemas/PresentationBindingDef"
         events:
           type: array
           description: >

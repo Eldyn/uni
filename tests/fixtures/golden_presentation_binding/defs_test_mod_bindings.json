@@ -1,0 +1,113 @@
+{
+  "events": [
+    {
+      "context": [],
+      "def_hash": "cb0285514778bd94",
+      "fields": [
+        {
+          "name": "color",
+          "type": "color"
+        },
+        {
+          "name": "count",
+          "type": "integer"
+        },
+        {
+          "name": "secret",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "seat"
+        }
+      ],
+      "id": "test:apple_eaten",
+      "retention": "log"
+    }
+  ],
+  "presentations": [
+    {
+      "def_hash": "00cde42455fc33c2",
+      "id": "test:apple_eaten_shown",
+      "uni:binding": {
+        "uni:cases": [
+          {
+            "uni:present": {
+              "uni:beats": [
+                [
+                  {
+                    "op": "shake",
+                    "payload": {
+                      "intensity": 0.5
+                    },
+                    "target": "$payload.target"
+                  }
+                ]
+              ],
+              "uni:glossary": "test:apple",
+              "uni:log": {
+                "uni:params": {
+                  "count": {
+                    "uni:field": "count"
+                  }
+                },
+                "uni:variants": [
+                  "test_apple_eaten_you_1",
+                  "test_apple_eaten_you_2"
+                ]
+              },
+              "uni:sounds": [
+                {
+                  "uni:sound": "sfx.ui.tick",
+                  "uni:volume": 0.8
+                }
+              ]
+            },
+            "uni:tests": [
+              {
+                "uni:relation": "self",
+                "uni:role": "actor",
+                "uni:test": "relation"
+              }
+            ]
+          },
+          {
+            "uni:present": {
+              "uni:log": {
+                "uni:params": {
+                  "count": {
+                    "uni:field": "count"
+                  },
+                  "name": {
+                    "uni:actor": true
+                  }
+                },
+                "uni:variants": [
+                  "test_apple_eaten_other"
+                ]
+              },
+              "uni:sounds": [
+                {
+                  "uni:sound": "roll",
+                  "uni:volume": 0.4
+                }
+              ]
+            },
+            "uni:tests": [
+              {
+                "uni:relation": "other",
+                "uni:role": "actor",
+                "uni:test": "relation"
+              }
+            ]
+          }
+        ],
+        "uni:description": {
+          "uni:identifier": "test:apple_eaten_shown"
+        },
+        "uni:event": "test:apple_eaten"
+      },
+      "uni:format_version": "1.0.0"
+    }
+  ]
+}

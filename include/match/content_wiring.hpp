@@ -105,6 +105,12 @@ void LoadDerived(const std::vector<modload::DerivedEventDef>& derived,
                  modload::DerivedRegistry& out);
 
 /**
+ * @brief Build full-`namespace:id` -> presentation binding into `out`.
+ */
+void LoadBindings(const std::vector<modload::BindingDef>& bindings,
+                  modload::BindingRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

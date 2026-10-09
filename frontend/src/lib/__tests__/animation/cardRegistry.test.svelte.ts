@@ -552,3 +552,93 @@ describe("CardRegistry groupId placement", () => {
 		expect(stepPosition(beat[0], starts)).toBe(0);
 	});
 });
+
+describe("CardRegistry queue abandonment", () => {
+	const beatFor = (card: string): AnimationBeat[] => [
+		[{ op: "move", target: card, payload: { to: "discard-pile" } }]
+	];
+	const anchors = resolverFor({ "discard-pile": [1, 0, 1] });
+
+	it("tells a listener when a flush abandons the queue", async () => {
+		const queue = createCardRegistry();
+		const listener = vi.fn();
+		queue.onQueueAbandoned(listener);
+		queue.registerCardMeta("card-1", { type: "red", value: "5" });
+		queue.registerCardMeta("card-2", { type: "red", value: "6" });
+		const first = queue.enqueue(beatFor("card-1"), anchors);
+		const second = queue.enqueue(beatFor("card-2"), anchors);
+
+		queue.flushImmediately();
+		await Promise.all([first, second]);
+
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("tells a listener when the registry is disposed", () => {
+		const queue = createCardRegistry();
+		const listener = vi.fn();
+		queue.onQueueAbandoned(listener);
+
+		queue.dispose();
+
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("tells a listener when the cap drops a waiting batch", async () => {
+		const { storeFxBudget } = await import("$stores/fxBudget.svelte");
+		const previous = storeFxBudget.queueMax;
+		storeFxBudget.queueMax = 2;
+		const queue = createCardRegistry();
+		const listener = vi.fn();
+		queue.onQueueAbandoned(listener);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		for (const card of ["card-1", "card-2", "card-3", "card-4"]) {
+			queue.registerCardMeta(card, { type: "red", value: "5" });
+			void queue.enqueue(beatFor(card), anchors);
+		}
+
+		expect(listener).toHaveBeenCalled();
+		warn.mockRestore();
+		storeFxBudget.queueMax = previous;
+		queue.flushImmediately();
+	});
+
+	it("does not tell a listener about a single skip", async () => {
+		const queue = createCardRegistry();
+		const listener = vi.fn();
+		queue.onQueueAbandoned(listener);
+		queue.registerCardMeta("card-1", { type: "red", value: "5" });
+		const done = queue.enqueue(beatFor("card-1"), anchors);
+
+		queue.skipCurrent();
+		await done;
+
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it("stops telling a listener after it unsubscribes", () => {
+		const queue = createCardRegistry();
+		const listener = vi.fn();
+		const unsubscribe = queue.onQueueAbandoned(listener);
+		unsubscribe();
+
+		queue.flushImmediately();
+
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it("keeps going when a listener throws", () => {
+		const queue = createCardRegistry();
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const later = vi.fn();
+		queue.onQueueAbandoned(() => {
+			throw new Error("listener failed");
+		});
+		queue.onQueueAbandoned(later);
+
+		queue.flushImmediately();
+
+		expect(later).toHaveBeenCalledTimes(1);
+		error.mockRestore();
+	});
+});

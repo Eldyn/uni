@@ -48,6 +48,7 @@ inline constexpr const char* kPresentations = "presentations.schema.json";
 inline constexpr const char* kEvents = "events.schema.json";
 inline constexpr const char* kStreaks = "streaks.schema.json";
 inline constexpr const char* kDerived = "derived.schema.json";
+inline constexpr const char* kBindings = "bindings.schema.json";
 }  // namespace schema_files
 
 /**
@@ -140,6 +141,12 @@ class SemanticValidator {
      * @return Errors of the first failing check; empty when valid.
      */
     std::vector<LoadError> ValidateMod(const LoadedMod& mod) const;
+
+    /**
+     * @brief The warnings of the checks for one mod (a binding that reads a
+     *        field with a partial audience). A warning never removes a mod.
+     */
+    std::vector<LoadWarning> WarningsOf(const LoadedMod& mod) const;
 
     /**
      * @brief Checks 1-8 across the active mod set plus the selected deck.

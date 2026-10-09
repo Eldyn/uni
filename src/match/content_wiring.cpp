@@ -99,4 +99,14 @@ void LoadDerived(const std::vector<modload::DerivedEventDef>& derived,
     out = std::move(registry);
 }
 
+void LoadBindings(const std::vector<modload::BindingDef>& bindings,
+                  modload::BindingRegistry& out) {
+    modload::BindingRegistry registry;
+    for (const modload::BindingDef& binding : bindings) {
+        if (binding.binding_id.empty()) continue;
+        registry[binding.binding_id] = binding;
+    }
+    out = std::move(registry);
+}
+
 }  // namespace match::wiring

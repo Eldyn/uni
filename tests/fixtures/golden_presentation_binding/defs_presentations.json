@@ -1,0 +1,143 @@
+{
+  "defs_digest": "425be1060947f3c0",
+  "events": [
+    {
+      "context": [],
+      "def_hash": "88e2524b3aba0cfc",
+      "fields": [
+        {
+          "name": "color",
+          "type": "color"
+        },
+        {
+          "name": "count",
+          "type": "integer"
+        },
+        {
+          "name": "secret",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "seat"
+        }
+      ],
+      "id": "fixture_mod:apple_eaten",
+      "retention": "log"
+    }
+  ],
+  "mods": [
+    {
+      "hash": "59f11a50540510dfb696e2b7bcefbc8f326f8c7f015e33b762d7f413f3e0f815",
+      "id": "fixture_mod",
+      "index": 0,
+      "version": "2.5.0"
+    }
+  ],
+  "presentations": [
+    {
+      "def_hash": "0851f4593cdfc479",
+      "id": "fixture_mod:lsd",
+      "modifiers": [
+        {
+          "kind": "face.override",
+          "source": "seeded-random-tile"
+        }
+      ],
+      "target": "hand",
+      "triggers": [
+        {
+          "on": "play_rejected",
+          "where": {
+            "reason_id": "unplayable"
+          }
+        }
+      ]
+    },
+    {
+      "def_hash": "21305a847f69c32b",
+      "id": "fixture_mod:apple_shown",
+      "uni:binding": {
+        "uni:cases": [
+          {
+            "uni:present": {
+              "uni:beats": [
+                [
+                  {
+                    "op": "shake",
+                    "payload": {
+                      "intensity": 0.4
+                    },
+                    "target": "screen"
+                  },
+                  {
+                    "atS": 0.1,
+                    "op": "emitSound",
+                    "payload": {
+                      "sound": "sfx.ui.tick"
+                    },
+                    "target": "screen"
+                  }
+                ]
+              ],
+              "uni:glossary": "fixture_mod:apple",
+              "uni:log": {
+                "uni:params": {
+                  "count": {
+                    "uni:field": "count"
+                  }
+                },
+                "uni:variants": [
+                  "fixture_apple_you_1",
+                  "fixture_apple_you_2"
+                ]
+              },
+              "uni:sounds": [
+                {
+                  "uni:sound": "sfx.ui.tick",
+                  "uni:volume": 0.8
+                }
+              ]
+            },
+            "uni:tests": [
+              {
+                "uni:relation": "self",
+                "uni:role": "actor",
+                "uni:test": "relation"
+              }
+            ]
+          },
+          {
+            "uni:present": {
+              "uni:log": {
+                "uni:params": {
+                  "count": {
+                    "uni:field": "count"
+                  },
+                  "name": {
+                    "uni:actor": true
+                  }
+                },
+                "uni:variants": [
+                  "fixture_apple_other"
+                ]
+              }
+            },
+            "uni:tests": [
+              {
+                "uni:relation": "other",
+                "uni:role": "actor",
+                "uni:test": "relation"
+              }
+            ]
+          }
+        ],
+        "uni:description": {
+          "uni:identifier": "fixture_mod:apple_shown"
+        },
+        "uni:event": "fixture_mod:apple_eaten"
+      },
+      "uni:format_version": "1.0.0"
+    }
+  ]
+}

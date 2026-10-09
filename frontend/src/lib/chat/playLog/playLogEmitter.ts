@@ -1,4 +1,5 @@
 import { buildLogLines } from "./logBuilder";
+import { createLogQueue } from "./logQueue";
 import { escapeLogText } from "./logRichText";
 import { DRAW_DEBT_STATUS_KIND, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
 export { DRAW_DEBT_STATUS_KIND };
@@ -31,8 +32,7 @@ type PendingStack = { player: string; amount: number; seq: number };
  * drops the queued steps.
  */
 export function createPlayLogEmitter(post: (line: LogLine) => void) {
-	let generation = 0;
-	let tail: Promise<unknown> = Promise.resolve();
+	const queue = createLogQueue();
 	let lastDirection: number | null = null;
 	let pendingWild: PendingWild | null = null;
 	let pendingStack: PendingStack | null = null;
@@ -112,13 +112,21 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	}
 
 	function enqueue(step: () => void, landed: Promise<unknown> = Promise.resolve()): void {
-		const stamp = generation;
-		tail = tail
-			.then(() => landed)
-			.catch(() => undefined)
-			.then(() => {
-				if (stamp === generation) step();
-			});
+		queue.push(step, landed);
+	}
+
+	/**
+	 * Posts a line that a presentation binding made. It joins the log queue in
+	 * event order, behind the lines of the events before it.
+	 */
+	function noteLine(line: LogLine): void {
+		enqueue(() => post(line));
+	}
+
+	/** Ends the wait of every queued line for a card landing. The animation
+	 *  queue calls it when it skips or flushes. No line is dropped. */
+	function releaseGates(): void {
+		queue.releaseGates();
 	}
 
 	function notePlay(card: PlayedCard, landed: Promise<unknown>, ctx: { seq: number }): void {
@@ -405,8 +413,7 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	}
 
 	function reset(): void {
-		generation += 1;
-		tail = Promise.resolve();
+		queue.reset();
 		lastDirection = null;
 		pendingWild = null;
 		pendingStack = null;
@@ -435,6 +442,9 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteGameEnd,
 		notePlacement,
 		noteMatchEnded,
+		noteLine,
+		releaseGates,
+		pendingLines: queue.pending,
 		reset
 	};
 }

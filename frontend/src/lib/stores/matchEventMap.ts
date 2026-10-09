@@ -7,8 +7,10 @@
  */
 
 import type { EventContext } from "$lib/chat/playLog/serverStreaks";
+import { clientEventOf, type ClientEvent } from "$lib/presentation/eventBindings";
 import {
 	MatchEventPayloadSchema,
+	type MatchEventPayload,
 	CardPlayedPayloadSchema,
 	CardsDrawnPayloadSchema,
 	DrawnCardKeptPayloadSchema,
@@ -156,6 +158,38 @@ export type MatchEventBeat =
 export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
 	const envelope = MatchEventPayloadSchema.safeParse(raw);
 	if (!envelope.success) return null;
+	const beat = mapEnvelope(envelope);
+	if (beat) eventsByBeat.set(beat, clientEventOf(envelope.data));
+	return beat;
+}
+
+/** The client event behind a beat. The presentation bindings read it: a beat
+ *  keeps only what the animation needs, a binding needs the whole event. */
+const eventsByBeat = new WeakMap<MatchEventBeat, ClientEvent>();
+
+export function clientEventOfBeat(beat: MatchEventBeat): ClientEvent | undefined {
+	return eventsByBeat.get(beat);
+}
+
+/**
+ * Gives an event that the animation map does not know a beat that the
+ * controller ignores, so a presentation binding can still run for it. Returns
+ * null when the frame is no valid envelope or has no binding.
+ */
+export function bindingOnlyBeat(
+	raw: unknown,
+	hasBinding: (eventId: string) => boolean
+): MatchEventBeat | null {
+	const envelope = MatchEventPayloadSchema.safeParse(raw);
+	if (!envelope.success) return null;
+	const event = clientEventOf(envelope.data);
+	if (event.id === "" || !hasBinding(event.id)) return null;
+	const beat: MatchEventBeat = { seq: envelope.data.seq, kind: "ignored", eventId: event.id };
+	eventsByBeat.set(beat, event);
+	return beat;
+}
+
+function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | null {
 	const { seq, type, payload, actor, id } = envelope.data;
 
 	switch (type) {

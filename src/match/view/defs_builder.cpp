@@ -208,7 +208,15 @@ nlohmann::json DefsBuilder::Build(
     // INFO: entities/presentations are client-consumed, so unlike
     //       tables they are published here, hash-addressed per def.
     defs["entities"] = ManifestArray(registries.entities);
-    defs["presentations"] = ManifestArray(registries.presentations);
+    // INFO: a presentation binding (file kind `uni:binding`) shares the
+    //       `presentations` array with the old kind. The old kind has a
+    //       `target`; the client tells them apart by the `uni:binding` key.
+    //       A binding is static: it holds no audience and no event value.
+    json presentations = ManifestArray(registries.presentations);
+    for (const json& binding : ManifestArray(registries.bindings)) {
+        presentations.push_back(binding);
+    }
+    defs["presentations"] = std::move(presentations);
     json events_json = json::array();
     for (const auto& [event_id, event] : registries.events) {
         events_json.push_back(EventManifestEntry(event));

@@ -635,4 +635,69 @@ describe("createPlayLogEmitter", () => {
 
 		expect(lines.filter((line) => line.key.startsWith("log_skip"))).toHaveLength(2);
 	});
+	describe("the log queue is separate from the animation queue", () => {
+		const hangingLanding = () => new Promise<void>(() => undefined);
+		const line = (key: string): LogLine => ({ kind: "log", key, params: {}, tier: 0 });
+
+		it("posts every held line once, in order, when the gates are released", async () => {
+			emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, hangingLanding(), {
+				seq: 1
+			});
+			emitter.noteTurn(turn(["Bob"], 1, 2));
+			emitter.noteDraw({ seq: 3, player: "Bob", count: 1 }, { handSize: 4 });
+			await flush();
+			expect(lines).toEqual([]);
+
+			emitter.releaseGates();
+			await flush();
+			expect(lines.map((entry) => entry.key.replace(/_\d+$/, ""))).toEqual([
+				"log_play",
+				"log_skip",
+				expect.stringMatching(/^log_draw/)
+			]);
+			emitter.releaseGates();
+			await flush();
+			expect(lines).toHaveLength(3);
+		});
+
+		it("posts a line of a presentation behind the lines of the earlier events", async () => {
+			emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, hangingLanding(), {
+				seq: 1
+			});
+			emitter.noteLine(line("my_mod_apple"));
+			await flush();
+			expect(lines).toEqual([]);
+
+			emitter.releaseGates();
+			await flush();
+			expect(lines.map((entry) => entry.key)).toEqual(["log_play", "my_mod_apple"]);
+		});
+
+		it("posts a line of a presentation at once when no gate holds it", async () => {
+			emitter.noteLine(line("my_mod_apple"));
+			await flush();
+			expect(lines.map((entry) => entry.key)).toEqual(["my_mod_apple"]);
+		});
+
+		it("keeps the order of the events after a release", async () => {
+			emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, hangingLanding(), {
+				seq: 1
+			});
+			emitter.releaseGates();
+			emitter.noteLine(line("after_release"));
+			await flush();
+			expect(lines.map((entry) => entry.key)).toEqual(["log_play", "after_release"]);
+		});
+
+		it("drops the held lines on a reset", async () => {
+			emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, hangingLanding(), {
+				seq: 1
+			});
+			emitter.noteLine(line("my_mod_apple"));
+			emitter.reset();
+			await flush();
+			expect(lines).toEqual([]);
+			expect(emitter.pendingLines()).toBe(0);
+		});
+	});
 });

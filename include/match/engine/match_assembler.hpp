@@ -179,6 +179,15 @@ struct MatchRegistries {
      */
     modload::DerivedRegistry derived;
 
+    /**
+     * @brief Frozen full-`namespace:id` -> presentation binding.
+     *
+     * Per match like `presentations`. The `defs` packet publishes it in the
+     * `presentations` array; the client binds the beats, sounds, and play log
+     * line to the event id.
+     */
+    modload::BindingRegistry bindings;
+
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
 

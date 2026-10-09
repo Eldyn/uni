@@ -504,6 +504,7 @@ export class CardRegistry {
 					} catch (err) {
 						console.error("CardRegistry: a dropped batch's resolve threw — continuing.", err);
 					}
+					this.#notifyQueueAbandoned();
 				}
 			}
 		});
@@ -522,6 +523,29 @@ export class CardRegistry {
 					)
 				);
 				if (!referenced) this.#inTransitIds.delete(step.target);
+			}
+		}
+	}
+
+	#abandonedListeners = new Set<() => void>();
+
+	/** Registers a listener for the moments when the queue abandons waiting
+	 *  work: a flush, a dispose, and a cap drop. The play log listens, so a
+	 *  line never waits for a landing that will not come. A single skip is not
+	 *  an abandonment: its landing resolves. Returns the unsubscribe function. */
+	onQueueAbandoned(listener: () => void): () => void {
+		this.#abandonedListeners.add(listener);
+		return () => {
+			this.#abandonedListeners.delete(listener);
+		};
+	}
+
+	#notifyQueueAbandoned(): void {
+		for (const listener of this.#abandonedListeners) {
+			try {
+				listener();
+			} catch (err) {
+				console.error("CardRegistry: a queue-abandoned listener threw — continuing.", err);
 			}
 		}
 	}
@@ -583,6 +607,7 @@ export class CardRegistry {
 		} finally {
 			this.#fastForwardDepth--;
 		}
+		this.#notifyQueueAbandoned();
 	}
 
 	/** Fast-forwards every beat currently playing AND every batch still
@@ -602,6 +627,7 @@ export class CardRegistry {
 		} finally {
 			this.#fastForwardDepth--;
 		}
+		this.#notifyQueueAbandoned();
 	}
 
 	/** Slows `timeline` for a real-time hold. GSAP callbacks have no

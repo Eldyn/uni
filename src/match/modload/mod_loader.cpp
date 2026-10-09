@@ -4,6 +4,7 @@
 #include "common/environment.hpp"
 #include "logger.hpp"
 #include "match/modload/base_mod.hpp"
+#include "match/modload/binding_definition_keys.hpp"
 #include "match/modload/derived_definition_keys.hpp"
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/streak_definition_keys.hpp"
@@ -912,6 +913,8 @@ bool ParsePresentationEntry(const nlohmann::json& entry,
     return ok;
 }
 
+bool IsBindingFile(const nlohmann::json& entry);
+
 bool ScanPresentationsDirectory(const fs::path& dir,
                                 const std::string& ns,
                                 std::vector<PresentationDef>& out,
@@ -924,6 +927,7 @@ bool ScanPresentationsDirectory(const fs::path& dir,
             ok = false;
             continue;
         }
+        if (IsBindingFile(entry)) continue;
         PresentationDef presentation;
         std::size_t before = errors.size();
         if (!ParsePresentationEntry(entry, ns, presentation, errors,
@@ -1138,8 +1142,51 @@ bool ScanEventsDirectory(const fs::path& dir,
     return ok;
 }
 
-/* INFO: one matcher, version 1 style. Shape only; the closed word lists and
- *       the field checks are the schema's and the validator's job. */
+/* INFO: the tests of one matcher or of one binding case, version 1 style.
+ *       Shape only; the closed word lists and the field checks are the
+ *       schema's and the validator's job. */
+bool ParseMatcherTests(const nlohmann::json& tests,
+                       std::vector<StreakTestDef>& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path, const std::string& check,
+                       const std::string& artifact) {
+    namespace keys = streak_keys;
+    if (!tests.is_array() || tests.size() > keys::kMaxMatcherTests) {
+        AddError(errors, check, artifact, path,
+                 "'" + std::string(keys::kTests) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxMatcherTests)
+                     + " tests");
+        return false;
+    }
+    for (const nlohmann::json& item : tests) {
+        StreakTestDef test;
+        if (!item.is_object()
+            || !ParseStringField(item, std::string(keys::kTest), test.test)) {
+            AddError(errors, check, artifact, path,
+                     "a test needs an object with '"
+                         + std::string(keys::kTest) + "'");
+            return false;
+        }
+        (void)ParseStringField(item, std::string(keys::kField), test.field);
+        (void)ParseStringField(item, std::string(keys::kState), test.state);
+        (void)ParseStringField(item, std::string(keys::kTag), test.tag);
+        (void)ParseStringField(item, std::string(keys::kRelation),
+                               test.relation);
+        (void)ParseStringField(item, std::string(binding_keys::kRole),
+                               test.role);
+        const auto value = item.find(std::string(keys::kValue));
+        if (value != item.end()) test.value = *value;
+        const auto values = item.find(std::string(keys::kValues));
+        if (values != item.end() && values->is_array()) test.values = *values;
+        const auto negate = item.find(std::string(keys::kNegate));
+        test.negate =
+            negate != item.end() && negate->is_boolean() && negate->get<bool>();
+        out.push_back(std::move(test));
+    }
+    return true;
+}
+
+/* INFO: one matcher, version 1 style. */
 bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
                         std::vector<LoadError>& errors,
                         const std::string& path,
@@ -1156,37 +1203,256 @@ bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
     }
     const auto tests = entry.find(std::string(keys::kTests));
     if (tests == entry.end()) return true;
-    if (!tests->is_array() || tests->size() > keys::kMaxMatcherTests) {
-        AddError(errors, check, artifact, path,
-                 "'" + std::string(keys::kTests) + "' must be an array of at "
-                     "most " + std::to_string(keys::kMaxMatcherTests)
-                     + " tests");
+    return ParseMatcherTests(*tests, out.tests, errors, path, check, artifact);
+}
+
+/* INFO: a file of `presentations/` is a binding (new kind) when it has the
+ *       top level key `uni:binding` or `uni:format_version`. Everything else
+ *       is the old presentation kind. */
+bool IsBindingFile(const nlohmann::json& entry) {
+    return entry.is_object()
+           && (entry.contains(std::string(binding_keys::kBinding))
+               || entry.contains(std::string(binding_keys::kFormatVersion)));
+}
+
+bool ParseBindingSounds(const nlohmann::json& present, BindingCaseDef& out,
+                        std::vector<LoadError>& errors,
+                        const std::string& path) {
+    namespace keys = binding_keys;
+    const auto sounds = present.find(std::string(keys::kSounds));
+    if (sounds == present.end()) return true;
+    if (!sounds->is_array() || sounds->size() > keys::kMaxSounds) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kSounds) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxSounds) + " sounds");
         return false;
     }
-    for (const nlohmann::json& item : *tests) {
-        StreakTestDef test;
+    for (const nlohmann::json& item : *sounds) {
+        BindingSoundDef sound;
         if (!item.is_object()
-            || !ParseStringField(item, std::string(keys::kTest), test.test)) {
-            AddError(errors, check, artifact, path,
-                     "a test needs an object with '"
-                         + std::string(keys::kTest) + "'");
+            || !ParseStringField(item, std::string(keys::kSound),
+                                 sound.sound)) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a sound needs an object with '"
+                         + std::string(keys::kSound) + "'");
             return false;
         }
-        (void)ParseStringField(item, std::string(keys::kField), test.field);
-        (void)ParseStringField(item, std::string(keys::kState), test.state);
-        (void)ParseStringField(item, std::string(keys::kTag), test.tag);
-        (void)ParseStringField(item, std::string(keys::kRelation),
-                               test.relation);
-        const auto value = item.find(std::string(keys::kValue));
-        if (value != item.end()) test.value = *value;
-        const auto values = item.find(std::string(keys::kValues));
-        if (values != item.end() && values->is_array()) test.values = *values;
-        const auto negate = item.find(std::string(keys::kNegate));
-        test.negate =
-            negate != item.end() && negate->is_boolean() && negate->get<bool>();
-        out.tests.push_back(std::move(test));
+        const auto volume = item.find(std::string(keys::kVolume));
+        if (volume != item.end() && volume->is_number()) {
+            sound.volume = volume->get<double>();
+        }
+        const auto pitch = item.find(std::string(keys::kPitch));
+        if (pitch != item.end() && pitch->is_number()) {
+            sound.pitch = pitch->get<double>();
+        }
+        out.sounds.push_back(std::move(sound));
     }
     return true;
+}
+
+bool ParseBindingParam(const nlohmann::json& item, BindingParamDef& out) {
+    namespace keys = binding_keys;
+    if (!item.is_object()) return false;
+    (void)ParseStringField(item, std::string(keys::kParamField), out.field);
+    const auto value = item.find(std::string(keys::kParamValue));
+    if (value != item.end() && (value->is_string() || value->is_number())) {
+        out.value = *value;
+    }
+    const auto actor = item.find(std::string(keys::kParamActor));
+    out.actor = actor != item.end() && actor->is_boolean()
+                && actor->get<bool>();
+    return true;
+}
+
+bool ParseBindingLog(const nlohmann::json& present, BindingCaseDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    namespace keys = binding_keys;
+    const auto log = present.find(std::string(keys::kLog));
+    if (log == present.end()) return true;
+    const auto variants =
+        log->is_object() ? log->find(std::string(keys::kVariants))
+                         : log->end();
+    if (!log->is_object() || variants == log->end() || !variants->is_array()
+        || variants->size() > keys::kMaxVariants) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kLog) + "' needs '"
+                     + std::string(keys::kVariants) + "' with at most "
+                     + std::to_string(keys::kMaxVariants) + " keys");
+        return false;
+    }
+    BindingLogDef line;
+    for (const nlohmann::json& key : *variants) {
+        if (!key.is_string()) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a log variant must be a string key");
+            return false;
+        }
+        line.variants.push_back(key.get<std::string>());
+    }
+    const auto params = log->find(std::string(keys::kParams));
+    if (params != log->end()) {
+        if (!params->is_object() || params->size() > keys::kMaxParams) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "'" + std::string(keys::kParams)
+                         + "' must be an object with at most "
+                         + std::to_string(keys::kMaxParams) + " entries");
+            return false;
+        }
+        for (auto it = params->begin(); it != params->end(); ++it) {
+            BindingParamDef param;
+            if (!ParseBindingParam(it.value(), param)) {
+                AddError(errors, "binding.present", "presentations", path,
+                         "log parameter '" + it.key()
+                             + "' must be an object");
+                return false;
+            }
+            line.params[it.key()] = std::move(param);
+        }
+    }
+    out.log = std::move(line);
+    return true;
+}
+
+bool ParseBindingBeats(const nlohmann::json& present, BindingCaseDef& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = binding_keys;
+    const auto beats = present.find(std::string(keys::kBeats));
+    if (beats == present.end()) return true;
+    if (!beats->is_array() || beats->size() > keys::kMaxBeats) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kBeats) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxBeats) + " beats");
+        return false;
+    }
+    for (const nlohmann::json& beat : *beats) {
+        if (!beat.is_array() || beat.size() > keys::kMaxStepsPerBeat) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a beat must be an array of at most "
+                         + std::to_string(keys::kMaxStepsPerBeat) + " steps");
+            return false;
+        }
+        out.beats.push_back(beat);
+    }
+    return true;
+}
+
+bool ParseBindingCase(const nlohmann::json& entry, BindingCaseDef& out,
+                      std::vector<LoadError>& errors,
+                      const std::string& path) {
+    namespace keys = binding_keys;
+    const auto present =
+        entry.is_object() ? entry.find(std::string(keys::kPresent))
+                          : entry.end();
+    if (!entry.is_object() || present == entry.end() || !present->is_object()) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "a case needs a '" + std::string(keys::kPresent)
+                     + "' object");
+        return false;
+    }
+    const auto tests = entry.find(std::string(keys::kTests));
+    if (tests != entry.end()
+        && !ParseMatcherTests(*tests, out.tests, errors, path,
+                              "binding.cases", "presentations")) {
+        return false;
+    }
+    (void)ParseStringField(*present, std::string(keys::kGlossary),
+                           out.glossary);
+    return ParseBindingBeats(*present, out, errors, path)
+           && ParseBindingSounds(*present, out, errors, path)
+           && ParseBindingLog(*present, out, errors, path);
+}
+
+/* INFO: one binding per file, version 1 style. Structural checks and the
+ *       namespace rule only. */
+bool ParseBindingEntry(const nlohmann::json& entry, const std::string& mod_id,
+                       BindingDef& out, std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = binding_keys;
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "binding.format_version", "presentations", path,
+                 "binding file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto binding = entry.find(std::string(keys::kBinding));
+    if (binding == entry.end() || !binding->is_object()) {
+        AddError(errors, "binding.shape", "presentations", path,
+                 "binding file needs a '" + std::string(keys::kBinding)
+                     + "' object");
+        return false;
+    }
+    const auto description = binding->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == binding->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "binding.identifier", "presentations", path,
+                 "binding needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "binding.id.namespace", "presentations", path,
+                 violation);
+        return false;
+    }
+    out.binding_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    if (!ParseStringField(*binding, std::string(keys::kEvent), out.event)) {
+        AddError(errors, "binding.event", "presentations", path,
+                 "binding '" + identifier + "' needs a string '"
+                     + std::string(keys::kEvent) + "'");
+        return false;
+    }
+    const auto cases = binding->find(std::string(keys::kCases));
+    if (cases == binding->end() || !cases->is_array() || cases->empty()
+        || cases->size() > keys::kMaxCases) {
+        AddError(errors, "binding.cases", "presentations", path,
+                 "binding '" + identifier + "' needs '"
+                     + std::string(keys::kCases) + "' with 1 to "
+                     + std::to_string(keys::kMaxCases) + " cases");
+        return false;
+    }
+    for (const nlohmann::json& item : *cases) {
+        BindingCaseDef binding_case;
+        if (!ParseBindingCase(item, binding_case, errors, path)) return false;
+        out.cases.push_back(std::move(binding_case));
+    }
+    return true;
+}
+
+bool ScanBindingsDirectory(const fs::path& dir, const std::string& mod_id,
+                           std::vector<BindingDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "presentations", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "presentations")) continue;
+        if (!IsBindingFile(entry)) continue;
+        BindingDef binding;
+        if (!ParseBindingEntry(entry, mod_id, binding, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(binding.binding_id).second) {
+            AddError(errors, "binding.id.duplicate", "presentations",
+                     file.string(),
+                     "duplicate binding id '" + binding.binding_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(binding));
+    }
+    return ok;
 }
 
 /* INFO: one streak definition per file, version 1 style. Structural checks
@@ -2109,6 +2375,10 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,
                                     loaded.presentations, errors)) {
+        ok = false;
+    }
+    if (!ScanBindingsDirectory(root / "presentations", loaded.manifest.id,
+                               loaded.bindings, errors)) {
         ok = false;
     }
 

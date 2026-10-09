@@ -1,0 +1,42 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "fixture_mod:apple_shown" },
+    "uni:event": "fixture_mod:apple_eaten",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "self" }
+        ],
+        "uni:present": {
+          "uni:beats": [
+            [
+              { "op": "shake", "target": "screen", "payload": { "intensity": 0.4 } },
+              { "op": "emitSound", "target": "screen", "payload": { "sound": "sfx.ui.tick" }, "atS": 0.1 }
+            ]
+          ],
+          "uni:sounds": [{ "uni:sound": "sfx.ui.tick", "uni:volume": 0.8 }],
+          "uni:log": {
+            "uni:variants": ["fixture_apple_you_1", "fixture_apple_you_2"],
+            "uni:params": { "count": { "uni:field": "count" } }
+          },
+          "uni:glossary": "fixture_mod:apple"
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "other" }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["fixture_apple_other"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "count": { "uni:field": "count" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

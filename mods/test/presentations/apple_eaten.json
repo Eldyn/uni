@@ -1,0 +1,46 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "test:apple_eaten_shown" },
+    "uni:event": "test:apple_eaten",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "self" }
+        ],
+        "uni:present": {
+          "uni:beats": [
+            [
+              {
+                "op": "shake",
+                "target": "$payload.target",
+                "payload": { "intensity": 0.5 }
+              }
+            ]
+          ],
+          "uni:sounds": [{ "uni:sound": "sfx.ui.tick", "uni:volume": 0.8 }],
+          "uni:log": {
+            "uni:variants": ["test_apple_eaten_you_1", "test_apple_eaten_you_2"],
+            "uni:params": { "count": { "uni:field": "count" } }
+          },
+          "uni:glossary": "test:apple"
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "other" }
+        ],
+        "uni:present": {
+          "uni:sounds": [{ "uni:sound": "roll", "uni:volume": 0.4 }],
+          "uni:log": {
+            "uni:variants": ["test_apple_eaten_other"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "count": { "uni:field": "count" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

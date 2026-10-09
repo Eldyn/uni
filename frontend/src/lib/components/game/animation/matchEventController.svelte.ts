@@ -30,6 +30,9 @@ import { createPlayLogEmitter } from "$lib/chat/playLog/playLogEmitter";
 import { replayTailToLog, type TailEnvelope } from "$lib/chat/playLog/tailReplay";
 import type { MatchEventPayload } from "$lib/generated/schemas";
 import { storeCardDefs } from "$lib/stores/cardDefs.svelte";
+import { createBindingRunner } from "$lib/presentation/bindingRunner";
+import { bindingRegistry, type BindingRegistry } from "$lib/presentation/eventBindings";
+import { clientEventOfBeat } from "$stores/matchEventMap";
 import { DRAW_DEBT_STATUS_KIND, baseKindId } from "$lib/utils/baseMod";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
@@ -90,6 +93,8 @@ export function createMatchEventBeatController(deps: {
 	/** storeGame.onTail — the retained events of a late join. They feed the
 	 *  play log only: no beat, no animation, no sound, no timer. */
 	subscribeTail?: (cb: (tail: MatchEventPayload[]) => void) => () => void;
+	/** The presentation bindings of the match; the shared registry by default. */
+	bindings?: BindingRegistry;
 }): {
 	dispose: () => void;
 	syncState: () => void;
@@ -1363,7 +1368,29 @@ export function createMatchEventBeatController(deps: {
 		lastLanding = Promise.resolve();
 	}
 
+	const bindingRunner = createBindingRunner({
+		registry: deps.bindings ?? bindingRegistry,
+		getViewer: () => ({
+			seat: storeGame.isSpectator ? null : (storeGame.localPlayer?.username ?? null)
+		}),
+		enqueueBeats: (beats) => {
+			void deps.cardRegistry.enqueue(beats, resolveCardTarget);
+		},
+		playSound: (cue) => playBoardSfx(cue.sound, { pitch: cue.pitch, volume: cue.volume }),
+		postLine: (line) => playLog.noteLine(line),
+		isFastForwarding: () => deps.cardRegistry.isFastForwarding
+	});
+
+	/** Handles the core presentation of a beat, then the presentation bindings
+	 *  of its client event. A tail event never reaches this: the tail feeds the
+	 *  play log only, and the runner skips a replayed event as a second guard. */
 	function handle(beat: MatchEventBeat): void {
+		handleBeat(beat);
+		const event = clientEventOfBeat(beat);
+		if (event !== undefined) bindingRunner.run(event);
+	}
+
+	function handleBeat(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
 				handlePlay(beat);
@@ -1635,6 +1662,10 @@ export function createMatchEventBeatController(deps: {
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);
 	const unsubscribeDesync = deps.subscribeDesync?.(resetPlayLog);
+	// INFO: the play log has its own queue. A flush, a dispose, or a cap drop of
+	//       the animation queue ends the wait of the lines for a card landing.
+	//       No line is dropped.
+	const unsubscribeAbandoned = deps.cardRegistry.onQueueAbandoned?.(() => playLog.releaseGates());
 	const unsubscribeTail = deps.subscribeTail?.((tail) =>
 		replayTailToLog(tail as TailEnvelope[], resolveKindOfBits, (line) =>
 			chatStore.appendLocalLog(line)
@@ -1642,6 +1673,7 @@ export function createMatchEventBeatController(deps: {
 	);
 	const dispose = () => {
 		unsubscribeBeats();
+		unsubscribeAbandoned?.();
 		unsubscribeDesync?.();
 		unsubscribeTail?.();
 	};

@@ -380,6 +380,7 @@ struct StreakTestDef {
     nlohmann::json values = nlohmann::json::array();  /**< in. */
     std::string tag;       /**< has_tag: full `namespace:name` tag. */
     std::string relation;  /**< relation: `self` or `other`. */
+    std::string role;      /**< relation: `actor` or `target`. */
     bool negate = false;
 };
 
@@ -442,6 +443,61 @@ struct DerivedEventDef {
 };
 
 /**
+ * @struct BindingSoundDef
+ * @brief One sound of a binding case.
+ */
+struct BindingSoundDef {
+    std::string sound;                 /**< Core sound id or asset value. */
+    std::optional<double> volume;
+    std::optional<double> pitch;
+};
+
+/**
+ * @struct BindingParamDef
+ * @brief The source of one play log parameter: exactly one is set.
+ */
+struct BindingParamDef {
+    std::string field;                 /**< Payload field name. */
+    std::optional<nlohmann::json> value;  /**< Literal string or number. */
+    bool actor = false;                /**< The envelope actor. */
+};
+
+/**
+ * @struct BindingLogDef
+ * @brief The play log line of a binding case.
+ */
+struct BindingLogDef {
+    std::vector<std::string> variants;  /**< Text keys; the client picks one. */
+    std::map<std::string, BindingParamDef> params;
+};
+
+/**
+ * @struct BindingCaseDef
+ * @brief One case: the tests that all must hold and what to present.
+ */
+struct BindingCaseDef {
+    std::vector<StreakTestDef> tests;
+    std::vector<nlohmann::json> beats;       /**< Each beat is a step array. */
+    std::vector<BindingSoundDef> sounds;
+    std::optional<BindingLogDef> log;
+    std::string glossary;                    /**< Keyword key, may be empty. */
+};
+
+/**
+ * @struct BindingDef
+ * @brief One presentation binding (`presentations/<name>.json`, format
+ *        version 1, top level key `uni:binding`).
+ */
+struct BindingDef {
+    std::string id;                      /**< Local id `[a-z0-9_]+`. */
+    std::string namespace_id;            /**< Owning mod id. */
+    std::string binding_id;              /**< Full `namespace:id`. */
+    std::string event;                   /**< Client event id it binds to. */
+    std::vector<BindingCaseDef> cases;
+    nlohmann::json raw;                  /**< Verbatim file object. */
+};
+
+/**
  * @brief Full-`namespace:id` -> entity def, sorted.
  *
  * Mirrors `ops::TableRegistry`: a per-match, read-only collection the assembler
@@ -469,6 +525,11 @@ using StreakRegistry = std::map<std::string, StreakDef, std::less<>>;
  * @brief Full-`namespace:id` -> derived event definition, sorted.
  */
 using DerivedRegistry = std::map<std::string, DerivedEventDef, std::less<>>;
+
+/**
+ * @brief Full-`namespace:id` -> presentation binding, sorted.
+ */
+using BindingRegistry = std::map<std::string, BindingDef, std::less<>>;
 
 /**
  * @struct SettingDecl
@@ -554,6 +615,7 @@ struct LoadedMod {
     std::vector<EventDef> events;
     std::vector<StreakDef> streaks;
     std::vector<DerivedEventDef> derived_events;
+    std::vector<BindingDef> bindings;
 };
 
 /**

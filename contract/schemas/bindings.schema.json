@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/bindings.schema.json",
+  "title": "Presentation binding (presentations/<name>.json), format version 1",
+  "description": "One binding of a client event id to a presentation. The key names are listed in include/match/modload/binding_definition_keys.hpp; a test compares both. The file lives in presentations/ next to the old presentation kind; the top level key uni:binding tells them apart. A case lists tests (the matcher, plus relation, which only a binding may use) and a uni:present block. The client runs every case whose tests are all true. The matcher runs on the client, on the event as the server projected it for the viewer: a binding cannot read a field with the audience none (semantic check binding.field.audience) and gets a warning for a field with another audience than all (binding.field.audience.partial). A mod defines binding ids only in its own namespace (loader check binding.id.namespace) and may bind to its own events and to core events (binding.event.foreign).",
+  "type": "object",
+  "required": ["uni:format_version", "uni:binding"],
+  "additionalProperties": false,
+  "properties": {
+    "uni:format_version": {
+      "type": "string",
+      "pattern": "^1(\\.[0-9]+){0,2}$",
+      "description": "Version of the file style. This build reads major version 1."
+    },
+    "uni:binding": {
+      "type": "object",
+      "required": ["uni:description", "uni:event", "uni:cases"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:description": {
+          "type": "object",
+          "required": ["uni:identifier"],
+          "additionalProperties": false,
+          "properties": {
+            "uni:identifier": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+              "description": "Full binding id, namespace:name. The namespace is the id of the defining mod."
+            }
+          }
+        },
+        "uni:event": {
+          "type": "string",
+          "pattern": "^([a-z0-9_]{1,32}:)?[a-z0-9_]{1,32}$",
+          "description": "The client event id: the wire type of a core event, or the full id of a mod event."
+        },
+        "uni:cases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/case" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "required": ["uni:present"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:tests": {
+          "type": "array",
+          "description": "All tests must be true for the case to apply. No tests: the case always applies.",
+          "items": { "$ref": "#/$defs/test" }
+        },
+        "uni:present": { "$ref": "#/$defs/present" }
+      }
+    },
+    "test": {
+      "type": "object",
+      "required": ["uni:test"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:test": {
+          "type": "string",
+          "enum": ["equals", "in", "exists", "has_tag", "relation"]
+        },
+        "uni:field": { "type": "string" },
+        "uni:value": {},
+        "uni:values": { "type": "array" },
+        "uni:tag": { "type": "string" },
+        "uni:role": { "type": "string", "enum": ["actor", "target"] },
+        "uni:relation": { "type": "string", "enum": ["self", "other"] },
+        "uni:negate": { "type": "boolean" }
+      }
+    },
+    "present": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uni:beats": {
+          "type": "array",
+          "description": "Animation beats. A beat is a list of animation IR steps.",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["op", "target"],
+              "additionalProperties": false,
+              "properties": {
+                "op": { "type": "string" },
+                "target": { "type": "string" },
+                "payload": { "type": "object" },
+                "atS": { "type": "number", "minimum": 0 },
+                "groupId": { "type": "string" }
+              }
+            }
+          }
+        },
+        "uni:sounds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["uni:sound"],
+            "additionalProperties": false,
+            "properties": {
+              "uni:sound": { "type": "string" },
+              "uni:volume": { "type": "number", "minimum": 0, "maximum": 1 },
+              "uni:pitch": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "uni:log": {
+          "type": "object",
+          "required": ["uni:variants"],
+          "additionalProperties": false,
+          "properties": {
+            "uni:variants": {
+              "type": "array",
+              "description": "Text keys. The client picks one with the FNV-1a hash over the event sequence.",
+              "items": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" }
+            },
+            "uni:params": {
+              "type": "object",
+              "propertyNames": { "pattern": "^[a-zA-Z0-9_]{1,32}$" },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "uni:field": { "type": "string" },
+                  "uni:value": { "oneOf": [{ "type": "string" }, { "type": "number" }] },
+                  "uni:actor": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "uni:glossary": {
+          "type": "string",
+          "pattern": "^([a-z0-9_]{1,32}:)?[a-z0-9_]{1,32}$",
+          "description": "A keyword key for [k=...]."
+        }
+      }
+    }
+  }
+}
