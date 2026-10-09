@@ -15,6 +15,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -617,6 +618,78 @@ json BuildWindow(const match::engine::MatchInstance& match,
     return out;
 }
 
+/**
+ * @brief The draw debt a viewer may see.
+ *
+ * Follows the rule of `status_applied`: a hidden debt counts for the seat
+ * that owns it only. Another seat and a spectator get the visible debt.
+ */
+int64_t VisibleDrawDebt(const ViewBuilder& builder,
+                        const match::engine::MatchInstance& match,
+                        std::optional<ecs::Entity> viewer_entity) {
+    int64_t total = 0;
+    for (ecs::Entity player : match.Registries().players) {
+        for (const ecs::Status& status :
+             match::status::List(match.Store(), player)) {
+            if (status.status_id != match::ops::kDrawDebtStatusId) continue;
+            const bool hidden =
+                builder.StatusHidden(status.status_id) || status.hidden;
+            const bool owner =
+                viewer_entity.has_value() && *viewer_entity == player;
+            if (!hidden || owner) total += status.magnitude;
+        }
+    }
+    return total;
+}
+
+/**
+ * @brief The engine-owned values a late joiner reads instead of rebuilding.
+ *
+ * Every value comes from the engine, and the viewer sees only what the
+ * snapshot already shows it: `hold` carries the card for its owner only, and
+ * the timers and the debt are public table state.
+ *
+ * INFO: `streaks` stays empty until the server streak mechanism fills it
+ *       (tickets 14 and 15: streak values, near-win window, block state).
+ */
+json BuildContext(const match::engine::MatchInstance& match,
+                  const json& state, int64_t draw_debt, json hold,
+                  const EventSink& sink) {
+    const int64_t now_ms = match.Timers().Turn().Now();
+    const auto remaining_until = [now_ms](int64_t deadline_ms) {
+        return deadline_ms > now_ms ? deadline_ms - now_ms : int64_t{0};
+    };
+
+    const int64_t turn_deadline_ms = state["turn_deadline_ms"].get<int64_t>();
+    // INFO: an open window suspends the turn clock (deadline 0); the engine
+    //       then holds the time that is left for the turn.
+    // INFO: the saved remainder is negative when the deadline had passed
+    //       before the window opened.
+    const int64_t turn_remaining_ms =
+        turn_deadline_ms > 0
+            ? remaining_until(turn_deadline_ms)
+            : std::max<int64_t>(match.Timers().Turn().RemainingMs(), 0);
+    int64_t window_deadline_ms = 0;
+    if (state["window"].is_object()) {
+        window_deadline_ms = state["window"].value("deadline_ms", int64_t{0});
+    }
+
+    json context = json::object();
+    context["active_color"] = state["active_type"];
+    context["direction"] = state["direction"];
+    context["draw_debt"] = draw_debt;
+    context["hold"] = std::move(hold);
+    context["timers"] =
+        json{{"turn_deadline_ms", turn_deadline_ms},
+             {"turn_remaining_ms", turn_remaining_ms},
+             {"window_deadline_ms", window_deadline_ms},
+             {"window_remaining_ms", remaining_until(window_deadline_ms)}};
+    context["last_event_sequence"] =
+        sink.NextSeq() == 0 ? json(nullptr) : json(sink.NextSeq() - 1);
+    context["streaks"] = json::object();
+    return context;
+}
+
 /** @brief The viewer's own open op-input prompt, if any (target only). */
 json BuildPrompts(const match::engine::MatchInstance& match,
                   const Viewer& viewer) {
@@ -801,7 +874,10 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         }
     }
     state["pending_draws"] = pending_draws;
+    const int64_t visible_draw_debt =
+        VisibleDrawDebt(*this, match, viewer_entity);
 
+    json hold = nullptr;
     // INFO: a playable voluntary draw parks a play/keep choice. Every viewer
     //       sees whose choice it is; only the owner sees which card was drawn,
     //       matching the hand's owner-only identity rule.
@@ -817,6 +893,8 @@ nlohmann::json ViewBuilder::BuildSnapshot(
                 registries.CardId(pending->card);
             if (id.has_value()) choice["card"] = id->bits;
         }
+        hold = choice;
+        hold["held"] = true;
         state["pending_play_drawn"] = std::move(choice);
     } else {
         state["pending_play_drawn"] = nullptr;
@@ -837,6 +915,8 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     state["discard_pile"] =
         BuildPile(match, viewer, registries.discard_pile, viewer_entity, true);
     state["window"] = BuildWindow(match, viewer);
+    state["context"] = BuildContext(match, state, visible_draw_debt,
+                                       std::move(hold), sink);
     state["prompts"] = BuildPrompts(match, viewer);
     if (json prompt_wait = BuildPromptWait(match); !prompt_wait.is_null()) {
         state["prompt_wait"] = std::move(prompt_wait);

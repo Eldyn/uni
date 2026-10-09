@@ -61,6 +61,41 @@ const RawPlayerSchema = z.object({
 	spectator_count: z.number().int().optional()
 });
 
+// INFO: wire shape of `match_state.context`, the engine-owned values of a
+// warm-up snapshot (contract schema `SnapshotContext`).
+const SnapshotContextSchema = z.object({
+	active_color: z.string().nullable().optional(),
+	direction: z.number().int().optional(),
+	draw_debt: z.number().int().optional(),
+	hold: z
+		.object({ player: z.string(), held: z.boolean(), card: z.number().int().optional() })
+		.nullable()
+		.optional(),
+	timers: z
+		.object({
+			turn_deadline_ms: z.number(),
+			turn_remaining_ms: z.number(),
+			window_deadline_ms: z.number(),
+			window_remaining_ms: z.number()
+		})
+		.optional(),
+	last_event_sequence: z.number().int().nullable().optional(),
+	streaks: z.record(z.string(), z.unknown()).optional()
+});
+
+export type SnapshotContext = z.infer<typeof SnapshotContextSchema>;
+
+/**
+ * @brief The sequence of the last client event that the snapshot covers.
+ *
+ * Reads the context. An older server sends none, so the value falls back to
+ * the packet before the watermark.
+ */
+function lastEventSequence(context: SnapshotContext | undefined, watermark: number): number | null {
+	if (context?.last_event_sequence !== undefined) return context.last_event_sequence;
+	return watermark > 0 ? watermark - 1 : null;
+}
+
 const RawGameStateSchema = z.object({
 	status: z.string().optional(),
 	round: z.number().int().optional(),
@@ -89,7 +124,8 @@ const RawGameStateSchema = z.object({
 	turn_deadline_ms: z.number().optional(),
 	server_now_ms: z.number().optional(),
 	prompt_wait: z.object({ deadline_ms: z.number(), duration_ms: z.number() }).optional(),
-	seq_watermark: z.number().int().optional()
+	seq_watermark: z.number().int().optional(),
+	context: SnapshotContextSchema.optional()
 });
 
 /**
@@ -195,6 +231,8 @@ export interface GameState {
 	prompts?: unknown[];
 	/** Absolute epoch-ms deadline for the current turn (0 when none). */
 	turn_deadline_ms?: number;
+	/** Engine-owned values of the snapshot. Absent on an older server. */
+	context?: SnapshotContext;
 }
 
 /**
@@ -753,10 +791,17 @@ class StoreGame implements SessionStore {
 				this.#turnStartedAt = Date.now();
 			}
 
+			// INFO: the snapshot context is the source of the engine-owned values.
+			// The top-level fields stay as the fallback for a server that sends
+			// no context.
+			const context = stateJson.context;
+			const hold = context?.hold;
+			const turnDeadlineMs = context?.timers?.turn_deadline_ms ?? stateJson.turn_deadline_ms;
+
 			this.state = {
-				active_type: stateJson.active_type ?? "white",
+				active_type: context?.active_color ?? stateJson.active_type ?? "white",
 				current_turn: currentTurn,
-				play_direction: stateJson.direction ?? 1,
+				play_direction: context?.direction ?? stateJson.direction ?? 1,
 				top_card: stateJson.discard_pile?.top
 					? this.#parseCard(stateJson.discard_pile.top)
 					: undefined,
@@ -764,8 +809,12 @@ class StoreGame implements SessionStore {
 					...p,
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
-				pending_draws: stateJson.pending_draws,
-				pendingPlayDrawn: stateJson.pending_play_drawn ?? null,
+				pending_draws: context?.draw_debt ?? stateJson.pending_draws,
+				pendingPlayDrawn: hold
+					? { player: hold.player, ...(hold.card === undefined ? {} : { card: hold.card }) }
+					: context
+						? null
+						: (stateJson.pending_play_drawn ?? null),
 				draw_pile_size: stateJson.draw_pile?.count ?? stateJson.draw_pile_size ?? 0,
 				discard_pile_size: stateJson.discard_pile?.count ?? stateJson.discard_pile_size ?? 0,
 				mode: stateJson.mode,
@@ -775,17 +824,16 @@ class StoreGame implements SessionStore {
 				seq_watermark: stateJson.seq_watermark,
 				window: stateJson.window,
 				prompts: stateJson.prompts,
-				turn_deadline_ms: stateJson.turn_deadline_ms
+				turn_deadline_ms: turnDeadlineMs,
+				context
 			};
 
 			// INFO: the snapshot deadline is absolute server-clock epoch ms and is
 			// the reconnect-safe source for the turn countdown; only clobber a
 			// live timer when the snapshot actually carries one.
-			if (typeof stateJson.turn_deadline_ms === "number" && stateJson.turn_deadline_ms > 0) {
-				this.#syncTurnTimer(
-					Math.max(0, this.#toClientClock(stateJson.turn_deadline_ms) - Date.now())
-				);
-			} else if (stateJson.turn_deadline_ms === 0) {
+			if (typeof turnDeadlineMs === "number" && turnDeadlineMs > 0) {
+				this.#syncTurnTimer(Math.max(0, this.#toClientClock(turnDeadlineMs) - Date.now()));
+			} else if (turnDeadlineMs === 0) {
 				// INFO: 0 means the turn clock is paused behind a prompt or a
 				// response window; freeze the countdown until it resumes.
 				this.#clearTimer();
@@ -841,7 +889,7 @@ class StoreGame implements SessionStore {
 				typeof wm === "number" &&
 				(this.desynced || this.lastSeq === null || wm >= this.lastSeq + 1)
 			) {
-				this.lastSeq = wm > 0 ? wm - 1 : null;
+				this.lastSeq = lastEventSequence(context, wm);
 				this.desynced = false;
 				this.#lastSnapshotRequestAt = null;
 			}

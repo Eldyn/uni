@@ -347,6 +347,12 @@ components:
               usernames best-first. In a race it grows as seats finish and
               `winner` stays empty until the race ends, when every seat still
               holding cards is ranked below the finishers.
+              `context` holds the engine-owned values that a late joiner or
+              a seat after `match_snapshot_request` reads instead of
+              rebuilding them from client events (see `SnapshotContext`).
+            properties:
+              context:
+                $ref: "#/components/schemas/SnapshotContext"
           action_required:
             type: integer
             description: >
@@ -759,6 +765,80 @@ components:
     # These limits are code-generated into both ends — never hand-edit the
     # mirrors. Backend: scripts/generate_contract_hpp.py -> common/contract.hpp
     # (contract::k...). Frontend: scripts/generate-schemas.js -> schemas.ts.
+
+    # INFO: engine-owned values of a warm-up snapshot. A client reads them and
+    #       computes nothing from client events (spec "Snapshot and late join").
+    SnapshotContext:
+      type: object
+      required:
+        - active_color
+        - direction
+        - draw_debt
+        - hold
+        - timers
+        - last_event_sequence
+        - streaks
+      properties:
+        active_color:
+          type: [string, "null"]
+          description: The color that a play must match. Null when none.
+        direction:
+          type: integer
+          description: Play direction, 1 clockwise and -1 counter-clockwise.
+        draw_debt:
+          type: integer
+          description: >
+            Draw debt that one seat holds, 0 when none. It follows the rule
+            of `status_applied`: a hidden `uni:draw_debt` status counts only
+            for the seat that owns it. Another seat and a spectator get the
+            sum of the visible statuses. The old top-level `pending_draws`
+            field is unchanged and still counts hidden debt.
+        hold:
+          description: >
+            The play-drawn hold, or null. All recipients get `player` and
+            `held`; only the owner of the drawn card gets `card`.
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [player, held]
+              properties:
+                player:
+                  type: string
+                held:
+                  type: boolean
+                card:
+                  type: integer
+                  description: Compact card bits. Owner only.
+        timers:
+          type: object
+          description: >
+            Live timers on the clock of `server_now_ms`. A remaining time of 0
+            means no time is left or no timer runs. While a window is open the
+            turn clock is suspended: `turn_deadline_ms` is 0 and
+            `turn_remaining_ms` holds the time that is left for the turn.
+          required:
+            - turn_deadline_ms
+            - turn_remaining_ms
+            - window_deadline_ms
+            - window_remaining_ms
+          properties:
+            turn_deadline_ms: { type: integer }
+            turn_remaining_ms: { type: integer }
+            window_deadline_ms: { type: integer }
+            window_remaining_ms: { type: integer }
+        last_event_sequence:
+          type: [integer, "null"]
+          description: >
+            The `sequence` of the last client event that this recipient
+            received. Null before the first event. The next live event has
+            this value plus one. `seq_watermark` is that next value.
+        streaks:
+          type: object
+          description: >
+            Streak values, near-win window and block state by streak name.
+            Always empty today. TODO: tickets 14 and 15 (server streaks) fill
+            it.
+          additionalProperties: true
 
     Username:
       type: string

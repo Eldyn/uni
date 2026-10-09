@@ -205,6 +205,12 @@ public:
      * a pile. A spectator is omniscient except for players opted into
      * the private seats. Own-hand entries carry a `can_play` flag
      *
+     * `match_state.context` holds the engine-owned values (active color,
+     * direction, draw debt, play-drawn hold, live timers, sequence of the last
+     * client event, and an empty `streaks` map that the server streak
+     * tickets fill), so a late joiner rebuilds nothing from events. It is
+     * redacted for the viewer: only the owner of a hold sees its card.
+     *
      * The watermark is `sink.NextSeq()`, so a caller builds the viewer's
      * packets into `sink` first and then the snapshot reconciles exactly the
      * stream it has sent.
