@@ -1,5 +1,6 @@
 import * as messages from "$lib/paraglide/messages.js";
 import { cardInfoByKind } from "$lib/glossary/cardDescriptions";
+import { storeModTexts } from "$lib/stores/modTexts.svelte";
 import type { LogLine } from "./logEvent";
 
 /** Paraglide message options; `locale` pins the language for one call. */
@@ -61,6 +62,11 @@ function withPrevColorName(params: LogLine["params"], options: LogTextOptions): 
 	};
 }
 
+/** A key with a mod namespace (`my_mod:name`) comes from the texts of that mod. */
+function isModTextKey(key: string): boolean {
+	return key.includes(":");
+}
+
 /**
  * Localized copy for a play-log key, or null when the locale lacks it. Pass
  * the reactive locale in `options` so callers re-render on a language switch.
@@ -70,6 +76,7 @@ export function resolveLogText(
 	params: LogLine["params"],
 	options: LogTextOptions = {}
 ): string | null {
+	if (isModTextKey(key)) return storeModTexts.resolve(key, params);
 	const message = catalog[key];
 	return typeof message === "function"
 		? message(

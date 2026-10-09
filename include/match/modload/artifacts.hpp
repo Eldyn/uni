@@ -595,6 +595,22 @@ struct ModReport {
 };
 
 /**
+ * @struct TextsFileDef
+ * @brief One `texts/<locale>.json` file: a flat map of key to string.
+ *
+ * `content` is null when the file is too large to read, or when it is not
+ * valid JSON; `read_error` then holds the reason. The validator reports it.
+ */
+struct TextsFileDef {
+    std::string locale;       /**< File name without the extension. */
+    std::string path;         /**< Server-side path (never sent). */
+    std::uintmax_t size = 0;  /**< Size of the file in bytes. */
+    std::string hash;         /**< SHA-256 hex of the bytes of the file. */
+    nlohmann::json content;   /**< The parsed object, or null. */
+    std::string read_error;   /**< Empty, or why `content` is null. */
+};
+
+/**
  * @struct LoadedMod
  * @brief One fully parsed mod folder.
  */
@@ -616,6 +632,7 @@ struct LoadedMod {
     std::vector<StreakDef> streaks;
     std::vector<DerivedEventDef> derived_events;
     std::vector<BindingDef> bindings;
+    std::vector<TextsFileDef> texts;
 };
 
 /**

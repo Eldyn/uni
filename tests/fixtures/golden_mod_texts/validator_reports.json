@@ -1,0 +1,73 @@
+{
+  "texts_foreign_namespace": {
+    "errors": [
+      {
+        "check": "texts.key.namespace",
+        "message": "texts file 'en' key 'other_mod:b' is outside the namespace 'texts_foreign_namespace:' of the mod; only the mod 'uni' defines 'uni:' keys",
+        "path": "texts_foreign_namespace/texts/en.json"
+      },
+      {
+        "check": "texts.key.namespace",
+        "message": "texts file 'en' key 'uni:a' is outside the namespace 'texts_foreign_namespace:' of the mod; only the mod 'uni' defines 'uni:' keys",
+        "path": "texts_foreign_namespace/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "texts_malformed": {
+    "errors": [
+      {
+        "check": "texts.json",
+        "message": "texts file 'en': the file is not valid JSON",
+        "path": "texts_malformed/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "texts_missing_en_key": {
+    "errors": [
+      {
+        "check": "texts.key.missing",
+        "message": "the key 'texts_missing_en_key:b' is used by the mod but missing in en.json",
+        "path": "texts_missing_en_key/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "texts_missing_it_key": {
+    "errors": [],
+    "loaded": true,
+    "warnings": [
+      {
+        "check": "texts.key.missing.locale",
+        "message": "the key 'texts_missing_it_key:b' is missing in the locale 'it'; the client uses 'en'",
+        "path": "texts_missing_it_key/texts/it.json"
+      }
+    ]
+  },
+  "texts_no_english": {
+    "errors": [
+      {
+        "check": "texts.key.missing",
+        "message": "the key 'texts_no_english:a' is used by the mod but missing in en.json",
+        "path": "texts_no_english/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "texts_non_string": {
+    "errors": [
+      {
+        "check": "texts.value",
+        "message": "texts file 'en' key 'texts_non_string:a' must have a string value",
+        "path": "texts_non_string/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  }
+}

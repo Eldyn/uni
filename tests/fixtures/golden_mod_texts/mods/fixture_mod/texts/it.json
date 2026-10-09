@@ -1,0 +1,4 @@
+{
+  "fixture_mod:apple_you": "Mangi {count, plural, one {# mela} other {# mele}}.",
+  "fixture_mod:apple_other": "[c=red]{name}[/c] mangia {count, plural, one {# mela} other {# mele}}."
+}

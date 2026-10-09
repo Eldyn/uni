@@ -7,6 +7,7 @@
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
 #include "match/modload/streak_definition_keys.hpp"
+#include "match/modload/texts_limits.hpp"
 #include "match/streak/state_values.hpp"
 #include "match/view/event_audience.hpp"
 #include "match/modload/vocabulary.hpp"
@@ -612,6 +613,7 @@ struct Buckets {
     std::vector<LoadError> streaks;
     std::vector<LoadError> derived;
     std::vector<LoadError> presentations;
+    std::vector<LoadError> texts;
     std::vector<LoadWarning> warnings;
     std::vector<LoadError> outcome;
     std::vector<LoadError> asset;
@@ -658,6 +660,7 @@ class Checker {
         CheckDerived();
         CheckPresentations();
         CheckBindings();
+        CheckTexts();
         CheckOutcomeResolvers();
         CheckAssetDependencies();
     }
@@ -1629,6 +1632,131 @@ class Checker {
                 "binding.empty", "presentations", path,
                 "binding '" + binding.binding_id
                     + "' has a case that presents nothing"));
+        }
+    }
+
+    /* INFO: the keys a mod uses by its own files, in its own namespace.
+     *       A key without the namespace of the mod belongs to the core
+     *       catalog of the interface; it is not checked here.
+     * TODO: the glossary keys join the used keys with the glossary entries. */
+    static std::set<std::string> UsedTextKeys(const LoadedMod& mod) {
+        const std::string prefix = mod.manifest.id + ":";
+        std::set<std::string> used;
+        for (const BindingDef& binding : mod.bindings) {
+            for (const BindingCaseDef& binding_case : binding.cases) {
+                if (!binding_case.log.has_value()) continue;
+                for (const std::string& key : binding_case.log->variants) {
+                    if (key.rfind(prefix, 0) == 0) used.insert(key);
+                }
+            }
+        }
+        return used;
+    }
+
+    void CheckTextsFile(const LoadedMod& mod, const TextsFileDef& file) {
+        const std::string label = "texts file '" + file.locale + "'";
+        if (!IsValidLocaleTag(file.locale)) {
+            const bool reserved = file.locale == kPseudoLocale;
+            buckets_.texts.push_back(Err(
+                "texts.locale", "texts", file.path,
+                label
+                    + (reserved
+                           ? " is the run-time locale; the client makes it "
+                             "from 'en', so a mod does not ship it"
+                           : " is no locale tag (a language of 2 or 3 "
+                             "lowercase letters, then subtags)")));
+        }
+        if (file.size > texts_limits::kMaxTextsFileBytes) {
+            buckets_.texts.push_back(Err(
+                "texts.size", "texts", file.path,
+                label + " is " + std::to_string(file.size)
+                    + " bytes; the limit is "
+                    + std::to_string(texts_limits::kMaxTextsFileBytes)));
+            return;
+        }
+        if (!file.read_error.empty() || !file.content.is_object()) {
+            buckets_.texts.push_back(Err(
+                "texts.json", "texts", file.path,
+                label + ": "
+                    + (file.read_error.empty()
+                           ? std::string("the top level must be an object")
+                           : file.read_error)));
+            return;
+        }
+        if (file.content.size() > texts_limits::kMaxTextKeys) {
+            buckets_.texts.push_back(Err(
+                "texts.keys", "texts", file.path,
+                label + " has " + std::to_string(file.content.size())
+                    + " keys; the limit is "
+                    + std::to_string(texts_limits::kMaxTextKeys)));
+            return;
+        }
+        const std::string prefix = mod.manifest.id + ":";
+        for (auto it = file.content.begin(); it != file.content.end(); ++it) {
+            const std::string& key = it.key();
+            if (key.size() <= prefix.size() || key.rfind(prefix, 0) != 0) {
+                buckets_.texts.push_back(Err(
+                    "texts.key.namespace", "texts", file.path,
+                    label + " key '" + key + "' is outside the namespace '"
+                        + prefix + "' of the mod; only the mod '"
+                        + std::string(kBaseModId) + "' defines '"
+                        + std::string(kBaseModId) + ":' keys"));
+            }
+            if (!it.value().is_string()) {
+                buckets_.texts.push_back(Err(
+                    "texts.value", "texts", file.path,
+                    label + " key '" + key + "' must have a string value"));
+            } else if (it.value().get_ref<const std::string&>().size()
+                       > texts_limits::kMaxTextValueBytes) {
+                buckets_.texts.push_back(Err(
+                    "texts.value", "texts", file.path,
+                    label + " key '" + key + "' is longer than "
+                        + std::to_string(texts_limits::kMaxTextValueBytes)
+                        + " bytes"));
+            }
+        }
+    }
+
+    void CheckTexts() {
+        for (const LoadedMod* mod : mods_) {
+            for (const TextsFileDef& file : mod->texts) {
+                CheckTextsFile(*mod, file);
+            }
+            CheckUsedTextKeys(*mod);
+        }
+    }
+
+    /* INFO: a used key missing in `en` rejects the mod. A key missing in
+     *       another locale only warns. */
+    void CheckUsedTextKeys(const LoadedMod& mod) {
+        const std::set<std::string> used = UsedTextKeys(mod);
+        if (used.empty()) return;
+        const auto has_key = [](const TextsFileDef& file,
+                                const std::string& key) {
+            return file.content.is_object() && file.content.contains(key);
+        };
+        const TextsFileDef* english = nullptr;
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en") english = &file;
+        }
+        const std::string english_path = mod.path + "/texts/en.json";
+        for (const std::string& key : used) {
+            if (english == nullptr || !has_key(*english, key)) {
+                buckets_.texts.push_back(Err(
+                    "texts.key.missing", "texts", english_path,
+                    "the key '" + key
+                        + "' is used by the mod but missing in en.json"));
+            }
+        }
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en" || !file.content.is_object()) continue;
+            for (const std::string& key : used) {
+                if (has_key(file, key)) continue;
+                buckets_.warnings.push_back(LoadWarning{
+                    "texts.key.missing.locale", "texts", file.path,
+                    "the key '" + key + "' is missing in the locale '"
+                        + file.locale + "'; the client uses 'en'"});
+            }
         }
     }
 
@@ -3490,8 +3618,7 @@ std::vector<LoadError> SchemaErrors(
 namespace {
 
 /* INFO: runs the stages of `kValidationStageOrder` in order. Inside a stage
- *       the errors of the base mod come first. The "streaks" and "texts"
- *       stages have no checks yet; they keep their place in the order. */
+ *       the errors of the base mod come first. */
 std::vector<LoadError> FirstFailingStage(
     const Buckets& buckets, const std::vector<const LoadedMod*>& mods) {
     std::string base_prefix;
@@ -3528,8 +3655,9 @@ std::vector<LoadError> FirstFailingStage(
             found = buckets.derived;
         } else if (stage == "presentations") {
             found = buckets.presentations;
+        } else if (stage == "texts") {
+            found = buckets.texts;
         }
-        // TODO: the "texts" stage lands with the texts ticket.
         if (!found.empty()) return base_first(std::move(found));
     }
     return {};

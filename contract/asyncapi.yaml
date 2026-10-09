@@ -1386,6 +1386,32 @@ components:
           minimum: 0
           maximum: 255
           description: Position of this mod in the frozen match mod list (8-bit on the wire).
+        texts:
+          type: array
+          description: >
+            The texts files of the mod, one for each locale. Absent when the
+            mod has none. The client fetches only the active locale and `en`
+            from `/assets/{mod}/texts/{locale}/low/{hash}`, where the hash in
+            the URL is the first 16 hex characters of `hash`. The client
+            checks the SHA-256 of the bytes against `hash` before it parses the
+            file.
+          items:
+            $ref: "#/components/schemas/ModTextsFile"
+
+    ModTextsFile:
+      type: object
+      required: [locale, hash, size]
+      properties:
+        locale:
+          type: string
+          description: Locale tag from the file name, for example `en` or `pt-BR`.
+        hash:
+          type: string
+          description: SHA-256 (lowercase hex) of the bytes of the file.
+        size:
+          type: integer
+          minimum: 0
+          description: Size of the file in bytes (at most 262144).
 
     # Per-kind entry in the flattened card kind table (`defs` packet).
     KindDef:

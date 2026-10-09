@@ -1,0 +1,23 @@
+{
+  "defs_digest": "cf36da1ad8b1a298",
+  "mods": [
+    {
+      "hash": "b21ea99bc77d70b63b6706b50b35487c0f731d0cf2e43a48281e6cbed1a44efb",
+      "id": "fixture_mod",
+      "index": 0,
+      "texts": [
+        {
+          "hash": "e75ed1a84e41dc8106a77d38a7a56f4e91a326aba40f2fc46b1eab908debaad4",
+          "locale": "en",
+          "size": 194
+        },
+        {
+          "hash": "c55b1d7010bad94d7a97587e7897e1aac4f5212bcdfbc6b427a88f8f2743d522",
+          "locale": "it",
+          "size": 188
+        }
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

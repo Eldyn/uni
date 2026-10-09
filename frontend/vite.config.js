@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
@@ -311,6 +311,16 @@ export default defineConfig(({ mode, command }) => {
 			// Dev-only content (e.g. the freestyle deck entry) is kept out of the
 			// production bundle but stays available in dev and under test.
 			__DEV_CONTENT__: JSON.stringify(isDev || mode === "test")
+		},
+		// INFO: tests read shared golden fixtures from ../tests/fixtures as raw text.
+		server: {
+			fs: {
+				allow: [
+					searchForWorkspaceRoot(process.cwd()),
+					path.resolve("../mods"),
+					path.resolve("../tests/fixtures")
+				]
+			}
 		},
 		base: "/",
 		build: {

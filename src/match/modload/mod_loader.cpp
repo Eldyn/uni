@@ -9,6 +9,8 @@
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/streak_definition_keys.hpp"
 #include "match/modload/mod_hash.hpp"
+#include "match/modload/texts_limits.hpp"
+#include "common/crypto_hash.hpp"
 
 #include <common/contract.hpp>
 
@@ -20,6 +22,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -1455,6 +1458,65 @@ bool ScanBindingsDirectory(const fs::path& dir, const std::string& mod_id,
     return ok;
 }
 
+bool PathIsInside(const fs::path& path, const fs::path& root) {
+    const auto [root_end, path_it] =
+        std::mismatch(root.begin(), root.end(), path.begin(), path.end());
+    return root_end == root.end();
+}
+
+/* INFO: reads the `texts/<locale>.json` files. A file that is too large,
+ *       unreadable, or not JSON keeps a `read_error`, and the "texts"
+ *       validation stage reports it. A file over the size limit is not read
+ *       at all. A symlink, and a file whose real path leaves the mod folder,
+ *       is a load error: the server must not read a file outside the mod. */
+bool ScanTextsDirectory(const fs::path& mod_root, std::vector<TextsFileDef>& out,
+                        std::vector<LoadError>& errors) {
+    const fs::path dir = mod_root / "texts";
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return true;
+    const fs::path real_root = fs::weakly_canonical(mod_root, ec);
+    const fs::path real_dir = fs::weakly_canonical(dir, ec);
+    if (ec || fs::is_symlink(dir) || !PathIsInside(real_dir, real_root)) {
+        AddError(errors, "texts.symlink", "texts", dir.string(),
+                 "the texts folder must be a real folder inside the mod");
+        return false;
+    }
+    std::vector<fs::path> files;
+    for (const auto& entry : fs::directory_iterator(dir, ec)) {
+        if (entry.path().extension() != ".json") continue;
+        if (entry.is_symlink()) {
+            AddError(errors, "texts.symlink", "texts", entry.path().string(),
+                     "a texts file must not be a symlink");
+            return false;
+        }
+        if (entry.is_regular_file()) files.push_back(entry.path());
+    }
+    std::sort(files.begin(), files.end());
+    for (const fs::path& file : files) {
+        TextsFileDef texts;
+        texts.locale = file.stem().string();
+        texts.path = file.string();
+        texts.size = fs::file_size(file, ec);
+        if (ec) {
+            texts.read_error = "cannot read the file";
+        } else if (texts.size > texts_limits::kMaxTextsFileBytes) {
+            texts.read_error = "the file is too large to read";
+        } else {
+            std::ifstream input(file, std::ios::binary);
+            const std::string bytes((std::istreambuf_iterator<char>(input)),
+                                    std::istreambuf_iterator<char>());
+            texts.hash = Sha256Hex(bytes);
+            texts.content = nlohmann::json::parse(bytes, nullptr, false);
+            if (texts.content.is_discarded()) {
+                texts.content = nullptr;
+                texts.read_error = "the file is not valid JSON";
+            }
+        }
+        out.push_back(std::move(texts));
+    }
+    return true;
+}
+
 /* INFO: one streak definition per file, version 1 style. Structural checks
  *       and the namespace rule only. */
 bool ParseStreakEntry(const nlohmann::json& entry, const std::string& mod_id,
@@ -2165,7 +2227,7 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets", "tables", "entities", "presentations", "events"};
+        "assets", "tables", "entities", "presentations", "events", "texts"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -2381,6 +2443,8 @@ bool ParseModFolder(const std::string& folder_path,
                                loaded.bindings, errors)) {
         ok = false;
     }
+
+    if (!ScanTextsDirectory(root, loaded.texts, errors)) ok = false;
 
     if (!ok) return false;
     out = std::move(loaded);

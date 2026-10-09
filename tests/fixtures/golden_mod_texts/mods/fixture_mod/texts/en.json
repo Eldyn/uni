@@ -1,0 +1,4 @@
+{
+  "fixture_mod:apple_you": "You eat {count, plural, one {# apple} other {# apples}}.",
+  "fixture_mod:apple_other": "[c=red]{name}[/c] eats {count, plural, one {# apple} other {# apples}}."
+}

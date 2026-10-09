@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /**
@@ -17,6 +18,9 @@
  */
 
 namespace match::modload {
+
+/** @brief Bundle id of the texts slots: one slot for each locale file. */
+inline constexpr std::string_view kTextsBundleId = "texts";
 
 /**
  * @brief Short content hash: the first 16 hex chars of SHA-256.

@@ -224,6 +224,7 @@ if(UNI_BUILD_TESTS)
         src/match/modload/play_conditions.cpp
         src/match/modload/asset_index.cpp
         src/match/modload/mod_hash.cpp
+        src/match/modload/texts_limits.cpp
         src/match/ecs/entity_store.cpp
         src/match/ecs/component_catalog.cpp
         src/match/ecs/event_bus.cpp

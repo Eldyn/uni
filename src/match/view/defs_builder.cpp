@@ -131,6 +131,25 @@ json EventManifestEntry(const match::modload::EventDef& event) {
     return entry;
 }
 
+/**
+ * @brief The `texts` listing of one mod: the locale, the SHA-256 of the
+ *        bytes, and the size of each texts file. The client fetches only the
+ *        files that it needs and checks each hash before it parses the file.
+ */
+json TextsListing(const std::vector<match::modload::LoadedMod>& mods,
+                  const std::string& mod_id) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        if (loaded.manifest.id != mod_id) continue;
+        for (const match::modload::TextsFileDef& texts : loaded.texts) {
+            listing.push_back(json{{"locale", texts.locale},
+                                   {"hash", texts.hash},
+                                   {"size", texts.size}});
+        }
+    }
+    return listing;
+}
+
 }  // namespace
 
 nlohmann::json DefsBuilder::Build(
@@ -164,10 +183,13 @@ nlohmann::json DefsBuilder::Build(
                 content_hash = loaded.content_hash;
             }
         }
-        mods_json.push_back(json{{"id", mod.id},
-                                 {"version", mod.version},
-                                 {"hash", content_hash},
-                                 {"index", static_cast<int>(i)}});
+        json mod_json = json{{"id", mod.id},
+                             {"version", mod.version},
+                             {"hash", content_hash},
+                             {"index", static_cast<int>(i)}};
+        json texts = TextsListing(mods, mod.id);
+        if (!texts.empty()) mod_json["texts"] = std::move(texts);
+        mods_json.push_back(std::move(mod_json));
     }
 
     json kinds_json = json::array();

@@ -32,6 +32,7 @@ import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schema
 import type { CardBus } from "$components/game/card-bus.svelte";
 import { bindingOnlyBeat, mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 import { bindingRegistry } from "$lib/presentation/eventBindings";
+import { storeModTexts } from "$lib/stores/modTexts.svelte";
 
 export const TYPE_MAP = TypeMap;
 
@@ -1013,6 +1014,7 @@ class StoreGame implements SessionStore {
 				// held unconfirmed until match_start proves the digest.
 				storeCardDefs.ingestDefs(env.data.payload);
 				bindingRegistry.ingestDefs(env.data.payload);
+				storeModTexts.ingestDefs(env.data.payload);
 				break;
 			}
 			case "match_start": {
@@ -1368,6 +1370,7 @@ class StoreGame implements SessionStore {
 		storeTableSpin.reset();
 		storeCardDefs.reset();
 		bindingRegistry.clear();
+		storeModTexts.clear();
 	}
 }
 
