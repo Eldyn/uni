@@ -109,6 +109,14 @@ struct CausalFrame {
     std::string cause{kCauseSystem};   /**< cause label (`kCause*`). */
     /** `event_id` of the engine event that started this entry point. */
     std::optional<int64_t> cause_event;
+    /**
+     * `event_id` of the last mod event of this entry point. The next mod
+     * event names it as its cause, so the mod events of one entry point form
+     * a cause chain. The scope of an entry point restores the field when it
+     * ends, so the next entry point starts a new chain. Core events never
+     * read this field.
+     */
+    std::optional<int64_t> mod_cause_event;
 };
 
 /**

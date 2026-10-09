@@ -71,13 +71,102 @@ bool CoerceFieldValue(const std::string& type, const nlohmann::json& value,
     return true;
 }
 
+/** @brief The engine turn counter, 0 when the store holds no match. */
+uint32_t CurrentTurn(const ecs::EntityStore& store) {
+    for (ecs::Entity match : store.EntitiesWith<ecs::MatchMeta>()) {
+        return store.Get<ecs::MatchMeta>(match)->turn;
+    }
+    return 0;
+}
+
+/**
+ * @brief Add the `mod_event` of `event_id` to `result`, or drop it.
+ *
+ * Shared by `emit_event` and `emit_signal`. A drop leaves `result` as it is.
+ * A payload over the byte budget is a drop that counts toward the disarm of
+ * a repeat offender; the per turn and the cause chain budgets are checked
+ * later, when the engine pushes the event.
+ */
+void AppendModEvent(ecs::EntityStore& store, const OpContext& ctx,
+                    const std::string& event_id,
+                    const nlohmann::json* provided, OpResult& result) {
+    const auto definition = ctx.registries->events.find(event_id);
+    if (definition == ctx.registries->events.end()) {
+        Logger::Warn("[emit_event] dropped: '", event_id, "' is not defined");
+        return;
+    }
+    // WARN: a mod emits only its own events. Without this check a rule could
+    //       forge an event of another namespace, such as a `uni:` event.
+    if (ctx.mod_id == nullptr
+        || *ctx.mod_id != definition->second.namespace_id) {
+        Logger::Warn("[emit_event] dropped: mod '",
+                     ctx.mod_id == nullptr ? std::string() : *ctx.mod_id,
+                     "' cannot emit '", event_id, "'");
+        return;
+    }
+    if (ctx.event_bus.IsDisarmed(*ctx.mod_id)) return;
+
+    if (provided == nullptr) {
+        Logger::Warn("[emit_event] dropped: payload of '", event_id,
+                     "' is not an object");
+        return;
+    }
+
+    // INFO: a field that the definition does not declare is dropped. A value
+    //       of the wrong type drops the whole event.
+    nlohmann::json payload = nlohmann::json::object();
+    for (const modload::EventFieldDef& field : definition->second.fields) {
+        const auto value = provided->find(field.name);
+        if (value == provided->end()) continue;
+        nlohmann::json coerced;
+        if (!CoerceFieldValue(field.type, *value, store, ctx, coerced)) {
+            Logger::Warn("[emit_event] dropped: field '", field.name,
+                         "' of '", event_id, "' is not a ", field.type);
+            return;
+        }
+        if (coerced.is_string()
+            && coerced.get_ref<const std::string&>().size()
+                   > modload::event_keys::kMaxEventStringBytes) {
+            Logger::Warn("[emit_event] dropped: field '", field.name,
+                         "' of '", event_id, "' is longer than ",
+                         modload::event_keys::kMaxEventStringBytes,
+                         " bytes");
+            return;
+        }
+        payload[field.name] = std::move(coerced);
+    }
+
+    ecs::ModEventLedger& ledger = ctx.budgets.mod_events;
+    if (payload.dump().size() > ledger.Limits().payload_max_bytes) {
+        const bool repeat_offender =
+            ledger.NoteDrop(*ctx.mod_id, event_id,
+                            ecs::ModEventBudget::kPayloadBytes,
+                            CurrentTurn(store));
+        if (repeat_offender && ctx.event_bus.Disarm(*ctx.mod_id)) {
+            Logger::Error("[ModEventBudget] mod '", *ctx.mod_id,
+                          "' disarmed: it broke a mod event budget in ",
+                          ledger.Limits().violation_turns,
+                          " distinct turns");
+            result.events.push_back(
+                MakeEvent("mod_disarmed", {{"mod", *ctx.mod_id}}));
+        }
+        return;
+    }
+
+    const nlohmann::json body = nlohmann::json{
+        {"id", event_id},
+        {"payload", std::move(payload)},
+        {"retention", definition->second.retention}};
+    nlohmann::json event = MakeEvent("mod_event", body);
+    // INFO: a mod event is the first to go when the event budget is full.
+    event["droppable"] = true;
+    result.events.push_back(std::move(event));
+}
+
 }  // namespace
 
 OpResult OpEmitSignal(ecs::EntityStore& store, const OpArgs& args,
                       OpContext& ctx) {
-    (void)store;
-    (void)ctx;
-
     std::string name;
     if (!args.GetString("name", name) || name.empty()) {
         return OpResult::Resolved();
@@ -96,6 +185,16 @@ OpResult OpEmitSignal(ecs::EntityStore& store, const OpArgs& args,
         nlohmann::json{{"name", name}, {"payload", std::move(payload)}};
     OpResult result = OpResult::Resolved(signal);
     result.events.push_back(MakeEvent("signal", signal));
+
+    // INFO: the optional `event` adds a mod event for presentations. The
+    //       signal above stays the same whatever happens to the mod event.
+    std::string event_id;
+    if (args.GetString("event", event_id) && ctx.registries != nullptr) {
+        const nlohmann::json empty_fields = nlohmann::json::object();
+        const nlohmann::json* fields =
+            args.Has("fields") ? args.GetObject("fields") : &empty_fields;
+        AppendModEvent(store, ctx, event_id, fields, result);
+    }
     return result;
 }
 
@@ -105,69 +204,16 @@ OpResult OpEmitEvent(ecs::EntityStore& store, const OpArgs& args,
     if (!args.GetString("id", event_id) || ctx.registries == nullptr) {
         return OpResult::Resolved();
     }
-    const auto definition = ctx.registries->events.find(event_id);
-    if (definition == ctx.registries->events.end()) {
-        Logger::Warn("[emit_event] dropped: '", event_id, "' is not defined");
-        return OpResult::Resolved();
-    }
-    // WARN: a mod emits only its own events. Without this check a rule could
-    //       forge an event of another namespace, such as a `uni:` event.
-    if (ctx.mod_id == nullptr
-        || *ctx.mod_id != definition->second.namespace_id) {
-        Logger::Warn("[emit_event] dropped: mod '",
-                     ctx.mod_id == nullptr ? std::string() : *ctx.mod_id,
-                     "' cannot emit '", event_id, "'");
-        return OpResult::Resolved();
-    }
-
     const nlohmann::json empty_payload = nlohmann::json::object();
     const nlohmann::json* provided =
         args.Has("payload") ? args.GetObject("payload") : &empty_payload;
-    if (provided == nullptr) {
-        Logger::Warn("[emit_event] dropped: payload of '", event_id,
-                     "' is not an object");
-        return OpResult::Resolved();
-    }
 
-    // INFO: a field that the definition does not declare is dropped. A value
-    //       of the wrong type drops the whole event.
-    nlohmann::json payload = nlohmann::json::object();
-    for (const modload::EventFieldDef& field : definition->second.fields) {
-        const auto value = provided->find(field.name);
-        if (value == provided->end()) continue;
-        nlohmann::json coerced;
-        if (!CoerceFieldValue(field.type, *value, store, ctx, coerced)) {
-            Logger::Warn("[emit_event] dropped: field '", field.name,
-                         "' of '", event_id, "' is not a ", field.type);
-            return OpResult::Resolved();
-        }
-        if (coerced.is_string()
-            && coerced.get_ref<const std::string&>().size()
-                   > modload::event_keys::kMaxEventStringBytes) {
-            Logger::Warn("[emit_event] dropped: field '", field.name,
-                         "' of '", event_id, "' is longer than ",
-                         modload::event_keys::kMaxEventStringBytes,
-                         " bytes");
-            return OpResult::Resolved();
-        }
-        payload[field.name] = std::move(coerced);
+    OpResult result = OpResult::Resolved();
+    AppendModEvent(store, ctx, event_id, provided, result);
+    if (!result.events.empty()
+        && result.events.front()["type"] == "mod_event") {
+        result.value = result.events.front()["payload"];
     }
-    if (payload.dump().size() > modload::event_keys::kMaxEventPayloadBytes) {
-        Logger::Warn("[emit_event] dropped: payload of '", event_id,
-                     "' is longer than ",
-                     modload::event_keys::kMaxEventPayloadBytes, " bytes");
-        return OpResult::Resolved();
-    }
-
-    const nlohmann::json body = nlohmann::json{
-        {"id", event_id},
-        {"payload", std::move(payload)},
-        {"retention", definition->second.retention}};
-    OpResult result = OpResult::Resolved(body);
-    nlohmann::json event = MakeEvent("mod_event", body);
-    // INFO: a mod event is the first to go when the event budget is full.
-    event["droppable"] = true;
-    result.events.push_back(std::move(event));
     return result;
 }
 

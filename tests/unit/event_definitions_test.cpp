@@ -386,6 +386,42 @@ TEST_CASE("emit_event: the validator checks the event reference") {
     CHECK(HasCheck(validate("uni:cards_drawn"), "ref.event.namespace"));
 }
 
+TEST_CASE("emit_signal: the validator checks the optional event "
+          "reference") {
+    const auto validate = [&](const std::string& signal_args) {
+        const std::string rule = R"({
+  "id": "eat",
+  "hooks": [{
+    "on": "after:play",
+    "nodes": [{
+      "id": "n1",
+      "op": "emit_signal",
+      "args": )" + signal_args + R"(
+    }]
+  }]
+})";
+        TempModsRoot root;
+        root.Write("my_mod/mod.json", ManifestFor("my_mod"));
+        root.Write("my_mod/events/apple_eaten.json",
+                   EventFile("my_mod:apple_eaten"));
+        root.Write("my_mod/rules/eat.json", rule);
+        const LoadResult loaded = ScanModsDirectory(root.root.string());
+        REQUIRE(loaded.ok());
+        match::modload::SemanticValidator validator(SchemaDir());
+        return validator.ValidateMod(loaded.mods[0]);
+    };
+    CHECK(validate(R"({"name":"ping"})").empty());
+    CHECK(validate(R"({"name":"ping","event":"my_mod:apple_eaten",)"
+                   R"("fields":{"count":1}})")
+              .empty());
+    CHECK(HasCheck(validate(R"({"name":"ping","event":"my_mod:missing"})"),
+                   "ref.event"));
+    CHECK(HasCheck(validate(R"({"name":"ping","event":"uni:cards_drawn"})"),
+                   "ref.event.namespace"));
+    CHECK(HasCheck(validate(R"({"name":"ping","event":5})"), "op.type"));
+    CHECK(HasCheck(validate(R"({"name":"ping","fields":5})"), "op.type"));
+}
+
 TEST_CASE("emit_event: the shipped test mod validates") {
     fs::path project = fs::path(__FILE__);
     while (!project.empty() && !fs::is_directory(project / "mods" / "uni")) {

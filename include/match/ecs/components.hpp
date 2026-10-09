@@ -1,6 +1,7 @@
 #pragma once
 
 #include <match/ecs/entity_store.hpp>
+#include <match/ecs/mod_event_budget.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -394,6 +395,7 @@ struct BudgetLedger {
     uint64_t chain_steps = 0;
     uint64_t events = 0;
     uint32_t must_apply_depth = 0;
+    ModEventLedger mod_events;  /**< budgets of the mod events. */
 };
 
 /**

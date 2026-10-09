@@ -1,0 +1,786 @@
+{
+  "cause_chain_budget": {
+    "disarmed": false,
+    "drops": {
+      "test|test:apple_eaten|cause_chain": 10
+    },
+    "streams": {
+      "player0": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 7,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 12,
+          "type": "turn_advance"
+        }
+      ],
+      "player1": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 7,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 12,
+          "type": "turn_advance"
+        }
+      ],
+      "player2": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 7,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 12,
+          "type": "turn_advance"
+        }
+      ],
+      "public_spectator": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 7,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 12,
+          "type": "turn_advance"
+        }
+      ]
+    }
+  },
+  "per_turn_budget": {
+    "disarmed": false,
+    "drops": {
+      "test|test:apple_eaten|per_turn": 8
+    },
+    "streams": {
+      "player0": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 7,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 8,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "turn_advance"
+        }
+      ],
+      "player1": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 7,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 8,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "turn_advance"
+        }
+      ],
+      "player2": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 7,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 8,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "turn_advance"
+        }
+      ],
+      "public_spectator": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 6,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 7,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 8,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 9,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 10,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "turn_advance"
+        }
+      ]
+    }
+  },
+  "repeat_offender_disarmed": {
+    "disarmed": true,
+    "drops": {
+      "test|test:apple_eaten|per_turn": 7
+    },
+    "streams": {
+      "player0": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 6,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 7,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 10,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "drawn_card_kept"
+        },
+        {
+          "sequence": 15,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 16,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 17,
+          "type": "turn_advance"
+        }
+      ],
+      "player1": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 6,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 7,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 10,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "drawn_card_kept"
+        },
+        {
+          "sequence": 15,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 16,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 17,
+          "type": "turn_advance"
+        }
+      ],
+      "player2": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 6,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 7,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 10,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "drawn_card_kept"
+        },
+        {
+          "sequence": 15,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 16,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 17,
+          "type": "turn_advance"
+        }
+      ],
+      "public_spectator": [
+        {
+          "sequence": 0,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 1,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 2,
+          "type": "restriction_added"
+        },
+        {
+          "sequence": 3,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 4,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 5,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 6,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 7,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 8,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 9,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 10,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 11,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 12,
+          "type": "mod_event"
+        },
+        {
+          "sequence": 13,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 14,
+          "type": "drawn_card_kept"
+        },
+        {
+          "sequence": 15,
+          "type": "turn_advance"
+        },
+        {
+          "sequence": 16,
+          "type": "cards_drawn"
+        },
+        {
+          "sequence": 17,
+          "type": "turn_advance"
+        }
+      ]
+    }
+  }
+}

@@ -2103,7 +2103,15 @@ components:
         WARN: the event id, the retention, the timing, and the field names
         and types (in the `defs` manifest) are public to every client. Do not
         put a hidden fact in them. A string value is at most 256 bytes and a
-        payload at most 1024 bytes; the server drops a larger event.
+        payload at most 1024 bytes (`UNI_MOD_EVENT_PAYLOAD_MAX`); the server
+        drops a larger event.
+
+        The server also drops the extra mod events of a mod in one turn
+        (`UNI_MOD_EVENTS_PER_TURN`, default 64) and the mod events beyond a
+        cause chain of `UNI_MOD_CAUSE_CHAIN_MAX` (default 16). The sequence
+        has no gap: a dropped event never gets a `sequence`. A mod that breaks
+        a budget in `UNI_MOD_VIOLATION_TURNS` (default 3) distinct turns is
+        disarmed. A core event is never dropped.
 
     DirectionChangedPayload:
       type: object

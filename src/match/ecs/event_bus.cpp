@@ -175,6 +175,11 @@ bool EventBus::NoteChainAbort(const std::string& mod_id) {
     return false;
 }
 
+bool EventBus::Disarm(const std::string& mod_id) {
+    if (mod_id.empty()) return false;
+    return disarmed_.insert(mod_id).second;
+}
+
 void EventBus::AttributeAbort(const std::string& mod_id,
                               HookDispatchResult& result) {
     result.aborted_mod = mod_id;

@@ -229,6 +229,32 @@ example `12abc`) gives the default; a value above `10000` is clamped to
 `10000`; `0` means that the server keeps no tail. The turn, the round and the
 log class each hold up to the limit, so the worst case is 3 times the limit.
 
+### Mod event budgets
+
+A mod emits mod events with the `emit_event` op, or with the optional `event`
+argument of the `emit_signal` op. Four environment variables limit them. A
+value with trailing junk (for example `12abc`) or a negative value gives the
+default; a value above the maximum is clamped to the maximum.
+
+| Variable | Default | Maximum | Meaning |
+| --- | --- | --- | --- |
+| `UNI_MOD_EVENTS_PER_TURN` | `64` | `10000` | mod events of one mod in one turn |
+| `UNI_MOD_EVENT_PAYLOAD_MAX` | `1024` | `65536` | bytes of one serialized payload |
+| `UNI_MOD_CAUSE_CHAIN_MAX` | `16` | `1000` | length of a chain of mod events |
+| `UNI_MOD_VIOLATION_TURNS` | `3` | `1000` | distinct turns of a break before a disarm |
+
+`0` is valid for the first three (the mod emits no event); for
+`UNI_MOD_VIOLATION_TURNS` it gives `1`. The chain length of a mod event is 1
+plus the chain length of the mod event that its `cause_event` names. The
+engine sets the `cause_event` of a mod event to the previous mod event of the
+same entry point (one play, one draw, one timer expiry), so the mod events of
+one entry point form one chain. The engine drops an event over a budget and
+logs an error with the mod id, the event id and the budget (one line for each
+mod, budget and turn). A core event is never dropped. A mod that breaks a
+budget in `UNI_MOD_VIOLATION_TURNS` distinct turns is disarmed through the
+same path as a chain abort (`UNI_CHAIN_BUDGET`): its rules stop and the match
+goes on. `UNI_CHAIN_BUDGET` and `UNI_EVENT_BUDGET` keep their old meaning.
+
 ## 📚 Documentation
 
 The complete documentation is already attached as **`documentazione-completa.pdf`**

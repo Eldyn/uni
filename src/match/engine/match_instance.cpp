@@ -2642,9 +2642,62 @@ void MatchInstance::PushEvent(nlohmann::json event) {
     PushEventOnce(std::move(event));
 }
 
+std::optional<uint32_t> MatchInstance::AdmitModEvent(nlohmann::json& event) {
+    const nlohmann::json& body = event["payload"];
+    const std::string event_ref =
+        body.is_object() ? body.value("id", std::string()) : std::string();
+    const std::string mod_id = event_ref.substr(0, event_ref.find(':'));
+    const nlohmann::json& frame = event["causal_frame"];
+    const uint32_t turn = frame.value("turn", 0u);
+    ecs::ModEventLedger& ledger = assembly_->budget.mod_events;
+
+    uint32_t chain_length = 1;
+    if (causal_frame_.mod_cause_event.has_value()) {
+        const auto parent = mod_event_chain_lengths_.find(
+            *causal_frame_.mod_cause_event);
+        if (parent != mod_event_chain_lengths_.end()) {
+            chain_length = parent->second + 1;
+            event["causal_frame"]["cause_event"] =
+                *causal_frame_.mod_cause_event;
+        }
+    }
+
+    if (assembly_->bus.IsDisarmed(mod_id)) return std::nullopt;
+    std::optional<ecs::ModEventBudget> broken;
+    if (chain_length > ledger.Limits().cause_chain_max) {
+        broken = ecs::ModEventBudget::kCauseChain;
+    } else if (!ledger.CountEvent(mod_id, turn)) {
+        broken = ecs::ModEventBudget::kPerTurn;
+    }
+    if (!broken.has_value()) return chain_length;
+
+    if (ledger.NoteDrop(mod_id, event_ref, *broken, turn)) {
+        DisarmOffender(mod_id);
+    }
+    return std::nullopt;
+}
+
+void MatchInstance::DisarmOffender(const std::string& mod_id) {
+    if (!assembly_->bus.Disarm(mod_id)) return;
+    Logger::Error("[ModEventBudget] mod '", mod_id,
+                  "' disarmed: it broke a mod event budget in ",
+                  assembly_->budget.mod_events.Limits().violation_turns,
+                  " distinct turns");
+    Emit("mod_disarmed", json{{"mod", mod_id}});
+}
+
 void MatchInstance::PushEventOnce(nlohmann::json event) {
     ops::StampCausalFrame(assembly_->store, causal_frame_, event);
+    std::optional<uint32_t> chain_length;
+    if (event.value("type", std::string()) == "mod_event") {
+        chain_length = AdmitModEvent(event);
+        if (!chain_length.has_value()) return;
+    }
     const int64_t event_id = next_event_id_++;
+    if (chain_length.has_value()) {
+        mod_event_chain_lengths_[event_id] = *chain_length;
+        causal_frame_.mod_cause_event = event_id;
+    }
     event["event_id"] = event_id;
     const bool starts_play_chain =
         event.value("type", std::string()) == "card_played";

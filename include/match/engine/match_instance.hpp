@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -510,6 +511,22 @@ private:
     /** @brief Stamp `event` with the current causal frame and queue it. */
     void PushEventOnce(nlohmann::json event);
 
+    /**
+     * @brief Check a stamped `mod_event` against the mod event budgets.
+     *
+     * Sets its `cause_event` to the previous mod event of the entry point.
+     * The chain length of a mod event is 1 plus the chain length of the mod
+     * event that its `cause_event` names (1 when that event is not a mod
+     * event). A drop is recorded in the ledger; the mod is disarmed when the
+     * ledger reports a repeat offender.
+     *
+     * @return the chain length, or empty when the event must be dropped.
+     */
+    std::optional<uint32_t> AdmitModEvent(nlohmann::json& event);
+
+    /** @brief Disarm a repeat offender and emit `mod_disarmed` once. */
+    void DisarmOffender(const std::string& mod_id);
+
     /** @brief The live current-turn player, or nullopt. */
     std::optional<ecs::Entity> CurrentPlayer() const;
 
@@ -897,6 +914,8 @@ private:
     ops::CausalFrame causal_frame_;
     /** Next `event_id`; grows for the whole match, `TakeEvents` keeps it. */
     int64_t next_event_id_ = 0;
+    /** Chain length of each mod event that the engine kept, by event id. */
+    std::map<int64_t, uint32_t> mod_event_chain_lengths_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

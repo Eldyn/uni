@@ -447,7 +447,9 @@ inline const std::vector<OpSignature>& OpCatalog() {
             OpSignature s;
             s.name = "emit_signal";
             s.args = {Arg("name", ArgType::kString),
-                      Arg("payload", ArgType::kObject, false)};
+                      Arg("payload", ArgType::kObject, false),
+                      Arg("event", ArgType::kEventRef, false),
+                      Arg("fields", ArgType::kObject, false)};
             add(std::move(s));
         }
         {
