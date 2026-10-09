@@ -1,0 +1,253 @@
+[
+  {
+    "actor": "bot0",
+    "id": "card_played",
+    "payload": {
+      "card": 192512,
+      "from_zone_ordinal": 0,
+      "player": "bot0"
+    },
+    "replayed": true,
+    "round": 0,
+    "seq": 0,
+    "sequence": 0,
+    "turn": 0,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot1",
+    "id": "card_played",
+    "payload": {
+      "card": 172033,
+      "from_zone_ordinal": 0,
+      "player": "bot1"
+    },
+    "replayed": true,
+    "round": 0,
+    "seq": 1,
+    "sequence": 1,
+    "turn": 1,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot2",
+    "id": "card_played",
+    "payload": {
+      "card": 110593,
+      "from_zone_ordinal": 1,
+      "player": "bot2"
+    },
+    "replayed": true,
+    "round": 0,
+    "seq": 2,
+    "sequence": 2,
+    "turn": 2,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot0",
+    "id": "card_played",
+    "payload": {
+      "card": 172032,
+      "from_zone_ordinal": 0,
+      "player": "bot0"
+    },
+    "replayed": true,
+    "round": 1,
+    "seq": 3,
+    "sequence": 3,
+    "turn": 3,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot1",
+    "id": "card_played",
+    "payload": {
+      "card": 192513,
+      "from_zone_ordinal": 0,
+      "player": "bot1"
+    },
+    "replayed": true,
+    "round": 1,
+    "seq": 4,
+    "sequence": 4,
+    "turn": 4,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot0",
+    "id": "card_played",
+    "payload": {
+      "card": 159747,
+      "from_zone_ordinal": 1,
+      "player": "bot0"
+    },
+    "replayed": true,
+    "round": 2,
+    "seq": 5,
+    "sequence": 5,
+    "turn": 6,
+    "type": "card_played"
+  },
+  {
+    "id": "active_type_changed",
+    "payload": {
+      "color": "blue",
+      "previous_color": "white"
+    },
+    "replayed": true,
+    "round": 2,
+    "seq": 6,
+    "sequence": 6,
+    "turn": 6,
+    "type": "active_type_changed"
+  },
+  {
+    "actor": "bot1",
+    "id": "card_played",
+    "payload": {
+      "card": 36865,
+      "from_zone_ordinal": 0,
+      "player": "bot1"
+    },
+    "replayed": true,
+    "round": 2,
+    "seq": 7,
+    "sequence": 7,
+    "turn": 7,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot2",
+    "id": "card_played",
+    "payload": {
+      "card": 8193,
+      "from_zone_ordinal": 0,
+      "player": "bot2"
+    },
+    "replayed": true,
+    "round": 2,
+    "seq": 8,
+    "sequence": 8,
+    "turn": 8,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot0",
+    "id": "card_played",
+    "payload": {
+      "card": 40960,
+      "from_zone_ordinal": 1,
+      "player": "bot0"
+    },
+    "replayed": true,
+    "round": 3,
+    "seq": 9,
+    "sequence": 9,
+    "turn": 9,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot0",
+    "cause": 9,
+    "id": "turn_skipped",
+    "payload": {
+      "target": "bot1"
+    },
+    "replayed": true,
+    "round": 3,
+    "seq": 10,
+    "sequence": 10,
+    "turn": 9,
+    "type": "turn_skipped"
+  },
+  {
+    "actor": "bot2",
+    "id": "card_played",
+    "payload": {
+      "card": 49153,
+      "from_zone_ordinal": 0,
+      "player": "bot2"
+    },
+    "replayed": true,
+    "round": 3,
+    "seq": 11,
+    "sequence": 11,
+    "turn": 10,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot2",
+    "cause": 11,
+    "id": "turn_skipped",
+    "payload": {
+      "target": "bot0"
+    },
+    "replayed": true,
+    "round": 3,
+    "seq": 12,
+    "sequence": 12,
+    "turn": 10,
+    "type": "turn_skipped"
+  },
+  {
+    "actor": "bot1",
+    "id": "card_played",
+    "payload": {
+      "card": 24577,
+      "from_zone_ordinal": 2,
+      "player": "bot1"
+    },
+    "replayed": true,
+    "round": 3,
+    "seq": 13,
+    "sequence": 13,
+    "turn": 11,
+    "type": "card_played"
+  },
+  {
+    "id": "round_advance",
+    "payload": {
+      "round": 4
+    },
+    "replayed": true,
+    "round": 4,
+    "seq": 14,
+    "sequence": 14,
+    "turn": 12,
+    "type": "round_advance"
+  },
+  {
+    "actor": "bot2",
+    "id": "card_played",
+    "payload": {
+      "card": 16384,
+      "from_zone_ordinal": 0,
+      "player": "bot2"
+    },
+    "replayed": true,
+    "round": 4,
+    "seq": 15,
+    "sequence": 15,
+    "turn": 12,
+    "type": "card_played"
+  },
+  {
+    "actor": "bot2",
+    "cause": 15,
+    "id": "turn_advance",
+    "payload": {
+      "deadline_ms": 0,
+      "direction": 1,
+      "from": "bot2",
+      "skipped": [],
+      "to": "bot0"
+    },
+    "replayed": true,
+    "round": 4,
+    "seq": 16,
+    "sequence": 16,
+    "turn": 13,
+    "type": "turn_advance"
+  }
+]

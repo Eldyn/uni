@@ -367,6 +367,7 @@
 		cardRegistry,
 		getPlacement,
 		subscribeDesync: (cb) => storeGame.onDesync(cb),
+		subscribeTail: (cb) => storeGame.onTail(cb),
 		getOpponentCardScale,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);

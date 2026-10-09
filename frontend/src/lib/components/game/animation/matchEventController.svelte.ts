@@ -27,6 +27,9 @@ import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAudio } from "$stores/audio.svelte";
 import { createPlayLogEmitter } from "$lib/chat/playLog/playLogEmitter";
+import { replayTailToLog, type TailEnvelope } from "$lib/chat/playLog/tailReplay";
+import type { MatchEventPayload } from "$lib/generated/schemas";
+import { storeCardDefs } from "$lib/stores/cardDefs.svelte";
 import { DRAW_DEBT_STATUS_KIND, baseKindId } from "$lib/utils/baseMod";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
@@ -84,6 +87,9 @@ export function createMatchEventBeatController(deps: {
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
 	/** storeGame.onDesync — a seq gap makes the play-log streaks untrustworthy. */
 	subscribeDesync?: (cb: () => void) => () => void;
+	/** storeGame.onTail — the retained events of a late join. They feed the
+	 *  play log only: no beat, no animation, no sound, no timer. */
+	subscribeTail?: (cb: (tail: MatchEventPayload[]) => void) => () => void;
 }): {
 	dispose: () => void;
 	syncState: () => void;
@@ -1617,9 +1623,15 @@ export function createMatchEventBeatController(deps: {
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);
 	const unsubscribeDesync = deps.subscribeDesync?.(resetPlayLog);
+	const unsubscribeTail = deps.subscribeTail?.((tail) =>
+		replayTailToLog(tail as TailEnvelope[], resolveKindOfBits, (line) =>
+			chatStore.appendLocalLog(line)
+		)
+	);
 	const dispose = () => {
 		unsubscribeBeats();
 		unsubscribeDesync?.();
+		unsubscribeTail?.();
 	};
 	return {
 		dispose,
@@ -1629,6 +1641,20 @@ export function createMatchEventBeatController(deps: {
 		settleBoardAnimations,
 		resetTurnMotion
 	};
+}
+
+const MOD_INDEX_SHIFT = 24;
+const KIND_INDEX_SHIFT = 12;
+const KIND_INDEX_MASK = 0xfff;
+
+/** Resolves compact card bits to a kind id and a face color. */
+function resolveKindOfBits(bits: number): { kind: string; color: string } | undefined {
+	const definition = storeCardDefs.lookupByIndex(
+		bits >>> MOD_INDEX_SHIFT,
+		(bits >>> KIND_INDEX_SHIFT) & KIND_INDEX_MASK
+	);
+	if (!definition) return undefined;
+	return { kind: definition.string_id, color: definition.face.color ?? "white" };
 }
 
 const OPPONENT_ACTION_SFX_GAIN = 0.5;

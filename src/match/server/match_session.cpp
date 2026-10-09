@@ -248,6 +248,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 bool is_spectator) {
     if (socket == nullptr) return;
 
+    match::view::SnapshotOptions warm_up;
+    warm_up.tail = &tail_;
     if (!is_spectator) {
         const auto it = sinks_.find(username);
         if (it != sinks_.end()) {
@@ -256,7 +258,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
             EnsureDefs(broadcaster, socket, it->second);
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
-                            match::view::Viewer::Player(username), it->second));
+                            match::view::Viewer::Player(username), it->second,
+                            warm_up));
             SendBarrierPacket(
                 broadcaster, socket, it->second,
                 ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
@@ -272,7 +275,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
     if (viewer != viewer_sinks_.end()) {
         EnsureDefs(broadcaster, socket, viewer->second);
         broadcaster.SendJson(
-            socket, builder_.BuildSnapshot(SpectatorViewer(), viewer->second));
+            socket, builder_.BuildSnapshot(SpectatorViewer(), viewer->second,
+                                           warm_up));
         SendBarrierPacket(
             broadcaster, socket, viewer->second,
             ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
@@ -280,8 +284,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
         return;
     }
     match::view::EventSink sink;
-    broadcaster.SendJson(socket,
-                         builder_.BuildSnapshot(SpectatorViewer(), sink));
+    broadcaster.SendJson(
+        socket, builder_.BuildSnapshot(SpectatorViewer(), sink, warm_up));
 }
 
 bool MatchSession::HandleSnapshotRequest(
@@ -306,7 +310,9 @@ bool MatchSession::HandleSnapshotRequest(
     const match::view::Viewer viewer =
         is_seat ? match::view::Viewer::Player(username)
                 : SpectatorViewer();
-    broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, options));
+    match::view::SnapshotOptions warm_up = options;
+    warm_up.tail = &tail_;
+    broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, warm_up));
     return true;
 }
 
@@ -435,6 +441,7 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
     }
     const std::vector<json>& events = engine_->Events();
     for (; cursor_ < events.size(); ++cursor_) {
+        tail_.Record(events[cursor_]);
         for (const auto& [username, socket] : sockets_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(

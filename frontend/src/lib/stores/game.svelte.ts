@@ -18,6 +18,7 @@ import { storeTableSpin } from "./tableSpin.svelte";
 import { storeCardDefs, type KindFace } from "./cardDefs.svelte";
 import {
 	MatchEventPayloadSchema,
+	type MatchEventPayload,
 	PlayersReadyPayloadSchema,
 	PromptClosePayloadSchema,
 	PromptOpenPayloadSchema,
@@ -125,7 +126,8 @@ const RawGameStateSchema = z.object({
 	server_now_ms: z.number().optional(),
 	prompt_wait: z.object({ deadline_ms: z.number(), duration_ms: z.number() }).optional(),
 	seq_watermark: z.number().int().optional(),
-	context: SnapshotContextSchema.optional()
+	context: SnapshotContextSchema.optional(),
+	tail: z.array(MatchEventPayloadSchema).optional()
 });
 
 /**
@@ -341,6 +343,12 @@ class StoreGame implements SessionStore {
 	/** Handlers registered via `onMatchEvent` (raw fan-out for presentation triggers). */
 	#matchEventHandlers = new Set<(type: string, payload: unknown) => void>();
 
+	/** Handlers registered via `onTail` (play log only). */
+	#tailHandlers = new Set<(tail: MatchEventPayload[]) => void>();
+	/** True once this match has replayed its tail. A later snapshot repeats it. */
+	#tailReplayed = false;
+	/** The tail of this match, kept for the first subscriber that mounts later. */
+	#receivedTail: MatchEventPayload[] | null = null;
 	/** Handlers registered via `onDesync` (gap detection). */
 	#desyncHandlers = new Set<() => void>();
 
@@ -592,6 +600,25 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief Registers a callback for the retained client events of a warm-up
+	 * snapshot (the tail). It fires once for each match. A subscriber must feed
+	 * the play log only: the tail is stale and starts no animation, no sound
+	 * and no timer.
+	 * @returns An unsubscribe function.
+	 */
+	onTail(cb: (tail: MatchEventPayload[]) => void): () => void {
+		if (this.#receivedTail !== null) {
+			const kept = this.#receivedTail;
+			this.#receivedTail = null;
+			cb(kept);
+		}
+		this.#tailHandlers.add(cb);
+		return () => {
+			this.#tailHandlers.delete(cb);
+		};
+	}
+
+	/**
 	 * @brief Registers a callback fired when a `match_event` seq gap is detected.
 	 * @returns An unsubscribe function.
 	 */
@@ -641,6 +668,8 @@ class StoreGame implements SessionStore {
 		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
+		this.#tailReplayed = false;
+		this.#receivedTail = null;
 		this.#lastSnapshotRequestAt = null;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;
@@ -894,6 +923,16 @@ class StoreGame implements SessionStore {
 				this.#lastSnapshotRequestAt = null;
 			}
 
+			// INFO: the tail is for the play log. It never joins the live stream:
+			//       its own sequence numbers do not touch `lastSeq`.
+			if (!this.#tailReplayed && stateJson.tail !== undefined) {
+				this.#tailReplayed = true;
+				// INFO: keep it only while nobody listens; the first late subscriber
+				//       takes it, so a remount never logs the tail twice.
+				if (this.#tailHandlers.size === 0) this.#receivedTail = stateJson.tail;
+				for (const h of this.#tailHandlers) h(stateJson.tail);
+			}
+
 			// INFO: drain AFTER state is applied.
 			const beats = this.#pendingBeats;
 			this.#pendingBeats = [];
@@ -950,6 +989,7 @@ class StoreGame implements SessionStore {
 	#onMatchEventFrame(data: unknown) {
 		const env = MatchEventPayloadSchema.safeParse(data);
 		if (!env.success) return;
+		if (env.data.replayed) return;
 
 		const seq = env.data.sequence ?? env.data.seq;
 		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
@@ -1305,6 +1345,8 @@ class StoreGame implements SessionStore {
 		this.#setActivePrompt(null);
 		this.lastSeq = null;
 		this.desynced = false;
+		this.#tailReplayed = false;
+		this.#receivedTail = null;
 		this.#lastSnapshotRequestAt = null;
 		this.#pendingBeats = [];
 		this.matchIntroPending = false;

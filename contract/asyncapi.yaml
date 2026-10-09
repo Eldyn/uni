@@ -350,9 +350,25 @@ components:
               `context` holds the engine-owned values that a late joiner or
               a seat after `match_snapshot_request` reads instead of
               rebuilding them from client events (see `SnapshotContext`).
+              `tail` (warm-up snapshot only: a late join, a reconnect and the
+              answer to `match_snapshot_request`; a broadcast snapshot has no
+              `tail`) holds the retained client events for the PLAY LOG. It
+              is a self-contained list: its `sequence` numbers start at 0 and
+              count the tail only, it never consumes the live stream of the
+              recipient, and every envelope has `replayed: true`. The live
+              stream continues at `seq_watermark` with no gap and no
+              duplicate. The server stores each logical client event one time
+              and projects it for the recipient with the same redaction as a
+              live event. A client feeds the tail to the play log ONLY: no
+              animation, no sound, no timer and no state change. Retention:
+              see `MatchEventPayload.replayed`.
             properties:
               context:
                 $ref: "#/components/schemas/SnapshotContext"
+              tail:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchEventPayload"
           action_required:
             type: integer
             description: >
@@ -1260,6 +1276,25 @@ components:
         type:
           type: string
           description: Old name of `id`. Same value.
+        replayed:
+          type: boolean
+          description: >
+            True on an envelope of the snapshot `tail` (a replayed client
+            event); absent on a live event. A replayed event is stale: it
+            must not start an animation, a sound or a timer (a replayed
+            `turn_advance` holds the deadline of its time, and the live timer
+            state is in `context.timers`), and it never opens the play-drawn
+            hold (that is `context.hold`). Retention of a core event is set by
+            the engine in one table (`event_audience.hpp`): `transient` is
+            never replayed; `until_turn_end` is dropped when the turn counter
+            changes; `until_round_end` when the round counter changes; `log`
+            is kept up to `UNI_EVENT_TAIL_MAX` events (default 200). A turn
+            ends at the engine turn advance (the `turn_advance` event and the
+            `turn` counter). A jump-in and an extra turn raise the counter
+            too: an event belongs to the `turn` value that the engine stamped
+            at emit time, and it is dropped when the counter next changes. A
+            mod event is `log` by default. The tail holds ONE name of an
+            alias pair (the new name); the live stream sends both.
         payload:
           type: object
           additionalProperties: true

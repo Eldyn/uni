@@ -1,5 +1,7 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
+
 #include <span>
 #include <string_view>
 
@@ -52,6 +54,25 @@ enum class Audience {
     kOwner,
 };
 
+/**
+ * @brief How long the server keeps a client event for a late joiner.
+ *
+ * The server stores each logical client event one time and projects it for a
+ * seat when that seat joins (see `event_tail.hpp`).
+ *
+ * A turn ends at the engine turn advance. The turn counter (`MatchMeta::turn`)
+ * grows at every advance, also at a jump-in and at an extra turn. An event
+ * belongs to the counter value that the engine stamped on it at emit time. The
+ * server drops an `kUntilTurnEnd` event as soon as the counter has a larger
+ * value. A round ends in the same way with the round counter.
+ */
+enum class Retention {
+    kTransient,      /**< Never replayed (sound, animation, timer). */
+    kUntilTurnEnd,   /**< Kept until the turn counter changes. */
+    kUntilRoundEnd,  /**< Kept until the round counter changes. */
+    kLog,            /**< Kept for the play log, up to `UNI_EVENT_TAIL_MAX`. */
+};
+
 /** @brief What a payload field carries; the projector redacts by kind. */
 enum class FieldKind {
     kPlain,       /**< No card identity in the value itself. */
@@ -81,6 +102,7 @@ struct EventRule {
     std::string_view target_key;
     std::string_view owner_key;
     std::span<const FieldRule> fields;
+    Retention retention;
 };
 
 namespace audience_table {
@@ -348,54 +370,73 @@ inline constexpr FieldRule kSignal[] = {
     {"payload", Audience::kAll},
 };
 
+// INFO: the retention of every core event, set by the engine in this one
+//       table. Why each value:
+//       - `kTransient`: the snapshot holds the state, or the event is only a
+//         sound, an animation, a timer, a prompt for one seat, or a diagnostic.
+//         The old names of an alias pair are transient too: the new name of
+//         the pair carries the tail, so the tail holds each fact one time.
+//       - `kUntilTurnEnd`: state changes that the play log needs only while
+//         the turn runs (draws, card moves, statuses, window results, rolls,
+//         the turn advance itself).
+//       - `kUntilRoundEnd`: round state (the round advance, placements, rules).
+//       - `kLog`: what a player reads in the play log (play, draw penalty,
+//         skip, reverse, color change, hand swaps, win).
+//       A type that has no row (a mod event) is `kLog`. It also has no
+//       audience rule, so it sends an empty object (the envelope only).
+//       A turn belongs to the turn counter value stamped at emit time. At a jump-in or an extra
+//       turn the engine advance still raises the counter, so the event of the
+//       old turn is dropped at that advance, not when a player acts.
 inline constexpr EventRule kEvents[] = {
-    {"card_played", "", "", kCardPlayed},
-    {"reshuffle", "", "", kReshuffle},
-    {"turn_advance", "", "", kTurnAdvance},
-    {"direction_changed", "", "", kDirectionChanged},
-    {"turn_skipped", "", "", kTurnSkipped},
-    {"extra_turn_granted", "", "", kExtraTurnGranted},
-    {"active_type_changed", "", "", kActiveTypeChanged},
-    {"restriction_added", "", "", kRestrictionAdded},
-    {"restriction_removed", "", "", kRestrictionRemoved},
-    {"turn_timer_changed", "", "", kTurnTimerChanged},
-    {"round_advance", "", "", kRoundAdvance},
-    {"placement", "", "", kPlacement},
-    {"window_open", "", "", kWindowOpen},
-    {"window_response", "", "player", kWindowResponse},
-    {"window_close", "", "", kWindowClose},
-    {"placement_set", "", "", kPlacementSet},
-    {"match_ended", "", "", kMatchEnded},
-    {"outcome_rolled", "", "", kOutcomeRolled},
-    {"status_modified", "", "", kStatusModified},
-    {"window_opened", "", "", kWindowOpened},
-    {"window_responded", "", "player", kWindowResponded},
-    {"window_closed", "", "", kWindowClosed},
-    {"auto_played", "", "", kAutoPlayed},
-    {"hands_swapped", "", "", kHandsSwapped},
-    {"hands_passed", "", "", kHandsPassed},
-    {"hands_redistributed", "", "", kHandsRedistributed},
-    {"card_moved", "", "target", kCardMoved},
-    {"card_created", "", "", kCardCreated},
-    {"card_removed", "", "target", kCardRemoved},
-    {"card_replaced", "", "", kCardReplaced},
-    {"match_end", "", "", kMatchEnd},
-    {"roll_result", "", "", kRollResult},
-    {"outcome_result", "", "", kOutcomeResult},
-    {"chain_aborted", "", "", {}},
-    {"mod_disarmed", "", "", {}},
-    {"play_rejected", "player", "", kPlayRejected},
-    {"cards_drawn", "", "player", kCardsDrawn},
-    {"drawn_card_kept", "", "player", kDrawnCardKept},
-    {"status_applied", "", "", kStatusApplied},
-    {"status_removed", "", "", kStatusRemoved},
-    {"prompt_open", "target", "", kPromptOpen},
-    {"prompt_close", "target", "", kPromptClose},
-    {"prompt_opened", "target", "", kPromptOpened},
-    {"prompt_answered", "target", "", kPromptAnswered},
-    {"visibility_granted", "viewer", "", kVisibility},
-    {"visibility_revoked", "viewer", "", kVisibility},
-    {"signal", "", "", kSignal},
+    {"card_played", "", "", kCardPlayed, Retention::kLog},
+    {"reshuffle", "", "", kReshuffle, Retention::kTransient},
+    {"turn_advance", "", "", kTurnAdvance, Retention::kUntilTurnEnd},
+    {"direction_changed", "", "", kDirectionChanged, Retention::kLog},
+    {"turn_skipped", "", "", kTurnSkipped, Retention::kLog},
+    {"extra_turn_granted", "", "", kExtraTurnGranted, Retention::kLog},
+    {"active_type_changed", "", "", kActiveTypeChanged, Retention::kLog},
+    {"restriction_added", "", "", kRestrictionAdded, Retention::kUntilRoundEnd},
+    {"restriction_removed", "", "", kRestrictionRemoved,
+     Retention::kUntilRoundEnd},
+    {"turn_timer_changed", "", "", kTurnTimerChanged, Retention::kTransient},
+    {"round_advance", "", "", kRoundAdvance, Retention::kUntilRoundEnd},
+    {"placement", "", "", kPlacement, Retention::kTransient},
+    {"window_open", "", "", kWindowOpen, Retention::kTransient},
+    {"window_response", "", "player", kWindowResponse, Retention::kTransient},
+    {"window_close", "", "", kWindowClose, Retention::kTransient},
+    {"placement_set", "", "", kPlacementSet, Retention::kUntilRoundEnd},
+    {"match_ended", "", "", kMatchEnded, Retention::kLog},
+    {"outcome_rolled", "", "", kOutcomeRolled, Retention::kUntilTurnEnd},
+    {"status_modified", "", "", kStatusModified, Retention::kUntilTurnEnd},
+    {"window_opened", "", "", kWindowOpened, Retention::kTransient},
+    {"window_responded", "", "player", kWindowResponded,
+     Retention::kUntilTurnEnd},
+    {"window_closed", "", "", kWindowClosed, Retention::kUntilTurnEnd},
+    {"auto_played", "", "", kAutoPlayed, Retention::kLog},
+    {"hands_swapped", "", "", kHandsSwapped, Retention::kLog},
+    {"hands_passed", "", "", kHandsPassed, Retention::kLog},
+    {"hands_redistributed", "", "", kHandsRedistributed, Retention::kLog},
+    {"card_moved", "", "target", kCardMoved, Retention::kUntilTurnEnd},
+    {"card_created", "", "", kCardCreated, Retention::kUntilTurnEnd},
+    {"card_removed", "", "target", kCardRemoved, Retention::kUntilTurnEnd},
+    {"card_replaced", "", "", kCardReplaced, Retention::kUntilTurnEnd},
+    {"match_end", "", "", kMatchEnd, Retention::kTransient},
+    {"roll_result", "", "", kRollResult, Retention::kTransient},
+    {"outcome_result", "", "", kOutcomeResult, Retention::kTransient},
+    {"chain_aborted", "", "", {}, Retention::kTransient},
+    {"mod_disarmed", "", "", {}, Retention::kTransient},
+    {"play_rejected", "player", "", kPlayRejected, Retention::kTransient},
+    {"cards_drawn", "", "player", kCardsDrawn, Retention::kUntilTurnEnd},
+    {"drawn_card_kept", "", "player", kDrawnCardKept, Retention::kUntilTurnEnd},
+    {"status_applied", "", "", kStatusApplied, Retention::kUntilTurnEnd},
+    {"status_removed", "", "", kStatusRemoved, Retention::kUntilTurnEnd},
+    {"prompt_open", "target", "", kPromptOpen, Retention::kTransient},
+    {"prompt_close", "target", "", kPromptClose, Retention::kTransient},
+    {"prompt_opened", "target", "", kPromptOpened, Retention::kTransient},
+    {"prompt_answered", "target", "", kPromptAnswered, Retention::kTransient},
+    {"visibility_granted", "viewer", "", kVisibility, Retention::kTransient},
+    {"visibility_revoked", "viewer", "", kVisibility, Retention::kTransient},
+    {"signal", "", "", kSignal, Retention::kTransient},
 };
 
 }  // namespace audience_table
@@ -415,6 +456,25 @@ inline const FieldRule* FindFieldRule(const EventRule& rule,
         if (candidate.name == field) return &candidate;
     }
     return nullptr;
+}
+
+/**
+ * @brief The retention of one engine event.
+ *
+ * Most types use the row of the table. A draw follows its payload: a held
+ * draw is `kTransient` (the snapshot context holds the hold, a replayed draw
+ * must not open it again) and a draw from the draw debt is `kLog`. A type that
+ * no row declares gets `kLog`; the mod event ticket uses this seam.
+ */
+inline Retention RetentionOf(std::string_view event_type,
+                             const nlohmann::json& payload) {
+    const EventRule* rule = FindEventRule(event_type);
+    if (rule == nullptr) return Retention::kLog;
+    if (event_type == "cards_drawn" && payload.is_object()) {
+        if (payload.value("held", false)) return Retention::kTransient;
+        if (payload.value("from_debt", false)) return Retention::kLog;
+    }
+    return rule->retention;
 }
 
 /** @brief The audience of a field; `kNone` when the table lacks it. */

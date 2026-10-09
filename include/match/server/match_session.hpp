@@ -4,6 +4,7 @@
 #include <match/modload/artifacts.hpp>
 #include <match/server/ready_barrier.hpp>
 #include <match/server/snapshot_request_limiter.hpp>
+#include <match/view/event_tail.hpp>
 #include <match/view/view_builder.hpp>
 #include <transport/ibroadcaster.hpp>
 
@@ -394,6 +395,14 @@ public:
     const match::engine::MatchInstance& Engine() const { return *engine_; }
     /** @brief The bound view builder. */
     const match::view::ViewBuilder& View() const { return builder_; }
+    /**
+     * @brief The stored logical client events for a late joiner.
+     *
+     * The session records each engine event here one time, when it emits the
+     * event. A warm-up snapshot (`SendSnapshot`, `HandleSnapshotRequest`)
+     * projects the store for the joining viewer as `match_state.tail`.
+     */
+    const match::view::EventTail& Tail() const { return tail_; }
     /** @brief Index into `Engine().Events()` already emitted. */
     std::size_t EventCursor() const { return cursor_; }
     /** @brief True once a `match_over` packet has been sent. */
@@ -473,6 +482,7 @@ private:
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
+    match::view::EventTail tail_;
     SocketMap sockets_;
     /** Spectator viewer sockets (no engine seat);. */
     SocketMap viewers_;

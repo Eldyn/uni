@@ -5,6 +5,7 @@
 #include <match/engine/match_instance.hpp>
 #include <match/engine/play_evaluator.hpp>
 #include <match/view/event_projector.hpp>
+#include <match/view/event_tail.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
@@ -786,6 +787,20 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
         engine_event);
 }
 
+nlohmann::json ViewBuilder::BuildTail(const Viewer& viewer,
+                                      const EventTail& tail) const {
+    EventSink replay_sink;
+    json envelopes = json::array();
+    for (const TailEntry& entry : tail.Entries()) {
+        std::optional<json> wrapped =
+            Wrap(entry.engine_event, viewer, replay_sink);
+        if (!wrapped.has_value()) continue;
+        (*wrapped)["replayed"] = true;
+        envelopes.push_back(std::move(*wrapped));
+    }
+    return envelopes;
+}
+
 std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
     const Viewer& viewer, EventSink& sink) const {
     const std::optional<json> pending = match_.PendingInput();
@@ -925,6 +940,9 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     //       `players[]` for the POV-aware eye count.
     state["spectator_count"] = options.spectator_count;
     state["seq_watermark"] = sink.NextSeq();
+    if (options.tail != nullptr) {
+        state["tail"] = BuildTail(viewer, *options.tail);
+    }
 
     return json{{"action", "match_state_updated"},
                 {"match_state", std::move(state)}};

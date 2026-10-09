@@ -217,6 +217,18 @@ The engine is the subject of the design record at
 
 ---
 
+### Late join and the event tail
+
+A seat or a spectator that joins late gets the retained client events in
+`match_state.tail` of its warm-up snapshot. The play log shows them; nothing
+else reads them. Each core event declares a retention in
+`include/match/view/event_audience.hpp`. The environment variable
+`UNI_EVENT_TAIL_MAX` (default `200`) sets the largest count of `log` events
+that the server keeps for each retention class. A malformed value (for
+example `12abc`) gives the default; a value above `10000` is clamped to
+`10000`; `0` means that the server keeps no tail. The turn, the round and the
+log class each hold up to the limit, so the worst case is 3 times the limit.
+
 ## 📚 Documentation
 
 The complete documentation is already attached as **`documentazione-completa.pdf`**

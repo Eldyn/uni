@@ -48,6 +48,8 @@ struct LoadedMod;
 
 namespace match::view {
 
+class EventTail;
+
 /**
  * @struct Viewer
  * @brief The recipient a view is built for.
@@ -124,6 +126,12 @@ struct SnapshotOptions {
     /** Total connected spectators in the lobby (all POVs). */
     int spectator_count = 0;
 
+    /**
+     * The retained client events for the play log. When set, the snapshot
+     * gets `match_state.tail` (a warm-up snapshot for a late joiner or a
+     * snapshot request). A snapshot for a live seat leaves it unset.
+     */
+    const EventTail* tail = nullptr;
 };
 
 
@@ -176,6 +184,23 @@ public:
     std::optional<nlohmann::json> Wrap(const nlohmann::json& engine_event,
                                        const Viewer& viewer,
                                        EventSink& sink) const;
+
+    /**
+     * @brief The retained client events, projected for `viewer`.
+     *
+     * Each stored logical event goes through the same projector as a live
+     * event. The result is a self-contained list: its `sequence` starts at 0
+     * and counts the tail only, so it never consumes the live stream of the
+     * viewer. Every envelope has `replayed: true`. `cause` points to an event
+     * of the tail, or it is absent. A client feeds the tail to the play log
+     * only: it starts no animation, no sound and no timer.
+     *
+     * @param viewer Recipient to build for.
+     * @param tail   The stored logical events.
+     * @return The array of envelopes, in engine order.
+     */
+    nlohmann::json BuildTail(const Viewer& viewer,
+                             const EventTail& tail) const;
 
     /**
      * @brief Synthesize a `prompt_open` for the viewer's parked op input.
