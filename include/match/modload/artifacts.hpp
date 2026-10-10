@@ -128,6 +128,8 @@ struct CardDef {
     std::string namespace_id;           /**< Owning mod id. */
     std::string kind_id;                /**< Full `namespace:id`. */
     std::string title;
+    std::string label_key;              /**< Empty: derived by the glossary. */
+    std::string description_key;        /**< Empty: derived by the glossary. */
     FaceSpec face;
     std::vector<std::string> tags;
     std::vector<BehaviorEntry> behaviors;
@@ -611,6 +613,20 @@ struct TextsFileDef {
 };
 
 /**
+ * @struct GlossaryEntryDef
+ * @brief One `glossary/<name>.json` file: an explicit glossary entry. It holds
+ *        translation keys only; the texts come from the `texts` files.
+ */
+struct GlossaryEntryDef {
+    std::string path;                   /**< File path, for reports. */
+    std::string namespace_id;           /**< Owning mod id. */
+    std::string entry_id;               /**< Full `namespace:name`. */
+    std::string label_key;
+    std::string description_key;
+    nlohmann::json raw;                 /**< Verbatim file content. */
+};
+
+/**
  * @struct LoadedMod
  * @brief One fully parsed mod folder.
  */
@@ -633,6 +649,7 @@ struct LoadedMod {
     std::vector<DerivedEventDef> derived_events;
     std::vector<BindingDef> bindings;
     std::vector<TextsFileDef> texts;
+    std::vector<GlossaryEntryDef> glossary;
 };
 
 /**

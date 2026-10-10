@@ -2,6 +2,7 @@
 
 #include <match/engine/match_assembler.hpp>
 #include <match/modload/asset_index.hpp>
+#include <match/modload/glossary_entries.hpp>
 #include <match/view/event_sink.hpp>
 
 #include <nlohmann/json.hpp>
@@ -132,6 +133,30 @@ json EventManifestEntry(const match::modload::EventDef& event) {
 }
 
 /**
+ * @brief The `glossary` listing of one mod: the id, the two translation keys,
+ *        and the source (`card` or `explicit`) of each entry. It holds keys
+ *        only, no text and no hidden state; the texts come from the texts
+ *        files.
+ */
+json GlossaryListing(const std::vector<match::modload::LoadedMod>& mods,
+                     const std::string& mod_id) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        if (loaded.manifest.id != mod_id) continue;
+        for (const match::modload::GlossaryEntryView& entry :
+             match::modload::BuildGlossaryEntries(loaded)) {
+            const std::string source(
+                match::modload::GlossarySourceName(entry.source));
+            listing.push_back(json{{"id", entry.id},
+                                   {"label_key", entry.label_key},
+                                   {"description_key", entry.description_key},
+                                   {"source", source}});
+        }
+    }
+    return listing;
+}
+
+/**
  * @brief The `texts` listing of one mod: the locale, the SHA-256 of the
  *        bytes, and the size of each texts file. The client fetches only the
  *        files that it needs and checks each hash before it parses the file.
@@ -189,6 +214,8 @@ nlohmann::json DefsBuilder::Build(
                              {"index", static_cast<int>(i)}};
         json texts = TextsListing(mods, mod.id);
         if (!texts.empty()) mod_json["texts"] = std::move(texts);
+        json glossary = GlossaryListing(mods, mod.id);
+        if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
         mods_json.push_back(std::move(mod_json));
     }
 

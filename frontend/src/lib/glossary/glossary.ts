@@ -6,6 +6,7 @@
 import * as m from "$lib/paraglide/messages.js";
 import { cardInfoByKind } from "$lib/glossary/cardDescriptions";
 import { storeI18n } from "$stores/i18n.svelte";
+import { storeModGlossary } from "$stores/modGlossary.svelte";
 
 export interface GlossaryTag {
 	label: string;
@@ -169,6 +170,9 @@ export const GLOSSARY_REGISTRY: Record<string, GlossaryDefinition> = {
 
 /**
  * Resolves a keyword definition. Fails soft by returning null for unknown keywords.
+ * Lookup order: the core registry, the core card index, then the glossary
+ * entries that mods list in the `defs` packet. The texts of a mod entry come
+ * from the mod text layer and follow the active locale, not the `locale` argument.
  */
 export function getGlossaryEntry(keyword: string, locale?: string): GlossaryEntry | null {
 	const def = GLOSSARY_REGISTRY[keyword];
@@ -181,8 +185,8 @@ export function getGlossaryEntry(keyword: string, locale?: string): GlossaryEntr
 		};
 	}
 	const card = cardInfoByKind(keyword, locale);
-	if (!card) return null;
-	return { id: keyword, title: card.title, description: card.description };
+	if (card) return { id: keyword, title: card.title, description: card.description };
+	return storeModGlossary.entry(keyword);
 }
 
 export function hasGlossaryKeyword(keyword: string): boolean {

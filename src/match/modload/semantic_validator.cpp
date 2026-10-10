@@ -7,6 +7,7 @@
 #include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
 #include "match/modload/streak_definition_keys.hpp"
+#include "match/modload/glossary_entries.hpp"
 #include "match/modload/texts_limits.hpp"
 #include "match/streak/state_values.hpp"
 #include "match/view/event_audience.hpp"
@@ -21,6 +22,7 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -1638,7 +1640,7 @@ class Checker {
     /* INFO: the keys a mod uses by its own files, in its own namespace.
      *       A key without the namespace of the mod belongs to the core
      *       catalog of the interface; it is not checked here.
-     * TODO: the glossary keys join the used keys with the glossary entries. */
+     *       The keys of the glossary entries join the used keys. */
     static std::set<std::string> UsedTextKeys(const LoadedMod& mod) {
         const std::string prefix = mod.manifest.id + ":";
         std::set<std::string> used;
@@ -1648,6 +1650,11 @@ class Checker {
                 for (const std::string& key : binding_case.log->variants) {
                     if (key.rfind(prefix, 0) == 0) used.insert(key);
                 }
+            }
+        }
+        for (const std::string& key : UsedGlossaryKeys(mod)) {
+            if (IsValidTextKey(key) && key.rfind(prefix, 0) == 0) {
+                used.insert(key);
             }
         }
         return used;
@@ -1722,7 +1729,78 @@ class Checker {
             for (const TextsFileDef& file : mod->texts) {
                 CheckTextsFile(*mod, file);
             }
+            CheckGlossaryKeys(*mod);
             CheckUsedTextKeys(*mod);
+        }
+    }
+
+    void CheckGlossaryKey(const LoadedMod& mod, const std::string& path,
+                          const std::string& owner, const std::string& field,
+                          const std::string& key) {
+        if (!IsValidTextKey(key)) {
+            buckets_.texts.push_back(Err(
+                "glossary.key.syntax", "glossary", path,
+                owner + " " + field + " is no text key: a key is "
+                    "'namespace:word' with words of [a-z0-9_] split by dots, "
+                    "at most "
+                    + std::to_string(glossary_keys::kMaxKeyBytes)
+                    + " bytes; an entry holds keys, never texts"));
+            return;
+        }
+        const std::string prefix = mod.manifest.id + ":";
+        if (key.rfind(prefix, 0) != 0) {
+            buckets_.texts.push_back(Err(
+                "glossary.key.namespace", "glossary", path,
+                owner + " " + field + " '" + key
+                    + "' is outside the namespace '" + prefix
+                    + "' of the mod"));
+        }
+    }
+
+    /* INFO: an explicit entry and a card with declared keys must hold text
+     *       keys of the own namespace. A card that an explicit entry replaces
+     *       is not checked: its keys are not used. A derived key that is
+     *       missing in `en` only warns. */
+    void CheckGlossaryKeys(const LoadedMod& mod) {
+        std::set<std::string> replaced;
+        for (const GlossaryEntryDef& entry : mod.glossary) {
+            replaced.insert(entry.entry_id);
+            const std::string owner = "glossary entry '" + entry.entry_id + "'";
+            CheckGlossaryKey(mod, entry.path, owner, "label key",
+                             entry.label_key);
+            CheckGlossaryKey(mod, entry.path, owner, "description key",
+                             entry.description_key);
+        }
+        const TextsFileDef* english = nullptr;
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en") english = &file;
+        }
+        for (const CardDef& card : mod.cards) {
+            if (replaced.count(card.kind_id) != 0) continue;
+            const std::string path = mod.path + "/cards/" + card.id + ".json";
+            const std::string owner = "card '" + card.kind_id + "'";
+            for (const auto& [declared, field, suffix] :
+                 {std::tuple<const std::string&, const char*,
+                             std::string_view>{
+                      card.label_key, "label key",
+                      glossary_keys::kLabelSuffix},
+                  std::tuple<const std::string&, const char*,
+                             std::string_view>{
+                      card.description_key, "description key",
+                      glossary_keys::kDescriptionSuffix}}) {
+                if (!declared.empty()) {
+                    CheckGlossaryKey(mod, path, owner, field, declared);
+                    continue;
+                }
+                const std::string derived = card.kind_id + std::string(suffix);
+                if (english != nullptr && english->content.is_object()
+                    && !english->content.contains(derived)) {
+                    buckets_.warnings.push_back(LoadWarning{
+                        "glossary.auto.key.missing", "glossary", english->path,
+                        "the derived " + std::string(field) + " '" + derived
+                            + "' of " + owner + " is missing in en.json"});
+                }
+            }
         }
     }
 
@@ -3579,6 +3657,14 @@ std::vector<LoadError> SchemaErrors(
                 std::vector<LoadError> local = ValidateAgainstSchema(
                     compiled, derived.raw, "derived",
                     base + "/derived/" + derived.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->glossary.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kGlossary);
+            for (const auto& entry : mod->glossary) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, entry.raw, "glossary", entry.path);
                 errors.insert(errors.end(), local.begin(), local.end());
             }
         }

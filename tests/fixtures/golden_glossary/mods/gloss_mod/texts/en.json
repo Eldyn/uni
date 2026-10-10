@@ -1,0 +1,10 @@
+{
+  "gloss_mod:apple.label": "Apple",
+  "gloss_mod:apple.description": "A red fruit.",
+  "gloss_mod:pear.custom_label": "Pear",
+  "gloss_mod:pear.custom_description": "A green fruit.",
+  "gloss_mod:fruit.plum": "Plum",
+  "gloss_mod:fruit.plum.description": "A purple fruit.",
+  "gloss_mod:ripeness.label": "Ripeness",
+  "gloss_mod:ripeness.description": "How ready a fruit is."
+}

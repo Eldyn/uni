@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": { "uni:identifier": "gloss_mod:ripeness" },
+    "uni:label_key": "gloss_mod:ripeness.label",
+    "uni:description_key": "gloss_mod:ripeness.description"
+  }
+}

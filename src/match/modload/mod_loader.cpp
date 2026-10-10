@@ -7,6 +7,7 @@
 #include "match/modload/binding_definition_keys.hpp"
 #include "match/modload/derived_definition_keys.hpp"
 #include "match/modload/event_definition_keys.hpp"
+#include "match/modload/glossary_entries.hpp"
 #include "match/modload/streak_definition_keys.hpp"
 #include "match/modload/mod_hash.hpp"
 #include "match/modload/texts_limits.hpp"
@@ -397,6 +398,22 @@ bool ParseCardEntry(const fs::path& path,
     (void)ParseStringField(entry, "title", out.title);
 
     bool ok = true;
+    for (const auto& [field, target] :
+         {std::pair<std::string_view, std::string*>{
+              glossary_keys::kCardLabelKey, &out.label_key},
+          std::pair<std::string_view, std::string*>{
+              glossary_keys::kCardDescriptionKey, &out.description_key}}) {
+        const auto found = entry.find(std::string(field));
+        if (found == entry.end()) continue;
+        if (!found->is_string()) {
+            AddError(errors, "card.keys", "cards", path.string(),
+                     "card '" + out.id + "' field '" + std::string(field)
+                         + "' must be a text key string");
+            ok = false;
+            continue;
+        }
+        *target = found->get<std::string>();
+    }
     auto face = entry.find("face");
     if (face != entry.end()) {
         if (!ParseFace(*face, out.face, errors, path.string())) ok = false;
@@ -1782,6 +1799,95 @@ bool ScanDerivedDirectory(const fs::path& dir, const std::string& mod_id,
     return ok;
 }
 
+/* INFO: one explicit glossary entry per file, version 1 style. The entry
+ *       holds translation keys only. Structural checks and the namespace
+ *       rule; the key syntax is a semantic check. */
+bool ParseGlossaryEntry(const nlohmann::json& entry, const std::string& mod_id,
+                        GlossaryEntryDef& out, std::vector<LoadError>& errors,
+                        const std::string& path) {
+    namespace keys = glossary_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "glossary.shape", "glossary", path,
+                 "glossary file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "glossary.format_version", "glossary", path,
+                 "glossary file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto body = entry.find(std::string(keys::kGlossaryEntry));
+    if (body == entry.end() || !body->is_object()) {
+        AddError(errors, "glossary.shape", "glossary", path,
+                 "glossary file needs a '"
+                     + std::string(keys::kGlossaryEntry) + "' object");
+        return false;
+    }
+    const auto description = body->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == body->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "glossary.identifier", "glossary", path,
+                 "glossary entry needs '" + std::string(keys::kDescription)
+                     + "." + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "glossary.id.namespace", "glossary", path,
+                 violation);
+        return false;
+    }
+    out.path = path;
+    out.entry_id = identifier;
+    out.namespace_id = mod_id;
+    out.raw = entry;
+    if (!ParseStringField(*body, std::string(keys::kLabelKey), out.label_key)
+        || !ParseStringField(*body, std::string(keys::kDescriptionKey),
+                             out.description_key)) {
+        AddError(errors, "glossary.keys", "glossary", path,
+                 "glossary entry '" + identifier + "' needs the string keys '"
+                     + std::string(keys::kLabelKey) + "' and '"
+                     + std::string(keys::kDescriptionKey) + "'");
+        return false;
+    }
+    return true;
+}
+
+bool ScanGlossaryDirectory(const fs::path& dir, const std::string& mod_id,
+                           std::vector<GlossaryEntryDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "glossary", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "glossary")) {
+            ok = false;
+            continue;
+        }
+        GlossaryEntryDef definition;
+        if (!ParseGlossaryEntry(entry, mod_id, definition, errors,
+                                file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(definition.entry_id).second) {
+            AddError(errors, "glossary.id.duplicate", "glossary", file.string(),
+                     "duplicate glossary entry id '" + definition.entry_id
+                         + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(definition));
+    }
+    return ok;
+}
+
 bool ParseDeckFile(const fs::path& path,
                    const std::string& ns,
                    DeckDef& out,
@@ -2227,7 +2333,8 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets", "tables", "entities", "presentations", "events", "texts"};
+        "assets", "tables", "entities", "presentations", "events", "texts",
+        "glossary"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -2441,6 +2548,11 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanBindingsDirectory(root / "presentations", loaded.manifest.id,
                                loaded.bindings, errors)) {
+        ok = false;
+    }
+
+    if (!ScanGlossaryDirectory(root / "glossary", loaded.manifest.id,
+                               loaded.glossary, errors)) {
         ok = false;
     }
 

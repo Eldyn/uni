@@ -1397,6 +1397,38 @@ components:
             file.
           items:
             $ref: "#/components/schemas/ModTextsFile"
+        glossary:
+          type: array
+          description: >
+            The glossary entries of the mod, sorted by id: one automatic entry
+            for each card definition, and the explicit entries of the
+            `glossary` files (an explicit entry replaces the automatic entry
+            with the same id). An entry holds translation keys only; the
+            client resolves the texts through the texts files of the same mod.
+            Absent when the mod has no entry. The client ignores an entry
+            whose id is outside the namespace of the listing mod.
+          items:
+            $ref: "#/components/schemas/ModGlossaryEntry"
+
+    ModGlossaryEntry:
+      type: object
+      required: [id, label_key, description_key, source]
+      properties:
+        id:
+          type: string
+          description: Full entry id, `namespace:name`; the namespace is the mod id.
+        label_key:
+          type: string
+          description: Translation key of the label.
+        description_key:
+          type: string
+          description: Translation key of the description.
+        source:
+          type: string
+          enum: [card, explicit]
+          description: >
+            `card` for the automatic entry of a card definition, `explicit`
+            for an entry of a `glossary` file.
 
     ModTextsFile:
       type: object

@@ -33,6 +33,7 @@ import type { CardBus } from "$components/game/card-bus.svelte";
 import { bindingOnlyBeat, mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 import { bindingRegistry } from "$lib/presentation/eventBindings";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
+import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
 
 export const TYPE_MAP = TypeMap;
 
@@ -1015,6 +1016,7 @@ class StoreGame implements SessionStore {
 				storeCardDefs.ingestDefs(env.data.payload);
 				bindingRegistry.ingestDefs(env.data.payload);
 				storeModTexts.ingestDefs(env.data.payload);
+				storeModGlossary.ingestDefs(env.data.payload);
 				break;
 			}
 			case "match_start": {
@@ -1371,6 +1373,7 @@ class StoreGame implements SessionStore {
 		storeCardDefs.reset();
 		bindingRegistry.clear();
 		storeModTexts.clear();
+		storeModGlossary.clear();
 	}
 }
 

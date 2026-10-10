@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": { "uni:identifier": "gloss_mod:pear" },
+    "uni:label_key": "gloss_mod:pear.custom_label",
+    "uni:description_key": "gloss_mod:pear.custom_description"
+  }
+}

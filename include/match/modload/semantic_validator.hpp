@@ -49,6 +49,7 @@ inline constexpr const char* kEvents = "events.schema.json";
 inline constexpr const char* kStreaks = "streaks.schema.json";
 inline constexpr const char* kDerived = "derived.schema.json";
 inline constexpr const char* kBindings = "bindings.schema.json";
+inline constexpr const char* kGlossary = "glossary.schema.json";
 }  // namespace schema_files
 
 /**
@@ -56,8 +57,8 @@ inline constexpr const char* kBindings = "bindings.schema.json";
  *        error ends the run.
  *
  * "uni" holds the checks of the old-style kinds; the errors of the `uni` mod
- * come first inside every stage. "texts" is a later ticket: the slot keeps its
- * place and has no checks yet.
+ * come first inside every stage. "texts" also holds the glossary checks: they
+ * need the texts files.
  */
 inline constexpr std::array<std::string_view, 6> kValidationStageOrder = {
     "uni", "events", "streaks", "derived", "presentations", "texts"};
