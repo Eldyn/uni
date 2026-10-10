@@ -77,47 +77,7 @@ json ProjectTurnAdvance(const match::engine::MatchInstance& match,
     return out;
 }
 
-json ProjectMatchEnd(const match::engine::MatchInstance& match) {
-    json placements = json::array();
-    int place = 1;
-    for (const std::string& user : match.GetPlacements()) {
-        placements.push_back(json{{"player", user}, {"place", place++}});
-    }
-    const std::string winner = match.GetWinner();
-    json out = json::object();
-    out["winner"] = winner;
-    out["placements"] = placements;
-    out["final_digest"] = StableDigest(
-        json{{"winner", winner}, {"placements", placements}}.dump());
-    return out;
-}
-
-json ProjectRollResult(const json& payload) {
-    json out = json::object();
-    out["spec"] = payload.contains("spec") ? payload["spec"].dump()
-                                           : std::string("{}");
-    out["outcomes"] =
-        payload.contains("outcomes") ? payload["outcomes"] : json::array();
-    // INFO: the sink stamps `roll_counter` with the public roll ordinal. The
-    //       engine `counter` also counts hidden draws and is never sent.
-    out["roll_counter"] = 0;
-    return out;
-}
-
-json ProjectOutcomeResult(const json& payload) {
-    json out = json::object();
-    // INFO: the engine already carries the fully
-    //       namespaced ids under the wire keys `table`/`key`; `value` is the
-    //       picked (or nested-rolled) outcome value. The sink stamps
-    //       `counter` with the public roll ordinal.
-    out["table"] = payload.value("table", std::string());
-    out["key"] = payload.value("key", std::string());
-    out["value"] = payload.value("value", 0);
-    out["counter"] = 0;
-    return out;
-}
-
-json ProjectWindowOpen(const json& payload) {
+json ProjectWindowOpened(const json& payload) {
     json out = json::object();
     // INFO: The packet carries `deadline` as ms REMAINING. The engine
     //       arms an absolute `deadline_ms` and also reports the chosen
@@ -125,7 +85,7 @@ json ProjectWindowOpen(const json& payload) {
     //       present; an absolute value only ever appears on a replay.
     out["deadline_ms"] =
         payload.value("duration_ms", payload.value("deadline_ms", 0));
-    out["responders"] = payload.contains("responders")
+    out["targets"] = payload.contains("responders")
                             ? payload["responders"]
                             : json::array();
     out["eligible_filter_digest"] = payload.value("filter_digest", "");
@@ -145,11 +105,12 @@ json ProjectWindowOpen(const json& payload) {
     return out;
 }
 
-json ProjectWindowResponse(const match::engine::MatchInstance& match,
-                           const json& payload) {
+json ProjectWindowResponded(const match::engine::MatchInstance& match,
+                            const json& payload) {
     json out = json::object();
     // INFO: `player` is dual-shape (review fix 3).
-    out["player"] = ResolvePlayer(match, payload.value("player", json()));
+    out["target"] = ResolvePlayer(match, payload.value("player", json()));
+    out["window_id"] = std::to_string(payload.value("window", 0));
     if (payload.value("pass", false)) {
         out["passed"] = true;
     } else if (payload.contains("card")) {
@@ -158,8 +119,8 @@ json ProjectWindowResponse(const match::engine::MatchInstance& match,
     return out;
 }
 
-json ProjectWindowClose(const match::engine::MatchInstance& match,
-                        const json& payload) {
+json ProjectWindowClosed(const match::engine::MatchInstance& match,
+                         const json& payload) {
     // INFO: the engine outcome is `response` / `all_pass` / `timeout`; the
     //       packet enum is only `winner` / `default`. A collected
     //       response maps to `winner`, everything else to `default`.
@@ -170,25 +131,30 @@ json ProjectWindowClose(const match::engine::MatchInstance& match,
     json out = json::object();
     out["outcome"] =
         (outcome == "response" || has_winner) ? "winner" : "default";
-    if (has_winner) out["winner"] = payload["winner"];
+    if (has_winner) out["target"] = payload["winner"];
     if (payload.contains("card") && payload["card"].is_object()) {
         out["card"] = CardBitsFor(match, payload["card"]);
     }
+    out["window_id"] = std::to_string(payload.value("id", 0));
     return out;
 }
 
-/** @brief Move `from` to `to` inside `out` when `from` exists. */
-void RenameKey(json& out, const std::string& from, const std::string& to) {
-    if (!out.contains(from)) return;
-    out[to] = std::move(out[from]);
-    out.erase(from);
-}
-
 json ProjectOutcomeRolled(const json& payload) {
-    json out = payload.contains("table") ? ProjectOutcomeResult(payload)
-                                         : ProjectRollResult(payload);
-    out.erase("roll_counter");
-    out.erase("counter");
+    json out = json::object();
+    // INFO: a table pick carries `table`, `key` and `value`; a dice roll
+    //       carries `spec` and `outcomes`. The sink stamps `roll_ordinal` with
+    //       the public roll ordinal. The engine `counter` also counts hidden
+    //       draws and is never sent.
+    if (payload.contains("table")) {
+        out["table"] = payload.value("table", std::string());
+        out["key"] = payload.value("key", std::string());
+        out["value"] = payload.value("value", 0);
+    } else {
+        out["spec"] = payload.contains("spec") ? payload["spec"].dump()
+                                               : std::string("{}");
+        out["outcomes"] = payload.contains("outcomes") ? payload["outcomes"]
+                                                       : json::array();
+    }
     out["roll_ordinal"] = 0;
     return out;
 }
@@ -204,38 +170,20 @@ json ProjectPlacementSet(const match::engine::MatchInstance& match,
 }
 
 json ProjectMatchEnded(const match::engine::MatchInstance& match) {
-    json out = ProjectMatchEnd(match);
     json targets = json::array();
-    for (const json& placement : out["placements"]) {
-        targets.push_back(placement["player"]);
+    json placements = json::array();
+    int place = 1;
+    for (const std::string& user : match.GetPlacements()) {
+        targets.push_back(user);
+        placements.push_back(json{{"player", user}, {"place", place++}});
     }
+    const std::string winner = match.GetWinner();
     json ended = json::object();
-    ended["target"] = out["winner"];
+    ended["target"] = winner;
     ended["targets"] = std::move(targets);
-    ended["final_digest"] = out["final_digest"];
+    ended["final_digest"] = StableDigest(
+        json{{"winner", winner}, {"placements", placements}}.dump());
     return ended;
-}
-
-json ProjectWindowOpened(const json& payload) {
-    json out = ProjectWindowOpen(payload);
-    RenameKey(out, "responders", "targets");
-    return out;
-}
-
-json ProjectWindowResponded(const match::engine::MatchInstance& match,
-                            const json& payload) {
-    json out = ProjectWindowResponse(match, payload);
-    RenameKey(out, "player", "target");
-    out["window_id"] = std::to_string(payload.value("window", 0));
-    return out;
-}
-
-json ProjectWindowClosed(const match::engine::MatchInstance& match,
-                         const json& payload) {
-    json out = ProjectWindowClose(match, payload);
-    RenameKey(out, "winner", "target");
-    out["window_id"] = std::to_string(payload.value("id", 0));
-    return out;
 }
 
 /** @brief Copy `key` as a username when the descriptor names a seat. */
@@ -353,10 +301,6 @@ nlohmann::json EventSink::Wrap(const std::string& type,
     envelope["sequence"] = next_seq_;
     envelope["id"] = type;
     envelope["payload"] = std::move(payload);
-    // TODO: remove `seq` and `type` after the client reads only `sequence`
-    //       and `id`.
-    envelope["seq"] = next_seq_;
-    envelope["type"] = type;
     ++next_seq_;
     return envelope;
 }
@@ -367,18 +311,8 @@ nlohmann::json EventSink::WrapEngineEvent(const std::string& type,
     const uint32_t sequence = next_seq_;
     // INFO: the engine counter counts every random draw, hidden ones too. A
     //       seat gets the number of public rolls it has seen instead.
-    if (type == "roll_result") {
-        payload["roll_counter"] = ++roll_ordinal_;
-        old_roll_name_pending_ = true;
-    } else if (type == "outcome_result") {
-        payload["counter"] = ++roll_ordinal_;
-        old_roll_name_pending_ = true;
-    } else if (type == "outcome_rolled") {
-        // INFO: the new event follows its old event, so it repeats that
-        //       ordinal. TODO: count here when the old names go (ticket 24).
-        if (!old_roll_name_pending_) ++roll_ordinal_;
-        old_roll_name_pending_ = false;
-        payload["roll_ordinal"] = roll_ordinal_;
+    if (type == "outcome_rolled") {
+        payload["roll_ordinal"] = ++roll_ordinal_;
     }
     nlohmann::json envelope = Wrap(type, std::move(payload));
 
@@ -498,15 +432,7 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "round_advance") {
         return nlohmann::json{{"round", body.value("round", 0)}};
     }
-    if (type == "placement") {
-        return nlohmann::json{
-            {"player", ResolvePlayer(match, body.value("player", json()))},
-            {"place", body.value("place", 0)}};
-    }
     if (type == "placement_set") return ProjectPlacementSet(match, body);
-    if (type == "window_open") return ProjectWindowOpen(body);
-    if (type == "window_response") return ProjectWindowResponse(match, body);
-    if (type == "window_close") return ProjectWindowClose(match, body);
     if (type == "window_opened") return ProjectWindowOpened(body);
     if (type == "window_responded") {
         return ProjectWindowResponded(match, body);
@@ -523,11 +449,8 @@ std::optional<nlohmann::json> ProjectPublicEvent(
     if (type == "card_created" || type == "card_replaced") {
         return ProjectCardZone(match, body);
     }
-    if (type == "match_end") return ProjectMatchEnd(match);
     if (type == "match_ended") return ProjectMatchEnded(match);
     if (type == "outcome_rolled") return ProjectOutcomeRolled(body);
-    if (type == "roll_result") return ProjectRollResult(body);
-    if (type == "outcome_result") return ProjectOutcomeResult(body);
     // INFO: `signal` is NOT `all`-visibility: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder`. It must
     //       not be broadcast from the public projector (review fix 2).

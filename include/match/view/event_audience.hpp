@@ -159,10 +159,6 @@ inline constexpr FieldRule kTurnTimerChanged[] = {
 inline constexpr FieldRule kRoundAdvance[] = {
     {"round", Audience::kAll},
 };
-inline constexpr FieldRule kPlacement[] = {
-    {"player", Audience::kAll},
-    {"place", Audience::kAll},
-};
 // INFO: `is_elimination` is false for a normal finish. No engine path sets
 //       it yet; a later elimination mechanic sets the engine key of the same
 //       name and the field reaches the wire unchanged.
@@ -185,26 +181,6 @@ inline constexpr FieldRule kOutcomeRolled[] = {
     {"key", Audience::kAll},
     {"value", Audience::kAll},
     {"roll_ordinal", Audience::kAll},
-};
-inline constexpr FieldRule kWindowOpen[] = {
-    {"deadline_ms", Audience::kAll},
-    {"responders", Audience::kAll},
-    {"eligible_filter_digest", Audience::kAll},
-    {"window_id", Audience::kAll},
-    {"kind", Audience::kAll},
-    {"kinds", Audience::kAll},
-    {"duration_ms", Audience::kAll},
-    {"hold_ms", Audience::kAll},
-};
-inline constexpr FieldRule kWindowResponse[] = {
-    {"player", Audience::kAll},
-    {"passed", Audience::kAll},
-    {"card", Audience::kAll, FieldKind::kOfferedCard},
-};
-inline constexpr FieldRule kWindowClose[] = {
-    {"outcome", Audience::kAll},
-    {"winner", Audience::kAll},
-    {"card", Audience::kAll, FieldKind::kPlayedCard},
 };
 inline constexpr FieldRule kWindowOpened[] = {
     {"window_id", Audience::kAll},
@@ -252,22 +228,6 @@ inline constexpr FieldRule kHandsRedistributed[] = {
     {"targets", Audience::kAll},
     {"counts", Audience::kAll},
 };
-inline constexpr FieldRule kMatchEnd[] = {
-    {"winner", Audience::kAll},
-    {"placements", Audience::kAll},
-    {"final_digest", Audience::kAll},
-};
-inline constexpr FieldRule kRollResult[] = {
-    {"spec", Audience::kAll},
-    {"outcomes", Audience::kAll},
-    {"roll_counter", Audience::kAll},
-};
-inline constexpr FieldRule kOutcomeResult[] = {
-    {"table", Audience::kAll},
-    {"key", Audience::kAll},
-    {"value", Audience::kAll},
-    {"counter", Audience::kAll},
-};
 // INFO: `chain_aborted` and `mod_disarmed` are diagnostics (spec open item
 //       6). They name mod nodes and mod ids, which can leak hidden rule
 //       data, so their audience is `none`: no seat and no spectator gets
@@ -275,12 +235,10 @@ inline constexpr FieldRule kOutcomeResult[] = {
 //       the projector builds no packet for them.
 inline constexpr FieldRule kPlayRejected[] = {
     {"target", Audience::kTarget},
-    {"player", Audience::kTarget},
     {"reason_id", Audience::kTarget},
 };
 inline constexpr FieldRule kCardsDrawn[] = {
     {"target", Audience::kAll},
-    {"player", Audience::kAll},
     {"count", Audience::kAll},
     {"hand_size_after", Audience::kAll},
     {"from_debt", Audience::kAll},
@@ -338,17 +296,6 @@ inline constexpr FieldRule kStatusModified[] = {
     {"delta", Audience::kAll},
     {"instance_id", Audience::kAll},
 };
-inline constexpr FieldRule kPromptOpen[] = {
-    {"prompt_id", Audience::kTarget},
-    {"kind", Audience::kTarget},
-    {"payload", Audience::kTarget},
-    {"response_schema", Audience::kTarget},
-    {"deadline_ms", Audience::kTarget},
-};
-inline constexpr FieldRule kPromptClose[] = {
-    {"prompt_id", Audience::kTarget},
-    {"outcome", Audience::kTarget},
-};
 // INFO: the session sends the prompt packets to the seat that must answer, so
 //       the audience is the target seat. The payload gets the handle scrub
 //       only; it is mod data and the table does not widen it.
@@ -385,8 +332,6 @@ inline constexpr FieldRule kSignal[] = {
 //       table. Why each value:
 //       - `kTransient`: the snapshot holds the state, or the event is only a
 //         sound, an animation, a timer, a prompt for one seat, or a diagnostic.
-//         The old names of an alias pair are transient too: the new name of
-//         the pair carries the tail, so the tail holds each fact one time.
 //       - `kUntilTurnEnd`: state changes that the play log needs only while
 //         the turn runs (draws, card moves, statuses, window results, rolls,
 //         the turn advance itself).
@@ -411,10 +356,6 @@ inline constexpr EventRule kEvents[] = {
      Retention::kUntilRoundEnd},
     {"turn_timer_changed", "", "", kTurnTimerChanged, Retention::kTransient},
     {"round_advance", "", "", kRoundAdvance, Retention::kUntilRoundEnd},
-    {"placement", "", "", kPlacement, Retention::kTransient},
-    {"window_open", "", "", kWindowOpen, Retention::kTransient},
-    {"window_response", "", "player", kWindowResponse, Retention::kTransient},
-    {"window_close", "", "", kWindowClose, Retention::kTransient},
     {"placement_set", "", "", kPlacementSet, Retention::kUntilRoundEnd},
     {"match_ended", "", "", kMatchEnded, Retention::kLog},
     {"outcome_rolled", "", "", kOutcomeRolled, Retention::kUntilTurnEnd},
@@ -431,9 +372,6 @@ inline constexpr EventRule kEvents[] = {
     {"card_created", "", "", kCardCreated, Retention::kUntilTurnEnd},
     {"card_removed", "", "target", kCardRemoved, Retention::kUntilTurnEnd},
     {"card_replaced", "", "", kCardReplaced, Retention::kUntilTurnEnd},
-    {"match_end", "", "", kMatchEnd, Retention::kTransient},
-    {"roll_result", "", "", kRollResult, Retention::kTransient},
-    {"outcome_result", "", "", kOutcomeResult, Retention::kTransient},
     {"chain_aborted", "", "", {}, Retention::kTransient},
     {"mod_disarmed", "", "", {}, Retention::kTransient},
     {"play_rejected", "player", "", kPlayRejected, Retention::kTransient},
@@ -441,8 +379,6 @@ inline constexpr EventRule kEvents[] = {
     {"drawn_card_kept", "", "player", kDrawnCardKept, Retention::kUntilTurnEnd},
     {"status_applied", "", "", kStatusApplied, Retention::kUntilTurnEnd},
     {"status_removed", "", "", kStatusRemoved, Retention::kUntilTurnEnd},
-    {"prompt_open", "target", "", kPromptOpen, Retention::kTransient},
-    {"prompt_close", "target", "", kPromptClose, Retention::kTransient},
     {"prompt_opened", "target", "", kPromptOpened, Retention::kTransient},
     {"prompt_answered", "target", "", kPromptAnswered, Retention::kTransient},
     {"visibility_granted", "viewer", "", kVisibility, Retention::kTransient},
@@ -458,8 +394,7 @@ inline constexpr EventRule kEvents[] = {
  * A streak value goes to every seat, so a streak reads a core event only when
  * the event reaches every seat with its `all` fields. The list leaves out the
  * events that go to one seat (`play_rejected`, `prompt_*`, `visibility_*`),
- * the hidden status events, the diagnostics, and the old names of an alias
- * pair (a streak would count one fact two times).
+ * the hidden status events, and the diagnostics.
  */
 inline constexpr std::string_view kStreakFeedableEvents[] = {
     "card_played",        "cards_drawn",      "drawn_card_kept",

@@ -71,7 +71,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}, extra: object = {}) {
-	return { action: "match_event", seq, type, payload, ...extra };
+	return { action: "match_event", sequence: seq, id: type, payload, ...extra };
 }
 
 const binding = (event: string, id: string) => ({

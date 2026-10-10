@@ -622,7 +622,7 @@ AssemblyResult MatchAssembler::Assemble(
     assembly->registries = registries;
     assembly->card_facts = card_facts;
     // INFO: retain the deck identity + settings so the view layer can build
-    //       `match_start` and `match_end` without the caller re-supplying them
+    //       `match_start` and `match_ended` without the caller re-supplying them
     //       (resolves the former match_instance.cpp TODO).
     assembly->deck.deck_id = deck.deck_id;
     assembly->deck.name = deck.name;

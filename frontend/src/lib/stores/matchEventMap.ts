@@ -41,7 +41,7 @@ import {
 /**
  * Normalized beat vocabulary produced by the `match_event` packet source
  * This is the packet-driven replacement for the old
- * state-diff watcher: one member per server packet `type` the client
+ * state-diff watcher: one member per server packet `id` the client
  * animates, carrying only the fields the existing beat builders need. `seq`
  * is carried through so the store's watermark/desync layer can order or drop
  * beats without re-parsing the envelope.
@@ -70,10 +70,10 @@ export type MatchEventBeat =
 			/** True when the draw is held for the drawer's play-or-keep choice. */
 			held?: boolean;
 			cardIds: number[];
-			/** The drawer's hand size after the draw; absent from an old server. */
-			handSizeAfter?: number;
+			/** The drawer's hand size after the draw. */
+			handSizeAfter: number;
 			/** True when the draw pays a draw debt. */
-			fromDebt?: boolean;
+			fromDebt: boolean;
 			/** Server streak values after this event (`uni:draw_run`, ...). */
 			context?: EventContext;
 	  }
@@ -131,9 +131,9 @@ export type MatchEventBeat =
 	/** The near-win seat lost its turn or drew; `actor` caused it. */
 	| { seq: number; kind: "blocked"; target: string; actor?: string }
 	/** A seat took a place; `isElimination` is true for a seat that is out. */
-	| { seq: number; kind: "placement"; target: string; place: number; isElimination: boolean }
+	| { seq: number; kind: "placement_set"; target: string; place: number; isElimination: boolean }
 	/** The match ended; `target` is the winner, `targets` the placed seats. */
-	| { seq: number; kind: "match_end"; target: string; targets: string[] }
+	| { seq: number; kind: "match_ended"; target: string; targets: string[] }
 	/** A client event that has no presentation yet; the controller ignores it. */
 	| { seq: number; kind: "ignored"; eventId: string }
 	| {
@@ -147,12 +147,12 @@ export type MatchEventBeat =
 	  };
 
 /**
- * Maps one `match_event` frame (`{seq, type, payload}`, plus the transport's
+ * Maps one `match_event` frame (`{sequence, id, payload}`, plus the transport's
  * own `action` field) onto the normalized beat vocabulary. Pure and
- * defensive: a malformed envelope, a known `type` with an invalid payload,
- * or an unknown `type` all return `null` rather than throwing.
+ * defensive: a malformed envelope, a known `id` with an invalid payload,
+ * or an unknown `id` all return `null` rather than throwing.
  *
- * FORWARD-COMPAT: unknown `type` strings MUST be
+ * FORWARD-COMPAT: unknown `id` strings MUST be
  * ignored, never treated as errors — new packet types are added additively.
  */
 export function mapMatchEventPacket(raw: unknown): MatchEventBeat | null {
@@ -184,15 +184,15 @@ export function bindingOnlyBeat(
 	if (!envelope.success) return null;
 	const event = clientEventOf(envelope.data);
 	if (event.id === "" || !hasBinding(event.id)) return null;
-	const beat: MatchEventBeat = { seq: envelope.data.seq, kind: "ignored", eventId: event.id };
+	const beat: MatchEventBeat = { seq: envelope.data.sequence, kind: "ignored", eventId: event.id };
 	eventsByBeat.set(beat, event);
 	return beat;
 }
 
 function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | null {
-	const { seq, type, payload, actor, id } = envelope.data;
+	const { sequence: seq, id, payload, actor } = envelope.data;
 
-	switch (type) {
+	switch (id) {
 		case "card_played": {
 			const parsed = CardPlayedPayloadSchema.safeParse(payload);
 			if (!parsed.success) return null;
@@ -223,7 +223,7 @@ function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | nu
 			return {
 				seq,
 				kind: "draw",
-				player: parsed.data.target ?? parsed.data.player,
+				player: parsed.data.target,
 				count: parsed.data.count,
 				sourcePile: parsed.data.source_pile,
 				held: parsed.data.held,
@@ -323,7 +323,7 @@ function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | nu
 			if (!parsed.success) return null;
 			return {
 				seq,
-				kind: "placement",
+				kind: "placement_set",
 				target: parsed.data.target,
 				place: parsed.data.place,
 				isElimination: parsed.data.is_elimination
@@ -332,7 +332,7 @@ function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | nu
 		case "match_ended": {
 			const parsed = MatchEndedPayloadSchema.safeParse(payload);
 			if (!parsed.success) return null;
-			return { seq, kind: "match_end", target: parsed.data.target, targets: parsed.data.targets };
+			return { seq, kind: "match_ended", target: parsed.data.target, targets: parsed.data.targets };
 		}
 		case "active_type_changed": {
 			const parsed = ActiveTypeChangedPayloadSchema.safeParse(payload);
@@ -356,29 +356,28 @@ function mapEnvelope(envelope: { data: MatchEventPayload }): MatchEventBeat | nu
 			return { seq, kind: "blocked", target: parsed.data.target, actor };
 		}
 		case "extra_turn_granted":
-			return ignoredBeat(seq, type, ExtraTurnGrantedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, ExtraTurnGrantedPayloadSchema.safeParse(payload).success);
 		case "restriction_added":
-			return ignoredBeat(seq, type, RestrictionAddedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, RestrictionAddedPayloadSchema.safeParse(payload).success);
 		case "restriction_removed":
-			return ignoredBeat(seq, type, RestrictionRemovedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, RestrictionRemovedPayloadSchema.safeParse(payload).success);
 		case "turn_timer_changed":
-			return ignoredBeat(seq, type, TurnTimerChangedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, TurnTimerChangedPayloadSchema.safeParse(payload).success);
 		case "hands_redistributed":
-			return ignoredBeat(seq, type, HandsRedistributedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, HandsRedistributedPayloadSchema.safeParse(payload).success);
 		case "card_moved":
-			return ignoredBeat(seq, type, CardMovedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, CardMovedPayloadSchema.safeParse(payload).success);
 		case "card_created":
-			return ignoredBeat(seq, type, CardCreatedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, CardCreatedPayloadSchema.safeParse(payload).success);
 		case "card_removed":
-			return ignoredBeat(seq, type, CardRemovedPayloadSchema.safeParse(payload).success);
+			return ignoredBeat(seq, id, CardRemovedPayloadSchema.safeParse(payload).success);
 		case "card_replaced":
-			return ignoredBeat(seq, type, CardReplacedPayloadSchema.safeParse(payload).success);
-		case "mod_event":
-			// A mod event names itself in the envelope `id`. No presentation
-			// exists yet, so the client ignores it without a stall.
-			return id ? { seq, kind: "ignored", eventId: id } : null;
+			return ignoredBeat(seq, id, CardReplacedPayloadSchema.safeParse(payload).success);
 		default:
-			return null;
+			// A mod event has a namespaced `id` (`mod:event`); a core event has
+			// none. No presentation exists for a mod event yet, so the client
+			// ignores it without a stall. An unknown core id is dropped.
+			return id.includes(":") ? { seq, kind: "ignored", eventId: id } : null;
 	}
 }
 

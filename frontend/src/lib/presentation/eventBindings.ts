@@ -43,11 +43,9 @@ export interface Viewer {
 }
 
 export interface EventEnvelope {
-	type: string;
-	id?: string;
+	id: string;
 	actor?: string;
-	seq: number;
-	sequence?: number;
+	sequence: number;
 	payload: Record<string, unknown>;
 	replayed?: boolean;
 }
@@ -106,11 +104,10 @@ function stringOr(value: unknown, fallback = ""): string {
 
 /** Turns an envelope into the event that the matcher reads. */
 export function clientEventOf(envelope: EventEnvelope): ClientEvent {
-	const id = envelope.type === "mod_event" ? (envelope.id ?? "") : envelope.type;
 	return {
-		id,
+		id: envelope.id,
 		actor: envelope.actor,
-		sequence: envelope.sequence ?? envelope.seq,
+		sequence: envelope.sequence,
 		payload: envelope.payload,
 		replayed: envelope.replayed === true
 	};

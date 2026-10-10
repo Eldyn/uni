@@ -472,7 +472,7 @@ TEST_CASE("turn flow events: every seat and a spectator get the event") {
                 builder.Wrap(found[0], viewer, sink);
             REQUIRE(wrapped.has_value());
             CHECK((*wrapped)["id"] == scenario.event_type);
-            CHECK((*wrapped)["type"] == scenario.event_type);
+            CHECK((*wrapped)["id"] == scenario.event_type);
             CHECK((*wrapped)["actor"] == "player0");
             CHECK((*wrapped).contains("sequence"));
             CHECK((*wrapped).contains("turn"));

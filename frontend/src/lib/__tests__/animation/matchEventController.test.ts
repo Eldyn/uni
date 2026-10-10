@@ -297,22 +297,6 @@ describe("createMatchEventBeatController", () => {
 		expect(h.cardRegistry.seedPose).toHaveBeenCalledWith("5", expect.any(Object));
 	});
 
-	it("logs a keep when the held draw resolves without a play (Review Focus)", async () => {
-		storeAuth.username = "me";
-		const append = vi.spyOn(chatStore, "appendLocalLog").mockImplementation(() => {});
-		storeGame.state = heldState([{ id: 5, type: "red", value: "5" }]);
-		const h = harness();
-
-		h.controller.syncState();
-		storeGame.state = baseState();
-		h.controller.syncState();
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		expect(append).toHaveBeenCalledWith(
-			expect.objectContaining({ key: "uni:log.keep_drawn", params: { name: "me" } })
-		);
-	});
-
 	it("logs one keep from the event and none more from the snapshot", async () => {
 		storeAuth.username = "me";
 		const append = vi.spyOn(chatStore, "appendLocalLog").mockImplementation(() => {});
@@ -377,13 +361,37 @@ describe("createMatchEventBeatController", () => {
 				count: 0,
 				sourcePile: "draw_pile",
 				cardIds: [],
-				handSizeAfter: 3
+				handSizeAfter: 3,
+				fromDebt: false
 			});
 		}
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(append).not.toHaveBeenCalled();
 		expect(h.cardRegistry.enqueue).not.toHaveBeenCalled();
+	});
+
+	it("reads the hand size of the local draw log line from the event", async () => {
+		storeAuth.username = "me";
+		const append = vi.spyOn(chatStore, "appendLocalLog").mockImplementation(() => {});
+		storeGame.state = baseState();
+		const h = harness();
+
+		h.fire({
+			seq: 3,
+			kind: "draw",
+			player: "me",
+			count: 1,
+			sourcePile: "draw_pile",
+			cardIds: [],
+			handSizeAfter: 12,
+			fromDebt: false
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(append).toHaveBeenCalledWith(
+			expect.objectContaining({ key: expect.stringMatching(/^uni:log\.draw_big_hand/) })
+		);
 	});
 
 	it("reads the hand size of the draw log line from the event", async () => {
@@ -399,7 +407,8 @@ describe("createMatchEventBeatController", () => {
 			count: 1,
 			sourcePile: "draw_pile",
 			cardIds: [],
-			handSizeAfter: 12
+			handSizeAfter: 12,
+			fromDebt: false
 		});
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -549,7 +558,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = localDrawState();
 		const h = harness();
 
-		h.fire({ seq: 20, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+		h.fire({
+			seq: 20,
+			kind: "draw",
+			player: "me",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: [7, 9]
+		});
 
 		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
 		const [beats, resolveAnchor] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
@@ -601,7 +619,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = localDrawState();
 		const h = harness();
 
-		h.fire({ seq: 21, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+		h.fire({
+			seq: 21,
+			kind: "draw",
+			player: "me",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: [7, 9]
+		});
 
 		// No step renderer runs against the fake registry, so no onCardComplete
 		// fires and the finally block is the one that releases both cards.
@@ -616,7 +643,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = localDrawState();
 		const h = harness();
 
-		h.fire({ seq: 22, kind: "draw", player: "me", count: 2, sourcePile: "draw", cardIds: [7, 9] });
+		h.fire({
+			seq: 22,
+			kind: "draw",
+			player: "me",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: [7, 9]
+		});
 		(h.cardRegistry.setDecoration as ReturnType<typeof vi.fn>).mockClear();
 
 		storeGame.state = { ...localDrawState(), current_turn: "bob" } as never;
@@ -639,7 +675,16 @@ describe("createMatchEventBeatController", () => {
 			storeGame.state = heldByBob();
 			const h = harness({ getOpponentFrontPose: () => frontPose });
 
-			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
+				cardIds: []
+			});
 
 			const [beats] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [
 				AnimationBeat[]
@@ -653,7 +698,16 @@ describe("createMatchEventBeatController", () => {
 			storeAuth.username = "me";
 			storeGame.state = heldByBob();
 			const h = harness({ getOpponentFrontPose: () => frontPose });
-			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
+				cardIds: []
+			});
 			const heldId = (
 				(h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0] as [AnimationBeat[]]
 			)[0][0]![0]!.target as string;
@@ -678,7 +732,16 @@ describe("createMatchEventBeatController", () => {
 			}));
 			const h = harness({ getOpponentFrontPose: () => frontPose, getOpponentCardPose });
 			h.controller.syncState();
-			h.fire({ seq: 5, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+			h.fire({
+				seq: 5,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
+				cardIds: []
+			});
 
 			storeGame.state = opponentDrawState(1, "bob");
 			h.controller.syncState();
@@ -705,6 +768,8 @@ describe("createMatchEventBeatController", () => {
 				player: "bob",
 				count: 1,
 				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
 				cardIds: [],
 				held: true
 			});
@@ -727,6 +792,8 @@ describe("createMatchEventBeatController", () => {
 				player: "bob",
 				count: 1,
 				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
 				cardIds: [],
 				held: true
 			});
@@ -758,6 +825,8 @@ describe("createMatchEventBeatController", () => {
 				player: "bob",
 				count: 1,
 				sourcePile: "draw",
+				handSizeAfter: 5,
+				fromDebt: false,
 				cardIds: [],
 				held: true
 			});
@@ -1019,7 +1088,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = opponentDrawState(2, "bob");
 		const h = harness();
 
-		h.fire({ seq: 23, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 23,
+			kind: "draw",
+			player: "bob",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 
 		expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(1);
 		const [beats, resolveAnchor] = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
@@ -1058,7 +1136,16 @@ describe("createMatchEventBeatController", () => {
 		}));
 		const h = harness({ getOpponentCardPose });
 
-		h.fire({ seq: 24, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 24,
+			kind: "draw",
+			player: "bob",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 
 		// bob's post-draw count is 5, drawn 2 -> pre-draw arc held 3.
 		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 4, 3);
@@ -1083,7 +1170,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = opponentDrawState(1, "me");
 		const h = harness();
 
-		h.fire({ seq: 25, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 25,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 
 		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
 			.calls[0]![0] as string;
@@ -1095,7 +1191,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = opponentDrawState(1, "bob");
 		const h = harness();
 
-		h.fire({ seq: 26, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 26,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 
 		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
 			.calls[0]![0] as string;
@@ -1107,7 +1212,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = opponentDrawState(2, "bob");
 		const h = harness();
 
-		h.fire({ seq: 27, kind: "draw", player: "bob", count: 2, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 27,
+			kind: "draw",
+			player: "bob",
+			count: 2,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 		const firstTarget = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
 			.calls[0]![0] as string;
 
@@ -1122,7 +1236,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = opponentDrawState(1, "bob");
 		const h = harness();
 
-		h.fire({ seq: 28, kind: "draw", player: "bob", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 28,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 		const cardId = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock
 			.calls[0]![0] as string;
 		(h.cardRegistry.setDecoration as ReturnType<typeof vi.fn>).mockClear();
@@ -1233,7 +1356,16 @@ describe("createMatchEventBeatController", () => {
 		storeGame.state = baseState();
 		const h = harness();
 
-		h.fire({ seq: 7, kind: "draw", player: "me", count: 1, sourcePile: "draw", cardIds: [] });
+		h.fire({
+			seq: 7,
+			kind: "draw",
+			player: "me",
+			count: 1,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
 		h.fire({ seq: 8, kind: "reshuffle", drawSize: 10, discardSize: 2 });
 		h.fire({
 			seq: 9,

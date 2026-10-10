@@ -666,7 +666,7 @@ TEST_CASE("view snapshot: window state is included when open") {
     REQUIRE_FALSE(window.is_null());
     CHECK(window["window_id"]
           == std::to_string(engine->ExportWindow().value("id", 0)));
-    CHECK(window["responders"].size() == 1u);
+    CHECK(window["targets"].size() == 1u);
     CHECK(window["eligible_filter_digest"].is_string());
     CHECK(window["kind"] == "generic");
     CHECK(window["responses"].is_array());
@@ -870,7 +870,7 @@ TEST_CASE("view snapshot: seq watermark tracks the viewer stream") {
     const json first =
         json{{"type", "round_advance"}, {"payload", json{{"round", 1}}}};
     const json second =
-        json{{"type", "placement"}, {"payload", json{{"player", "player0"},
+        json{{"type", "placement_set"}, {"payload", json{{"player", "player0"},
                                                      {"place", 1}}}};
     REQUIRE(builder.Wrap(first, Viewer::Player("player0"), sink).has_value());
     REQUIRE(builder.Wrap(second, Viewer::Player("player0"), sink)
@@ -941,7 +941,7 @@ std::unique_ptr<MatchInstance> OpenMergedGroup(
 json PacketOfType(const ViewBuilder& builder, const Viewer& viewer,
                   const std::string& type) {
     for (const json& packet : builder.BuildPackets(viewer)) {
-        if (packet.value("type", std::string()) == type) return packet;
+        if (packet.value("id", std::string()) == type) return packet;
     }
     return json(nullptr);
 }
@@ -960,7 +960,7 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     ViewBuilder builder(*engine, content.mods);
 
     const json open =
-        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+        PacketOfType(builder, Viewer::Player("player0"), "window_opened");
     REQUIRE_FALSE(open.is_null());
     const json& payload = open["payload"];
     REQUIRE(payload["kinds"].is_array());
@@ -990,7 +990,7 @@ TEST_CASE("view window: kinds follow member order, kind stays the first") {
             OpenMergedGroup(content, order.mods, clock);
         ViewBuilder builder(*engine, content.mods);
         const json open =
-            PacketOfType(builder, Viewer::Player("player0"), "window_open");
+            PacketOfType(builder, Viewer::Player("player0"), "window_opened");
         REQUIRE_FALSE(open.is_null());
         CHECK(open["payload"]["kinds"] == order.kinds);
         CHECK(open["payload"]["kind"] == order.kinds[0]);
@@ -1009,12 +1009,12 @@ TEST_CASE("view window: viewers and spectators see the same group") {
     ViewBuilder builder(*engine, content.mods);
 
     const json base =
-        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+        PacketOfType(builder, Viewer::Player("player0"), "window_opened");
     REQUIRE_FALSE(base.is_null());
     for (const Viewer& viewer :
          {Viewer::Player("player1"), Viewer::Player("player2"),
           Viewer::Spectator()}) {
-        CHECK(PacketOfType(builder, viewer, "window_open")["payload"]
+        CHECK(PacketOfType(builder, viewer, "window_opened")["payload"]
               == base["payload"]);
         EventSink sink;
         const json window =
@@ -1033,7 +1033,7 @@ TEST_CASE("view window: the snapshot mid-group equals the live payload") {
     ViewBuilder builder(*engine, content.mods);
 
     const json live =
-        PacketOfType(builder, Viewer::Player("player1"), "window_open")
+        PacketOfType(builder, Viewer::Player("player1"), "window_opened")
             ["payload"];
     clock.now = 300;
     EventSink sink;
@@ -1041,7 +1041,7 @@ TEST_CASE("view window: the snapshot mid-group equals the live payload") {
                             ["match_state"]["window"];
     REQUIRE_FALSE(window.is_null());
     for (const char* field :
-         {"window_id", "kind", "kinds", "hold_ms", "duration_ms", "responders",
+         {"window_id", "kind", "kinds", "hold_ms", "duration_ms", "targets",
           "eligible_filter_digest"}) {
         CHECK_MESSAGE(window[field] == live[field], field);
     }
@@ -1066,7 +1066,7 @@ TEST_CASE("view window: a single generic window has no hold") {
     REQUIRE(engine->WindowOpen());
 
     const json open =
-        PacketOfType(builder, Viewer::Spectator(), "window_open");
+        PacketOfType(builder, Viewer::Spectator(), "window_opened");
     REQUIRE_FALSE(open.is_null());
     CHECK(open["payload"]["kinds"] == json::array({"generic"}));
     CHECK_FALSE(open["payload"].contains("hold_ms"));

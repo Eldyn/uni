@@ -273,7 +273,7 @@ TEST_CASE("race: four seats at 50% end after two finishers") {
 
     int match_end_events = 0;
     for (const nlohmann::json& event : engine->Events()) {
-        if (event.value("type", "") == "match_end") ++match_end_events;
+        if (event.value("type", "") == "match_ended") ++match_end_events;
     }
     CHECK(match_end_events == 1);
 }

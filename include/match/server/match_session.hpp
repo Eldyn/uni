@@ -116,7 +116,7 @@ public:
      * leaves the prompt parked (`false`, no engine call).
      *
      * @param username  Answering player.
-     * @param prompt_id Wire prompt id (the prompt kind, see `prompt_open`).
+     * @param prompt_id Wire prompt id (the prompt kind, see `prompt_opened`).
      * @param value     JSON answer to validate against `response_schema`.
      * @return true when the answer was validated and accepted by the engine.
      */
@@ -264,7 +264,7 @@ public:
      *
      * Each recipient's persistent `EventSink` filters and stamps the events
      * it may see; the cursor advances once over the shared engine log. A
-     * parked op-input is additionally surfaced as the target's `prompt_open`
+     * parked op-input is additionally surfaced as the target's `prompt_opened`
      * (once per distinct prompt; spectators and other players never receive
      * it).
      *
@@ -430,7 +430,7 @@ private:
     /** @brief Fill the kind -> `response_schema` table from the mods. */
     void BuildPromptSchemas();
 
-    /** @brief Emit a parked op-input as the target's `prompt_open`. */
+    /** @brief Emit a parked op-input as the target's `prompt_opened`. */
     void EmitPendingPrompt(IBroadcaster& broadcaster);
 
     /**
@@ -451,7 +451,7 @@ private:
                     match::view::EventSink& sink);
 
     /**
-     * @brief Emit the target's `prompt_close` when its prompt is gone.
+     * @brief Emit the target's `prompt_answered` when its prompt is gone.
      *
      * Synthesizes `{prompt_id, outcome}` through the recipient's persistent
      * `EventSink` (so the close consumes a `seq`), sends it as a

@@ -374,7 +374,7 @@ TEST_CASE("engine hooks: before:hand_empty veto blocks the win") {
     CHECK_FALSE(engine->IsMatchOver());
     CHECK(engine->GetWinner().empty());
     CHECK(engine->GetPlacements().empty());
-    CHECK(FindEvent(*engine, "placement") == nullptr);
+    CHECK(FindEvent(*engine, "placement_set") == nullptr);
     // INFO: the blocked win still ends the turn.
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
 }

@@ -8,10 +8,8 @@
       "target": "player0"
     },
     "round": 0,
-    "seq": 0,
     "sequence": 0,
-    "turn": 0,
-    "type": "mod_event"
+    "turn": 0
   },
   "other_seat": {
     "actor": "player0",
@@ -21,10 +19,8 @@
       "target": "player0"
     },
     "round": 0,
-    "seq": 0,
     "sequence": 0,
-    "turn": 0,
-    "type": "mod_event"
+    "turn": 0
   },
   "public_spectator": {
     "actor": "player0",
@@ -34,9 +30,7 @@
       "target": "player0"
     },
     "round": 0,
-    "seq": 0,
     "sequence": 0,
-    "turn": 0,
-    "type": "mod_event"
+    "turn": 0
   }
 }

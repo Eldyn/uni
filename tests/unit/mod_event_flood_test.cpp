@@ -197,8 +197,8 @@ std::vector<json> EventsOfType(MatchInstance& engine,
 std::vector<std::string> CoreTypes(const std::vector<json>& packets) {
     std::vector<std::string> types;
     for (const json& packet : packets) {
-        const std::string type = packet.value("type", "");
-        if (type != "mod_event") types.push_back(type);
+        const std::string id = packet.value("id", "");
+        if (id.find(':') == std::string::npos) types.push_back(id);
     }
     return types;
 }
@@ -361,7 +361,7 @@ TEST_CASE("mod event flood: the disarm event reaches no viewer and the "
             PacketsFor(*flood.engine, flood.content, viewer);
         CheckGapFree(packets);
         for (const json& packet : packets) {
-            CHECK(packet.value("type", "") != "mod_disarmed");
+            CHECK(packet.value("id", "") != "mod_disarmed");
         }
     }
 }
@@ -456,8 +456,7 @@ TEST_CASE("mod event flood: both budgets together count each event once") {
           == 4);
 }
 
-TEST_CASE("mod event flood: a drop never removes a core event or its "
-          "alias copy") {
+TEST_CASE("mod event flood: a drop never removes a core event") {
     EnvOverride per_turn("UNI_MOD_EVENTS_PER_TURN", "0");
     Content content = LoadContent();
     DeckDef deck;
@@ -509,12 +508,7 @@ TEST_CASE("mod event flood: a drop never removes a core event or its "
     CHECK(engine.Assembly().budget.mod_events.DropCounts().at(
               "test|test:apple_eaten|per_turn")
           == 5);
-    const std::vector<json> old_event = EventsOfType(engine, "window_open");
-    const std::vector<json> new_event = EventsOfType(engine, "window_opened");
-    REQUIRE(old_event.size() == 1);
-    REQUIRE(new_event.size() == 1);
-    CHECK(new_event[0]["event_id"].get<int64_t>()
-          == old_event[0]["event_id"].get<int64_t>() + 1);
+    CHECK(EventsOfType(engine, "window_opened").size() == 1);
     CHECK(EventsOfType(engine, "card_played").size() == 1);
 }
 
@@ -604,7 +598,7 @@ json DescribeFlood(FloodRun& flood) {
         for (const json& packet :
              PacketsFor(*flood.engine, flood.content, viewer)) {
             lines.push_back(json{{"sequence", packet["sequence"]},
-                                 {"type", packet["type"]}});
+                                 {"id", packet["id"]}});
         }
         streams[viewer.is_spectator ? "public_spectator"
                                     : viewer.username] = std::move(lines);

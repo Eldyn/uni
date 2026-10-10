@@ -23,7 +23,6 @@ function setup() {
 	return { lines, emitter };
 }
 
-const turn = (skipped: string[], direction = 1, seq = 1) => ({ skipped, direction, seq });
 const skipRun = (run: number) => ({ "uni:skip_run": run });
 const reverseRun = (run: number) => ({ "uni:reverse_run": run });
 
@@ -49,15 +48,6 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
-	it("counts no skip itself: a turn guess has no run and reads as a first skip", async () => {
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.noteTurn(turn(["Ann"]));
-		emitter.noteTurn(turn(["Ann"]));
-		await flush();
-
-		expect(lines.map((line) => line.key)).toEqual(["uni:log.skip", "uni:log.skip", "uni:log.skip"]);
-	});
-
 	it("threads the turn seq so a streak pool actually rotates (Review Focus)", async () => {
 		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
 		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(2) });
@@ -75,16 +65,11 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
-	it("logs one line per skipped seat on a single turn, in order", async () => {
-		emitter.noteTurn(turn(["Ann", "Bob"]));
+	it("logs one line per skipped seat, in order", async () => {
+		emitter.noteSkipped({ target: "Ann", seq: 1 });
+		emitter.noteSkipped({ target: "Bob", seq: 2 });
 		await flush();
 		expect(lines.map((line) => line.params.name)).toEqual(["Ann", "Bob"]);
-	});
-
-	it("does not log a reverse for the first direction seen", async () => {
-		emitter.noteTurn(turn([], -1));
-		await flush();
-		expect(lines).toEqual([]);
 	});
 
 	it("logs a reverse when the direction flips, escalating with the server run", async () => {
@@ -99,44 +84,15 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
-	it("logs a reverse from a turn guess as a first reverse", async () => {
-		emitter.noteTurn(turn([], 1));
-		emitter.noteTurn(turn([], -1));
-		emitter.noteTurn(turn([], 1));
-		emitter.noteTurn(turn([], -1));
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			"uni:log.reverse",
-			"uni:log.reverse",
-			"uni:log.reverse"
-		]);
-	});
-
 	it("logs a reverse from a direction event, even for the first direction seen", async () => {
 		emitter.noteDirection({ direction: -1, seq: 1 });
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
 	});
 
-	it("does not log the same reverse again when the turn advance follows", async () => {
-		emitter.noteDirection({ direction: -1, seq: 1 });
-		emitter.noteTurn(turn([], -1, 2));
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
-	});
-
-	it("logs one reverse when the turn advance comes before the direction event", async () => {
-		emitter.noteTurn(turn([], 1, 1));
-		emitter.noteTurn(turn([], -1, 2));
-		emitter.noteDirection({ direction: -1, seq: 3 });
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
-	});
-
-	it("logs two direction events that no turn advance separates", async () => {
+	it("logs two direction events in a row", async () => {
 		emitter.noteDirection({ direction: -1, seq: 1, context: reverseRun(1) });
 		emitter.noteDirection({ direction: 1, seq: 2, context: reverseRun(2) });
-		emitter.noteTurn(turn([], 1, 3));
 		await flush();
 		expect(lines).toHaveLength(2);
 		expect(lines[0]!.key).toBe("uni:log.reverse");
@@ -147,7 +103,7 @@ describe("createPlayLogEmitter", () => {
 		let land!: () => void;
 		const landed = new Promise<void>((resolve) => (land = resolve));
 		emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, landed, { seq: 1 });
-		emitter.noteTurn(turn(["Bob"]));
+		emitter.noteSkipped({ target: "Bob", seq: 2 });
 		await flush();
 		expect(lines).toEqual([]);
 
@@ -157,11 +113,11 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("a plain play between skips breaks the skip run", async () => {
-		emitter.noteTurn(turn(["Ann"]));
+		emitter.noteSkipped({ target: "Ann", seq: 1 });
 		emitter.notePlay({ player: "Bob", kind: "uni:red_3", color: "red" }, Promise.resolve(), {
 			seq: 2
 		});
-		emitter.noteTurn(turn(["Ann"]));
+		emitter.noteSkipped({ target: "Ann", seq: 3 });
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual(["uni:log.skip", "uni:log.play", "uni:log.skip"]);
 	});
@@ -270,50 +226,7 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[0].params).toEqual({ name: "Ann" });
 	});
 
-	it("logs one keep when the event comes before the snapshot guess", async () => {
-		emitter.noteKeep("Ann", 9);
-		emitter.noteKeepGuess("Ann", 10);
-		emitter.settleKeeps();
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
-	});
-
-	it("logs one keep when the snapshot guess comes before the event", async () => {
-		emitter.noteKeepGuess("Ann", 10);
-		emitter.settleKeeps();
-		emitter.noteKeep("Ann", 9);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
-	});
-
-	it("keeps a guess as the fallback when no event comes", async () => {
-		emitter.noteKeepGuess("Ann", 10);
-		emitter.settleKeeps();
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
-	});
-
-	it("forgets a settled keep so a later keep logs again", async () => {
-		emitter.noteKeep("Ann", 9);
-		emitter.noteKeepGuess("Ann", 10);
-		emitter.settleKeeps();
-		emitter.noteTurn(turn([]));
-		emitter.noteKeepGuess("Ann", 20);
-		emitter.settleKeeps();
-		await flush();
-		expect(lines).toHaveLength(2);
-	});
-
-	it("keeps the event ledger through a turn beat until the snapshot", async () => {
-		emitter.noteKeep("Ann", 9);
-		emitter.noteTurn(turn([]));
-		emitter.noteKeepGuess("Ann", 10);
-		emitter.settleKeeps();
-		await flush();
-		expect(lines).toHaveLength(1);
-	});
-
-	it("logs two keeps by one seat when no snapshot comes between them", async () => {
+	it("logs two keeps by one seat", async () => {
 		emitter.noteKeep("Ann", 9);
 		emitter.noteKeep("Ann", 20);
 		await flush();
@@ -348,11 +261,8 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("logs a win and each later placement once", async () => {
-		emitter.noteGameEnd("Ann", ["Ann"]);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
-
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			expect.stringMatching(/^uni:log\.win/),
@@ -360,13 +270,16 @@ describe("createPlayLogEmitter", () => {
 		]);
 		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
 
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
 		await flush();
 		expect(lines).toHaveLength(2);
 	});
 
 	it("words places up to the finisher count as finishing and the rest as left behind", async () => {
-		emitter.noteGameEnd("Ann", ["Ann", "Bob", "Cy"], 2);
+		emitter.noteMatchEnded("Ann", 3);
+		emitter.notePlacement("Bob", 2, false, 2);
+		emitter.notePlacement("Cy", 3, false, 2);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			expect.stringMatching(/^uni:log\.win/),
@@ -376,37 +289,11 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
 	});
 
-	it("logs a place from the placement event and the snapshot adds no second line", async () => {
-		emitter.notePlacement("Bob", 2, false);
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^uni:log\.left_behind/),
-			expect.stringMatching(/^uni:log\.win/)
-		]);
-		expect(lines[0].params).toEqual({ name: "Bob", place: 2 });
-	});
-
-	it("logs a place once when the snapshot guess comes before the event", async () => {
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		expect(lines).toHaveLength(2);
-	});
-
 	it("takes no line for a first place; the match end line is the win line", async () => {
 		emitter.notePlacement("Ann", 1, false);
 		emitter.noteMatchEnded("Ann", 1);
-		emitter.noteGameEnd("Ann", ["Ann"]);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
-	});
-
-	it("logs the win once when the snapshot comes before the match end event", async () => {
-		emitter.noteGameEnd("Ann", ["Ann"]);
-		emitter.noteMatchEnded("Ann", 1);
-		await flush();
-		expect(lines).toHaveLength(1);
 	});
 
 	it("words an elimination place as left behind even inside the finisher count", async () => {
@@ -425,10 +312,12 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("reset clears the game-end trackers", async () => {
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
 		await flush();
 		emitter.reset();
-		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
 			expect.stringMatching(/^uni:log\.win/),
@@ -505,7 +394,7 @@ describe("createPlayLogEmitter", () => {
 	});
 
 	it("escapes hostile names so they cannot inject markup (Review Focus 1)", async () => {
-		emitter.noteTurn(turn(["[fx=shake]x[/fx]"]));
+		emitter.noteSkipped({ target: "[fx=shake]x[/fx]", seq: 4 });
 		emitter.notePlay(
 			{ player: "[c=red]Ann", kind: "uni:green_draw2", color: "green" },
 			Promise.resolve(),
@@ -540,18 +429,21 @@ describe("createPlayLogEmitter", () => {
 	it("a reset forgets the direction baseline and drops queued lines", async () => {
 		let land!: () => void;
 		const landed = new Promise<void>((resolve) => (land = resolve));
-		emitter.noteTurn(turn([], 1));
+		emitter.noteDirection({ direction: -1, seq: 1 });
 		emitter.notePlay({ player: "Ann", kind: "uni:red_skip", color: "red" }, landed, { seq: 1 });
-		emitter.noteTurn(turn(["Bob"]));
+		emitter.noteSkipped({ target: "Bob", seq: 2 });
+		await flush();
 		emitter.reset();
 		land();
-		emitter.noteTurn(turn([], -1));
 		await flush();
-		expect(lines).toEqual([]);
+		const afterReset = lines.length;
+		emitter.noteDirection({ direction: -1, seq: 3 });
+		await flush();
+		expect(lines).toHaveLength(afterReset + 1);
 	});
 
 	it("carries the skip actor onto the emitted skip event", async () => {
-		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 5, actor: "Ann" });
+		emitter.noteSkipped({ target: "Bob", actor: "Ann", seq: 5 });
 		await flush();
 		const line = lines[0];
 		expect(line.key).toBe("uni:log.skip");
@@ -602,7 +494,6 @@ describe("createPlayLogEmitter", () => {
 			seq: 1
 		});
 		emitter.noteSkipped({ target: "Bob", actor: "Cy", seq: 3, context: skipRun(1) });
-		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
 		await flush();
 
 		expect(lines.filter((line) => line.key === "uni:log.skip")).toHaveLength(1);
@@ -625,24 +516,6 @@ describe("createPlayLogEmitter", () => {
 		]);
 	});
 
-	it("logs a repeated skip of one seat once for each event", async () => {
-		emitter.noteSkipped({ target: "Ann", seq: 1 });
-		emitter.noteTurn(turn(["Ann"], 1, 2));
-		emitter.noteSkipped({ target: "Ann", seq: 3 });
-		emitter.noteTurn(turn(["Ann"], 1, 4));
-		await flush();
-
-		expect(lines.filter((line) => line.key.startsWith("uni:log.skip"))).toHaveLength(2);
-	});
-
-	it("logs a later skip after an event whose turn advance never came", async () => {
-		emitter.noteSkipped({ target: "Ann", seq: 1 });
-		emitter.settleSkips();
-		emitter.noteTurn(turn(["Ann"], 1, 2));
-		await flush();
-
-		expect(lines.filter((line) => line.key.startsWith("uni:log.skip"))).toHaveLength(2);
-	});
 	describe("the log queue is separate from the animation queue", () => {
 		const hangingLanding = () => new Promise<void>(() => undefined);
 		const line = (key: string): LogLine => ({ kind: "log", key, params: {}, tier: 0 });
@@ -651,7 +524,7 @@ describe("createPlayLogEmitter", () => {
 			emitter.notePlay({ player: "Ann", kind: "uni:blue_5", color: "blue" }, hangingLanding(), {
 				seq: 1
 			});
-			emitter.noteTurn(turn(["Bob"], 1, 2));
+			emitter.noteSkipped({ target: "Bob", seq: 2 });
 			emitter.noteDraw({ seq: 3, player: "Bob", count: 1 }, { handSize: 4 });
 			await flush();
 			expect(lines).toEqual([]);

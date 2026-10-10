@@ -338,7 +338,7 @@ TEST_CASE("engine core: emptying the hand wins and records placement") {
     CHECK(state["winner"] == "player0");
     CHECK(state["placements"].size() == 1);
 
-    const nlohmann::json* placement = FindEvent(*engine, "placement");
+    const nlohmann::json* placement = FindEvent(*engine, "placement_set");
     REQUIRE(placement != nullptr);
     CHECK((*placement)["payload"]["player"] == "player0");
     CHECK((*placement)["payload"]["place"] == 1);

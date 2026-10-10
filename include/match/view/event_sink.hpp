@@ -11,11 +11,11 @@
 
 /**
  * @file event_sink.hpp
- * @brief View layer: per-match `seq` and `all`-visibility packet shapes.
+ * @brief View layer: per-match `sequence` and `all`-visibility packet shapes.
  *
  * The server-side seam between the engine event log (`MatchInstance::Events()`,
  * `{type, payload}` descriptors) and the wire envelope (
- * `{seq, type, payload}`). The view layer owns the monotonic `seq`, the
+ * `{sequence, id, payload}`). The view layer owns the monotonic `sequence`, the
  * `all`-visibility public projections and the `defs` packet (see
  * `defs_builder.hpp`); the view layer adds the `window_*` / `auto_played`
  * public rows here plus per-recipient filtering in `view_builder.hpp`.
@@ -39,7 +39,7 @@ namespace match::view {
 /**
  * @brief Deterministic 64-bit FNV-1a digest rendered as lowercase hex.
  *
- * Used for `defs_digest` and the `match_end` `final_digest`; it only has to be
+ * Used for `defs_digest` and the `match_ended` `final_digest`; it only has to be
  * stable within one build, not cryptographic.
  *
  * @param data Bytes to digest.
@@ -49,22 +49,22 @@ std::string StableDigest(std::string_view data);
 
 /**
  * @class EventSink
- * @brief Per-match monotonic `seq` and wire-envelope assembly.
+ * @brief Per-match monotonic `sequence` and wire-envelope assembly.
  *
- * One sink per match. `Wrap` stamps the next `seq` onto a projected payload;
+ * One sink per match. `Wrap` stamps the next `sequence` onto a projected payload;
  * `WrapPublic` is the convenience that extracts the descriptor body and
  * projects it when it is one of the `all`-visibility public events. An event
  * that is not projected yields `nullopt` and does NOT
- * consume a `seq`, so filtering may drop but never renumber.
+ * consume a `sequence`, so filtering may drop but never renumber.
  */
 class EventSink {
 public:
     /**
-     * @brief Stamp `type` + `payload` with the next `seq` and advance.
+     * @brief Stamp `type` + `payload` with the next `sequence` and advance.
      *
      * @param type    Wire packet type (one of the `x-packet-types`).
      * @param payload Projected payload object.
-     * @return The `{sequence, id, payload, seq, type}` envelope.
+     * @return The `{sequence, id, payload}` envelope.
      */
     nlohmann::json Wrap(const std::string& type, nlohmann::json payload);
 
@@ -105,14 +105,13 @@ public:
         const nlohmann::json& engine_event,
         const match::engine::MatchInstance& match);
 
-    /** @brief The seq the next wrapped packet will carry. */
+    /** @brief The sequence the next wrapped packet will carry. */
     uint32_t NextSeq() const { return next_seq_; }
 
-    /** @brief Reset the stream to the first seq (new match / resend). */
+    /** @brief Reset the stream to the first sequence (new match / resend). */
     void Reset() {
         next_seq_ = 0;
         roll_ordinal_ = 0;
-        old_roll_name_pending_ = false;
         sequence_by_event_id_.clear();
         remembered_event_ids_.clear();
     }
@@ -125,8 +124,6 @@ private:
 
     uint32_t next_seq_ = 0;
     uint32_t roll_ordinal_ = 0;
-    /** True when the last roll packet used an old name. */
-    bool old_roll_name_pending_ = false;
     std::unordered_map<int64_t, uint32_t> sequence_by_event_id_;
     std::deque<int64_t> remembered_event_ids_;
 };
@@ -135,9 +132,9 @@ private:
  * @brief Project one `all`-visibility public event to its payload.
  *
  * Handles the `all`-visibility rows of the table: `card_played`,
- * `reshuffle`, `turn_advance`, `round_advance`, `placement`, `window_open`,
- * `window_response`, `window_close`, `auto_played`, `match_end`,
- * `roll_result`. `match_start` is
+ * `reshuffle`, `turn_advance`, `round_advance`, `placement_set`,
+ * `window_opened`, `window_responded`, `window_closed`, `auto_played`,
+ * `match_ended`, `outcome_rolled`. `match_start` is
  * content-derived and built by `DefsBuilder::BuildMatchStart`. `signal` is
  * not handled here: its audience is declared per mod manifest and resolved
  * per recipient by `ViewBuilder`. All other types return `nullopt`

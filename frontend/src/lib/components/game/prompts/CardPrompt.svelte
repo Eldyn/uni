@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { storeGame } from "$stores/game.svelte";
-	import type { PromptOpenPayload } from "$lib/generated/schemas";
+	import type { PromptOpenedPayload } from "$lib/generated/schemas";
 	import { autofocus } from "./autofocus";
 
-	let { prompt }: { prompt: PromptOpenPayload } = $props();
+	let { prompt }: { prompt: PromptOpenedPayload } = $props();
 
 	let options = $derived.by(() => {
 		const raw = (prompt.payload as Record<string, unknown>).options;

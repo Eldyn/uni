@@ -63,10 +63,9 @@ function linesOf(
 }
 
 describe("clientEventOf", () => {
-	it("names a core event by its wire type", () => {
+	it("names an event by the envelope id", () => {
 		const subject = clientEventOf({
-			type: "turn_skipped",
-			seq: 4,
+			id: "turn_skipped",
 			sequence: 9,
 			actor: "ann",
 			payload: { target: "bob" }
@@ -81,30 +80,18 @@ describe("clientEventOf", () => {
 	});
 
 	it("names a mod event by the envelope id", () => {
-		const subject = clientEventOf({
-			type: "mod_event",
-			id: "my_mod:apple_eaten",
-			seq: 4,
-			sequence: 1,
-			payload: {}
-		});
+		const subject = clientEventOf({ id: "my_mod:apple_eaten", sequence: 1, payload: {} });
 		expect(subject.id).toBe("my_mod:apple_eaten");
 	});
 
-	it("gives a mod event without an id an empty id that binds to nothing", () => {
-		const subject = clientEventOf({ type: "mod_event", seq: 1, payload: {} });
-		expect(subject.id).toBe("");
-		expect(presentEvent(registryOf(entry([])), subject, viewerOf("ann"))).toEqual([]);
-	});
-
-	it("falls back to the seq when the envelope has no sequence", () => {
-		expect(clientEventOf({ type: "reshuffle", seq: 12, payload: {} }).sequence).toBe(12);
+	it("reads the sequence of the envelope", () => {
+		expect(clientEventOf({ id: "reshuffle", sequence: 12, payload: {} }).sequence).toBe(12);
 	});
 
 	it("carries the replayed flag", () => {
-		expect(clientEventOf({ type: "reshuffle", seq: 1, payload: {}, replayed: true }).replayed).toBe(
-			true
-		);
+		expect(
+			clientEventOf({ id: "reshuffle", sequence: 1, payload: {}, replayed: true }).replayed
+		).toBe(true);
 	});
 });
 

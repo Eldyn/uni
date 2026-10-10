@@ -538,7 +538,7 @@ TEST_CASE("entities_presentations: dice_roll binds the loot outcome and the dice
     REQUIRE(result.value.is_object());
     CHECK(result.value["key"] == "test:six");
 
-    const nlohmann::json* event = FindEvent(result, "outcome_result");
+    const nlohmann::json* event = FindEvent(result, "outcome_rolled");
     REQUIRE(event != nullptr);
     CHECK((*event)["payload"]["key"] == "test:six");
 

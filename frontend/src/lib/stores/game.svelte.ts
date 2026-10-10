@@ -20,15 +20,15 @@ import {
 	MatchEventPayloadSchema,
 	type MatchEventPayload,
 	PlayersReadyPayloadSchema,
-	PromptClosePayloadSchema,
-	PromptOpenPayloadSchema,
+	PromptAnsweredPayloadSchema,
+	PromptOpenedPayloadSchema,
 	TurnAdvancePayloadSchema,
 	TypeMap,
 	ValueMap,
-	WindowClosePayloadSchema,
-	WindowOpenPayloadSchema
+	WindowClosedPayloadSchema,
+	WindowOpenedPayloadSchema
 } from "$lib/generated/schemas";
-import type { PromptOpenPayload, WindowOpenPayload } from "$lib/generated/schemas";
+import type { PromptOpenedPayload, WindowOpenedPayload } from "$lib/generated/schemas";
 import type { CardBus } from "$components/game/card-bus.svelte";
 import { bindingOnlyBeat, mapMatchEventPacket, type MatchEventBeat } from "./matchEventMap";
 import { bindingRegistry } from "$lib/presentation/eventBindings";
@@ -257,7 +257,7 @@ export interface LastPlay {
 
 /**
  * @interface ActiveWindow
- * @brief Open response window mirrored from a `window_open` packet or snapshot.
+ * @brief Open response window mirrored from a `window_opened` packet or snapshot.
  */
 export interface ActiveWindow {
 	/** Server-issued identifier of the open window. */
@@ -365,11 +365,11 @@ class StoreGame implements SessionStore {
 	/** Seconds remaining to complete the turn, computed locally. */
 	turnTimeRemaining = $state<number>(15);
 
-	/** Open response window mirrored from a `window_open` packet or snapshot. */
+	/** Open response window mirrored from a `window_opened` packet or snapshot. */
 	activeWindow = $state<ActiveWindow | null>(null);
 
 	/** Open op-input prompt for the local viewer, or null when none is live. */
-	activePrompt = $state<PromptOpenPayload | null>(null);
+	activePrompt = $state<PromptOpenedPayload | null>(null);
 
 	/** Clock of the open prompt on the client clock, or null when it has none. */
 	#promptClock = $state<ClockSpan | null>(null);
@@ -878,7 +878,7 @@ class StoreGame implements SessionStore {
 			// INFO: the snapshot window/prompts are reconnect truth
 			// a packet-driven open/close may already have set them.
 			const snapshotWindow =
-				stateJson.window == null ? null : WindowOpenPayloadSchema.safeParse(stateJson.window);
+				stateJson.window == null ? null : WindowOpenedPayloadSchema.safeParse(stateJson.window);
 			if (snapshotWindow?.success) {
 				// INFO: the snapshot window deadline is absolute server-clock epoch ms.
 				this.#setActiveWindow(
@@ -902,7 +902,7 @@ class StoreGame implements SessionStore {
 
 			const snapshotPrompts = stateJson.prompts;
 			if (snapshotPrompts && snapshotPrompts.length > 0) {
-				const parsedPrompt = PromptOpenPayloadSchema.safeParse(snapshotPrompts[0]);
+				const parsedPrompt = PromptOpenedPayloadSchema.safeParse(snapshotPrompts[0]);
 				// INFO: the snapshot prompt deadline is absolute server-clock epoch ms.
 				this.#setActivePrompt(
 					parsedPrompt.success ? parsedPrompt.data : null,
@@ -998,18 +998,18 @@ class StoreGame implements SessionStore {
 		if (!env.success) return;
 		if (env.data.replayed) return;
 
-		const seq = env.data.sequence ?? env.data.seq;
-		if (this.lastSeq !== null && seq !== this.lastSeq + 1) {
+		const sequence = env.data.sequence;
+		if (this.lastSeq !== null && sequence !== this.lastSeq + 1) {
 			this.desynced = true;
 			// INFO: the snapshot reconciles state; drop the pre-gap backlog rather
 			// than animating stale beats on top of it.
 			this.#pendingBeats = [];
 			for (const h of this.#desyncHandlers) h();
 		}
-		this.lastSeq = seq;
+		this.lastSeq = sequence;
 		if (this.desynced) this.#requestSnapshot();
 
-		switch (env.data.type) {
+		switch (env.data.id) {
 			case "defs": {
 				// INFO: the full kind table arrives ahead of the first snapshot;
 				// held unconfirmed until match_start proves the digest.
@@ -1057,9 +1057,9 @@ class StoreGame implements SessionStore {
 				}
 				break;
 			}
-			case "window_open": {
-				const parsed = WindowOpenPayloadSchema.safeParse(env.data.payload);
-				// INFO: window_open.deadline_ms is a REMAINING duration (the sink
+			case "window_opened": {
+				const parsed = WindowOpenedPayloadSchema.safeParse(env.data.payload);
+				// INFO: window_opened.deadline_ms is a REMAINING duration (the sink
 				// forwards `duration_ms`); normalize to an absolute client deadline.
 				if (parsed.success) {
 					const deadlineAt = Date.now() + parsed.data.deadline_ms;
@@ -1067,13 +1067,13 @@ class StoreGame implements SessionStore {
 				}
 				break;
 			}
-			case "window_close": {
-				const parsed = WindowClosePayloadSchema.safeParse(env.data.payload);
+			case "window_closed": {
+				const parsed = WindowClosedPayloadSchema.safeParse(env.data.payload);
 				if (parsed.success) this.#clearWindowState();
 				break;
 			}
-			case "prompt_open": {
-				const parsed = PromptOpenPayloadSchema.safeParse(env.data.payload);
+			case "prompt_opened": {
+				const parsed = PromptOpenedPayloadSchema.safeParse(env.data.payload);
 				if (parsed.success) {
 					// INFO: the packet deadline_ms is only the op's declared timeout;
 					// the enforced clock length is duration_ms, armed at emission.
@@ -1082,8 +1082,8 @@ class StoreGame implements SessionStore {
 				}
 				break;
 			}
-			case "prompt_close": {
-				const parsed = PromptClosePayloadSchema.safeParse(env.data.payload);
+			case "prompt_answered": {
+				const parsed = PromptAnsweredPayloadSchema.safeParse(env.data.payload);
 				if (parsed.success && this.activePrompt?.prompt_id === parsed.data.prompt_id) {
 					this.#setActivePrompt(null);
 				}
@@ -1098,7 +1098,7 @@ class StoreGame implements SessionStore {
 		// frame and stop later handlers / beat buffering from seeing it.
 		for (const handler of this.#matchEventHandlers) {
 			try {
-				handler(env.data.type, env.data.payload);
+				handler(env.data.id, env.data.payload);
 			} catch (err) {
 				console.error("storeGame: a match_event fan-out handler threw — continuing.", err);
 			}
@@ -1144,7 +1144,7 @@ class StoreGame implements SessionStore {
 	 * @param deadlineAt Absolute deadline on the client clock, or null when the
 	 * prompt carries no clock.
 	 */
-	#setActivePrompt(prompt: PromptOpenPayload | null, deadlineAt: number | null = null) {
+	#setActivePrompt(prompt: PromptOpenedPayload | null, deadlineAt: number | null = null) {
 		this.activePrompt = prompt;
 		this.#promptClock =
 			prompt !== null && deadlineAt !== null
@@ -1156,14 +1156,14 @@ class StoreGame implements SessionStore {
 	 * @brief Mirrors an open response window from a packet or snapshot payload.
 	 * @param deadlineAt Absolute deadline on the client clock (epoch ms).
 	 */
-	#setActiveWindow(windowPayload: WindowOpenPayload, deadlineAt: number) {
+	#setActiveWindow(windowPayload: WindowOpenedPayload, deadlineAt: number) {
 		this.activeWindow = {
 			windowId: windowPayload.window_id,
 			deadlineAt,
 			durationMs: windowPayload.duration_ms ?? Math.max(0, deadlineAt - Date.now()),
 			holdMs: windowPayload.hold_ms ?? 0,
 			kinds: windowPayload.kinds ?? (windowPayload.kind ? [windowPayload.kind] : []),
-			responders: windowPayload.responders,
+			responders: windowPayload.targets,
 			eligibleFilterDigest: windowPayload.eligible_filter_digest
 		};
 	}

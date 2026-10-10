@@ -335,7 +335,7 @@ TEST_CASE("causal frame: a window timeout has no seat actor") {
     engine->Tick();
 
     const std::vector<json> events = engine->Events();
-    const json* closed = FindEvent(events, "window_close");
+    const json* closed = FindEvent(events, "window_closed");
     REQUIRE(closed != nullptr);
     CHECK((*closed)["causal_frame"]["actor"].is_null());
     CHECK((*closed)["causal_frame"]["cause"] == "window_timeout");

@@ -89,8 +89,8 @@ describe("storeGame feeds the mod glossary", () => {
 	it("fills the mod glossary from a defs frame", () => {
 		handler("match_event")({
 			action: "match_event",
-			seq: 1,
-			type: "defs",
+			sequence: 1,
+			id: "defs",
 			payload: defsWithGlossary([entry])
 		});
 		expect(storeModGlossary.has("my_mod:foo")).toBe(true);
@@ -99,8 +99,8 @@ describe("storeGame feeds the mod glossary", () => {
 	it("drops the mod glossary on a reset", () => {
 		handler("match_event")({
 			action: "match_event",
-			seq: 1,
-			type: "defs",
+			sequence: 1,
+			id: "defs",
 			payload: defsWithGlossary([entry])
 		});
 		storeGame.reset();

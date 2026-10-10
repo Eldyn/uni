@@ -14,10 +14,8 @@
     },
     "replayed": true,
     "round": 0,
-    "seq": 0,
     "sequence": 0,
-    "turn": 0,
-    "type": "card_played"
+    "turn": 0
   },
   {
     "actor": "bot1",
@@ -34,10 +32,8 @@
     },
     "replayed": true,
     "round": 0,
-    "seq": 1,
     "sequence": 1,
-    "turn": 1,
-    "type": "card_played"
+    "turn": 1
   },
   {
     "actor": "bot2",
@@ -54,10 +50,8 @@
     },
     "replayed": true,
     "round": 0,
-    "seq": 2,
     "sequence": 2,
-    "turn": 2,
-    "type": "card_played"
+    "turn": 2
   },
   {
     "actor": "bot0",
@@ -74,10 +68,8 @@
     },
     "replayed": true,
     "round": 1,
-    "seq": 3,
     "sequence": 3,
-    "turn": 3,
-    "type": "card_played"
+    "turn": 3
   },
   {
     "actor": "bot1",
@@ -94,10 +86,8 @@
     },
     "replayed": true,
     "round": 1,
-    "seq": 4,
     "sequence": 4,
-    "turn": 4,
-    "type": "card_played"
+    "turn": 4
   },
   {
     "actor": "bot0",
@@ -114,10 +104,8 @@
     },
     "replayed": true,
     "round": 2,
-    "seq": 5,
     "sequence": 5,
-    "turn": 6,
-    "type": "card_played"
+    "turn": 6
   },
   {
     "context": {
@@ -134,10 +122,8 @@
     },
     "replayed": true,
     "round": 2,
-    "seq": 6,
     "sequence": 6,
-    "turn": 6,
-    "type": "active_type_changed"
+    "turn": 6
   },
   {
     "actor": "bot1",
@@ -154,10 +140,8 @@
     },
     "replayed": true,
     "round": 2,
-    "seq": 7,
     "sequence": 7,
-    "turn": 7,
-    "type": "card_played"
+    "turn": 7
   },
   {
     "actor": "bot2",
@@ -174,10 +158,8 @@
     },
     "replayed": true,
     "round": 2,
-    "seq": 8,
     "sequence": 8,
-    "turn": 8,
-    "type": "card_played"
+    "turn": 8
   },
   {
     "actor": "bot0",
@@ -197,10 +179,8 @@
     },
     "replayed": true,
     "round": 3,
-    "seq": 9,
     "sequence": 9,
-    "turn": 9,
-    "type": "card_played"
+    "turn": 9
   },
   {
     "actor": "bot0",
@@ -214,10 +194,8 @@
     },
     "replayed": true,
     "round": 3,
-    "seq": 10,
     "sequence": 10,
-    "turn": 9,
-    "type": "turn_skipped"
+    "turn": 9
   },
   {
     "actor": "bot2",
@@ -236,10 +214,8 @@
     },
     "replayed": true,
     "round": 3,
-    "seq": 11,
     "sequence": 11,
-    "turn": 10,
-    "type": "card_played"
+    "turn": 10
   },
   {
     "actor": "bot2",
@@ -253,10 +229,8 @@
     },
     "replayed": true,
     "round": 3,
-    "seq": 12,
     "sequence": 12,
-    "turn": 10,
-    "type": "turn_skipped"
+    "turn": 10
   },
   {
     "actor": "bot1",
@@ -273,10 +247,8 @@
     },
     "replayed": true,
     "round": 3,
-    "seq": 13,
     "sequence": 13,
-    "turn": 11,
-    "type": "card_played"
+    "turn": 11
   },
   {
     "id": "round_advance",
@@ -285,10 +257,8 @@
     },
     "replayed": true,
     "round": 4,
-    "seq": 14,
     "sequence": 14,
-    "turn": 12,
-    "type": "round_advance"
+    "turn": 12
   },
   {
     "actor": "bot2",
@@ -305,10 +275,8 @@
     },
     "replayed": true,
     "round": 4,
-    "seq": 15,
     "sequence": 15,
-    "turn": 12,
-    "type": "card_played"
+    "turn": 12
   },
   {
     "actor": "bot2",
@@ -323,9 +291,7 @@
     },
     "replayed": true,
     "round": 4,
-    "seq": 16,
     "sequence": 16,
-    "turn": 13,
-    "type": "turn_advance"
+    "turn": 13
   }
 ]

@@ -295,7 +295,6 @@ TEST_CASE("mod event: a mod rule emits it and every viewer gets the "
 
     const auto actor = WrapFor(builder, events[0], Viewer::Player("player0"));
     REQUIRE(actor.has_value());
-    CHECK((*actor)["type"] == "mod_event");
     CHECK((*actor)["id"] == kEventId);
     CHECK((*actor)["actor"] == "player0");
     CHECK((*actor)["payload"]["target"] == "player0");

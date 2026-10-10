@@ -26,8 +26,7 @@
  * @brief The window, prompt, chance, status, visibility and match-end client
  * events, from the engine to the seat stream.
  *
- * The old names stay beside the new ones. The engine emits the new event
- * right after the old one, with the same payload and a new sequence number.
+ * The engine emits each new event one time, with its own sequence number.
  */
 
 namespace fs = std::filesystem;
@@ -163,7 +162,7 @@ std::unique_ptr<MatchInstance> OpenStackingWindow(Content& content) {
 
 }  // namespace
 
-TEST_CASE("windows: each old window event has its new name right after it") {
+TEST_CASE("windows: each window event happens one time") {
     Content content = LoadContent();
     std::unique_ptr<MatchInstance> engine = OpenStackingWindow(content);
     const json window = engine->ExportWindow();
@@ -173,20 +172,10 @@ TEST_CASE("windows: each old window event has its new name right after it") {
             : std::string("player1");
     REQUIRE(engine->PassWindow(responder));
 
-    const std::vector<std::pair<std::string, std::string>> names = {
-        {"window_open", "window_opened"},
-        {"window_response", "window_responded"},
-        {"window_close", "window_closed"},
-    };
-    for (const auto& [old_name, new_name] : names) {
-        CAPTURE(old_name);
-        const std::vector<json> before = EventsOfType(*engine, old_name);
-        const std::vector<json> after = EventsOfType(*engine, new_name);
-        REQUIRE(before.size() == 1);
-        REQUIRE(after.size() == 1);
-        CHECK(after[0]["event_id"].get<int64_t>()
-              == before[0]["event_id"].get<int64_t>() + 1);
-        CHECK(after[0]["payload"] == before[0]["payload"]);
+    for (const char* name :
+         {"window_opened", "window_responded", "window_closed"}) {
+        CAPTURE(name);
+        CHECK(EventsOfType(*engine, name).size() == 1);
     }
 }
 
@@ -293,7 +282,7 @@ TEST_CASE("windows: both names take sequence numbers without a gap") {
     }
 }
 
-TEST_CASE("chance: outcome_rolled repeats the public ordinal of its old name") {
+TEST_CASE("chance: outcome_rolled counts the public ordinal one time") {
     Content content = LoadContent();
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, {"uni"});
     ViewBuilder builder(*engine, content.mods);
@@ -310,16 +299,11 @@ TEST_CASE("chance: outcome_rolled repeats the public ordinal of its old name") {
                            {"value", 1},
                            {"counter", 977}};
 
-    const json old_roll = wrap("roll_result", roll);
     const json new_roll = wrap("outcome_rolled", roll);
-    const json old_pick = wrap("outcome_result", pick);
     const json new_pick = wrap("outcome_rolled", pick);
 
-    CHECK(old_roll["payload"]["roll_counter"] == 1);
     CHECK(new_roll["payload"]["roll_ordinal"] == 1);
-    CHECK(old_pick["payload"]["counter"] == 2);
     CHECK(new_pick["payload"]["roll_ordinal"] == 2);
-    CHECK(new_roll["payload"]["spec"] == old_roll["payload"]["spec"]);
     CHECK(new_pick["payload"]["table"] == "uni:t");
     CHECK(new_pick["payload"]["value"] == 1);
     for (const json& packet : {new_roll, new_pick}) {
@@ -411,7 +395,7 @@ TEST_CASE("play_rejected: the target seat gets target and reason only") {
                     .has_value());
 }
 
-TEST_CASE("finish: placement_set and match_ended follow the old events") {
+TEST_CASE("finish: placement_set and match_ended happen one time") {
     Content content = LoadContent();
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, {"uni"});
     const std::vector<ecs::Entity> wilds = [&] {
@@ -431,16 +415,9 @@ TEST_CASE("finish: placement_set and match_ended follow the old events") {
     REQUIRE(engine->SubmitInput("player0", "red"));
     REQUIRE(engine->IsMatchOver());
 
-    const std::vector<std::pair<std::string, std::string>> names = {
-        {"placement", "placement_set"}, {"match_end", "match_ended"}};
-    for (const auto& [old_name, new_name] : names) {
-        CAPTURE(new_name);
-        const std::vector<json> before = EventsOfType(*engine, old_name);
-        const std::vector<json> after = EventsOfType(*engine, new_name);
-        REQUIRE(before.size() == 1);
-        REQUIRE(after.size() == 1);
-        CHECK(after[0]["event_id"].get<int64_t>()
-              == before[0]["event_id"].get<int64_t>() + 1);
+    for (const char* name : {"placement_set", "match_ended"}) {
+        CAPTURE(name);
+        CHECK(EventsOfType(*engine, name).size() == 1);
     }
 
     ViewBuilder builder(*engine, content.mods);

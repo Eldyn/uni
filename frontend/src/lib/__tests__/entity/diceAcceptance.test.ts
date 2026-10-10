@@ -7,7 +7,7 @@ import type { AnimationBeat } from "$components/game/animation/types";
  * acceptance: the client-side dice chain, driven through the IR player.
  *
  * `mods/test/rules/dice_roll.json` is the server-side `roll_table` chain that
- * binds `$last_outcome` and emits `outcome_result` (tested in
+ * binds `$last_outcome` and emits `outcome_rolled` (tested in
  * `tests/unit/entities_presentations_test.cpp`); no backend IR emitter exists in
  * so this test drives the equivalent IR beat directly and asserts the
  * entity lifecycle and the `outcome.resolver` selection the chain describes.

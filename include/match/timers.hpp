@@ -73,7 +73,7 @@ struct WindowConfig {
  * @brief The duration `WindowTimer::Open` armed, plus the inputs that chose
  *        it.
  *
- * Returned to the caller so the engine can log or emit `window_open` without
+ * Returned to the caller so the engine can log or emit `window_opened` without
  * re-reading the environment. Only `duration_ms` is stored on the frozen
  * `WindowState` (as an absolute deadline).
  */

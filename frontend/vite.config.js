@@ -318,6 +318,7 @@ export default defineConfig(({ mode, command }) => {
 				allow: [
 					searchForWorkspaceRoot(process.cwd()),
 					path.resolve("../mods"),
+					path.resolve("../contract"),
 					path.resolve("../tests/fixtures")
 				]
 			}

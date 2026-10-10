@@ -69,7 +69,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function snapshot(matchState: Record<string, unknown> = {}) {
@@ -90,7 +90,7 @@ function snapshot(matchState: Record<string, unknown> = {}) {
 const WINDOW_OPEN = {
 	window_id: "42",
 	deadline_ms: 5000,
-	responders: ["alice", "bob"],
+	targets: ["alice", "bob"],
 	eligible_filter_digest: "digest-1"
 };
 
@@ -124,9 +124,9 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.turnTimeRemaining).toBe(6);
 	});
 
-	it("normalizes the remaining window_open deadline to an absolute deadline and counts down", () => {
+	it("normalizes the remaining window_opened deadline to an absolute deadline and counts down", () => {
 		const now = Date.now();
-		handler("match_event")(frame(1, "window_open", WINDOW_OPEN));
+		handler("match_event")(frame(1, "window_opened", WINDOW_OPEN));
 
 		expect(storeGame.activeWindow).toEqual({
 			windowId: "42",
@@ -140,23 +140,23 @@ describe("storeGame turn/window/prompt state", () => {
 		expect(storeGame.activeTimer?.deadlineAt).toBe(now + 5000);
 	});
 
-	it("closes the response window on window_close", () => {
+	it("closes the response window on window_closed", () => {
 		const onEvent = handler("match_event");
-		onEvent(frame(1, "window_open", WINDOW_OPEN));
-		onEvent(frame(2, "window_close", { outcome: "passed" }));
+		onEvent(frame(1, "window_opened", WINDOW_OPEN));
+		onEvent(frame(2, "window_closed", { window_id: "42", outcome: "default" }));
 
 		expect(storeGame.activeWindow).toBeNull();
 	});
 
 	it("sets the active prompt on prompt_open and clears it only on a matching prompt_close", () => {
 		const onEvent = handler("match_event");
-		onEvent(frame(1, "prompt_open", PROMPT_OPEN));
+		onEvent(frame(1, "prompt_opened", PROMPT_OPEN));
 		expect(storeGame.activePrompt?.prompt_id).toBe("choose_color");
 
-		onEvent(frame(2, "prompt_close", { prompt_id: "choose_value", outcome: "answered" }));
+		onEvent(frame(2, "prompt_answered", { prompt_id: "choose_value", outcome: "answered" }));
 		expect(storeGame.activePrompt?.prompt_id).toBe("choose_color");
 
-		onEvent(frame(3, "prompt_close", { prompt_id: "choose_color", outcome: "answered" }));
+		onEvent(frame(3, "prompt_answered", { prompt_id: "choose_color", outcome: "answered" }));
 		expect(storeGame.activePrompt).toBeNull();
 	});
 
@@ -167,7 +167,7 @@ describe("storeGame turn/window/prompt state", () => {
 				window: {
 					window_id: "9",
 					deadline_ms: now + 3000,
-					responders: ["alice"],
+					targets: ["alice"],
 					eligible_filter_digest: "digest-9",
 					responses: []
 				},
@@ -197,8 +197,8 @@ describe("storeGame turn/window/prompt state", () => {
 
 	it("clears window and prompt when the snapshot reports none", () => {
 		const onEvent = handler("match_event");
-		onEvent(frame(1, "window_open", WINDOW_OPEN));
-		onEvent(frame(2, "prompt_open", PROMPT_OPEN));
+		onEvent(frame(1, "window_opened", WINDOW_OPEN));
+		onEvent(frame(2, "prompt_opened", PROMPT_OPEN));
 
 		handler("match_state_updated")(snapshot({ window: null, prompts: [] }));
 
@@ -208,8 +208,8 @@ describe("storeGame turn/window/prompt state", () => {
 
 	it("clears window and prompt on reset", () => {
 		const onEvent = handler("match_event");
-		onEvent(frame(1, "window_open", WINDOW_OPEN));
-		onEvent(frame(2, "prompt_open", PROMPT_OPEN));
+		onEvent(frame(1, "window_opened", WINDOW_OPEN));
+		onEvent(frame(2, "prompt_opened", PROMPT_OPEN));
 
 		storeGame.reset();
 
@@ -219,8 +219,8 @@ describe("storeGame turn/window/prompt state", () => {
 
 	it("clears window and prompt on returnToLobby", () => {
 		const onEvent = handler("match_event");
-		onEvent(frame(1, "window_open", WINDOW_OPEN));
-		onEvent(frame(2, "prompt_open", PROMPT_OPEN));
+		onEvent(frame(1, "window_opened", WINDOW_OPEN));
+		onEvent(frame(2, "prompt_opened", PROMPT_OPEN));
 
 		storeGame.returnToLobby();
 

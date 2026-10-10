@@ -175,7 +175,7 @@ TEST_CASE("random_ops: emits roll_result with normalized spec and counter") {
     const OpResult result =
         h.Invoke("roll", json{{"spec", RollSpec(6, 3)}});
 
-    const json* event = FindEvent(result, "roll_result");
+    const json* event = FindEvent(result, "outcome_rolled");
     REQUIRE(event != nullptr);
     const json& payload = (*event)["payload"];
     CHECK(payload["spec"] == json{{"sides", 6}, {"count", 3}, {"keep", 3}});

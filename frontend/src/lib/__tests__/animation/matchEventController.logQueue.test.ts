@@ -166,7 +166,7 @@ describe("matchEventController log queue", () => {
 	it("holds the lines of a play while its card has not landed", async () => {
 		const h = harness(new Promise<void>(() => undefined));
 		h.fire(play(1));
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 9, kind: "skip", target: "bob" });
 		await flush();
 		expect(partyKeys()).toEqual([]);
 	});
@@ -174,7 +174,7 @@ describe("matchEventController log queue", () => {
 	it("posts the held lines once, in order, when the animation queue abandons its work", async () => {
 		const h = harness(new Promise<void>(() => undefined));
 		h.fire(play(1));
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 9, kind: "skip", target: "bob" });
 		await flush();
 
 		h.registry.abandon();
@@ -209,7 +209,7 @@ describe("matchEventController log queue", () => {
 			const h = harness(undefined, registry as never);
 			h.fire(play(1));
 			h.fire(play(2));
-			h.fire(skipTurn(["bob"]));
+			h.fire({ seq: 9, kind: "skip", target: "bob" });
 
 			registry.flushImmediately();
 			registry.flushImmediately();
@@ -223,7 +223,7 @@ describe("matchEventController log queue", () => {
 			const h = harness(undefined, registry as never);
 			h.fire(play(1));
 			h.fire(play(2));
-			h.fire(skipTurn(["bob"]));
+			h.fire({ seq: 9, kind: "skip", target: "bob" });
 
 			registry.skipCurrent();
 			registry.skipCurrent();

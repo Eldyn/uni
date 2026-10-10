@@ -34,30 +34,6 @@
 namespace match::engine {
 namespace {
 
-/** @brief One old event name and the new name that is emitted beside it. */
-struct EventAlias {
-    std::string_view old_name;
-    std::string_view new_name;
-};
-
-// TODO: remove this table when the old names go (ticket 24).
-constexpr EventAlias kEventAliases[] = {
-    {"window_open", "window_opened"},
-    {"window_response", "window_responded"},
-    {"window_close", "window_closed"},
-    {"roll_result", "outcome_rolled"},
-    {"outcome_result", "outcome_rolled"},
-    {"placement", "placement_set"},
-    {"match_end", "match_ended"},
-};
-
-std::optional<std::string_view> NewNameOf(std::string_view old_name) {
-    for (const EventAlias& alias : kEventAliases) {
-        if (alias.old_name == old_name) return alias.new_name;
-    }
-    return std::nullopt;
-}
-
 using nlohmann::json;
 
 /** @brief Entity handle as a JSON object. */
@@ -901,7 +877,7 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
 
     winner_ = player;
     finished_ = true;
-    Emit("placement",
+    Emit("placement_set",
          json{{"player", PlayerUsername(store, player)}, {"place", place}});
     EmitMatchEnd();
 }
@@ -916,7 +892,7 @@ void MatchInstance::DeclareRaceFinish(ecs::Entity player,
     if (std::find(placements.order.begin(), placements.order.end(), player)
         == placements.order.end()) {
         placements.order.push_back(player);
-        Emit("placement",
+        Emit("placement_set",
              json{{"player", PlayerUsername(store, player)},
                   {"place", placements.order.size()}});
     }
@@ -970,13 +946,13 @@ void MatchInstance::EndRace(ecs::Placements& placements) {
 }
 
 void MatchInstance::EmitMatchEnd() {
-    // INFO: `match_end` closes the match. The settings snapshot is the
+    // INFO: `match_ended` closes the match. The settings snapshot is the
     //       deck settings retained at assembly (the session; was an empty
     //       object until the assembly carried it).
     json end_data = json{{"settings", assembly_->Deck().settings}};
     Before("match_end", end_data);
     After("match_end", end_data);
-    Emit("match_end", end_data);
+    Emit("match_ended", end_data);
 }
 
 // --- the engine response-window path
@@ -1200,7 +1176,7 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     json hook_data = json{{"window", body}};
     Before("window_open", hook_data);
     After("window_open", hook_data);
-    Emit("window_open", body);
+    Emit("window_opened", body);
 }
 
 void MatchInstance::OpenWindowGroup(std::vector<WindowPause> windows) {
@@ -1484,7 +1460,7 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     json hook_data = json{{"window", body}};
     Before("window_close", hook_data);
     After("window_close", hook_data);
-    Emit("window_close", body);
+    Emit("window_closed", body);
 
     // INFO: routes queued by an enclosing group wait behind this window's.
     group_routes_.insert(group_routes_.begin(),
@@ -1676,7 +1652,7 @@ bool MatchInstance::RespondWindow(const std::string& username,
     }
 
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
-    Emit("window_response",
+    Emit("window_responded",
          json{{"window", window->window_id},
               {"player", username},
               {"card", EntityJson(card)},
@@ -1728,7 +1704,7 @@ bool MatchInstance::PassWindow(const std::string& username) {
     response.pass = true;
     response.arrival_seq = pending_window_->next_arrival++;
     window->responses.push_back(response);
-    Emit("window_response", json{{"window", window->window_id},
+    Emit("window_responded", json{{"window", window->window_id},
                                  {"player", username},
                                  {"pass", true},
                                  {"outcome", "pass"}});
@@ -1969,7 +1945,8 @@ void MatchInstance::BridgeRunEvent(const nlohmann::json& event) {
         After(type.c_str(), data);
         return;
     }
-    if (type == "roll_result") {
+    // INFO: only a dice roll (`outcomes`) is a `roll`; a table pick is not.
+    if (type == "outcome_rolled" && payload.contains("outcomes")) {
         json data = json{{"spec", payload.contains("spec")
                                       ? payload["spec"]
                                       : json::object()},
@@ -2640,19 +2617,6 @@ void MatchInstance::Emit(std::string_view type, nlohmann::json payload) {
     PushEvent(ops::MakeEvent(type, std::move(payload)));
 }
 
-void MatchInstance::PushEvent(nlohmann::json event) {
-    const std::optional<std::string_view> new_name =
-        NewNameOf(event.value("type", std::string()));
-    if (new_name.has_value()) {
-        nlohmann::json beside = event;
-        beside["type"] = std::string(*new_name);
-        PushEventOnce(std::move(event));
-        PushEventOnce(std::move(beside));
-        return;
-    }
-    PushEventOnce(std::move(event));
-}
-
 std::optional<uint32_t> MatchInstance::AdmitModEvent(nlohmann::json& event) {
     const nlohmann::json& body = event["payload"];
     const std::string event_ref =
@@ -2741,7 +2705,7 @@ void MatchInstance::DisarmOffender(const std::string& mod_id) {
     Emit("mod_disarmed", json{{"mod", mod_id}});
 }
 
-void MatchInstance::PushEventOnce(nlohmann::json event) {
+void MatchInstance::PushEvent(nlohmann::json event) {
     ops::StampCausalFrame(assembly_->store, causal_frame_, event);
     std::optional<uint32_t> chain_length;
     if (event.value("type", std::string()) == "mod_event") {

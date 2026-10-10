@@ -198,7 +198,7 @@ own full group.
 snapshot follows the window (via `PlayEvaluator`), and the board highlights
 those cards automatically.
 
-**Wire and UI.** `window_open` carries `kinds` (member order), `kind`
+**Wire and UI.** `window_opened` carries `kinds` (member order), `kind`
 (`kinds[0]`, the first member's), `hold_ms` (omitted when 0) and `duration_ms`; its `deadline_ms`
 is the time remaining, whereas the snapshot's `window.deadline_ms` and
 `prompts[].deadline_ms` are absolute epoch ms, paired with `server_now_ms` so

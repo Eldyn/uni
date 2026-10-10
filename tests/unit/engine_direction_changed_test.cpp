@@ -355,7 +355,7 @@ TEST_CASE("direction_changed: every seat and a spectator gets the client "
             builder.Wrap(changed[0], viewer, sink);
         REQUIRE(wrapped.has_value());
         CHECK((*wrapped)["id"] == kEventType);
-        CHECK((*wrapped)["type"] == kEventType);
+        CHECK((*wrapped)["id"] == kEventType);
         CHECK((*wrapped)["actor"] == "player0");
         CHECK((*wrapped)["payload"]["direction"] == CurrentDirection(*engine));
         CHECK((*wrapped).contains("sequence"));

@@ -110,7 +110,7 @@ bool MatchSession::SubmitInput(const std::string& username,
 
     if (!engine_->SubmitInput(username, value)) return false;
     // INFO: the target answered, so its parked prompt now closes `answered`;
-    //       EmitPendingPrompt turns this into the prompt_close.
+    //       EmitPendingPrompt turns this into the prompt_answered.
     prompt_outcome_[username] = "answered";
     return true;
 }
@@ -480,7 +480,7 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         std::string& last = prompt_signature_[username];
         if (!pending.has_value()) {
             // INFO: the parked prompt cleared (answer / timeout / cancel);
-            //       close it for the recipient that was shown prompt_open.
+            //       close it for the recipient that was shown prompt_opened.
             if (!last.empty()) {
                 EmitPromptClose(broadcaster, username, socket, last);
                 last.clear();
@@ -488,13 +488,13 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
             continue;
         }
         // INFO: dedupe by pending signature so a repeated EmitEvents between
-        //       the play and the answer cannot re-send the same prompt_open.
+        //       the play and the answer cannot re-send the same prompt_opened.
         if (last == signature) continue;
         std::optional<json> packet = builder_.BuildPendingPrompt(
             match::view::Viewer::Player(username), sinks_.at(username));
         if (!packet.has_value()) continue;
         // INFO: The engine op leaves `response_schema` to the session layer;
-        //       attach the resolved kind schema so `prompt_open` satisfies
+        //       attach the resolved kind schema so `prompt_opened` satisfies
         //       and the client sees exactly what `SubmitInput` validates.
         if (schema != nullptr && packet->contains("payload") &&
             (*packet)["payload"].is_object()) {
@@ -507,11 +507,6 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         }
         (*packet)["action"] = "match_event";
         broadcaster.SendJson(socket, *packet);
-        // TODO: remove the old name when ticket 24 removes the old names.
-        json opened =
-            sinks_.at(username).Wrap("prompt_opened", (*packet)["payload"]);
-        opened["action"] = "match_event";
-        broadcaster.SendJson(socket, opened);
         last = signature;
         // INFO: a fresh prompt starts from the default outcome; a stale
         //       answer from a replaced prompt must not leak forward.
@@ -523,7 +518,7 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
                                    const std::string& username,
                                    AppWebSocket* socket,
                                    const std::string& signature) {
-    // INFO: `prompt_id` is the prompt kind (the view layer's `prompt_open`
+    // INFO: `prompt_id` is the prompt kind (the view layer's `prompt_opened`
     //       uses the kind as the id); recover it from the stored signature.
     std::string prompt_id;
     try {
@@ -536,13 +531,10 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
     std::string& outcome = prompt_outcome_[username];
     if (outcome.empty()) outcome = "cancelled";
     json payload = {{"prompt_id", prompt_id}, {"outcome", outcome}};
-    json packet = sinks_.at(username).Wrap("prompt_close", std::move(payload));
+    json packet =
+        sinks_.at(username).Wrap("prompt_answered", std::move(payload));
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
-    json answered =
-        sinks_.at(username).Wrap("prompt_answered", packet["payload"]);
-    answered["action"] = "match_event";
-    broadcaster.SendJson(socket, answered);
     outcome = "cancelled";
 }
 

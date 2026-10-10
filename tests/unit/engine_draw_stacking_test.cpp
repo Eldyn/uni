@@ -350,7 +350,7 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
     REQUIRE(engine->PlayCard("player0", *draw2));
     CHECK(engine->WindowOpen());
     CHECK(engine->PendingWindow().has_value());
-    CHECK(FindEvent(*engine, "window_open") != nullptr);
+    CHECK(FindEvent(*engine, "window_opened") != nullptr);
 
     // INFO: The +2 play records its N as debt on the victim (the
     //       seat after the player), who draws nothing until the chain ends.
@@ -367,7 +367,7 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
     CHECK(window["default_route"] == "n2");
     // INFO: a window that declares no kind stays generic on the env duration.
     CHECK(window["kind"] == "generic");
-    const json* opened = FindEvent(*engine, "window_open");
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["kind"] == "generic");
     CHECK((*opened)["payload"]["duration_ms"] == 1000);
@@ -428,7 +428,7 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     REQUIRE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 2);
     const uint64_t steps_after_open = engine->Assembly().budget.chain_steps;
-    CHECK(CountEvents(*engine, "window_open") == 1);
+    CHECK(CountEvents(*engine, "window_opened") == 1);
 
     // INFO: the victim's out-of-turn stack is rescued by the mod's allow and,
     //       as the only responder, closes the window at once.
@@ -440,8 +440,8 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(DebtOf(*engine, player2) == 4);
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
-    CHECK(CountEvents(*engine, "window_open") == 2);
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     const uint64_t steps_after_reopen = engine->Assembly().budget.chain_steps;
     // INFO: the chain shares one budget ledger (no reset across re-open).
     CHECK(steps_after_reopen > steps_after_open);
@@ -452,7 +452,7 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 2);
     // INFO: default route draws the accumulated debt on the victim, clears the
     //       status and skips them.
     CHECK(DebtOf(*engine, player2) == 0);
@@ -483,12 +483,12 @@ TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
     REQUIRE(engine->PlayCard("player0", *wild4));
     CHECK_FALSE(engine->WindowOpen());
     REQUIRE(engine->PendingInput().has_value());
-    CHECK(FindEvent(*engine, "window_open") == nullptr);
+    CHECK(FindEvent(*engine, "window_opened") == nullptr);
 
     REQUIRE(engine->SubmitInput("player0", "red"));
     CHECK_FALSE(engine->PendingInput().has_value());
     CHECK(engine->WindowOpen());
-    CHECK(FindEvent(*engine, "window_open") != nullptr);
+    CHECK(FindEvent(*engine, "window_opened") != nullptr);
     // INFO: the deferred window records the +4 play's N as the initial debt
     //       on the victim; the mutated card no longer draws it immediately.
     CHECK(DebtOf(*engine, player1) == 4);
@@ -531,8 +531,8 @@ TEST_CASE("engine merge: jump_in and draw_stacking open one longest group") {
     REQUIRE(engine.WindowOpen());
 
     // INFO: one open event for the group, on the longest member duration.
-    CHECK(CountEvents(engine, "window_open") == 1);
-    const json* opened = FindEvent(engine, "window_open");
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    const json* opened = FindEvent(engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == kStackingWindowMs);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -550,8 +550,8 @@ TEST_CASE("engine merge: jump_in and draw_stacking open one longest group") {
     clock.now = 800;
     engine.Tick();
     CHECK(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
-    CHECK(CountEvents(engine, "window_close") == 0);
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 0);
 }
 
 TEST_CASE("engine merge: CanRespondWindow accepts any member's filter") {
@@ -594,8 +594,8 @@ ChainOutcome SnapshotChain(MatchInstance& engine,
         outcome.hands.push_back(HandSize(engine, seat));
     }
     outcome.current = engine.GetCurrentPlayerUsername();
-    outcome.opens = CountEvents(engine, "window_open");
-    outcome.closes = CountEvents(engine, "window_close");
+    outcome.opens = CountEvents(engine, "window_opened");
+    outcome.closes = CountEvents(engine, "window_closed");
     outcome.window_open = engine.WindowOpen();
     return outcome;
 }
@@ -637,8 +637,8 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
         // INFO: the jump-in resolved as a stack response by the jumper: the
         //       debt moved on to the jumper's next opponent (player0), the
         //       turn is the jumper's and a new window is open over their card.
-        CHECK(CountEvents(engine, "window_close") == 1);
-        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(CountEvents(engine, "window_closed") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 2);
         CHECK(engine.WindowOpen());
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(DebtOf(engine, table.player1) == 0);
@@ -656,7 +656,7 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
         clock.now = 2 * kStackingWindowMs;
         engine.Tick();
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 2);
+        CHECK(CountEvents(engine, "window_closed") == 2);
         CHECK(DebtOf(engine, table.player0) == 0);
         CHECK(HandSize(engine, table.player0) == player0_hand + 8);
         CHECK(engine.GetCurrentPlayerUsername() == "player1");
@@ -816,8 +816,8 @@ TEST_CASE("engine jump_in debt: a jump-in with no debt only redirects") {
         engine.Tick();
 
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_open") == 1);
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         for (ecs::Entity seat : seats) CHECK(DebtOf(engine, seat) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
         CHECK(CountNoJumpSignals(engine) == 0);
@@ -958,8 +958,8 @@ TEST_CASE("engine merge: a wild +4 prompt then one merged group") {
 
     // INFO: both windows deferred behind the prompt open as one group.
     REQUIRE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_open") == 1);
-    const json* opened = FindEvent(*engine, "window_open");
+    CHECK(CountEvents(*engine, "window_opened") == 1);
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == kStackingWindowMs);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -984,8 +984,8 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     // INFO: draw_stacking's on_response owns the reply: the debt moves on to
     //       player2, player1 holds the turn and the stacking window re-opens;
     //       jump_in's default did not run.
-    CHECK(CountEvents(engine, "window_close") == 1);
-    CHECK(CountEvents(engine, "window_open") == 2);
+    CHECK(CountEvents(engine, "window_closed") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 2);
     CHECK(engine.WindowOpen());
     CHECK(DebtOf(engine, table.player1) == 0);
     CHECK(DebtOf(engine, table.player2) == 4);
@@ -1007,8 +1007,8 @@ TEST_CASE("engine merge: no responder runs every default once in order") {
     engine.Tick();
 
     CHECK_FALSE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
-    CHECK(CountEvents(engine, "window_close") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 1);
     CHECK(CountNoJumpSignals(engine) == 1);
     CHECK(DebtOf(engine, table.player1) == 0);
     CHECK(HandSize(engine, table.player1) == table.victim_hand + 2);
@@ -1040,7 +1040,7 @@ TEST_CASE("engine merge: the group kind follows the first member") {
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
     REQUIRE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 1);
     CHECK(engine.ExportWindow()["kind"] == "generic");
 
     // INFO: passability keys on the hold, not the kind: the victim passes
@@ -1049,7 +1049,7 @@ TEST_CASE("engine merge: the group kind follows the first member") {
     CHECK_FALSE(engine.PassWindow("player2"));
     REQUIRE(engine.PassWindow("player1"));
     CHECK_FALSE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_close") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 1);
     CHECK(CountNoJumpSignals(engine) == 1);
     CHECK(HandSize(engine, table.player1) == table.victim_hand + 2);
 }
@@ -1071,13 +1071,13 @@ TEST_CASE("engine hold: the victim passes at the hold boundary, not before") {
         CHECK(engine.ExportWindow()["responses"].empty());
         CHECK(DebtOf(engine, table.player1) == 4);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
-        CHECK(CountEvents(engine, "window_close") == 0);
+        CHECK(CountEvents(engine, "window_closed") == 0);
 
         clock.now = kJumpInHoldMs;
         CHECK(engine.WindowHoldElapsed());
         REQUIRE(engine.PassWindow("player1"));
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
         CHECK(HandSize(engine, table.player2) == table.bystander_hand);
@@ -1120,7 +1120,7 @@ TEST_CASE("engine hold: timer expiry draws the same cards as a pass") {
         engine.Tick();
 
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
         CHECK(engine.GetCurrentPlayerUsername() == "player2");
@@ -1141,17 +1141,17 @@ TEST_CASE("engine hold: a jump-in closes the group at the hold end") {
         REQUIRE(engine.RespondWindow("player2", jump4));
         clock.now = kJumpInHoldMs - 1;
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 0);
+        CHECK(CountEvents(engine, "window_closed") == 0);
         CHECK(DebtOf(engine, table.player1) == 4);
 
         clock.now = kJumpInHoldMs;
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
     }
 }
 
@@ -1167,7 +1167,7 @@ TEST_CASE("engine hold: a jump-in after the hold closes immediately") {
 
         clock.now = 1500;
         REQUIRE(engine.RespondWindow("player2", jump4));
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(engine.GetCurrentPlayerUsername() == "player2");
     }
@@ -1187,10 +1187,10 @@ TEST_CASE("engine hold: a victim stack closes at the hold end or at once") {
             REQUIRE(engine.RespondWindow("player1", table.stack2));
             clock.now = kJumpInHoldMs - 1;
             engine.Tick();
-            CHECK(CountEvents(engine, "window_close") == 0);
+            CHECK(CountEvents(engine, "window_closed") == 0);
             clock.now = kJumpInHoldMs;
             engine.Tick();
-            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(CountEvents(engine, "window_closed") == 1);
             CHECK(DebtOf(engine, table.player2) == 4);
         }
         {
@@ -1200,7 +1200,7 @@ TEST_CASE("engine hold: a victim stack closes at the hold end or at once") {
             REQUIRE(engine.PlayCard("player0", table.draw2));
             clock.now = 1500;
             REQUIRE(engine.RespondWindow("player1", table.stack2));
-            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(CountEvents(engine, "window_closed") == 1);
             CHECK(DebtOf(engine, table.player2) == 4);
         }
     }
@@ -1225,7 +1225,7 @@ TEST_CASE("engine hold: no winner still runs to the timeout and draws") {
         engine.Tick();
         CHECK_FALSE(engine.WindowOpen());
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
     }
 }
 
@@ -1248,8 +1248,8 @@ TEST_CASE("engine hold: a pass then a tick never draws twice") {
         CHECK_FALSE(engine.PassWindow("player1"));
         CHECK(HandSize(engine, table.player1) == drawn_hand);
         CHECK(drawn_hand == table.victim_hand + 4);
-        CHECK(CountEvents(engine, "window_close") == 1);
-        CHECK(CountEvents(engine, "window_open") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 1);
     }
 }
 
@@ -1277,7 +1277,7 @@ TEST_CASE("engine hold: a play after a pass opens a jumpable group") {
         ForceHand(engine, table.player0, {*second5, table.filler0});
         REQUIRE(engine.PlayCard("player2", *first5));
         REQUIRE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(CountEvents(engine, "window_opened") == 2);
         CHECK(engine.CanRespondWindow(table.player0, *second5));
         CHECK(engine.RespondWindow("player0", *second5));
     }
@@ -1324,7 +1324,7 @@ TEST_CASE("engine hold: a jump_in-only window has no pass at all") {
     }
     engine->Tick();
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
 }
 
 TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {

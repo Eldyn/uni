@@ -348,7 +348,7 @@ TEST_CASE("engine window: opens on a draw-penalty (+2/+4) play") {
 
     REQUIRE(engine->PlayCard("player0", *draw2));
     CHECK(engine->WindowOpen());
-    CHECK(FindEvent(*engine, "window_open") != nullptr);
+    CHECK(FindEvent(*engine, "window_opened") != nullptr);
 
     const json window = engine->ExportWindow();
     CHECK(window["open"] == true);
@@ -379,7 +379,7 @@ TEST_CASE("engine window: all-pass closes early and routes the default") {
     REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
-    const json* close = FindEvent(*engine, "window_close");
+    const json* close = FindEvent(*engine, "window_closed");
     REQUIRE(close != nullptr);
     CHECK((*close)["payload"]["outcome"] == "all_pass");
     CHECK(HasSignal(*engine, "window:default"));
@@ -406,7 +406,7 @@ TEST_CASE("engine window: timeout routes the default route") {
     engine->Tick();
 
     CHECK_FALSE(engine->WindowOpen());
-    const json* close = FindEvent(*engine, "window_close");
+    const json* close = FindEvent(*engine, "window_closed");
     REQUIRE(close != nullptr);
     CHECK((*close)["payload"]["outcome"] == "timeout");
     CHECK((*close)["payload"]["route"] == "n2");
@@ -446,9 +446,9 @@ TEST_CASE("engine window: first response wins and the loser is returned") {
     CHECK(PileHas(*engine, ecs::PileKind::kDiscard, others[0]));
     CHECK_FALSE(PileHas(*engine, ecs::PileKind::kDiscard, others[1]));
     CHECK(HandSize(*engine, player2) == 1);
-    CHECK(CountEvents(*engine, "window_response") == 2);
+    CHECK(CountEvents(*engine, "window_responded") == 2);
 
-    const json* close = FindEvent(*engine, "window_close");
+    const json* close = FindEvent(*engine, "window_closed");
     REQUIRE(close != nullptr);
     CHECK((*close)["payload"]["outcome"] == "response");
     CHECK((*close)["payload"]["winner"] == "player1");
@@ -522,12 +522,12 @@ TEST_CASE("engine window: responses pass through the restriction pipeline") {
     const json* rejected = FindEvent(*engine, "play_rejected");
     REQUIRE(rejected != nullptr);
     CHECK((*rejected)["payload"]["reason_id"] == "uni:turn_order");
-    CHECK(CountEvents(*engine, "window_response") == 0);
+    CHECK(CountEvents(*engine, "window_responded") == 0);
 
     // INFO: an allow entry rescues the otherwise-denied response.
     AllowAllPlays(*engine);
     CHECK(engine->RespondWindow("player1", others[0]));
-    CHECK(CountEvents(*engine, "window_response") == 1);
+    CHECK(CountEvents(*engine, "window_responded") == 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -601,7 +601,7 @@ TEST_CASE("engine window: integer duration overrides UNI_WINDOW_MS") {
     REQUIRE(engine->WindowOpen());
     REQUIRE(engine->PendingWindow().has_value());
     CHECK(engine->PendingWindow()->duration_ms == 800);
-    const json* open = FindEvent(*engine, "window_open");
+    const json* open = FindEvent(*engine, "window_opened");
     REQUIRE(open != nullptr);
     CHECK((*open)["payload"]["duration_ms"] == 800);
     CHECK((*open)["payload"]["deadline_ms"] == 800);
@@ -623,7 +623,7 @@ TEST_CASE("engine window: env duration keeps the configured window") {
     REQUIRE(engine->PlayCard("player0", cards[0]));
     REQUIRE(engine->WindowOpen());
     CHECK_FALSE(engine->PendingWindow()->duration_ms.has_value());
-    const json* open = FindEvent(*engine, "window_open");
+    const json* open = FindEvent(*engine, "window_opened");
     REQUIRE(open != nullptr);
     CHECK((*open)["payload"]["duration_ms"] == 7000);
 }

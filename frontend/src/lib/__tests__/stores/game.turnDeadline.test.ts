@@ -69,7 +69,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function snapshot(extra: Record<string, unknown> = {}) {

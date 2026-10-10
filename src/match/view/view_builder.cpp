@@ -86,7 +86,7 @@ bool IsFilteredType(const std::string& type) {
            || type == "drawn_card_kept"
            || type == "status_applied" || type == "status_removed"
            || type == "status_modified"
-           || type == "prompt_open" || type == "prompt_close"
+           || type == "prompt_opened" || type == "prompt_answered"
            || type == "visibility_granted"
            || type == "visibility_revoked" || type == "signal";
 }
@@ -98,7 +98,6 @@ std::optional<json> ProjectPlayRejected(
         ResolvePlayer(match, payload.value("player", json()));
     if (!ViewerIs(viewer, player)) return std::nullopt;
     return json{{"target", player},
-                {"player", player},
                 {"reason_id", payload.value("reason_id", std::string())}};
 }
 
@@ -109,7 +108,6 @@ std::optional<json> ProjectCardsDrawn(
         ResolvePlayer(match, payload.value("player", json()));
     json out = json::object();
     out["target"] = owner;
-    out["player"] = owner;
     out["count"] = payload.value("count", 0);
     out["hand_size_after"] = payload.value("hand_size_after", 0);
     out["from_debt"] = payload.value("from_debt", false);
@@ -280,8 +278,8 @@ std::optional<json> ProjectFiltered(const ViewBuilder& builder,
     if (type == "status_modified") {
         return ProjectStatusModified(builder, match, body, viewer);
     }
-    if (type == "prompt_open") return ProjectPromptOpen(match, body, viewer);
-    if (type == "prompt_close") return ProjectPromptClose(match, body, viewer);
+    if (type == "prompt_opened") return ProjectPromptOpen(match, body, viewer);
+    if (type == "prompt_answered") return ProjectPromptClose(match, body, viewer);
     if (type == "visibility_granted" || type == "visibility_revoked") {
         return ProjectVisibility(match, body, viewer);
     }
@@ -607,7 +605,7 @@ json BuildWindow(const match::engine::MatchInstance& match,
         json{{"window_id", std::to_string(window.value("id", 0))},
              {"deadline_ms", window.value("deadline_ms", 0)},
              {"duration_ms", window.value("duration_ms", 0)},
-             {"responders", window.value("responders", json::array())},
+             {"targets", window.value("responders", json::array())},
              {"eligible_filter_digest",
               window.value("filter_digest", std::string())},
              {"kind", window.value("kind", std::string("generic"))},
@@ -807,7 +805,7 @@ std::optional<nlohmann::json> ViewBuilder::WrapModEvent(
     json envelope = sink.WrapEngineEvent(
         "mod_event", ProjectModEventForViewer(match_, body, actor, viewer),
         engine_event);
-    // INFO: the wire `type` stays `mod_event`; the `id` names the mod event.
+    // INFO: the `id` names the mod event, not the engine type.
     envelope["id"] = body.value("id", std::string());
     return envelope;
 }
@@ -848,7 +846,7 @@ std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
     // INFO: the prompt clock the server enforces, known even though the
     //       packet leaves before the deadline is armed.
     out["duration_ms"] = pending->value("duration_ms", int64_t{0});
-    return sink.Wrap("prompt_open", out);
+    return sink.Wrap("prompt_opened", out);
 }
 
 nlohmann::json ViewBuilder::BuildSnapshot(const Viewer& viewer,

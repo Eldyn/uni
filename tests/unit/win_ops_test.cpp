@@ -128,7 +128,7 @@ TEST_CASE("win_ops: check_win records the hand-empty player by seat order") {
     const OpResult result = h.Invoke("check_win", json::object());
     CHECK(result.status == OpStatus::kResolved);
     REQUIRE(result.events.size() == 1);
-    CHECK(result.events[0]["type"] == "placement");
+    CHECK(result.events[0]["type"] == "placement_set");
     CHECK(SameEntity(result.events[0]["payload"]["player"], p0));
     CHECK(result.events[0]["payload"]["place"] == 1);
     CHECK(result.events[0]["payload"]["kind"] == "normal");
@@ -245,7 +245,7 @@ TEST_CASE("win_ops: declare_winner normal records a placement") {
                  {{"player", {p0}}});
     CHECK(result.status == OpStatus::kResolved);
     REQUIRE(result.events.size() == 1);
-    CHECK(result.events[0]["type"] == "placement");
+    CHECK(result.events[0]["type"] == "placement_set");
     CHECK(SameEntity(result.events[0]["payload"]["player"], p0));
     CHECK(result.events[0]["payload"]["place"] == 1);
     CHECK(result.events[0]["payload"]["kind"] == "normal");

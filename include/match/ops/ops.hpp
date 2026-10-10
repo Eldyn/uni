@@ -84,7 +84,7 @@ inline constexpr std::string_view kCausePlay = "play";
 inline constexpr std::string_view kCauseDraw = "draw";
 inline constexpr std::string_view kCauseKeepDrawn = "keep_drawn";
 inline constexpr std::string_view kCausePromptAnswer = "prompt_answer";
-inline constexpr std::string_view kCauseWindowResponse = "window_response";
+inline constexpr std::string_view kCauseWindowResponse = "window_responded";
 inline constexpr std::string_view kCauseWindowTimeout = "window_timeout";
 inline constexpr std::string_view kCauseTurnTimerExpired =
     "turn_timer_expired";

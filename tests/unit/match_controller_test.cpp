@@ -267,7 +267,7 @@ struct MatchFixture {
             if (only != nullptr && frame.to != only) continue;
             const json packet = json::parse(frame.payload);
             if (packet.value("action", std::string()) == "match_event"
-                && packet.value("type", std::string()) == type) {
+                && packet.value("id", std::string()) == type) {
                 ++n;
             }
         }
@@ -451,7 +451,7 @@ TEST_CASE("OnGameStarted publishes defs and match_start before the first snapsho
     for (std::size_t i = 0; i < packets.size(); ++i) {
         const std::string action = packets[i].value("action", std::string());
         if (action == "match_event") {
-            const std::string type = packets[i].value("type", std::string());
+            const std::string type = packets[i].value("id", std::string());
             if (type == "defs") {
                 ++defs_count;
                 if (defs_i == npos) defs_i = i;
@@ -1481,7 +1481,7 @@ TEST_CASE("ready barrier: window_response is rejected while the barrier is close
 
     CHECK_FALSE(engine.WindowOpen());
     CHECK(engine.Events().size() == events_before);
-    CHECK(f.CountMatchEvents("window_response") == 0);
+    CHECK(f.CountMatchEvents("window_responded") == 0);
     CHECK(f.CountErrorFrames("cannot_draw", f.ContextFor(current).socket) == 1);
 }
 

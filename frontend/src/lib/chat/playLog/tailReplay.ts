@@ -6,10 +6,8 @@ import type { LogEvent, LogLine } from "./logEvent";
 
 /** One replayed client event of the snapshot `tail`. */
 export type TailEnvelope = {
-	sequence?: number;
-	seq: number;
-	id?: string;
-	type: string;
+	sequence: number;
+	id: string;
 	actor?: string;
 	replayed?: boolean;
 	context?: EventContext;
@@ -69,9 +67,7 @@ export function replayTailToLog(
 	}
 
 	for (const entry of tail) {
-		const id = entry.id ?? entry.type;
-		const payload = entry.payload;
-		const sequence = entry.sequence ?? entry.seq;
+		const { id, payload, sequence } = entry;
 		const seat = (field: string) => {
 			const name = text(payload[field]);
 			return name === undefined ? undefined : escapeLogText(name);
@@ -136,7 +132,7 @@ export function replayTailToLog(
 		} else if (id === "direction_changed") {
 			emit({ kind: "reverse", seq: sequence }, entry.context);
 		} else if (id === "cards_drawn") {
-			const player = seat("target") ?? seat("player");
+			const player = seat("target");
 			if (player === undefined) continue;
 			const penalty = payload.from_debt === true;
 			emit(
@@ -152,7 +148,7 @@ export function replayTailToLog(
 						typeof payload.hand_size_after === "number" ? payload.hand_size_after : undefined
 				},
 				entry.context,
-				text(payload.target) ?? text(payload.player)
+				text(payload.target)
 			);
 		} else if (id === "drawn_card_kept") {
 			const player = seat("target");

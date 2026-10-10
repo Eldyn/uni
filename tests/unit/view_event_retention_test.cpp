@@ -40,13 +40,18 @@ TEST_CASE("retention: core events declare the agreed retention") {
           == Retention::kTransient);
 }
 
-TEST_CASE("retention: an old event name is transient, the new name "
-          "carries it") {
-    for (std::string_view old_name :
-         {"window_open", "window_response", "window_close", "roll_result",
-          "outcome_result", "placement", "match_end"}) {
-        CHECK(RetentionOf(old_name, json::object()) == Retention::kTransient);
-    }
+TEST_CASE("retention: the window, roll and finish events") {
+    CHECK(RetentionOf("window_opened", json::object())
+          == Retention::kTransient);
+    CHECK(RetentionOf("window_responded", json::object())
+          == Retention::kUntilTurnEnd);
+    CHECK(RetentionOf("window_closed", json::object())
+          == Retention::kUntilTurnEnd);
+    CHECK(RetentionOf("outcome_rolled", json::object())
+          == Retention::kUntilTurnEnd);
+    CHECK(RetentionOf("placement_set", json::object())
+          == Retention::kUntilRoundEnd);
+    CHECK(RetentionOf("match_ended", json::object()) == Retention::kLog);
 }
 
 TEST_CASE("retention: a draw follows its payload") {

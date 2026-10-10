@@ -61,7 +61,7 @@ const FIXTURE_STATE: GameState = {
 let seq = 0;
 
 function pushMatchEvent(type: string, payload: unknown = {}) {
-	handlers["match_event"]({ seq: ++seq, type, payload });
+	handlers["match_event"]({ sequence: ++seq, id: type, payload });
 }
 
 describe("storeGame ready barrier", () => {

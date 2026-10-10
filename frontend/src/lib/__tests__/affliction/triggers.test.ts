@@ -265,8 +265,8 @@ describe("storeGame raw match_event fan-out", () => {
 		const onEvent = (globalThis as any).__wsTestHandlers["match_event"] as (p: unknown) => void;
 		onEvent({
 			action: "match_event",
-			seq: 1,
-			type: "play_rejected",
+			sequence: 1,
+			id: "play_rejected",
 			payload: { reason_id: "unplayable" }
 		});
 

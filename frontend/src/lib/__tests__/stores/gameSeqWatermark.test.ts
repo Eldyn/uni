@@ -70,7 +70,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function snapshot(seqWatermark?: number) {
@@ -98,7 +98,14 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 		const onEvent = handler("match_event");
 		onEvent(frame(1, "turn_advance", { from: "a", to: "b", direction: 1, deadline_ms: 5000 }));
 		onEvent(
-			frame(2, "cards_drawn", { player: "alice", count: 2, source_pile: "draw", cards: [7, 8] })
+			frame(2, "cards_drawn", {
+				target: "alice",
+				count: 2,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw",
+				cards: [7, 8]
+			})
 		);
 		onEvent(frame(3, "reshuffle", { draw_size: 10, discard_size: 2 }));
 
@@ -185,7 +192,15 @@ describe("storeGame match_event seq watermark + beat buffer", () => {
 
 		const onEvent = handler("match_event");
 		onEvent(frame(1, "reshuffle", { draw_size: 10, discard_size: 2 }));
-		onEvent(frame(3, "cards_drawn", { player: "alice", count: 1, source_pile: "draw" }));
+		onEvent(
+			frame(3, "cards_drawn", {
+				target: "alice",
+				count: 1,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw"
+			})
+		);
 
 		handler("match_state_updated")(snapshot(4));
 

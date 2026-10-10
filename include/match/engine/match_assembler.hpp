@@ -272,7 +272,7 @@ class MatchAssembler;
  *
  * The engine freezes only the deck's mod list and card multiset; the view layer
  * also needs the deck id / name and the lobby settings bag to build
- * `match_start` and to carry real settings into `match_end`. Retained
+ * `match_start` and to carry real settings into `match_ended`. Retained
  * additively at assembly time (this resolves the former `match_instance.cpp`
  * TODO).
  */
@@ -326,7 +326,7 @@ public:
      * @brief Deck identity + settings retained from the assembly input.
      *
      * Populated by `MatchAssembler::Assemble`; the view layer reads it through
-     * `Deck()` to build `match_start` and `match_end` settings.
+     * `Deck()` to build `match_start` and `match_ended` settings.
      */
     MatchDeckSnapshot deck;
 

@@ -207,9 +207,19 @@ const json* FindEvent(const std::vector<json>& packets,
                       const std::string& type) {
     for (const json& packet : packets) {
         if (packet.value("action", std::string()) != "match_event") continue;
-        if (packet.value("type", std::string()) == type) return &packet;
+        if (packet.value("id", std::string()) == type) return &packet;
     }
     return nullptr;
+}
+
+std::size_t CountEvents(const std::vector<json>& packets,
+                        const std::string& type) {
+    std::size_t count = 0;
+    for (const json& packet : packets) {
+        if (packet.value("action", std::string()) != "match_event") continue;
+        if (packet.value("id", std::string()) == type) ++count;
+    }
+    return count;
 }
 
 /** @brief The snapshot's player row for `username`, or nullptr. */
@@ -279,12 +289,12 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK((*card_played)["payload"]["card"] == wild0);
     CHECK(FindEvent(s1_play, "card_played") != nullptr);
 
-    const json* prompt = FindEvent(s0_play, "prompt_open");
+    const json* prompt = FindEvent(s0_play, "prompt_opened");
     REQUIRE(prompt != nullptr);
     CHECK((*prompt)["payload"]["kind"] == "choose_color");
     CHECK((*prompt)["payload"]["prompt_id"] == "choose_color");
     CHECK((*prompt)["payload"]["response_schema"]["type"] == "string");
-    CHECK(FindEvent(s1_play, "prompt_open") == nullptr);
+    CHECK(FindEvent(s1_play, "prompt_opened") == nullptr);
 
     // --- prompt response validation before SubmitInput ---------------------
     CHECK_FALSE(session.SubmitInput("player1", "choose_color", json("red")));
@@ -300,7 +310,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     session.BroadcastSnapshot(fake);
     const std::vector<json> s0_after = PacketsFor(fake, s0);
     const std::vector<json> s1_after = PacketsFor(fake, s1);
-    CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+    CHECK(FindEvent(s0_after, "prompt_opened") == nullptr);
     REQUIRE(FindEvent(s0_after, "turn_advance") != nullptr);
     REQUIRE(FindEvent(s1_after, "turn_advance") != nullptr);
     CHECK(session.Engine().GetCurrentPlayerUsername() == "player1");
@@ -316,7 +326,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     const json* drawn1 = FindEvent(s1_draw, "cards_drawn");
     REQUIRE(drawn0 != nullptr);
     REQUIRE(drawn1 != nullptr);
-    CHECK((*drawn0)["payload"]["player"] == "player1");
+    CHECK((*drawn0)["payload"]["target"] == "player1");
     CHECK((*drawn0)["payload"]["count"] == 1);
     CHECK_FALSE((*drawn0)["payload"].contains("cards"));
 
@@ -349,8 +359,8 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK((*over0)["winner"] == "player0");
     CHECK((*over1)["winner"] == "player0");
     CHECK((*over0)["placements"][0] == "player0");
-    REQUIRE(FindEvent(s0_end, "match_end") != nullptr);
-    REQUIRE(FindEvent(s1_end, "placement") != nullptr);
+    REQUIRE(FindEvent(s0_end, "match_ended") != nullptr);
+    REQUIRE(FindEvent(s1_end, "placement_set") != nullptr);
 
     // INFO: match_over is idempotent - a second broadcast re-sends nothing.
     fake.Clear();
@@ -384,7 +394,7 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     REQUIRE(session.PlayCard("player0", wild0));
     fake.Clear();
     session.EmitEvents(fake);
-    REQUIRE(FindEvent(PacketsFor(fake, s0), "prompt_open") != nullptr);
+    REQUIRE(FindEvent(PacketsFor(fake, s0), "prompt_opened") != nullptr);
 
     // --- answer -> the target gets a matching prompt_close ---------------
     REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
@@ -394,21 +404,21 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     const std::vector<json> s0_after = PacketsFor(fake, s0);
     const std::vector<json> s1_after = PacketsFor(fake, s1);
 
-    const json* close0 = FindEvent(s0_after, "prompt_close");
+    const json* close0 = FindEvent(s0_after, "prompt_answered");
     REQUIRE(close0 != nullptr);
     CHECK(close0->value("action", std::string()) == "match_event");
     CHECK((*close0)["payload"]["prompt_id"] == "choose_color");
     CHECK((*close0)["payload"]["outcome"] == "answered");
-    CHECK(close0->contains("seq"));
+    CHECK(close0->contains("sequence"));
 
     // INFO: prompt_close is target-only - the opponent never receives it.
-    CHECK(FindEvent(s1_after, "prompt_close") == nullptr);
-    // INFO: a cleared prompt never re-sends prompt_open either.
-    CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+    CHECK(FindEvent(s1_after, "prompt_answered") == nullptr);
+    // INFO: a cleared prompt never re-sends prompt_opened either.
+    CHECK(FindEvent(s0_after, "prompt_opened") == nullptr);
 }
 
-TEST_CASE("match session: prompt_opened and prompt_answered sit beside the "
-          "old names") {
+TEST_CASE("match session: a prompt sends prompt_opened and prompt_answered "
+          "one time each") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
@@ -436,17 +446,12 @@ TEST_CASE("match session: prompt_opened and prompt_answered sit beside the "
     const std::vector<json> s0_packets = PacketsFor(fake, s0);
     const std::vector<json> s1_packets = PacketsFor(fake, s1);
     const json* opened = FindEvent(s0_packets, "prompt_opened");
-    const json* old_opened = FindEvent(s0_packets, "prompt_open");
     REQUIRE(opened != nullptr);
-    REQUIRE(old_opened != nullptr);
-    CHECK((*opened)["payload"] == (*old_opened)["payload"]);
-    CHECK((*opened)["sequence"].get<uint32_t>()
-          == (*old_opened)["sequence"].get<uint32_t>() + 1);
+    CHECK(CountEvents(s0_packets, "prompt_opened") == 1);
 
     const json* answered = FindEvent(s0_packets, "prompt_answered");
-    const json* old_closed = FindEvent(s0_packets, "prompt_close");
     REQUIRE(answered != nullptr);
-    REQUIRE(old_closed != nullptr);
+    CHECK(CountEvents(s0_packets, "prompt_answered") == 1);
     CHECK((*answered)["payload"]["outcome"] == "answered");
     CHECK((*answered)["payload"]["prompt_id"] == "choose_color");
 
@@ -521,12 +526,12 @@ TEST_CASE("match session: per-recipient seq persists across batches") {
         session.BroadcastSnapshot(fake);
         for (const json& packet : PacketsFor(fake, s0)) {
             if (packet.value("action", std::string()) == "match_event") {
-                seq0.push_back(packet.value("seq", 0u));
+                seq0.push_back(packet.value("sequence", 0u));
             }
         }
         for (const json& packet : PacketsFor(fake, s1)) {
             if (packet.value("action", std::string()) == "match_event") {
-                seq1.push_back(packet.value("seq", 0u));
+                seq1.push_back(packet.value("sequence", 0u));
             }
         }
     };
@@ -597,7 +602,7 @@ TEST_CASE("match session: a bound spectator keeps receiving live updates") {
     REQUIRE(snapshot != nullptr);
 
     // INFO: a spectator is never a prompt target, so it sees no prompt_open.
-    CHECK(FindEvent(spectator_packets, "prompt_open") == nullptr);
+    CHECK(FindEvent(spectator_packets, "prompt_opened") == nullptr);
 
     // INFO: unbinding drops the viewer from the live stream entirely.
     REQUIRE(session.UnbindViewer("watcher"));
@@ -671,7 +676,7 @@ TEST_CASE("match session: defs and match_start precede the first snapshot") {
                 packet.value("action", std::string());
             if (action == "match_event") {
                 ++match_events;
-                const std::string type = packet.value("type", std::string());
+                const std::string type = packet.value("id", std::string());
                 if (type == "defs") {
                     ++defs_count;
                     if (defs_idx == npos) defs_idx = i;
@@ -690,8 +695,8 @@ TEST_CASE("match session: defs and match_start precede the first snapshot") {
         CHECK(defs_idx < start_idx);
         CHECK(start_idx < snap_idx);
         // INFO: the persistent stream starts at seq 0 and never renumbers.
-        CHECK(packets[defs_idx].value("seq", 0u) == 0u);
-        CHECK(packets[start_idx].value("seq", 0u) == 1u);
+        CHECK(packets[defs_idx].value("sequence", 0u) == 0u);
+        CHECK(packets[start_idx].value("sequence", 0u) == 1u);
         // INFO: the snapshot watermark reconciles with the packets already
         //       emitted into this recipient's sink.
         CHECK(packets[snap_idx]["match_state"].value("seq_watermark", 0u)
@@ -811,7 +816,7 @@ TEST_CASE("match session: a second EmitMatchStart does not re-send") {
     int start_count = 0;
     for (const json& packet : PacketsFor(fake, s0)) {
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "defs") ++defs_count;
         if (type == "match_start") ++start_count;
     }
@@ -842,11 +847,11 @@ TEST_CASE("match session: a spectator bound after start receives defs") {
     REQUIRE(defs != nullptr);
     // INFO: a mid-match spectator gets the kind table exactly once, before
     //       any event; it does not need `match_start` (no deck UI).
-    CHECK(packets.front().value("type", std::string()) == "defs");
+    CHECK(packets.front().value("id", std::string()) == "defs");
     int defs_count = 0;
     for (const json& packet : packets) {
         if (packet.value("action", std::string()) == "match_event"
-            && packet.value("type", std::string()) == "defs") {
+            && packet.value("id", std::string()) == "defs") {
             ++defs_count;
         }
     }
@@ -869,7 +874,7 @@ std::vector<json> EventsOfType(const FakeBroadcaster& broadcaster,
     for (const SentFrame& frame : broadcaster.FramesFor(socket)) {
         const json packet = json::parse(frame.payload, nullptr, false);
         if (packet.is_object() && packet.value("action", "") == "match_event" &&
-            packet.value("type", "") == type) {
+            packet.value("id", "") == type) {
             out.push_back(packet);
         }
     }
@@ -1096,10 +1101,10 @@ TEST_CASE("match session: a prompt takes its sequence from the seat counter") {
     seats.session->EmitEvents(fake);
 
     const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
-    const json* prompt = FindEvent(events0, "prompt_open");
+    const json* prompt = FindEvent(events0, "prompt_opened");
     REQUIRE(prompt != nullptr);
-    CHECK((*prompt)["sequence"] == events0.size() - 2);
-    CHECK((*prompt)["id"] == "prompt_open");
+    CHECK((*prompt)["sequence"] == events0.size() - 1);
+    CHECK((*prompt)["id"] == "prompt_opened");
     CHECK(events0.back()["id"] == "prompt_opened");
     CHECK(events0.back()["sequence"] == events0.size() - 1);
 }
@@ -1120,9 +1125,8 @@ TEST_CASE("match session: a seat that reconnects with a prompt pending keeps "
     fake.Clear();
     seats.session->EmitEvents(fake);
     // INFO: the prompt is already open for this seat. A reconnect sends no
-    //       second prompt packet under either name; the snapshot carries it.
+    //       second prompt packet; the snapshot carries it.
     const std::vector<json> quiet = MatchEventsFor(fake, seats.socket0);
-    CHECK(FindEvent(quiet, "prompt_open") == nullptr);
     CHECK(FindEvent(quiet, "prompt_opened") == nullptr);
 
     REQUIRE(seats.session->SubmitInput("player0", "choose_color",
@@ -1130,12 +1134,7 @@ TEST_CASE("match session: a seat that reconnects with a prompt pending keeps "
     fake.Clear();
     seats.session->EmitEvents(fake);
     const std::vector<json> answered = MatchEventsFor(fake, seats.socket0);
-    const json* closed = FindEvent(answered, "prompt_close");
-    const json* new_closed = FindEvent(answered, "prompt_answered");
-    REQUIRE(closed != nullptr);
-    REQUIRE(new_closed != nullptr);
-    CHECK((*new_closed)["sequence"].get<uint32_t>()
-          == (*closed)["sequence"].get<uint32_t>() + 1);
+    REQUIRE(FindEvent(answered, "prompt_answered") != nullptr);
     CHECK(answered.front()["sequence"] == first_count);
     for (std::size_t index = 0; index < answered.size(); ++index) {
         CHECK(answered[index]["sequence"] == first_count + index);

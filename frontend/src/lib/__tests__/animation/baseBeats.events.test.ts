@@ -4,7 +4,7 @@ import { mapMatchEventPacket } from "$components/game/animation/baseBeats.svelte
 /** One server frame as the ws layer delivers it: envelope fields plus the
  *  transport's own `action` discriminator. */
 function frame(seq: number, type: string, payload: Record<string, unknown>) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 describe("mapMatchEventPacket", () => {
@@ -38,7 +38,14 @@ describe("mapMatchEventPacket", () => {
 
 	it("maps cards_drawn to a draw beat carrying owner card identities when present", () => {
 		const beat = mapMatchEventPacket(
-			frame(3, "cards_drawn", { player: "alice", count: 2, source_pile: "draw", cards: [10, 11] })
+			frame(3, "cards_drawn", {
+				target: "alice",
+				count: 2,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw",
+				cards: [10, 11]
+			})
 		);
 		expect(beat).toEqual({
 			seq: 3,
@@ -46,13 +53,21 @@ describe("mapMatchEventPacket", () => {
 			player: "alice",
 			count: 2,
 			sourcePile: "draw",
-			cardIds: [10, 11]
+			cardIds: [10, 11],
+			handSizeAfter: 5,
+			fromDebt: false
 		});
 	});
 
 	it("maps cards_drawn with no identities (non-owner viewers) to an empty cardIds list", () => {
 		const beat = mapMatchEventPacket(
-			frame(4, "cards_drawn", { player: "bob", count: 3, source_pile: "draw" })
+			frame(4, "cards_drawn", {
+				target: "bob",
+				count: 3,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw"
+			})
 		);
 		expect(beat).toEqual({
 			seq: 4,
@@ -60,7 +75,9 @@ describe("mapMatchEventPacket", () => {
 			player: "bob",
 			count: 3,
 			sourcePile: "draw",
-			cardIds: []
+			cardIds: [],
+			handSizeAfter: 5,
+			fromDebt: false
 		});
 	});
 
@@ -68,7 +85,6 @@ describe("mapMatchEventPacket", () => {
 		const beat = mapMatchEventPacket(
 			frame(30, "cards_drawn", {
 				target: "alice",
-				player: "alice",
 				count: 2,
 				hand_size_after: 9,
 				from_debt: true,
@@ -186,7 +202,7 @@ describe("mapMatchEventPacket", () => {
 		);
 		expect(beat).toEqual({
 			seq: 10,
-			kind: "placement",
+			kind: "placement_set",
 			target: "bob",
 			place: 2,
 			isElimination: false
@@ -197,7 +213,7 @@ describe("mapMatchEventPacket", () => {
 		const beat = mapMatchEventPacket(
 			frame(11, "match_ended", { target: "ann", targets: ["ann", "bob"], final_digest: "x" })
 		);
-		expect(beat).toEqual({ seq: 11, kind: "match_end", target: "ann", targets: ["ann", "bob"] });
+		expect(beat).toEqual({ seq: 11, kind: "match_ended", target: "ann", targets: ["ann", "bob"] });
 	});
 
 	it("maps turn_skipped without an actor", () => {
@@ -351,7 +367,13 @@ describe("mapMatchEventPacket", () => {
 	it("carries the envelope context on a draw and a color change", () => {
 		const context = { "uni:total_draws": 3 };
 		const draw = mapMatchEventPacket({
-			...frame(9, "cards_drawn", { player: "alice", count: 1, source_pile: "draw" }),
+			...frame(9, "cards_drawn", {
+				target: "alice",
+				count: 1,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw"
+			}),
 			context
 		});
 		expect(draw).toMatchObject({ kind: "draw", context });

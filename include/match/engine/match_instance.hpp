@@ -38,7 +38,7 @@
  *   correct phase and payload keys (`turn_start`/`turn_end`, `round_start`/
  *   `round_end`, `play`, `draw_attempt`/`draw`, `shuffle`/`pile_empty`,
  *   `hand_empty`, `win_check`, `card_entered_zone`/`card_left_zone`,
- *   `match_end`, plus the op-bridged `status_*`, `roll`, `visibility_*` and
+ *   `match_ended`, plus the op-bridged `status_*`, `roll`, `visibility_*` and
  *   `effect_applied` observation hooks). Before-veto on a veto-capable hook
  *   cancels the engine default (play, draw skip/undo, `turn_end` extra turn,
  *   `pile_empty` reshuffle block, `hand_empty`/`win_check` win block or
@@ -61,8 +61,8 @@
  * `before:play` pipeline and `PassWindow` records a pass; the first collected
  * response wins (arrival order). Early close fires once every responder has
  * replied, timeout routes the default. The winning route resumes through
- * `Resolver::ResumeWindow`, emitting `window_open` / `window_response` /
- * `window_close`.
+ * `Resolver::ResumeWindow`, emitting `window_opened` / `window_responded` /
+ * `window_closed`.
  *
  * Draw stacking, built on top of the
  * window flow. `draw_cards` gains an optional `n_from_debt` arg that draws a
@@ -528,14 +528,8 @@ private:
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
 
-    /**
-     * @brief Queue `event`; a type with a new name also queues the same
-     * payload under that name right after it.
-     */
-    void PushEvent(nlohmann::json event);
-
     /** @brief Stamp `event` with the current causal frame and queue it. */
-    void PushEventOnce(nlohmann::json event);
+    void PushEvent(nlohmann::json event);
 
     /**
      * @brief Check a stamped `mod_event` against the mod event budgets.
@@ -623,7 +617,7 @@ private:
      */
     bool EndRaceIfTargetReached();
 
-    /** @brief Dispatch and emit the closing `match_end`. */
+    /** @brief Dispatch and emit the closing `match_ended`. */
     void EmitMatchEnd();
 
     /** @brief `hand_empty` / `win_check` settle after a play. */
@@ -637,7 +631,7 @@ private:
      *
      * Ensures a `WindowState`, fills responders / routes / filter, arms the
      * The timer layer window timer (suspending the turn clock), emits
-     * `window_open` and parks the pause in `pending_window_`. When
+     * `window_opened` and parks the pause in `pending_window_`. When
      * `fresh_situation` is true and the last play was a `draw_penalty` card,
      * the engine records that card's N as `uni:draw_debt` on the current
      * target; a re-open passes false so the response, not the situation, is
@@ -745,7 +739,7 @@ private:
     void RecordDrawPenalty(ecs::Entity card, ecs::Entity player);
 
     /**
-     * @brief Close the open window group, emit one `window_close` and resume.
+     * @brief Close the open window group, emit one `window_closed` and resume.
      *
      * With a winning response only the owning member's `on_response` route
      * runs; otherwise every member runs its `default_route` in member order.

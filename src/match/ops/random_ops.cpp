@@ -131,7 +131,7 @@ OpResult OpRoll(ecs::EntityStore& store, const OpArgs& args, OpContext& ctx) {
 
     OpResult result = OpResult::Resolved(outcomes_json);
     result.events.push_back(MakeEvent(
-        "roll_result", json{{"spec", spec},
+        "outcome_rolled", json{{"spec", spec},
                             {"outcomes", outcomes_json},
                             {"counter", counter}}));
     return result;
@@ -302,7 +302,7 @@ OpResult OpRollTable(ecs::EntityStore& store, const OpArgs& args,
                               {"value", value}};
     OpResult result = OpResult::Resolved(outcome);
     result.events.push_back(MakeEvent(
-        "outcome_result", json{{"table", full_table},
+        "outcome_rolled", json{{"table", full_table},
                                {"key", full_key},
                                {"value", value},
                                {"counter", pick_counter}}));

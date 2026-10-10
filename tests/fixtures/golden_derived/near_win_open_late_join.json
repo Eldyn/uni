@@ -14,10 +14,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 0,
    "sequence": 0,
-   "turn": 0,
-   "type": "restriction_added"
+   "turn": 0
   },
   {
    "id": "restriction_added",
@@ -27,10 +25,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 1,
    "sequence": 1,
-   "turn": 0,
-   "type": "restriction_added"
+   "turn": 0
   },
   {
    "id": "restriction_added",
@@ -40,10 +36,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 2,
    "sequence": 2,
-   "turn": 0,
-   "type": "restriction_added"
+   "turn": 0
   },
   {
    "actor": "player0",
@@ -60,10 +54,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 3,
    "sequence": 3,
-   "turn": 0,
-   "type": "card_played"
+   "turn": 0
   },
   {
    "actor": "player0",
@@ -74,10 +66,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 4,
    "sequence": 4,
-   "turn": 0,
-   "type": "near_win_entered"
+   "turn": 0
   },
   {
    "actor": "player0",
@@ -92,10 +82,8 @@
    },
    "replayed": true,
    "round": 0,
-   "seq": 5,
    "sequence": 5,
-   "turn": 1,
-   "type": "turn_advance"
+   "turn": 1
   }
  ]
 }

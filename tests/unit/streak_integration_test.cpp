@@ -367,8 +367,8 @@ TEST_CASE("streak view: a derived descriptor is marked derived") {
 TEST_CASE("streak view: events that no streak may read give no view") {
     Content content = LoadContent({});
     std::unique_ptr<MatchInstance> engine = MakeEngine(content);
-    for (const char* type : {"play_rejected", "prompt_open", "signal",
-                             "status_applied", "chain_aborted", "match_end"}) {
+    for (const char* type : {"play_rejected", "prompt_opened", "signal",
+                             "status_applied", "chain_aborted"}) {
         const json descriptor = {{"type", type}, {"payload", json::object()}};
         CHECK_MESSAGE(
             !match::view::BuildStreakEventView(*engine, descriptor).has_value(),

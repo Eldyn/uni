@@ -145,7 +145,7 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
 
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 1, kind: "skip", target: "bob" });
 		await flush();
 
 		expect(partyKeys()).toEqual(["uni:log.skip"]);
@@ -157,17 +157,6 @@ describe("matchEventController play log", () => {
 		const h = harness();
 
 		h.fire({ seq: 1, kind: "direction", direction: -1 });
-		h.fire(skipTurn([], -1));
-		await flush();
-
-		expect(partyKeys()).toEqual(["uni:log.reverse"]);
-	});
-
-	it("posts one reverse line when the direction event is dropped", async () => {
-		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
-		const h = harness();
-
-		h.fire(skipTurn([], 1));
 		h.fire(skipTurn([], -1));
 		await flush();
 
@@ -230,19 +219,6 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip"]);
 	});
 
-	it("logs a later skip after a skip event whose turn advance never came", async () => {
-		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
-		const h = harness();
-
-		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
-		await flush();
-		h.controller.syncState();
-		h.fire(skipTurn(["bob"]));
-		await flush();
-
-		expect(partyKeys().filter((key) => key?.startsWith("uni:log.skip"))).toHaveLength(2);
-	});
-
 	it("ignores a turn-flow event that has no presentation", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
@@ -271,7 +247,7 @@ describe("matchEventController play log", () => {
 		const h = harness(landing);
 
 		h.fire({ seq: 1, kind: "play", player: "me", cardId: 2, auto: false });
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 5, kind: "skip", target: "bob" });
 		await flush();
 		expect(partyKeys()).toEqual([]);
 
@@ -316,12 +292,12 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
 
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 5, kind: "skip", target: "bob" });
 		await flush();
 		storeGame.state = null;
 		h.controller.syncState();
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
-		h.fire(skipTurn(["bob"]));
+		h.fire({ seq: 5, kind: "skip", target: "bob" });
 		await flush();
 
 		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip"]);
@@ -331,7 +307,7 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" });
 		const h = harness();
 
-		h.fire(skipTurn(["[fx=shake]boo[/fx]"]));
+		h.fire({ seq: 5, kind: "skip", target: "[fx=shake]boo[/fx]" });
 		await flush();
 
 		const [line] = chatStore.linesFor("party");
@@ -340,8 +316,8 @@ describe("matchEventController play log", () => {
 	});
 
 	it("logs the played card's kind from the snapshot", async () => {
-		storeGame.state = stateWithTop({ id: 2, type: "red", value: "skip" });
-		storeGame.state.top_card.kind = "uni:red_skip";
+		const top = { id: 2, type: "red", value: "skip", kind: "uni:red_skip" };
+		storeGame.state = stateWithTop(top);
 		const h = harness();
 
 		h.fire({ seq: 7, kind: "play", player: "me", cardId: 2, auto: false });
@@ -384,6 +360,8 @@ describe("matchEventController play log", () => {
 			player: "me",
 			count: 1,
 			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
 			cardIds: [99],
 			context: { "uni:draw_run": { me: 1 }, "uni:total_draws": 1 }
 		});
@@ -402,6 +380,8 @@ describe("matchEventController play log", () => {
 			player: "bob",
 			count: 1,
 			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
 			cardIds: [],
 			context: { "uni:draw_run": { bob: 1 }, "uni:total_draws": 1 }
 		});
@@ -430,6 +410,8 @@ describe("matchEventController play log", () => {
 			player: "bob",
 			count: 1,
 			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
 			cardIds: [],
 			context: { "uni:draw_run": { bob: 1 }, "uni:total_draws": 1 }
 		});
@@ -446,20 +428,6 @@ describe("matchEventController play log", () => {
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.auto_play/)]);
-	});
-
-	it("logs a wild colour reaction once the snapshot resolves it", async () => {
-		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "white");
-		const h = harness();
-
-		h.fire({ seq: 21, kind: "play", player: "me", cardId: 2, auto: false });
-		await flush();
-		expect(partyKeys()).toEqual([]);
-
-		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "red");
-		h.controller.syncState();
-		await flush();
-		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.wild_reaction_1"]);
 	});
 
 	it("logs the wild colour reaction from the event, before any snapshot", async () => {
@@ -551,25 +519,6 @@ describe("matchEventController play log", () => {
 		expect(partyKeys()).toEqual(["uni:log.play"]);
 	});
 
-	it("logs a win and each later placement once from snapshot changes", async () => {
-		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
-			winner: "bob",
-			placements: ["bob", "me"]
-		});
-		const h = harness();
-
-		h.controller.syncState();
-		await flush();
-		expect(partyKeys()).toEqual([
-			expect.stringMatching(/^uni:log\.win/),
-			expect.stringMatching(/^uni:log\.left_behind/)
-		]);
-
-		h.controller.syncState();
-		await flush();
-		expect(partyKeys()).toHaveLength(2);
-	});
-
 	it("logs a win and a place once from the events, then the snapshot adds nothing", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "7" }, "red", {
 			winner: "bob",
@@ -577,9 +526,9 @@ describe("matchEventController play log", () => {
 		});
 		const h = harness();
 
-		h.fire({ seq: 1, kind: "placement", target: "bob", place: 1, isElimination: false });
-		h.fire({ seq: 2, kind: "placement", target: "me", place: 2, isElimination: false });
-		h.fire({ seq: 3, kind: "match_end", target: "bob", targets: ["bob", "me"] });
+		h.fire({ seq: 1, kind: "placement_set", target: "bob", place: 1, isElimination: false });
+		h.fire({ seq: 2, kind: "placement_set", target: "me", place: 2, isElimination: false });
+		h.fire({ seq: 3, kind: "match_ended", target: "bob", targets: ["bob", "me"] });
 		h.controller.syncState();
 		await flush();
 
@@ -597,7 +546,7 @@ describe("matchEventController play log", () => {
 		const h = harness();
 
 		h.controller.syncState();
-		h.fire({ seq: 3, kind: "match_end", target: "bob", targets: ["bob"] });
+		h.fire({ seq: 3, kind: "match_ended", target: "bob", targets: ["bob"] });
 		await flush();
 
 		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.win/)]);

@@ -40,7 +40,7 @@ function handler(action: string): (payload: unknown) => void {
 }
 
 function envelope(sequence: number, id = "round_advance", extra: Record<string, unknown> = {}) {
-	return { action: "match_event", sequence, id, seq: sequence, type: id, payload: {}, ...extra };
+	return { action: "match_event", sequence, id, payload: {}, ...extra };
 }
 
 function snapshot(seqWatermark: number) {
@@ -84,26 +84,6 @@ describe("storeGame snapshot request after a sequence gap", () => {
 		onEvent(envelope(1, "turn_advance"));
 
 		expect(snapshotRequests()).toHaveLength(0);
-	});
-
-	it("reads the new sequence name before the old seq name", () => {
-		const onEvent = handler("match_event");
-		onEvent({
-			action: "match_event",
-			sequence: 4,
-			id: "round_advance",
-			seq: 0,
-			type: "x",
-			payload: {}
-		});
-
-		expect(storeGame.lastSeq).toBe(4);
-	});
-
-	it("reads the old seq name when sequence is absent", () => {
-		handler("match_event")({ action: "match_event", seq: 7, type: "round_advance", payload: {} });
-
-		expect(storeGame.lastSeq).toBe(7);
 	});
 
 	it("sends one request on a real gap and recovers on the snapshot", () => {

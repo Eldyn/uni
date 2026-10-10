@@ -109,15 +109,10 @@ components:
     card_replaced: CardReplacedPayload
     status_applied: StatusAppliedPayload
     status_removed: StatusRemovedPayload
-    window_open: WindowOpenPayload
-    window_response: WindowResponsePayload
-    window_close: WindowClosePayload
     window_opened: WindowOpenedPayload
     window_responded: WindowRespondedPayload
     window_closed: WindowClosedPayload
     auto_played: AutoPlayedPayload
-    prompt_open: PromptOpenPayload
-    prompt_close: PromptClosePayload
     prompt_opened: PromptOpenedPayload
     prompt_answered: PromptAnsweredPayload
     turn_advance: TurnAdvancePayload
@@ -132,13 +127,9 @@ components:
     restriction_removed: RestrictionRemovedPayload
     turn_timer_changed: TurnTimerChangedPayload
     round_advance: RoundAdvancePayload
-    roll_result: RollResultPayload
-    outcome_result: OutcomeResultPayload
     signal: SignalPayload
     visibility_granted: VisibilityGrantedPayload
     visibility_revoked: VisibilityRevokedPayload
-    placement: PlacementPayload
-    match_end: MatchEndPayload
     outcome_rolled: OutcomeRolledPayload
     status_modified: StatusModifiedPayload
     placement_set: PlacementSetPayload
@@ -354,9 +345,9 @@ components:
               MatchInstance::SerializePlayerState(). Structure owned by the match engine.
               Timer fields: `server_now_ms` is the server clock the absolute
               deadlines are measured on (`turn_deadline_ms`, `window.deadline_ms`,
-              `prompts[].deadline_ms`); `window` has the `WindowOpenPayload`
-              shape plus `responses`, and `prompts[]` the `PromptOpenPayload`
-              shape (with `duration_ms`). `prompt_wait` ({deadline_ms,
+              `prompts[].deadline_ms`); `window` has the `WindowOpenedPayload`
+              shape plus `responses`, and `prompts[]` the `PromptOpenedPayload` shape
+              (with `duration_ms`). `prompt_wait` ({deadline_ms,
               duration_ms}, same absolute convention as `prompts[]`) is sent to
               EVERY viewer while any prompt is pending and carries only the
               clock, never the payload or target; it is omitted when no
@@ -604,7 +595,7 @@ components:
       name: match_prompt_response
       title: Prompt Response (generic prompt envelope reply)
       description: >
-        Client response to a prompt opened by a prompt_open event packet.
+        Client response to a prompt opened by a `prompt_opened` event packet.
         `value` is an arbitrary JSON value validated server-side against the
         prompt's response_schema. ADDITIVE: coexists with match_submit_input /
         the Action enum, which the new engine no longer uses.
@@ -615,7 +606,7 @@ components:
       name: match_window_response
       title: Window Response (pass or play a card into the open window)
       description: >
-        Client reply to a `window_open` event packet. `pass`
+        Client reply to a `window_opened` event packet. `pass`
         true declines the window (the Pass button); otherwise
         `card_id` (CompactCardV2.bits) plays a response card. `window_id` is
         informational and currently ignored by the server.
@@ -1254,9 +1245,6 @@ components:
     # x-packet-v1 marker (`x-packet-version: "1"`); new packet ids are added
     # additively.
     #
-    # TODO: `seq` and `type` are the old names of `sequence` and `id`. They
-    #       carry the same values. Remove them when no client reads them.
-    #
     # WARN: `payload` (here, and the same for SignalPayload.payload and
     #       PromptOpenPayload.payload) is intentionally opaque: the external
     #       asyncapi_gencpp maps `additionalProperties: true` to an EMPTY C++
@@ -1314,7 +1302,7 @@ components:
     MatchEventPayload:
       type: object
       x-packet-version: "1"
-      required: [seq, type, payload]
+      required: [sequence, id, payload]
       properties:
         sequence:
           type: integer
@@ -1346,14 +1334,6 @@ components:
           type: integer
           minimum: 0
           description: The round number of the event.
-        seq:
-          type: integer
-          minimum: 0
-          maximum: 4294967295
-          description: Old name of `sequence`. Same value.
-        type:
-          type: string
-          description: Old name of `id`. Same value.
         context:
           $ref: "#/components/schemas/StreakContext"
         replayed:
@@ -1373,8 +1353,7 @@ components:
             `turn` counter). A jump-in and an extra turn raise the counter
             too: an event belongs to the `turn` value that the engine stamped
             at emit time, and it is dropped when the counter next changes. A
-            mod event is `log` by default. The tail holds ONE name of an
-            alias pair (the new name); the live stream sends both.
+            mod event is `log` by default.
         payload:
           type: object
           additionalProperties: true
@@ -1711,33 +1690,27 @@ components:
 
     PlayRejectedPayload:
       type: object
-      x-packet-version: "1"
-      required: [player, reason_id]
+      x-packet-version: "2"
+      required: [target, reason_id]
       properties:
         target:
           $ref: "#/components/schemas/PlayerRef"
           description: >
-            The seat whose play the engine rejected; the generic name of
-            `player`. Only that seat receives the packet.
-        player:
-          $ref: "#/components/schemas/PlayerRef"
+            The seat whose play the engine rejected. Only that seat receives
+            the packet.
         reason_id:
           type: string
 
     CardsDrawnPayload:
       type: object
-      x-packet-version: "1"
-      required: [player, count, source_pile]
+      x-packet-version: "2"
+      required: [target, count, source_pile, hand_size_after, from_debt]
       properties:
         target:
           $ref: "#/components/schemas/PlayerRef"
           description: >
-            The seat that draws. Equals `player`, the name this payload used
-            before the event contract. The envelope `actor` is the seat that
-            caused the draw. The server always sends it.
-        player:
-          $ref: "#/components/schemas/PlayerRef"
-          description: Old name of `target`. Removed with the old guess path.
+            The seat that draws. The envelope `actor` is the seat that caused
+            the draw. The server always sends it.
         count:
           type: integer
           minimum: 0
@@ -1959,94 +1932,12 @@ components:
         instance_id:
           type: integer
 
-    WindowOpenPayload:
-      type: object
-      x-packet-version: "1"
-      required: [deadline_ms, responders, eligible_filter_digest, window_id]
-      properties:
-        kind:
-          type: string
-          pattern: "^[a-z0-9_:.-]{1,32}$"
-          default: generic
-          description: >
-            Presentation tag declared by the window node (for example
-            `jump_in`); `generic` when the node declares none. Identical for
-            every viewer, spectators included. The snapshot's `window` object
-            in `match_state` carries the same field. Equals `kinds[0]`.
-        kinds:
-          type: array
-          description: >
-            Kind of every member of the merged window group, in member order
-            (`kind` is the first). A single window is `["generic"]` or its own
-            kind. Identical for every viewer. The snapshot's `window` object
-            carries the same field.
-          items:
-            type: string
-            pattern: "^[a-z0-9_:.-]{1,32}$"
-        hold_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Length of the group's hold in ms, measured from the open (the fuse
-            line's hold segment). While it runs only the debt victim may pass,
-            and only by drawing. Omitted (or 0) when the group has no hold.
-            Also carried by the snapshot's `window` object.
-        duration_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Total length of the group's clock in ms. In `window_open` it
-            equals `deadline_ms`; the snapshot's `window` object carries it
-            too because there `deadline_ms` is absolute.
-        deadline_ms:
-          type: integer
-          minimum: 0
-          description: >
-            In the `window_open` packet: ms REMAINING at the open. In the
-            snapshot's `window` object: ABSOLUTE epoch ms on the server clock
-            (`match_state.server_now_ms`).
-        responders:
-          type: array
-          items:
-            $ref: "#/components/schemas/PlayerRef"
-        eligible_filter_digest:
-          type: string
-          description: Identical for every viewer of a uniform window (no eligibility leak).
-        window_id:
-          type: string
-
-    WindowResponsePayload:
-      type: object
-      x-packet-version: "1"
-      required: [player]
-      properties:
-        player:
-          $ref: "#/components/schemas/PlayerRef"
-        card:
-          $ref: "#/components/schemas/CompactCardV2"
-        passed:
-          type: boolean
-
-    WindowClosePayload:
-      type: object
-      x-packet-version: "1"
-      required: [outcome]
-      properties:
-        outcome:
-          type: string
-          enum: ["default", "winner"]
-        winner:
-          $ref: "#/components/schemas/PlayerRef"
-        card:
-          $ref: "#/components/schemas/CompactCardV2"
-
     WindowOpenedPayload:
       type: object
       x-packet-version: "1"
       required: [window_id, targets, deadline_ms, eligible_filter_digest]
       description: >
-        The new name of `window_open`. The server sends both while the old
-        name exists. `targets` is the old `responders`.
+        A response window opened. `targets` are the seats that may respond.
       properties:
         window_id:
           type: string
@@ -2080,7 +1971,7 @@ components:
       x-packet-version: "1"
       required: [window_id, target]
       description: >
-        The new name of `window_response`. `target` is the seat that
+        A seat responded to a window. `target` is the seat that
         responded. A losing response hides `card` from every other seat.
       properties:
         window_id:
@@ -2097,7 +1988,7 @@ components:
       x-packet-version: "1"
       required: [window_id, outcome]
       description: >
-        The new name of `window_close`. `target` is the winning seat; it is
+        A response window closed. `target` is the winning seat; it is
         absent when the window closed by default.
       properties:
         window_id:
@@ -2121,35 +2012,6 @@ components:
           $ref: "#/components/schemas/CompactCardV2"
         trigger_summary:
           type: string
-
-    PromptOpenPayload:
-      type: object
-      x-packet-version: "1"
-      required: [prompt_id, kind, payload, response_schema, deadline_ms]
-      properties:
-        duration_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Length of the prompt clock the server enforces, in ms. Present on
-            the `prompt_open` packet and on the snapshot's `prompts` entries.
-            On `prompt_open`, `deadline_ms` is only the op's declared timeout
-            (usually 0, and not what is enforced); the snapshot's
-            `deadline_ms` is ABSOLUTE epoch ms on the server clock. Draw the
-            wait from `duration_ms`.
-        prompt_id:
-          type: string
-        kind:
-          type: string
-        payload:
-          type: object
-          additionalProperties: true
-        response_schema:
-          type: object
-          additionalProperties: true
-        deadline_ms:
-          type: integer
-          minimum: 0
 
     # Generic prompt envelope. Mod manifests declare prompt
     # kinds by this shape; clients render unknown kinds from `response_schema`
@@ -2176,25 +2038,16 @@ components:
         default:
           description: Default value bound on timeout when present.
 
-    PromptClosePayload:
-      type: object
-      x-packet-version: "1"
-      required: [prompt_id, outcome]
-      properties:
-        prompt_id:
-          type: string
-        outcome:
-          type: string
-          enum: ["answered", "timed_out", "cancelled"]
-
     PromptOpenedPayload:
       type: object
       x-packet-version: "1"
       required: [prompt_id, kind, payload, response_schema, deadline_ms]
       description: >
-        The new name of `prompt_open`; the payload is the same. The server
-        sends both while the old name exists. Only the seat that must answer
-        receives it.
+        A prompt opened. Only the seat that must answer receives it.
+        `duration_ms` is the length of the prompt clock that the server
+        enforces; `deadline_ms` is only the op's declared timeout (usually 0).
+        The snapshot's `prompts` entries carry the same fields, with an
+        absolute `deadline_ms` on the server clock.
       properties:
         duration_ms:
           type: integer
@@ -2218,8 +2071,7 @@ components:
       x-packet-version: "1"
       required: [prompt_id, outcome]
       description: >
-        The new name of `prompt_close`; the payload is the same. `outcome`
-        says how the prompt ended: answered, timed out, or cancelled.
+        A prompt ended. `outcome` says how the prompt ended: answered, timed out, or cancelled.
       properties:
         prompt_id:
           type: string
@@ -2405,45 +2257,6 @@ components:
           type: integer
           minimum: 0
 
-    RollResultPayload:
-      type: object
-      x-packet-version: "1"
-      required: [spec, outcomes, roll_counter]
-      properties:
-        spec:
-          type: string
-        outcomes:
-          type: array
-          items:
-            type: integer
-        roll_counter:
-          type: integer
-          minimum: 0
-          description: >-
-            Number of public rolls that this stream has received, counted from
-            1. It is not the engine counter, which also counts hidden draws.
-
-    OutcomeResultPayload:
-      type: object
-      x-packet-version: "1"
-      required: [table, key, value, counter]
-      properties:
-        table:
-          type: string
-          description: Full outcome table id, already namespaced namespace:id.
-        key:
-          type: string
-          description: Full outcome key, already namespaced namespace:key.
-        value:
-          type: integer
-          description: The picked outcome's value (nested roll total when rolled).
-        counter:
-          type: integer
-          minimum: 0
-          description: >-
-            Number of public rolls that this stream has received, counted from
-            1. It is not the engine counter, which also counts hidden draws.
-
     SignalPayload:
       type: object
       x-packet-version: "1"
@@ -2484,7 +2297,7 @@ components:
       x-packet-version: "1"
       required: [roll_ordinal]
       description: >
-        The new name of `roll_result` and `outcome_result`. A dice roll carries
+        A dice roll or an outcome pick happened. A dice roll carries
         `spec` and `outcomes`; an outcome pick carries `table`, `key` and
         `value`. `roll_ordinal` counts the public rolls that this stream has
         received; it is never the engine counter, which also counts hidden
@@ -2531,7 +2344,7 @@ components:
       x-packet-version: "1"
       required: [target, place, is_elimination]
       description: >
-        The new name of `placement`. `is_elimination` is false for a normal
+        A seat finished. `is_elimination` is false for a normal
         finish. No engine path sets it to true yet; it is the seam for a later
         elimination mechanic.
       properties:
@@ -2548,7 +2361,7 @@ components:
       x-packet-version: "1"
       required: [target, targets, final_digest]
       description: >
-        The new name of `match_end`. `target` is the winner (empty when there
+        The match ended. `target` is the winner (empty when there
         is none). `targets` lists every placed seat, best first.
       properties:
         target:
@@ -2557,31 +2370,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PlayerRef"
-        final_digest:
-          type: string
-
-    PlacementPayload:
-      type: object
-      x-packet-version: "1"
-      required: [player, place]
-      properties:
-        player:
-          $ref: "#/components/schemas/PlayerRef"
-        place:
-          type: integer
-          minimum: 1
-
-    MatchEndPayload:
-      type: object
-      x-packet-version: "1"
-      required: [winner, placements, final_digest]
-      properties:
-        winner:
-          $ref: "#/components/schemas/PlayerRef"
-        placements:
-          type: array
-          items:
-            $ref: "#/components/schemas/PlacementPayload"
         final_digest:
           type: string
 

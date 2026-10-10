@@ -3,10 +3,10 @@
 	import { storeAudio } from "$stores/audio.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
-	import type { PromptOpenPayload } from "$lib/generated/schemas";
+	import type { PromptOpenedPayload } from "$lib/generated/schemas";
 	import { autofocus } from "./autofocus";
 
-	let { prompt }: { prompt: PromptOpenPayload } = $props();
+	let { prompt }: { prompt: PromptOpenedPayload } = $props();
 
 	const TYPE_BUTTONS = [
 		{ name: "red" },

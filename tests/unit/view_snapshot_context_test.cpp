@@ -227,12 +227,12 @@ public:
 private:
     void Fold(const json& packet) {
         folded_.last_sequence = packet["sequence"];
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         const json& payload = packet["payload"];
         if (type == "direction_changed") {
             folded_.direction = payload["direction"];
         } else if (type == "cards_drawn" && payload.value("held", false)) {
-            folded_.hold = json{{"player", payload["player"]}, {"held", true}};
+            folded_.hold = json{{"player", payload["target"]}, {"held", true}};
         } else if (type == "drawn_card_kept" || type == "card_played"
                    || type == "turn_advance") {
             folded_.hold = nullptr;
@@ -384,7 +384,7 @@ TEST_CASE("snapshot context: names the sequence of the last client event") {
     const json round =
         json{{"type", "round_advance"}, {"payload", json{{"round", 1}}}};
     const json placement =
-        json{{"type", "placement"},
+        json{{"type", "placement_set"},
              {"payload", json{{"player", "player0"}, {"place", 1}}}};
     REQUIRE(builder.Wrap(round, Viewer::Player("player0"), sink).has_value());
     REQUIRE(builder.Wrap(placement, Viewer::Player("player0"), sink)

@@ -393,7 +393,7 @@ TEST_CASE("outcome_tables: a nested roll becomes the value and consumes twice") 
     CHECK(value >= 2);
     CHECK(value <= 12);
     CHECK(Counter(h.store, match) == 2);
-    const json* event = FindEvent(result, "outcome_result");
+    const json* event = FindEvent(result, "outcome_rolled");
     REQUIRE(event != nullptr);
     CHECK((*event)["payload"]["counter"] == 1);
 }
@@ -558,7 +558,7 @@ TEST_CASE("outcome_tables: projected event carries namespaced ids") {
     AddMatch(h.store, 2);
     const OpResult result =
         h.Invoke("roll_table", json{{"table", "loot"}});
-    const json* event = FindEvent(result, "outcome_result");
+    const json* event = FindEvent(result, "outcome_rolled");
     REQUIRE(event != nullptr);
     const json& payload = (*event)["payload"];
     CHECK(payload["table"] == "test:loot");

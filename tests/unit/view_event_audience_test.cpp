@@ -189,11 +189,11 @@ TEST_CASE("audience: actor, target and owner fields reach only that seat") {
                            {"payload", json::object()}};
     SeatRoles prompt_roles;
     prompt_roles.target = "player1";
-    CHECK(match::view::ProjectForViewer(*engine, "prompt_open", wire,
+    CHECK(match::view::ProjectForViewer(*engine, "prompt_opened", wire,
                                         prompt_roles,
                                         Viewer::Player("player1"))
               .contains("kind"));
-    CHECK(match::view::ProjectForViewer(*engine, "prompt_open", wire,
+    CHECK(match::view::ProjectForViewer(*engine, "prompt_opened", wire,
                                         prompt_roles,
                                         Viewer::Player("player2"))
               .empty());
@@ -250,7 +250,7 @@ TEST_CASE("audience: a hidden card loses its instance bits and handle") {
     SeatRoles prompt_roles;
     prompt_roles.target = "player0";
     const json prompt_seen = match::view::ProjectForViewer(
-        *engine, "prompt_open", prompt, prompt_roles,
+        *engine, "prompt_opened", prompt, prompt_roles,
         Viewer::Player("player0"));
     const json& candidates = prompt_seen["payload"]["candidates"];
     REQUIRE(candidates.size() == 2);
@@ -272,7 +272,7 @@ TEST_CASE("audience: the roll counter does not count hidden random draws") {
 
     const auto roll = [&](int engine_counter) {
         return builder.Wrap(
-            json{{"type", "roll_result"},
+            json{{"type", "outcome_rolled"},
                  {"payload", json{{"spec", json{{"sides", 6}}},
                                   {"outcomes", json::array({3})},
                                   {"counter", engine_counter}}}},
@@ -282,18 +282,18 @@ TEST_CASE("audience: the roll counter does not count hidden random draws") {
     const std::optional<json> second = roll(97);
     REQUIRE(first.has_value());
     REQUIRE(second.has_value());
-    CHECK((*first)["payload"]["roll_counter"] == 1);
-    CHECK((*second)["payload"]["roll_counter"] == 2);
+    CHECK((*first)["payload"]["roll_ordinal"] == 1);
+    CHECK((*second)["payload"]["roll_ordinal"] == 2);
 
     const std::optional<json> pick = builder.Wrap(
-        json{{"type", "outcome_result"},
+        json{{"type", "outcome_rolled"},
              {"payload", json{{"table", "uni:t"},
                               {"key", "uni:k"},
                               {"value", 1},
                               {"counter", 311}}}},
         Viewer::Player("player1"), sink);
     REQUIRE(pick.has_value());
-    CHECK((*pick)["payload"]["counter"] == 3);
+    CHECK((*pick)["payload"]["roll_ordinal"] == 3);
     CHECK(pick->dump().find("311") == std::string::npos);
 }
 
@@ -307,7 +307,7 @@ TEST_CASE("audience: a losing window response hides its card from others") {
     MoveToHand(*engine, player1, card);
 
     const auto response = [&](const std::string& outcome) {
-        return json{{"type", "window_response"},
+        return json{{"type", "window_responded"},
                     {"payload", json{{"window", 7},
                                      {"player", "player1"},
                                      {"card", EntityRef(card)},

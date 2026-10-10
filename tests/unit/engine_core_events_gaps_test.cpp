@@ -207,6 +207,33 @@ std::unique_ptr<MatchInstance> MakeRollerEngine(
 
 }  // namespace
 
+TEST_CASE("outcome_rolled: only a dice roll fires the roll hook") {
+    std::vector<LoadedMod> mods;
+    std::unique_ptr<MatchInstance> engine = MakeRollerEngine(mods);
+    // INFO: a big engine counter shows that the wire never carries it.
+    engine->Store()
+        .Get<ecs::RngState>(engine->Registries().match)
+        ->op_counter = kEngineCounterStart;
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    ecs::Entity roller{};
+    for (ecs::Entity card : engine->Registries().cards) {
+        const ecs::CardIdentity* identity =
+            engine->Store().Get<ecs::CardIdentity>(card);
+        if (identity != nullptr && identity->kind_id == "base:roller") {
+            roller = card;
+            break;
+        }
+    }
+    ForceHand(*engine, player0, {roller});
+    ForceHand(*engine, *engine->FindPlayer("player1"), {});
+    int roll_hooks = 0;
+    engine->Assembly().bus.Subscribe(
+        "base", 0, ecs::HookId{"roll", ecs::HookPhase::kAfter},
+        [&roll_hooks](ecs::HookPayload&) { ++roll_hooks; });
+    REQUIRE(engine->PlayCard("player0", roller));
+    CHECK(roll_hooks == 1);
+}
+
 TEST_CASE("outcome_rolled: real roll and roll_table ops, order and ordinal") {
     std::vector<LoadedMod> mods;
     std::unique_ptr<MatchInstance> engine = MakeRollerEngine(mods);
@@ -231,13 +258,9 @@ TEST_CASE("outcome_rolled: real roll and roll_table ops, order and ordinal") {
     std::vector<std::string> order;
     for (const json& event : engine->Events()) {
         const std::string type = event.value("type", std::string());
-        if (type == "roll_result" || type == "outcome_result"
-            || type == "outcome_rolled") {
-            order.push_back(type);
-        }
+        if (type == "outcome_rolled") order.push_back(type);
     }
-    CHECK(order == std::vector<std::string>{"roll_result", "outcome_rolled",
-                                            "outcome_result",
+    CHECK(order == std::vector<std::string>{"outcome_rolled",
                                             "outcome_rolled"});
 
     ViewBuilder builder(*engine, mods);
@@ -250,20 +273,14 @@ TEST_CASE("outcome_rolled: real roll and roll_table ops, order and ordinal") {
                 builder.Wrap(event, viewer, sink);
             if (!packet.has_value()) continue;
             const std::string id = (*packet)["id"].get<std::string>();
-            if (id == "roll_result" || id == "outcome_result"
-                || id == "outcome_rolled") {
-                packets.push_back(*packet);
-            }
+            if (id == "outcome_rolled") packets.push_back(*packet);
         }
-        REQUIRE(packets.size() == 4);
-        CHECK(packets[0]["payload"]["roll_counter"] == 1);
-        CHECK(packets[1]["payload"]["roll_ordinal"] == 1);
-        CHECK(packets[2]["payload"]["counter"] == 2);
-        CHECK(packets[3]["payload"]["roll_ordinal"] == 2);
-        CHECK(packets[1]["payload"]["outcomes"]
-              == packets[0]["payload"]["outcomes"]);
-        CHECK(packets[3]["payload"]["table"] == "base:loot");
-        for (const json& new_packet : {packets[1], packets[3]}) {
+        REQUIRE(packets.size() == 2);
+        CHECK(packets[0]["payload"]["roll_ordinal"] == 1);
+        CHECK(packets[0]["payload"].contains("outcomes"));
+        CHECK(packets[1]["payload"]["roll_ordinal"] == 2);
+        CHECK(packets[1]["payload"]["table"] == "base:loot");
+        for (const json& new_packet : {packets[0], packets[1]}) {
             const std::string text = new_packet.dump();
             CHECK_FALSE(new_packet["payload"].contains("counter"));
             CHECK_FALSE(new_packet["payload"].contains("roll_counter"));
@@ -380,7 +397,7 @@ TEST_CASE("window_responded: a real losing response hides the card") {
     const leak_scanner::HiddenCard hidden{mine[2], lost_identity->bits};
 
     ViewBuilder builder(*engine, content.mods);
-    for (const std::string type : {"window_response", "window_responded"}) {
+    for (const std::string type : {"window_responded", "window_responded"}) {
         CAPTURE(type);
         json lost;
         for (const json& event : EventsOfType(*engine, type)) {
@@ -429,7 +446,7 @@ TEST_CASE("cause: the memory still maps a cause after many doubled events") {
     int64_t middle_id = 0;
     uint32_t middle_sequence = 0;
     for (int pair = 0; pair < kPairs; ++pair) {
-        const std::optional<json> old_name = wrap("window_open", 0);
+        const std::optional<json> old_name = wrap("window_opened", 0);
         recent_id = event_id;
         recent_sequence = (*old_name)["sequence"].get<uint32_t>();
         if (pair == kPairs / 2) {
@@ -515,7 +532,7 @@ TEST_CASE("match_ended: the digest equals the digest of match_end") {
          {Viewer::Player("player1"), Viewer::PublicSpectator()}) {
         EventSink sink;
         const std::optional<json> old_packet = builder.Wrap(
-            EventsOfType(*engine, "match_end")[0], viewer, sink);
+            EventsOfType(*engine, "match_ended")[0], viewer, sink);
         const std::optional<json> new_packet = builder.Wrap(
             EventsOfType(*engine, "match_ended")[0], viewer, sink);
         REQUIRE(old_packet.has_value());

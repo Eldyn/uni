@@ -90,7 +90,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function snapshot(currentPlayer: string, extra: Record<string, unknown> = {}) {
@@ -136,7 +136,14 @@ describe("storeGame match analytics", () => {
 			frame(3, "auto_played", { player: "bob", card: 3, trigger_summary: "auto" })
 		);
 		handler("match_event")(
-			frame(4, "cards_drawn", { player: "alice", count: 2, source_pile: "draw", cards: [4, 5] })
+			frame(4, "cards_drawn", {
+				target: "alice",
+				count: 2,
+				hand_size_after: 5,
+				from_debt: false,
+				source_pile: "draw",
+				cards: [4, 5]
+			})
 		);
 
 		handler("match_over")({ winner: "alice" });

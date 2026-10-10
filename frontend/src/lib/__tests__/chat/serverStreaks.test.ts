@@ -10,9 +10,7 @@ const keys = (lines: LogLine[]) => lines.map((line) => line.key);
 function skipEntry(sequence: number, target: string, run: number): TailEnvelope {
 	return {
 		sequence,
-		seq: sequence,
 		id: "turn_skipped",
-		type: "turn_skipped",
 		replayed: true,
 		payload: { target },
 		context: { "uni:skip_run": run }
@@ -22,9 +20,7 @@ function skipEntry(sequence: number, target: string, run: number): TailEnvelope 
 function reverseEntry(sequence: number, run: number): TailEnvelope {
 	return {
 		sequence,
-		seq: sequence,
 		id: "direction_changed",
-		type: "direction_changed",
 		replayed: true,
 		payload: { direction: -1 },
 		context: { "uni:reverse_run": run }
@@ -168,11 +164,11 @@ describe("late join parity of the skip and reverse runs", () => {
 			if (entry.id === "turn_skipped") {
 				emitter.noteSkipped({
 					target: String(entry.payload.target),
-					seq: entry.seq,
+					seq: entry.sequence,
 					context: entry.context
 				});
 			} else {
-				emitter.noteDirection({ direction: -1, seq: entry.seq, context: entry.context });
+				emitter.noteDirection({ direction: -1, seq: entry.sequence, context: entry.context });
 			}
 		}
 		await flush();

@@ -113,13 +113,11 @@ TEST_CASE("event tail: a transient event is never stored") {
     EventTail tail(10);
     tail.Record(EngineEvent("reshuffle", 1));
     tail.Record(EngineEvent("window_opened", 1));
-    tail.Record(EngineEvent("window_open", 1));
     CHECK(tail.Entries().empty());
 }
 
-TEST_CASE("event tail: the old name of an alias pair is not stored") {
+TEST_CASE("event tail: a match end is stored one time") {
     EventTail tail(10);
-    tail.Record(EngineEvent("match_end", 3));
     tail.Record(EngineEvent("match_ended", 3));
     CHECK(StoredTypes(tail) == std::vector<std::string>{"match_ended"});
 }

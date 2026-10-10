@@ -18,7 +18,7 @@
  * and wraps it through the `EventSink`. The `all`-visibility rows are
  * delegated to `ProjectPublicEvent`; the filtered rows are built here:
  *
- * - `play_rejected`, `prompt_open`, `prompt_close`: target player only.
+ * - `play_rejected`, `prompt_opened`, `prompt_answered`: target player only.
  * - `cards_drawn`: the owner gets card identities when the descriptor carries
  *   them; every other viewer gets `count` only.
  * - `status_applied` / `status_removed`: a status whose definition is
@@ -203,16 +203,16 @@ public:
                              const EventTail& tail) const;
 
     /**
-     * @brief Synthesize a `prompt_open` for the viewer's parked op input.
+     * @brief Synthesize a `prompt_opened` for the viewer's parked op input.
      *
-     * The engine has no `prompt_open` descriptor yet (`kNeedsInput` parks the
+     * The engine has no `prompt_opened` descriptor yet (`kNeedsInput` parks the
      * pause); this is the seam that turns `PendingInput` into the
      * packet for the target player only. Returns `nullopt` for any other
      * viewer or when no input is parked.
      *
      * @param viewer Recipient to build for.
      * @param sink   Per-recipient sequence source.
-     * @return The `prompt_open` envelope, or `nullopt`.
+     * @return The `prompt_opened` envelope, or `nullopt`.
      */
     std::optional<nlohmann::json> BuildPendingPrompt(
         const Viewer& viewer, EventSink& sink) const;

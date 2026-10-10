@@ -1553,7 +1553,7 @@ TEST_CASE("leave: a seated player leaving during the ready barrier opens it") {
         if (frame.to != f.bob_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) == "match_event"
-            && packet.value("type", std::string()) == "match_begin") {
+            && packet.value("id", std::string()) == "match_begin") {
             bob_saw_begin = true;
         }
     }
@@ -1635,7 +1635,7 @@ TEST_CASE("reconnect: a closed barrier sends players_ready, not match_begin, and
         if (frame.to != f.alice_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "players_ready") {
             alice_saw_players_ready = true;
             ready_seen = packet["payload"].value("ready", -1);
@@ -1676,7 +1676,7 @@ TEST_CASE("reconnect: an open barrier sends match_begin") {
         if (frame.to != f.alice_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "match_begin") alice_saw_match_begin = true;
         if (type == "players_ready") alice_saw_players_ready = true;
     }

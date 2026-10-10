@@ -212,7 +212,7 @@ bool SetHandOrder(ecs::EntityStore& store, ecs::Entity player,
 /**
  * @brief Build `{ "type": type, "payload": payload }` for `OpResult.events`.
  *
- * No `seq`; the view layer assigns ordering. `effects` stay reserved and empty.
+ * No `sequence`; the view layer assigns ordering. `effects` stay reserved and empty.
  */
 nlohmann::json MakeEvent(std::string_view type,
                          nlohmann::json payload = nlohmann::json::object());

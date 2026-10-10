@@ -174,18 +174,18 @@ TEST_CASE("view event sink: seq is monotonic and never reused") {
     const json second = sink.Wrap("b", json::object());
     const json third = sink.Wrap("c", json::object());
 
-    CHECK(first["seq"] == 0u);
-    CHECK(second["seq"] == 1u);
-    CHECK(third["seq"] == 2u);
-    CHECK(first["type"] == "a");
+    CHECK(first["sequence"] == 0u);
+    CHECK(second["sequence"] == 1u);
+    CHECK(third["sequence"] == 2u);
+    CHECK(first["id"] == "a");
     CHECK(second["payload"].is_object());
     CHECK(sink.NextSeq() == 3u);
 
     // INFO: a filtered-out event is simply never wrapped; the next emitted
     //       packet keeps the unbroken sequence (drop but never renumber).
     sink.Reset();
-    CHECK(sink.Wrap("a", json::object())["seq"] == 0u);
-    CHECK(sink.Wrap("b", json::object())["seq"] == 1u);
+    CHECK(sink.Wrap("a", json::object())["sequence"] == 0u);
+    CHECK(sink.Wrap("b", json::object())["sequence"] == 1u);
     CHECK(sink.NextSeq() == 2u);
 }
 
@@ -240,13 +240,13 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*round)["round"] == 2);
 
     const std::optional<json> placement = match::view::ProjectPublicEvent(
-        "placement", json{{"player", "player0"}, {"place", 1}}, *engine);
+        "placement_set", json{{"player", "player0"}, {"place", 1}}, *engine);
     REQUIRE(placement.has_value());
-    CHECK((*placement)["player"] == "player0");
+    CHECK((*placement)["target"] == "player0");
     CHECK((*placement)["place"] == 1);
 
     const std::optional<json> roll = match::view::ProjectPublicEvent(
-        "roll_result",
+        "outcome_rolled",
         json{{"spec", json{{"sides", 6}}}, {"outcomes", json::array({3, 5})},
              {"counter", 7}},
         *engine);
@@ -254,7 +254,7 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*roll)["spec"].get<std::string>().find("sides")
           != std::string::npos);
     CHECK((*roll)["outcomes"].size() == 2);
-    CHECK((*roll)["roll_counter"] == 0);
+    CHECK((*roll)["roll_ordinal"] == 0);
 
     // INFO: `signal` is NOT an `all`-visibility row: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder` per
@@ -367,17 +367,17 @@ TEST_CASE("view event sink: a played card and turn wrap gap-free") {
 
     REQUIRE_FALSE(envelopes.empty());
     for (std::size_t i = 0; i < envelopes.size(); ++i) {
-        CHECK(envelopes[i]["seq"] == static_cast<int>(i));
+        CHECK(envelopes[i]["sequence"] == static_cast<int>(i));
     }
     bool saw_played = false;
     bool saw_turn = false;
     for (const json& envelope : envelopes) {
-        if (envelope["type"] == "card_played") {
+        if (envelope["id"] == "card_played") {
             saw_played = true;
             CHECK(envelope["payload"]["player"] == "player0");
             CHECK(envelope["payload"]["card"].is_number_unsigned());
         }
-        if (envelope["type"] == "turn_advance") {
+        if (envelope["id"] == "turn_advance") {
             saw_turn = true;
             CHECK(envelope["payload"]["to"] == "player1");
         }
@@ -402,12 +402,11 @@ TEST_CASE("view event sink: match_end carries winner and placements") {
     REQUIRE(engine->IsMatchOver());
 
     const std::optional<json> end = match::view::ProjectPublicEvent(
-        "match_end", json::object(), *engine);
+        "match_ended", json::object(), *engine);
     REQUIRE(end.has_value());
-    CHECK((*end)["winner"] == "player0");
-    REQUIRE((*end)["placements"].size() == 1);
-    CHECK((*end)["placements"][0]["player"] == "player0");
-    CHECK((*end)["placements"][0]["place"] == 1);
+    CHECK((*end)["target"] == "player0");
+    REQUIRE((*end)["targets"].size() == 1);
+    CHECK((*end)["targets"][0] == "player0");
     CHECK((*end)["final_digest"].get<std::string>().size() == 16);
 }
 

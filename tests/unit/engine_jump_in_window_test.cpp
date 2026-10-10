@@ -296,7 +296,7 @@ TEST_CASE("engine jump_in: gate window is kind jump_in and 800 ms") {
     REQUIRE(engine->WindowOpen());
 
     // INFO: the mod's integer `duration` overrides the 1000 ms env window.
-    const json* opened = FindEvent(*engine, "window_open");
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == 800);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -329,16 +329,16 @@ TEST_CASE("engine jump_in: a timeout with a winner resolves once") {
     //       winner recorded until its 800 ms duration elapses.
     REQUIRE(engine->RespondWindow("player2", *jumper_card));
     CHECK(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 0);
+    CHECK(CountEvents(*engine, "window_closed") == 0);
 
     clock.now = 800;
     engine->Tick();
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player2");
 
     engine->Tick();
     engine->Tick();
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player2");
 }

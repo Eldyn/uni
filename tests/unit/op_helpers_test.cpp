@@ -274,7 +274,7 @@ TEST_CASE("op_helpers: MakeEvent builds the event descriptor") {
     const json event = MakeEvent("cards_drawn", json{{"n", 2}});
     CHECK(event["type"] == "cards_drawn");
     CHECK(event["payload"]["n"] == 2);
-    CHECK_FALSE(event.contains("seq"));
+    CHECK_FALSE(event.contains("sequence"));
 
     const json bare = MakeEvent("reshuffle");
     CHECK(bare["type"] == "reshuffle");
