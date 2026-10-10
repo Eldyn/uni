@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
+import { prepareCoreTexts } from "./coreTextsHarness";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
 
 describe("Glossary tags", () => {
+	beforeEach(async () => {
+		await prepareCoreTexts("en");
+	});
+
 	it("returns tags for registered keywords", () => {
 		const turnEntry = getGlossaryEntry("uni:turn", "en");
 		expect(turnEntry).not.toBeNull();

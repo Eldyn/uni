@@ -177,6 +177,22 @@ json TextsListing(const std::vector<match::modload::LoadedMod>& mods,
 
 }  // namespace
 
+nlohmann::json DefsBuilder::BuildTextListing(
+    const std::vector<match::modload::LoadedMod>& mods) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        const std::string& mod_id = loaded.manifest.id;
+        json mod_json = json{{"id", mod_id}};
+        json texts = TextsListing(mods, mod_id);
+        json glossary = GlossaryListing(mods, mod_id);
+        if (texts.empty() && glossary.empty()) continue;
+        if (!texts.empty()) mod_json["texts"] = std::move(texts);
+        if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
+        listing.push_back(std::move(mod_json));
+    }
+    return listing;
+}
+
 nlohmann::json DefsBuilder::Build(
     const match::engine::MatchRegistries& registries,
     const std::vector<match::modload::LoadedMod>& mods) {

@@ -4,6 +4,11 @@ import TooltipStack from "$components/common/TooltipStack.svelte";
 import Tooltip from "$components/common/Tooltip.svelte";
 import RichText from "$components/common/RichText.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("TooltipStack component", () => {
 	beforeEach(() => {

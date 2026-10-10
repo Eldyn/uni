@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 function rect(left: number, top: number, width: number, height: number) {
 	return {

@@ -33,6 +33,11 @@ import ChatLog from "$components/chat/ChatLog.svelte";
 import { chatStore } from "$lib/stores/chat.svelte";
 import { storeLobby } from "$lib/stores/lobby.svelte";
 import { storeI18n } from "$lib/stores/i18n.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 const DEFAULT_LOCALE = "en";
 

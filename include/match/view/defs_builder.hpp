@@ -49,6 +49,19 @@ public:
         const std::vector<match::modload::LoadedMod>& mods);
 
     /**
+     * @brief The text listing of the loaded mods, for use outside a match.
+     *
+     * The lobby shows glossary tooltips before any `defs` packet exists, so
+     * the `metadata` response carries the same `texts` and `glossary`
+     * listings that `Build` puts on each `mods` entry.
+     *
+     * @param mods Loaded mods.
+     * @return Array of `{id, texts?, glossary?}`; a mod with neither is left out.
+     */
+    static nlohmann::json BuildTextListing(
+        const std::vector<match::modload::LoadedMod>& mods);
+
+    /**
      * @brief Recompute the FNV-1a digest a `defs` payload advertises.
      *
      * Digests the `mods` + `kinds` + `entities` + `presentations` + `events`

@@ -14,6 +14,7 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/modload/asset_index.hpp>
 #include <match/modload/semantic_validator.hpp>
+#include <match/view/defs_builder.hpp>
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
@@ -1109,12 +1110,14 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
     //       (`uni`) is always on, so it is not offered as a
     //       toggleable rule.
     json available_rules = json::array();
+    json mod_texts = json::array();
     const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
     const match::modload::LoadResult& loaded = snapshot->loaded;
     if (loaded.fatal()) {
         Logger::Warn("[Lobby] Metadata: mods root unreadable for '", mods_root_,
                      "'");
     } else {
+        mod_texts = match::view::DefsBuilder::BuildTextListing(loaded.mods);
         for (const auto& mod : loaded.mods) {
             if (match::modload::IsBaseModId(mod.manifest.id)) continue;
             available_rules.push_back({
@@ -1127,6 +1130,7 @@ void LobbyController::HandleGetMetadata(WsContext ctx, const json& message) {
 
     auto resp = MakeResponse(ws::ServerAction::kMetadata, request_id);
     resp["available_rules"] = std::move(available_rules);
+    resp["mods"] = std::move(mod_texts);
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 

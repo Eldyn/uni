@@ -1,0 +1,10 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": {
+      "uni:identifier": "uni:discard_pile"
+    },
+    "uni:label_key": "uni:glossary.discard_pile.label",
+    "uni:description_key": "uni:glossary.discard_pile.description"
+  }
+}

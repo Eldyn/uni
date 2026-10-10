@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "Ziehen",
+      "description": "Nimm eine oder mehrere Karten vom [k=uni:draw_pile]Nachziehstapel[/k] auf die Hand.",
+      "tags": [
+        {
+          "label": "Aktion",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] seinen Zug verlieren.",
+      "tags": [
+        {
+          "label": "Aktion",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "Richtungswechsel",
+      "description": "Kehrt die Spielrichtung um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k].",
+      "tags": [
+        {
+          "label": "Aktion",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "Farbenwahl",
+      "description": "Kann auf jede Karte gelegt werden. Der Spieler wählt die aktive [k=uni:color]Farbe[/k].",
+      "tags": [
+        {
+          "label": "Aktion",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "Zug",
+      "description": "Die Gelegenheit eines Spielers, eine gültige Karte zu [k=uni:play]spielen[/k] oder zu [k=uni:draw]ziehen[/k].",
+      "tags": [
+        {
+          "label": "Verlauf",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "Farbe",
+      "description": "Die aktive Farbe (Rot, Blau, Grün, Gelb), die gültige Züge bestimmt."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "Nachziehstapel",
+      "description": "Der zentrale Stapel, von dem Spieler Karten [k=uni:draw]ziehen[/k], wenn sie nicht legen können oder wollen.",
+      "tags": [
+        {
+          "label": "Stapel",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "Ablagestapel",
+      "description": "Der Stapel, auf den gespielte Karten offen abgelegt werden.",
+      "tags": [
+        {
+          "label": "Stapel",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "Legen",
+      "description": "Lege eine passende Karte aus deiner Hand auf den [k=uni:discard_pile]Ablagestapel[/k].",
+      "tags": [
+        {
+          "label": "Aktion",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "7-0-Regel",
+      "description": "Eine 7 erlaubt den Handkartentausch mit einem beliebigen Spieler. Eine 0 rotiert alle Hände in [k=uni:turn]Zugrichtung[/k].",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "Zieh-Ketten",
+      "description": "+2- oder +4-Karten sammeln, um die aufgelaufene [k=uni:draw]Zieh[/k]-Strafe an den nächsten Spieler weiterzugeben.",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "Spielzwang",
+      "description": "Wird eine spielbare Karte gezogen, muss sie sofort gespielt werden.",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "Dazwischenlegen",
+      "description": "Spiele außer der Reihe, wenn du exakt dieselbe Karte (gleiche Farbe und gleicher Wert) wie die oberste Karte hast.",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "Fortlaufend",
+      "description": "Karten mit demselben Wert wie die oberste Karte können im selben [k=uni:turn]Zug[/k] aneinandergehängt werden.",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "Wettkampf",
+      "description": "Die ersten Spieler, die ihre Hand leeren, gewinnen. Das Spiel endet, sobald genug fertig sind; alle anderen verlieren.",
+      "tags": [
+        {
+          "label": "Regel",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "Farbenwahl Zieh 4 (+4)",
+      "description": "Wähle die aktive [k=uni:color]Farbe[/k]. Der nächste Spieler muss 4 Karten [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:blue_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:blue_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:blue_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:green_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:green_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:green_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:red_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:red_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:red_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:wild": {
+      "title": "Farbenwahl",
+      "description": "Eine [k=uni:wild]Farbenwahl[/k]-Karte, die auf jede Karte gespielt werden kann. Wähle die aktive [k=uni:color]Farbe[/k]."
+    },
+    "uni:wild_draw4": {
+      "title": "Farbenwahl Zieh 4 (+4)",
+      "description": "Wähle die aktive [k=uni:color]Farbe[/k]. Der nächste Spieler muss 4 Karten [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "uni:yellow_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "uni:yellow_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "uni:yellow_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "blue_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "blue_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "blue_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "green_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "green_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "green_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "red_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "red_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "red_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "wild": {
+      "title": "Farbenwahl",
+      "description": "Eine [k=uni:wild]Farbenwahl[/k]-Karte, die auf jede Karte gespielt werden kann. Wähle die aktive [k=uni:color]Farbe[/k]."
+    },
+    "wild_draw4": {
+      "title": "Farbenwahl Zieh 4 (+4)",
+      "description": "Wähle die aktive [k=uni:color]Farbe[/k]. Der nächste Spieler muss 4 Karten [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]aussetzen[/k]."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "Zahlenkarte 0. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, rotieren alle Hände in [k=uni:turn]Zugrichtung[/k]."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "Zahlenkarte 7. Wenn die [k=uni:seven_zero]7-0[/k]-Regel aktiv ist, tausche die Hand mit einem beliebigen Spieler."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "Zahlenkarte. Passt nach [k=uni:color]Farbe[/k] oder Zahl, um auf den [k=uni:discard_pile]Ablagestapel[/k] [k=uni:play]gelegt[/k] zu werden."
+    },
+    "yellow_draw2": {
+      "title": "Zieh 2 (+2)",
+      "description": "Zwingt den nächsten Spieler, 2 Karten vom [k=uni:draw_pile]Nachziehstapel[/k] zu [k=uni:draw]ziehen[/k] und seinen [k=uni:turn]Zug[/k] [k=uni:skip]auszusetzen[/k]."
+    },
+    "yellow_reverse": {
+      "title": "Richtungswechsel",
+      "description": "[k=uni:reverse]Kehrt[/k] die [k=uni:play]Spielrichtung[/k] um. Bei 2 Spielern wirkt es wie ein [k=uni:skip]Aussetzen[/k]."
+    },
+    "yellow_skip": {
+      "title": "Aussetzen",
+      "description": "Lässt den nächsten Spieler in der [k=uni:turn]Zugreihenfolge[/k] [k=uni:skip]aussetzen[/k]."
+    }
+  }
+}

@@ -4,6 +4,11 @@ import { createRawSnippet } from "svelte";
 import TooltipHarness from "./TooltipHarness.svelte";
 import Tooltip from "$components/common/Tooltip.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("Tooltip static pixel popover", () => {
 	beforeEach(() => {

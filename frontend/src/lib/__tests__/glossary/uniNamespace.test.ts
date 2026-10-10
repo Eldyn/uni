@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { prepareCoreTexts } from "./coreTextsHarness";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
 
 const messageFiles = import.meta.glob<string>("../../../../messages/*.json", {
@@ -8,6 +9,10 @@ const messageFiles = import.meta.glob<string>("../../../../messages/*.json", {
 });
 
 describe("uni namespace in glossary keywords", () => {
+	beforeEach(async () => {
+		await prepareCoreTexts("en");
+	});
+
 	it("resolves a uni keyword to an entry that keeps the uni id", () => {
 		expect(getGlossaryEntry("uni:draw")?.id).toBe("uni:draw");
 	});

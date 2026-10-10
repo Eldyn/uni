@@ -28,7 +28,7 @@ const CARD_NAME_PARAM = "cardName";
 function withCardName(params: LogLine["params"], options: LogTextOptions): LogLine["params"] {
 	const kind = params[KIND_PARAM];
 	if (typeof kind !== "string" || CARD_NAME_PARAM in params) return params;
-	const info = cardInfoByKind(kind, options.locale);
+	const info = cardInfoByKind(kind);
 	return { [CARD_NAME_PARAM]: info?.title ?? kind, ...params };
 }
 

@@ -22,7 +22,10 @@ class StoreModGlossary {
 
 	#registry = new ModGlossary();
 
-	ingestDefs(payload: unknown): void {
+	#catalog: unknown = undefined;
+	#inMatch = false;
+
+	#install(payload: unknown): void {
 		const mods =
 			typeof payload === "object" && payload !== null
 				? (payload as { mods?: unknown }).mods
@@ -31,7 +34,24 @@ class StoreModGlossary {
 		this.revision += 1;
 	}
 
+	/** Installs the listing of the lobby `metadata` response, unless a match runs. */
+	ingestCatalog(payload: unknown): void {
+		this.#catalog = payload;
+		if (!this.#inMatch) this.#install(payload);
+	}
+
+	ingestDefs(payload: unknown): void {
+		this.#inMatch = true;
+		this.#install(payload);
+	}
+
+	/** Ends the match listing. The catalog listing returns, when the lobby loaded one. */
 	clear(): void {
+		this.#inMatch = false;
+		if (this.#catalog !== undefined) {
+			this.#install(this.#catalog);
+			return;
+		}
 		this.#registry.clear();
 		this.revision += 1;
 	}
@@ -59,6 +79,7 @@ class StoreModGlossary {
 
 	/** Used by tests. */
 	reset(): void {
+		this.#catalog = undefined;
 		this.clear();
 	}
 }

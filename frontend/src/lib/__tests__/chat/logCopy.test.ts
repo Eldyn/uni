@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { resolveLogText } from "../../chat/playLog/logText";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
 import type { LogEvent, StreakValues } from "../../chat/playLog/logEvent";
 import type { ReactionContext } from "../../chat/playLog/reactionContext";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 const localeCatalogs = import.meta.glob<Record<string, string>>("../../../../messages/*.json", {
 	eager: true,

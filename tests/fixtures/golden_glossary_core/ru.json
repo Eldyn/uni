@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "Добор",
+      "description": "Возьмите одну или несколько карт из [k=uni:draw_pile]колоды добора[/k] в руку.",
+      "tags": [
+        {
+          "label": "Действие",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "Пропуск",
+      "description": "Следующий игрок по [k=uni:turn]очереди хода[/k] теряет свой ход.",
+      "tags": [
+        {
+          "label": "Действие",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "Реверс",
+      "description": "Меняет направление игры. В матче на 2 игроков действует как [k=uni:skip]пропуск[/k].",
+      "tags": [
+        {
+          "label": "Действие",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "Дикая",
+      "description": "Можно сыграть на любую карту. Игрок выбирает активный [k=uni:color]цвет[/k].",
+      "tags": [
+        {
+          "label": "Действие",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "Ход",
+      "description": "Возможность игрока [k=uni:play]сыграть[/k] подходящую карту или [k=uni:draw]взять[/k] карту.",
+      "tags": [
+        {
+          "label": "Поток",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "Цвет",
+      "description": "Активная масть (красный, синий, зелёный, жёлтый), определяющая допустимые ходы."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "Колода добора",
+      "description": "Центральная колода, из которой игроки [k=uni:draw]берут[/k] карты, когда не могут или не хотят играть.",
+      "tags": [
+        {
+          "label": "Стопка",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "Колода сброса",
+      "description": "Стопка, куда сыгранные карты кладутся лицом вверх.",
+      "tags": [
+        {
+          "label": "Стопка",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "Игра",
+      "description": "Положите подходящую карту из руки на [k=uni:discard_pile]колоду сброса[/k].",
+      "tags": [
+        {
+          "label": "Действие",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "Правило 7-0",
+      "description": "Сыграв 7, можно обменяться руками с любым игроком. Сыграв 0, все руки передаются по направлению [k=uni:turn]хода[/k].",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "Накопление добора",
+      "description": "Накладывайте карты +2 или +4, чтобы передать накопленный штраф [k=uni:draw]добора[/k] следующему игроку.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "Обязательная игра",
+      "description": "Взяв из колоды играбельную карту, вы обязаны сразу её сыграть.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "Вклинивание",
+      "description": "Играйте вне очереди, если у вас есть абсолютно идентичная карта (тот же цвет и номинал), что и верхняя карта.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "Прогрессив",
+      "description": "Карты, совпадающие по номиналу с верхней картой, можно выстраивать цепочкой в один и тот же [k=uni:turn]ход[/k].",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "Соревнование",
+      "description": "Первые игроки, опустошившие руку, побеждают. Матч заканчивается, когда финишируют достаточно игроков, а все остальные проигрывают.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "Дикая возьми четыре (+4)",
+      "description": "Выберите активный [k=uni:color]цвет[/k]. Следующий игрок должен [k=uni:draw]взять[/k] 4 карты и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:blue_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:blue_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:blue_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:green_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:green_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:green_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:red_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:red_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:red_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "uni:wild": {
+      "title": "Дикая",
+      "description": "[k=uni:wild]Дикая[/k] карта, которую можно сыграть на любую карту. Выберите активный [k=uni:color]цвет[/k]."
+    },
+    "uni:wild_draw4": {
+      "title": "Дикая возьми четыре (+4)",
+      "description": "Выберите активный [k=uni:color]цвет[/k]. Следующий игрок должен [k=uni:draw]взять[/k] 4 карты и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "uni:yellow_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "uni:yellow_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "uni:yellow_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "blue_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "blue_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "blue_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "green_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "green_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "green_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "red_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "red_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "red_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    },
+    "wild": {
+      "title": "Дикая",
+      "description": "[k=uni:wild]Дикая[/k] карта, которую можно сыграть на любую карту. Выберите активный [k=uni:color]цвет[/k]."
+    },
+    "wild_draw4": {
+      "title": "Дикая возьми четыре (+4)",
+      "description": "Выберите активный [k=uni:color]цвет[/k]. Следующий игрок должен [k=uni:draw]взять[/k] 4 карты и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "Числовая карта 0. Если правило [k=uni:seven_zero]7-0[/k] активно, все руки передаются по направлению [k=uni:turn]хода[/k]."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "Числовая карта 7. Если правило [k=uni:seven_zero]7-0[/k] активно, обменяйтесь руками с любым игроком."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "Числовая карта. Совпадайте по [k=uni:color]цвету[/k] или числу, чтобы [k=uni:play]сыграть[/k] на [k=uni:discard_pile]колоду сброса[/k]."
+    },
+    "yellow_draw2": {
+      "title": "Возьми две (+2)",
+      "description": "Заставляет следующего игрока [k=uni:draw]взять[/k] 2 карты из [k=uni:draw_pile]колоды добора[/k] и [k=uni:skip]пропустить[/k] свой [k=uni:turn]ход[/k]."
+    },
+    "yellow_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Меняет[/k] направление [k=uni:play]игры[/k]. В игре на 2 игроков действует как [k=uni:skip]пропуск[/k]."
+    },
+    "yellow_skip": {
+      "title": "Пропуск",
+      "description": "Заставляет следующего игрока по [k=uni:turn]порядку хода[/k] быть [k=uni:skip]пропущенным[/k]."
+    }
+  }
+}

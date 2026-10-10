@@ -3,6 +3,11 @@ import { render, screen, fireEvent, act } from "@testing-library/svelte";
 import Toggle from "$components/lobby/settings/Toggle.svelte";
 import RulesGrid from "$components/lobby/settings/RulesGrid.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("Lobby settings interactive tooltips and rich text", () => {
 	beforeEach(() => {

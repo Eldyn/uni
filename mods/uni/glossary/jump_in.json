@@ -1,0 +1,10 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": {
+      "uni:identifier": "uni:jump_in"
+    },
+    "uni:label_key": "uni:glossary.jump_in.label",
+    "uni:description_key": "uni:glossary.jump_in.description"
+  }
+}

@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "드로우",
+      "description": "[k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 한 장 이상을 손패로 가져옵니다.",
+      "tags": [
+        {
+          "label": "액션",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 차례를 잃게 합니다.",
+      "tags": [
+        {
+          "label": "액션",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "리버스",
+      "description": "플레이 방향을 반대로 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다.",
+      "tags": [
+        {
+          "label": "액션",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "와일드",
+      "description": "어떤 카드 위에든 낼 수 있습니다. 낸 플레이어가 활성 [k=uni:color]색상[/k]을 선택합니다.",
+      "tags": [
+        {
+          "label": "액션",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "차례",
+      "description": "플레이어가 유효한 카드를 [k=uni:play]내거나[/k] 카드를 [k=uni:draw]뽑을[/k] 기회입니다.",
+      "tags": [
+        {
+          "label": "흐름",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "색상",
+      "description": "유효한 플레이를 결정하는 활성 수트(빨강, 파랑, 초록, 노랑)입니다."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "뽑는 카드 더미",
+      "description": "카드를 낼 수 없거나 내지 않기로 선택했을 때 플레이어가 카드를 [k=uni:draw]뽑는[/k] 중앙 덱입니다.",
+      "tags": [
+        {
+          "label": "더미",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "버리는 카드 더미",
+      "description": "플레이한 카드를 앞면이 보이도록 놓는 공간입니다.",
+      "tags": [
+        {
+          "label": "더미",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "플레이",
+      "description": "손패에서 일치하는 카드를 [k=uni:discard_pile]버리는 카드 더미[/k]에 놓습니다.",
+      "tags": [
+        {
+          "label": "액션",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "7-0 규칙",
+      "description": "7을 내면 원하는 플레이어와 손패를 맞바꿉니다. 0을 내면 모든 손패가 [k=uni:turn]차례[/k] 방향으로 회전합니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "드로우 누적",
+      "description": "+2 또는 +4 카드를 겹쳐 내어 누적된 [k=uni:draw]드로우[/k] 페널티를 다음 플레이어에게 넘깁니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "강제 플레이",
+      "description": "덱에서 낼 수 있는 카드를 뽑았을 때 반드시 즉시 내야 합니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "끼어들기",
+      "description": "맨 위 카드와 색상과 값이 완전히 동일한 카드가 있다면 차례가 아니어도 즉시 낼 수 있습니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "연계 내기",
+      "description": "맨 위 카드와 숫자가 같은 카드를 같은 [k=uni:turn]차례[/k]에 연속으로 묶어 낼 수 있습니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "대결",
+      "description": "손패를 가장 먼저 비운 플레이어가 승리합니다. 충분한 인원이 끝내면 경기가 종료되고 나머지는 모두 패배합니다.",
+      "tags": [
+        {
+          "label": "규칙",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "와일드 드로우 4 (+4)",
+      "description": "활성 [k=uni:color]색상[/k]을 선택하세요. 다음 플레이어는 카드 4장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰어야[/k] 합니다."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:blue_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:blue_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:blue_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:green_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:green_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:green_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:red_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:red_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:red_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "uni:wild": {
+      "title": "와일드",
+      "description": "어떤 카드 위에든 낼 수 있는 [k=uni:wild]와일드[/k] 카드입니다. 활성 [k=uni:color]색상[/k]을 선택하세요."
+    },
+    "uni:wild_draw4": {
+      "title": "와일드 드로우 4 (+4)",
+      "description": "활성 [k=uni:color]색상[/k]을 선택하세요. 다음 플레이어는 카드 4장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰어야[/k] 합니다."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "uni:yellow_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "uni:yellow_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "uni:yellow_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "blue_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "blue_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "blue_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "green_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "green_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "green_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "red_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "red_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "red_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    },
+    "wild": {
+      "title": "와일드",
+      "description": "어떤 카드 위에든 낼 수 있는 [k=uni:wild]와일드[/k] 카드입니다. 활성 [k=uni:color]색상[/k]을 선택하세요."
+    },
+    "wild_draw4": {
+      "title": "와일드 드로우 4 (+4)",
+      "description": "활성 [k=uni:color]색상[/k]을 선택하세요. 다음 플레이어는 카드 4장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰어야[/k] 합니다."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "숫자 카드 0입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 모든 손패를 [k=uni:turn]차례[/k] 방향으로 회전시킵니다."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "숫자 카드 7입니다. [k=uni:seven_zero]7-0[/k] 규칙이 켜져 있다면 원하는 플레이어와 손패를 맞바꿉니다."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "숫자 카드입니다. [k=uni:color]색상[/k]이나 숫자를 맞춰 [k=uni:discard_pile]버리는 카드 더미[/k]에 [k=uni:play]내세요[/k]."
+    },
+    "yellow_draw2": {
+      "title": "드로우 2 (+2)",
+      "description": "다음 플레이어가 [k=uni:draw_pile]뽑는 카드 더미[/k]에서 카드 2장을 [k=uni:draw]뽑고[/k] [k=uni:turn]차례[/k]를 [k=uni:skip]건너뛰게[/k] 합니다."
+    },
+    "yellow_reverse": {
+      "title": "리버스",
+      "description": "[k=uni:play]플레이[/k] 방향을 [k=uni:reverse]반대로[/k] 바꿉니다. 2인 경기에서는 [k=uni:skip]스킵[/k]으로 작동합니다."
+    },
+    "yellow_skip": {
+      "title": "스킵",
+      "description": "[k=uni:turn]차례[/k] 순서에서 다음 플레이어가 [k=uni:skip]건너뛰어지게[/k] 합니다."
+    }
+  }
+}

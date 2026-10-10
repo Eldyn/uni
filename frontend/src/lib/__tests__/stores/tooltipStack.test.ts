@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { storeTooltipStack, MAX_TOOLTIP_DEPTH } from "$lib/stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("storeTooltipStack", () => {
 	beforeEach(() => {

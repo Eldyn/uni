@@ -3,6 +3,11 @@ import { render, screen, fireEvent, act } from "@testing-library/svelte";
 import TooltipStack from "$components/common/TooltipStack.svelte";
 import TwoKeywordHarness from "./TwoKeywordHarness.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("root tooltip with two keywords", () => {
 	beforeEach(() => {

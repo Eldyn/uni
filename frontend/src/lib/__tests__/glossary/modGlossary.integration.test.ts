@@ -6,6 +6,7 @@ import { storeI18n } from "$lib/stores/i18n.svelte";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
 import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
 import { textsUrl } from "$lib/i18n/modTexts";
+import { buildUniDefsMod } from "./coreTextsHarness";
 
 type ListingEntry = { locale: string; hash: string; size: number };
 type GlossaryListingEntry = {
@@ -49,9 +50,14 @@ interface ServedMod {
 }
 
 /** Builds a defs payload for the given mods and serves their texts by URL. */
-async function serve(mods: ServedMod[]) {
-	const bodies = new Map<string, string>();
-	const payloadMods = [];
+async function serve(mods: ServedMod[], options: { withUni?: boolean } = {}) {
+	const bodies = new Map<string, string | Uint8Array>();
+	const payloadMods: unknown[] = [];
+	if (options.withUni) {
+		const uni = await buildUniDefsMod();
+		for (const [url, body] of uni.bodies) bodies.set(url, body);
+		payloadMods.push(uni.mod);
+	}
 	for (const mod of mods) {
 		const listing: ListingEntry[] = [];
 		for (const [locale, strings] of Object.entries(mod.texts)) {
@@ -65,7 +71,7 @@ async function serve(mods: ServedMod[]) {
 	const fetchMock = vi.fn(async (url: string) => {
 		const body = bodies.get(url);
 		if (body === undefined) return new Response("not found", { status: 404 });
-		return new Response(encoder.encode(body));
+		return new Response(typeof body === "string" ? encoder.encode(body) : (body as BodyInit));
 	});
 	vi.stubGlobal("fetch", fetchMock);
 	return { mods: payloadMods };
@@ -164,49 +170,28 @@ describe("mod glossary lookup", () => {
 		await vi.waitFor(() => expect(getGlossaryEntry("my_mod:foo")?.title).toBe("Foo"));
 	});
 
-	it("a mod cannot replace a core entry", async () => {
-		const coreTitle = getGlossaryEntry("uni:turn", "en")!.title;
+	it("a mod cannot replace an entry of the uni mod", async () => {
 		install(
-			await serve([
-				{
-					id: "evil_mod",
-					texts: { en: { "evil_mod:a": "Evil" } },
-					glossary: [
-						{
-							id: "uni:turn",
-							label_key: "evil_mod:a",
-							description_key: "evil_mod:a",
-							source: "explicit"
-						}
-					]
-				}
-			])
+			await serve(
+				[
+					{
+						id: "evil_mod",
+						texts: { en: { "evil_mod:a": "Evil" } },
+						glossary: [
+							{
+								id: "uni:turn",
+								label_key: "evil_mod:a",
+								description_key: "evil_mod:a",
+								source: "explicit"
+							}
+						]
+					}
+				],
+				{ withUni: true }
+			)
 		);
-		await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-		expect(getGlossaryEntry("uni:turn", "en")!.title).toBe(coreTitle);
-		expect(storeModGlossary.has("uni:turn")).toBe(false);
-	});
-
-	it("the core catalog is read before the mod listing", async () => {
-		const coreTitle = getGlossaryEntry("uni:turn", "en")!.title;
-		install(
-			await serve([
-				{
-					id: "uni",
-					texts: { en: { "uni:other.label": "Other", "uni:other.description": "Other" } },
-					glossary: [
-						{
-							id: "uni:turn",
-							label_key: "uni:other.label",
-							description_key: "uni:other.description",
-							source: "explicit"
-						}
-					]
-				}
-			])
-		);
-		await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-		expect(getGlossaryEntry("uni:turn", "en")!.title).toBe(coreTitle);
+		await vi.waitFor(() => expect(getGlossaryEntry("uni:turn")?.title).toBe("Turn"));
+		expect(getGlossaryEntry("uni:turn")!.title).not.toBe("Evil");
 	});
 
 	it("shows the raw value of a key field that holds a text, and logs an error", async () => {
