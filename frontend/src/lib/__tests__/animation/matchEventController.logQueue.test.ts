@@ -182,7 +182,7 @@ describe("matchEventController log queue", () => {
 		h.registry.abandon();
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.skip"]);
 	});
 
 	it("keeps the lines of the events after an abandonment in event order", async () => {
@@ -191,7 +191,7 @@ describe("matchEventController log queue", () => {
 		h.registry.abandon();
 		h.fire({ seq: 3, kind: "skip", target: "bob", actor: "me" });
 		await flush();
-		expect(partyKeys()).toEqual(["log_play", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.skip"]);
 	});
 
 	it("stops listening to the animation queue when the controller is disposed", async () => {
@@ -215,7 +215,7 @@ describe("matchEventController log queue", () => {
 			registry.flushImmediately();
 			await flush();
 
-			expect(partyKeys()).toEqual(["log_play", "log_play", "log_skip"]);
+			expect(partyKeys()).toEqual(["uni:log.play", "uni:log.play", "uni:log.skip"]);
 		});
 
 		it("posts every line once, in order, after a skip of the current beat", async () => {
@@ -230,7 +230,7 @@ describe("matchEventController log queue", () => {
 			registry.flushImmediately();
 			await flush();
 
-			expect(partyKeys()).toEqual(["log_play", "log_play", "log_skip"]);
+			expect(partyKeys()).toEqual(["uni:log.play", "uni:log.play", "uni:log.skip"]);
 		});
 
 		it("posts the lines of the batches that the cap drops", async () => {
@@ -245,7 +245,7 @@ describe("matchEventController log queue", () => {
 			registry.flushImmediately();
 			await flush();
 
-			expect(partyKeys()).toEqual(Array.from({ length: plays }, () => "log_play"));
+			expect(partyKeys()).toEqual(Array.from({ length: plays }, () => "uni:log.play"));
 			warn.mockRestore();
 			storeFxBudget.queueMax = previous;
 		});

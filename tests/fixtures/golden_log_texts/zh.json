@@ -1,0 +1,262 @@
+{
+  "log_skip": {
+    "template": "{name} 被跳过了。",
+    "resolved": "Ann 被跳过了。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} 又被跳过了。",
+    "resolved": "Ann 又被跳过了。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "又被跳过。{name} 在收集错过的回合。",
+    "resolved": "又被跳过。Ann 在收集错过的回合。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] 第三次被跳过。这是有仇吧。",
+    "resolved": "[c=red]Ann[/c] 第三次被跳过。这是有仇吧。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] 又被跳过了。[fx=shake]干脆搬个小板凳看戏吧。[/fx]",
+    "resolved": "[c=red]Ann[/c] 又被跳过了。[fx=shake]干脆搬个小板凳看戏吧。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "又是 [c=red]{name}[/c]。[fx=shake]让 {name} 出牌啊！！[/fx]",
+    "resolved": "又是 [c=red]Ann[/c]。[fx=shake]让 Ann 出牌啊！！[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "反转。",
+    "resolved": "反转。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "又转回来了。",
+    "resolved": "又转回来了。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "又转回来了。兜圈子也算一种策略。",
+    "resolved": "又转回来了。兜圈子也算一种策略。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "又反转了。现在谁也不知道轮到谁了。",
+    "resolved": "又反转了。现在谁也不知道轮到谁了。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "还在反转。[fx=shake]转得头都晕了。[/fx]",
+    "resolved": "还在反转。[fx=shake]转得头都晕了。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "又一次反转。[fx=shake]转回另一边了。[/fx]",
+    "resolved": "又一次反转。[fx=shake]转回另一边了。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_1": {
+    "template": "{name} 是本局第一个摸牌的人。RIP。",
+    "resolved": "Ann 是本局第一个摸牌的人。RIP。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_2": {
+    "template": "摸牌堆的第一滴血归 {name}。",
+    "resolved": "摸牌堆的第一滴血归 Ann。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_1": {
+    "template": "{name} 摸牌。",
+    "resolved": "Ann 摸牌。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_2": {
+    "template": "{name} 从牌堆拿了一张。",
+    "resolved": "Ann 从牌堆拿了一张。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_3": {
+    "template": "{name} 摸了一张。摸牌堆给什么就是什么。",
+    "resolved": "Ann 摸了一张。摸牌堆给什么就是什么。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_1": {
+    "template": "这已经是 {name} 第 {drawRun} 次摸牌了，天哪。",
+    "resolved": "这已经是 Ann 第 3 次摸牌了，天哪。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_2": {
+    "template": "又是 {name}。牌堆都认得这个名字了。",
+    "resolved": "又是 Ann。牌堆都认得这个名字了。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_1": {
+    "template": "[c=red]{name}[/c] 的手牌已经 {handSize} 张了。让 TA 喘口气吧。",
+    "resolved": "[c=red]Ann[/c] 的手牌已经 5 张了。让 TA 喘口气吧。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_2": {
+    "template": "{handSize} 张了，[c=red]{name}[/c]。给其他人留几张吧。",
+    "resolved": "5 张了，[c=red]Ann[/c]。给其他人留几张吧。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_large_1": {
+    "template": "{name} 摸了 {count} 张。疼。",
+    "resolved": "Ann 摸了 2 张。疼。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_stack": {
+    "template": "{name} 叠了 +{amount}。{victim} 现在要摸 {total} 张。",
+    "resolved": "Ann 叠了 +2。Bob 现在要摸 4 张。",
+    "fallbackToEnglish": false
+  },
+  "log_draw_stack_heavy": {
+    "template": "{name} 又叠了 +{amount}。[c=red]{victim}[/c] 要摸 [fx=shake]{total}[/fx] 张。保重。",
+    "resolved": "Ann 又叠了 +2。[c=red]Bob[/c] 要摸 [fx=shake]4[/fx] 张。保重。",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} 真的做到了！[/fx]",
+    "resolved": "[fx=shake:3,2]Bob 真的做到了！[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_2": {
+    "template": "早说了。[fx=shake:3,2]{blocker} 拦住了。[/fx]",
+    "resolved": "早说了。[fx=shake:3,2]Bob 拦住了。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} 打出[k={kind}][c={color}]{cardName}[/c][/k]。",
+    "resolved": "Ann 打出[k=uni:red_draw2][c=red]摸两张 (+2)[/c][/k]。",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} 留下了摸到的牌。",
+    "resolved": "Ann 留下了摸到的牌。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "弃牌堆洗回牌堆。新牌，同样的痛。",
+    "resolved": "弃牌堆洗回牌堆。新牌，同样的痛。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "牌堆摸空了，弃牌堆回来了。洗牌。",
+    "resolved": "牌堆摸空了，弃牌堆回来了。洗牌。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "摸牌堆空了，弃牌堆回来了。同样的牌，第二次机会。",
+    "resolved": "摸牌堆空了，弃牌堆回来了。同样的牌，第二次机会。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "那就[c={color}]{colorName}[/c]吧。",
+    "resolved": "那就[c=red]红色[/c]吧。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "就选[c={color}]{colorName}[/c]。",
+    "resolved": "就选[c=red]红色[/c]。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name}另有打算。那就[c={color}]{colorName}[/c]吧。",
+    "resolved": "Ann另有打算。那就[c=red]红色[/c]吧。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "先是[c={prevColor}]{prevColorName}[/c]，{name}又换成[c={color}]{colorName}[/c]。",
+    "resolved": "先是[c=blue]蓝色[/c]，Ann又换成[c=red]红色[/c]。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "你们定不了颜色。现在是[c={color}]{colorName}[/c]！[fx=shake:3,2]快决定。[/fx]",
+    "resolved": "你们定不了颜色。现在是[c=red]红色[/c]！[fx=shake:3,2]快决定。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c]，然后是[c={color}]{colorName}[/c]？[fx=shake:3,2]快点决定吧。[/fx]",
+    "resolved": "[c=blue]蓝色[/c]，然后是[c=red]红色[/c]？[fx=shake:3,2]快点决定吧。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_1": {
+    "template": "{name} 被迫打出 [k={kind}]{cardName}[/k]。",
+    "resolved": "Ann 被迫打出 [k=uni:red_draw2]摸两张 (+2)[/k]。",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_2": {
+    "template": "{name} 没得选：[k={kind}]{cardName}[/k] 上桌。",
+    "resolved": "Ann 没得选：[k=uni:red_draw2]摸两张 (+2)[/k] 上桌。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c] 只剩一张牌了。坐稳。",
+    "resolved": "[c=red]Ann[/c] 只剩一张牌了。坐稳。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "{name} 只剩一张牌。谁来拦一下。",
+    "resolved": "Ann 只剩一张牌。谁来拦一下。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} 就差一张了。大家安静地慌。",
+    "resolved": "Ann 就差一张了。大家安静地慌。",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} 赢下了这一轮！",
+    "resolved": "Ann 赢下了这一轮！",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "游戏结束。{name} 拿下了。",
+    "resolved": "游戏结束。Ann 拿下了。",
+    "fallbackToEnglish": false
+  },
+  "log_finish_1": {
+    "template": "{name} 以第 {place} 名完成。",
+    "resolved": "Ann 以第 1 名完成。",
+    "fallbackToEnglish": false
+  },
+  "log_finish_2": {
+    "template": "{name} 已完成，第 {place} 名。",
+    "resolved": "Ann 已完成，第 1 名。",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_1": {
+    "template": "{name} 被甩在后面，第 {place} 名。",
+    "resolved": "Ann 被甩在后面，第 1 名。",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_2": {
+    "template": "{name} 没能完成，第 {place} 名。",
+    "resolved": "Ann 没能完成，第 1 名。",
+    "fallbackToEnglish": false
+  },
+  "log_color_red": {
+    "template": "红色",
+    "resolved": "红色",
+    "fallbackToEnglish": false
+  },
+  "log_color_yellow": {
+    "template": "黄色",
+    "resolved": "黄色",
+    "fallbackToEnglish": false
+  },
+  "log_color_green": {
+    "template": "绿色",
+    "resolved": "绿色",
+    "fallbackToEnglish": false
+  },
+  "log_color_blue": {
+    "template": "蓝色",
+    "resolved": "蓝色",
+    "fallbackToEnglish": false
+  }
+}

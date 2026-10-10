@@ -43,9 +43,9 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_skip",
-			"log_skip_again_2",
-			"log_skip_third"
+			"uni:log.skip",
+			"uni:log.skip_again_2",
+			"uni:log.skip_third"
 		]);
 	});
 
@@ -55,7 +55,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
 
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.skip", "uni:log.skip", "uni:log.skip"]);
 	});
 
 	it("threads the turn seq so a streak pool actually rotates (Review Focus)", async () => {
@@ -67,11 +67,11 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_skip",
-			"log_skip_again_2",
-			"log_skip_third",
-			"log_skip_streak_2",
-			"log_skip_streak"
+			"uni:log.skip",
+			"uni:log.skip_again_2",
+			"uni:log.skip_third",
+			"uni:log.skip_streak_2",
+			"uni:log.skip_streak"
 		]);
 	});
 
@@ -93,9 +93,9 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteDirection({ direction: -1, seq: 1, context: reverseRun(3) });
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_reverse",
-			expect.stringMatching(/^log_reverse_back/),
-			"log_reverse_again"
+			"uni:log.reverse",
+			expect.stringMatching(/^uni:log\.reverse_back/),
+			"uni:log.reverse_again"
 		]);
 	});
 
@@ -105,20 +105,24 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn([], 1));
 		emitter.noteTurn(turn([], -1));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_reverse", "log_reverse", "log_reverse"]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"uni:log.reverse",
+			"uni:log.reverse",
+			"uni:log.reverse"
+		]);
 	});
 
 	it("logs a reverse from a direction event, even for the first direction seen", async () => {
 		emitter.noteDirection({ direction: -1, seq: 1 });
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
 	});
 
 	it("does not log the same reverse again when the turn advance follows", async () => {
 		emitter.noteDirection({ direction: -1, seq: 1 });
 		emitter.noteTurn(turn([], -1, 2));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
 	});
 
 	it("logs one reverse when the turn advance comes before the direction event", async () => {
@@ -126,7 +130,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn([], -1, 2));
 		emitter.noteDirection({ direction: -1, seq: 3 });
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_reverse"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.reverse"]);
 	});
 
 	it("logs two direction events that no turn advance separates", async () => {
@@ -135,8 +139,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn([], 1, 3));
 		await flush();
 		expect(lines).toHaveLength(2);
-		expect(lines[0]!.key).toBe("log_reverse");
-		expect(lines[1]!.key.startsWith("log_reverse_back")).toBe(true);
+		expect(lines[0]!.key).toBe("uni:log.reverse");
+		expect(lines[1]!.key.startsWith("uni:log.reverse_back")).toBe(true);
 	});
 
 	it("holds a play's lines until its card has landed", async () => {
@@ -149,7 +153,7 @@ describe("createPlayLogEmitter", () => {
 
 		land();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.skip"]);
 	});
 
 	it("a plain play between skips breaks the skip run", async () => {
@@ -159,7 +163,7 @@ describe("createPlayLogEmitter", () => {
 		});
 		emitter.noteTurn(turn(["Ann"]));
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_play", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.skip", "uni:log.play", "uni:log.skip"]);
 	});
 
 	it("logs every play, including specials", async () => {
@@ -172,7 +176,7 @@ describe("createPlayLogEmitter", () => {
 			{ seq: 2 }
 		);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_play"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.play"]);
 		expect(lines[1].params).toEqual({
 			name: "Bob",
 			kind: "uni:green_draw2",
@@ -189,7 +193,7 @@ describe("createPlayLogEmitter", () => {
 			}
 		);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_auto_play/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.auto_play/)]);
 		expect(lines[0].params).toEqual({ name: "Ann", kind: "uni:red_skip", color: "red" });
 	});
 
@@ -198,8 +202,8 @@ describe("createPlayLogEmitter", () => {
 			seq: 4
 		});
 		await flush();
-		expect(lines[0].key).toBe("log_play");
-		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[0].key).toBe("uni:log.play");
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
 		expect(lines[1].params).toEqual({ name: "Ann", color: "red", prevColor: "" });
 	});
 
@@ -208,7 +212,7 @@ describe("createPlayLogEmitter", () => {
 			seq: 4
 		});
 		await flush();
-		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
 	});
 
 	it("exposes the uni draw debt status kind", () => {
@@ -222,8 +226,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteWildColor("blue");
 		land();
 		await flush();
-		expect(lines[0].key).toBe("log_play");
-		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[0].key).toBe("uni:log.play");
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
 		expect(lines[1].params).toEqual({ name: "Ann", color: "blue", prevColor: "" });
 	});
 
@@ -236,8 +240,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteWildColor("blue");
 		land();
 		await flush();
-		expect(lines[0].key).toMatch(/^log_auto_play/);
-		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[0].key).toMatch(/^uni:log\.auto_play/);
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
 	});
 
 	it("logs a near-win reaction from the near-win event after the play", async () => {
@@ -247,8 +251,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteNearWin("Ann", 7);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_play",
-			expect.stringMatching(/^log_near_win/)
+			"uni:log.play",
+			expect.stringMatching(/^uni:log\.near_win/)
 		]);
 		expect(lines[1].params).toEqual({ name: "Ann" });
 	});
@@ -256,13 +260,13 @@ describe("createPlayLogEmitter", () => {
 	it("logs a reshuffle", async () => {
 		emitter.noteReshuffle({ seq: 7 });
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_reshuffle/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.reshuffle/)]);
 	});
 
 	it("logs a keep without leaking the kept card (Review Focus)", async () => {
 		emitter.noteKeep("Ann", 9);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
 		expect(lines[0].params).toEqual({ name: "Ann" });
 	});
 
@@ -271,7 +275,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteKeepGuess("Ann", 10);
 		emitter.settleKeeps();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
 	});
 
 	it("logs one keep when the snapshot guess comes before the event", async () => {
@@ -279,14 +283,14 @@ describe("createPlayLogEmitter", () => {
 		emitter.settleKeeps();
 		emitter.noteKeep("Ann", 9);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
 	});
 
 	it("keeps a guess as the fallback when no event comes", async () => {
 		emitter.noteKeepGuess("Ann", 10);
 		emitter.settleKeeps();
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_keep_drawn/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.keep_drawn/)]);
 	});
 
 	it("forgets a settled keep so a later keep logs again", async () => {
@@ -326,9 +330,9 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteDraw({ seq: 6, player: "Bob", count: 2 }, { handSize: 5 });
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_play",
-			"log_draw_stack",
-			expect.stringMatching(/^log_draw_/)
+			"uni:log.play",
+			"uni:log.draw_stack",
+			expect.stringMatching(/^uni:log\.draw_/)
 		]);
 	});
 
@@ -340,19 +344,19 @@ describe("createPlayLogEmitter", () => {
 		);
 		emitter.noteDebt("Bob", 2);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_draw_stack"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.draw_stack"]);
 	});
 
 	it("logs a win and each later placement once", async () => {
 		emitter.noteGameEnd("Ann", ["Ann"]);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_win/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
 
 		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_left_behind/)
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/)
 		]);
 		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
 
@@ -365,9 +369,9 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteGameEnd("Ann", ["Ann", "Bob", "Cy"], 2);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_finish/),
-			expect.stringMatching(/^log_left_behind/)
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.finish/),
+			expect.stringMatching(/^uni:log\.left_behind/)
 		]);
 		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
 	});
@@ -377,8 +381,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^log_left_behind/),
-			expect.stringMatching(/^log_win/)
+			expect.stringMatching(/^uni:log\.left_behind/),
+			expect.stringMatching(/^uni:log\.win/)
 		]);
 		expect(lines[0].params).toEqual({ name: "Bob", place: 2 });
 	});
@@ -395,7 +399,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteMatchEnded("Ann", 1);
 		emitter.noteGameEnd("Ann", ["Ann"]);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_win/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
 	});
 
 	it("logs the win once when the snapshot comes before the match end event", async () => {
@@ -408,7 +412,7 @@ describe("createPlayLogEmitter", () => {
 	it("words an elimination place as left behind even inside the finisher count", async () => {
 		emitter.notePlacement("Bob", 2, true, 3);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^log_left_behind/)]);
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.left_behind/)]);
 	});
 
 	it("reset forgets the placement ledger", async () => {
@@ -427,10 +431,10 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteGameEnd("Ann", ["Ann", "Bob"]);
 		await flush();
 		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_left_behind/),
-			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_left_behind/)
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/),
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/)
 		]);
 	});
 
@@ -439,8 +443,8 @@ describe("createPlayLogEmitter", () => {
 			seq: 4
 		});
 		await flush();
-		expect(lines[0].key).toBe("log_play");
-		expect(lines[1].key).toMatch(/^log_wild_reaction_(1|first_2)$/);
+		expect(lines[0].key).toBe("uni:log.play");
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
 		expect(lines[0].params).toEqual({ name: "Ann", kind: "uni:wild", color: "red" });
 	});
 
@@ -468,7 +472,7 @@ describe("createPlayLogEmitter", () => {
 		);
 		emitter.noteDebt("Bob", 6);
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_play", "log_draw_stack"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.draw_stack"]);
 		expect(lines[1].params).toMatchObject({ name: "Ann", victim: "Bob", amount: 2, total: 6 });
 	});
 
@@ -487,7 +491,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteDebt("Cy", 6);
 		await flush();
 
-		const stacks = lines.filter((line) => line.key === "log_draw_stack");
+		const stacks = lines.filter((line) => line.key === "uni:log.draw_stack");
 		expect(stacks.map((line) => line.params)).toMatchObject([
 			{ name: "Ann", victim: "Bob", amount: 2, total: 2 },
 			{ name: "Bob", victim: "Cy", amount: 4, total: 6 }
@@ -526,7 +530,11 @@ describe("createPlayLogEmitter", () => {
 		emitter.reset();
 		emitter.noteSkipped({ target: "Ann", seq: 1, context: skipRun(1) });
 		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"uni:log.skip",
+			"uni:log.skip_again_2",
+			"uni:log.skip"
+		]);
 	});
 
 	it("a reset forgets the direction baseline and drops queued lines", async () => {
@@ -546,7 +554,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 5, actor: "Ann" });
 		await flush();
 		const line = lines[0];
-		expect(line.key).toBe("log_skip");
+		expect(line.key).toBe("uni:log.skip");
 		// INFO: the actor is not part of LogLine.params yet, so it is observed at
 		//       the escape seam the emitter runs it through.
 		expect(escaped).toContain("Ann");
@@ -561,8 +569,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteBlocked("Bob", "Ann", 4);
 		await flush();
 
-		const skipIndex = lines.findIndex((line) => line.key === "log_skip");
-		const blockedIndex = lines.findIndex((line) => line.key.startsWith("log_blocked_"));
+		const skipIndex = lines.findIndex((line) => line.key === "uni:log.skip");
+		const blockedIndex = lines.findIndex((line) => line.key.startsWith("uni:log.blocked_"));
 		expect(skipIndex).toBeGreaterThanOrEqual(0);
 		expect(blockedIndex).toBeGreaterThan(skipIndex);
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
@@ -576,8 +584,8 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteBlocked("Bob", "Ann", 3);
 		await flush();
 
-		const drawIndex = lines.findIndex((line) => line.key === "log_draw_stack");
-		const blockedIndex = lines.findIndex((line) => line.key.startsWith("log_blocked_"));
+		const drawIndex = lines.findIndex((line) => line.key === "uni:log.draw_stack");
+		const blockedIndex = lines.findIndex((line) => line.key.startsWith("uni:log.blocked_"));
 		expect(drawIndex).toBeGreaterThanOrEqual(0);
 		expect(blockedIndex).toBeGreaterThan(drawIndex);
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
@@ -597,9 +605,9 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn({ skipped: ["Bob"], direction: 1, seq: 4, actor: "Ann" });
 		await flush();
 
-		expect(lines.filter((line) => line.key === "log_skip")).toHaveLength(1);
-		expect(lines.some((line) => line.key.startsWith("log_blocked_"))).toBe(false);
-		expect(lines.some((line) => line.key.startsWith("log_near_win"))).toBe(false);
+		expect(lines.filter((line) => line.key === "uni:log.skip")).toHaveLength(1);
+		expect(lines.some((line) => line.key.startsWith("uni:log.blocked_"))).toBe(false);
+		expect(lines.some((line) => line.key.startsWith("uni:log.near_win"))).toBe(false);
 	});
 
 	it("holds the near-win line of a wild until its play line", async () => {
@@ -611,9 +619,9 @@ describe("createPlayLogEmitter", () => {
 		await flush();
 
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_play",
-			expect.stringMatching(/^log_near_win/),
-			expect.stringMatching(/^log_wild_reaction/)
+			"uni:log.play",
+			expect.stringMatching(/^uni:log\.near_win/),
+			expect.stringMatching(/^uni:log\.wild_reaction/)
 		]);
 	});
 
@@ -624,7 +632,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn(["Ann"], 1, 4));
 		await flush();
 
-		expect(lines.filter((line) => line.key.startsWith("log_skip"))).toHaveLength(2);
+		expect(lines.filter((line) => line.key.startsWith("uni:log.skip"))).toHaveLength(2);
 	});
 
 	it("logs a later skip after an event whose turn advance never came", async () => {
@@ -633,7 +641,7 @@ describe("createPlayLogEmitter", () => {
 		emitter.noteTurn(turn(["Ann"], 1, 2));
 		await flush();
 
-		expect(lines.filter((line) => line.key.startsWith("log_skip"))).toHaveLength(2);
+		expect(lines.filter((line) => line.key.startsWith("uni:log.skip"))).toHaveLength(2);
 	});
 	describe("the log queue is separate from the animation queue", () => {
 		const hangingLanding = () => new Promise<void>(() => undefined);
@@ -651,9 +659,9 @@ describe("createPlayLogEmitter", () => {
 			emitter.releaseGates();
 			await flush();
 			expect(lines.map((entry) => entry.key.replace(/_\d+$/, ""))).toEqual([
-				"log_play",
-				"log_skip",
-				expect.stringMatching(/^log_draw/)
+				"uni:log.play",
+				"uni:log.skip",
+				expect.stringMatching(/^uni:log\.draw/)
 			]);
 			emitter.releaseGates();
 			await flush();
@@ -670,7 +678,7 @@ describe("createPlayLogEmitter", () => {
 
 			emitter.releaseGates();
 			await flush();
-			expect(lines.map((entry) => entry.key)).toEqual(["log_play", "my_mod_apple"]);
+			expect(lines.map((entry) => entry.key)).toEqual(["uni:log.play", "my_mod_apple"]);
 		});
 
 		it("posts a line of a presentation at once when no gate holds it", async () => {
@@ -686,7 +694,7 @@ describe("createPlayLogEmitter", () => {
 			emitter.releaseGates();
 			emitter.noteLine(line("after_release"));
 			await flush();
-			expect(lines.map((entry) => entry.key)).toEqual(["log_play", "after_release"]);
+			expect(lines.map((entry) => entry.key)).toEqual(["uni:log.play", "after_release"]);
 		});
 
 		it("drops the held lines on a reset", async () => {

@@ -12,9 +12,8 @@
  * the event with the seat of the viewer.
  *
  * TEXTS: a log line carries KEYS and parameters. The chat log looks the key up
- * in the Paraglide log texts (`resolveLogText`) and shows nothing when the key
- * has no text. The mod text layer (ticket 20) adds mod texts later; until then
- * a key without a text stays invisible, so the line cannot show a half text.
+ * in the texts of its mod (`resolveLogText`, the mod text layer) and shows
+ * nothing when the key has no text, so the line cannot show a half text.
  */
 
 import type { AnimationBeat, AnimationStep } from "$components/game/animation/types";

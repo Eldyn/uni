@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createPlayLogEmitter } from "../../chat/playLog/playLogEmitter";
 import type { LogLine } from "../../chat/playLog/logEvent";
 
-const STREAK_POOL = ["log_skip_streak", "log_skip_streak_2"];
-const WILD_SECOND = ["log_wild_reaction_second_1", "log_wild_reaction_second_2"];
-const WILD_THIRD = ["log_wild_reaction_third_1", "log_wild_reaction_third_2"];
+const STREAK_POOL = ["uni:log.skip_streak", "uni:log.skip_streak_2"];
+const WILD_SECOND = ["uni:log.wild_reaction_second_1", "uni:log.wild_reaction_second_2"];
+const WILD_THIRD = ["uni:log.wild_reaction_third_1", "uni:log.wild_reaction_third_2"];
 
 function client() {
 	const lines: LogLine[] = [];
@@ -40,7 +40,11 @@ describe("two clients telling the same joke", () => {
 
 		const keys = a.lines.map((line) => line.key);
 		expect(keys).toEqual(b.lines.map((line) => line.key));
-		expect(keys.slice(0, 3)).toEqual(["log_skip", "log_skip_again_2", "log_skip_third"]);
+		expect(keys.slice(0, 3)).toEqual([
+			"uni:log.skip",
+			"uni:log.skip_again_2",
+			"uni:log.skip_third"
+		]);
 
 		const [firstStreak, secondStreak] = keys.slice(3);
 		expect(STREAK_POOL).toContain(firstStreak);
@@ -71,8 +75,8 @@ describe("two clients telling the same joke", () => {
 		const keys = a.lines.map((line) => line.key);
 		expect(keys).toEqual(b.lines.map((line) => line.key));
 
-		const second = keys.filter((key) => key.startsWith("log_wild_reaction_second"));
-		const third = keys.filter((key) => key.startsWith("log_wild_reaction_third"));
+		const second = keys.filter((key) => key.startsWith("uni:log.wild_reaction_second"));
+		const third = keys.filter((key) => key.startsWith("uni:log.wild_reaction_third"));
 		expect(second).toHaveLength(1);
 		expect(third).toHaveLength(1);
 		expect(WILD_SECOND).toContain(second[0]);

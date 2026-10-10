@@ -37,7 +37,7 @@ describe("replayTailToLog", () => {
 				"Ann"
 			)
 		]);
-		expect(lines.map((line) => line.key)).toEqual(["log_play"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play"]);
 		expect(lines[0].params).toMatchObject({ name: "Ann", kind: "uni:red_5", color: "red" });
 	});
 
@@ -58,10 +58,10 @@ describe("replayTailToLog", () => {
 			envelope(3, "match_ended", { target: "Ann", targets: ["Ann", "Bob"] })
 		]);
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_skip",
-			"log_reverse",
-			expect.stringMatching(/^log_keep/),
-			expect.stringMatching(/^log_win/)
+			"uni:log.skip",
+			"uni:log.reverse",
+			expect.stringMatching(/^uni:log\.keep/),
+			expect.stringMatching(/^uni:log\.win/)
 		]);
 	});
 
@@ -87,7 +87,7 @@ describe("replayTailToLog", () => {
 			envelope(0, "cards_drawn", { target: "Bob", count: 4, from_debt: true }, "Bob")
 		]);
 		const plain = replay([envelope(0, "cards_drawn", { target: "Bob", count: 1 }, "Bob")]);
-		expect(debt.map((line) => line.key)).toEqual(["log_draw_stack"]);
+		expect(debt.map((line) => line.key)).toEqual(["uni:log.draw_stack"]);
 		expect(plain[0].key).not.toMatch(/stack/);
 	});
 
@@ -102,8 +102,8 @@ describe("replayTailToLog", () => {
 			envelope(1, "near_win_entered", { target: "Ann" }, "Ann")
 		]);
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_play",
-			expect.stringMatching(/^log_near_win/)
+			"uni:log.play",
+			expect.stringMatching(/^uni:log\.near_win/)
 		]);
 		expect(lines[1].params).toEqual({ name: "Ann" });
 	});
@@ -117,9 +117,9 @@ describe("replayTailToLog", () => {
 			})
 		]);
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_play",
-			expect.stringMatching(/^log_near_win/),
-			expect.stringMatching(/^log_wild_reaction/)
+			"uni:log.play",
+			expect.stringMatching(/^uni:log\.near_win/),
+			expect.stringMatching(/^uni:log\.wild_reaction/)
 		]);
 	});
 
@@ -129,8 +129,8 @@ describe("replayTailToLog", () => {
 			envelope(1, "blocked", { target: "Bob" }, "Ann")
 		]);
 		expect(lines.map((line) => line.key)).toEqual([
-			"log_skip",
-			expect.stringMatching(/^log_blocked_/)
+			"uni:log.skip",
+			expect.stringMatching(/^uni:log\.blocked_/)
 		]);
 		expect(lines[1].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
@@ -155,9 +155,9 @@ describe("replayTailToLog", () => {
 				"uni:last_wild_color": { last: "green", previous: "blue" }
 			})
 		]);
-		expect(lines[0].key).toMatch(/^log_draw_many/);
-		const wild = lines.find((line) => line.key.startsWith("log_wild_reaction"));
-		expect(wild?.key).toMatch(/^log_wild_reaction_third/);
+		expect(lines[0].key).toMatch(/^uni:log\.draw_many/);
+		const wild = lines.find((line) => line.key.startsWith("uni:log.wild_reaction"));
+		expect(wild?.key).toMatch(/^uni:log\.wild_reaction_third/);
 		expect(wild?.params.prevColor).toBe("blue");
 	});
 
@@ -167,6 +167,6 @@ describe("replayTailToLog", () => {
 			envelope(1, "turn_skipped", { target: "Bob" }, "Ann"),
 			envelope(2, "turn_skipped", { target: "Bob" }, "Ann")
 		]);
-		expect(lines.map((line) => line.key)).toEqual(["log_skip", "log_skip", "log_skip"]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.skip", "uni:log.skip", "uni:log.skip"]);
 	});
 });

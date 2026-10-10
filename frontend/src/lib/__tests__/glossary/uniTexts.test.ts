@@ -61,7 +61,8 @@ describe("the uni texts files", () => {
 				error: (message: string) => problems.push(`error ${message}`)
 			};
 			for (const [key, value] of Object.entries(textsOf(locale) as Record<string, string>)) {
-				formatMessage(value, {}, { locale, report });
+				const params = Object.fromEntries(placeholderNames(value).map((name) => [name, "sample"]));
+				formatMessage(value, params, { locale, report });
 			}
 			expect(problems).toEqual([]);
 		});

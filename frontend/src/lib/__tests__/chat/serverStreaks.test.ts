@@ -89,7 +89,7 @@ describe("play log with the server context", () => {
 		const emitter = createPlayLogEmitter((line) => lines.push(line));
 		emitter.noteSkipped({ target: "Bob", seq: 1, context: { "uni:skip_run": 3 } });
 		await flush();
-		expect(keys(lines)).toEqual(["log_skip_third"]);
+		expect(keys(lines)).toEqual(["uni:log.skip_third"]);
 	});
 
 	it("uses the server reverse run in place of the local count", async () => {
@@ -97,7 +97,7 @@ describe("play log with the server context", () => {
 		const emitter = createPlayLogEmitter((line) => lines.push(line));
 		emitter.noteDirection({ direction: -1, seq: 1, context: { "uni:reverse_run": 3 } });
 		await flush();
-		expect(keys(lines)).toEqual(["log_reverse_again"]);
+		expect(keys(lines)).toEqual(["uni:log.reverse_again"]);
 	});
 
 	it("counts nothing itself: a missing context reads as a first skip", async () => {
@@ -107,7 +107,7 @@ describe("play log with the server context", () => {
 		emitter.noteSkipped({ target: "Bob", seq: 2 });
 		emitter.noteSkipped({ target: "Bob", seq: 3 });
 		await flush();
-		expect(keys(lines)).toEqual(["log_skip", "log_skip", "log_skip"]);
+		expect(keys(lines)).toEqual(["uni:log.skip", "uni:log.skip", "uni:log.skip"]);
 	});
 
 	it("uses the server draw counts for the drawing seat", async () => {
@@ -132,8 +132,8 @@ describe("play log with the server context", () => {
 			{ handSize: 3 }
 		);
 		await flush();
-		expect(keys(lines)[0]).toMatch(/^log_draw_many/);
-		expect(keys(lines)[1]).toMatch(/^log_draw_first/);
+		expect(keys(lines)[0]).toMatch(/^uni:log\.draw_many/);
+		expect(keys(lines)[1]).toMatch(/^uni:log\.draw_first/);
 	});
 
 	it("uses the server wild run and colors", async () => {
@@ -147,8 +147,8 @@ describe("play log with the server context", () => {
 			"uni:last_wild_color": { last: "blue", previous: "red" }
 		});
 		await flush();
-		const wild = lines.find((line) => line.key.startsWith("log_wild_reaction"));
-		expect(wild?.key).toMatch(/^log_wild_reaction_third/);
+		const wild = lines.find((line) => line.key.startsWith("uni:log.wild_reaction"));
+		expect(wild?.key).toMatch(/^uni:log\.wild_reaction_third/);
 		expect(wild?.params.prevColor).toBe("red");
 	});
 });
@@ -197,6 +197,6 @@ describe("late join parity of the skip and reverse runs", () => {
 			() => undefined,
 			(line) => lines.push(line)
 		);
-		expect(keys(lines)).toEqual(["log_skip_third"]);
+		expect(keys(lines)).toEqual(["uni:log.skip_third"]);
 	});
 });

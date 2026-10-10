@@ -87,11 +87,11 @@ it("escalates wild-colour reactions by the consecutive run", () => {
 it("offers an extra variant in each expanded pool", () => {
 	const keysOf = (id: string, group: string) =>
 		REACTION_RULES.find((r) => r.id === id)!.pools[group].map((v) => v.key);
-	expect(keysOf("skip", "two")).toContain("log_skip_again_2");
-	expect(keysOf("reverse", "two")).toContain("log_reverse_back_2");
-	expect(keysOf("draw", "generic")).toContain("log_draw_generic_3");
-	expect(keysOf("near_win", "generic")).toContain("log_near_win_3");
-	expect(keysOf("reshuffle", "generic")).toContain("log_reshuffle_3");
+	expect(keysOf("skip", "two")).toContain("uni:log.skip_again_2");
+	expect(keysOf("reverse", "two")).toContain("uni:log.reverse_back_2");
+	expect(keysOf("draw", "generic")).toContain("uni:log.draw_generic_3");
+	expect(keysOf("near_win", "generic")).toContain("uni:log.near_win_3");
+	expect(keysOf("reshuffle", "generic")).toContain("uni:log.reshuffle_3");
 });
 
 it("every event kind is matched by at least one rule", () => {

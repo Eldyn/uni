@@ -496,7 +496,7 @@ describe("presentEvent outputs", () => {
 });
 
 describe("play log line", () => {
-	const variants = ["log_a", "log_b", "log_c"];
+	const variants = ["uni:log.a", "uni:log.b", "uni:log.c"];
 	const registry = registryOf(
 		entry([
 			{

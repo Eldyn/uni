@@ -148,7 +148,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob"]));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip"]);
 		expect(chatStore.linesFor("global")).toEqual([]);
 	});
 
@@ -160,7 +160,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn([], -1));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_reverse"]);
+		expect(partyKeys()).toEqual(["uni:log.reverse"]);
 	});
 
 	it("posts one reverse line when the direction event is dropped", async () => {
@@ -171,7 +171,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn([], -1));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_reverse"]);
+		expect(partyKeys()).toEqual(["uni:log.reverse"]);
 	});
 
 	it("posts one skip line for a skip event and its turn advance", async () => {
@@ -182,7 +182,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob"]));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip"]);
 	});
 
 	it("posts one skip line when the turn advance comes before the event", async () => {
@@ -193,7 +193,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 2, kind: "skip", target: "bob", actor: "me" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip"]);
 	});
 
 	it("posts one skip line when the event comes after the line was posted", async () => {
@@ -205,7 +205,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 2, kind: "skip", target: "bob", actor: "me" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip"]);
 	});
 
 	it("posts the skip line from the event when the turn advance is dropped", async () => {
@@ -215,7 +215,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 1, kind: "skip", target: "bob", actor: "me" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip"]);
 	});
 
 	it("posts one skip line for each skipped seat", async () => {
@@ -227,7 +227,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob", "carol"]));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip"]);
 	});
 
 	it("logs a later skip after a skip event whose turn advance never came", async () => {
@@ -240,7 +240,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob"]));
 		await flush();
 
-		expect(partyKeys().filter((key) => key?.startsWith("log_skip"))).toHaveLength(2);
+		expect(partyKeys().filter((key) => key?.startsWith("uni:log.skip"))).toHaveLength(2);
 	});
 
 	it("ignores a turn-flow event that has no presentation", async () => {
@@ -277,7 +277,7 @@ describe("matchEventController play log", () => {
 
 		land();
 		await flush();
-		expect(partyKeys()).toEqual(["log_play", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.skip"]);
 	});
 
 	it("escalates a repeated skip from the server run; a desync drops queued lines", async () => {
@@ -298,7 +298,7 @@ describe("matchEventController play log", () => {
 		h.fire(skip(1));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip", "log_skip_again_2", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip_again_2", "uni:log.skip"]);
 	});
 
 	it("counts no skip on the client: a skip beat with no context is a first skip", async () => {
@@ -309,7 +309,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 1, kind: "skip", target: "bob" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip"]);
 	});
 
 	it("resets the streak when the match is cleared", async () => {
@@ -324,7 +324,7 @@ describe("matchEventController play log", () => {
 		h.fire(skipTurn(["bob"]));
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_skip", "log_skip"]);
+		expect(partyKeys()).toEqual(["uni:log.skip", "uni:log.skip"]);
 	});
 
 	it("escapes a hostile name before it reaches the chat line (Review Focus 1)", async () => {
@@ -348,7 +348,7 @@ describe("matchEventController play log", () => {
 		await flush();
 
 		const [line] = chatStore.linesFor("party");
-		expect(line.logKey).toBe("log_play");
+		expect(line.logKey).toBe("uni:log.play");
 		expect(line.logParams).toMatchObject({ kind: "uni:red_skip", color: "red" });
 	});
 
@@ -368,9 +368,9 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", "log_draw_stack"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.draw_stack"]);
 		const line = chatStore.linesFor("party")[1];
-		expect(line.logKey).toBe("log_draw_stack");
+		expect(line.logKey).toBe("uni:log.draw_stack");
 		expect(line.logParams).toMatchObject({ amount: 2, total: 4 });
 	});
 
@@ -389,7 +389,7 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.draw_first/)]);
 	});
 
 	it("posts a draw reaction for an opponent draw", async () => {
@@ -407,7 +407,7 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.draw_first/)]);
 	});
 
 	it("posts a draw reaction for a spectator viewing the drawing player", async () => {
@@ -435,7 +435,7 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_draw_first/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.draw_first/)]);
 	});
 
 	it("logs a forced play as an auto play", async () => {
@@ -445,7 +445,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 20, kind: "play", player: "me", cardId: 2, auto: true });
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_auto_play/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.auto_play/)]);
 	});
 
 	it("logs a wild colour reaction once the snapshot resolves it", async () => {
@@ -459,7 +459,7 @@ describe("matchEventController play log", () => {
 		storeGame.state = stateWithTop({ id: 2, type: "white", value: "jolly" }, "red");
 		h.controller.syncState();
 		await flush();
-		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.wild_reaction_1"]);
 	});
 
 	it("logs the wild colour reaction from the event, before any snapshot", async () => {
@@ -470,7 +470,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 22, kind: "active_color", color: "green", previousColor: "white" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.wild_reaction_1"]);
 	});
 
 	it("logs one wild colour reaction when the snapshot follows the event", async () => {
@@ -483,7 +483,7 @@ describe("matchEventController play log", () => {
 		h.controller.syncState();
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.wild_reaction_1"]);
 	});
 
 	it("logs one wild colour reaction when the event follows the snapshot", async () => {
@@ -496,7 +496,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 22, kind: "active_color", color: "green", previousColor: "white" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", "log_wild_reaction_1"]);
+		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.wild_reaction_1"]);
 	});
 
 	it("logs no wild reaction for a color change that no wild caused", async () => {
@@ -517,7 +517,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 22, kind: "reshuffle", drawSize: 13, discardSize: 3 });
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_reshuffle/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.reshuffle/)]);
 	});
 
 	it("logs a near-win from the near-win event after the play", async () => {
@@ -533,7 +533,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 24, kind: "near_win", target: "me" });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play", expect.stringMatching(/^log_near_win/)]);
+		expect(partyKeys()).toEqual(["uni:log.play", expect.stringMatching(/^uni:log\.near_win/)]);
 	});
 
 	it("does not guess a near-win from the card count: only the event logs it", async () => {
@@ -548,7 +548,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 24, kind: "play", player: "me", cardId: 2, auto: false });
 		await flush();
 
-		expect(partyKeys()).toEqual(["log_play"]);
+		expect(partyKeys()).toEqual(["uni:log.play"]);
 	});
 
 	it("logs a win and each later placement once from snapshot changes", async () => {
@@ -561,8 +561,8 @@ describe("matchEventController play log", () => {
 		h.controller.syncState();
 		await flush();
 		expect(partyKeys()).toEqual([
-			expect.stringMatching(/^log_win/),
-			expect.stringMatching(/^log_left_behind/)
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/)
 		]);
 
 		h.controller.syncState();
@@ -584,8 +584,8 @@ describe("matchEventController play log", () => {
 		await flush();
 
 		expect(partyKeys()).toEqual([
-			expect.stringMatching(/^log_left_behind/),
-			expect.stringMatching(/^log_win/)
+			expect.stringMatching(/^uni:log\.left_behind/),
+			expect.stringMatching(/^uni:log\.win/)
 		]);
 	});
 
@@ -600,7 +600,7 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 3, kind: "match_end", target: "bob", targets: ["bob"] });
 		await flush();
 
-		expect(partyKeys()).toEqual([expect.stringMatching(/^log_win/)]);
+		expect(partyKeys()).toEqual([expect.stringMatching(/^uni:log\.win/)]);
 	});
 
 	it("does not log a win for an aborted match's empty winner", async () => {
@@ -641,9 +641,9 @@ describe("matchEventController play log", () => {
 		await flush();
 
 		const keys = partyKeys();
-		const blockedIndex = keys.findIndex((key) => key?.startsWith("log_blocked_"));
-		expect(keys.indexOf("log_skip")).toBeGreaterThanOrEqual(0);
-		expect(blockedIndex).toBeGreaterThan(keys.indexOf("log_skip"));
+		const blockedIndex = keys.findIndex((key) => key?.startsWith("uni:log.blocked_"));
+		expect(keys.indexOf("uni:log.skip")).toBeGreaterThanOrEqual(0);
+		expect(blockedIndex).toBeGreaterThan(keys.indexOf("uni:log.skip"));
 		const blockedLine = chatStore.linesFor("party")[blockedIndex];
 		expect(blockedLine.logParams).toEqual({ blocker: "ann", target: "bob" });
 	});
@@ -656,6 +656,6 @@ describe("matchEventController play log", () => {
 		h.fire({ seq: 33, kind: "skip", target: "bob", actor: "ann" });
 		await flush();
 
-		expect(partyKeys().some((key) => key?.startsWith("log_blocked_"))).toBe(false);
+		expect(partyKeys().some((key) => key?.startsWith("uni:log.blocked_"))).toBe(false);
 	});
 });

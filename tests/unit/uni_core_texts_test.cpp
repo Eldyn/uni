@@ -164,6 +164,11 @@ TEST_CASE("uni texts: en holds the keys of the entries and the texts of the wild
     CHECK(missing.empty());
     // INFO: the explicit entry of `uni:wild` replaces the automatic entry of the
     //       wild card, but the card popover still shows the card texts.
+    // INFO: the play log and reaction texts (`uni:log.*`) belong to the play log
+    //       lines, not to a glossary entry.
+    unused.erase(std::remove_if(unused.begin(), unused.end(),
+                                [](const std::string& key) { return key.rfind("uni:log.", 0) == 0; }),
+                 unused.end());
     CHECK(unused == std::vector<std::string>{"uni:wild.description", "uni:wild.label"});
 }
 
@@ -204,7 +209,10 @@ TEST_CASE("uni texts: every [k=...] link points to a glossary entry of the mod")
             for (std::sregex_iterator it(text.begin(), text.end(), link), end; it != end; ++it) {
                 CAPTURE(locale);
                 CAPTURE(key);
-                CHECK(entry_ids.count((*it)[1].str()) == 1);
+                const std::string target = (*it)[1].str();
+                // INFO: a link that names a parameter (`[k={kind}]`) resolves at run time.
+                if (!target.empty() && target.front() == '{') continue;
+                CHECK(entry_ids.count(target) == 1);
             }
         }
     }

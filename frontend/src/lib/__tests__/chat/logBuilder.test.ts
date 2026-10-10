@@ -19,14 +19,14 @@ const keyOf = (event: LogEvent, info: StreakValues = streak()): string =>
 describe("buildLogLines", () => {
 	it("maps skip runs to groups and picks within the pool", () => {
 		const event: LogEvent = { kind: "skip", seq: 5, player: "Ann" };
-		expect(keyOf(event, streak({ skipRun: 1 }))).toBe("log_skip");
-		expect(keyOf(event, streak({ skipRun: 4 }))).toMatch(/^log_skip_streak/);
+		expect(keyOf(event, streak({ skipRun: 1 }))).toBe("uni:log.skip");
+		expect(keyOf(event, streak({ skipRun: 4 }))).toMatch(/^uni:log\.skip_streak/);
 	});
 
 	it.each([
-		[1, "log_skip"],
-		[2, "log_skip_again_2"],
-		[3, "log_skip_third"]
+		[1, "uni:log.skip"],
+		[2, "uni:log.skip_again_2"],
+		[3, "uni:log.skip_third"]
 	])("skip run %i uses %s", (skipRun, key) => {
 		expect(buildLogLines({ kind: "skip", seq: 1, player: "Ann" }, streak({ skipRun }))[0]).toEqual({
 			kind: "log",
@@ -38,7 +38,7 @@ describe("buildLogLines", () => {
 
 	it.each([4, 7])("skip run %i uses a streak key", (skipRun) => {
 		expect(keyOf({ kind: "skip", seq: 1, player: "Ann" }, streak({ skipRun }))).toMatch(
-			/^log_skip_streak/
+			/^uni:log\.skip_streak/
 		);
 	});
 
@@ -50,9 +50,9 @@ describe("buildLogLines", () => {
 	});
 
 	it.each([
-		[1, "log_reverse"],
-		[2, "log_reverse_back_2"],
-		[3, "log_reverse_again"]
+		[1, "uni:log.reverse"],
+		[2, "uni:log.reverse_back_2"],
+		[3, "uni:log.reverse_again"]
 	])("reverse run %i uses %s", (reverseRun, key) => {
 		expect(buildLogLines({ kind: "reverse", seq: 2 }, streak({ reverseRun }))[0]).toMatchObject({
 			key,
@@ -61,7 +61,9 @@ describe("buildLogLines", () => {
 	});
 
 	it.each([4, 9])("reverse run %i uses a spin key", (reverseRun) => {
-		expect(keyOf({ kind: "reverse", seq: 2 }, streak({ reverseRun }))).toMatch(/^log_reverse_spin/);
+		expect(keyOf({ kind: "reverse", seq: 2 }, streak({ reverseRun }))).toMatch(
+			/^uni:log\.reverse_spin/
+		);
 	});
 
 	it("builds a draw reaction with the live draw run", () => {
@@ -74,7 +76,7 @@ describe("buildLogLines", () => {
 			handSize: 5
 		};
 		const line = buildLogLines(event, streak({ drawRun: 2 }))[0];
-		expect(line?.key).toMatch(/^log_draw_generic/);
+		expect(line?.key).toMatch(/^uni:log\.draw_generic/);
 		expect(line?.params).toMatchObject({ name: "Ann", count: 1, handSize: 5, drawRun: 2 });
 	});
 
@@ -85,7 +87,7 @@ describe("buildLogLines", () => {
 		)[0];
 		expect(line).toEqual({
 			kind: "log",
-			key: "log_play",
+			key: "uni:log.play",
 			params: { name: "Ann", kind: "uni:blue_5", color: "blue" },
 			tier: 0
 		});
@@ -105,13 +107,13 @@ describe("draw reaction groups", () => {
 		streak({ drawRun, totalDraws });
 
 	it.each([
-		["penalty_small", draw({ penalty: true, total: 4 }), streak(), "log_draw_stack"],
-		["penalty_heavy", draw({ penalty: true, total: 8 }), streak(), "log_draw_stack_heavy"],
-		["big_hand", draw({ handSize: 10 }), withDraws(1, 1), /^log_draw_big_hand/],
-		["large", draw({ count: 4, handSize: 5 }), withDraws(1, 1), "log_draw_large_1"],
-		["first", draw(), withDraws(1, 1), /^log_draw_first/],
-		["many", draw(), withDraws(4, 5), /^log_draw_many/],
-		["generic", draw(), withDraws(2, 3), /^log_draw_generic/]
+		["penalty_small", draw({ penalty: true, total: 4 }), streak(), "uni:log.draw_stack"],
+		["penalty_heavy", draw({ penalty: true, total: 8 }), streak(), "uni:log.draw_stack_heavy"],
+		["big_hand", draw({ handSize: 10 }), withDraws(1, 1), /^uni:log\.draw_big_hand/],
+		["large", draw({ count: 4, handSize: 5 }), withDraws(1, 1), "uni:log.draw_large_1"],
+		["first", draw(), withDraws(1, 1), /^uni:log\.draw_first/],
+		["many", draw(), withDraws(4, 5), /^uni:log\.draw_many/],
+		["generic", draw(), withDraws(2, 3), /^uni:log\.draw_generic/]
 	])("group %s picks %s", (_group, event, info, expected) => {
 		const key = keyOf(event as LogEvent, info as StreakValues);
 		if (typeof expected === "string") expect(key).toBe(expected);
@@ -119,20 +121,22 @@ describe("draw reaction groups", () => {
 	});
 
 	it("scopes the first-draw joke to the match, not the player", () => {
-		expect(keyOf(draw(), withDraws(1, 1))).toMatch(/^log_draw_first/);
-		expect(keyOf(draw(), withDraws(1, 2))).toMatch(/^log_draw_generic/);
+		expect(keyOf(draw(), withDraws(1, 1))).toMatch(/^uni:log\.draw_first/);
+		expect(keyOf(draw(), withDraws(1, 2))).toMatch(/^uni:log\.draw_generic/);
 	});
 
 	it("prefers penalty over hand size and count", () => {
-		expect(keyOf(draw({ penalty: true, total: 4, handSize: 12, count: 4 }))).toBe("log_draw_stack");
+		expect(keyOf(draw({ penalty: true, total: 4, handSize: 12, count: 4 }))).toBe(
+			"uni:log.draw_stack"
+		);
 		expect(keyOf(draw({ penalty: true, total: 9, handSize: 12, count: 4 }))).toBe(
-			"log_draw_stack_heavy"
+			"uni:log.draw_stack_heavy"
 		);
 	});
 
 	it("prefers big hand over large count", () => {
 		expect(keyOf(draw({ handSize: 10, count: 4 }), streak({ drawRun: 1 }))).toMatch(
-			/^log_draw_big_hand/
+			/^uni:log\.draw_big_hand/
 		);
 	});
 

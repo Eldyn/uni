@@ -309,7 +309,7 @@ describe("createMatchEventBeatController", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(append).toHaveBeenCalledWith(
-			expect.objectContaining({ key: "log_keep_drawn", params: { name: "me" } })
+			expect.objectContaining({ key: "uni:log.keep_drawn", params: { name: "me" } })
 		);
 	});
 
@@ -326,7 +326,7 @@ describe("createMatchEventBeatController", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const keeps = append.mock.calls.filter(([line]) =>
-			String((line as { key: string }).key).startsWith("log_keep_drawn")
+			String((line as { key: string }).key).startsWith("uni:log.keep_drawn")
 		);
 		expect(keeps).toHaveLength(1);
 	});
@@ -344,7 +344,7 @@ describe("createMatchEventBeatController", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const keeps = append.mock.calls.filter(([line]) =>
-			String((line as { key: string }).key).startsWith("log_keep_drawn")
+			String((line as { key: string }).key).startsWith("uni:log.keep_drawn")
 		);
 		expect(keeps).toHaveLength(1);
 	});
@@ -359,7 +359,7 @@ describe("createMatchEventBeatController", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(append).toHaveBeenCalledWith(
-			expect.objectContaining({ key: "log_keep_drawn", params: { name: "bob" } })
+			expect.objectContaining({ key: "uni:log.keep_drawn", params: { name: "bob" } })
 		);
 	});
 
@@ -405,7 +405,7 @@ describe("createMatchEventBeatController", () => {
 
 		expect(append).toHaveBeenCalledWith(
 			expect.objectContaining({
-				key: expect.stringMatching(/^log_draw_big_hand/),
+				key: expect.stringMatching(/^uni:log\.draw_big_hand/),
 				params: expect.objectContaining({ handSize: 12 })
 			})
 		);
@@ -424,7 +424,7 @@ describe("createMatchEventBeatController", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const keeps = append.mock.calls.filter(([line]) =>
-			String((line as { key: string }).key).startsWith("log_keep_drawn")
+			String((line as { key: string }).key).startsWith("uni:log.keep_drawn")
 		);
 		expect(keeps).toHaveLength(0);
 	});

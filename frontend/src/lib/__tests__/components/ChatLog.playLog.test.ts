@@ -56,7 +56,7 @@ describe("ChatLog play log lines", () => {
 	it("renders a real log line through the real log copy", () => {
 		chatStore.appendLocalLog({
 			kind: "log",
-			key: "log_skip",
+			key: "uni:log.skip",
 			params: { name: "Zed" },
 			tier: 0
 		});
@@ -70,7 +70,7 @@ describe("ChatLog play log lines", () => {
 	it("renders a play line as a keyword button", () => {
 		chatStore.appendLocalLog({
 			kind: "log",
-			key: "log_play",
+			key: "uni:log.play",
 			params: { name: "Zed", kind: "uni:red_draw2", color: "red" },
 			tier: 0
 		});
@@ -80,11 +80,11 @@ describe("ChatLog play log lines", () => {
 		expect(container.querySelector(".glossary-keyword-btn")).not.toBeNull();
 	});
 
-	it("re-renders a log line in the new language when the locale changes", () => {
+	it("re-renders a log line in the new language when the locale changes", async () => {
 		storeI18n.setLocale(DEFAULT_LOCALE);
 		chatStore.appendLocalLog({
 			kind: "log",
-			key: "log_skip",
+			key: "uni:log.skip",
 			params: { name: "Zed" },
 			tier: 0
 		});
@@ -92,9 +92,10 @@ describe("ChatLog play log lines", () => {
 		expect(container.textContent).toContain("got skipped");
 
 		storeI18n.setLocale("it");
-		flushSync();
-
-		expect(container.textContent).toContain("salta il turno");
+		await vi.waitFor(() => {
+			flushSync();
+			expect(container.textContent).toContain("salta il turno");
+		});
 		expect(container.textContent).not.toContain("got skipped");
 	});
 });
