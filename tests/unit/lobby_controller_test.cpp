@@ -1744,6 +1744,108 @@ TEST_CASE("rejoin: a socket seated in one lobby cannot rebind another") {
     CHECK(f.bob_sd.lobby_code == bob_code);
 }
 
+namespace {
+
+json RejoinMessage(const std::string& code) {
+    return json{{"action", ws::ClientAction::kLobbyRejoin},
+                {"request_id", "req-rj"},
+                {"code", code}};
+}
+
+json LastMatchSnapshot(FakeBroadcaster& bus, AppWebSocket* socket) {
+    json found;
+    for (const SentFrame& frame : bus.sent) {
+        if (frame.to != socket) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_state_updated") {
+            found = packet;
+        }
+    }
+    return found;
+}
+
+const json* SeatEntry(const json& snapshot, const std::string& username) {
+    for (const json& entry : snapshot["match_state"]["players"]) {
+        if (entry.value("username", std::string()) == username) return &entry;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("rejoin: a disconnected human gets the own seat back") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    REQUIRE(lobby->session != nullptr);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    PerSocketData returning_sd;
+    returning_sd.username = "alice";
+    AppWebSocket* returning_sock = fake_sock(returning_sd);
+    f.bus.Clear();
+    f.router.Dispatch(make_ctx(returning_sock, &returning_sd),
+                      RejoinMessage(code));
+
+    const LobbyMember* member = lobby->FindMember("alice");
+    REQUIRE(member != nullptr);
+    CHECK_FALSE(member->is_bot);
+    CHECK(member->is_connected);
+    CHECK(member->socket == returning_sock);
+    const json snapshot = LastMatchSnapshot(f.bus, returning_sock);
+    REQUIRE_FALSE(snapshot.is_null());
+    const json* own_seat = SeatEntry(snapshot, "alice");
+    REQUIRE(own_seat != nullptr);
+    CHECK(own_seat->contains("hand"));
+    const json* other_seat = SeatEntry(snapshot, "bob");
+    REQUIRE(other_seat != nullptr);
+    CHECK_FALSE(other_seat->contains("hand"));
+}
+
+TEST_CASE("rejoin: nobody takes over a seat that a bot holds") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    REQUIRE(lobby->session != nullptr);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+    lobby->FindMember("alice")->disconnected_at =
+        std::chrono::steady_clock::now() - std::chrono::hours(1);
+    f.timers.Fire("lobby_eviction");
+
+    REQUIRE(lobby->FindMember("alice") == nullptr);
+    std::string bot_name;
+    for (const LobbyMember& member : lobby->members) {
+        if (member.is_bot) bot_name = member.username;
+    }
+    REQUIRE_FALSE(bot_name.empty());
+
+    PerSocketData former_sd;
+    former_sd.username = "alice";
+    PerSocketData stranger_sd;
+    stranger_sd.username = "carol";
+    for (PerSocketData* data : {&former_sd, &stranger_sd}) {
+        AppWebSocket* socket = fake_sock(*data);
+        f.bus.Clear();
+        f.router.Dispatch(make_ctx(socket, data), RejoinMessage(code));
+        CHECK(LastErrorCode(f.bus, socket) == "not_in_lobby");
+        CHECK(LastMatchSnapshot(f.bus, socket).is_null());
+        const LobbyMember* seat = lobby->FindMember(bot_name);
+        REQUIRE(seat != nullptr);
+        CHECK(seat->is_bot);
+        CHECK(seat->socket == nullptr);
+    }
+}
+
 TEST_CASE("close: unbinds the member even when the socket's lobby_code has drifted") {
     LobbyFixture f;
     const std::string code = f.alice_creates();
