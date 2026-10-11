@@ -58,6 +58,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **`placement_set` carries `finished`** — the packet is now version 2. `finished` is true when the place ends the race for that seat.
 - **`window_responded` carries `window_kind` and `outcome`** — the packet is now version 2. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
 
 ### Fixed

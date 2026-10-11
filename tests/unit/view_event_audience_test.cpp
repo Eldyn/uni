@@ -84,9 +84,11 @@ bool LoadContent(Content& out) {
 
 std::unique_ptr<MatchInstance> MakeEngine(Content& content,
                                           std::size_t players,
-                                          uint64_t seed) {
+                                          uint64_t seed,
+                                          uint32_t race_target = 0) {
     MatchAssemblyOptions options;
     options.starting_cards = 7;
+    options.race_target = race_target;
     options.seed = seed;
     for (std::size_t index = 0; index < players; ++index) {
         MatchPlayerSpec spec;
@@ -383,4 +385,31 @@ TEST_CASE("audience: a lost window_responded keeps its card hidden") {
     CHECK(builder.Wrap(lost, Viewer::Player("player1"), sink)
               ->at("payload")
               .contains("card"));
+}
+
+TEST_CASE("audience: placement_set carries finished from the race target") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    const auto finished = [&](MatchInstance& engine, int place,
+                              bool is_elimination) {
+        ViewBuilder builder(engine, content.mods);
+        EventSink sink;
+        const json wrapped = *builder.Wrap(
+            json{{"type", "placement_set"},
+                 {"payload", json{{"player", "player1"},
+                                  {"place", place},
+                                  {"is_elimination", is_elimination}}}},
+            Viewer::Player("player2"), sink);
+        return wrapped["payload"]["finished"].get<bool>();
+    };
+
+    std::unique_ptr<MatchInstance> race = MakeEngine(content, 4, 42, 2);
+    CHECK(finished(*race, 1, false));
+    CHECK(finished(*race, 2, false));
+    CHECK_FALSE(finished(*race, 3, false));
+    CHECK_FALSE(finished(*race, 1, true));
+
+    std::unique_ptr<MatchInstance> standard = MakeEngine(content, 4, 42);
+    CHECK(finished(*standard, 1, false));
+    CHECK_FALSE(finished(*standard, 2, false));
 }

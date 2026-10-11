@@ -2373,12 +2373,13 @@ components:
 
     PlacementSetPayload:
       type: object
-      x-packet-version: "1"
+      x-packet-version: "2"
       required: [target, place, is_elimination]
       description: >
         A seat finished. `is_elimination` is false for a normal
         finish. No engine path sets it to true yet; it is the seam for a later
-        elimination mechanic.
+        elimination mechanic. `finished` is true when this place ends the
+        race for that seat.
       properties:
         target:
           $ref: "#/components/schemas/PlayerRef"
@@ -2386,6 +2387,8 @@ components:
           type: integer
           minimum: 1
         is_elimination:
+          type: boolean
+        finished:
           type: boolean
 
     MatchEndedPayload:

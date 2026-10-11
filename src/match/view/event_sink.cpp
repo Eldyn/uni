@@ -9,6 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
@@ -167,10 +168,15 @@ json ProjectPlacementSet(const match::engine::MatchInstance& match,
                          const json& payload) {
     // INFO: `is_elimination` is the seam for a later elimination mechanic;
     //       no engine path sets it, so a finish is never an elimination.
+    const int place = payload.value("place", 0);
+    const bool is_elimination = payload.value("is_elimination", false);
+    const int finish_limit =
+        static_cast<int>(std::max<uint32_t>(1, match.GetRaceTarget()));
     return json{
         {"target", ResolvePlayer(match, payload.value("player", json()))},
-        {"place", payload.value("place", 0)},
-        {"is_elimination", payload.value("is_elimination", false)}};
+        {"place", place},
+        {"is_elimination", is_elimination},
+        {"finished", !is_elimination && place <= finish_limit}};
 }
 
 json ProjectMatchEnded(const match::engine::MatchInstance& match) {

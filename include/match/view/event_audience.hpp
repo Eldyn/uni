@@ -166,6 +166,7 @@ inline constexpr FieldRule kPlacementSet[] = {
     {"target", Audience::kAll},
     {"place", Audience::kAll},
     {"is_elimination", Audience::kAll},
+    {"finished", Audience::kAll},
 };
 inline constexpr FieldRule kMatchEnded[] = {
     {"target", Audience::kAll},

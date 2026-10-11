@@ -1566,8 +1566,9 @@
     "turn"
    ],
    "id": "placement_set",
-   "payload_digest": "be4c10a0243456e4",
+   "payload_digest": "b83bd1591a6adc84",
    "payload_keys": [
+    "finished",
     "is_elimination",
     "place",
     "target"
@@ -3092,8 +3093,9 @@
     "turn"
    ],
    "id": "placement_set",
-   "payload_digest": "be4c10a0243456e4",
+   "payload_digest": "b83bd1591a6adc84",
    "payload_keys": [
+    "finished",
     "is_elimination",
     "place",
     "target"
@@ -4600,8 +4602,9 @@
     "turn"
    ],
    "id": "placement_set",
-   "payload_digest": "be4c10a0243456e4",
+   "payload_digest": "b83bd1591a6adc84",
    "payload_keys": [
+    "finished",
     "is_elimination",
     "place",
     "target"
