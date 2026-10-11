@@ -1043,3 +1043,69 @@ TEST_CASE("binding validation: a streak param has one source") {
     params["count"].field = "count";
     CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }
+
+TEST_CASE("binding validation: a field test cannot take a streak key") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "exists", "uni:field": "count" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].tests[0].key = "a";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a field param cannot take a key") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    CHECK(Validate(loaded).empty());
+    params["count"].key = "a";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: a streak param takes key or key_field") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"] = match::modload::BindingParamDef{};
+    params["count"].streak = "uni:skip_run";
+    params["count"].key = "a";
+    CHECK(Validate(loaded).empty());
+    params["count"].key_field = "target";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: a streak id must be well formed") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "gte", "uni:streak": "uni:skip_run",
+               "uni:value": 1 } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].tests[0].streak = "bad id!";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a has_tag test cannot read a streak") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& binding = loaded.mods[0].bindings[0];
+    binding.event = "card_played";
+    binding.cases[0].log->params.clear();
+    match::modload::StreakTestDef test;
+    test.test = "has_tag";
+    test.tag = "my_mod:fruit";
+    binding.cases[0].tests = {test};
+    CHECK(Validate(loaded).empty());
+    binding.cases[0].tests[0].streak = "uni:skip_run";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a relation test cannot read a streak") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "relation", "uni:role": "actor",
+               "uni:relation": "self" } ])");
+    REQUIRE(loaded.ok());
+    auto& tests = loaded.mods[0].bindings[0].cases[0].tests;
+    CHECK(Validate(loaded).empty());
+    tests[0].streak = "uni:skip_run";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}

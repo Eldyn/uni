@@ -41,7 +41,7 @@
         "uni:select": {
           "type": "string",
           "enum": ["all", "first"],
-          "description": "all: applies. first: only first matching case."
+          "description": "all: every matching case applies. first: only the first matching case."
         }
       }
     }

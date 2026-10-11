@@ -1448,6 +1448,18 @@ class Checker {
                 label + " uses the unknown test '" + test.test + "'"));
             return;
         }
+        const bool reads_streak = !test.streak.empty() || !test.key.empty()
+                                  || !test.key_field.empty();
+        if (test.test == keys::kRelationTest || test.test == keys::kHasTag) {
+            if (reads_streak) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test '" + test.test
+                        + "' cannot read a streak or use key and "
+                          "key_field"));
+                return;
+            }
+        }
         if (test.test == keys::kRelationTest) {
             CheckBindingRelation(path, binding, test);
             return;
