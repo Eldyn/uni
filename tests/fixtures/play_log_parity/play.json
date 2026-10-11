@@ -1,0 +1,26 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:play"
+    },
+    "uni:event": "card_played",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.play"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "player"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

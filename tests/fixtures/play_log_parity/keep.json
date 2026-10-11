@@ -1,0 +1,26 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:keep"
+    },
+    "uni:event": "drawn_card_kept",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.keep_drawn"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

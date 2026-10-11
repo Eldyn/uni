@@ -13,6 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Play log parity proof** (test) — a table test runs the core log rules and one fixture binding per rule on the same events, and compares the line keys and params. Rows that bindings cannot express are listed in the parity gaps file.
 - **Keep-drawing line as mod data** — the `progressive` mod now owns the keep-drawing play log line. It has `texts/en.json` and a binding on `progressive:drawn_until_playable` with two texts.
 - **Jump-in line as mod data** — the `jump_in` mod now owns the jump-in play log line. It has `texts/en.json` and a `window_responded` binding that logs the seat that wins the jump-in window.
 - **Hand swap lines as mod data** — the `seven_zero` mod now owns its play log lines for a swap, a forward or backward pass, and a full redistribution of hands. It has `texts/en.json` and three bindings.
