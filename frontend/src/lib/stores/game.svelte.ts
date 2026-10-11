@@ -1106,7 +1106,11 @@ class StoreGame implements SessionStore {
 
 		const beat =
 			mapMatchEventPacket(data) ??
-			bindingOnlyBeat(data, (eventId) => bindingRegistry.forEvent(eventId).length > 0);
+			bindingOnlyBeat(
+				data,
+				(eventId) =>
+					bindingRegistry.forEvent(eventId).length > 0 || bindingRegistry.watchesCause(eventId)
+			);
 		if (beat) {
 			// Tally match depth from the wire (all seats), not just local actions.
 			if (beat.kind === "play") {

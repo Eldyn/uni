@@ -1450,6 +1450,14 @@ class Checker {
         }
         const bool reads_streak = !test.streak.empty() || !test.key.empty()
                                   || !test.key_field.empty();
+        if (!test.tag.empty() && test.test != keys::kHasTag
+            && test.test != bkeys::kCausedBy) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test '" + test.test
+                    + "' has a tag; only has_tag and caused_by use one"));
+            return;
+        }
         if (test.actor) {
             const bool word_fits = test.test == keys::kExists
                                    || test.test == keys::kEquals
@@ -1463,6 +1471,21 @@ class Checker {
                         + "' has a bad actor source: only exists, equals "
                           "and in can read the actor, with no field, "
                           "streak, key or state; 'in' needs values"));
+            }
+            return;
+        }
+        if (test.test == bkeys::kCausedBy) {
+            const bool shaped =
+                test.value.is_string() && !test.value.get<std::string>().empty()
+                && LookupBoundField(test.value.get<std::string>(), "")
+                       != BoundField::kNoEvent;
+            if (!shaped || reads_streak || !test.field.empty()
+                || !test.state.empty()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test 'caused_by' needs the id of a known "
+                            "event as its value, and no field, streak, "
+                            "key or state"));
             }
             return;
         }

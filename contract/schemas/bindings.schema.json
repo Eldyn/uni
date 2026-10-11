@@ -67,7 +67,7 @@
       "properties": {
         "uni:test": {
           "type": "string",
-          "enum": ["equals", "in", "exists", "has_tag", "relation", "gt", "gte", "lt", "lte"]
+          "enum": ["equals", "in", "exists", "has_tag", "relation", "gt", "gte", "lt", "lte", "caused_by"]
         },
         "uni:field": { "type": "string" },
         "uni:streak": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },

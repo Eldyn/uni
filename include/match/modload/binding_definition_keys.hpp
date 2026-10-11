@@ -53,6 +53,12 @@
  *   source.
  * - A test of `exists`, `equals` or `in` can set `uni:actor: true`. It then
  *   reads the envelope actor, not a payload field or a streak.
+ * - The test `caused_by` holds when the event that caused this one has the
+ *   id in `uni:value`. The optional `uni:tag` is a tag that the payload
+ *   `tags` of the cause event must contain. It holds for no event when the
+ *   cause is absent or no longer remembered by the client. It has no
+ *   `uni:field`, `uni:streak`, `uni:actor`, key or state. The id can name
+ *   an event of another mod: the test only reads that event.
  * - `uni:glossary`: a keyword key for `[k=...]`.
  *
  * WARN: the matcher and the parameters run on the CLIENT, on the event as the
@@ -124,10 +130,12 @@ inline constexpr std::string_view kGt = "gt";
 inline constexpr std::string_view kGte = "gte";
 inline constexpr std::string_view kLt = "lt";
 inline constexpr std::string_view kLte = "lte";
+inline constexpr std::string_view kCausedBy = "caused_by";
 
 /** @brief Test words of a binding: the matcher words plus numeric compares. */
-inline constexpr std::array<std::string_view, 9> kBindingTests = {
-    "equals", "in", "exists", "has_tag", "relation", kGt, kGte, kLt, kLte};
+inline constexpr std::array<std::string_view, 10> kBindingTests = {
+    "equals", "in",  "exists", "has_tag", "relation",
+    kGt,      kGte,  kLt,      kLte,      kCausedBy};
 
 inline constexpr std::string_view kRole = "uni:role";
 inline constexpr std::string_view kActorRole = "actor";

@@ -37,6 +37,10 @@ export interface ClientEvent {
 	replayed: boolean;
 	/** The server streak values of the envelope; absent when it has none. */
 	context?: Readonly<Record<string, unknown>>;
+	/** The sequence of the event that caused this one; absent when none is known. */
+	cause?: number;
+	/** The cause event, set by the runner when it still remembers it. */
+	causeEvent?: { id: string; payload: Record<string, unknown> };
 }
 
 export interface Viewer {
@@ -51,10 +55,21 @@ export interface EventEnvelope {
 	payload: Record<string, unknown>;
 	replayed?: boolean;
 	context?: Readonly<Record<string, unknown>>;
+	cause?: number;
 }
 
 type TestWord =
-	"equals" | "in" | "exists" | "has_tag" | "relation" | "gt" | "gte" | "lt" | "lte" | "unknown";
+	| "equals"
+	| "in"
+	| "exists"
+	| "has_tag"
+	| "relation"
+	| "gt"
+	| "gte"
+	| "lt"
+	| "lte"
+	| "caused_by"
+	| "unknown";
 
 export interface BindingTest {
 	test: TestWord;
@@ -129,7 +144,8 @@ export function clientEventOf(envelope: EventEnvelope): ClientEvent {
 		sequence: envelope.sequence,
 		payload: envelope.payload,
 		replayed: envelope.replayed === true,
-		...(envelope.context === undefined ? {} : { context: envelope.context })
+		...(envelope.context === undefined ? {} : { context: envelope.context }),
+		...(envelope.cause === undefined ? {} : { cause: envelope.cause })
 	};
 }
 
@@ -142,7 +158,8 @@ const TEST_WORDS: readonly TestWord[] = [
 	"gt",
 	"gte",
 	"lt",
-	"lte"
+	"lte",
+	"caused_by"
 ];
 
 function parseTest(raw: unknown): BindingTest | null {
@@ -285,6 +302,7 @@ export function parseBinding(raw: unknown): Binding | null {
 /** The bindings of the active match, by event id. */
 export class BindingRegistry {
 	#byEvent = new Map<string, Binding[]>();
+	#causeIds = new Set<string>();
 	#count = 0;
 
 	get size(): number {
@@ -302,10 +320,23 @@ export class BindingRegistry {
 			list.push(binding);
 			this.#byEvent.set(binding.event, list);
 			this.#count += 1;
+			for (const bindingCase of binding.cases) {
+				for (const test of bindingCase.tests) {
+					if (test.test === "caused_by" && typeof test.value === "string") {
+						this.#causeIds.add(test.value);
+					}
+				}
+			}
 		}
 	}
 
+	/** True when a case tests `caused_by` this event id: the runner must remember it. */
+	watchesCause(eventId: string): boolean {
+		return this.#causeIds.has(eventId);
+	}
+
 	clear(): void {
+		this.#causeIds.clear();
 		this.#byEvent.clear();
 		this.#count = 0;
 	}
@@ -361,6 +392,13 @@ function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boole
 		}
 		case "relation":
 			return holdsRelation(test, event, viewer);
+		case "caused_by": {
+			const cause = event.causeEvent;
+			if (cause === undefined || cause.id !== test.value) return false;
+			if (test.tag === "") return true;
+			const tags = cause.payload.tags;
+			return Array.isArray(tags) && tags.includes(test.tag);
+		}
 		case "gt":
 			return typeof value === "number" && typeof test.value === "number" && value > test.value;
 		case "gte":

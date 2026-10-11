@@ -150,4 +150,97 @@ describe("createBindingRunner", () => {
 		runner.run(live);
 		expect(postLine).toHaveBeenCalledTimes(1);
 	});
+
+	describe("event cause", () => {
+		const causedBinding = {
+			...binding,
+			"uni:binding": {
+				"uni:event": "my_mod:apple_eaten",
+				"uni:cases": [
+					{
+						"uni:tests": [{ "uni:test": "caused_by", "uni:value": "card_played" }],
+						"uni:present": { "uni:log": { "uni:variants": ["caused"] } }
+					}
+				]
+			}
+		};
+		function causeSetup() {
+			const registry = new BindingRegistry();
+			registry.ingestDefs({ presentations: [causedBinding] });
+			const postLine = vi.fn();
+			const runner = createBindingRunner({
+				registry,
+				getViewer: () => ({ seat: "ann" }),
+				enqueueBeats: vi.fn(),
+				playSound: vi.fn(),
+				postLine
+			});
+			return { runner, postLine };
+		}
+		const played: ClientEvent = {
+			id: "card_played",
+			sequence: 2,
+			payload: { tags: ["wild"] },
+			replayed: false
+		};
+		const effect: ClientEvent = { ...live, sequence: 4, cause: 2 };
+
+		it("sets the cause event from an event that ran earlier", () => {
+			const { runner, postLine } = causeSetup();
+			runner.run(played);
+			const subject = { ...effect };
+			runner.run(subject);
+			expect(subject.causeEvent).toEqual({ id: "card_played", payload: { tags: ["wild"] } });
+			expect(postLine).toHaveBeenCalledTimes(1);
+		});
+
+		it("leaves the cause event unset when the cause is unknown", () => {
+			const { runner, postLine } = causeSetup();
+			const subject = { ...effect };
+			runner.run(subject);
+			expect(subject.causeEvent).toBeUndefined();
+			expect(postLine).not.toHaveBeenCalled();
+		});
+
+		it("does not remember a replayed event", () => {
+			const { runner, postLine } = causeSetup();
+			runner.run({ ...played, replayed: true });
+			runner.run({ ...effect });
+			expect(postLine).not.toHaveBeenCalled();
+		});
+
+		it("forgets every remembered event after reset", () => {
+			const { runner, postLine } = causeSetup();
+			runner.run(played);
+			runner.reset();
+			const subject = { ...effect };
+			runner.run(subject);
+			expect(subject.causeEvent).toBeUndefined();
+			expect(postLine).not.toHaveBeenCalled();
+		});
+
+		it("keeps 64 events: the first of 65 is gone, the last is found", () => {
+			const { runner, postLine } = causeSetup();
+			for (let sequence = 1; sequence <= 65; sequence += 1) {
+				runner.run({ ...played, sequence });
+			}
+			const oldest = { ...effect, cause: 1 };
+			runner.run(oldest);
+			expect(oldest.causeEvent).toBeUndefined();
+			const newest = { ...effect, cause: 65 };
+			runner.run(newest);
+			expect(newest.causeEvent).toEqual({ id: "card_played", payload: { tags: ["wild"] } });
+			expect(postLine).toHaveBeenCalledTimes(1);
+		});
+
+		it("forgets an event after 64 later events", () => {
+			const { runner, postLine } = causeSetup();
+			runner.run(played);
+			for (let sequence = 10; sequence < 10 + 64; sequence += 1) {
+				runner.run({ ...played, sequence, cause: undefined });
+			}
+			runner.run({ ...effect });
+			expect(postLine).not.toHaveBeenCalled();
+		});
+	});
 });

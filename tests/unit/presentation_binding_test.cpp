@@ -370,6 +370,8 @@ TEST_CASE("binding: the schema and the key table agree") {
     CHECK(test.at("uni:test").at("enum")
           == json(std::vector<std::string_view>(keys::kBindingTests.begin(),
                                                 keys::kBindingTests.end())));
+    CHECK(keys::kBindingTests.size() == 10);
+    CHECK(keys::kBindingTests.back() == keys::kCausedBy);
     CHECK(test.contains(std::string(keys::kRole)));
     CHECK(test.at(std::string(keys::kRole)).at("enum")
           == json::array({keys::kActorRole, keys::kTargetRole}));
@@ -1042,6 +1044,18 @@ TEST_CASE("binding loader: an actor test parses") {
     CHECK_FALSE(tests[1].actor);
 }
 
+TEST_CASE("binding loader: a caused_by test parses") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:tag": "wild" } ])");
+    REQUIRE(loaded.ok());
+    const auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    CHECK(test.test == "caused_by");
+    CHECK(test.value == "card_played");
+    CHECK(test.tag == "wild");
+    CHECK(test.field.empty());
+}
+
 TEST_CASE("binding loader: select, param streak and test key parse") {
     const std::string present = R"({
       "uni:log": { "uni:variants": [ "log_a" ],
@@ -1161,6 +1175,66 @@ TEST_CASE("binding validation: only exists, equals and in read the actor") {
     test.test = "has_tag";
     test.tag = "my_mod:fruit";
     CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: caused_by needs a known event id value") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:tag": "wild" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.tag.clear();
+    CHECK(Validate(loaded).empty());
+    test.value = "no_such_event";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.value = 3;
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.value = "";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.value = nlohmann::json();
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: caused_by may name an own or foreign event") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "my_mod:apple_eaten" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.value = "other_mod:thing";
+    CHECK_FALSE(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a tag belongs to has_tag and caused_by only") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "equals", "uni:field": "count",
+               "uni:value": 1, "uni:tag": "my_mod:fruit" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: caused_by has no other source") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played" } ])");
+    REQUIRE(loaded.ok());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.field = "count";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.field.clear();
+    test.streak = "uni:skip_run";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.streak.clear();
+    test.key = "ann";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.key.clear();
+    test.state = "x";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.state.clear();
+    test.actor = true;
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.actor = false;
+    CHECK(Validate(loaded).empty());
 }
 
 TEST_CASE("binding validation: a field test still needs its field") {

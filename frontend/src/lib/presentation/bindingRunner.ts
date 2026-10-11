@@ -21,6 +21,8 @@ export interface BindingRunnerDeps {
 	isFastForwarding?: () => boolean;
 }
 
+const REMEMBERED_EVENTS = 64;
+
 /**
  * Runs the presentation bindings for each LIVE client event. An event of the
  * late join tail is ignored: the tail feeds the play log only and never
@@ -35,8 +37,22 @@ export function createBindingRunner(deps: BindingRunnerDeps) {
 		}
 	}
 
+	const recent = new Map<number, { id: string; payload: Record<string, unknown> }>();
+
+	function remember(event: ClientEvent): void {
+		recent.delete(event.sequence);
+		recent.set(event.sequence, { id: event.id, payload: event.payload });
+		if (recent.size > REMEMBERED_EVENTS) {
+			const oldest = recent.keys().next();
+			if (!oldest.done) recent.delete(oldest.value);
+		}
+	}
+
 	function run(event: ClientEvent): void {
 		if (event.replayed) return;
+		const cause = event.cause === undefined ? undefined : recent.get(event.cause);
+		if (cause !== undefined) event.causeEvent = cause;
+		remember(event);
 		const outputs = presentEvent(deps.registry, event, deps.getViewer());
 		for (const output of outputs) {
 			if (output.beats.length > 0) {
@@ -52,7 +68,11 @@ export function createBindingRunner(deps: BindingRunnerDeps) {
 		}
 	}
 
-	return { run };
+	function reset(): void {
+		recent.clear();
+	}
+
+	return { run, reset };
 }
 
 export type BindingRunner = ReturnType<typeof createBindingRunner>;

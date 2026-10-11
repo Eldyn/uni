@@ -13,6 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Bindings: caused_by test** — a binding test `caused_by` holds when the event that caused this one has the id in `uni:value`, and the tag in `uni:tag` when given. Client, loader, validator and schema updated.
 - **Bindings: actor test source** — test `exists`, `equals` or `in` can set `uni:actor: true` to read the envelope actor. Client, loader, validator schema updated.
 - **Bindings: log param default** — a log param can now set `uni:default` (string or number). The client uses it when the param source gives no value. A string default is escaped. The validator and the schema are updated.
 - **Play log parity proof** (test) — a table test runs the core log rules and one fixture binding per rule on the same events, and compares the line keys and params. Rows that bindings cannot express are listed in the parity gaps file.

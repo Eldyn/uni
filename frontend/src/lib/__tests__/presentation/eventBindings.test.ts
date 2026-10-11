@@ -89,6 +89,13 @@ describe("clientEventOf", () => {
 		expect(clientEventOf({ id: "reshuffle", sequence: 12, payload: {} }).sequence).toBe(12);
 	});
 
+	it("copies the cause sequence of the envelope", () => {
+		expect(clientEventOf({ id: "reshuffle", sequence: 5, payload: {}, cause: 3 }).cause).toBe(3);
+		expect(clientEventOf({ id: "reshuffle", sequence: 5, payload: {} })).not.toHaveProperty(
+			"cause"
+		);
+	});
+
 	it("carries the replayed flag", () => {
 		expect(
 			clientEventOf({ id: "reshuffle", sequence: 1, payload: {}, replayed: true }).replayed
@@ -657,6 +664,53 @@ describe("numeric test words", () => {
 	it("is false when the field is missing", () => {
 		const subject = event({ payload: {} });
 		expect(linesOf([{ "uni:test": "lt", "uni:field": "count", "uni:value": 1 }], subject)).toBe(0);
+	});
+});
+
+describe("caused_by", () => {
+	const caused = (causeEvent?: ClientEvent["causeEvent"]): ClientEvent =>
+		event({ cause: 2, causeEvent });
+	const cause = (payload: Record<string, unknown> = {}) => ({ id: "card_played", payload });
+
+	it("holds when the cause event has the id", () => {
+		const tests = [{ "uni:test": "caused_by", "uni:value": "card_played" }];
+		expect(linesOf(tests, caused(cause()))).toBe(1);
+		expect(linesOf(tests, caused({ id: "turn_skipped", payload: {} }))).toBe(0);
+	});
+
+	it("is false when the cause event is unknown", () => {
+		const tests = [{ "uni:test": "caused_by", "uni:value": "card_played" }];
+		expect(linesOf(tests, caused(undefined))).toBe(0);
+		expect(linesOf(tests, event())).toBe(0);
+	});
+
+	it("needs the tag in the cause payload when given", () => {
+		const tests = [{ "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "wild" }];
+		expect(linesOf(tests, caused(cause({ tags: ["wild", "x"] })))).toBe(1);
+		expect(linesOf(tests, caused(cause({ tags: ["x"] })))).toBe(0);
+		expect(linesOf(tests, caused(cause({ tags: "wild" })))).toBe(0);
+		expect(linesOf(tests, caused(cause()))).toBe(0);
+	});
+
+	it("negate flips the result", () => {
+		const tests = [{ "uni:test": "caused_by", "uni:value": "card_played", "uni:negate": true }];
+		expect(linesOf(tests, caused(cause()))).toBe(0);
+		expect(linesOf(tests, caused(undefined))).toBe(1);
+	});
+
+	it("registry tells which events a binding watches as a cause", () => {
+		const registry = registryOf(
+			entry([
+				{
+					"uni:tests": [{ "uni:test": "caused_by", "uni:value": "card_played" }],
+					"uni:present": logOnly()
+				}
+			])
+		);
+		expect(registry.watchesCause("card_played")).toBe(true);
+		expect(registry.watchesCause("turn_skipped")).toBe(false);
+		registry.clear();
+		expect(registry.watchesCause("card_played")).toBe(false);
 	});
 });
 

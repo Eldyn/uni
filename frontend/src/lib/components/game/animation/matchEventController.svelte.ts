@@ -106,6 +106,7 @@ export function createMatchEventBeatController(deps: {
 	const playLog = createPlayLogEmitter((line) => chatStore.appendLocalLog(line));
 	function resetPlayLog(): void {
 		playLog.reset();
+		bindingRunner.reset();
 		skipsPresentedByTurn.clear();
 		skipsPresentedByEvent.clear();
 	}
