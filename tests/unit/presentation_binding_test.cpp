@@ -328,9 +328,11 @@ TEST_CASE("binding: the schema and the key table agree") {
     const json& binding =
         top.at(std::string(keys::kBinding)).at("properties");
     for (const std::string_view key :
-         {keys::kDescription, keys::kEvent, keys::kCases}) {
+         {keys::kDescription, keys::kEvent, keys::kCases, keys::kSelect}) {
         CHECK_MESSAGE(binding.contains(std::string(key)), key);
     }
+    CHECK(binding.at(std::string(keys::kSelect)).at("enum")
+          == json::array({keys::kSelectAll, keys::kSelectFirst}));
     const json& definitions = schema.at("$defs");
     const json& case_properties = definitions.at("case").at("properties");
     CHECK(case_properties.contains(std::string(keys::kTests)));
@@ -354,10 +356,18 @@ TEST_CASE("binding: the schema and the key table agree") {
         log.at(std::string(keys::kParams)).at("additionalProperties")
             .at("properties");
     for (const std::string_view key :
-         {keys::kParamField, keys::kParamValue, keys::kParamActor}) {
+         {keys::kParamField, keys::kParamValue, keys::kParamActor,
+          keys::kParamStreak, keys::kParamKey, keys::kParamKeyField}) {
         CHECK_MESSAGE(param.contains(std::string(key)), key);
     }
     const json& test = definitions.at("test").at("properties");
+    for (const std::string_view key :
+         {keys::kParamStreak, keys::kParamKey, keys::kParamKeyField}) {
+        CHECK_MESSAGE(test.contains(std::string(key)), key);
+    }
+    CHECK(test.at("uni:test").at("enum")
+          == json(std::vector<std::string_view>(keys::kBindingTests.begin(),
+                                                keys::kBindingTests.end())));
     CHECK(test.contains(std::string(keys::kRole)));
     CHECK(test.at(std::string(keys::kRole)).at("enum")
           == json::array({keys::kActorRole, keys::kTargetRole}));
@@ -999,6 +1009,36 @@ TEST_CASE("binding loader: streak source, select and numeric words parse") {
     CHECK(loaded.mods[0].bindings[0].select == "all");
 }
 
+TEST_CASE("binding loader: select, param streak and test key parse") {
+    const std::string present = R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": {
+                     "run": { "uni:streak": "uni:skip_run",
+                              "uni:key": "a" },
+                     "by_seat": { "uni:streak": "uni:skip_run",
+                                  "uni:key_field": "target" } } } })";
+    const std::string file = BindingFile(
+        "my_mod:shown", "my_mod:apple_eaten",
+        "[ { \"uni:tests\": [ { \"uni:test\": \"gte\","
+        " \"uni:streak\": \"uni:skip_run\", \"uni:key\": \"a\","
+        " \"uni:value\": 2 } ], \"uni:present\": " + present + " } ]");
+    const std::string with_select =
+        file.substr(0, file.find("\"uni:cases\""))
+        + "\"uni:select\": \"first\", "
+        + file.substr(file.find("\"uni:cases\""));
+    LoadResult loaded = LoadMod(with_select);
+    REQUIRE(loaded.ok());
+    const auto& binding = loaded.mods[0].bindings[0];
+    CHECK(binding.select == "first");
+    const auto& binding_case = binding.cases[0];
+    CHECK(binding_case.tests[0].key == "a");
+    const auto& params = binding_case.log->params;
+    CHECK(params.at("run").streak == "uni:skip_run");
+    CHECK(params.at("run").key == "a");
+    CHECK(params.at("by_seat").streak == "uni:skip_run");
+    CHECK(params.at("by_seat").key_field == "target");
+}
+
 TEST_CASE("binding validation: numeric words need a number value") {
     LoadResult loaded = LoadApple(
         R"([ { "uni:test": "gt", "uni:field": "count", "uni:value": 2 } ])");
@@ -1108,4 +1148,49 @@ TEST_CASE("binding validation: a relation test cannot read a streak") {
     CHECK(Validate(loaded).empty());
     tests[0].streak = "uni:skip_run";
     CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a streak test key_field must be a field") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "gte", "uni:streak": "uni:skip_run",
+               "uni:value": 2, "uni:key_field": "target" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].tests[0].key_field = "nobody";
+    CHECK(HasCheck(Validate(loaded), "binding.field.unknown"));
+}
+
+TEST_CASE("binding validation: a streak param key_field must be a field") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"] = match::modload::BindingParamDef{};
+    params["count"].streak = "uni:skip_run";
+    params["count"].key_field = "target";
+    CHECK(Validate(loaded).empty());
+    params["count"].key_field = "nobody";
+    CHECK(HasCheck(Validate(loaded), "binding.field.unknown"));
+}
+
+TEST_CASE("binding validation: a streak in test needs values") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "in", "uni:streak": "uni:skip_run",
+               "uni:values": [ 1, 2 ] } ])");
+    REQUIRE(loaded.ok());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    REQUIRE(!test.values.empty());
+    CHECK(Validate(loaded).empty());
+    test.values.clear();
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a streak param id must be well formed") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"] = match::modload::BindingParamDef{};
+    params["count"].streak = "uni:skip_run";
+    CHECK(Validate(loaded).empty());
+    params["count"].streak = "bad id!";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }

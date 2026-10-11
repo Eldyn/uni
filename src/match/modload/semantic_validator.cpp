@@ -1486,14 +1486,23 @@ class Checker {
                       "key_field are for streak tests and exclusive"));
             return;
         }
+        if (test.test == keys::kIn && test.values.empty()) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test 'in' needs a non-empty list of values"));
+            return;
+        }
+        if (!test.key_field.empty()) {
+            CheckBoundField(path, binding, test.key_field,
+                            "streak key field");
+        }
         if (from_streak) return;
-        if (test.field.empty() || !test.state.empty()
-            || (test.test == keys::kIn && test.values.empty())) {
+        if (test.field.empty() || !test.state.empty()) {
             buckets_.presentations.push_back(Err(
                 "binding.test.shape", "presentations", path,
                 label + " test '" + test.test
-                    + "' needs a payload field (and a non-empty list for "
-                      "'in'); state values are for streaks"));
+                    + "' needs a payload field; state values are for "
+                      "streaks"));
             return;
         }
         CheckBoundField(path, binding, test.field, "test field");
@@ -1642,8 +1651,20 @@ class Checker {
                     "binding.log.param", "presentations", path,
                     label + " log parameter '" + name
                         + "' needs exactly one source: a field, a value, "
-                          "or the actor"));
+                          "the actor, or a streak"));
                 continue;
+            }
+            if (!param.streak.empty() && !IsLogKey(param.streak)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "' has a streak id outside [A-Za-z0-9_.:-] "
+                          "(1-64)"));
+                continue;
+            }
+            if (!param.key_field.empty()) {
+                CheckBoundField(path, binding, param.key_field,
+                                "streak key field");
             }
             if (!param.field.empty()) {
                 CheckBoundField(path, binding, param.field,
