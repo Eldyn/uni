@@ -8,6 +8,13 @@
     "uni:select": "first",
     "uni:cases": [
       {
+        "uni:tests": [
+          {
+            "uni:test": "has_tag",
+            "uni:tag": "uni:wild",
+            "uni:negate": true
+          }
+        ],
         "uni:present": {
           "uni:log": {
             "uni:variants": [

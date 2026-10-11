@@ -49,12 +49,25 @@ interface Outcome {
 
 const registries = new Map<string, BindingRegistry>();
 
+/** One fixture file holds one binding. A row can use more than one file. */
+const ROW_FIXTURES: Record<string, string[]> = {
+	play: ["play", "play_wild"]
+};
+
+function registryOfFiles(files: string[]): BindingRegistry {
+	const registry = new BindingRegistry();
+	const presentations = files.map((file) => ({
+		id: `parity:${file}`,
+		...JSON.parse(readFileSync(resolve(FIXTURE_DIR, `${file}.json`), "utf8"))
+	}));
+	registry.ingestDefs({ presentations });
+	return registry;
+}
+
 function registryOf(row: string): BindingRegistry {
 	let registry = registries.get(row);
 	if (registry === undefined) {
-		const body = JSON.parse(readFileSync(resolve(FIXTURE_DIR, `${row}.json`), "utf8"));
-		registry = new BindingRegistry();
-		registry.ingestDefs({ presentations: [{ id: `parity:${row}`, ...body }] });
+		registry = registryOfFiles(ROW_FIXTURES[row] ?? [row]);
 		registries.set(row, registry);
 	}
 	return registry;
@@ -86,20 +99,34 @@ function coreOutcome(testCase: ParityCase): Outcome {
 	);
 }
 
-function bindingOutcome(row: string, testCase: ParityCase): Outcome {
+/** The binding lines of a sequence of wire events; only the last carries the cause. */
+function bindingOutcomeOf(
+	row: string,
+	steps: ParityCase["wire"][],
+	causeEvent?: ParityCase["causeEvent"]
+): Outcome {
 	const registry = registryOf(row);
 	return summarize(
 		SEQUENCES.map((sequence) =>
-			presentEvent(
-				registry,
-				{ ...clientEventOf({ ...testCase.wire, sequence }), causeEvent: testCase.causeEvent },
-				VIEWER,
-				resolveCard
+			steps.flatMap((wire, index) =>
+				presentEvent(
+					registry,
+					{
+						...clientEventOf({ ...wire, sequence }),
+						causeEvent: index === steps.length - 1 ? causeEvent : undefined
+					},
+					VIEWER,
+					resolveCard
+				)
+					.map((output) => output.line)
+					.filter((line) => line !== null)
 			)
-				.map((output) => output.line)
-				.filter((line) => line !== null)
 		)
 	);
+}
+
+function bindingOutcome(row: string, testCase: ParityCase): Outcome {
+	return bindingOutcomeOf(row, [testCase.wire], testCase.causeEvent);
 }
 
 function expectParity(row: string, testCase: ParityCase): void {
@@ -377,24 +404,109 @@ describe("play log parity: cases that closed with the new binding features", () 
 	});
 });
 
-describe("play log parity: accepted differences (see parity-gaps.md)", () => {
-	it("play: a wild with a known color differs only in the color param (accepted)", () => {
-		const testCase: ParityCase = {
-			name: "wild play with a known color",
+const wildPlayWire = (): ParityCase["wire"] => {
+	const wire = cardWire("card_played", 44);
+	return { ...wire, payload: { ...wire.payload, tags: ["wild", "action", WILD_TAG] } };
+};
+
+const wildColorWire = (color: string): ParityCase["wire"] => ({
+	id: "active_type_changed",
+	actor: "ann",
+	payload: { color, previous_color: "white" }
+});
+
+const wildPlayCause = (tags: string[] = ["wild", "action", WILD_TAG]) => ({
+	id: "card_played",
+	payload: { card: 44, player: "ann", tags }
+});
+
+const paramsOfOutcome = (outcome: Outcome): Record<string, unknown>[] =>
+	outcome.params.map((entry) => Object.fromEntries(JSON.parse(entry) as [string, unknown][]));
+
+describe("play log parity: the wild play line through the cause event", () => {
+	it("play: a wild with a known color posts the same line, with the chosen color", () => {
+		const core = coreOutcome({
+			name: "wild play",
 			core: { kind: "play", player: "ann", cardKind: "uni:wild", color: "blue" },
-			wire: cardWire("card_played", 44)
-		};
-		const core = coreOutcome(testCase);
-		const binding = bindingOutcome("play", testCase);
+			wire: wildPlayWire()
+		});
+		const binding = bindingOutcomeOf(
+			"play",
+			[wildPlayWire(), wildColorWire("blue")],
+			wildPlayCause()
+		);
 		expect(binding.keys).toEqual(core.keys);
+		expect(binding.params).toEqual(core.params);
 		expect(binding.lineCount).toBe(core.lineCount);
-		const paramsOf = (outcome: Outcome) =>
-			outcome.params.map((entry) => Object.fromEntries(JSON.parse(entry) as [string, unknown][]));
-		const withoutColor = (list: Record<string, unknown>[]) =>
-			list.map(({ color: _color, ...rest }) => rest);
-		expect(withoutColor(paramsOf(binding))).toEqual(withoutColor(paramsOf(core)));
-		expect(paramsOf(core).map((entry) => entry.color)).toEqual(["blue"]);
-		expect(paramsOf(binding).map((entry) => entry.color)).toEqual(["white"]);
+		expect(paramsOfOutcome(binding).map((entry) => entry.color)).toEqual(["blue"]);
+	});
+
+	it("play: the card_played of a wild posts no line", () => {
+		expect(bindingOutcomeOf("play", [wildPlayWire()]).lineCount).toBe(0);
+	});
+
+	it("play: a color change with no wild cause posts no play line", () => {
+		for (const causeEvent of [
+			undefined,
+			wildPlayCause(["action"]),
+			{ id: "auto_played", payload: { card: 44, player: "ann", tags: [WILD_TAG] } }
+		]) {
+			expect(bindingOutcomeOf("play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+		}
+	});
+
+	it("play: a wild reset to white or to an empty color posts no play line", () => {
+		for (const color of ["white", ""]) {
+			expect(bindingOutcomeOf("play", [wildColorWire(color)], wildPlayCause()).lineCount).toBe(0);
+		}
+	});
+
+	it("play: the play line and the wild reaction line post in registration order", () => {
+		// INFO: two bindings on one event post in the order they are registered.
+		const keysFor = (files: string[]) => {
+			const event = {
+				...clientEventOf({ ...wildColorWire("blue"), sequence: 1, context: { "uni:wild_run": 1 } }),
+				causeEvent: wildPlayCause()
+			};
+			return presentEvent(registryOfFiles(files), event, VIEWER, resolveCard).map(
+				(output) => output.line?.key
+			);
+		};
+		const forward = keysFor(["play_wild", "wild"]);
+		expect(forward).toHaveLength(2);
+		expect(forward[0]).toBe("uni:log.play");
+		expect(forward[1]).toMatch(/^uni:log\.wild_reaction/);
+		expect(keysFor(["wild", "play_wild"])).toEqual([...forward].reverse());
+	});
+});
+
+describe("play log parity: accepted differences (see parity-gaps.md)", () => {
+	it("auto_play: an auto-played wild posts one line with the registry color (accepted)", () => {
+		// INFO: AutoPlayCard pushes active_type_changed before card_played and
+		//       auto_played. The color change has no tagged cause of this card, so
+		//       play_wild stays quiet; the tagged card_played posts no play line.
+		const registry = registryOfFiles(["play", "play_wild", "auto_play"]);
+		const steps = [
+			{ wire: wildColorWire("blue"), causeEvent: undefined },
+			{ wire: wildPlayWire(), causeEvent: undefined },
+			{ wire: cardWire("auto_played", 44), causeEvent: undefined }
+		];
+		const lines = steps.flatMap(({ wire, causeEvent }) =>
+			presentEvent(
+				registry,
+				{ ...clientEventOf({ ...wire, sequence: 1 }), causeEvent },
+				VIEWER,
+				resolveCard
+			).filter((output) => output.line !== null)
+		);
+		expect(lines).toHaveLength(1);
+		expect(lines[0]?.line?.params.color).toBe("white");
+		const core = coreOutcome({
+			name: "auto wild",
+			core: { kind: "auto_play", player: "ann", cardKind: "uni:wild", color: "blue" },
+			wire: cardWire("auto_played", 44)
+		});
+		expect(paramsOfOutcome(core).map((entry) => entry.color)).toEqual(["blue"]);
 	});
 
 	it.skip("near_win: the line keeps its place behind a pending wild (ordering, not a set)", () => {

@@ -1,0 +1,51 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:play_wild"
+    },
+    "uni:event": "active_type_changed",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
+          {
+            "uni:test": "in",
+            "uni:field": "color",
+            "uni:values": [
+              "white",
+              ""
+            ],
+            "uni:negate": true
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.play"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "player",
+                "uni:cause": true
+              },
+              "kind": {
+                "uni:field": "card",
+                "uni:cause": true,
+                "uni:card_part": "kind"
+              },
+              "color": {
+                "uni:field": "color"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

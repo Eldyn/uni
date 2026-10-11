@@ -1080,3 +1080,47 @@ describe("cause params", () => {
 		expect(params).toEqual({ card: "my_mod:zap", victim: "eldyn" });
 	});
 });
+
+describe("example: a mod card that acts on a chosen player", () => {
+	const sword: CardResolver = (bits) =>
+		bits === 77 ? { kind: "my_mod:sword", color: "red" } : undefined;
+	const registry = registryOf(
+		entry(
+			[
+				{
+					"uni:tests": [{ "uni:test": "caused_by", "uni:value": "card_played" }],
+					"uni:present": logOnly(["my_mod:log.sword"], {
+						name: { "uni:field": "player", "uni:cause": true },
+						kind: { "uni:field": "card", "uni:cause": true, "uni:card_part": "kind" },
+						victim: { "uni:field": "target" },
+						count: { "uni:field": "count" }
+					})
+				},
+				{ "uni:present": logOnly(["my_mod:log.sword"], { victim: { "uni:field": "target" } }) }
+			],
+			"cards_drawn"
+		)
+	);
+	const drawn = (causeEvent?: ClientEvent["causeEvent"]): ClientEvent =>
+		event({
+			id: "cards_drawn",
+			payload: { target: "eldyn", count: 2 },
+			...(causeEvent && { causeEvent })
+		});
+	const paramsOf = (subject: ClientEvent) =>
+		presentEvent(registry, subject, viewerOf("ann"), sword)[0]?.line?.params;
+
+	it("logs who played which card and who took how many cards", () => {
+		const cause = { id: "card_played", payload: { card: 77, player: "ann" } };
+		expect(paramsOf(drawn(cause))).toEqual({
+			name: "ann",
+			kind: "my_mod:sword",
+			victim: "eldyn",
+			count: 2
+		});
+	});
+
+	it("keeps only the own payload params when no cause event is known", () => {
+		expect(paramsOf(drawn())).toEqual({ victim: "eldyn" });
+	});
+});

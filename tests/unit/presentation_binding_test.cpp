@@ -1628,9 +1628,15 @@ TEST_CASE("binding fixtures: the parity fixtures pass the file schema") {
                                               << Describe(loaded.errors));
         REQUIRE(loaded.ok());
         match::modload::SemanticValidator validator(SchemaDir());
-        CHECK_FALSE(HasCheck(validator.ValidateMod(loaded.mods.at(0)),
-                             "schema.invalid"));
+        const std::vector<LoadError> findings =
+            validator.ValidateMod(loaded.mods.at(0));
+        CHECK_FALSE(HasCheck(findings, "schema.invalid"));
+        for (const LoadError& finding : findings) {
+            INFO(entry.path().filename().string() << ": " << finding.check);
+            CHECK(finding.check.rfind("binding.", 0) != 0);
+        }
         ++checked;
     }
-    CHECK(checked == 12);
+    constexpr std::size_t kParityFixtureCount = 13;
+    CHECK(checked == kParityFixtureCount);
 }

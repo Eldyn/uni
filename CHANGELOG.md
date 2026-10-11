@@ -63,9 +63,11 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Wild play line shows the chosen color** (test) — the play parity fixtures now post the play line of a wild on `active_type_changed`, caused by a tagged `card_played`, and read player and card from the cause event (`uni:cause`). The parity test proves the same line and color as the core.
+
 - **`card_played` payload declares `tags`** — the contract now lists the optional field `tags` (array of strings, the tags of the card kind) in `CardPlayedPayload`. The server already sent it. The packet version stays 1 because the field is additive.
 
-- **Play log parity gaps closed** (test) — the new binding features (card part, actor test, `finished` test, `caused_by` test, log param default) now close the parity gaps G1 to G4 and G6. Two differences stay as accepted: the near-win order and the timing of the play line of a wild.
+- **Play log parity gaps closed** (test) — the new binding features (card part, actor test, `finished` test, `caused_by` test, log param default) now close the parity gaps G1 to G4, G6 and G8 (the timing of the play line of a wild, closed by the cause source). Two differences stay as accepted: G5 (the near-win order) and G7 (an auto-played wild keeps the registry color).
 
 - **`placement_set` carries `finished`** — the field is additive and the packet marker stays 1. `finished` is true when the place ends the race for that seat.
 - **`window_responded` carries `window_kind` and `outcome`** — the fields are additive and the packet marker stays 1. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
