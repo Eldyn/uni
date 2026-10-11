@@ -1663,7 +1663,8 @@ class Checker {
                          const std::vector<StreakTestDef>& tests) {
         const auto cause_test = std::find_if(
             tests.begin(), tests.end(), [](const StreakTestDef& test) {
-                return test.test == binding_keys::kCausedBy;
+                return test.test == binding_keys::kCausedBy
+                       && !test.negate;
             });
         const std::string label = "binding '" + binding.binding_id + "'";
         std::set<std::string> seen;
@@ -1728,8 +1729,8 @@ class Checker {
                 buckets_.presentations.push_back(Err(
                     "binding.log.param", "presentations", path,
                     label + " log parameter '" + name
-                        + "': a cause param needs a caused_by test in the "
-                          "case"));
+                        + "': a cause param needs a caused_by test that is "
+                          "not negated"));
                 continue;
             }
             if (sources != 1) {

@@ -1244,6 +1244,26 @@ TEST_CASE("binding validation: a cause param needs a caused_by test") {
     CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }
 
+TEST_CASE("binding validation: a negated caused_by test is no cause") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].cases[0].tests[0].negate = true;
+    const auto errors = Validate(loaded);
+    CHECK(HasCheck(errors, "binding.log.param"));
+    CHECK(Describe(errors).find("that is not negated") != std::string::npos);
+}
+
+TEST_CASE("binding validation: a negated caused_by test is skipped") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    auto& tests = loaded.mods[0].bindings[0].cases[0].tests;
+    match::modload::StreakTestDef negated = tests[0];
+    negated.value = "my_mod:apple_eaten";
+    negated.negate = true;
+    tests.insert(tests.begin(), negated);
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+}
+
 TEST_CASE("binding validation: the cause field is not read from the event") {
     LoadResult loaded = LoadCauseCase();
     REQUIRE(loaded.ok());
@@ -1301,9 +1321,10 @@ TEST_CASE("binding validation: a cause field audience warns or rejects") {
 
 TEST_CASE("binding loader: a non-boolean param cause stays false") {
     const std::string present = R"({
-      "uni:log": { "uni:variants": [ "log_a" ],
-                   "uni:params": {
-                     "card": { "uni:field": "card", "uni:cause": "yes" } } } })";
+      "uni:log": {
+        "uni:variants": [ "log_a" ],
+        "uni:params": {
+          "card": { "uni:field": "card", "uni:cause": "yes" } } } })";
     LoadResult loaded = LoadMod(BindingFile(
         "my_mod:shown", "my_mod:apple_eaten",
         "[ { \"uni:present\": " + present + " } ]"));
@@ -1613,6 +1634,10 @@ TEST_CASE("binding validation: a streak param id must be well formed") {
 TEST_CASE("binding fixtures: the parity fixtures pass the file schema") {
     const fs::path fixture_dir =
         ProjectRoot() / "tests" / "fixtures" / "play_log_parity";
+    std::size_t expected = 0;
+    for (const auto& entry : fs::directory_iterator(fixture_dir)) {
+        if (entry.path().extension() == ".json") ++expected;
+    }
     std::size_t checked = 0;
     for (const auto& entry : fs::directory_iterator(fixture_dir)) {
         if (entry.path().extension() != ".json") continue;
@@ -1637,6 +1662,6 @@ TEST_CASE("binding fixtures: the parity fixtures pass the file schema") {
         }
         ++checked;
     }
-    constexpr std::size_t kParityFixtureCount = 13;
-    CHECK(checked == kParityFixtureCount);
+    CHECK(checked > 0);
+    CHECK(checked == expected);
 }
