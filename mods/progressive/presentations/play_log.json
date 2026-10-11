@@ -1,0 +1,23 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "progressive:drawn_log" },
+    "uni:event": "progressive:drawn_until_playable",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "progressive:keeps_drawing_1",
+              "progressive:keeps_drawing_2"
+            ],
+            "uni:params": {
+              "name": { "uni:field": "target" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

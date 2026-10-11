@@ -243,3 +243,32 @@ describe("seven_zero play log lines", () => {
 		for (const key of keys) expect(typeof texts[key]).toBe("string");
 	});
 });
+
+describe("progressive play log line", () => {
+	const registry = registryOfMod(
+		"progressive",
+		"presentations/play_log.json",
+		"progressive:drawn_log"
+	);
+	const texts = readModJson("progressive", "texts/en.json");
+
+	it("logs a draw until playable with the drawing seat", () => {
+		const outputs = presentEvent(
+			registry,
+			eventOf("progressive:drawn_until_playable", { target: "bob" }, "system"),
+			viewerOf("ann")
+		);
+
+		expect(outputs).toHaveLength(1);
+		const line = outputs[0]!.line!;
+		expect(["progressive:keeps_drawing_1", "progressive:keeps_drawing_2"]).toContain(line.key);
+		expect(line.params).toEqual({ name: "bob" });
+	});
+
+	it("names every variant key in the English texts", () => {
+		const keys = bindingVariantKeys("progressive", "presentations/play_log.json");
+
+		expect(keys).toEqual(["progressive:keeps_drawing_1", "progressive:keeps_drawing_2"]);
+		for (const key of keys) expect(typeof texts[key]).toBe("string");
+	});
+});

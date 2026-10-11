@@ -13,6 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Keep-drawing line as mod data** — the `progressive` mod now owns the keep-drawing play log line. It has `texts/en.json` and a binding on `progressive:drawn_until_playable` with two texts.
 - **Jump-in line as mod data** — the `jump_in` mod now owns the jump-in play log line. It has `texts/en.json` and a `window_responded` binding that logs the seat that wins the jump-in window.
 - **Hand swap lines as mod data** — the `seven_zero` mod now owns its play log lines for a swap, a forward or backward pass, and a full redistribution of hands. It has `texts/en.json` and three bindings.
 - **Stack line as mod data** — the `draw_stacking` mod now owns the stack penalty play log line. It has `texts/en.json` and a `status_applied` binding with three texts, a heavy one from a total of 8. The line shows the new total and not the last card. A test for each shipped mod checks that its bindings load with no error and no warning.
