@@ -1303,6 +1303,9 @@ bool ParseBindingParam(const nlohmann::json& item, BindingParamDef& out) {
     const auto actor = item.find(std::string(keys::kParamActor));
     out.actor = actor != item.end() && actor->is_boolean()
                 && actor->get<bool>();
+    const auto cause = item.find(std::string(keys::kParamCause));
+    out.cause = cause != item.end() && cause->is_boolean()
+                && cause->get<bool>();
     return true;
 }
 

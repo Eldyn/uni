@@ -142,6 +142,7 @@
                   "uni:key": { "type": "string" },
                   "uni:key_field": { "type": "string" },
                   "uni:card_part": { "enum": ["kind", "color"] },
+                  "uni:cause": { "type": "boolean" },
                   "uni:default": { "oneOf": [{ "type": "string" }, { "type": "number" }] }
                 }
               }

@@ -55,6 +55,16 @@
  *   through the loaded card defs to the kind id or the face color. It is a
  *   modifier of the field source, not a source. A field that is no card gives
  *   no param, so `uni:default` can apply.
+ * - A `uni:field` param can add `uni:cause: true`. The client then reads
+ *   the field from the payload of the CAUSE event, not from the payload of
+ *   the event. It needs a `caused_by` test in the same case, and the field
+ *   must belong to the event of the first `caused_by` test. It combines with
+ *   `uni:card_part`. When the cause is absent or lacks the field, the param
+ *   is absent and `uni:default` can apply. Example: a case with the test
+ *   `caused_by card_played` on a mod event `my_mod:cut` can log
+ *   "Ann played Sword and cut Eldyn" with the params
+ *   `{ "card": { "uni:field": "card", "uni:cause": true,
+ *   "uni:card_part": "kind" }, "victim": { "uni:field": "victim" } }`.
  * - A test of `exists`, `equals` or `in` can set `uni:actor: true`. It then
  *   reads the envelope actor, not a payload field or a streak.
  * - The test `caused_by` holds when the event that caused this one has the
@@ -133,6 +143,7 @@ inline constexpr std::string_view kParamKey = "uni:key";
 inline constexpr std::string_view kParamKeyField = "uni:key_field";
 inline constexpr std::string_view kParamDefault = "uni:default";
 inline constexpr std::string_view kParamCardPart = "uni:card_part";
+inline constexpr std::string_view kParamCause = "uni:cause";
 inline constexpr std::string_view kCardPartKind = "kind";
 inline constexpr std::string_view kCardPartColor = "color";
 inline constexpr std::string_view kSelect = "uni:select";

@@ -358,7 +358,8 @@ TEST_CASE("binding: the schema and the key table agree") {
     for (const std::string_view key :
          {keys::kParamField, keys::kParamValue, keys::kParamActor,
           keys::kParamStreak, keys::kParamKey, keys::kParamKeyField,
-          keys::kParamDefault, keys::kParamCardPart}) {
+          keys::kParamDefault, keys::kParamCardPart,
+          keys::kParamCause}) {
         CHECK_MESSAGE(param.contains(std::string(key)), key);
     }
     const json& test = definitions.at("test").at("properties");
@@ -1178,6 +1179,153 @@ TEST_CASE("binding validation: the schema rejects a non-string card part") {
                                             "uni:card_part": 3 } } } })");
     REQUIRE(loaded.ok());
     CHECK(HasCheck(Validate(loaded), "schema.invalid"));
+}
+
+TEST_CASE("binding loader: a param cause flag parses") {
+    const std::string present = R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": {
+                     "card": { "uni:field": "card", "uni:cause": true,
+                               "uni:card_part": "kind" },
+                     "plain": { "uni:field": "card" } } } })";
+    LoadResult loaded = LoadMod(BindingFile(
+        "my_mod:shown", "my_mod:apple_eaten",
+        "[ { \"uni:present\": " + present + " } ]"));
+    REQUIRE(loaded.ok());
+    const auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    CHECK(params.at("card").cause);
+    CHECK_FALSE(params.at("plain").cause);
+}
+
+namespace {
+
+LoadResult LoadCauseCase() {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played" } ])");
+    if (loaded.ok()) {
+        auto& param =
+            loaded.mods[0].bindings[0].cases[0].log->params["count"];
+        param.field = "card";
+        param.cause = true;
+    }
+    return loaded;
+}
+
+}  // namespace
+
+TEST_CASE("binding validation: a cause param reads a field of the cause") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+    CHECK(Warnings(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].log->params["count"].card_part =
+        "kind";
+    CHECK(Validate(loaded).empty());
+}
+
+TEST_CASE("binding validation: a cause param needs a field source") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    auto& param = loaded.mods[0].bindings[0].cases[0].log->params["count"];
+    param.field.clear();
+    param.value = "x";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+    param.value.reset();
+    param.actor = true;
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+    const std::string message = Describe(Validate(loaded));
+    CHECK(message.find("cause needs a field source") != std::string::npos);
+}
+
+TEST_CASE("binding validation: a cause param needs a caused_by test") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].cases[0].tests.clear();
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: the cause field is not read from the event") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    const auto& param =
+        loaded.mods[0].bindings[0].cases[0].log->params.at("count");
+    REQUIRE(param.field == "card");
+    const auto& fields = loaded.mods[0].events.at(0).fields;
+    for (const auto& field : fields) CHECK(field.name != "card");
+    CHECK(Validate(loaded).empty());
+}
+
+TEST_CASE("binding validation: a bad caused_by value gives only its error") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    for (const json bad : {json(""), json(5)}) {
+        test.value = bad;
+        const auto errors = Validate(loaded);
+        CHECK(HasCheck(errors, "binding.test.shape"));
+        CHECK_FALSE(HasCheck(errors, "binding.log.param"));
+        CHECK_FALSE(HasCheck(errors, "binding.field.unknown"));
+    }
+}
+
+TEST_CASE("binding validation: a foreign cause event defers the field") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].cases[0].tests[0].value = "other_mod:thing";
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+}
+
+TEST_CASE("binding validation: the first caused_by test names the field") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    auto& tests = loaded.mods[0].bindings[0].cases[0].tests;
+    match::modload::StreakTestDef second = tests[0];
+    second.value = "my_mod:apple_eaten";
+    tests.push_back(second);
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+    std::swap(tests[0], tests[1]);
+    CHECK(HasCheck(Validate(loaded), "binding.field.unknown"));
+}
+
+TEST_CASE("binding validation: a cause field audience warns or rejects") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].cases[0].tests[0].value = "my_mod:apple_eaten";
+    auto& param = loaded.mods[0].bindings[0].cases[0].log->params["count"];
+    param.field = "color";
+    CHECK(Validate(loaded).empty());
+    CHECK_FALSE(Warnings(loaded).empty());
+    param.field = "secret";
+    CHECK(HasCheck(Validate(loaded), "binding.field.audience"));
+}
+
+TEST_CASE("binding loader: a non-boolean param cause stays false") {
+    const std::string present = R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": {
+                     "card": { "uni:field": "card", "uni:cause": "yes" } } } })";
+    LoadResult loaded = LoadMod(BindingFile(
+        "my_mod:shown", "my_mod:apple_eaten",
+        "[ { \"uni:present\": " + present + " } ]"));
+    REQUIRE(loaded.ok());
+    CHECK_FALSE(loaded.mods[0].bindings[0].cases[0].log->params.at("card")
+                    .cause);
+}
+
+TEST_CASE("binding validation: the schema rejects a non-boolean cause") {
+    LoadResult loaded = LoadApple(
+        "[]", R"({ "uni:log": { "uni:variants": [ "log_a" ],
+                     "uni:params": { "c": { "uni:field": "count",
+                                            "uni:cause": 3 } } } })");
+    REQUIRE(loaded.ok());
+    CHECK(HasCheck(Validate(loaded), "schema.invalid"));
+}
+
+TEST_CASE("binding validation: a cause field must exist on the cause") {
+    LoadResult loaded = LoadCauseCase();
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].cases[0].log->params["count"].field = "nope";
+    CHECK(HasCheck(Validate(loaded), "binding.field.unknown"));
 }
 
 TEST_CASE("binding validation: numeric words need a number value") {

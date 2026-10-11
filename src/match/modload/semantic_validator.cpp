@@ -1377,10 +1377,16 @@ class Checker {
      *       field that some viewers receive can be absent. */
     void CheckBoundField(const std::string& path, const BindingDef& binding,
                          const std::string& field, const std::string& role) {
+        CheckBoundFieldOf(path, binding, binding.event, field, role);
+    }
+
+    void CheckBoundFieldOf(const std::string& path, const BindingDef& binding,
+                           const std::string& event_id,
+                           const std::string& field, const std::string& role) {
         const std::string subject = "binding '" + binding.binding_id + "' "
                                     + role + " '" + field + "' of '"
-                                    + binding.event + "'";
-        switch (LookupBoundField(binding.event, field)) {
+                                    + event_id + "'";
+        switch (LookupBoundField(event_id, field)) {
             case BoundField::kNoField:
                 buckets_.presentations.push_back(Err(
                     "binding.field.unknown", "presentations", path,
@@ -1653,7 +1659,12 @@ class Checker {
     }
 
     void CheckBindingLog(const std::string& path, const BindingDef& binding,
-                         const BindingLogDef& log) {
+                         const BindingLogDef& log,
+                         const std::vector<StreakTestDef>& tests) {
+        const auto cause_test = std::find_if(
+            tests.begin(), tests.end(), [](const StreakTestDef& test) {
+                return test.test == binding_keys::kCausedBy;
+            });
         const std::string label = "binding '" + binding.binding_id + "'";
         std::set<std::string> seen;
         bool keys_ok = !log.variants.empty()
@@ -1705,6 +1716,22 @@ class Checker {
                           "'kind' or 'color'"));
                 continue;
             }
+            if (param.cause
+                && (param.field.empty() || sources != 1)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': cause needs a field source"));
+                continue;
+            }
+            if (param.cause && cause_test == tests.end()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': a cause param needs a caused_by test in the "
+                          "case"));
+                continue;
+            }
             if (sources != 1) {
                 buckets_.presentations.push_back(Err(
                     "binding.log.param", "presentations", path,
@@ -1725,7 +1752,13 @@ class Checker {
                 CheckBoundField(path, binding, param.key_field,
                                 "streak key field");
             }
-            if (!param.field.empty()) {
+            if (param.cause) {
+                /* INFO: a bad caused_by value has its own shape error. */
+                if (!cause_test->value.is_string()) continue;
+                CheckBoundFieldOf(path, binding,
+                                  cause_test->value.get<std::string>(),
+                                  param.field, "log parameter cause field");
+            } else if (!param.field.empty()) {
                 CheckBoundField(path, binding, param.field,
                                 "log parameter field");
             }
@@ -1741,7 +1774,8 @@ class Checker {
         CheckBindingBeats(path, binding, binding_case);
         CheckBindingSounds(path, mod, binding, binding_case);
         if (binding_case.log.has_value()) {
-            CheckBindingLog(path, binding, *binding_case.log);
+            CheckBindingLog(path, binding, *binding_case.log,
+                            binding_case.tests);
         }
         if (!binding_case.glossary.empty()
             && !IsGlossaryKey(binding_case.glossary)) {

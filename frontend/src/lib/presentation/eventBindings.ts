@@ -91,7 +91,7 @@ export interface BindingTest {
 }
 
 type ParamSource =
-	| { kind: "field"; field: string; cardPart?: "kind" | "color" }
+	| { kind: "field"; field: string; cardPart?: "kind" | "color"; fromCause?: true }
 	| { kind: "value"; value: string | number }
 	| { kind: "actor" }
 	| { kind: "streak"; streak: string; key: string; keyField: string };
@@ -242,7 +242,12 @@ function parseParamSource(raw: unknown): ParamSource | null {
 	if (typeof raw["uni:field"] === "string") {
 		const part = raw["uni:card_part"];
 		const cardPart = part === "kind" || part === "color" ? part : undefined;
-		return { kind: "field", field: raw["uni:field"], ...(cardPart && { cardPart }) };
+		return {
+			kind: "field",
+			field: raw["uni:field"],
+			...(cardPart && { cardPart }),
+			...(raw["uni:cause"] === true && { fromCause: true as const })
+		};
 	}
 	const literal = raw["uni:value"];
 	if (typeof literal === "string" || typeof literal === "number") {
@@ -466,7 +471,8 @@ function paramValue(
 		if (typeof streakValue === "string") return escapeLogText(streakValue);
 		return undefined;
 	}
-	const value = event.payload[source.field];
+	const payload = source.fromCause ? event.causeEvent?.payload : event.payload;
+	const value = payload?.[source.field];
 	if (source.cardPart !== undefined) {
 		if (typeof value !== "number" || !isCardBits(value)) return undefined;
 		const card = resolveCard?.(value);

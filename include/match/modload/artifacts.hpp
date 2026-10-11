@@ -471,6 +471,7 @@ struct BindingParamDef {
     std::string key_field; /**< Payload field that names the key. */
     std::optional<nlohmann::json> default_value;  /**< Used when no value. */
     std::string card_part; /**< "kind" or "color" of a card in `field`. */
+    bool cause = false;    /**< Read `field` from the cause event. */
 };
 
 /**

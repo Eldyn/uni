@@ -1005,3 +1005,78 @@ describe("card part params", () => {
 		expect(paramsOf(param, withCard(5), () => undefined)?.p).toBe("none");
 	});
 });
+
+describe("cause params", () => {
+	const zap: CardResolver = (bits) =>
+		bits === 42 ? { kind: "my_mod:zap", color: "red" } : { kind: "wrong" };
+	const withCause = (payload: Record<string, unknown> | undefined): ClientEvent =>
+		event({
+			payload: { player: "eldyn", card: 7 },
+			...(payload && { causeEvent: { id: "card_played", payload } })
+		});
+	const paramsOf = (
+		param: Record<string, unknown>,
+		subject: ClientEvent,
+		resolveCard?: CardResolver
+	) => {
+		const registry = registryOf(entry([{ "uni:present": logOnly(["k"], { p: param }) }]));
+		return presentEvent(registry, subject, viewerOf("ann"), resolveCard)[0]?.line?.params;
+	};
+
+	it("reads the kind of a card of the cause event", () => {
+		const param = { "uni:field": "card", "uni:cause": true, "uni:card_part": "kind" };
+		const subject = withCause({ card: 42, player: "ann" });
+		expect(paramsOf(param, subject, zap)?.p).toBe("my_mod:zap");
+	});
+
+	it("reads and escapes a string field of the cause event", () => {
+		const param = { "uni:field": "player", "uni:cause": true };
+		expect(paramsOf(param, withCause({ player: "[c=red]ann" }))?.p).toBe("\\[c=red]ann");
+	});
+
+	it("reads a number field of the cause event", () => {
+		const param = { "uni:field": "count", "uni:cause": true };
+		expect(paramsOf(param, withCause({ count: 3 }))?.p).toBe(3);
+	});
+
+	it("leaves the param out when there is no cause event", () => {
+		const param = { "uni:field": "player", "uni:cause": true };
+		expect(paramsOf(param, withCause(undefined))).not.toHaveProperty("p");
+	});
+
+	it("leaves the param out when the cause event lacks the field", () => {
+		const param = { "uni:field": "player", "uni:cause": true };
+		expect(paramsOf(param, withCause({ card: 1 }))).not.toHaveProperty("p");
+	});
+
+	it("uses the default when there is no cause event", () => {
+		const param = { "uni:field": "player", "uni:cause": true, "uni:default": "someone" };
+		expect(paramsOf(param, withCause(undefined))?.p).toBe("someone");
+	});
+
+	it("uses the default when the cause event lacks the field", () => {
+		const param = { "uni:field": "player", "uni:cause": true, "uni:default": "someone" };
+		expect(paramsOf(param, withCause({ card: 1 }))?.p).toBe("someone");
+	});
+
+	it("reads the own payload when the cause flag is absent", () => {
+		const param = { "uni:field": "player" };
+		expect(paramsOf(param, withCause({ player: "ann" }))?.p).toBe("eldyn");
+	});
+
+	it("mixes a cause param and an own payload param in one line", () => {
+		const registry = registryOf(
+			entry([
+				{
+					"uni:present": logOnly(["k"], {
+						card: { "uni:field": "card", "uni:cause": true, "uni:card_part": "kind" },
+						victim: { "uni:field": "player" }
+					})
+				}
+			])
+		);
+		const subject = withCause({ card: 42 });
+		const params = presentEvent(registry, subject, viewerOf("ann"), zap)[0]?.line?.params;
+		expect(params).toEqual({ card: "my_mod:zap", victim: "eldyn" });
+	});
+});
