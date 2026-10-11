@@ -96,6 +96,7 @@ export interface BindingCase {
 export interface Binding {
 	id: string;
 	event: string;
+	select: "all" | "first";
 	cases: BindingCase[];
 }
 
@@ -256,7 +257,12 @@ export function parseBinding(raw: unknown): Binding | null {
 	const cases = body["uni:cases"]
 		.map(parseCase)
 		.filter((parsed): parsed is BindingCase => parsed !== null);
-	return { id: raw.id, event: body["uni:event"], cases };
+	return {
+		id: raw.id,
+		event: body["uni:event"],
+		select: body["uni:select"] === "first" ? "first" : "all",
+		cases
+	};
 }
 
 /** The bindings of the active match, by event id. */
@@ -302,7 +308,7 @@ function streakValueOf(event: ClientEvent, streak: string, key: string, keyField
 	if (key === "" && keyField === "") return value;
 	if (!isRecord(value)) return undefined;
 	const lookup = key !== "" ? key : event.payload[keyField];
-	return typeof lookup === "string" ? value[lookup] : undefined;
+	return typeof lookup === "string" && Object.hasOwn(value, lookup) ? value[lookup] : undefined;
 }
 
 function holdsRelation(test: BindingTest, event: ClientEvent, viewer: Viewer): boolean {
@@ -432,6 +438,7 @@ export function presentEvent(
 					: null,
 				glossary: bindingCase.glossary
 			});
+			if (binding.select === "first") break;
 		}
 	}
 	return outputs;

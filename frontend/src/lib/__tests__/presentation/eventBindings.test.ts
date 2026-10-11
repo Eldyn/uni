@@ -652,6 +652,15 @@ describe("streak source", () => {
 	const withContext = (context: Record<string, unknown>): ClientEvent =>
 		event({ payload: { target: "bob" }, context });
 
+	it("ignores inherited property names as keys", () => {
+		const tests = [
+			{ "uni:test": "exists", "uni:streak": "uni:draw_run", "uni:key_field": "target" }
+		];
+		expect(
+			linesOf(tests, event({ payload: { target: "constructor" }, context: { "uni:draw_run": {} } }))
+		).toBe(0);
+	});
+
 	it("tests a global streak value", () => {
 		const tests = [{ "uni:test": "gte", "uni:streak": "uni:skip_run", "uni:value": 3 }];
 		expect(linesOf(tests, withContext({ "uni:skip_run": 3 }))).toBe(1);
@@ -715,5 +724,39 @@ describe("streak source", () => {
 		);
 		const outputs = presentEvent(registry, event(), viewerOf("ann"));
 		expect(outputs[0]?.line?.params).not.toHaveProperty("run");
+	});
+});
+
+describe("select mode", () => {
+	const twoCases = [
+		{
+			"uni:tests": [{ "uni:test": "gte", "uni:field": "count", "uni:value": 3 }],
+			"uni:present": logOnly(["big"])
+		},
+		{ "uni:present": logOnly(["small"]) }
+	];
+	const withSelect = (select?: string) => {
+		const raw = entry(twoCases);
+		if (select !== undefined) {
+			(raw["uni:binding"] as Record<string, unknown>)["uni:select"] = select;
+		}
+		return registryOf(raw);
+	};
+	const keys = (registry: BindingRegistry, count: number): string[] =>
+		presentEvent(registry, event({ payload: { count } }), viewerOf("ann")).map(
+			(output) => output.line?.key ?? ""
+		);
+
+	it("applies every matching case by default", () => {
+		expect(keys(withSelect(), 5)).toEqual(["big", "small"]);
+	});
+	it("applies only the first matching case with first", () => {
+		expect(keys(withSelect("first"), 5)).toEqual(["big"]);
+		expect(keys(withSelect("first"), 1)).toEqual(["small"]);
+	});
+	it("gives nothing with first when no case matches", () => {
+		const raw = entry([twoCases[0]]);
+		(raw["uni:binding"] as Record<string, unknown>)["uni:select"] = "first";
+		expect(keys(registryOf(raw), 1)).toEqual([]);
 	});
 });
