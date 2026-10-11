@@ -1437,3 +1437,28 @@ TEST_CASE("binding validation: a streak param id must be well formed") {
     params["count"].streak = "bad id!";
     CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }
+
+TEST_CASE("binding fixtures: the parity fixtures pass the file schema") {
+    const fs::path fixture_dir =
+        ProjectRoot() / "tests" / "fixtures" / "play_log_parity";
+    std::size_t checked = 0;
+    for (const auto& entry : fs::directory_iterator(fixture_dir)) {
+        if (entry.path().extension() != ".json") continue;
+        std::ifstream in(entry.path());
+        const std::string body((std::istreambuf_iterator<char>(in)),
+                               std::istreambuf_iterator<char>());
+        TempModsRoot root;
+        root.Write("parity/mod.json", ManifestFor("parity"));
+        root.Write("parity/presentations/" + entry.path().filename().string(),
+                   body);
+        const LoadResult loaded = ScanModsDirectory(root.root.string());
+        INFO(entry.path().filename().string() << ": "
+                                              << Describe(loaded.errors));
+        REQUIRE(loaded.ok());
+        match::modload::SemanticValidator validator(SchemaDir());
+        CHECK_FALSE(HasCheck(validator.ValidateMod(loaded.mods.at(0)),
+                             "schema.invalid"));
+        ++checked;
+    }
+    CHECK(checked == 12);
+}

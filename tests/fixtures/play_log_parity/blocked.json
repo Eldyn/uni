@@ -23,7 +23,13 @@
               }
             }
           }
-        }
+        },
+        "uni:tests": [
+          {
+            "uni:test": "exists",
+            "uni:actor": true
+          }
+        ]
       }
     ]
   }

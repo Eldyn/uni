@@ -10,6 +10,11 @@
       {
         "uni:tests": [
           {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
+          {
             "uni:test": "equals",
             "uni:field": "color",
             "uni:value": "white",
@@ -36,7 +41,8 @@
               },
               "prevColor": {
                 "uni:streak": "uni:last_wild_color",
-                "uni:key": "previous"
+                "uni:key": "previous",
+                "uni:default": ""
               }
             }
           }
@@ -44,6 +50,11 @@
       },
       {
         "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
           {
             "uni:test": "equals",
             "uni:field": "color",
@@ -71,7 +82,8 @@
               },
               "prevColor": {
                 "uni:streak": "uni:last_wild_color",
-                "uni:key": "previous"
+                "uni:key": "previous",
+                "uni:default": ""
               }
             }
           }
@@ -79,6 +91,11 @@
       },
       {
         "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
           {
             "uni:test": "equals",
             "uni:field": "color",
@@ -101,7 +118,8 @@
               },
               "prevColor": {
                 "uni:streak": "uni:last_wild_color",
-                "uni:key": "previous"
+                "uni:key": "previous",
+                "uni:default": ""
               }
             }
           }

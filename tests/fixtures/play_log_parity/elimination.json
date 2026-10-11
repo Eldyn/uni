@@ -16,8 +16,8 @@
           },
           {
             "uni:test": "equals",
-            "uni:field": "is_elimination",
-            "uni:value": false
+            "uni:field": "finished",
+            "uni:value": true
           }
         ],
         "uni:present": {
@@ -43,6 +43,11 @@
             "uni:test": "gte",
             "uni:field": "place",
             "uni:value": 2
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "finished",
+            "uni:value": false
           }
         ],
         "uni:present": {

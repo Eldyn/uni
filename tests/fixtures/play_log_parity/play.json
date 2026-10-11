@@ -16,6 +16,14 @@
             "uni:params": {
               "name": {
                 "uni:field": "player"
+              },
+              "kind": {
+                "uni:field": "card",
+                "uni:card_part": "kind"
+              },
+              "color": {
+                "uni:field": "card",
+                "uni:card_part": "color"
               }
             }
           }

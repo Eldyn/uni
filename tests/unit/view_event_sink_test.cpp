@@ -376,6 +376,7 @@ TEST_CASE("view event sink: a played card and turn wrap gap-free") {
             saw_played = true;
             CHECK(envelope["payload"]["player"] == "player0");
             CHECK(envelope["payload"]["card"].is_number_unsigned());
+            CHECK(envelope["payload"]["tags"].is_array());
         }
         if (envelope["id"] == "turn_advance") {
             saw_turn = true;

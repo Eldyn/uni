@@ -1,19 +1,28 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildLogLines } from "$lib/chat/playLog/logBuilder";
+import { buildLogLines, REACTION_RULES } from "$lib/chat/playLog/logBuilder";
 import type { LogEvent } from "$lib/chat/playLog/logEvent";
 import { readStreaks } from "$lib/chat/playLog/serverStreaks";
 import {
 	BindingRegistry,
 	clientEventOf,
 	presentEvent,
+	type CardResolver,
 	type EventEnvelope
 } from "$lib/presentation/eventBindings";
 
 const FIXTURE_DIR = resolve(import.meta.dirname, "../../../../../tests/fixtures/play_log_parity");
 const SEQUENCES = Array.from({ length: 80 }, (_, index) => index + 1);
 const VIEWER = { seat: "ann" };
+const WILD_TAG = "uni:wild";
+
+const CARD_TABLE: Record<number, { kind: string; color: string }> = {
+	42: { kind: "uni:number", color: "red" },
+	43: { kind: "uni:skip", color: "green" },
+	44: { kind: "uni:wild", color: "white" }
+};
+const resolveCard: CardResolver = (bits) => CARD_TABLE[bits];
 
 type CoreInput = LogEvent extends infer Event
 	? Event extends LogEvent
@@ -28,6 +37,8 @@ interface ParityCase {
 	wire: Omit<EventEnvelope, "sequence">;
 	/** The seat whose entry the per-seat draw count reads. */
 	seat?: string;
+	/** The event that caused the wire event, as the runner remembers it. */
+	causeEvent?: { id: string; payload: Record<string, unknown> };
 }
 
 interface Outcome {
@@ -79,7 +90,12 @@ function bindingOutcome(row: string, testCase: ParityCase): Outcome {
 	const registry = registryOf(row);
 	return summarize(
 		SEQUENCES.map((sequence) =>
-			presentEvent(registry, clientEventOf({ ...testCase.wire, sequence }), VIEWER)
+			presentEvent(
+				registry,
+				{ ...clientEventOf({ ...testCase.wire, sequence }), causeEvent: testCase.causeEvent },
+				VIEWER,
+				resolveCard
+			)
 				.map((output) => output.line)
 				.filter((line) => line !== null)
 		)
@@ -95,8 +111,6 @@ function expectParity(row: string, testCase: ParityCase): void {
 
 interface Row {
 	row: string;
-	/** Set when the bindings cannot express the whole row: the cases then fail. */
-	gap?: string;
 	cases: ParityCase[];
 }
 
@@ -154,8 +168,11 @@ const drawCase = ({
 	}
 });
 
+const wildCause = { id: "card_played", payload: { tags: ["wild", "action", WILD_TAG] } };
+
 const wildCase = (run: number, name = `wild run ${run}`): ParityCase => ({
 	name,
+	causeEvent: wildCause,
 	core: { kind: "wild", player: "ann", color: "blue" },
 	wire: {
 		id: "active_type_changed",
@@ -168,44 +185,48 @@ const wildCase = (run: number, name = `wild run ${run}`): ParityCase => ({
 	}
 });
 
-const placementCase = (name: string, place: number, isElimination: boolean): ParityCase => ({
-	name,
-	core: { kind: "elimination", player: "cat", place, finished: !isElimination },
-	wire: {
-		id: "placement_set",
-		payload: { target: "cat", place, is_elimination: isElimination }
-	}
-});
+/** The server rule for the wire field `finished`. */
+const finishedOf = (place: number, isElimination: boolean, raceTarget: number): boolean =>
+	!isElimination && place <= Math.max(1, raceTarget);
 
-const cardWire = (id: string): ParityCase["wire"] => ({
+const placementCase = (
+	name: string,
+	place: number,
+	isElimination: boolean,
+	raceTarget = 2
+): ParityCase => {
+	const finished = finishedOf(place, isElimination, raceTarget);
+	return {
+		name,
+		core: { kind: "elimination", player: "cat", place, finished },
+		wire: {
+			id: "placement_set",
+			payload: { target: "cat", place, is_elimination: isElimination, finished }
+		}
+	};
+};
+
+const cardWire = (id: string, card: number): ParityCase["wire"] => ({
 	id,
 	actor: "ann",
-	payload: { player: "ann", card: 42, from_zone_ordinal: 0, trigger_summary: "" }
+	payload: { player: "ann", card, from_zone_ordinal: 0, trigger_summary: "" }
 });
 
+const cardCases = (kind: "play" | "auto_play", id: string): ParityCase[] =>
+	[42, 43].map((card) => ({
+		name: `${kind} line, card ${card}`,
+		core: {
+			kind,
+			player: "ann",
+			cardKind: CARD_TABLE[card]!.kind,
+			color: CARD_TABLE[card]!.color
+		},
+		wire: cardWire(id, card)
+	}));
+
 const ROWS: Row[] = [
-	{
-		row: "play",
-		gap: "card kind and color live in the compact card integer",
-		cases: [
-			{
-				name: "play line",
-				core: { kind: "play", player: "ann", cardKind: "uni:number", color: "red" },
-				wire: cardWire("card_played")
-			}
-		]
-	},
-	{
-		row: "auto_play",
-		gap: "card kind and color live in the compact card integer",
-		cases: [
-			{
-				name: "auto play line",
-				core: { kind: "auto_play", player: "ann", cardKind: "uni:number", color: "red" },
-				wire: cardWire("auto_played")
-			}
-		]
-	},
+	{ row: "play", cases: cardCases("play", "card_played") },
+	{ row: "auto_play", cases: cardCases("auto_play", "auto_played") },
 	{ row: "skip", cases: [0, 1, 2, 3, 4, 7].map(skipCase) },
 	{ row: "reverse", cases: [0, 1, 2, 3, 4, 7].map(reverseCase) },
 	{
@@ -229,6 +250,11 @@ const ROWS: Row[] = [
 				name: "blocked by a seat",
 				core: { kind: "blocked", player: "bob", blocker: "ann" },
 				wire: { id: "blocked", actor: "ann", payload: { target: "bob" } }
+			},
+			{
+				name: "blocked without an actor posts no line",
+				core: null,
+				wire: { id: "blocked", payload: { target: "bob" } }
 			}
 		]
 	},
@@ -282,54 +308,36 @@ const ROWS: Row[] = [
 		cases: [
 			placementCase("finished", 2, false),
 			placementCase("left behind by elimination", 3, true),
+			placementCase("a finisher beyond race_target reads as left behind", 3, false, 1),
+			placementCase("race_target 0 still finishes place 1 only", 2, false, 0),
 			{
 				name: "first place takes no line",
 				core: null,
-				wire: { id: "placement_set", payload: { target: "ann", place: 1, is_elimination: false } }
+				wire: {
+					id: "placement_set",
+					payload: { target: "ann", place: 1, is_elimination: false, finished: true }
+				}
 			}
 		]
 	},
 	{
 		row: "wild",
-		cases: [wildCase(1), wildCase(2), wildCase(3), wildCase(6)]
+		cases: [wildCase(0), wildCase(1), wildCase(2), wildCase(3), wildCase(6)]
 	}
 ];
 
 describe("play log parity: core rules against fixture bindings", () => {
-	for (const { row, gap, cases } of ROWS) {
+	for (const { row, cases } of ROWS) {
 		describe(row, () => {
 			for (const testCase of cases) {
-				const run = gap === undefined ? it : it.fails;
-				const title = gap === undefined ? testCase.name : `${testCase.name} (GAP: ${gap})`;
-				run(title, () => expectParity(row, testCase));
+				it(testCase.name, () => expectParity(row, testCase));
 			}
 		});
 	}
 });
 
-describe("play log parity: documented gaps (see parity-gaps.md)", () => {
-	it.fails("blocked: a blocked event without an actor posts no line", () => {
-		const testCase: ParityCase = {
-			name: "blocked without actor",
-			core: { kind: "blocked", player: "bob" },
-			wire: { id: "blocked", payload: { target: "bob" } }
-		};
-		expectParity("blocked", testCase);
-	});
-
-	it.fails("elimination: a finisher beyond race_target reads as left behind", () => {
-		const raceTarget = 1;
-		const place = 3;
-		const finished = place <= raceTarget;
-		const testCase: ParityCase = {
-			name: "place beyond race target",
-			core: { kind: "elimination", player: "cat", place, finished },
-			wire: { id: "placement_set", payload: { target: "cat", place, is_elimination: false } }
-		};
-		expectParity("elimination", testCase);
-	});
-
-	it.fails("wild: a color change that no wild play caused posts no line", () => {
+describe("play log parity: cases that closed with the new binding features", () => {
+	it("wild: a color change that no wild play caused posts no line (causes include a synthetic id mismatch)", () => {
 		const event = clientEventOf({
 			id: "active_type_changed",
 			actor: "ann",
@@ -337,13 +345,23 @@ describe("play log parity: documented gaps (see parity-gaps.md)", () => {
 			payload: { color: "green", previous_color: "red" },
 			context: { "uni:wild_run": 1, "uni:last_wild_color": { last: "red" } }
 		});
-		const lines = presentEvent(registryOf("wild"), event, VIEWER).filter(
-			(output) => output.line !== null
-		);
-		expect(lines).toHaveLength(0);
+		for (const causeEvent of [
+			undefined,
+			{ id: "card_played", payload: { tags: ["action"] } },
+			// synthetic: the id differs from card_played; not a wire shape
+			{ id: "auto_played", payload: { tags: [WILD_TAG] } }
+		]) {
+			const lines = presentEvent(
+				registryOf("wild"),
+				{ ...event, causeEvent },
+				VIEWER,
+				resolveCard
+			).filter((output) => output.line !== null);
+			expect(lines).toHaveLength(0);
+		}
 	});
 
-	it.fails("wild: the first wild of a match keeps prevColor as an empty string", () => {
+	it("wild: the first wild of a match keeps prevColor as an empty string", () => {
 		const testCase = wildCase(1, "first wild without previous color");
 		testCase.wire.context = {
 			"uni:wild_run": 1,
@@ -352,14 +370,52 @@ describe("play log parity: documented gaps (see parity-gaps.md)", () => {
 		expectParity("wild", testCase);
 	});
 
-	it.fails("draw: a missing per-seat run reads as 0 in the drawRun param", () => {
+	it("draw: a missing per-seat run reads as 0 in the drawRun param", () => {
 		const testCase = drawCase({ name: "draw without run entry" });
 		testCase.wire.context = { "uni:total_draws": 3, "uni:draw_run": {} };
 		expectParity("draw", testCase);
 	});
+});
+
+describe("play log parity: accepted differences (see parity-gaps.md)", () => {
+	it("play: a wild with a known color differs only in the color param (accepted)", () => {
+		const testCase: ParityCase = {
+			name: "wild play with a known color",
+			core: { kind: "play", player: "ann", cardKind: "uni:wild", color: "blue" },
+			wire: cardWire("card_played", 44)
+		};
+		const core = coreOutcome(testCase);
+		const binding = bindingOutcome("play", testCase);
+		expect(binding.keys).toEqual(core.keys);
+		expect(binding.lineCount).toBe(core.lineCount);
+		const paramsOf = (outcome: Outcome) =>
+			outcome.params.map((entry) => Object.fromEntries(JSON.parse(entry) as [string, unknown][]));
+		const withoutColor = (list: Record<string, unknown>[]) =>
+			list.map(({ color: _color, ...rest }) => rest);
+		expect(withoutColor(paramsOf(binding))).toEqual(withoutColor(paramsOf(core)));
+		expect(paramsOf(core).map((entry) => entry.color)).toEqual(["blue"]);
+		expect(paramsOf(binding).map((entry) => entry.color)).toEqual(["white"]);
+	});
 
 	it.skip("near_win: the line keeps its place behind a pending wild (ordering, not a set)", () => {
 		// The core emitter holds the line until the wild color lands. A binding
-		// posts at the event, so no set comparison can show the order.
+		// posts at the event, so no set comparison can show the order. Spec D10:
+		// the event order is the contract.
+	});
+});
+
+describe("play log parity: row table guard", () => {
+	it("the fixture rows are the rule ids of the core, in the same set", () => {
+		const fixtureRows = new Set(ROWS.map(({ row }) => row));
+		const coreRows = new Set(REACTION_RULES.map((rule) => rule.id));
+		expect([...fixtureRows].sort()).toEqual([...coreRows].sort());
+	});
+
+	it("every row has a fixture file with a binding", () => {
+		for (const { row, cases } of ROWS) {
+			for (const { wire } of cases) {
+				expect(registryOf(row).forEvent(wire.id).length).toBeGreaterThan(0);
+			}
+		}
 	});
 });

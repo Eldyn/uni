@@ -1711,6 +1711,11 @@ components:
         from_zone_ordinal:
           type: integer
           minimum: 0
+        tags:
+          type: array
+          description: Tags of the card kind. Optional, additive; no version bump.
+          items:
+            type: string
 
     PlayRejectedPayload:
       type: object
