@@ -760,3 +760,26 @@ describe("select mode", () => {
 		expect(keys(registryOf(raw), 1)).toEqual([]);
 	});
 });
+
+describe("bound line escaping", () => {
+	const lineParams = (payload: Record<string, unknown>, actor?: string) => {
+		const registry = registryOf(
+			entry([
+				{
+					"uni:present": logOnly(["k"], {
+						who: { "uni:field": "name" },
+						by: { "uni:actor": true }
+					})
+				}
+			])
+		);
+		return presentEvent(registry, event({ payload, actor }), viewerOf("ann"))[0]?.line?.params;
+	};
+
+	it("escapes rich tags in a payload field", () => {
+		expect(lineParams({ name: "[c=red]x[/c]" })?.who).toBe("\\[c=red]x\\[/c]");
+	});
+	it("escapes rich tags in the actor", () => {
+		expect(lineParams({}, "[fx=shake]a[/fx]")?.by).toBe("\\[fx=shake]a\\[/fx]");
+	});
+});
