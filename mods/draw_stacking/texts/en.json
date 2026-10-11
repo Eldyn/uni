@@ -1,0 +1,5 @@
+{
+  "draw_stacking:stack_small_1": "{name} adds to the stack. {victim} now owes {total}.",
+  "draw_stacking:stack_small_2": "{name} stacks again. {victim} now owes {total}.",
+  "draw_stacking:stack_heavy_1": "{name} piles on. [c=red]{victim}[/c] now owes [fx=shake]{total}[/fx]."
+}

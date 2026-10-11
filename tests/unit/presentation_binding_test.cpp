@@ -967,6 +967,24 @@ TEST_CASE("test mod: the binding validates without an error or a warning") {
     CHECK(validator.WarningsOf(TestMod(loaded)).empty());
 }
 
+TEST_CASE("standard mods: each binding validates without an error or a warning") {
+    const LoadResult loaded = LoadRealMods();
+    match::modload::SemanticValidator validator(SchemaDir());
+    for (const char* modId : {"draw_stacking"}) {
+        const match::modload::LoadedMod* found = nullptr;
+        for (const auto& mod : loaded.mods) {
+            if (mod.manifest.id == modId) found = &mod;
+        }
+        REQUIRE_MESSAGE(found != nullptr, "the mod is not loaded: " << modId);
+        CAPTURE(modId);
+        CHECK_FALSE(found->bindings.empty());
+        const auto errors = validator.ValidateMod(*found);
+        CAPTURE(Describe(errors));
+        CHECK(errors.empty());
+        CHECK(validator.WarningsOf(*found).empty());
+    }
+}
+
 TEST_CASE("test mod: the bindings manifest matches the golden file") {
     const LoadResult loaded = LoadRealMods();
     const auto& mod = TestMod(loaded);
