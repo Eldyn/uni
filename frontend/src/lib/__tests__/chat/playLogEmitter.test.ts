@@ -233,164 +233,8 @@ describe("createPlayLogEmitter", () => {
 		expect(lines).toHaveLength(2);
 	});
 
-	it("logs the draw line and the penalty line of one debt draw", async () => {
-		emitter.notePlay(
-			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
-			Promise.resolve(),
-			{ seq: 5 }
-		);
-		emitter.noteDebt("Bob", 2);
-		emitter.noteDraw({ seq: 6, player: "Bob", count: 2 }, { handSize: 5 });
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			"uni:log.play",
-			"uni:log.draw_stack",
-			expect.stringMatching(/^uni:log\.draw_/)
-		]);
-	});
-
-	it("logs the penalty line from the debt status with no card moved", async () => {
-		emitter.notePlay(
-			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
-			Promise.resolve(),
-			{ seq: 5 }
-		);
-		emitter.noteDebt("Bob", 2);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.draw_stack"]);
-	});
-
-	it("logs a win and each later placement once", async () => {
-		emitter.noteMatchEnded("Ann", 2);
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^uni:log\.win/),
-			expect.stringMatching(/^uni:log\.left_behind/)
-		]);
-		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
-
-		emitter.noteMatchEnded("Ann", 2);
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		expect(lines).toHaveLength(2);
-	});
-
-	it("words places up to the finisher count as finishing and the rest as left behind", async () => {
-		emitter.noteMatchEnded("Ann", 3);
-		emitter.notePlacement("Bob", 2, false, 2);
-		emitter.notePlacement("Cy", 3, false, 2);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^uni:log\.win/),
-			expect.stringMatching(/^uni:log\.finish/),
-			expect.stringMatching(/^uni:log\.left_behind/)
-		]);
-		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
-	});
-
-	it("takes no line for a first place; the match end line is the win line", async () => {
-		emitter.notePlacement("Ann", 1, false);
-		emitter.noteMatchEnded("Ann", 1);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
-	});
-
-	it("words an elimination place as left behind even inside the finisher count", async () => {
-		emitter.notePlacement("Bob", 2, true, 3);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.left_behind/)]);
-	});
-
-	it("reset forgets the placement ledger", async () => {
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		emitter.reset();
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		expect(lines).toHaveLength(2);
-	});
-
-	it("reset clears the game-end trackers", async () => {
-		emitter.noteMatchEnded("Ann", 2);
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		emitter.reset();
-		emitter.noteMatchEnded("Ann", 2);
-		emitter.notePlacement("Bob", 2, false);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual([
-			expect.stringMatching(/^uni:log\.win/),
-			expect.stringMatching(/^uni:log\.left_behind/),
-			expect.stringMatching(/^uni:log\.win/),
-			expect.stringMatching(/^uni:log\.left_behind/)
-		]);
-	});
-
-	it("logs a wild once its colour is already known", async () => {
-		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "red" }, Promise.resolve(), {
-			seq: 4
-		});
-		await flush();
-		expect(lines[0].key).toBe("uni:log.play");
-		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
-		expect(lines[0].params).toEqual({ name: "Ann", kind: "uni:wild", color: "red" });
-	});
-
-	it("logs a play for a wild once its colour arrives", async () => {
-		let land!: () => void;
-		const landed = new Promise<void>((resolve) => (land = resolve));
-		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "white" }, landed, { seq: 3 });
-		await flush();
-		expect(lines).toEqual([]);
-
-		emitter.noteWildColor("red");
-		land();
-		await flush();
-		expect(lines.map((line) => line.params)).toEqual([
-			{ name: "Ann", kind: "uni:wild", color: "red" },
-			{ name: "Ann", color: "red", prevColor: "" }
-		]);
-	});
-
-	it("logs a draw stack from a +N play followed by the debt status", async () => {
-		emitter.notePlay(
-			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
-			Promise.resolve(),
-			{ seq: 5 }
-		);
-		emitter.noteDebt("Bob", 6);
-		await flush();
-		expect(lines.map((line) => line.key)).toEqual(["uni:log.play", "uni:log.draw_stack"]);
-		expect(lines[1].params).toMatchObject({ name: "Ann", victim: "Bob", amount: 2, total: 6 });
-	});
-
-	it("reads the debt magnitude as the running total across a stacked +2 then +4", async () => {
-		// INFO: the engine applies magnitude + carried debt, so the status_applied
-		// magnitude is already the running total on the new victim.
-		emitter.notePlay(
-			{ player: "Ann", kind: "uni:green_draw2", color: "green" },
-			Promise.resolve(),
-			{ seq: 5 }
-		);
-		emitter.noteDebt("Bob", 2);
-		emitter.notePlay({ player: "Bob", kind: "uni:wild_draw4", color: "red" }, Promise.resolve(), {
-			seq: 6
-		});
-		emitter.noteDebt("Cy", 6);
-		await flush();
-
-		const stacks = lines.filter((line) => line.key === "uni:log.draw_stack");
-		expect(stacks.map((line) => line.params)).toMatchObject([
-			{ name: "Ann", victim: "Bob", amount: 2, total: 2 },
-			{ name: "Bob", victim: "Cy", amount: 4, total: 6 }
-		]);
-	});
-
-	it("ignores a debt status with no preceding +N play", async () => {
-		emitter.noteDebt("Bob", 2);
-		await flush();
-		expect(lines).toEqual([]);
+	it("exports no debt hook; the stack line comes from the draw_stacking mod", () => {
+		expect("noteDebt" in emitter).toBe(false);
 	});
 
 	it("escapes hostile names so they cannot inject markup (Review Focus 1)", async () => {
@@ -400,7 +244,6 @@ describe("createPlayLogEmitter", () => {
 			Promise.resolve(),
 			{ seq: 5 }
 		);
-		emitter.noteDebt("[b]Bob", 4);
 		await flush();
 
 		for (const line of lines) {
@@ -409,7 +252,7 @@ describe("createPlayLogEmitter", () => {
 				expect(value).not.toMatch(/(^|[^\\])\[/);
 			}
 		}
-		expect(lines).toHaveLength(3);
+		expect(lines).toHaveLength(2);
 	});
 
 	it("a reset drops the queued lines; the next skip reads its own server run", async () => {
@@ -468,18 +311,17 @@ describe("createPlayLogEmitter", () => {
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
 
-	it("logs a blocked retort for a penalty draw after the stack line", async () => {
+	it("logs a blocked retort after the play line of a +N card", async () => {
 		emitter.notePlay({ player: "Ann", kind: "uni:red_draw2", color: "red" }, Promise.resolve(), {
 			seq: 2
 		});
-		emitter.noteDebt("Bob", 2);
 		emitter.noteBlocked("Bob", "Ann", 3);
 		await flush();
 
-		const drawIndex = lines.findIndex((line) => line.key === "uni:log.draw_stack");
+		const playIndex = lines.findIndex((line) => line.key === "uni:log.play");
 		const blockedIndex = lines.findIndex((line) => line.key.startsWith("uni:log.blocked_"));
-		expect(drawIndex).toBeGreaterThanOrEqual(0);
-		expect(blockedIndex).toBeGreaterThan(drawIndex);
+		expect(playIndex).toBeGreaterThanOrEqual(0);
+		expect(blockedIndex).toBeGreaterThan(playIndex);
 		expect(lines[blockedIndex].params).toEqual({ blocker: "Ann", target: "Bob" });
 	});
 

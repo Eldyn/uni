@@ -107,8 +107,6 @@ describe("draw reaction groups", () => {
 		streak({ drawRun, totalDraws });
 
 	it.each([
-		["penalty_small", draw({ penalty: true, total: 4 }), streak(), "uni:log.draw_stack"],
-		["penalty_heavy", draw({ penalty: true, total: 8 }), streak(), "uni:log.draw_stack_heavy"],
 		["big_hand", draw({ handSize: 10 }), withDraws(1, 1), /^uni:log\.draw_big_hand/],
 		["large", draw({ count: 4, handSize: 5 }), withDraws(1, 1), "uni:log.draw_large_1"],
 		["first", draw(), withDraws(1, 1), /^uni:log\.draw_first/],
@@ -125,12 +123,12 @@ describe("draw reaction groups", () => {
 		expect(keyOf(draw(), withDraws(1, 2))).toMatch(/^uni:log\.draw_generic/);
 	});
 
-	it("prefers penalty over hand size and count", () => {
-		expect(keyOf(draw({ penalty: true, total: 4, handSize: 12, count: 4 }))).toBe(
-			"uni:log.draw_stack"
+	it("gives a penalty draw the generic draw groups, not a stack line", () => {
+		expect(keyOf(draw({ penalty: true, total: 4, handSize: 12, count: 4 }))).toMatch(
+			/^uni:log\.draw_big_hand/
 		);
-		expect(keyOf(draw({ penalty: true, total: 9, handSize: 12, count: 4 }))).toBe(
-			"uni:log.draw_stack_heavy"
+		expect(keyOf(draw({ penalty: true, total: 9 }), withDraws(2, 3))).toMatch(
+			/^uni:log\.draw_generic/
 		);
 	});
 

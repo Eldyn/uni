@@ -159,8 +159,6 @@
   "uni:log.draw_large_1": "{name} roba {count}. Ay.",
   "uni:log.skip_streak_2": "Otra vez [c=red]{name}[/c]. [fx=shake]¡DEJEN JUGAR A {name}!![/fx]",
   "uni:log.reverse_spin_2": "Otro cambio de sentido. [fx=shake]Vuelta al otro lado.[/fx]",
-  "uni:log.draw_stack": "{name} suma +{amount}. {victim} ya debe {total}.",
-  "uni:log.draw_stack_heavy": "{name} carga +{amount} más. [c=red]{victim}[/c] debe [fx=shake]{total}[/fx]. Que Dios le pille confesado.",
   "uni:log.blocked_1": "[fx=shake:3,2]¡{blocker} sí que lo hizo![/fx]",
   "uni:log.blocked_2": "Te lo dije. [fx=shake:3,2]{blocker} le cortó el paso.[/fx]",
   "uni:log.play": "{name} juega [k={kind}][c={color}]{cardName}[/c][/k].",

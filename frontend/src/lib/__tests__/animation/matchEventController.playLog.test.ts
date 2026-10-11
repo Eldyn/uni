@@ -328,7 +328,7 @@ describe("matchEventController play log", () => {
 		expect(line.logParams).toMatchObject({ kind: "uni:red_skip", color: "red" });
 	});
 
-	it("logs a draw stack from a +2 play and its debt toast", async () => {
+	it("posts no stack line from a +2 play and its debt toast", async () => {
 		storeGame.state = stateWithTop({ id: 2, type: "red", value: "+2" });
 		const h = harness();
 
@@ -344,10 +344,7 @@ describe("matchEventController play log", () => {
 		});
 		await flush();
 
-		expect(partyKeys()).toEqual(["uni:log.play", "uni:log.draw_stack"]);
-		const line = chatStore.linesFor("party")[1];
-		expect(line.logKey).toBe("uni:log.draw_stack");
-		expect(line.logParams).toMatchObject({ amount: 2, total: 4 });
+		expect(partyKeys()).toEqual(["uni:log.play"]);
 	});
 
 	it("posts a draw reaction for a local draw", async () => {

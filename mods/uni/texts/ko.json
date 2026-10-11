@@ -159,8 +159,6 @@
   "uni:log.draw_large_1": "{name} 님이 {count}장을 뽑습니다. 아야.",
   "uni:log.skip_streak_2": "또 [c=red]{name}[/c] 님입니다. [fx=shake]{name} 님도 좀 하게 해 주세요!![/fx]",
   "uni:log.reverse_spin_2": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
-  "uni:log.draw_stack": "{name} 님이 +{amount} 추가. {victim} 님이 뽑을 카드는 {total}장.",
-  "uni:log.draw_stack_heavy": "{name} 님이 +{amount} 더 얹었습니다. [c=red]{victim}[/c] 님은 [fx=shake]{total}장[/fx]을 뽑아야 합니다. 행운을 빕니다.",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} 님이 진짜 해냈습니다![/fx]",
   "uni:log.blocked_2": "내가 그랬잖아요. [fx=shake:3,2]{blocker} 님이 막았습니다.[/fx]",
   "uni:log.play": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",

@@ -159,8 +159,6 @@
   "uni:log.draw_large_1": "{name} берёт {count}. Ой.",
   "uni:log.skip_streak_2": "Опять [c=red]{name}[/c]. [fx=shake]ДАЙТЕ {name} ПОИГРАТЬ!![/fx]",
   "uni:log.reverse_spin_2": "Ещё один реверс. [fx=shake]Снова в другую сторону.[/fx]",
-  "uni:log.draw_stack": "{name} добавляет +{amount}. Счёт для {victim}: {total}.",
-  "uni:log.draw_stack_heavy": "{name} докидывает ещё +{amount}. Счёт для [c=red]{victim}[/c]: [fx=shake]{total}[/fx]. Держитесь.",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} и правда остановил![/fx]",
   "uni:log.blocked_2": "Говорил же. [fx=shake:3,2]{blocker} его остановил.[/fx]",
   "uni:log.play": "{name} играет [k={kind}][c={color}]{cardName}[/c][/k].",

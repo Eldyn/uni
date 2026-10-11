@@ -82,12 +82,14 @@ describe("replayTailToLog", () => {
 		expect(replay(tail)).toEqual(replay(tail));
 	});
 
-	it("marks a debt draw as a penalty and a plain draw as none", () => {
+	it("logs a debt draw as a generic draw with no stack line", () => {
 		const debt = replay([
 			envelope(0, "cards_drawn", { target: "Bob", count: 4, from_debt: true }, "Bob")
 		]);
 		const plain = replay([envelope(0, "cards_drawn", { target: "Bob", count: 1 }, "Bob")]);
-		expect(debt.map((line) => line.key)).toEqual(["uni:log.draw_stack"]);
+		expect(debt.map((line) => line.key)).toHaveLength(1);
+		expect(debt[0].key).toMatch(/^uni:log\.draw_/);
+		expect(debt[0].key).not.toMatch(/stack/);
 		expect(plain[0].key).not.toMatch(/stack/);
 	});
 

@@ -1,7 +1,7 @@
 import { buildLogLines } from "./logBuilder";
 import { createLogQueue } from "./logQueue";
 import { escapeLogText } from "./logRichText";
-import { DRAW_DEBT_STATUS_KIND, WILD_DRAW_FOUR_KIND_ID, WILD_KIND_IDS } from "$lib/utils/baseMod";
+import { DRAW_DEBT_STATUS_KIND, WILD_KIND_IDS } from "$lib/utils/baseMod";
 export { DRAW_DEBT_STATUS_KIND };
 import { readStreaks, type EventContext } from "./serverStreaks";
 import type { LogEvent, LogLine } from "./logEvent";
@@ -23,7 +23,6 @@ type PendingWild = {
 	nearWin?: boolean;
 	auto?: boolean;
 };
-type PendingStack = { player: string; amount: number; seq: number };
 
 /**
  * Turns match beats into play-log lines, in order and only once the card they
@@ -35,7 +34,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 	const queue = createLogQueue();
 	let lastDirection: number | null = null;
 	let pendingWild: PendingWild | null = null;
-	let pendingStack: PendingStack | null = null;
 	let seenWinner: string | null = null;
 	const seenPlacements = new Set<string>();
 	function emitSkip(info: SkipInfo): void {
@@ -95,9 +93,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		const { player, color } = card;
 		const kind = card.kind;
 		const { seq } = ctx;
-		const stackAmount = kind === WILD_DRAW_FOUR_KIND_ID ? 4 : kind.endsWith("_draw2") ? 2 : null;
-		pendingStack = stackAmount ? { player, amount: stackAmount, seq } : null;
-
 		const isWild = WILD_KIND_IDS.includes(kind);
 		if (isWild && color === "white") {
 			// INFO: a new unresolved wild supersedes any earlier one that never
@@ -186,25 +181,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		);
 	}
 
-	function noteDebt(victim: string, total: number): void {
-		if (!pendingStack) return;
-		const { player, amount, seq } = pendingStack;
-		pendingStack = null;
-		enqueue(() =>
-			emit({
-				kind: "draw",
-				seq,
-				player: escapeLogText(player),
-				victim: escapeLogText(victim),
-				count: total,
-				penalty: true,
-				amount,
-				total,
-				actor: escapeLogText(player)
-			})
-		);
-	}
-
 	function noteReshuffle(ctx: { seq: number }): void {
 		enqueue(() => emit({ kind: "reshuffle", seq: ctx.seq }));
 	}
@@ -255,7 +231,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		queue.reset();
 		lastDirection = null;
 		pendingWild = null;
-		pendingStack = null;
 		seenWinner = null;
 		seenPlacements.clear();
 	}
@@ -268,7 +243,6 @@ export function createPlayLogEmitter(post: (line: LogLine) => void) {
 		noteDirection,
 		noteSkipped,
 		noteDraw,
-		noteDebt,
 		noteReshuffle,
 		noteKeep,
 		notePlacement,

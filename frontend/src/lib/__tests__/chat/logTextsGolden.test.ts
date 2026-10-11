@@ -42,8 +42,6 @@ const LEGACY_KEYS = [
 	"log_draw_big_hand_1",
 	"log_draw_big_hand_2",
 	"log_draw_large_1",
-	"log_draw_stack",
-	"log_draw_stack_heavy",
 	"log_blocked_1",
 	"log_blocked_2",
 	"log_play",
@@ -142,12 +140,6 @@ const SCENARIOS: Record<string, Scenario> = {
 	draw_many: { event: (seq) => drawEvent(seq, {}), streak: { totalDraws: 9, drawRun: 4 } },
 	draw_big_hand: { event: (seq) => drawEvent(seq, { handSize: 12 }), streak: { totalDraws: 9 } },
 	draw_large: { event: (seq) => drawEvent(seq, { count: 4 }), streak: { totalDraws: 9 } },
-	draw_penalty_small: {
-		event: (seq) => drawEvent(seq, { penalty: true, total: 4, amount: 2, victim: "Bob" })
-	},
-	draw_penalty_heavy: {
-		event: (seq) => drawEvent(seq, { penalty: true, total: 8, amount: 4, victim: "Bob" })
-	},
 	blocked: { event: (seq) => ({ kind: "blocked", seq, player: "Ann", blocker: "Bob" }) },
 	reshuffle: { event: (seq) => ({ kind: "reshuffle", seq }) },
 	keep: { event: (seq) => ({ kind: "keep", seq, player: "Ann" }) },
@@ -229,7 +221,7 @@ async function writeGolden(name: string, content: unknown): Promise<void> {
 
 describe("play log texts equal the stored golden in every locale", () => {
 	it("lists each log key once", () => {
-		expect(LEGACY_KEYS.length).toBe(52);
+		expect(LEGACY_KEYS.length).toBe(50);
 		expect(new Set(LEGACY_KEYS).size).toBe(LEGACY_KEYS.length);
 	});
 

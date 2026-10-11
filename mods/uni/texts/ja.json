@@ -159,8 +159,6 @@
   "uni:log.draw_large_1": "{name}が{count}枚ドロー。痛い。",
   "uni:log.skip_streak_2": "また[c=red]{name}[/c]。[fx=shake]{name}にも出させて！！[/fx]",
   "uni:log.reverse_spin_2": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
-  "uni:log.draw_stack": "{name}が+{amount}を重ねた。{victim}の引く枚数は{total}枚。",
-  "uni:log.draw_stack_heavy": "{name}がさらに+{amount}。[c=red]{victim}[/c]は[fx=shake]{total}枚[/fx]引くことに。ご愁傷さま。",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker}は本当にやった！[/fx]",
   "uni:log.blocked_2": "言っただろ。[fx=shake:3,2]{blocker}が止めた。[/fx]",
   "uni:log.play": "{name}は[k={kind}][c={color}]{cardName}[/c][/k]を出した。",

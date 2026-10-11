@@ -33,7 +33,7 @@ import { storeCardDefs } from "$lib/stores/cardDefs.svelte";
 import { createBindingRunner } from "$lib/presentation/bindingRunner";
 import { bindingRegistry, type BindingRegistry } from "$lib/presentation/eventBindings";
 import { clientEventOfBeat } from "$stores/matchEventMap";
-import { DRAW_DEBT_STATUS_KIND, baseKindId } from "$lib/utils/baseMod";
+import { baseKindId } from "$lib/utils/baseMod";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -1414,10 +1414,6 @@ export function createMatchEventBeatController(deps: {
 				);
 				return;
 			case "toast":
-				// Toast state lives in the store; map-and-drop per
-				if (beat.statusKind === DRAW_DEBT_STATUS_KIND) {
-					playLog.noteDebt(beat.target, beat.magnitude);
-				}
 				return;
 		}
 	}

@@ -109,16 +109,6 @@
     "resolved": "Ann roba 2. Ay.",
     "fallbackToEnglish": false
   },
-  "log_draw_stack": {
-    "template": "{name} suma +{amount}. {victim} ya debe {total}.",
-    "resolved": "Ann suma +2. Bob ya debe 4.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_stack_heavy": {
-    "template": "{name} carga +{amount} más. [c=red]{victim}[/c] debe [fx=shake]{total}[/fx]. Que Dios le pille confesado.",
-    "resolved": "Ann carga +2 más. [c=red]Bob[/c] debe [fx=shake]4[/fx]. Que Dios le pille confesado.",
-    "fallbackToEnglish": false
-  },
   "log_blocked_1": {
     "template": "[fx=shake:3,2]¡{blocker} sí que lo hizo![/fx]",
     "resolved": "[fx=shake:3,2]¡Bob sí que lo hizo![/fx]",

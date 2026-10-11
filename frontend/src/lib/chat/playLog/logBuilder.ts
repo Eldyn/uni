@@ -64,7 +64,6 @@ export const REACTION_RULES: ReactionRule[] = [
 		group: (c) => {
 			if (c.event.kind !== "draw") return "generic";
 			const e = c.event;
-			if (e.penalty) return (e.total ?? 0) >= 8 ? "penalty_heavy" : "penalty_small";
 			if ((e.handSize ?? 0) >= 10) return "big_hand";
 			if (e.count >= 4) return "large";
 			if (c.totalDraws === 1) return "first";
@@ -80,9 +79,7 @@ export const REACTION_RULES: ReactionRule[] = [
 			],
 			many: [{ key: "uni:log.draw_many_1" }, { key: "uni:log.draw_many_2" }],
 			big_hand: [{ key: "uni:log.draw_big_hand_1" }, { key: "uni:log.draw_big_hand_2" }],
-			large: [{ key: "uni:log.draw_large_1" }],
-			penalty_small: [{ key: "uni:log.draw_stack" }],
-			penalty_heavy: [{ key: "uni:log.draw_stack_heavy" }]
+			large: [{ key: "uni:log.draw_large_1" }]
 		},
 		params: (c): Record<string, string | number> => {
 			if (c.event.kind !== "draw") return {};
