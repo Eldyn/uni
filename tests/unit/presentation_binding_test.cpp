@@ -357,7 +357,8 @@ TEST_CASE("binding: the schema and the key table agree") {
             .at("properties");
     for (const std::string_view key :
          {keys::kParamField, keys::kParamValue, keys::kParamActor,
-          keys::kParamStreak, keys::kParamKey, keys::kParamKeyField}) {
+          keys::kParamStreak, keys::kParamKey, keys::kParamKeyField,
+          keys::kParamDefault}) {
         CHECK_MESSAGE(param.contains(std::string(key)), key);
     }
     const json& test = definitions.at("test").at("properties");
@@ -1057,6 +1058,40 @@ TEST_CASE("binding loader: select, param streak and test key parse") {
     CHECK(params.at("run").key == "a");
     CHECK(params.at("by_seat").streak == "uni:skip_run");
     CHECK(params.at("by_seat").key_field == "target");
+}
+
+TEST_CASE("binding loader: a param default parses") {
+    const std::string present = R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": {
+                     "run": { "uni:streak": "uni:skip_run",
+                              "uni:default": 0 },
+                     "who": { "uni:field": "target",
+                              "uni:default": "nobody" },
+                     "bad": { "uni:field": "target",
+                              "uni:default": [ 1 ] },
+                     "plain": { "uni:field": "target" } } } })";
+    LoadResult loaded = LoadMod(BindingFile(
+        "my_mod:shown", "my_mod:apple_eaten",
+        "[ { \"uni:present\": " + present + " } ]"));
+    REQUIRE(loaded.ok());
+    const auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    CHECK(params.at("run").default_value == json(0));
+    CHECK(params.at("who").default_value == json("nobody"));
+    CHECK_FALSE(params.at("bad").default_value.has_value());
+    CHECK_FALSE(params.at("plain").default_value.has_value());
+}
+
+TEST_CASE("binding validation: a param default is a string or a number") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"].default_value = "none";
+    CHECK(Validate(loaded).empty());
+    params["count"].default_value = 0;
+    CHECK(Validate(loaded).empty());
+    params["count"].default_value = json::object();
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }
 
 TEST_CASE("binding validation: numeric words need a number value") {

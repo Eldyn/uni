@@ -803,3 +803,41 @@ describe("bound line escaping", () => {
 		expect(lineParams({}, "[fx=shake]a[/fx]")?.by).toBe("\\[fx=shake]a\\[/fx]");
 	});
 });
+
+describe("param default", () => {
+	const paramsOf = (param: Record<string, unknown>, subject: ClientEvent) => {
+		const registry = registryOf(entry([{ "uni:present": logOnly(["k"], { p: param }) }]));
+		return presentEvent(registry, subject, viewerOf("ann"))[0]?.line?.params;
+	};
+	const withContext = (context: Record<string, unknown>): ClientEvent =>
+		event({ payload: { target: "bob" }, context });
+
+	it("uses an empty string default when the streak value is missing", () => {
+		const param = { "uni:streak": "uni:skip_run", "uni:default": "" };
+		expect(paramsOf(param, event())?.p).toBe("");
+	});
+
+	it("keeps a number default as a number", () => {
+		const param = { "uni:streak": "uni:skip_run", "uni:default": 0 };
+		expect(paramsOf(param, event())?.p).toBe(0);
+	});
+
+	it("prefers a present value over the default", () => {
+		const param = { "uni:streak": "uni:skip_run", "uni:default": 0 };
+		expect(paramsOf(param, withContext({ "uni:skip_run": 3 }))?.p).toBe(3);
+	});
+
+	it("uses the default when a field is missing", () => {
+		const param = { "uni:field": "missing", "uni:default": "none" };
+		expect(paramsOf(param, event())?.p).toBe("none");
+	});
+
+	it("escapes a string default", () => {
+		const param = { "uni:field": "missing", "uni:default": "[c=red]x[/c]" };
+		expect(paramsOf(param, event())?.p).toBe("\\[c=red]x\\[/c]");
+	});
+
+	it("leaves the param out with no default", () => {
+		expect(paramsOf({ "uni:field": "missing" }, event())).not.toHaveProperty("p");
+	});
+});

@@ -139,7 +139,8 @@
                   "uni:actor": { "type": "boolean" },
                   "uni:streak": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },
                   "uni:key": { "type": "string" },
-                  "uni:key_field": { "type": "string" }
+                  "uni:key_field": { "type": "string" },
+                  "uni:default": { "oneOf": [{ "type": "string" }, { "type": "number" }] }
                 }
               }
             }

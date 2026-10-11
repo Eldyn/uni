@@ -48,7 +48,9 @@
  *   picks one with the FNV-1a hash over the event `sequence` (the same picker
  *   as the reaction pools). `uni:params` maps a parameter name to its source:
  *   `{ "uni:field": "count" }`, `{ "uni:value": "x" }`, or
- *   `{ "uni:actor": true }`.
+ *   `{ "uni:actor": true }`. A param can add `uni:default` (string or
+ *   number). The client uses it when the source gives no value. It is not a
+ *   source.
  * - `uni:glossary`: a keyword key for `[k=...]`.
  *
  * WARN: the matcher and the parameters run on the CLIENT, on the event as the
@@ -111,6 +113,7 @@ inline constexpr std::string_view kParamActor = "uni:actor";
 inline constexpr std::string_view kParamStreak = "uni:streak";
 inline constexpr std::string_view kParamKey = "uni:key";
 inline constexpr std::string_view kParamKeyField = "uni:key_field";
+inline constexpr std::string_view kParamDefault = "uni:default";
 inline constexpr std::string_view kSelect = "uni:select";
 inline constexpr std::string_view kSelectAll = "all";
 inline constexpr std::string_view kSelectFirst = "first";

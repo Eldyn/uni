@@ -468,6 +468,7 @@ struct BindingParamDef {
     std::string streak;    /**< Streak id to read. */
     std::string key;       /**< Literal key into an object value. */
     std::string key_field; /**< Payload field that names the key. */
+    std::optional<nlohmann::json> default_value;  /**< Used when no value. */
 };
 
 /**

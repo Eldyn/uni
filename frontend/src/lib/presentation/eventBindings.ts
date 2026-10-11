@@ -79,6 +79,9 @@ type ParamSource =
 	| { kind: "actor" }
 	| { kind: "streak"; streak: string; key: string; keyField: string };
 
+/** A param source plus the value used when the source yields nothing. */
+type ParamSpec = ParamSource & { defaultValue?: string | number };
+
 export interface SoundCue {
 	sound: string;
 	volume?: number;
@@ -89,7 +92,7 @@ export interface BindingCase {
 	tests: BindingTest[];
 	beats: AnimationBeat[];
 	sounds: SoundCue[];
-	log: { variants: string[]; params: Record<string, ParamSource> } | null;
+	log: { variants: string[]; params: Record<string, ParamSpec> } | null;
 	glossary: string | null;
 }
 
@@ -194,7 +197,17 @@ function parseSounds(raw: unknown): SoundCue[] {
 }
 
 // The source order is safe only because the validator enforces one source.
-function parseParam(raw: unknown): ParamSource | null {
+function parseParam(raw: unknown): ParamSpec | null {
+	const source = parseParamSource(raw);
+	if (source === null || !isRecord(raw)) return source;
+	const fallback = raw["uni:default"];
+	if (typeof fallback === "string" || typeof fallback === "number") {
+		return { ...source, defaultValue: fallback };
+	}
+	return source;
+}
+
+function parseParamSource(raw: unknown): ParamSource | null {
 	if (!isRecord(raw)) return null;
 	if (typeof raw["uni:field"] === "string") return { kind: "field", field: raw["uni:field"] };
 	const literal = raw["uni:value"];
@@ -217,7 +230,7 @@ function parseLog(raw: unknown): BindingCase["log"] {
 	if (!isRecord(raw) || !Array.isArray(raw["uni:variants"])) return null;
 	const variants = raw["uni:variants"].filter((key): key is string => typeof key === "string");
 	if (variants.length === 0) return null;
-	const params: Record<string, ParamSource> = {};
+	const params: Record<string, ParamSpec> = {};
 	if (isRecord(raw["uni:params"])) {
 		for (const [name, source] of Object.entries(raw["uni:params"])) {
 			const parsed = parseParam(source);
@@ -400,6 +413,12 @@ function paramValue(source: ParamSource, event: ClientEvent): string | number | 
 	return undefined;
 }
 
+function fallbackValue(spec: ParamSpec): string | number | undefined {
+	return typeof spec.defaultValue === "string"
+		? escapeLogText(spec.defaultValue)
+		: spec.defaultValue;
+}
+
 function buildLine(
 	log: NonNullable<BindingCase["log"]>,
 	bindingId: string,
@@ -409,7 +428,7 @@ function buildLine(
 	const key = log.variants[stableIndex(event.sequence, bindingId, log.variants.length)]!;
 	const params: Record<string, string | number> = {};
 	for (const [name, source] of Object.entries(log.params)) {
-		const value = paramValue(source, event);
+		const value = paramValue(source, event) ?? fallbackValue(source);
 		if (value !== undefined) params[name] = value;
 	}
 	if (glossary !== null) params.glossary = glossary;

@@ -1288,6 +1288,11 @@ bool ParseBindingParam(const nlohmann::json& item, BindingParamDef& out) {
     if (value != item.end() && (value->is_string() || value->is_number())) {
         out.value = *value;
     }
+    const auto fallback = item.find(std::string(keys::kParamDefault));
+    if (fallback != item.end()
+        && (fallback->is_string() || fallback->is_number())) {
+        out.default_value = *fallback;
+    }
     const auto actor = item.find(std::string(keys::kParamActor));
     out.actor = actor != item.end() && actor->is_boolean()
                 && actor->get<bool>();

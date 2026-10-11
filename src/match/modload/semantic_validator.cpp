@@ -1646,6 +1646,15 @@ class Checker {
                           "are exclusive"));
                 continue;
             }
+            if (param.default_value.has_value()
+                && !param.default_value->is_string()
+                && !param.default_value->is_number()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': default must be a string or a number"));
+                continue;
+            }
             if (sources != 1) {
                 buckets_.presentations.push_back(Err(
                     "binding.log.param", "presentations", path,
