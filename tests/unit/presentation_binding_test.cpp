@@ -970,7 +970,7 @@ TEST_CASE("test mod: the binding validates without an error or a warning") {
 TEST_CASE("standard mods: each binding validates without an error or a warning") {
     const LoadResult loaded = LoadRealMods();
     match::modload::SemanticValidator validator(SchemaDir());
-    for (const char* modId : {"draw_stacking"}) {
+    for (const char* modId : {"draw_stacking", "jump_in", "seven_zero"}) {
         const match::modload::LoadedMod* found = nullptr;
         for (const auto& mod : loaded.mods) {
             if (mod.manifest.id == modId) found = &mod;

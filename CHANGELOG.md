@@ -13,6 +13,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Jump-in line as mod data** — the `jump_in` mod now owns the jump-in play log line. It has `texts/en.json` and a `window_responded` binding that logs the seat that wins the jump-in window.
+- **Hand swap lines as mod data** — the `seven_zero` mod now owns its play log lines for a swap, a forward or backward pass, and a full redistribution of hands. It has `texts/en.json` and three bindings.
 - **Stack line as mod data** — the `draw_stacking` mod now owns the stack penalty play log line. It has `texts/en.json` and a `status_applied` binding with three texts, a heavy one from a total of 8. The line shows the new total and not the last card. A test for each shipped mod checks that its bindings load with no error and no warning.
 - **Progressive mod event** — the `progressive` mod now emits the mod event `progressive:drawn_until_playable` (payload `target`, audience `all`) when its draw loop ends, so a binding can write a play log line. A first draw that is playable emits nothing.
 - **Bindings: numbers, streaks, first match** — a binding test can now compare numbers with `gt`, `gte`, `lt` and `lte`. A test or a log param can read a server streak value with `uni:streak` and `uni:key` or `uni:key_field`. When the value is missing, a test is false and a param is left out. String values are escaped. A binding can set `uni:select` to `"first"` to use only the first case that matches. The client event now carries the envelope context. The validator rules and the schema are updated.

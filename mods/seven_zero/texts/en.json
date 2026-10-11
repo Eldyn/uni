@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} swaps hands with {target}.",
+  "seven_zero:swap_2": "{source} and {target} trade hands.",
+  "seven_zero:pass_forward": "Every hand moves one seat forward.",
+  "seven_zero:pass_backward": "Every hand moves one seat back.",
+  "seven_zero:redistributed": "The hands are shuffled between all seats."
+}

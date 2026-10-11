@@ -1,0 +1,16 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "seven_zero:redistribute_log" },
+    "uni:event": "hands_redistributed",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [],
+        "uni:present": {
+          "uni:log": { "uni:variants": ["seven_zero:redistributed"] }
+        }
+      }
+    ]
+  }
+}

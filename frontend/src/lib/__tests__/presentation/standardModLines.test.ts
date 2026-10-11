@@ -8,6 +8,7 @@ import {
 	type Viewer
 } from "$lib/presentation/eventBindings";
 import { createBindingRunner } from "$lib/presentation/bindingRunner";
+import { bindingOnlyBeat, clientEventOfBeat, mapMatchEventPacket } from "$lib/stores/matchEventMap";
 import type { LogLine } from "$lib/chat/playLog/logEvent";
 
 const MODS_ROOT = resolve(__dirname, "../../../../../mods");
@@ -110,5 +111,135 @@ describe("draw_stacking play log line", () => {
 			expect(key.startsWith("draw_stacking:")).toBe(true);
 			expect(typeof texts[key]).toBe("string");
 		}
+	});
+});
+
+function bindingVariantKeys(modId: string, bindingFile: string): string[] {
+	const binding = readModJson(modId, bindingFile)["uni:binding"] as {
+		"uni:cases": { "uni:present": { "uni:log": { "uni:variants": string[] } } }[];
+	};
+	return binding["uni:cases"].flatMap(
+		(logCase) => logCase["uni:present"]["uni:log"]["uni:variants"]
+	);
+}
+
+function eventOf(id: string, payload: Record<string, unknown>, actor = "ann"): ClientEvent {
+	return { id, actor, sequence: 3, payload, replayed: false };
+}
+
+describe("jump_in play log line", () => {
+	const registry = registryOfMod("jump_in", "presentations/play_log.json", "jump_in:jump_log");
+	const texts = readModJson("jump_in", "texts/en.json");
+	const windowResponded = (payload: Record<string, unknown>) =>
+		eventOf("window_responded", payload, "system");
+
+	it("logs a winning jump in with the responding seat", () => {
+		const outputs = presentEvent(
+			registry,
+			windowResponded({ window_kind: "jump_in", outcome: "winning", target: "ann" }),
+			viewerOf("bob")
+		);
+
+		expect(outputs).toHaveLength(1);
+		const line = outputs[0]!.line!;
+		expect(["jump_in:jumped_1", "jump_in:jumped_2"]).toContain(line.key);
+		expect(line.params).toEqual({ name: "ann" });
+	});
+
+	it.each([
+		["a lost outcome", { window_kind: "jump_in", outcome: "lost", target: "ann" }],
+		["a pass outcome", { window_kind: "jump_in", outcome: "pass", target: "ann" }],
+		["a generic window", { window_kind: "generic", outcome: "winning", target: "ann" }]
+	])("logs nothing for %s", (_label, payload) => {
+		expect(presentEvent(registry, windowResponded(payload), viewerOf("bob"))).toEqual([]);
+	});
+
+	it("reaches the binding as a bare core id with no animation map entry", () => {
+		const frame = {
+			action: "match_event",
+			sequence: 9,
+			id: "window_responded",
+			payload: { window_kind: "jump_in", outcome: "winning", target: "ann" }
+		};
+
+		expect(mapMatchEventPacket(frame)).toBeNull();
+		const beat = bindingOnlyBeat(frame, (eventId) => registry.forEvent(eventId).length > 0)!;
+		expect(beat).not.toBeNull();
+		const event = clientEventOfBeat(beat)!;
+		expect(event.id).toBe("window_responded");
+		expect(presentEvent(registry, event, viewerOf("bob"))).toHaveLength(1);
+	});
+
+	it("names every variant key in the English texts", () => {
+		const keys = bindingVariantKeys("jump_in", "presentations/play_log.json");
+
+		expect(keys).toEqual(["jump_in:jumped_1", "jump_in:jumped_2"]);
+		for (const key of keys) expect(typeof texts[key]).toBe("string");
+	});
+});
+
+describe("seven_zero play log lines", () => {
+	const registry = new BindingRegistry();
+	const bindingFiles = {
+		"presentations/swap_log.json": "seven_zero:swap_log",
+		"presentations/pass_log.json": "seven_zero:pass_log",
+		"presentations/redistribute_log.json": "seven_zero:redistribute_log"
+	};
+	registry.ingestDefs({
+		presentations: Object.entries(bindingFiles).map(([file, id]) => ({
+			id,
+			def_hash: "0123456789abcdef",
+			...readModJson("seven_zero", file)
+		}))
+	});
+	const texts = readModJson("seven_zero", "texts/en.json");
+
+	it("logs a hand swap with the source and the target", () => {
+		const event = eventOf("hands_swapped", {
+			source: "ann",
+			target: "bob",
+			count: 3,
+			target_count: 5
+		});
+		const outputs = presentEvent(registry, event, viewerOf("cat"));
+
+		expect(outputs).toHaveLength(1);
+		const line = outputs[0]!.line!;
+		expect(["seven_zero:swap_1", "seven_zero:swap_2"]).toContain(line.key);
+		expect(line.params).toEqual({ source: "ann", target: "bob" });
+	});
+
+	it.each([
+		["forward", "seven_zero:pass_forward"],
+		["backward", "seven_zero:pass_backward"]
+	])("logs a %s hand pass", (direction, key) => {
+		const outputs = presentEvent(registry, eventOf("hands_passed", { direction }), viewerOf("cat"));
+
+		expect(outputs).toHaveLength(1);
+		expect(outputs[0]!.line!.key).toBe(key);
+	});
+
+	it("logs a redistribution", () => {
+		const outputs = presentEvent(registry, eventOf("hands_redistributed", {}), viewerOf("cat"));
+
+		expect(outputs).toHaveLength(1);
+		expect(outputs[0]!.line!.key).toBe("seven_zero:redistributed");
+	});
+
+	it("names every variant key in the English texts", () => {
+		const keys = Object.keys(bindingFiles).flatMap((file) =>
+			bindingVariantKeys("seven_zero", file)
+		);
+
+		expect(keys.toSorted()).toEqual(
+			[
+				"seven_zero:pass_backward",
+				"seven_zero:pass_forward",
+				"seven_zero:redistributed",
+				"seven_zero:swap_1",
+				"seven_zero:swap_2"
+			].toSorted()
+		);
+		for (const key of keys) expect(typeof texts[key]).toBe("string");
 	});
 });

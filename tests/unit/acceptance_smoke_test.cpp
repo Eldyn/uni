@@ -55,8 +55,7 @@ namespace {
 
 const std::vector<std::string> kShippedMods = {
     "uni", "seven_zero", "test", "draw_stacking", "jump_in"};
-const std::vector<std::string> kModsWithoutPresentation = {
-    "seven_zero", "jump_in"};
+const std::vector<std::string> kModsWithoutPresentation = {};
 const std::vector<std::string> kSeats = {"bot0", "bot1", "bot2", "bot3"};
 constexpr const char* kSpectator = "watcher";
 constexpr int64_t kStalledStepMs = 1000;

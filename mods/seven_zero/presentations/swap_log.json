@@ -1,0 +1,22 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "seven_zero:swap_log" },
+    "uni:event": "hands_swapped",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["seven_zero:swap_1", "seven_zero:swap_2"],
+            "uni:params": {
+              "source": { "uni:field": "source" },
+              "target": { "uni:field": "target" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
