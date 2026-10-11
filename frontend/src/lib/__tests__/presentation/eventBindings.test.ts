@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	BindingRegistry,
 	clientEventOf,
 	parseBinding,
 	presentEvent,
+	type CardResolver,
 	type ClientEvent,
 	type Viewer
 } from "$lib/presentation/eventBindings";
@@ -928,5 +929,67 @@ describe("param default", () => {
 
 	it("leaves the param out with no default", () => {
 		expect(paramsOf({ "uni:field": "missing" }, event())).not.toHaveProperty("p");
+	});
+});
+
+describe("card part params", () => {
+	const zap = () => ({ kind: "my_mod:zap", color: "red" });
+	const paramsOf = (
+		param: Record<string, unknown>,
+		subject: ClientEvent,
+		resolveCard?: CardResolver
+	) => {
+		const registry = registryOf(entry([{ "uni:present": logOnly(["k"], { p: param }) }]));
+		return presentEvent(registry, subject, viewerOf("ann"), resolveCard)[0]?.line?.params;
+	};
+	const withCard = (card: unknown): ClientEvent => event({ payload: { card } });
+
+	it("reads the kind id of the card", () => {
+		const param = { "uni:field": "card", "uni:card_part": "kind" };
+		expect(paramsOf(param, withCard(5), zap)?.p).toBe("my_mod:zap");
+	});
+
+	it("reads the color of the card", () => {
+		const param = { "uni:field": "card", "uni:card_part": "color" };
+		expect(paramsOf(param, withCard(5), zap)?.p).toBe("red");
+	});
+
+	it("passes the card bits to the resolver", () => {
+		const resolver = vi.fn(zap);
+		paramsOf({ "uni:field": "card", "uni:card_part": "kind" }, withCard(77), resolver);
+		expect(resolver).toHaveBeenCalledWith(77);
+	});
+
+	it("escapes the resolved text", () => {
+		const param = { "uni:field": "card", "uni:card_part": "kind" };
+		const hostile = () => ({ kind: "[c=red]x[/c]", color: "red" });
+		expect(paramsOf(param, withCard(5), hostile)?.p).toBe("\\[c=red]x\\[/c]");
+	});
+
+	it("gives no param when the resolver finds no card", () => {
+		const param = { "uni:field": "card", "uni:card_part": "kind" };
+		expect(paramsOf(param, withCard(5), () => undefined)).not.toHaveProperty("p");
+	});
+
+	it("gives no param without a resolver", () => {
+		const param = { "uni:field": "card", "uni:card_part": "kind" };
+		expect(paramsOf(param, withCard(5))).not.toHaveProperty("p");
+	});
+
+	it("gives no param when the field is not a number", () => {
+		const param = { "uni:field": "card", "uni:card_part": "kind" };
+		expect(paramsOf(param, withCard("red_0"), zap)).not.toHaveProperty("p");
+	});
+
+	it.each([NaN, Infinity, -1, 1.5, 4294967296])("never decodes %s", (bits) => {
+		const resolver = vi.fn(zap);
+		const param = { "uni:field": "card", "uni:card_part": "kind", "uni:default": "none" };
+		expect(paramsOf(param, withCard(bits), resolver)?.p).toBe("none");
+		expect(resolver).not.toHaveBeenCalled();
+	});
+
+	it("uses the default when the card cannot be decoded", () => {
+		const param = { "uni:field": "card", "uni:card_part": "color", "uni:default": "none" };
+		expect(paramsOf(param, withCard(5), () => undefined)?.p).toBe("none");
 	});
 });

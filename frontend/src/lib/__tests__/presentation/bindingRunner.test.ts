@@ -45,6 +45,46 @@ const live: ClientEvent = {
 };
 
 describe("createBindingRunner", () => {
+	it("hands the card resolver to the binding evaluation", () => {
+		const registry = new BindingRegistry();
+		registry.ingestDefs({
+			presentations: [
+				{
+					id: "my_mod:card_line",
+					def_hash: "0123456789abcdef",
+					"uni:format_version": "1.0.0",
+					"uni:binding": {
+						"uni:event": "my_mod:apple_eaten",
+						"uni:cases": [
+							{
+								"uni:present": {
+									"uni:log": {
+										"uni:variants": ["k"],
+										"uni:params": {
+											kind: { "uni:field": "card", "uni:card_part": "kind" }
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			]
+		});
+		const postLine = vi.fn();
+		createBindingRunner({
+			registry,
+			getViewer: () => ({ seat: "ann" }),
+			enqueueBeats: vi.fn(),
+			playSound: vi.fn(),
+			postLine,
+			resolveCard: () => ({ kind: "my_mod:zap", color: "red" })
+		}).run({ ...live, payload: { card: 9 } });
+		expect(postLine).toHaveBeenCalledWith(
+			expect.objectContaining({ params: { kind: "my_mod:zap" } })
+		);
+	});
+
 	it("enqueues the beats, plays the sound and posts the line, in that order", () => {
 		const { runner, deps, calls } = setup();
 		runner.run(live);

@@ -15,6 +15,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **Bindings: caused_by test** — a binding test `caused_by` holds when the event that caused this one has the id in `uni:value`, and the tag in `uni:tag` when given. Client, loader, validator and schema updated.
 - **Bindings: actor test source** — test `exists`, `equals` or `in` can set `uni:actor: true` to read the envelope actor. Client, loader, validator schema updated.
+- **Bindings: card part in a log param** — a log param with a `uni:field` source can now set `uni:card_part` to `kind` or `color`. The client decodes the card integer in that field through the loaded card defs, so mods can show the kind id or the color of a card. The validator and the schema are updated.
 - **Bindings: log param default** — a log param can now set `uni:default` (string or number). The client uses it when the param source gives no value. A string default is escaped. The validator and the schema are updated.
 - **Play log parity proof** (test) — a table test runs the core log rules and one fixture binding per rule on the same events, and compares the line keys and params. Rows that bindings cannot express are listed in the parity gaps file.
 - **Keep-drawing line as mod data** — the `progressive` mod now owns the keep-drawing play log line. It has `texts/en.json` and a binding on `progressive:drawn_until_playable` with two texts.

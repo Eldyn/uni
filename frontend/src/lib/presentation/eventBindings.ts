@@ -91,10 +91,20 @@ export interface BindingTest {
 }
 
 type ParamSource =
-	| { kind: "field"; field: string }
+	| { kind: "field"; field: string; cardPart?: "kind" | "color" }
 	| { kind: "value"; value: string | number }
 	| { kind: "actor" }
 	| { kind: "streak"; streak: string; key: string; keyField: string };
+
+/** Reads the kind id and the face color of a compact card integer. */
+export type CardResolver = (bits: number) => { kind: string; color: string } | undefined;
+
+const MAX_CARD_BITS = 0xffffffff;
+
+/** True for an unsigned 32-bit integer: the only shape a card int can have. */
+export function isCardBits(bits: number): boolean {
+	return Number.isInteger(bits) && bits >= 0 && bits <= MAX_CARD_BITS;
+}
 
 /** A param source plus the value used when the source yields nothing. */
 type ParamSpec = ParamSource & { defaultValue?: string | number };
@@ -229,7 +239,11 @@ function parseParam(raw: unknown): ParamSpec | null {
 
 function parseParamSource(raw: unknown): ParamSource | null {
 	if (!isRecord(raw)) return null;
-	if (typeof raw["uni:field"] === "string") return { kind: "field", field: raw["uni:field"] };
+	if (typeof raw["uni:field"] === "string") {
+		const part = raw["uni:card_part"];
+		const cardPart = part === "kind" || part === "color" ? part : undefined;
+		return { kind: "field", field: raw["uni:field"], ...(cardPart && { cardPart }) };
+	}
 	const literal = raw["uni:value"];
 	if (typeof literal === "string" || typeof literal === "number") {
 		return { kind: "value", value: literal };
@@ -437,7 +451,11 @@ function resolveBeats(beats: AnimationBeat[], event: ClientEvent): AnimationBeat
 	return resolved;
 }
 
-function paramValue(source: ParamSource, event: ClientEvent): string | number | undefined {
+function paramValue(
+	source: ParamSource,
+	event: ClientEvent,
+	resolveCard?: CardResolver
+): string | number | undefined {
 	if (source.kind === "value") return source.value;
 	if (source.kind === "actor") {
 		return event.actor === undefined ? undefined : escapeLogText(event.actor);
@@ -449,6 +467,11 @@ function paramValue(source: ParamSource, event: ClientEvent): string | number | 
 		return undefined;
 	}
 	const value = event.payload[source.field];
+	if (source.cardPart !== undefined) {
+		if (typeof value !== "number" || !isCardBits(value)) return undefined;
+		const card = resolveCard?.(value);
+		return card === undefined ? undefined : escapeLogText(card[source.cardPart]);
+	}
 	if (typeof value === "number") return value;
 	if (typeof value === "string") return escapeLogText(value);
 	if (typeof value === "boolean") return String(value);
@@ -465,12 +488,13 @@ function buildLine(
 	log: NonNullable<BindingCase["log"]>,
 	bindingId: string,
 	glossary: string | null,
-	event: ClientEvent
+	event: ClientEvent,
+	resolveCard?: CardResolver
 ): LogLine {
 	const key = log.variants[stableIndex(event.sequence, bindingId, log.variants.length)]!;
 	const params: Record<string, string | number> = {};
 	for (const [name, source] of Object.entries(log.params)) {
-		const value = paramValue(source, event) ?? fallbackValue(source);
+		const value = paramValue(source, event, resolveCard) ?? fallbackValue(source);
 		if (value !== undefined) params[name] = value;
 	}
 	if (glossary !== null) params.glossary = glossary;
@@ -486,7 +510,8 @@ function buildLine(
 export function presentEvent(
 	registry: BindingRegistry,
 	event: ClientEvent,
-	viewer: Viewer
+	viewer: Viewer,
+	resolveCard?: CardResolver
 ): PresentationOutput[] {
 	const outputs: PresentationOutput[] = [];
 	for (const binding of registry.forEvent(event.id)) {
@@ -497,7 +522,7 @@ export function presentEvent(
 				beats: resolveBeats(bindingCase.beats, event),
 				sounds: bindingCase.sounds.map((cue) => ({ ...cue })),
 				line: bindingCase.log
-					? buildLine(bindingCase.log, binding.id, bindingCase.glossary, event)
+					? buildLine(bindingCase.log, binding.id, bindingCase.glossary, event, resolveCard)
 					: null,
 				glossary: bindingCase.glossary
 			});

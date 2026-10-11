@@ -1694,6 +1694,17 @@ class Checker {
                         + "': default must be a string or a number"));
                 continue;
             }
+            if (!param.card_part.empty()
+                && (param.field.empty() || sources != 1
+                    || (param.card_part != binding_keys::kCardPartKind
+                        && param.card_part != binding_keys::kCardPartColor))) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': card_part needs a field source and must be "
+                          "'kind' or 'color'"));
+                continue;
+            }
             if (sources != 1) {
                 buckets_.presentations.push_back(Err(
                     "binding.log.param", "presentations", path,

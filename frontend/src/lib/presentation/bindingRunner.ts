@@ -2,6 +2,7 @@ import type { AnimationBeat } from "$components/game/animation/types";
 import type { LogLine } from "$lib/chat/playLog/logEvent";
 import {
 	presentEvent,
+	type CardResolver,
 	type BindingRegistry,
 	type ClientEvent,
 	type SoundCue,
@@ -19,6 +20,8 @@ export interface BindingRunnerDeps {
 	postLine: (line: LogLine) => void;
 	/** True while the animation queue fast-forwards: sounds stay silent. */
 	isFastForwarding?: () => boolean;
+	/** Decodes a compact card integer for log params that read a card part. */
+	resolveCard?: CardResolver;
 }
 
 const REMEMBERED_EVENTS = 64;
@@ -53,7 +56,7 @@ export function createBindingRunner(deps: BindingRunnerDeps) {
 		const cause = event.cause === undefined ? undefined : recent.get(event.cause);
 		if (cause !== undefined) event.causeEvent = cause;
 		remember(event);
-		const outputs = presentEvent(deps.registry, event, deps.getViewer());
+		const outputs = presentEvent(deps.registry, event, deps.getViewer(), deps.resolveCard);
 		for (const output of outputs) {
 			if (output.beats.length > 0) {
 				isolate("the beats", () => deps.enqueueBeats(output.beats));

@@ -29,8 +29,8 @@ import { storeAudio } from "$stores/audio.svelte";
 import { createPlayLogEmitter } from "$lib/chat/playLog/playLogEmitter";
 import { replayTailToLog, type TailEnvelope } from "$lib/chat/playLog/tailReplay";
 import type { MatchEventPayload } from "$lib/generated/schemas";
-import { storeCardDefs } from "$lib/stores/cardDefs.svelte";
 import { createBindingRunner } from "$lib/presentation/bindingRunner";
+import { resolveCardBits } from "$lib/presentation/cardBitsResolver";
 import { bindingRegistry, type BindingRegistry } from "$lib/presentation/eventBindings";
 import { clientEventOfBeat } from "$stores/matchEventMap";
 import { baseKindId } from "$lib/utils/baseMod";
@@ -1347,7 +1347,8 @@ export function createMatchEventBeatController(deps: {
 		},
 		playSound: (cue) => playBoardSfx(cue.sound, { pitch: cue.pitch, volume: cue.volume }),
 		postLine: (line) => playLog.noteLine(line),
-		isFastForwarding: () => deps.cardRegistry.isFastForwarding
+		isFastForwarding: () => deps.cardRegistry.isFastForwarding,
+		resolveCard: resolveCardBits
 	});
 
 	/** Handles the core presentation of a beat, then the presentation bindings
@@ -1611,7 +1612,7 @@ export function createMatchEventBeatController(deps: {
 	//       No line is dropped.
 	const unsubscribeAbandoned = deps.cardRegistry.onQueueAbandoned?.(() => playLog.releaseGates());
 	const unsubscribeTail = deps.subscribeTail?.((tail) =>
-		replayTailToLog(tail as TailEnvelope[], resolveKindOfBits, (line) =>
+		replayTailToLog(tail as TailEnvelope[], resolveCardBits, (line) =>
 			chatStore.appendLocalLog(line)
 		)
 	);
@@ -1629,20 +1630,6 @@ export function createMatchEventBeatController(deps: {
 		settleBoardAnimations,
 		resetTurnMotion
 	};
-}
-
-const MOD_INDEX_SHIFT = 24;
-const KIND_INDEX_SHIFT = 12;
-const KIND_INDEX_MASK = 0xfff;
-
-/** Resolves compact card bits to a kind id and a face color. */
-function resolveKindOfBits(bits: number): { kind: string; color: string } | undefined {
-	const definition = storeCardDefs.lookupByIndex(
-		bits >>> MOD_INDEX_SHIFT,
-		(bits >>> KIND_INDEX_SHIFT) & KIND_INDEX_MASK
-	);
-	if (!definition) return undefined;
-	return { kind: definition.string_id, color: definition.face.color ?? "white" };
 }
 
 const OPPONENT_ACTION_SFX_GAIN = 0.5;

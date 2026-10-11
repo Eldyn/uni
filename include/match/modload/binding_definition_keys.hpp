@@ -50,7 +50,11 @@
  *   `{ "uni:field": "count" }`, `{ "uni:value": "x" }`, or
  *   `{ "uni:actor": true }`. A param can add `uni:default` (string or
  *   number). The client uses it when the source gives no value. It is not a
- *   source.
+ *   source. A `uni:field` param can add `uni:card_part` (`kind` or `color`):
+ *   the field then holds a compact card integer, and the client decodes it
+ *   through the loaded card defs to the kind id or the face color. It is a
+ *   modifier of the field source, not a source. A field that is no card gives
+ *   no param, so `uni:default` can apply.
  * - A test of `exists`, `equals` or `in` can set `uni:actor: true`. It then
  *   reads the envelope actor, not a payload field or a streak.
  * - The test `caused_by` holds when the event that caused this one has the
@@ -122,6 +126,9 @@ inline constexpr std::string_view kParamStreak = "uni:streak";
 inline constexpr std::string_view kParamKey = "uni:key";
 inline constexpr std::string_view kParamKeyField = "uni:key_field";
 inline constexpr std::string_view kParamDefault = "uni:default";
+inline constexpr std::string_view kParamCardPart = "uni:card_part";
+inline constexpr std::string_view kCardPartKind = "kind";
+inline constexpr std::string_view kCardPartColor = "color";
 inline constexpr std::string_view kSelect = "uni:select";
 inline constexpr std::string_view kSelectAll = "all";
 inline constexpr std::string_view kSelectFirst = "first";

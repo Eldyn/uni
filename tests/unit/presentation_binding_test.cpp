@@ -358,7 +358,7 @@ TEST_CASE("binding: the schema and the key table agree") {
     for (const std::string_view key :
          {keys::kParamField, keys::kParamValue, keys::kParamActor,
           keys::kParamStreak, keys::kParamKey, keys::kParamKeyField,
-          keys::kParamDefault}) {
+          keys::kParamDefault, keys::kParamCardPart}) {
         CHECK_MESSAGE(param.contains(std::string(key)), key);
     }
     const json& test = definitions.at("test").at("properties");
@@ -1118,6 +1118,66 @@ TEST_CASE("binding validation: a param default is a string or a number") {
     CHECK(Validate(loaded).empty());
     params["count"].default_value = json::object();
     CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding loader: a param card part parses") {
+    const std::string present = R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": {
+                     "kind": { "uni:field": "card",
+                               "uni:card_part": "kind" },
+                     "plain": { "uni:field": "card" } } } })";
+    LoadResult loaded = LoadMod(BindingFile(
+        "my_mod:shown", "my_mod:apple_eaten",
+        "[ { \"uni:present\": " + present + " } ]"));
+    REQUIRE(loaded.ok());
+    const auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    CHECK(params.at("kind").card_part == "kind");
+    CHECK(params.at("plain").card_part.empty());
+}
+
+TEST_CASE("binding validation: a card part reads a card from a field") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"].card_part = "kind";
+    CHECK(Validate(loaded).empty());
+    params["count"].card_part = "color";
+    CHECK(Validate(loaded).empty());
+    params["count"].card_part = "shape";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: a card part needs a field source") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& param = loaded.mods[0].bindings[0].cases[0].log->params["count"];
+    param.card_part = "kind";
+    param.field.clear();
+    param.value = "x";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: a card part needs no actor or streak") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& param = loaded.mods[0].bindings[0].cases[0].log->params["count"];
+    param.card_part = "kind";
+    param.field.clear();
+    param.actor = true;
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+    param.actor = false;
+    param.streak = "uni:skip_run";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
+
+TEST_CASE("binding validation: the schema rejects a non-string card part") {
+    LoadResult loaded = LoadApple(
+        "[]", R"({ "uni:log": { "uni:variants": [ "log_a" ],
+                     "uni:params": { "c": { "uni:field": "count",
+                                            "uni:card_part": 3 } } } })");
+    REQUIRE(loaded.ok());
+    CHECK(HasCheck(Validate(loaded), "schema.invalid"));
 }
 
 TEST_CASE("binding validation: numeric words need a number value") {
