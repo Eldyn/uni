@@ -510,3 +510,55 @@ TEST_CASE("turn flow events: a restriction event sends no condition") {
     CHECK_FALSE(payload.contains("condition"));
     CHECK(payload.size() == 2);
 }
+
+TEST_CASE("active_type_changed: a change with no card play has no cause") {
+    Fixture fixture = MakeFixture(json::array(), {}, 2);
+    const std::vector<json> events = EventsOfType(
+        InvokeOp(fixture, "set_active_type", json{{"type", "blue"}},
+                 std::nullopt),
+        "active_type_changed");
+    REQUIRE(events.size() == 1);
+    ViewBuilder builder(*fixture.engine, fixture.mods);
+    EventSink sink;
+    const std::optional<json> wrapped =
+        builder.Wrap(events[0], Viewer::Player("player1"), sink);
+    REQUIRE(wrapped.has_value());
+    CHECK_FALSE(wrapped->contains("cause"));
+}
+
+TEST_CASE("active_type_changed: a second prompt keeps the play cause") {
+    const auto prompt = [](const std::string& id, const std::string& next) {
+        return Node(id, "prompt",
+                    json{{"kind", "choose_color"},
+                         {"target", "@self"},
+                         {"payload", json{{"options",
+                                           json::array({"red", "blue"})}}}},
+                    next);
+    };
+    json nodes = json::array(
+        {prompt("p1", "p2"), prompt("p2", "c"),
+         Node("c", "set_active_type", json{{"type", "blue"}})});
+    Fixture fixture = MakeFixture(nodes, {}, 2);
+    REQUIRE(fixture.engine->PlayCard("player0", fixture.card));
+    REQUIRE(fixture.engine->SubmitInput("player0", "red"));
+    REQUIRE(fixture.engine->PendingInput().has_value());
+    REQUIRE(fixture.engine->SubmitInput("player0", "red"));
+
+    ViewBuilder builder(*fixture.engine, fixture.mods);
+    EventSink sink;
+    std::optional<uint32_t> played_sequence;
+    std::optional<json> change;
+    for (const json& event : fixture.engine->Events()) {
+        const std::optional<json> wrapped =
+            builder.Wrap(event, Viewer::Player("player1"), sink);
+        if (!wrapped.has_value()) continue;
+        if ((*wrapped)["id"] == "card_played") {
+            played_sequence = (*wrapped)["sequence"].get<uint32_t>();
+        }
+        if ((*wrapped)["id"] == "active_type_changed") change = wrapped;
+    }
+    REQUIRE(played_sequence.has_value());
+    REQUIRE(change.has_value());
+    REQUIRE(change->contains("cause"));
+    CHECK((*change)["cause"] == *played_sequence);
+}

@@ -63,6 +63,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Fixed
 
+- **Color change keeps the play cause** — a wild color change after the color prompt now carries `cause`, the sequence of the wild play. Before this, the cause was lost over the prompt. Bindings need it for the `caused_by` test.
 - **Held stack close keeps the responder** — the engine now closes a held group with the recorded winner as actor, so the stack line `status_applied` from a merged `jump_in` and `draw_stacking` group names the player who responded.
 
 ### Removed

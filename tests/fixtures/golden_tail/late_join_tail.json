@@ -108,6 +108,7 @@
     "turn": 6
   },
   {
+    "cause": 5,
     "context": {
       "uni:last_wild_color": {
         "last": "blue",

@@ -267,9 +267,10 @@
    "sequence": 12
   },
   {
-   "cause": null,
+   "cause": 12,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -1320,9 +1321,10 @@
    "sequence": 61
   },
   {
-   "cause": null,
+   "cause": 60,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -1339,9 +1341,10 @@
    "sequence": 62
   },
   {
-   "cause": null,
+   "cause": 60,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -2518,9 +2521,10 @@
    "sequence": 13
   },
   {
-   "cause": null,
+   "cause": 12,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -3567,9 +3571,10 @@
    "sequence": 62
   },
   {
-   "cause": null,
+   "cause": 62,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -3586,9 +3591,10 @@
    "sequence": 63
   },
   {
-   "cause": null,
+   "cause": 62,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -4708,9 +4714,10 @@
    "sequence": 11
   },
   {
-   "cause": null,
+   "cause": 11,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -5742,9 +5749,10 @@
    "sequence": 59
   },
   {
-   "cause": null,
+   "cause": 59,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",
@@ -5761,9 +5769,10 @@
    "sequence": 60
   },
   {
-   "cause": null,
+   "cause": 59,
    "envelope_keys": [
     "action",
+    "cause",
     "context",
     "id",
     "payload",

@@ -581,6 +581,7 @@ bool MatchInstance::SubmitInput(const std::string& username,
     if (prompt_card.has_value()) answer = EntityJson(*prompt_card);
 
     ops::ResolutionFrame frame = pending.frame;
+    frame.causal.cause_event = pending.cause_event;
     const resolver::ResolveResult result = assembly_->resolver->ResumeInput(
         graph, pending.mod_id, pending.context, frame, pending.pause,
         std::move(answer));
@@ -1880,6 +1881,7 @@ void MatchInstance::CollectRuns() {
                 pending.context = run.context;
                 pending.system_index = run.system_index;
                 pending.mod_id = run.mod_id;
+                pending.cause_event = causal_frame_.cause_event;
                 pending_input_ = std::move(pending);
             }
         } else if (run.status == resolver::ResolveStatus::kWindow
@@ -2099,6 +2101,7 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
         pending.context = context;
         pending.frame = frame;
         pending.system_index = assembly_->systems.size();
+        pending.cause_event = causal_frame_.cause_event;
         pending_input_ = std::move(pending);
     }
 
@@ -2141,6 +2144,7 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.mod_id = mod_id;
         next.settle_play = settle_play;
         next.actor = actor;
+        next.cause_event = frame.causal.cause_event;
         pending_input_ = std::move(next);
         return;
     }

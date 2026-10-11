@@ -5,12 +5,15 @@
 #include <match/ecs/compact_card.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
+#include <match/view/event_sink.hpp>
+#include <match/view/view_builder.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -376,4 +379,36 @@ TEST_CASE("engine core: tick advances the round on a full seat cycle") {
     const nlohmann::json* round = FindEvent(*engine, "round_advance");
     REQUIRE(round != nullptr);
     CHECK((*round)["payload"]["round"] == 1);
+}
+
+TEST_CASE("engine core: a wild color change keeps the cause of the play") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE_FALSE(wilds.empty());
+    ForceHand(*engine, *engine->FindPlayer("player0"), {wilds[0]});
+    REQUIRE(engine->PlayCard("player0", wilds[0]));
+    REQUIRE(engine->PendingInput().has_value());
+    REQUIRE(engine->SubmitInput("player0", "blue"));
+
+    match::view::ViewBuilder builder(*engine, content.mods);
+    match::view::EventSink sink;
+    const match::view::Viewer viewer = match::view::Viewer::Player("player1");
+    std::optional<uint32_t> played_sequence;
+    std::optional<nlohmann::json> color_change;
+    for (const nlohmann::json& event : engine->Events()) {
+        const std::optional<nlohmann::json> wrapped =
+            builder.Wrap(event, viewer, sink);
+        if (!wrapped.has_value()) continue;
+        if ((*wrapped)["id"] == "card_played") {
+            played_sequence = (*wrapped)["sequence"].get<uint32_t>();
+        }
+        if ((*wrapped)["id"] == "active_type_changed") color_change = wrapped;
+    }
+    REQUIRE(played_sequence.has_value());
+    REQUIRE(color_change.has_value());
+    REQUIRE(color_change->contains("cause"));
+    CHECK((*color_change)["cause"] == *played_sequence);
 }
