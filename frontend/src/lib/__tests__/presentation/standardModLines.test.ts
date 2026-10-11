@@ -70,7 +70,8 @@ describe("draw_stacking play log line", () => {
 	it("logs a total of 7 as a small stack", () => {
 		const line = presentEvent(registry, withMagnitude(7), viewerOf("ann"))[0]!.line!;
 
-		expect(line.key).not.toBe("draw_stacking:stack_heavy_1");
+		expect(["draw_stacking:stack_small_1", "draw_stacking:stack_small_2"]).toContain(line.key);
+		expect(line.params).toMatchObject({ total: 7 });
 	});
 
 	it("logs nothing for another status", () => {

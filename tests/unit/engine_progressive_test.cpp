@@ -266,8 +266,9 @@ constexpr const char* kDrawnUntilPlayableId =
     "progressive:drawn_until_playable";
 
 /**
- * @brief Build a real-`progressive` match where `first` is drawn before
- *        `second`, with the unplayable card carrying an unmatchable label.
+ * @brief Build a real-progressive match; with `playable_first` the top draw
+ *        is playable, otherwise an unplayable card is on top of the playable
+ *        one.
  */
 std::unique_ptr<MatchInstance> ArmedProgressiveEngine(
     bool playable_first) {

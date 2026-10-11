@@ -117,7 +117,9 @@ json ProjectWindowResponded(const match::engine::MatchInstance& match,
         out["card"] = CardBitsFor(match, payload["card"]);
     }
     out["window_kind"] = payload.value("window_kind", std::string("generic"));
-    out["outcome"] = payload.value("outcome", std::string("pass"));
+    const bool passed = payload.value("pass", false);
+    out["outcome"] =
+        payload.value("outcome", std::string(passed ? "pass" : "winning"));
     return out;
 }
 

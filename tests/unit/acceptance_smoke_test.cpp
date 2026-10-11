@@ -55,7 +55,6 @@ namespace {
 
 const std::vector<std::string> kShippedMods = {
     "uni", "seven_zero", "test", "draw_stacking", "jump_in"};
-const std::vector<std::string> kModsWithoutPresentation = {};
 const std::vector<std::string> kSeats = {"bot0", "bot1", "bot2", "bot3"};
 constexpr const char* kSpectator = "watcher";
 constexpr int64_t kStalledStepMs = 1000;
@@ -235,16 +234,6 @@ void CheckStreams(const RunResult& run) {
 TEST_CASE("acceptance: the shipped mods play four bot matches to the end") {
     LogCapture log;
     Content content = LoadValidatedContent();
-    for (const std::string& id : kModsWithoutPresentation) {
-        const auto mod = std::ranges::find_if(
-            content.mods,
-            [&](const LoadedMod& entry) { return entry.manifest.id == id; });
-        REQUIRE(mod != content.mods.end());
-        CHECK_MESSAGE(mod->presentations.empty(), id);
-        CHECK_MESSAGE(mod->bindings.empty(), id);
-        CHECK_MESSAGE(mod->texts.empty(), id);
-    }
-
     for (const uint64_t seed : {7u, 11u, 23u}) {
         CAPTURE(seed);
         RunResult run;

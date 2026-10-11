@@ -4,16 +4,20 @@ import { describe, expect, it } from "vitest";
 import { buildLogLines } from "$lib/chat/playLog/logBuilder";
 import type { LogEvent } from "$lib/chat/playLog/logEvent";
 import { readStreaks } from "$lib/chat/playLog/serverStreaks";
-import { BindingRegistry, presentEvent, type EventEnvelope } from "$lib/presentation/eventBindings";
-import { clientEventOf } from "$lib/presentation/eventBindings";
+import {
+	BindingRegistry,
+	clientEventOf,
+	presentEvent,
+	type EventEnvelope
+} from "$lib/presentation/eventBindings";
 
-const FIXTURE_DIR = resolve(process.cwd(), "../tests/fixtures/play_log_parity");
+const FIXTURE_DIR = resolve(import.meta.dirname, "../../../../../tests/fixtures/play_log_parity");
 const SEQUENCES = Array.from({ length: 80 }, (_, index) => index + 1);
 const VIEWER = { seat: "ann" };
 
 type CoreInput = LogEvent extends infer Event
 	? Event extends LogEvent
-		? Omit<Event, "seq">
+		? Omit<Event, keyof { seq: number }>
 		: never
 	: never;
 

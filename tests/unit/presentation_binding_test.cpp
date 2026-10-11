@@ -967,16 +967,18 @@ TEST_CASE("test mod: the binding validates without an error or a warning") {
     CHECK(validator.WarningsOf(TestMod(loaded)).empty());
 }
 
-TEST_CASE("standard mods: each binding validates without an error or a warning") {
+TEST_CASE("standard mods: each binding validates cleanly") {
     const LoadResult loaded = LoadRealMods();
     match::modload::SemanticValidator validator(SchemaDir());
-    for (const char* modId : {"draw_stacking", "jump_in", "seven_zero", "progressive"}) {
+    const std::vector<const char*> kStandardModsWithBindings = {
+        "draw_stacking", "jump_in", "seven_zero", "progressive"};
+    for (const char* mod_id : kStandardModsWithBindings) {
         const match::modload::LoadedMod* found = nullptr;
         for (const auto& mod : loaded.mods) {
-            if (mod.manifest.id == modId) found = &mod;
+            if (mod.manifest.id == mod_id) found = &mod;
         }
-        REQUIRE_MESSAGE(found != nullptr, "the mod is not loaded: " << modId);
-        CAPTURE(modId);
+        REQUIRE_MESSAGE(found != nullptr, "the mod is not loaded: " << mod_id);
+        CAPTURE(mod_id);
         CHECK_FALSE(found->bindings.empty());
         const auto errors = validator.ValidateMod(*found);
         CAPTURE(Describe(errors));

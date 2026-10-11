@@ -264,6 +264,10 @@ TEST_CASE("windows: a losing response hides the card from other seats") {
               .contains("card"));
     CHECK(wrap(Viewer::Player("player0"), response("winning"))["payload"]
               .contains("card"));
+    json without_outcome = response("winning");
+    without_outcome["payload"].erase("outcome");
+    CHECK(wrap(Viewer::Player("player0"), without_outcome)["payload"]
+              ["outcome"] == "winning");
 }
 
 TEST_CASE("windows: both names take sequence numbers without a gap") {
