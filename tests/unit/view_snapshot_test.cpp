@@ -972,6 +972,27 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     CHECK(payload["deadline_ms"] == kGroupWindowMs);
 }
 
+TEST_CASE("view window: a jump_in response keeps its kind in a mixed group") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    REQUIRE(draw2.has_value());
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::vector<ecs::Entity>& hand =
+        engine->Store().Get<ecs::Hand>(player2)->cards;
+    REQUIRE(hand.size() == 1u);
+    REQUIRE(engine->RespondWindow("player2", hand.front()));
+    ViewBuilder builder(*engine, content.mods);
+    const json responded = PacketOfType(
+        builder, Viewer::Spectator(), "window_responded");
+    REQUIRE_FALSE(responded.is_null());
+    CHECK(responded["payload"]["window_kind"] == "jump_in");
+    CHECK(responded["payload"]["outcome"] == "winning");
+}
+
 TEST_CASE("view window: kinds follow member order, kind stays the first") {
     Content content;
     REQUIRE(LoadContent(content));

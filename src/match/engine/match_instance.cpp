@@ -1658,6 +1658,7 @@ bool MatchInstance::RespondWindow(const std::string& username,
               {"card", EntityJson(card)},
               {"kind", identity == nullptr ? std::string()
                                            : identity->kind_id},
+              {"window_kind", pending_window_->Member(*owner).request.kind},
               {"pass", false},
               {"outcome", winning ? "winning" : "lost"}});
 
@@ -1707,6 +1708,7 @@ bool MatchInstance::PassWindow(const std::string& username) {
     Emit("window_responded", json{{"window", window->window_id},
                                  {"player", username},
                                  {"pass", true},
+                                 {"window_kind", window->kind},
                                  {"outcome", "pass"}});
 
     if (held || timers_.Window().AllResponded(*window)) {

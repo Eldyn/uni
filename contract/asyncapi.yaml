@@ -1992,11 +1992,13 @@ components:
 
     WindowRespondedPayload:
       type: object
-      x-packet-version: "1"
+      x-packet-version: "2"
       required: [window_id, target]
       description: >
         A seat responded to a window. `target` is the seat that
         responded. A losing response hides `card` from every other seat.
+        `window_kind` is the kind of the window. `outcome` is the result of
+        the response.
       properties:
         window_id:
           type: string
@@ -2006,6 +2008,12 @@ components:
           type: boolean
         card:
           $ref: "#/components/schemas/CompactCardV2"
+        window_kind:
+          type: string
+          pattern: "^[a-z0-9_:.-]{1,32}$"
+        outcome:
+          type: string
+          enum: [winning, lost, pass]
 
     WindowClosedPayload:
       type: object

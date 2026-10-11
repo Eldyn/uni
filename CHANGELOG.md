@@ -78,6 +78,7 @@ UI Glow Up, 3D Table, 16 Players! The table is now a 3D scene, a match can hold 
 ### Changed
 
 <<<<<<< MANUAL
+- **`window_responded` carries `window_kind` and `outcome`** — the packet is now version 2. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields.
 - **Palette**: a new red, green, blue and yellow palette, defined once and used everywhere: cards, the colour picker, seat colours and the victory popup.
 - **Performance**:
   - A full load of everything but your language is roughly 0.8 MB over the wire, down from about 4.8 MB in 0.5.5, around 80% less.

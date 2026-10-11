@@ -199,6 +199,8 @@ inline constexpr FieldRule kWindowResponded[] = {
     {"target", Audience::kAll},
     {"passed", Audience::kAll},
     {"card", Audience::kAll, FieldKind::kOfferedCard},
+    {"window_kind", Audience::kAll},
+    {"outcome", Audience::kAll},
 };
 inline constexpr FieldRule kWindowClosed[] = {
     {"window_id", Audience::kAll},

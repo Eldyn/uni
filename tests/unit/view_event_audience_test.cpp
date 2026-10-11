@@ -323,3 +323,64 @@ TEST_CASE("audience: a losing window response hides its card from others") {
     CHECK(wrap("player1", response("lost"))["payload"].contains("card"));
     CHECK(wrap("player2", response("winning"))["payload"].contains("card"));
 }
+
+TEST_CASE("audience: window_responded carries window_kind and outcome") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity card = engine->Registries().cards[0];
+    MoveToHand(*engine, player1, card);
+
+    EventSink sink;
+    const json played = *builder.Wrap(
+        json{{"type", "window_responded"},
+             {"payload", json{{"window", 3},
+                              {"player", "player1"},
+                              {"card", EntityRef(card)},
+                              {"kind", "red_draw2"},
+                              {"window_kind", "jump_in"},
+                              {"pass", false},
+                              {"outcome", "winning"}}}},
+        Viewer::Player("player1"), sink);
+    CHECK(played["payload"]["window_kind"] == "jump_in");
+    CHECK(played["payload"]["outcome"] == "winning");
+
+    const json passed = *builder.Wrap(
+        json{{"type", "window_responded"},
+             {"payload", json{{"window", 3},
+                              {"player", "player1"},
+                              {"pass", true},
+                              {"window_kind", "jump_in"},
+                              {"outcome", "pass"}}}},
+        Viewer::Player("player2"), sink);
+    CHECK(passed["payload"]["passed"] == true);
+    CHECK(passed["payload"]["outcome"] == "pass");
+    CHECK_FALSE(passed["payload"].contains("card"));
+}
+
+TEST_CASE("audience: a lost window_responded keeps its card hidden") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity card = engine->Registries().cards[0];
+    MoveToHand(*engine, player1, card);
+
+    const json lost = json{{"type", "window_responded"},
+                           {"payload", json{{"window", 3},
+                                            {"player", "player1"},
+                                            {"card", EntityRef(card)},
+                                            {"pass", false},
+                                            {"window_kind", "jump_in"},
+                                            {"outcome", "lost"}}}};
+    EventSink sink;
+    const json other = *builder.Wrap(lost, Viewer::Player("player2"), sink);
+    CHECK_FALSE(other["payload"].contains("card"));
+    CHECK(other["payload"]["outcome"] == "lost");
+    CHECK(builder.Wrap(lost, Viewer::Player("player1"), sink)
+              ->at("payload")
+              .contains("card"));
+}
