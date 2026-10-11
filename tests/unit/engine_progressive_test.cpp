@@ -259,3 +259,109 @@ TEST_CASE("engine: progressive draw-until-playable runs via the op") {
     CHECK(drew_two);
     CHECK_FALSE(engine->IsMatchOver());
 }
+
+namespace {
+
+constexpr const char* kDrawnUntilPlayableId =
+    "progressive:drawn_until_playable";
+
+/**
+ * @brief Build a real-`progressive` match where `first` is drawn before
+ *        `second`, with the unplayable card carrying an unmatchable label.
+ */
+std::unique_ptr<MatchInstance> ArmedProgressiveEngine(
+    bool playable_first) {
+    Content content;
+    REQUIRE(LoadContent(content));
+
+    DeckDef deck = content.classic;
+    deck.mods = {"uni", "progressive"};
+    AssemblyResult result =
+        MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+
+    MatchAssembly& assembly = *result.assembly;
+    ecs::PileContents* draw = AssemblyPile(assembly, ecs::PileKind::kDraw);
+    REQUIRE(draw != nullptr);
+
+    std::optional<ecs::Entity> playable;
+    std::string active;
+    for (ecs::Entity card : draw->cards) {
+        const ecs::FaceSpec* face = assembly.store.Get<ecs::FaceSpec>(card);
+        if (face != nullptr && !face->color.empty() && face->color != "white") {
+            playable = card;
+            active = face->color;
+            break;
+        }
+    }
+    REQUIRE(playable.has_value());
+
+    std::optional<ecs::Entity> unplayable;
+    for (ecs::Entity card : draw->cards) {
+        if (card == *playable) continue;
+        ecs::FaceSpec* face = assembly.store.Get<ecs::FaceSpec>(card);
+        if (face != nullptr && face->color != active
+            && face->color != "white") {
+            face->label = "zzz";
+            unplayable = card;
+            break;
+        }
+    }
+    REQUIRE(unplayable.has_value());
+
+    ecs::ActiveTypeReq* req =
+        assembly.store.Get<ecs::ActiveTypeReq>(assembly.registries.match);
+    REQUIRE(req != nullptr);
+    req->type = active;
+
+    ecs::PileContents* discard =
+        AssemblyPile(assembly, ecs::PileKind::kDiscard);
+    REQUIRE(discard != nullptr);
+    REQUIRE_FALSE(discard->cards.empty());
+    if (ecs::FaceSpec* top =
+            assembly.store.Get<ecs::FaceSpec>(discard->cards.back())) {
+        top->label = "___";
+    }
+
+    if (playable_first) {
+        PlaceTop(assembly.store, draw, *unplayable, *playable);
+    } else {
+        PlaceTop(assembly.store, draw, *playable, *unplayable);
+    }
+    return std::make_unique<MatchInstance>(std::move(result.assembly));
+}
+
+std::vector<json> DrawnUntilPlayableEvents(MatchInstance& engine) {
+    std::vector<json> found;
+    for (const json& event : engine.Events()) {
+        if (event.value("type", std::string()) != "mod_event") continue;
+        if (!event.contains("payload") || !event["payload"].is_object()) {
+            continue;
+        }
+        if (event["payload"].value("id", std::string())
+            == kDrawnUntilPlayableId) {
+            found.push_back(event);
+        }
+    }
+    return found;
+}
+
+}  // namespace
+
+TEST_CASE("progressive: an action draw that loops emits the mod event once") {
+    std::unique_ptr<MatchInstance> engine = ArmedProgressiveEngine(false);
+    engine->TakeEvents();
+    REQUIRE(engine->DrawCard("player0"));
+
+    const std::vector<json> found = DrawnUntilPlayableEvents(*engine);
+    REQUIRE(found.size() == 1);
+    CHECK(found[0]["payload"]["payload"]["target"] == "player0");
+}
+
+TEST_CASE("progressive: a playable first draw emits no mod event") {
+    std::unique_ptr<MatchInstance> engine = ArmedProgressiveEngine(true);
+    engine->TakeEvents();
+    REQUIRE(engine->DrawCard("player0"));
+
+    CHECK(DrawnUntilPlayableEvents(*engine).empty());
+}

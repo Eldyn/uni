@@ -35,6 +35,17 @@
           "op": "draw_until_playable",
           "args": {
             "target": "@self"
+          },
+          "next": "announce"
+        },
+        {
+          "id": "announce",
+          "op": "emit_event",
+          "args": {
+            "id": "progressive:drawn_until_playable",
+            "payload": {
+              "target": "@self"
+            }
           }
         }
       ]
