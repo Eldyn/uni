@@ -647,3 +647,73 @@ describe("numeric test words", () => {
 		expect(linesOf([{ "uni:test": "lt", "uni:field": "count", "uni:value": 1 }], subject)).toBe(0);
 	});
 });
+
+describe("streak source", () => {
+	const withContext = (context: Record<string, unknown>): ClientEvent =>
+		event({ payload: { target: "bob" }, context });
+
+	it("tests a global streak value", () => {
+		const tests = [{ "uni:test": "gte", "uni:streak": "uni:skip_run", "uni:value": 3 }];
+		expect(linesOf(tests, withContext({ "uni:skip_run": 3 }))).toBe(1);
+		expect(linesOf(tests, withContext({ "uni:skip_run": 2 }))).toBe(0);
+	});
+
+	it("tests a per-seat streak by the key in a payload field", () => {
+		const tests = [
+			{
+				"uni:test": "gte",
+				"uni:streak": "uni:draw_run",
+				"uni:key_field": "target",
+				"uni:value": 4
+			}
+		];
+		expect(linesOf(tests, withContext({ "uni:draw_run": { bob: 4 } }))).toBe(1);
+		expect(linesOf(tests, withContext({ "uni:draw_run": { bob: 1 } }))).toBe(0);
+		expect(linesOf(tests, withContext({ "uni:draw_run": { ann: 9 } }))).toBe(0);
+	});
+
+	it("tests an object streak by a literal key", () => {
+		const tests = [
+			{
+				"uni:test": "equals",
+				"uni:streak": "uni:last_wild_color",
+				"uni:key": "previous",
+				"uni:value": "red"
+			}
+		];
+		expect(linesOf(tests, withContext({ "uni:last_wild_color": { previous: "red" } }))).toBe(1);
+	});
+
+	it("is false when the event has no context", () => {
+		const tests = [{ "uni:test": "gte", "uni:streak": "uni:skip_run", "uni:value": 0 }];
+		expect(linesOf(tests, event())).toBe(0);
+	});
+
+	it("passes a streak value to a log param, escaped when it is a string", () => {
+		const registry = registryOf(
+			entry([
+				{
+					"uni:present": logOnly(["k"], {
+						run: { "uni:streak": "uni:skip_run" },
+						prev: { "uni:streak": "uni:last_wild_color", "uni:key": "previous" }
+					})
+				}
+			])
+		);
+		const outputs = presentEvent(
+			registry,
+			withContext({ "uni:skip_run": 3, "uni:last_wild_color": { previous: "[c=red]x[/c]" } }),
+			viewerOf("ann")
+		);
+		expect(outputs[0]?.line?.params.run).toBe(3);
+		expect(outputs[0]?.line?.params.prev).toBe("\\[c=red]x\\[/c]");
+	});
+
+	it("leaves a param out when the streak value is missing", () => {
+		const registry = registryOf(
+			entry([{ "uni:present": logOnly(["k"], { run: { "uni:streak": "uni:skip_run" } }) }])
+		);
+		const outputs = presentEvent(registry, event(), viewerOf("ann"));
+		expect(outputs[0]?.line?.params).not.toHaveProperty("run");
+	});
+});

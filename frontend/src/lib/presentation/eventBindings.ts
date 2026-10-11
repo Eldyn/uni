@@ -65,10 +65,19 @@ export interface BindingTest {
 	role: string;
 	relation: string;
 	negate: boolean;
+	/** Streak id; when set, the test reads the streak value instead of a payload field. */
+	streak: string;
+	/** Literal key into an object streak value; empty when unused. */
+	key: string;
+	/** Payload field whose value is the key into an object streak value; empty when unused. */
+	keyField: string;
 }
 
 type ParamSource =
-	{ kind: "field"; field: string } | { kind: "value"; value: string | number } | { kind: "actor" };
+	| { kind: "field"; field: string }
+	| { kind: "value"; value: string | number }
+	| { kind: "actor" }
+	| { kind: "streak"; streak: string; key: string; keyField: string };
 
 export interface SoundCue {
 	sound: string;
@@ -141,7 +150,10 @@ function parseTest(raw: unknown): BindingTest | null {
 		tag: stringOr(raw["uni:tag"]),
 		role: stringOr(raw["uni:role"]),
 		relation: stringOr(raw["uni:relation"]),
-		negate: raw["uni:negate"] === true
+		negate: raw["uni:negate"] === true,
+		streak: stringOr(raw["uni:streak"]),
+		key: stringOr(raw["uni:key"]),
+		keyField: stringOr(raw["uni:key_field"])
 	};
 }
 
@@ -188,6 +200,14 @@ function parseParam(raw: unknown): ParamSource | null {
 		return { kind: "value", value: literal };
 	}
 	if (raw["uni:actor"] === true) return { kind: "actor" };
+	if (typeof raw["uni:streak"] === "string") {
+		return {
+			kind: "streak",
+			streak: raw["uni:streak"],
+			key: stringOr(raw["uni:key"]),
+			keyField: stringOr(raw["uni:key_field"])
+		};
+	}
 	return null;
 }
 
@@ -272,6 +292,19 @@ export class BindingRegistry {
 	}
 }
 
+/**
+ * Reads one streak value from the context of an event. An object value (a
+ * per-seat count, the last wild color) needs `key` or `keyField`. A missing
+ * context, streak or key gives `undefined`.
+ */
+function streakValueOf(event: ClientEvent, streak: string, key: string, keyField: string): unknown {
+	const value = event.context?.[streak];
+	if (key === "" && keyField === "") return value;
+	if (!isRecord(value)) return undefined;
+	const lookup = key !== "" ? key : event.payload[keyField];
+	return typeof lookup === "string" ? value[lookup] : undefined;
+}
+
 function holdsRelation(test: BindingTest, event: ClientEvent, viewer: Viewer): boolean {
 	const seat =
 		test.role === "actor"
@@ -287,7 +320,10 @@ function holdsRelation(test: BindingTest, event: ClientEvent, viewer: Viewer): b
 }
 
 function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boolean {
-	const value = event.payload[test.field];
+	const value =
+		test.streak !== ""
+			? streakValueOf(event, test.streak, test.key, test.keyField)
+			: event.payload[test.field];
 	switch (test.test) {
 		case "equals":
 			return value !== undefined && value === test.value;
@@ -343,6 +379,12 @@ function paramValue(source: ParamSource, event: ClientEvent): string | number | 
 	if (source.kind === "value") return source.value;
 	if (source.kind === "actor") {
 		return event.actor === undefined ? undefined : escapeLogText(event.actor);
+	}
+	if (source.kind === "streak") {
+		const streakValue = streakValueOf(event, source.streak, source.key, source.keyField);
+		if (typeof streakValue === "number") return streakValue;
+		if (typeof streakValue === "string") return escapeLogText(streakValue);
+		return undefined;
 	}
 	const value = event.payload[source.field];
 	if (typeof value === "number") return value;
