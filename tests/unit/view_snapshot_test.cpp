@@ -993,6 +993,65 @@ TEST_CASE("view window: a jump_in response keeps its kind in a mixed group") {
     CHECK(responded["payload"]["outcome"] == "winning");
 }
 
+TEST_CASE("view window: a lost response shows the group leader kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
+    const std::optional<ecs::Entity> blue_stacker =
+        FindCard(*engine, "blue", "+2");
+    REQUIRE(blue_stacker.has_value());
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player1, {*blue_stacker});
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const ecs::Entity twin =
+        engine->Store().Get<ecs::Hand>(player2)->cards.front();
+    REQUIRE(engine->RespondWindow("player2", twin));
+    REQUIRE(engine->RespondWindow("player1", *blue_stacker));
+
+    ViewBuilder builder(*engine, content.mods);
+    json lost = json(nullptr);
+    for (const json& packet : builder.BuildPackets(Viewer::Spectator())) {
+        if (packet.value("id", std::string()) == "window_responded"
+            && packet["payload"]["outcome"] == "lost") {
+            lost = packet;
+        }
+    }
+    REQUIRE_FALSE(lost.is_null());
+    CHECK(lost["payload"]["window_kind"] == "jump_in");
+}
+
+TEST_CASE("view window: a held stack close keeps the responder actor") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const ecs::Entity stacker =
+        engine->Store().Get<ecs::Hand>(player2)->cards.front();
+    REQUIRE(engine->RespondWindow("player2", stacker));
+    const std::size_t events_before_close = engine->Events().size();
+    clock.now = kGroupHoldMs + 1;
+    engine->Tick();
+
+    bool found = false;
+    const std::vector<json>& events = engine->Events();
+    for (std::size_t index = events_before_close; index < events.size();
+         ++index) {
+        const json& event = events[index];
+        if (event.value("type", std::string()) != "status_applied") continue;
+        if (event["payload"].value("status_kind", std::string())
+            != "uni:draw_debt") {
+            continue;
+        }
+        found = true;
+        CHECK(event["causal_frame"]["actor"] == "player2");
+    }
+    CHECK(found);
+}
+
 TEST_CASE("view window: kinds follow member order, kind stays the first") {
     Content content;
     REQUIRE(LoadContent(content));

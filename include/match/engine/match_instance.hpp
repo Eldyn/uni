@@ -257,6 +257,8 @@ public:
     bool WindowHoldElapsed() const;
     /** @brief True when a held group has a winner and its hold is over. */
     bool WindowWinnerReady() const;
+    /** @brief The recorded window winner, or null when none responded. */
+    std::optional<ecs::Entity> WindowWinnerActor() const;
 
     /**
      * @brief True when `RespondWindow(player, card)` would accept the card.

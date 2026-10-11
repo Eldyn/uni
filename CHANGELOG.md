@@ -56,6 +56,14 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Client entity-component runtime** — the frontend gains a lightweight, pure-TypeScript entity-component runtime (`components/game/entity/`) that replays mod-declared entities cosmetically and never touches game state. A `ComponentRegistry` classifies the §4.2 component vocabulary into families; `EntityRuntime` spawns defs by id (`spawn("dice", { as: "d1" })`), resolves `entity:<handle>` addresses, tracks a live count against a cap (default 64, constructor-injectable so a runtime FX budget can wire in without rework), and ticks pure movement (`arc`/`linear`/`ballistic`/`static`), motion (`spin`/`oscillate`/`jitter`/`spring`/`follow`) and lifetime (`ttl`/`untilDespawn`) systems before despawning expired entities. Movement anchors (`$origin`/`$target`) resolve through the same handle/anchor map as `attachTo`/`resolve`; an unknown def, unknown component, missing anchor, over-cap spawn or duplicate handle all degrade with a warning and never throw. An `EntityRenderer` seam (SP2 ships a no-op) lets SP3/SP4 drop in real rendering. The shared runtime is advanced every frame by `AllCards3D`'s `useTask` (the same delta that ticks the card registry), so spawned entities move and a `lifetime.ttl` entity despawns instead of silently consuming the cap.
 - **Outcome tables (`tables/`)** — the first artifact of the mod SFX programme. Mods declare named weighted tables as content (`contract/schemas/tables.schema.json`, one `tables/<id>.json` per file, sorted, fail-closed); the server ingests, validates and rolls them. A new `roll_table { table, into? }` op performs a weighted pick on the match's existing seeded splitmix64 stream (never a new RNG), supports an optional nested 10.6 `roll` and an optional 10.2 `where` filter, binds `$last_outcome {table,key,value}` and emits a new `outcome_result` packet (`{table, key, value, counter}`, `key` pre-namespaced `mod_id:key`). New per-outcome accessors `outcome_is` / `outcome_value` let rules branch on a rolled key/value rather than only the rolled total; raw `roll_result` is unchanged. Validation stays fail-closed: unknown tables, duplicate keys, `weight < 1`, `value`+`roll` together, out-of-range nested rolls and dangling `where` keywords all block the mod with a readable error.
 
+### Changed
+
+- **`window_responded` carries `window_kind` and `outcome`** — the packet is now version 2. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
+
+### Fixed
+
+- **Held stack close keeps the responder** — the engine now closes a held group with the recorded winner as actor, so the stack line `status_applied` from a merged `jump_in` and `draw_stacking` group names the player who responded.
+
 ### Removed
 
 - **Client stack-penalty play-log guess** — the client no longer guesses the stack line from a +2 or +4 play and its debt toast. The `draw_stacking` mod now writes that line. The `uni:log.draw_stack` and `uni:log.draw_stack_heavy` texts are gone from the core texts. Non-English texts for the stack line stay out until the `draw_stacking` locale follow-up.
@@ -88,7 +96,6 @@ UI Glow Up, 3D Table, 16 Players! The table is now a 3D scene, a match can hold 
 ### Changed
 
 <<<<<<< MANUAL
-- **`window_responded` carries `window_kind` and `outcome`** — the packet is now version 2. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields.
 - **Palette**: a new red, green, blue and yellow palette, defined once and used everywhere: cards, the colour picker, seat colours and the victory popup.
 - **Performance**:
   - A full load of everything but your language is roughly 0.8 MB over the wire, down from about 4.8 MB in 0.5.5, around 80% less.

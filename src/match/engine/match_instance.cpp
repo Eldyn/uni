@@ -634,6 +634,8 @@ void MatchInstance::Tick() {
     //       first response already decided the outcome, so waiting longer
     //       would be a hidden stall.
     if (WindowWinnerReady()) {
+        const CausalScope causal_scope(causal_frame_, WindowWinnerActor(),
+                                       ops::kCauseWindowResponse);
         CloseWindowRoute("response");
         ExecuteScheduled(scheduler_.Tick(store, registries.match, Now()));
         return;
@@ -645,7 +647,7 @@ void MatchInstance::Tick() {
                                        ops::kCauseWindowTimeout);
         CloseWindowRoute("timeout");
     } else if (tick.window_early_closed) {
-        const CausalScope causal_scope(causal_frame_, std::nullopt,
+        const CausalScope causal_scope(causal_frame_, WindowWinnerActor(),
                                        ops::kCauseWindowResponse);
         CloseWindowRoute(pending_window_.has_value()
                                  && pending_window_->has_winner
@@ -1651,6 +1653,9 @@ bool MatchInstance::RespondWindow(const std::string& username,
         pending_window_->winner_member = *owner;
     }
 
+    // INFO: `window_kind` is public; a lost response must not reveal the
+    //       member kind of its hidden card, so it shows the group leader.
+    const std::string& window_kind_for_loser = window->kind;
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
     Emit("window_responded",
          json{{"window", window->window_id},
@@ -1658,7 +1663,9 @@ bool MatchInstance::RespondWindow(const std::string& username,
               {"card", EntityJson(card)},
               {"kind", identity == nullptr ? std::string()
                                            : identity->kind_id},
-              {"window_kind", pending_window_->Member(*owner).request.kind},
+              {"window_kind", winning
+                                  ? pending_window_->Member(*owner).request.kind
+                                  : window_kind_for_loser},
               {"pass", false},
               {"outcome", winning ? "winning" : "lost"}});
 
@@ -1666,6 +1673,13 @@ bool MatchInstance::RespondWindow(const std::string& username,
         CloseWindowRoute("response");
     }
     return true;
+}
+
+std::optional<ecs::Entity> MatchInstance::WindowWinnerActor() const {
+    if (!pending_window_.has_value() || !pending_window_->has_winner) {
+        return std::nullopt;
+    }
+    return pending_window_->winner;
 }
 
 bool MatchInstance::PassWindow(const std::string& username) {
