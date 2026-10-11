@@ -37,6 +37,11 @@
         "uni:cases": {
           "type": "array",
           "items": { "$ref": "#/$defs/case" }
+        },
+        "uni:select": {
+          "type": "string",
+          "enum": ["all", "first"],
+          "description": "all: applies. first: only first matching case."
         }
       }
     }
@@ -62,9 +67,12 @@
       "properties": {
         "uni:test": {
           "type": "string",
-          "enum": ["equals", "in", "exists", "has_tag", "relation"]
+          "enum": ["equals", "in", "exists", "has_tag", "relation", "gt", "gte", "lt", "lte"]
         },
         "uni:field": { "type": "string" },
+        "uni:streak": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },
+        "uni:key": { "type": "string" },
+        "uni:key_field": { "type": "string" },
         "uni:value": {},
         "uni:values": { "type": "array" },
         "uni:tag": { "type": "string" },
@@ -128,7 +136,10 @@
                 "properties": {
                   "uni:field": { "type": "string" },
                   "uni:value": { "oneOf": [{ "type": "string" }, { "type": "number" }] },
-                  "uni:actor": { "type": "boolean" }
+                  "uni:actor": { "type": "boolean" },
+                  "uni:streak": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },
+                  "uni:key": { "type": "string" },
+                  "uni:key_field": { "type": "string" }
                 }
               }
             }

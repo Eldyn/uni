@@ -1437,10 +1437,11 @@ class Checker {
     void CheckBindingTest(const std::string& path, const BindingDef& binding,
                           const StreakTestDef& test) {
         namespace keys = streak_keys;
+        namespace bkeys = binding_keys;
         const std::string label = "binding '" + binding.binding_id + "'";
         const bool known =
-            std::find(keys::kMatcherTests.begin(), keys::kMatcherTests.end(),
-                      test.test) != keys::kMatcherTests.end();
+            std::find(bkeys::kBindingTests.begin(), bkeys::kBindingTests.end(),
+                      test.test) != bkeys::kBindingTests.end();
         if (!known) {
             buckets_.presentations.push_back(Err(
                 "binding.test.unknown", "presentations", path,
@@ -1457,6 +1458,23 @@ class Checker {
             CheckStreakTag(path, OwnerOf(binding), test.tag);
             return;
         }
+        const bool numeric = test.test == bkeys::kGt || test.test == bkeys::kGte
+                             || test.test == bkeys::kLt
+                             || test.test == bkeys::kLte;
+        const bool from_streak = !test.streak.empty();
+        if ((numeric && !test.value.is_number())
+            || (from_streak && (!test.field.empty() || !IsLogKey(test.streak)))
+            || (!test.key.empty() && !test.key_field.empty())
+            || (!from_streak && (!test.key.empty() || !test.key_field.empty()))) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test '" + test.test
+                    + "' has a bad source: numeric words need a number "
+                      "value; a streak test has no payload field; key and "
+                      "key_field are for streak tests and exclusive"));
+            return;
+        }
+        if (from_streak) return;
         if (test.field.empty() || !test.state.empty()
             || (test.test == keys::kIn && test.values.empty())) {
             buckets_.presentations.push_back(Err(
@@ -1593,7 +1611,20 @@ class Checker {
         for (const auto& [name, param] : log.params) {
             const int sources = (param.field.empty() ? 0 : 1)
                                 + (param.value.has_value() ? 1 : 0)
-                                + (param.actor ? 1 : 0);
+                                + (param.actor ? 1 : 0)
+                                + (param.streak.empty() ? 0 : 1);
+            const bool key_misused =
+                (param.streak.empty()
+                 && (!param.key.empty() || !param.key_field.empty()))
+                || (!param.key.empty() && !param.key_field.empty());
+            if (key_misused) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " param '" + name
+                        + "': key and key_field need a streak source and "
+                          "are exclusive"));
+                continue;
+            }
             if (sources != 1) {
                 buckets_.presentations.push_back(Err(
                     "binding.log.param", "presentations", path,
@@ -1885,6 +1916,14 @@ class Checker {
                     buckets_.presentations.push_back(Err(
                         "binding.id.duplicate", "presentations", path,
                         "duplicate binding id '" + binding.binding_id + "'"));
+                }
+                if (binding.select != binding_keys::kSelectAll
+                    && binding.select != binding_keys::kSelectFirst) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.select", "presentations", path,
+                        "binding '" + binding.binding_id + "' has '"
+                            + std::string(binding_keys::kSelect)
+                            + "' that is not 'all' or 'first'"));
                 }
                 if (!CheckBindingEvent(path, *mod, binding)) continue;
                 for (const BindingCaseDef& binding_case : binding.cases) {

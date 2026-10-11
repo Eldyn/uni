@@ -998,3 +998,48 @@ TEST_CASE("binding loader: streak source, select and numeric words parse") {
     CHECK(test.key.empty());
     CHECK(loaded.mods[0].bindings[0].select == "all");
 }
+
+TEST_CASE("binding validation: numeric words need a number value") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "gt", "uni:field": "count", "uni:value": 2 } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].tests[0].value = "two";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a test reads a field or a streak, not both") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "gte", "uni:streak": "uni:skip_run",
+               "uni:value": 2 } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.field = "count";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.field.clear();
+    test.key = "a";
+    test.key_field = "target";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: select is all or first") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "exists", "uni:field": "count" } ])");
+    REQUIRE(loaded.ok());
+    loaded.mods[0].bindings[0].select = "first";
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].select = "some";
+    CHECK(HasCheck(Validate(loaded), "binding.select"));
+}
+
+TEST_CASE("binding validation: a streak param has one source") {
+    LoadResult loaded = LoadApple();
+    REQUIRE(loaded.ok());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params["count"] = match::modload::BindingParamDef{};
+    params["count"].streak = "uni:skip_run";
+    CHECK(Validate(loaded).empty());
+    params["count"].field = "count";
+    CHECK(HasCheck(Validate(loaded), "binding.log.param"));
+}
