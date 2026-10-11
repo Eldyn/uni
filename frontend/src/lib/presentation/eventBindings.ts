@@ -35,6 +35,8 @@ export interface ClientEvent {
 	payload: Record<string, unknown>;
 	/** True for an event of the late join tail: it must not animate. */
 	replayed: boolean;
+	/** The server streak values of the envelope; absent when it has none. */
+	context?: Readonly<Record<string, unknown>>;
 }
 
 export interface Viewer {
@@ -48,6 +50,7 @@ export interface EventEnvelope {
 	sequence: number;
 	payload: Record<string, unknown>;
 	replayed?: boolean;
+	context?: Readonly<Record<string, unknown>>;
 }
 
 type TestWord = "equals" | "in" | "exists" | "has_tag" | "relation" | "unknown";
@@ -109,7 +112,8 @@ export function clientEventOf(envelope: EventEnvelope): ClientEvent {
 		actor: envelope.actor,
 		sequence: envelope.sequence,
 		payload: envelope.payload,
-		replayed: envelope.replayed === true
+		replayed: envelope.replayed === true,
+		...(envelope.context === undefined ? {} : { context: envelope.context })
 	};
 }
 

@@ -597,3 +597,20 @@ describe("play log line", () => {
 		expect(keyFor("bob")).toEqual(["them"]);
 	});
 });
+
+describe("clientEventOf context", () => {
+	it("keeps the streak context of the envelope", () => {
+		const subject = clientEventOf({
+			id: "turn_skipped",
+			sequence: 1,
+			payload: {},
+			context: { "uni:skip_run": 2 }
+		});
+		expect(subject.context).toEqual({ "uni:skip_run": 2 });
+	});
+
+	it("leaves the context out when the envelope has none", () => {
+		const subject = clientEventOf({ id: "turn_skipped", sequence: 1, payload: {} });
+		expect(subject.context).toBeUndefined();
+	});
+});
