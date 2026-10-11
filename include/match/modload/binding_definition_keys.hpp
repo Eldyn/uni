@@ -75,7 +75,9 @@
  *             "uni:beats": [ [ { "op": "shake", "target": "screen" } ] ],
  *             "uni:sounds": [ { "uni:sound": "sfx.ui.tick" } ],
  *             "uni:log": { "uni:variants": [ "my_log_you_ate" ],
- *                          "uni:params": { "count": { "uni:field": "count" } } },
+ *                          "uni:params": {
+ *                            "count": { "uni:field": "count" },
+ *                            "run": { "uni:streak": "uni:skip_run" } } },
  *             "uni:glossary": "my_mod:apple"
  *           } } ]
  *       }
