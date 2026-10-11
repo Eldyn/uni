@@ -79,6 +79,8 @@
  *   cause of a MOD event is the previous mod event that the same entry
  *   point admitted. The first mod event of an entry point has the root
  *   `card_played` as its cause, like a core event.
+ * - `uni:tag` belongs to `has_tag` and `caused_by`. On any other test the
+ *   validator ignores it and reports the warning `binding.test.shape`.
  * - `uni:glossary`: a keyword key for `[k=...]`.
  *
  * WARN: the matcher and the parameters run on the CLIENT, on the event as the

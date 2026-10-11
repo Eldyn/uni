@@ -1458,11 +1458,11 @@ class Checker {
                                   || !test.key_field.empty();
         if (!test.tag.empty() && test.test != keys::kHasTag
             && test.test != bkeys::kCausedBy) {
-            buckets_.presentations.push_back(Err(
+            buckets_.warnings.push_back(LoadWarning{
                 "binding.test.shape", "presentations", path,
                 label + " test '" + test.test
-                    + "' has a tag; only has_tag and caused_by use one"));
-            return;
+                    + "' has a tag; only has_tag and caused_by use one; "
+                      "it is ignored"});
         }
         if (test.actor) {
             const bool word_fits = test.test == keys::kExists

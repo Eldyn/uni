@@ -1415,12 +1415,35 @@ TEST_CASE("binding validation: caused_by may name an own or foreign event") {
     CHECK_FALSE(HasCheck(Validate(loaded), "binding.test.shape"));
 }
 
-TEST_CASE("binding validation: a tag belongs to has_tag and caused_by only") {
+TEST_CASE("binding validation: a stray tag warns and is ignored") {
     LoadResult loaded = LoadApple(
         R"([ { "uni:test": "equals", "uni:field": "count",
                "uni:value": 1, "uni:tag": "my_mod:fruit" } ])");
     REQUIRE(loaded.ok());
+    CHECK_FALSE(HasCheck(Validate(loaded), "binding.test.shape"));
+    const auto warnings = Warnings(loaded);
+    CHECK(warnings.size() == 1);
+    CHECK(HasWarning(warnings, "binding.test.shape"));
+
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.field.clear();
     CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    CHECK(HasWarning(Warnings(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: has_tag and caused_by may carry a tag") {
+    LoadResult has_tag = LoadApple(
+        R"([ { "uni:test": "has_tag", "uni:tag": "my_mod:fruit" } ])");
+    REQUIRE(has_tag.ok());
+    CHECK_FALSE(HasCheck(Validate(has_tag), "binding.test.shape"));
+    CHECK_FALSE(HasWarning(Warnings(has_tag), "binding.test.shape"));
+
+    LoadResult caused_by = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:tag": "my_mod:fruit" } ])");
+    REQUIRE(caused_by.ok());
+    CHECK(Validate(caused_by).empty());
+    CHECK_FALSE(HasWarning(Warnings(caused_by), "binding.test.shape"));
 }
 
 TEST_CASE("binding validation: caused_by has no other source") {
