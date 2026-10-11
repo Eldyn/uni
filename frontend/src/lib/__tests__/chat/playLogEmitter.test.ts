@@ -233,6 +233,99 @@ describe("createPlayLogEmitter", () => {
 		expect(lines).toHaveLength(2);
 	});
 
+	it("logs a win and each later placement once", async () => {
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/)
+		]);
+		expect(lines[1].params).toEqual({ name: "Bob", place: 2 });
+
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("words places up to the finisher count as finishing and the rest as left behind", async () => {
+		emitter.noteMatchEnded("Ann", 3);
+		emitter.notePlacement("Bob", 2, false, 2);
+		emitter.notePlacement("Cy", 3, false, 2);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.finish/),
+			expect.stringMatching(/^uni:log\.left_behind/)
+		]);
+		expect(lines[2].params).toEqual({ name: "Cy", place: 3 });
+	});
+
+	it("takes no line for a first place; the match end line is the win line", async () => {
+		emitter.notePlacement("Ann", 1, false);
+		emitter.noteMatchEnded("Ann", 1);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
+	});
+
+	it("words an elimination place as left behind even inside the finisher count", async () => {
+		emitter.notePlacement("Bob", 2, true, 3);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.left_behind/)]);
+	});
+
+	it("reset forgets the placement ledger", async () => {
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		emitter.reset();
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines).toHaveLength(2);
+	});
+
+	it("reset clears the game-end trackers", async () => {
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		emitter.reset();
+		emitter.noteMatchEnded("Ann", 2);
+		emitter.notePlacement("Bob", 2, false);
+		await flush();
+		expect(lines.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/),
+			expect.stringMatching(/^uni:log\.win/),
+			expect.stringMatching(/^uni:log\.left_behind/)
+		]);
+	});
+
+	it("logs a wild once its colour is already known", async () => {
+		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "red" }, Promise.resolve(), {
+			seq: 4
+		});
+		await flush();
+		expect(lines[0].key).toBe("uni:log.play");
+		expect(lines[1].key).toMatch(/^uni:log\.wild_reaction_(1|first_2)$/);
+		expect(lines[0].params).toEqual({ name: "Ann", kind: "uni:wild", color: "red" });
+	});
+
+	it("logs a play for a wild once its colour arrives", async () => {
+		let land!: () => void;
+		const landed = new Promise<void>((resolve) => (land = resolve));
+		emitter.notePlay({ player: "Ann", kind: "uni:wild", color: "white" }, landed, { seq: 3 });
+		await flush();
+		expect(lines).toEqual([]);
+
+		emitter.noteWildColor("red");
+		land();
+		await flush();
+		expect(lines.map((line) => line.params)).toEqual([
+			{ name: "Ann", kind: "uni:wild", color: "red" },
+			{ name: "Ann", color: "red", prevColor: "" }
+		]);
+	});
+
 	it("exports no debt hook; the stack line comes from the draw_stacking mod", () => {
 		expect("noteDebt" in emitter).toBe(false);
 	});
