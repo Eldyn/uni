@@ -1194,6 +1194,12 @@ bool ParseMatcherTests(const nlohmann::json& tests,
                                test.relation);
         (void)ParseStringField(item, std::string(binding_keys::kRole),
                                test.role);
+        (void)ParseStringField(item, std::string(binding_keys::kParamStreak),
+                               test.streak);
+        (void)ParseStringField(item, std::string(binding_keys::kParamKey),
+                               test.key);
+        (void)ParseStringField(item, std::string(binding_keys::kParamKeyField),
+                               test.key_field);
         const auto value = item.find(std::string(keys::kValue));
         if (value != item.end()) test.value = *value;
         const auto values = item.find(std::string(keys::kValues));
@@ -1274,6 +1280,10 @@ bool ParseBindingParam(const nlohmann::json& item, BindingParamDef& out) {
     namespace keys = binding_keys;
     if (!item.is_object()) return false;
     (void)ParseStringField(item, std::string(keys::kParamField), out.field);
+    (void)ParseStringField(item, std::string(keys::kParamStreak), out.streak);
+    (void)ParseStringField(item, std::string(keys::kParamKey), out.key);
+    (void)ParseStringField(item, std::string(keys::kParamKeyField),
+                           out.key_field);
     const auto value = item.find(std::string(keys::kParamValue));
     if (value != item.end() && (value->is_string() || value->is_number())) {
         out.value = *value;
@@ -1426,6 +1436,10 @@ bool ParseBindingEntry(const nlohmann::json& entry, const std::string& mod_id,
     out.namespace_id = mod_id;
     out.id = identifier.substr(mod_id.size() + 1);
     out.raw = entry;
+    std::string select;
+    if (ParseStringField(*binding, std::string(keys::kSelect), select)) {
+        out.select = select;
+    }
     if (!ParseStringField(*binding, std::string(keys::kEvent), out.event)) {
         AddError(errors, "binding.event", "presentations", path,
                  "binding '" + identifier + "' needs a string '"

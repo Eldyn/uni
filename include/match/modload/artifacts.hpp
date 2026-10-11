@@ -384,6 +384,9 @@ struct StreakTestDef {
     std::string relation;  /**< relation: `self` or `other`. */
     std::string role;      /**< relation: `actor` or `target`. */
     bool negate = false;
+    std::string streak;    /**< Bindings only: streak id to read. */
+    std::string key;       /**< Bindings only: literal key into the value. */
+    std::string key_field; /**< Bindings only: payload field naming the key. */
 };
 
 /**
@@ -462,6 +465,9 @@ struct BindingParamDef {
     std::string field;                 /**< Payload field name. */
     std::optional<nlohmann::json> value;  /**< Literal string or number. */
     bool actor = false;                /**< The envelope actor. */
+    std::string streak;    /**< Streak id to read. */
+    std::string key;       /**< Literal key into an object value. */
+    std::string key_field; /**< Payload field that names the key. */
 };
 
 /**
@@ -496,6 +502,7 @@ struct BindingDef {
     std::string binding_id;              /**< Full `namespace:id`. */
     std::string event;                   /**< Client event id it binds to. */
     std::vector<BindingCaseDef> cases;
+    std::string select = "all";  /**< "all" or "first" matching case. */
     nlohmann::json raw;                  /**< Verbatim file object. */
 };
 

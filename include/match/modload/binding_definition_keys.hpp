@@ -106,6 +106,21 @@ inline constexpr std::string_view kGlossary = "uni:glossary";
 inline constexpr std::string_view kParamField = "uni:field";
 inline constexpr std::string_view kParamValue = "uni:value";
 inline constexpr std::string_view kParamActor = "uni:actor";
+inline constexpr std::string_view kParamStreak = "uni:streak";
+inline constexpr std::string_view kParamKey = "uni:key";
+inline constexpr std::string_view kParamKeyField = "uni:key_field";
+inline constexpr std::string_view kSelect = "uni:select";
+inline constexpr std::string_view kSelectAll = "all";
+inline constexpr std::string_view kSelectFirst = "first";
+
+inline constexpr std::string_view kGt = "gt";
+inline constexpr std::string_view kGte = "gte";
+inline constexpr std::string_view kLt = "lt";
+inline constexpr std::string_view kLte = "lte";
+
+/** @brief Test words of a binding: the matcher words plus numeric compares. */
+inline constexpr std::array<std::string_view, 9> kBindingTests = {
+    "equals", "in", "exists", "has_tag", "relation", kGt, kGte, kLt, kLte};
 
 inline constexpr std::string_view kRole = "uni:role";
 inline constexpr std::string_view kActorRole = "actor";

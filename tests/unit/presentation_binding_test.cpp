@@ -985,3 +985,16 @@ TEST_CASE("test mod: the bindings manifest matches the golden file") {
     REQUIRE_MESSAGE(input.good(), "missing golden file " << golden);
     CHECK(json::parse(input) == actual);
 }
+
+TEST_CASE("binding loader: streak source, select and numeric words parse") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "gte", "uni:streak": "uni:draw_run",
+               "uni:key_field": "target", "uni:value": 4 } ])");
+    REQUIRE(loaded.ok());
+    const auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    CHECK(test.test == "gte");
+    CHECK(test.streak == "uni:draw_run");
+    CHECK(test.key_field == "target");
+    CHECK(test.key.empty());
+    CHECK(loaded.mods[0].bindings[0].select == "all");
+}
