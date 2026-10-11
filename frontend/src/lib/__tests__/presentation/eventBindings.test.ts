@@ -614,3 +614,36 @@ describe("clientEventOf context", () => {
 		expect(subject.context).toBeUndefined();
 	});
 });
+
+describe("numeric test words", () => {
+	const countIs = (word: string, value: number, count: number): number =>
+		linesOf(
+			[{ "uni:test": word, "uni:field": "count", "uni:value": value }],
+			event({ payload: { count } })
+		);
+
+	it("gt holds only above the value", () => {
+		expect(countIs("gt", 3, 4)).toBe(1);
+		expect(countIs("gt", 3, 3)).toBe(0);
+	});
+	it("gte holds at and above the value", () => {
+		expect(countIs("gte", 3, 3)).toBe(1);
+		expect(countIs("gte", 3, 2)).toBe(0);
+	});
+	it("lt holds only below the value", () => {
+		expect(countIs("lt", 3, 2)).toBe(1);
+		expect(countIs("lt", 3, 3)).toBe(0);
+	});
+	it("lte holds at and below the value", () => {
+		expect(countIs("lte", 3, 3)).toBe(1);
+		expect(countIs("lte", 3, 4)).toBe(0);
+	});
+	it("is false when the field is not a number", () => {
+		const subject = event({ payload: { count: "many" } });
+		expect(linesOf([{ "uni:test": "gt", "uni:field": "count", "uni:value": 1 }], subject)).toBe(0);
+	});
+	it("is false when the field is missing", () => {
+		const subject = event({ payload: {} });
+		expect(linesOf([{ "uni:test": "lt", "uni:field": "count", "uni:value": 1 }], subject)).toBe(0);
+	});
+});

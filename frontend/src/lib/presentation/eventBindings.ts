@@ -53,7 +53,8 @@ export interface EventEnvelope {
 	context?: Readonly<Record<string, unknown>>;
 }
 
-type TestWord = "equals" | "in" | "exists" | "has_tag" | "relation" | "unknown";
+type TestWord =
+	"equals" | "in" | "exists" | "has_tag" | "relation" | "gt" | "gte" | "lt" | "lte" | "unknown";
 
 export interface BindingTest {
 	test: TestWord;
@@ -117,7 +118,17 @@ export function clientEventOf(envelope: EventEnvelope): ClientEvent {
 	};
 }
 
-const TEST_WORDS: readonly TestWord[] = ["equals", "in", "exists", "has_tag", "relation"];
+const TEST_WORDS: readonly TestWord[] = [
+	"equals",
+	"in",
+	"exists",
+	"has_tag",
+	"relation",
+	"gt",
+	"gte",
+	"lt",
+	"lte"
+];
 
 function parseTest(raw: unknown): BindingTest | null {
 	if (!isRecord(raw) || typeof raw["uni:test"] !== "string") return null;
@@ -290,6 +301,14 @@ function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boole
 		}
 		case "relation":
 			return holdsRelation(test, event, viewer);
+		case "gt":
+			return typeof value === "number" && typeof test.value === "number" && value > test.value;
+		case "gte":
+			return typeof value === "number" && typeof test.value === "number" && value >= test.value;
+		case "lt":
+			return typeof value === "number" && typeof test.value === "number" && value < test.value;
+		case "lte":
+			return typeof value === "number" && typeof test.value === "number" && value <= test.value;
 		default:
 			return false;
 	}
