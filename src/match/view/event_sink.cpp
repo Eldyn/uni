@@ -172,11 +172,15 @@ json ProjectPlacementSet(const match::engine::MatchInstance& match,
     const bool is_elimination = payload.value("is_elimination", false);
     const int finish_limit =
         static_cast<int>(std::max<uint32_t>(1, match.GetRaceTarget()));
+    // INFO: a `finished` key from the engine overrides the default, so an
+    //       elimination mechanic or a mod win condition can define it.
+    const bool finished = payload.value(
+        "finished", !is_elimination && place <= finish_limit);
     return json{
         {"target", ResolvePlayer(match, payload.value("player", json()))},
         {"place", place},
         {"is_elimination", is_elimination},
-        {"finished", !is_elimination && place <= finish_limit}};
+        {"finished", finished}};
 }
 
 json ProjectMatchEnded(const match::engine::MatchInstance& match) {

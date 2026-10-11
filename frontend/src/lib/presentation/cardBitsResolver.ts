@@ -5,7 +5,8 @@ const MOD_INDEX_SHIFT = 24;
 const KIND_INDEX_SHIFT = 12;
 const KIND_INDEX_MASK = 0xfff;
 
-/** Resolves compact card bits to a kind id and a face color, through the
+/** Resolves compact card bits to a kind id and a face color
+ *  (absent when the face has none), through the
  *  loaded defs registry. */
 export const resolveCardBits: CardResolver = (bits) => {
 	if (!isCardBits(bits)) return undefined;
@@ -14,5 +15,5 @@ export const resolveCardBits: CardResolver = (bits) => {
 		(bits >>> KIND_INDEX_SHIFT) & KIND_INDEX_MASK
 	);
 	if (!definition) return undefined;
-	return { kind: definition.string_id, color: definition.face.color ?? "white" };
+	return { kind: definition.string_id, color: definition.face.color };
 };

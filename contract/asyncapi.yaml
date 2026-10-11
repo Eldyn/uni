@@ -1997,7 +1997,7 @@ components:
 
     WindowRespondedPayload:
       type: object
-      x-packet-version: "2"
+      x-packet-version: "1"
       required: [window_id, target]
       description: >
         A seat responded to a window. `target` is the seat that
@@ -2378,7 +2378,7 @@ components:
 
     PlacementSetPayload:
       type: object
-      x-packet-version: "2"
+      x-packet-version: "1"
       required: [target, place, is_elimination]
       description: >
         A seat finished. `is_elimination` is false for a normal

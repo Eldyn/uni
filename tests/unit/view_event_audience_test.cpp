@@ -413,3 +413,23 @@ TEST_CASE("audience: placement_set carries finished from the race target") {
     CHECK(finished(*standard, 1, false));
     CHECK_FALSE(finished(*standard, 2, false));
 }
+
+TEST_CASE("audience: placement_set takes finished from the engine event") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42, 2);
+    const auto finished = [&](int place, bool engine_finished) {
+        ViewBuilder builder(*engine, content.mods);
+        EventSink sink;
+        const json wrapped = *builder.Wrap(
+            json{{"type", "placement_set"},
+                 {"payload", json{{"player", "player1"},
+                                  {"place", place},
+                                  {"is_elimination", false},
+                                  {"finished", engine_finished}}}},
+            Viewer::Player("player2"), sink);
+        return wrapped["payload"]["finished"].get<bool>();
+    };
+    CHECK_FALSE(finished(1, false));
+    CHECK(finished(3, true));
+}

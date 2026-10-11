@@ -97,7 +97,7 @@ type ParamSource =
 	| { kind: "streak"; streak: string; key: string; keyField: string };
 
 /** Reads the kind id and the face color of a compact card integer. */
-export type CardResolver = (bits: number) => { kind: string; color: string } | undefined;
+export type CardResolver = (bits: number) => { kind: string; color?: string } | undefined;
 
 const MAX_CARD_BITS = 0xffffffff;
 
@@ -470,7 +470,8 @@ function paramValue(
 	if (source.cardPart !== undefined) {
 		if (typeof value !== "number" || !isCardBits(value)) return undefined;
 		const card = resolveCard?.(value);
-		return card === undefined ? undefined : escapeLogText(card[source.cardPart]);
+		const part = card?.[source.cardPart];
+		return part === undefined ? undefined : escapeLogText(part);
 	}
 	if (typeof value === "number") return value;
 	if (typeof value === "string") return escapeLogText(value);

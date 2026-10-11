@@ -13,7 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
-- **Bindings: caused_by test** — a binding test `caused_by` holds when the event that caused this one has the id in `uni:value`, and the tag in `uni:tag` when given. Client, loader, validator and schema updated.
+- **Bindings: caused_by test** — a binding test `caused_by` holds when the event that caused this one has the id in `uni:value`, and the tag in `uni:tag` when given. For a core event the cause is the root `card_played` of the entry point (the first one of the chain, not the direct parent), so a `cards_drawn` after a +4 is `caused_by card_played`, never `caused_by active_type_changed`. For a mod event the cause is the previous mod event that the same entry point admitted; the first one has the root `card_played`. Client, loader, validator and schema updated.
 - **Bindings: actor test source** — test `exists`, `equals` or `in` can set `uni:actor: true` to read the envelope actor. Client, loader, validator schema updated.
 - **Bindings: card part in a log param** — a log param with a `uni:field` source can now set `uni:card_part` to `kind` or `color`. The client decodes the card integer in that field through the loaded card defs, so mods can show the kind id or the color of a card. The validator and the schema are updated.
 - **Bindings: log param default** — a log param can now set `uni:default` (string or number). The client uses it when the param source gives no value. A string default is escaped. The validator and the schema are updated.
@@ -66,8 +66,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **Play log parity gaps closed** (test) — the new binding features (card part, actor test, `finished` test, `caused_by` test, log param default) now close the parity gaps G1 to G4 and G6. Two differences stay as accepted: the near-win order and the timing of the play line of a wild.
 
-- **`placement_set` carries `finished`** — the packet is now version 2. `finished` is true when the place ends the race for that seat.
-- **`window_responded` carries `window_kind` and `outcome`** — the packet is now version 2. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
+- **`placement_set` carries `finished`** — the field is additive and the packet marker stays 1. `finished` is true when the place ends the race for that seat.
+- **`window_responded` carries `window_kind` and `outcome`** — the fields are additive and the packet marker stays 1. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
 
 ### Fixed
 

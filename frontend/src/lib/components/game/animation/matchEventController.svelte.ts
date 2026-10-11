@@ -1612,8 +1612,13 @@ export function createMatchEventBeatController(deps: {
 	//       No line is dropped.
 	const unsubscribeAbandoned = deps.cardRegistry.onQueueAbandoned?.(() => playLog.releaseGates());
 	const unsubscribeTail = deps.subscribeTail?.((tail) =>
-		replayTailToLog(tail as TailEnvelope[], resolveCardBits, (line) =>
-			chatStore.appendLocalLog(line)
+		replayTailToLog(
+			tail as TailEnvelope[],
+			(bits) => {
+				const card = resolveCardBits(bits);
+				return card && { kind: card.kind, color: card.color ?? "white" };
+			},
+			(line) => chatStore.appendLocalLog(line)
 		)
 	);
 	const dispose = () => {

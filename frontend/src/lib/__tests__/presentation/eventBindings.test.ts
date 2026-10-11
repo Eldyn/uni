@@ -988,6 +988,18 @@ describe("card part params", () => {
 		expect(resolver).not.toHaveBeenCalled();
 	});
 
+	it("gives no color param when the face has no color", () => {
+		const param = { "uni:field": "card", "uni:card_part": "color" };
+		const plain = () => ({ kind: "my_mod:plain" });
+		expect(paramsOf(param, withCard(5), plain)).not.toHaveProperty("p");
+	});
+
+	it("uses the default when the face has no color", () => {
+		const param = { "uni:field": "card", "uni:card_part": "color", "uni:default": "none" };
+		const plain = () => ({ kind: "my_mod:plain" });
+		expect(paramsOf(param, withCard(5), plain)?.p).toBe("none");
+	});
+
 	it("uses the default when the card cannot be decoded", () => {
 		const param = { "uni:field": "card", "uni:card_part": "color", "uni:default": "none" };
 		expect(paramsOf(param, withCard(5), () => undefined)?.p).toBe("none");

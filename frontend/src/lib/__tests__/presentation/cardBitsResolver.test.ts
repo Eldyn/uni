@@ -38,8 +38,8 @@ describe("resolveCardBits", () => {
 		expect(resolveCardBits(bitsOf(3, 7))).toEqual({ kind: "my_mod:zap", color: "red" });
 	});
 
-	it("falls back to white when the face has no color", () => {
-		expect(resolveCardBits(bitsOf(3, 8))).toEqual({ kind: "my_mod:plain", color: "white" });
+	it("gives no color when the face has none", () => {
+		expect(resolveCardBits(bitsOf(3, 8))).toEqual({ kind: "my_mod:plain" });
 	});
 
 	it.each([NaN, Infinity, -1, 1.5, 4294967296])("gives nothing for %s", (bits) => {

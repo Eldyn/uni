@@ -1258,7 +1258,8 @@ TEST_CASE("binding validation: caused_by needs a known event id value") {
 
 TEST_CASE("binding validation: caused_by may name an own or foreign event") {
     LoadResult loaded = LoadApple(
-        R"([ { "uni:test": "caused_by", "uni:value": "my_mod:apple_eaten" } ])");
+        R"([ { "uni:test": "caused_by",
+               "uni:value": "my_mod:apple_eaten" } ])");
     REQUIRE(loaded.ok());
     CHECK(Validate(loaded).empty());
     auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];

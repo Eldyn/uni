@@ -24,6 +24,8 @@ export interface BindingRunnerDeps {
 	resolveCard?: CardResolver;
 }
 
+// INFO: the server remembers 512 (`EventSink::kCauseMemoryLimit`); the
+//       client remembers fewer.
 const REMEMBERED_EVENTS = 64;
 
 /**

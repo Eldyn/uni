@@ -62,7 +62,13 @@
  *   `tags` of the cause event must contain. It holds for no event when the
  *   cause is absent or no longer remembered by the client. It has no
  *   `uni:field`, `uni:streak`, `uni:actor`, key or state. The id can name
- *   an event of another mod: the test only reads that event.
+ *   an event of another mod: the test only reads that event. The cause of a
+ *   CORE event is the root `card_played` of the entry point (the first one
+ *   of the chain, not the direct parent): a `cards_drawn` after a +4 is
+ *   `caused_by card_played`, never `caused_by active_type_changed`. The
+ *   cause of a MOD event is the previous mod event that the same entry
+ *   point admitted. The first mod event of an entry point has the root
+ *   `card_played` as its cause, like a core event.
  * - `uni:glossary`: a keyword key for `[k=...]`.
  *
  * WARN: the matcher and the parameters run on the CLIENT, on the event as the
