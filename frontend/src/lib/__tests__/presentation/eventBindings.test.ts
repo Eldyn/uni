@@ -7,6 +7,7 @@ import {
 	type ClientEvent,
 	type Viewer
 } from "$lib/presentation/eventBindings";
+import { clientEventOfBeat, mapMatchEventPacket } from "$lib/stores/matchEventMap";
 import { stableIndex } from "$lib/chat/playLog/stableIndex";
 
 type Test = Record<string, unknown>;
@@ -609,6 +610,17 @@ describe("clientEventOf context", () => {
 		expect(subject.context).toEqual({ "uni:skip_run": 2 });
 	});
 
+	it("reaches the client event of a mapped beat", () => {
+		const beat = mapMatchEventPacket({
+			sequence: 1,
+			id: "turn_skipped",
+			context: { "uni:skip_run": 2 },
+			payload: { target: "bob" }
+		});
+		expect(beat).not.toBeNull();
+		expect(clientEventOfBeat(beat!)?.context).toEqual({ "uni:skip_run": 2 });
+	});
+
 	it("leaves the context out when the envelope has none", () => {
 		const subject = clientEventOf({ id: "turn_skipped", sequence: 1, payload: {} });
 		expect(subject.context).toBeUndefined();
@@ -691,6 +703,14 @@ describe("streak source", () => {
 			}
 		];
 		expect(linesOf(tests, withContext({ "uni:last_wild_color": { previous: "red" } }))).toBe(1);
+	});
+
+	it("negate flips a missing streak value to true", () => {
+		const tests = [
+			{ "uni:test": "gte", "uni:streak": "uni:skip_run", "uni:value": 3, "uni:negate": true }
+		];
+		expect(linesOf(tests, withContext({}))).toBe(1);
+		expect(linesOf(tests, withContext({ "uni:skip_run": 5 }))).toBe(0);
 	});
 
 	it("is false when the event has no context", () => {

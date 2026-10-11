@@ -193,6 +193,7 @@ function parseSounds(raw: unknown): SoundCue[] {
 	return sounds;
 }
 
+// The source order is safe only because the validator enforces one source.
 function parseParam(raw: unknown): ParamSource | null {
 	if (!isRecord(raw)) return null;
 	if (typeof raw["uni:field"] === "string") return { kind: "field", field: raw["uni:field"] };
@@ -417,7 +418,8 @@ function buildLine(
 
 /**
  * Evaluates the bindings of one client event for one viewer. Every case whose
- * tests all hold gives one output, in file order. An event with no binding
+ * tests all hold gives one output, in file order. With `uni:select: "first"`
+ * only the first matching case gives an output. An event with no binding
  * gives nothing.
  */
 export function presentEvent(
