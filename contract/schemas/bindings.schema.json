@@ -73,6 +73,7 @@
         "uni:streak": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },
         "uni:key": { "type": "string" },
         "uni:key_field": { "type": "string" },
+        "uni:actor": { "type": "boolean" },
         "uni:value": {},
         "uni:values": { "type": "array" },
         "uni:tag": { "type": "string" },

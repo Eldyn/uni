@@ -1450,6 +1450,22 @@ class Checker {
         }
         const bool reads_streak = !test.streak.empty() || !test.key.empty()
                                   || !test.key_field.empty();
+        if (test.actor) {
+            const bool word_fits = test.test == keys::kExists
+                                   || test.test == keys::kEquals
+                                   || test.test == keys::kIn;
+            if (!word_fits || reads_streak || !test.field.empty()
+                || !test.state.empty()
+                || (test.test == keys::kIn && test.values.empty())) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test '" + test.test
+                        + "' has a bad actor source: only exists, equals "
+                          "and in can read the actor, with no field, "
+                          "streak, key or state; 'in' needs values"));
+            }
+            return;
+        }
         if (test.test == keys::kRelationTest || test.test == keys::kHasTag) {
             if (reads_streak) {
                 buckets_.presentations.push_back(Err(

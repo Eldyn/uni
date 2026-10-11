@@ -71,6 +71,8 @@ export interface BindingTest {
 	key: string;
 	/** Payload field whose value is the key into an object streak value; empty when unused. */
 	keyField: string;
+	/** When true, the test reads the envelope actor instead of a field or streak. */
+	actor: boolean;
 }
 
 type ParamSource =
@@ -157,7 +159,8 @@ function parseTest(raw: unknown): BindingTest | null {
 		negate: raw["uni:negate"] === true,
 		streak: stringOr(raw["uni:streak"]),
 		key: stringOr(raw["uni:key"]),
-		keyField: stringOr(raw["uni:key_field"])
+		keyField: stringOr(raw["uni:key_field"]),
+		actor: raw["uni:actor"] === true
 	};
 }
 
@@ -340,8 +343,9 @@ function holdsRelation(test: BindingTest, event: ClientEvent, viewer: Viewer): b
 }
 
 function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boolean {
-	const value =
-		test.streak !== ""
+	const value = test.actor
+		? event.actor
+		: test.streak !== ""
 			? streakValueOf(event, test.streak, test.key, test.keyField)
 			: event.payload[test.field];
 	switch (test.test) {

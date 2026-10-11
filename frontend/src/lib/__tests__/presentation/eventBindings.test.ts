@@ -660,6 +660,41 @@ describe("numeric test words", () => {
 	});
 });
 
+describe("actor source", () => {
+	const withActor = (actor: string | undefined): ClientEvent =>
+		event({ actor, payload: { field: "x" } });
+
+	it("exists holds only when the envelope has an actor", () => {
+		const tests = [{ "uni:test": "exists", "uni:actor": true }];
+		expect(linesOf(tests, withActor("ann"))).toBe(1);
+		expect(linesOf(tests, withActor(undefined))).toBe(0);
+	});
+
+	it("negate holds when the envelope has no actor", () => {
+		const tests = [{ "uni:test": "exists", "uni:actor": true, "uni:negate": true }];
+		expect(linesOf(tests, withActor(undefined))).toBe(1);
+		expect(linesOf(tests, withActor("ann"))).toBe(0);
+	});
+
+	it("equals compares the actor", () => {
+		const tests = [{ "uni:test": "equals", "uni:actor": true, "uni:value": "ann" }];
+		expect(linesOf(tests, withActor("ann"))).toBe(1);
+		expect(linesOf(tests, withActor("bob"))).toBe(0);
+		expect(linesOf(tests, withActor(undefined))).toBe(0);
+	});
+
+	it("in matches the actor against a list", () => {
+		const tests = [{ "uni:test": "in", "uni:actor": true, "uni:values": ["ann", "cy"] }];
+		expect(linesOf(tests, withActor("cy"))).toBe(1);
+		expect(linesOf(tests, withActor("bob"))).toBe(0);
+	});
+
+	it("a payload field test ignores the actor", () => {
+		const tests = [{ "uni:test": "exists", "uni:field": "missing" }];
+		expect(linesOf(tests, withActor("ann"))).toBe(0);
+	});
+});
+
 describe("streak source", () => {
 	const withContext = (context: Record<string, unknown>): ClientEvent =>
 		event({ payload: { target: "bob" }, context });

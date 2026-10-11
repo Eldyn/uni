@@ -363,7 +363,8 @@ TEST_CASE("binding: the schema and the key table agree") {
     }
     const json& test = definitions.at("test").at("properties");
     for (const std::string_view key :
-         {keys::kParamStreak, keys::kParamKey, keys::kParamKeyField}) {
+         {keys::kParamStreak, keys::kParamKey, keys::kParamKeyField,
+          keys::kParamActor}) {
         CHECK_MESSAGE(test.contains(std::string(key)), key);
     }
     CHECK(test.at("uni:test").at("enum")
@@ -1030,6 +1031,17 @@ TEST_CASE("binding loader: streak source, select and numeric words parse") {
     CHECK(loaded.mods[0].bindings[0].select == "all");
 }
 
+TEST_CASE("binding loader: an actor test parses") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "exists", "uni:actor": true },
+             { "uni:test": "exists", "uni:field": "count" } ])");
+    REQUIRE(loaded.ok());
+    const auto& tests = loaded.mods[0].bindings[0].cases[0].tests;
+    CHECK(tests[0].actor);
+    CHECK(tests[0].field.empty());
+    CHECK_FALSE(tests[1].actor);
+}
+
 TEST_CASE("binding loader: select, param streak and test key parse") {
     const std::string present = R"({
       "uni:log": { "uni:variants": [ "log_a" ],
@@ -1115,6 +1127,48 @@ TEST_CASE("binding validation: a test reads a field or a streak, not both") {
     test.field.clear();
     test.key = "a";
     test.key_field = "target";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: an actor test has no other source") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "exists", "uni:actor": true } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.field = "count";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.field.clear();
+    test.streak = "uni:skip_run";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.streak.clear();
+    CHECK(Validate(loaded).empty());
+}
+
+TEST_CASE("binding validation: only exists, equals and in read the actor") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "equals", "uni:actor": true,
+               "uni:value": "ann" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.test = "in";
+    test.values = nlohmann::json::array({"ann"});
+    CHECK(Validate(loaded).empty());
+    test.test = "gte";
+    test.value = 1;
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+    test.test = "has_tag";
+    test.tag = "my_mod:fruit";
+    CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: a field test still needs its field") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "exists", "uni:field": "count" } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    loaded.mods[0].bindings[0].cases[0].tests[0].field.clear();
     CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
 }
 

@@ -387,6 +387,7 @@ struct StreakTestDef {
     std::string streak;    /**< Bindings only: streak id to read. */
     std::string key;       /**< Bindings only: literal key into the value. */
     std::string key_field; /**< Bindings only: payload field naming the key. */
+    bool actor = false;    /**< Bindings only: read the envelope actor. */
 };
 
 /**

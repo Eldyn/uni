@@ -51,6 +51,8 @@
  *   `{ "uni:actor": true }`. A param can add `uni:default` (string or
  *   number). The client uses it when the source gives no value. It is not a
  *   source.
+ * - A test of `exists`, `equals` or `in` can set `uni:actor: true`. It then
+ *   reads the envelope actor, not a payload field or a streak.
  * - `uni:glossary`: a keyword key for `[k=...]`.
  *
  * WARN: the matcher and the parameters run on the CLIENT, on the event as the

@@ -1207,6 +1207,9 @@ bool ParseMatcherTests(const nlohmann::json& tests,
         const auto negate = item.find(std::string(keys::kNegate));
         test.negate =
             negate != item.end() && negate->is_boolean() && negate->get<bool>();
+        const auto actor = item.find(std::string(binding_keys::kParamActor));
+        test.actor =
+            actor != item.end() && actor->is_boolean() && actor->get<bool>();
         out.push_back(std::move(test));
     }
     return true;
