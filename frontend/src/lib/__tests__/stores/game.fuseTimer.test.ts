@@ -485,3 +485,58 @@ describe("storeGame windowActionState", () => {
 		expect(storeGame.windowActionState(NOW + 5000)).toBeNull();
 	});
 });
+
+describe("storeGame canAcceptDrawDebt", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+		storeAuth.username = "alice";
+		storeLobby.current = null;
+		storeGame.reset();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function openHoldlessWindow(responders: string[]) {
+		handler("match_event")(
+			frame(1, "window_opened", {
+				window_id: "3",
+				kinds: ["draw_stacking"],
+				duration_ms: 5000,
+				deadline_ms: 5000,
+				targets: responders,
+				eligible_filter_digest: "d"
+			})
+		);
+	}
+
+	it("offers the debt victim responder of a hold-less window an accept", () => {
+		snapshot({}, [DEBT_STATUS]);
+		openHoldlessWindow(["alice", "carol"]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(true);
+	});
+
+	it("withholds from a non-victim responder", () => {
+		snapshot({}, []);
+		openHoldlessWindow(["alice", "carol"]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(false);
+	});
+
+	it("withholds from the victim until the hold elapses", () => {
+		snapshot({}, [DEBT_STATUS]);
+		handler("match_event")(frame(1, "window_opened", { ...HELD_WINDOW, targets: ["alice"] }));
+
+		expect(storeGame.canAcceptDrawDebt(NOW + 799)).toBe(false);
+		expect(storeGame.canAcceptDrawDebt(NOW + 800)).toBe(true);
+	});
+
+	it("is false without an open window", () => {
+		snapshot({}, [DEBT_STATUS]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(false);
+	});
+});

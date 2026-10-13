@@ -432,4 +432,95 @@ describe("DrawPile3D", () => {
 			expect(moteCount()).toBe(0);
 		});
 	});
+
+	describe("draw debt accept while a window is open", () => {
+		const openWindow = (overrides: Record<string, unknown> = {}) => {
+			storeGame.activeWindow = {
+				windowId: "w1",
+				deadlineAt: Date.now() + 5000,
+				durationMs: 5000,
+				holdMs: 0,
+				kinds: ["draw_stacking"],
+				responders: ["alice"],
+				eligibleFilterDigest: "d",
+				...overrides
+			} as any;
+		};
+
+		const hitboxOf = () =>
+			meshInstances.find(
+				(m) => typeof m.onclick === "function" && Array.isArray(m.position)
+			)!;
+
+		afterEach(() => {
+			storeGame.activeWindow = null;
+			vi.restoreAllMocks();
+		});
+
+		it("pulses the top card and a tap accepts the debt", async () => {
+			storeGame.state!.players = [
+				{ username: "alice", card_count: 5, is_bot: false, statuses: [{ status_kind: "uni:draw_debt", magnitude: 2 }] },
+				{ username: "bob", card_count: 5, is_bot: false }
+			];
+			storeGame.state!.current_turn = "bob";
+			openWindow();
+
+			const passSpy = vi.spyOn(storeGame, "passWindow").mockImplementation(() => {});
+			const drawSpy = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});
+
+			render(DrawPile3D, {
+				props: { placement: defaultPlacement },
+				context: new Map([[CARD_REGISTRY_KEY, new CardRegistry()]])
+			});
+			await new Promise((r) => setTimeout(r, 10));
+
+			// Top card pulses the 7-0 rim; deeper backs stay plain.
+			const top = cardMeshInstances[cardMeshInstances.length - 1];
+			expect(top.highlight).toEqual({ color: "#ffffff", pulse: true });
+			expect(cardMeshInstances[0].highlight).toBeUndefined();
+
+			hitboxOf().onclick!({});
+			expect(passSpy).toHaveBeenCalledTimes(1);
+			expect(drawSpy).not.toHaveBeenCalled();
+		});
+
+		it("offers nothing to a responder without the debt", async () => {
+			storeGame.state!.current_turn = "bob";
+			openWindow();
+
+			const passSpy = vi.spyOn(storeGame, "passWindow").mockImplementation(() => {});
+			const drawSpy = vi.spyOn(storeGame, "drawCard").mockImplementation(() => {});
+
+			render(DrawPile3D, {
+				props: { placement: defaultPlacement },
+				context: new Map([[CARD_REGISTRY_KEY, new CardRegistry()]])
+			});
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(cardMeshInstances[cardMeshInstances.length - 1].highlight).toBeUndefined();
+			hitboxOf().onclick!({});
+			expect(passSpy).not.toHaveBeenCalled();
+			expect(drawSpy).not.toHaveBeenCalled();
+		});
+
+		it("keeps the offer off until a held window's hold elapses", async () => {
+			storeGame.state!.players = [
+				{ username: "alice", card_count: 5, is_bot: false, statuses: [{ status_kind: "uni:draw_debt", magnitude: 2 }] },
+				{ username: "bob", card_count: 5, is_bot: false }
+			];
+			openWindow({ holdMs: 800, deadlineAt: Date.now() + 4500 });
+
+			const passSpy = vi.spyOn(storeGame, "passWindow").mockImplementation(() => {});
+
+			render(DrawPile3D, {
+				props: { placement: defaultPlacement },
+				context: new Map([[CARD_REGISTRY_KEY, new CardRegistry()]])
+			});
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(cardMeshInstances[cardMeshInstances.length - 1].highlight).toBeUndefined();
+			hitboxOf().onclick!({});
+			expect(passSpy).not.toHaveBeenCalled();
+		});
+	});
 });
