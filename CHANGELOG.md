@@ -75,6 +75,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Fixed
 
+- **Mixed +2/+4 draw stacks** — a +4 can answer a +2 window and a +2 can answer a +4 window, in any colour and on any combination of the two. The `plays_stack_response` gate now checks only that the response card and the top of the discard both carry the stackable tag, instead of also requiring the same draw value. Before this, the eligibility of a mixed stack was false, so the snapshot marked the card `can_play: false`: the client dimmed it, blocked the drag and the keyboard, and the victim could not stack a +4 on a +2 even though the engine accepted the response.
 - **Color change keeps the play cause** — a wild color change after the color prompt now carries `cause`, the sequence of the wild play. Before this, the cause was lost over the prompt. Bindings need it for the `caused_by` test.
 - **Held stack close keeps the responder** — the engine now closes a held group with the recorded winner as actor, so the stack line `status_applied` from a merged `jump_in` and `draw_stacking` group names the player who responded.
 
