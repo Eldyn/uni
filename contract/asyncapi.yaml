@@ -2049,6 +2049,11 @@ components:
           $ref: "#/components/schemas/CompactCardV2"
         trigger_summary:
           type: string
+        tags:
+          type: array
+          description: Tags of the card kind. Optional, additive; no version bump.
+          items:
+            type: string
 
     # Generic prompt envelope. Mod manifests declare prompt
     # kinds by this shape; clients render unknown kinds from `response_schema`

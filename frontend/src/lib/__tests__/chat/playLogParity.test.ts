@@ -51,7 +51,8 @@ const registries = new Map<string, BindingRegistry>();
 
 /** One fixture file holds one binding. A row can use more than one file. */
 const ROW_FIXTURES: Record<string, string[]> = {
-	play: ["play", "play_wild"]
+	play: ["play", "play_wild"],
+	auto_play: ["auto_play", "auto_play_wild"]
 };
 
 function registryOfFiles(files: string[]): BindingRegistry {
@@ -480,16 +481,29 @@ describe("play log parity: the wild play line through the cause event", () => {
 	});
 });
 
-describe("play log parity: accepted differences (see parity-gaps.md)", () => {
-	it("auto_play: an auto-played wild posts one line with the registry color (accepted)", () => {
-		// INFO: AutoPlayCard pushes active_type_changed before card_played and
-		//       auto_played. The color change has no tagged cause of this card, so
-		//       play_wild stays quiet; the tagged card_played posts no play line.
-		const registry = registryOfFiles(["play", "play_wild", "auto_play"]);
+/** The auto-played wild wire: its `tags` name the wild kind. */
+const autoPlayedWire = (): ParityCase["wire"] => {
+	const wire = cardWire("auto_played", 44);
+	return { ...wire, payload: { ...wire.payload, tags: [WILD_TAG] } };
+};
+
+const autoPlayedCause = () => ({
+	id: "auto_played",
+	payload: { card: 44, player: "ann", tags: [WILD_TAG] }
+});
+
+describe("play log parity: an auto-played wild posts through the colour change (G7)", () => {
+	// INFO: the engine opens a causal scope per play, so an auto play emits
+	// `card_played` -> `auto_played` and only then its graph events: the
+	// colour change is caused by the auto_played event, whose tags name the
+	// wild. The `auto_play` binding skips a wild (negated `has_tag`), and the
+	// `auto_play_wild` fixture posts the play line with the chosen colour.
+	const registry = registryOf("auto_play");
+
+	it("auto_play: an auto-played wild posts one line with the chosen colour", () => {
 		const steps = [
-			{ wire: wildColorWire("blue"), causeEvent: undefined },
-			{ wire: wildPlayWire(), causeEvent: undefined },
-			{ wire: cardWire("auto_played", 44), causeEvent: undefined }
+			{ wire: autoPlayedWire(), causeEvent: undefined },
+			{ wire: wildColorWire("blue"), causeEvent: autoPlayedCause() }
 		];
 		const lines = steps.flatMap(({ wire, causeEvent }) =>
 			presentEvent(
@@ -500,15 +514,29 @@ describe("play log parity: accepted differences (see parity-gaps.md)", () => {
 			).filter((output) => output.line !== null)
 		);
 		expect(lines).toHaveLength(1);
-		expect(lines[0]?.line?.params.color).toBe("white");
+		expect(lines[0]?.line?.key).toBe("uni:log.auto_play_1");
+		expect(lines[0]?.line?.params.name).toBe("ann");
+		expect(lines[0]?.line?.params.color).toBe("blue");
 		const core = coreOutcome({
 			name: "auto wild",
 			core: { kind: "auto_play", player: "ann", cardKind: "uni:wild", color: "blue" },
-			wire: cardWire("auto_played", 44)
+			wire: autoPlayedWire()
 		});
 		expect(paramsOfOutcome(core).map((entry) => entry.color)).toEqual(["blue"]);
 	});
 
+	it("auto_play: a colour change an untagged event caused posts no play line", () => {
+		for (const causeEvent of [
+			undefined,
+			{ id: "card_played", payload: { tags: [WILD_TAG] } },
+			{ id: "auto_played", payload: { tags: ["action"] } }
+		]) {
+			expect(bindingOutcomeOf("auto_play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+		}
+	});
+});
+
+describe("play log parity: accepted differences (see parity-gaps.md)", () => {
 	it.skip("near_win: the line keeps its place behind a pending wild (ordering, not a set)", () => {
 		// The core emitter holds the line until the wild color lands. A binding
 		// posts at the event, so no set comparison can show the order. Spec D10:

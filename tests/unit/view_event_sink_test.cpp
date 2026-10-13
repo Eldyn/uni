@@ -167,6 +167,60 @@ LoadedMod SignalMod() {
 
 }  // namespace
 
+TEST_CASE("view event sink: a real auto-played wild carries its kind tags") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+
+    // INFO: `uni:wild` declares the `uni:wild` tag, so the wire packet of an
+    //       auto-played wild lets the client's `auto_play` binding skip it.
+    const std::vector<ecs::Entity> wilds =
+        CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 2);
+    const std::vector<ecs::Entity> numbered = LegalNumbered(*engine, 1);
+    REQUIRE(numbered.size() == 1);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    ForceHand(*engine, player0, {numbered[0], wilds[1]});
+
+    ecs::AutoTrigger trigger;
+    trigger.condition = json(true);
+    trigger.graph = json{{"nodes", json::array()}};
+    trigger.must_apply = true;
+    REQUIRE(engine->Store().Add(wilds[1], std::move(trigger)) != nullptr);
+
+    REQUIRE(engine->PlayCard("player0", numbered[0]));
+
+    std::optional<json> auto_played_event;
+    for (const json& event : engine->Events()) {
+        if (!event.is_object() || !event.contains("payload")) continue;
+        const json& payload = event["payload"];
+        if (!payload.is_object() || !payload.contains("player")) continue;
+        if (!payload["player"].is_object()) continue;
+        if (event.value("type", std::string()) == "auto_played") {
+            auto_played_event = event;
+        }
+    }
+    REQUIRE(auto_played_event.has_value());
+
+    match::view::EventSink sink;
+    std::optional<json> auto_played;
+    CHECK_NOTHROW(auto_played = sink.WrapPublic(*auto_played_event, *engine));
+    REQUIRE(auto_played.has_value());
+    CHECK((*auto_played)["payload"]["player"] == "player0");
+    REQUIRE((*auto_played)["payload"].contains("tags"));
+
+    // INFO: the packet carries the tags of the played kind, `uni:wild` among
+    //       them, so the client's `auto_play` binding can skip a wild.
+    const auto& card_tags = engine->Registries().card_tags;
+    const auto declared = card_tags.find("uni:wild");
+    REQUIRE(declared != card_tags.end());
+    const std::vector<std::string> expected = declared->second;
+    REQUIRE(std::find(expected.begin(), expected.end(), "uni:wild")
+            != expected.end());
+    CHECK((*auto_played)["payload"]["tags"] == json(expected));
+}
+
 TEST_CASE("view event sink: seq is monotonic and never reused") {
     match::view::EventSink sink;
 

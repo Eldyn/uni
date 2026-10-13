@@ -1192,7 +1192,7 @@ void MatchInstance::OpenWindowGroup(std::vector<WindowPause> windows) {
 }
 
 void MatchInstance::AdoptPlayedColor(ecs::Entity card,
-                                      const std::string& kind_id) {
+                                     const std::string& kind_id) {
     ecs::EntityStore& store = assembly_->store;
     ecs::ActiveTypeReq* req =
         store.Get<ecs::ActiveTypeReq>(assembly_->registries.match);
@@ -1203,7 +1203,12 @@ void MatchInstance::AdoptPlayedColor(ecs::Entity card,
         return;
     }
     const auto facts = assembly_->card_facts.find(kind_id);
-    if (facts != assembly_->card_facts.end()) {
+    // INFO: a wild carries no colour of its own until its prompt answers.
+    //       Adopting an empty colour would strand the table on no active
+    //       colour - which is what a stacked +4 response does, because the
+    //       winning response's graph is not drained - so the previous
+    //       colour stands until a prompt sets a new one.
+    if (facts != assembly_->card_facts.end() && !facts->second.color.empty()) {
         req->type = facts->second.color;
     }
 }
@@ -1247,7 +1252,13 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"from_ordinal", ordinal.value_or(0)}});
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
-    AdoptPlayedColor(card, kind);
+    // INFO: a wild response never drains its own prompt here (see below), so
+    //       adopting its placeholder white would leave the table on a colour
+    //       no card can match. The previous colour stands; a prompt plays on
+    //       the turn (PlayCard) still adopts and its answer overrides.
+    if (!ops::CardHasTag(&assembly_->registries, kind, "wild")) {
+        AdoptPlayedColor(card, kind);
+    }
 
     // INFO: Each response appends its own N to the debt, which
     //       passes on to the seat after the responder.
@@ -2058,6 +2069,11 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
     const json player_json =
         owner.has_value() ? EntityJson(*owner) : json(nullptr);
 
+    // INFO: an auto play is its own causal chain, like a manual play: the
+    //       events of its graph and any prompt it parks are attributed to the
+    //       card's own `card_played` and not to the enclosing play.
+    const CausalScope causal_scope(causal_frame_, owner, ops::kCausePlay);
+
     json zone_data = json{{"card", EntityJson(card)},
                           {"from", from_zone},
                           {"to", to_zone}};
@@ -2068,6 +2084,14 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
                                      ecs::Entity{}});
     After("card_left_zone", zone_data);
     After("card_entered_zone", zone_data);
+
+    // INFO: the play events lead the graph so a client binding that reads the
+    //       cause of a graph event sees this card's `card_played`.
+    Emit("card_played", json{{"player", player_json},
+                             {"card", EntityJson(card)}});
+    Emit("auto_played", json{{"player", player_json},
+                             {"card", EntityJson(card)},
+                             {"trigger", trigger}});
 
     // INFO: run the auto-trigger graph with must-apply semantics so the
     //       Resolver's `must_apply` depth cap bounds re-triggering.
@@ -2105,11 +2129,6 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
         pending_input_ = std::move(pending);
     }
 
-    Emit("card_played", json{{"player", player_json},
-                             {"card", EntityJson(card)}});
-    Emit("auto_played", json{{"player", player_json},
-                             {"card", EntityJson(card)},
-                             {"trigger", trigger}});
     CollectRuns();
     return true;
 }

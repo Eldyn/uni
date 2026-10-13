@@ -292,6 +292,18 @@ json ProjectAutoPlayed(const match::engine::MatchInstance& match,
     // INFO: the engine descriptor key is `trigger`; the packet key is
     //       `trigger_summary`.
     out["trigger_summary"] = payload.value("trigger", std::string());
+    // INFO: the auto-played card is public at this moment, so the tags of its
+    //       kind are public too. The `auto_play` binding reads them to skip a
+    //       wild (same contract as the `card_played` tags).
+    json tags = json::array();
+    const auto& table = match.Registries().card_tags;
+    const auto declared =
+        payload.contains("card") ? table.find(KindIdFor(match, payload["card"]))
+                                 : table.end();
+    if (declared != table.end()) {
+        for (const std::string& tag : declared->second) tags.push_back(tag);
+    }
+    out["tags"] = std::move(tags);
     return out;
 }
 

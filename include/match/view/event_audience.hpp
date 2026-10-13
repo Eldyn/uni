@@ -213,6 +213,7 @@ inline constexpr FieldRule kAutoPlayed[] = {
     {"player", Audience::kAll},
     {"card", Audience::kAll, FieldKind::kPlayedCard},
     {"trigger_summary", Audience::kAll},
+    {"tags", Audience::kAll},
 };
 // INFO: the hand events carry seats and counts only. A hand count is public;
 //       the cards of a hand are not, so no hand event names a card.
