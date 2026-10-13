@@ -214,15 +214,15 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         return attempted.color == top.color && attempted.value == top.value;
     }
     if (keyword == "plays_stack_response") {
-        // draw_stacking.cpp: only while answering a window, and only the
-        // same draw value as the tagged top (+2 on +2, +4 on +4).
+        // draw_stacking.cpp: only while answering a window, and only a card
+        // tagged as stackable over a tagged top: the values may differ, so
+        // a +2 answers a +4 and a +4 answers a +2.
         if (!attempt->responding) return false;
         const std::optional<std::string> tag = ArgString(args, "tag");
         if (!tag.has_value() || !HasTag(attempted.tags, *tag)) return false;
         PlayCardFacts top;
         if (!ResolveTop(*attempt, lookup, top)) return false;
-        return HasTag(top.tags, *tag) && !attempted.value.empty()
-            && attempted.value == top.value;
+        return HasTag(top.tags, *tag);
     }
     if (keyword == "plays_mismatch") {
         // standard.cpp:13-36: invalid iff not wild, not active-type match and
