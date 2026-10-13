@@ -467,6 +467,123 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
 }
 
+TEST_CASE("engine draw_stacking: a +4 answers a +2 window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> stack4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(draw2.has_value());
+    REQUIRE(stack4.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    ForceHand(*engine, player1, {*stack4, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 2);
+    CHECK(CountEvents(*engine, "window_opened") == 1);
+
+    // INFO: the victim answers the +2 with a +4. The winning response's own
+    //       graph is not drained (CommitWinningPlay), so the wild prompt does
+    //       not park the stack: the carried debt accumulates at once and the
+    //       previous colour stands - no empty active colour is left behind.
+    REQUIRE(engine->RespondWindow("player1", *stack4));
+
+    // INFO: the mixed stack carries 2 + 4 on to the seat after the responder.
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, player2) == 6);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
+    // INFO: the stacked +4 never drains its wild prompt, so the previous
+    //       colour stands - the next victim can still answer with a colour.
+    CHECK(engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)
+              ->type
+          == "red");
+}
+
+TEST_CASE("engine draw_stacking: the response filter accepts mixed stacks") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    // INFO: `CanRespondWindow` is the snapshot `can_play` authority
+    //       (ViewBuilder `EvaluatorCanPlay`). A mixed stack must be eligible
+    //       in both directions, or the client dims the card and the victim
+    //       cannot stack at all.
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> stack4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(draw2.has_value());
+    REQUIRE(stack4.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    ForceHand(*engine, player1, {*stack4, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    CHECK(engine->CanRespondWindow(player1, *stack4));
+    // INFO: the live gesture (match_play_card while the window is open)
+    //       routes through PlayCard to RespondWindow and stacks 2 + 4.
+    REQUIRE(engine->PlayCard("player1", *stack4));
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, *engine->FindPlayer("player2")) == 6);
+}
+
+TEST_CASE("engine draw_stacking: a +2 answers a wild_draw4 window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::optional<ecs::Entity> wild4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> stack2 = FindCard(*engine, "blue", "+2");
+    REQUIRE(wild4.has_value());
+    REQUIRE(stack2.has_value());
+    ForceHand(*engine, player0, {*wild4});
+    ForceHand(*engine, player1, {*stack2});
+
+    REQUIRE(engine->PlayCard("player0", *wild4));
+    REQUIRE(engine->SubmitInput("player0", "red"));
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 4);
+
+    // INFO: a coloured +2 stacks on the +4 window and moves the whole debt
+    //       of 6 to the seat after the responder.
+    REQUIRE(engine->RespondWindow("player1", *stack2));
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, player2) == 6);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
+}
+
 TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -1367,8 +1484,9 @@ TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
     CHECK(engine->CanRespondWindow(player1, *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
     CHECK_FALSE(engine->CanRespondWindow(player0, *filler0));
-    // INFO: legacy stacking only matches the same draw value (+4 on +2 no).
-    CHECK_FALSE(engine->CanRespondWindow(player1, *wild4));
+    // INFO: mixed stacking: a +4 answers a +2 window too (any stackable +N
+    //       answers any stackable +N).
+    CHECK(engine->CanRespondWindow(player1, *wild4));
 
     REQUIRE(engine->RespondWindow("player1", *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));

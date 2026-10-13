@@ -57,7 +57,19 @@ PlayCardLookup Lookup() {
             return true;
         }
         if (kind == "uni:white_wild4") {
-            out = {"white", "jolly_draw4", {"wild", "wild_draw4"}};
+            out = {"white", "jolly_draw4", {"wild", "wild_draw4", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:red_plus2") {
+            out = {"red", "+2", {"draw_penalty", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:blue_plus2") {
+            out = {"blue", "+2", {"draw_penalty", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:green_5") {
+            out = {"green", "5", {"colored", "green"}};
             return true;
         }
         return false;
@@ -259,6 +271,48 @@ TEST_CASE("play_conditions: plays_kind, tag, color and value") {
 }
 
 // --- ownership -------------------------------------------------------------
+
+// --- draw_stacking response --------------------------------------------------
+
+TEST_CASE("play_conditions: plays_stack_response accepts mixed +2/+4") {
+    PlayConditionMatcher matcher(Lookup());
+    const json cond = Cond("plays_stack_response", {{"tag", "stackable"}});
+
+    // INFO: draw-stacking stacks +2 and +4 on each other in any combination,
+    //       so the response gate is the tag alone: a +4 answers a +2 top and
+    //       a +2 answers a +4 top. Only a window response counts.
+    PlayAttempt four_on_two =
+        Attempt("uni:white_wild4", false, "red", "uni:red_plus2");
+    four_on_two.responding = true;
+    CHECK(matcher(cond, four_on_two));
+
+    PlayAttempt two_on_four =
+        Attempt("uni:blue_plus2", false, "red", "uni:white_wild4");
+    two_on_four.responding = true;
+    CHECK(matcher(cond, two_on_four));
+
+    PlayAttempt same_value =
+        Attempt("uni:red_plus2", false, "red", "uni:blue_plus2");
+    same_value.responding = true;
+    CHECK(matcher(cond, same_value));
+
+    // Not answering a window: false even with the tag.
+    const PlayAttempt in_turn_play =
+        Attempt("uni:red_plus2", true, "red", "uni:blue_plus2");
+    CHECK_FALSE(matcher(cond, in_turn_play));
+
+    // A response card without the tag: false.
+    PlayAttempt untagged =
+        Attempt("uni:green_5", false, "green", "uni:blue_plus2");
+    untagged.responding = true;
+    CHECK_FALSE(matcher(cond, untagged));
+
+    // A top without the tag (an ordinary card): false.
+    PlayAttempt untagged_top =
+        Attempt("uni:red_plus2", false, "red", "uni:green_5");
+    untagged_top.responding = true;
+    CHECK_FALSE(matcher(cond, untagged_top));
+}
 
 TEST_CASE("play_conditions: owns_card and plays_unowned") {
     PlayConditionMatcher matcher(Lookup());
