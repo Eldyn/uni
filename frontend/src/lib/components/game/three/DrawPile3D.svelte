@@ -6,6 +6,7 @@
 	import { T } from "@threlte/core";
 	import { gsap } from "gsap";
 	import { storeGame } from "$stores/game.svelte";
+	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeMatchIntro } from "$stores/matchIntro.svelte";
@@ -136,6 +137,28 @@
 		storeAnimation.enabled && drawPileHovered && canDraw ? HOVER_DIP_Z : 0
 	);
 
+	// Click-to-accept: while an open window offers the local player the draw
+	// debt (same gate as the fuse-line button), the pile top card pulses the
+	// 7-0 rim and a tap sends the pass response instead of drawing a card.
+	// The tick mirrors FuseLine's: it only runs while a window is open, at the
+	// stepped rate when the user prefers reduced motion.
+	const SMOOTH_TICK_MS = 50;
+	const STEPPED_TICK_MS = 500;
+	let reducedMotion = $derived(storeWebglCapability.reducedMotion);
+	let now = $state(Date.now());
+
+	$effect(() => {
+		if (storeGame.activeWindow === null) return;
+		now = Date.now();
+		const id = setInterval(
+			() => (now = Date.now()),
+			reducedMotion ? STEPPED_TICK_MS : SMOOTH_TICK_MS
+		);
+		return () => clearInterval(id);
+	});
+
+	let acceptDebt = $derived(pileVisible && storeGame.canAcceptDrawDebt(now));
+
 	$effect(() => {
 		const target = hoverDipTarget;
 		untrack(() => {
@@ -264,6 +287,13 @@
 
 	function handleDraw() {
 		if (storeMatchIntro.active) return;
+		if (acceptDebt) {
+			// INFO: one in-flight action at a time, the same guard the
+			//       fuse-line button puts on its disabled state.
+			if (storeGame.isActionPending) return;
+			storeGame.passWindow();
+			return;
+		}
 		if (storeGame.state?.current_turn === storeGame.localPlayer?.username) {
 			storeGame.drawCard();
 		}
@@ -335,6 +365,7 @@
 				]}
 				scale={placement.drawPileScale}
 				brightness={cardBrightness}
+				highlight={acceptDebt && isTopCard ? { color: "#ffffff", pulse: true } : undefined}
 			/>
 		{/each}
 

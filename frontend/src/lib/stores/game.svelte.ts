@@ -1179,6 +1179,19 @@ class StoreGame implements SessionStore {
 	}
 
 	/**
+	 * @brief True when the local player may take the draw debt with one tap on
+	 * the draw pile.
+	 *
+	 * Mirrors `windowActionState`: the debt victim is offered the debt at once
+	 * when the group has no hold, and after the hold when a jump-in group keeps
+	 * it waiting. The tap sends the same response as the fuse-line button.
+	 */
+	canAcceptDrawDebt(now: number): boolean {
+		const action = this.windowActionState(now);
+		return action?.kind === "draw" && action.enabled;
+	}
+
+	/**
 	 * @brief Clears session-scoped match state.
 	 *
 	 * `turnTimeRemaining` returns to its constructed default rather than zero, so
