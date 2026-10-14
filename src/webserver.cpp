@@ -283,25 +283,15 @@ void WebServer::RegisterRoutes() {
         HandleGet(res, req);
     });
 
-    // INFO: Per-connection WebSocket action rate limiting (runs before
-    //       dispatch). Keyed by client IP, falling back to username, so an
-    //       authenticated client cannot flood the action router. Returning
-    //       false aborts the dispatch chain.
+    // INFO: Per-connection WebSocket action rate limiting. The actual token
+    //       check runs in OnSocketMessage BEFORE json::parse (zero-alloc
+    //       pre-parse, backend-perf Task 7), so a throttled frame never pays
+    //       for a DOM. This middleware only sweeps idle buckets; it must NOT
+    //       call Allow again or every frame would cost two tokens.
     ws_router_.OnAny([this](WsContext ctx, const json& msg) {
         MaybeEvict();
-        const std::string& key = !ctx.socket_data->ip.empty()
-                                     ? ctx.socket_data->ip
-                                     : ctx.socket_data->username;
-        if (!ws_limiter_.Allow(key)) {
-            Logger::Warn("[WS] rate limited: " + ctx.socket_data->username);
-            // INFO: Standard error envelope (contract: {action:"error",
-            //       reason}), echoing the request_id so the client can tie
-            //       it back to the throttled action.
-            const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
-            ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited,
-                          request_id);
-            return false;
-        }
+        (void)ctx;
+        (void)msg;
         return true;
     });
 
@@ -736,6 +726,32 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
 
 void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
                                 uWS::OpCode op_code) {
+    // INFO: Zero-alloc inbound pre-parse (backend-perf Task 7): scan the raw
+    //       frame for the "action"/"request_id" spans without building a JSON
+    //       DOM. The views point into the uWS frame and die with this scope.
+    //       Malformed frames return here, before any json::parse.
+    Inbound in = ParseInbound(message);
+    if (in.action.empty()) {
+        Logger::Warn("[WS] Message missing or invalid 'action' field");
+        return;
+    }
+    const uint32_t action_hash = Fnv1a(in.action);
+
+    // INFO: Per-connection rate limit runs on the spans, BEFORE json::parse,
+    //       so a throttled frame never pays for a DOM. Keyed by client IP,
+    //       falling back to username (same key as the old router wildcard).
+    //       request_id is short (SSO): no heap alloc on this path either.
+    MaybeEvict();
+    PerSocketData* socket_data = socket->getUserData();
+    const std::string& key =
+        !socket_data->ip.empty() ? socket_data->ip : socket_data->username;
+    if (!ws_limiter_.Allow(key)) {
+        Logger::Warn("[WS] rate limited: " + socket_data->username);
+        ws::SendError(socket, op_code, contract::ErrorCode::kRateLimited,
+                      std::string(in.request_id));
+        return;
+    }
+
     // INFO: A malformed frame must never escape this callback: an exception
     //       thrown through uWebSockets' C event loop terminates the whole
     //       process, so a single junk frame from any connected client would
@@ -760,9 +776,9 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
                           .op_code = op_code};
 
     try {
-        if (!ws_router_.Dispatch(context, message_json)) {
+        if (!ws_router_.Dispatch(context, message_json, action_hash)) {
             Logger::Warn("No handler found for action: " +
-                         message_json["action"].get<std::string>());
+                         std::string(in.action));
         }
     } catch (const std::exception& e) {
         Logger::Error("[WS] Uncaught exception in OnSocketMessage: ", e.what());
