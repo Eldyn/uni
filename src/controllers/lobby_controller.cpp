@@ -348,11 +348,7 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
         auto& db = Database::Get();
         if (!db.IsOpen()) return;
 
-        TransactionGuard tx(db);
-        if (!tx.Ok()) {
-            throw std::runtime_error(tx.GetError().message);
-        }
-
+        auto fut1 = db.RunInTxn([&](Database& db) -> VoidResult {
         auto res_upsert = db.Exec(R"(
             INSERT INTO saved_matches (id, state_json) VALUES (?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -383,9 +379,9 @@ void LobbyController::SaveMatchStateToDB(Lobby& lobby) {
             }
         }
 
-        if (auto commit_status = tx.Commit(); !commit_status) {
-            throw std::runtime_error(commit_status.error().message);
-        }
+        return {};
+        });
+        fut1.get();
         Logger::Info("[Lobby] Safely upserted match state to DB: ", match_id);
     } catch (const std::exception& e) {
         Logger::Error("[Lobby DB Error] Failed to save state: ", e.what());
@@ -423,12 +419,7 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
         lobby.session->Engine().GetPlacements();
 
     try {
-        TransactionGuard tx(db);
-        if (!tx.Ok()) {
-            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
-            return;
-        }
-
+        auto fut2 = db.RunInTxn([&](Database& db) -> VoidResult {
         if (!lobby.match_id.empty()) {
             (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
                           {lobby.match_id});
@@ -504,11 +495,21 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
             )", {is_winner, is_winner == 1 ? 0 : 1, username});
         }
 
-        if (auto commit_status = tx.Commit(); !commit_status) {
-            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
-        } else {
-            Logger::Info("[Lobby] Persisted match result for ", lobby.match_id);
+        return {};
+        });
+        try { fut2.get(); } catch (const std::exception& e) { Logger::Error("[Lobby DB Error] ", e.what()); }
+        // Choice (c): the user-stats cache is process-wide/static on
+        // StatsService, so this temporary instance invalidates the same
+        // entries read by the long-lived StatsController instance.
+        {
+            StatsService stats_svc;
+            for (const auto& player : state.value("players", json::array())) {
+                const std::string username = player.value("username", std::string());
+                if (username.empty() || player.value("is_bot", false)) continue;
+                stats_svc.InvalidateUserStatsCache(username);
+            }
         }
+        Logger::Info("[Lobby] Persisted match result for ", lobby.match_id);
     } catch (const std::exception& e) {
         Logger::Error("[Lobby DB Error] ", e.what());
     }
@@ -532,12 +533,7 @@ void LobbyController::RecordMatchAborted(Lobby& lobby) {
     const json state = lobby.session->Engine().ExportState();
 
     try {
-        TransactionGuard tx(db);
-        if (!tx.Ok()) {
-            Logger::Error("[Lobby DB Error] ", tx.GetError().message);
-            return;
-        }
-
+        auto fut2 = db.RunInTxn([&](Database& db) -> VoidResult {
         if (!lobby.match_id.empty()) {
             (void)db.Exec("DELETE FROM saved_matches WHERE id = ?",
                           {lobby.match_id});
@@ -558,9 +554,9 @@ void LobbyController::RecordMatchAborted(Lobby& lobby) {
                  DbValue(nullptr), "aborted", "aborted", 0});
         }
 
-        if (auto commit_status = tx.Commit(); !commit_status) {
-            Logger::Error("[Lobby DB Error] ", commit_status.error().message);
-        }
+        return {};
+        });
+        try { fut2.get(); } catch (const std::exception& e) { Logger::Error("[Lobby DB Error] ", e.what()); }
     } catch (const std::exception& e) {
         Logger::Error("[Lobby DB Error] ", e.what());
     }

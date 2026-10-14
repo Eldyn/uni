@@ -1,4 +1,8 @@
 #include <services/stats_service.hpp>
+
+// Process-wide user-stats cache (shared across all instances).
+std::mutex StatsService::us_mu_;
+std::unordered_map<std::string, StatsService::UserStatsCacheEntry> StatsService::us_cache_;
 #include <nlohmann/json.hpp>
 #include <algorithm>
 
@@ -32,6 +36,8 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
     if (!row_result->has_value()) {
         UserStats stats;
         stats.username = username;
+        std::lock_guard<std::mutex> lock(us_mu_);
+        us_cache_[username] = UserStatsCacheEntry{stats, std::chrono::steady_clock::now() + kUserStatsTtl};
         return stats;
     }
 
@@ -61,6 +67,9 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
     stats.cards_played_draw2   = row.GetOr<int>("cards_played_draw2", 0);
     stats.cards_played_draw4   = row.GetOr<int>("cards_played_draw4", 0);
     stats.cards_played_jolly   = row.GetOr<int>("cards_played_jolly", 0);
+
+    std::lock_guard<std::mutex> lock(us_mu_);
+    us_cache_[username] = UserStatsCacheEntry{stats, std::chrono::steady_clock::now() + kUserStatsTtl};
 
     return stats;
 }
@@ -136,4 +145,14 @@ Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
 void StatsService::InvalidateLeaderboardCache() {
     std::lock_guard<std::mutex> lock(lb_mu_);
     lb_have_ = false;
+}
+
+void StatsService::InvalidateUserStatsCache(const std::string& username) {
+    std::lock_guard<std::mutex> lock(us_mu_);
+    us_cache_.erase(username);
+}
+
+void StatsService::InvalidateUserStatsCache() {
+    std::lock_guard<std::mutex> lock(us_mu_);
+    us_cache_.clear();
 }

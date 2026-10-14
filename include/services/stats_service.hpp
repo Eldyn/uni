@@ -97,6 +97,9 @@ public:
      */
     void InvalidateLeaderboardCache();
 
+    void InvalidateUserStatsCache(const std::string& username);
+    void InvalidateUserStatsCache();
+
 private:
     Database& db_;
     /** Leaderboard TTL: poll bursts share one query result per window. */
@@ -105,4 +108,17 @@ private:
     std::vector<LeaderboardEntry> lb_cache_;
     std::chrono::steady_clock::time_point lb_expires_{};
     bool lb_have_ = false;
+
+    /** GetUserStats TTL: poll bursts share one query result per window. */
+    static constexpr std::chrono::seconds kUserStatsTtl{15};
+    struct UserStatsCacheEntry {
+        UserStats stats;
+        std::chrono::steady_clock::time_point expires{};
+    };
+    // Process-wide (static) so a temporary StatsService (e.g. in
+    // LobbyController) invalidates the same entries read by the long-lived
+    // StatsController instance: matches the Database singleton pattern
+    // (choice (c) in the backend-perf cache-sharing fix).
+    static std::mutex us_mu_;
+    static std::unordered_map<std::string, UserStatsCacheEntry> us_cache_;
 };
