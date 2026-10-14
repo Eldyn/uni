@@ -271,6 +271,18 @@ private:
     void CheckMatchIntegrity(Lobby& lobby);
 
     /**
+     * @brief Cancels every per-match timer key owned by `lobby_id`.
+     *
+     * Fired one-shots park idle (re-armed by the next Schedule on the same
+     * key), so a torn-down session must cancel `turn_`/`window_`/`ready_`
+     * explicitly or the live libuv handle leaks until process exit. Cancel
+     * on an unregistered key is a no-op, so this is safe on every teardown
+     * path even when a given timer never armed.
+     * @param lobby_id ID of the lobby whose match timers to release.
+     */
+    void CancelMatchTimers(uint32_t lobby_id);
+
+    /**
      * @brief Handles the request to create a new lobby.
      * @param ctx WebSocket context of the request.
      * @param msg Associated JSON payload.

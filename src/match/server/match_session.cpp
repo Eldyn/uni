@@ -572,6 +572,10 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
     // INFO: same scratch-reuse contract as EmitEvents: snapshots are
     //       per-recipient (own view + own `seq` watermark), so each still
     //       serializes, but into one reused frame buffer.
+    //       Snapshots are the ONLY droppable frames: each broadcast supersedes
+    //       the last, so a backpressure skip self-heals on the next tick.
+    //       Everything else through Send (events, barrier, defs, match_start,
+    //       match_over) keeps the non-droppable default and must never drop.
     std::string scratch;
     scratch.reserve(4096);
     for (const auto& [username, socket] : sockets_) {
@@ -582,7 +586,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         const json snapshot = builder_.BuildSnapshot(
             match::view::Viewer::Player(username), sinks_.at(username), options);
         scratch = snapshot.dump();
-        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
     // INFO: Spectators keep receiving snapshots after their
     //       initial join snapshot (spectator view, own seq watermark).
@@ -592,7 +596,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         const json snapshot = builder_.BuildSnapshot(
             SpectatorViewer(), viewer_sinks_.at(username), options);
         scratch = snapshot.dump();
-        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
     BroadcastMatchOver(broadcaster);
 }

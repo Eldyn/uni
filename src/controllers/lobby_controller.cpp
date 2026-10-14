@@ -565,6 +565,12 @@ void LobbyController::RecordMatchAborted(Lobby& lobby) {
     }
 }
 
+void LobbyController::CancelMatchTimers(uint32_t lobby_id) {
+    timer_service_.Cancel("turn_" + std::to_string(lobby_id));
+    timer_service_.Cancel("window_" + std::to_string(lobby_id));
+    timer_service_.Cancel("ready_" + std::to_string(lobby_id));
+}
+
 /**
  * @brief Tears down the match for the given lobby after a normal match-over.
  * @param lobby_id ID of the lobby whose match to destroy.
@@ -577,6 +583,7 @@ void LobbyController::NotifyMatchOver(uint32_t lobby_id) {
     if (lobby->session) {
         RecordMatchResult(*lobby, lobby->session->Engine().GetWinner());
     }
+    CancelMatchTimers(lobby_id);
     lobby->session.reset();
     lobby->match_id.clear();
     Logger::Info("[MATCH] destroyed after MatchOver in lobby ", lobby_id);
@@ -605,6 +612,7 @@ void LobbyController::CheckMatchIntegrity(Lobby& lobby) {
             RecordMatchAborted(lobby);
         }
 
+        CancelMatchTimers(lobby.id);
         lobby.session.reset();
         lobby.match_id.clear();
     }
@@ -1916,6 +1924,7 @@ bool LobbyController::RemoveMember(uint32_t lobby_id, const std::string& usernam
                 // INFO: Persist the abort before the session is
                 //       released (no winner: ledger rows only).
                 RecordMatchAborted(lobby);
+                CancelMatchTimers(lobby.id);
                 lobby.session.reset();
                 lobby.match_id.clear();
                 break;

@@ -207,7 +207,8 @@ struct DropFirstBroadcaster : FakeBroadcaster {
     bool drop_armed = true;
 
     bool Send(AppWebSocket* socket, const std::string& msg,
-              uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true) override {
+              uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true,
+              bool = false) override {
         if (drop_armed) {
             drop_armed = false;
             return false;

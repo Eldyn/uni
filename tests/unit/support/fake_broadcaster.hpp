@@ -30,7 +30,8 @@ public:
     std::set<std::pair<AppWebSocket*, std::string>>     subscriptions;
 
     bool Send(AppWebSocket* socket, const std::string& msg,
-              uWS::OpCode op = uWS::OpCode::TEXT, bool = true) override {
+              uWS::OpCode op = uWS::OpCode::TEXT, bool = true,
+              bool = false) override {
         sent.push_back({socket, msg, op});
         return true;
     }

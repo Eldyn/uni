@@ -23,13 +23,20 @@ public:
 
     /**
      * @brief Send a raw string frame to a single socket.
+     * @param droppable True ONLY for superseded-by-next frames (periodic
+     * snapshots): the production backpressure guard may skip the frame when
+     * the socket is not keeping up, and the next broadcast heals the loss.
+     * Every other frame (events, barrier, defs, match_start, abort, DM,
+     * errors, match_over) must pass false (the default) so it is always
+     * queued with pre-Task-9 buffering semantics and never silently lost.
      * @return true when the transport accepted the frame; false when it was
-     * dropped (e.g. the production backpressure guard skipped a socket that
-     * is not keeping up). Callers sending lossy snapshots may ignore this;
-     * one-shot frames must retry on false.
+     * dropped (only possible when droppable is true, on the production
+     * adapter). Callers sending lossy snapshots may ignore this; one-shot
+     * frames must retry on false.
      */
     virtual bool Send(AppWebSocket* socket, const std::string& msg,
-                      uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true) = 0;
+                      uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true,
+                      bool droppable = false) = 0;
 
     /** @brief Publish a raw string frame to all subscribers of a topic. */
     virtual void Publish(const std::string& topic, const std::string& msg,
