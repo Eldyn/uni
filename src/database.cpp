@@ -214,6 +214,7 @@ VoidResult Database::Open(std::string_view path) {
 
 void Database::Close() {
     std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    ClearStmtCache();
     if (db_) {
         sqlite3_close(db_);
         db_ = nullptr;
@@ -237,6 +238,9 @@ VoidResult Database::ApplySchemaDirect(const char* sql) {
         sqlite3_free(zErrMsg);  // Must free this!
         return std::unexpected(Error::DatabaseFail(err));
     }
+    // sqlite3_exec runs raw DDL outside the cache; any schema change may have
+    // invalidated cached stmts, so drop them (migrations are rare — cheap).
+    ClearStmtCache();
     return {};
 }
 
@@ -248,12 +252,13 @@ VoidResult Database::ApplySchema(const char* sql) {
     }).get();
 }
 
-sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
-    sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        return nullptr;
-    }
+namespace {
 
+// Binds params to an already-prepared stmt. Uses SQLITE_STATIC for text:
+// every caller steps (and resets) before its Direct method returns, while
+// `params` lives in the worker-task closure above it on the stack, so the
+// pointed-to strings always outlive the step.
+void BindParams(sqlite3_stmt* stmt, const std::vector<DbValue>& params) {
     for (size_t i = 0; i < params.size(); ++i) {
         int index = static_cast<int>(i) + 1;  // SQLite uses 1-based indexing for params
 
@@ -265,13 +270,62 @@ sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& par
             } else if constexpr (std::is_same_v<T, double>) {
                 sqlite3_bind_double(stmt, index, arg);
             } else if constexpr (std::is_same_v<T, std::string>) {
-                sqlite3_bind_text(stmt, index, arg.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(stmt, index, arg.c_str(), -1, SQLITE_STATIC);
             } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
                 sqlite3_bind_null(stmt, index);
             }
         }, params[i]);
     }
+}
+
+}  // namespace
+
+sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
+    // Worker-thread-only cache: every caller is a *Direct method and all of
+    // those run on the single DbWorker thread, so no locking is needed here
+    // beyond db_mutex_, which callers already hold.
+    if (!sql) return nullptr;
+    auto it = stmt_cache_.find(sql);
+    if (it != stmt_cache_.end()) {
+        sqlite3_reset(it->second);
+        sqlite3_clear_bindings(it->second);
+        stmt_cache_hits_.fetch_add(1, std::memory_order_relaxed);
+        BindParams(it->second, params);
+        return it->second;
+    }
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return nullptr;
+    }
+    stmt_cache_.emplace(sql, stmt);
+    BindParams(stmt, params);
     return stmt;
+}
+
+sqlite3_stmt* Database::ReprepareAfterSchemaChange(const char* sql,
+                                                   const std::vector<DbValue>& params) {
+    std::string key(sql ? sql : "");
+    auto it = stmt_cache_.find(key);
+    if (it != stmt_cache_.end()) {
+        sqlite3_finalize(it->second);
+        stmt_cache_.erase(it);
+    }
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return nullptr;
+    }
+    stmt_cache_.emplace(std::move(key), stmt);
+    BindParams(stmt, params);
+    return stmt;
+}
+
+void Database::ClearStmtCache() {
+    for (auto& [sql, stmt] : stmt_cache_) sqlite3_finalize(stmt);
+    stmt_cache_.clear();
+}
+
+std::uint64_t Database::StmtCacheHitsForTests() const {
+    return stmt_cache_hits_.load(std::memory_order_relaxed);
 }
 
 DbRow Database::ReadRow(sqlite3_stmt* stmt) {
@@ -306,7 +360,13 @@ VoidResult Database::ExecDirect(const char* sql, const std::vector<DbValue>& par
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
     int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        // DDL executed through another cached stmt invalidated this one.
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
+    sqlite3_reset(stmt);
 
     if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
         return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
@@ -344,12 +404,19 @@ Result<std::vector<DbRow>> Database::QueryDirect(const char* sql,
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
     std::vector<DbRow> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while (rc == SQLITE_ROW) {
         rows.push_back(ReadRow(stmt));
+        rc = sqlite3_step(stmt);
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(stmt);
     return rows;
 }
 
@@ -383,13 +450,19 @@ Result<std::optional<DbRow>> Database::QueryOneDirect(const char* sql,
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
+    if (rc == SQLITE_ROW) {
         DbRow row = ReadRow(stmt);
-        sqlite3_finalize(stmt);
+        sqlite3_reset(stmt);
         return row;
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(stmt);
     return std::nullopt;
 }
 

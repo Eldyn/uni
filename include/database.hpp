@@ -2,6 +2,8 @@
 #include "logger.hpp"
 #include <common/db_worker.hpp>
 #include <sqlite3.h>
+#include <atomic>
+#include <cstdint>
 #include <future>
 #include <mutex>
 #include <stdexcept>
@@ -184,6 +186,13 @@ public:
     bool OnWorkerThread() const;
 
     /**
+     * @brief Cache hits since process start (test/bench metric).
+     * Incremented on the worker thread each time a cached prepared
+     * statement is reused; read from any thread.
+     */
+    std::uint64_t StmtCacheHitsForTests() const;
+
+    /**
      * @brief Applies all pending schema migrations in version order.
      * @return VoidResult Error if any migration or version update fails.
      */
@@ -211,7 +220,22 @@ private:
     int        GetSchemaVersion();
     VoidResult SetSchemaVersion(int version);
     sqlite3_stmt* Prepare(const char* sql, const std::vector<DbValue>& params);
+    // Finalizes the stale cached stmt for `sql` (if any), prepares + binds a
+    // fresh one, and stores it back. Used for a one-shot SQLITE_SCHEMA retry
+    // when DDL executed through another cached stmt invalidated this one.
+    sqlite3_stmt* ReprepareAfterSchemaChange(const char* sql,
+                                             const std::vector<DbValue>& params);
     DbRow         ReadRow(sqlite3_stmt* stmt);
+    // Finalizes every cached stmt and empties the cache. Caller must hold
+    // db_mutex_ (Close/ApplySchemaDirect do); the map itself is only touched
+    // on the worker thread via the *Direct methods.
+    void ClearStmtCache();
+
+    // Worker-local prepared-statement cache: SQL text -> prepared stmt.
+    // Only ever touched on the DbWorker thread (all *Direct methods run
+    // there; db_mutex_ additionally serializes against Close()).
+    std::unordered_map<std::string, sqlite3_stmt*> stmt_cache_;
+    std::atomic<std::uint64_t> stmt_cache_hits_{0};
 };
 
 /**

@@ -3,6 +3,8 @@
 // Opens an in-memory DB and a minimal users table so the bench is
 // self-contained (uni_bench links only src/database.cpp).
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include "bench.hpp"
@@ -36,6 +38,11 @@ Sample BenchDbTokenLookup() {
         ns.push_back(std::chrono::duration<double, std::nano>(t1 - t0).count());
     }
     if (ns.size() != 2000) return {"db_token_lookup", -1.0, -1.0, -1};
+    // Cache hit-rate metric (Task 5 product): 2000 identical lookups should
+    // reuse one cached stmt. stderr keeps stdout sample lines diffable vs m1.
+    std::uint64_t hits = Database::Get().StmtCacheHitsForTests();
+    std::fprintf(stderr, "stmt_cache_hits=%llu (of 2000 lookups)\n",
+                 static_cast<unsigned long long>(hits));
     return MakeSample("db_token_lookup", ns, 0);
 }
 
