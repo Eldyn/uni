@@ -1553,6 +1553,80 @@ class Checker {
         CheckBoundField(path, binding, test.field, "test field");
     }
 
+    /* INFO: the array of `key` inside `object`; nullptr when the object has
+     *       no such array. */
+    static const nlohmann::json* ArrayOf(const nlohmann::json& object,
+                                         const std::string& key) {
+        if (!object.is_object()) return nullptr;
+        const auto it = object.find(key);
+        if (it == object.end() || !it->is_array()) return nullptr;
+        return &*it;
+    }
+
+    /* INFO: `uni:ancestor` and `uni:depth` shape the `caused_by` test, and the
+     *       loader keeps them in the raw file object only, so this reads them
+     *       from there. The schema pins the type and the range; the check
+     *       repeats it for a file that reaches the validator and warns on a
+     *       marker of any other test, which the shared test shape of the
+     *       schema cannot say. */
+    void CheckBindingCauseMarkers(const std::string& path,
+                                  const BindingDef& binding) {
+        namespace skeys = streak_keys;
+        namespace bkeys = binding_keys;
+        const auto file = binding.raw.find(std::string(bkeys::kBinding));
+        if (file == binding.raw.end() || !file->is_object()) return;
+        const nlohmann::json* cases = ArrayOf(*file, std::string(bkeys::kCases));
+        if (cases == nullptr) return;
+        const std::string label = "binding '" + binding.binding_id + "'";
+        for (const nlohmann::json& entry : *cases) {
+            const nlohmann::json* tests =
+                ArrayOf(entry, std::string(skeys::kTests));
+            if (tests == nullptr) continue;
+            for (const nlohmann::json& test : *tests) {
+                if (!test.is_object()) continue;
+                const auto word = test.find(std::string(skeys::kTest));
+                const bool ancestor_test =
+                    word != test.end() && word->is_string()
+                    && word->get<std::string>() == bkeys::kCausedBy;
+                for (const std::string_view key :
+                     {bkeys::kAncestor, bkeys::kDepth}) {
+                    const auto marker = test.find(std::string(key));
+                    if (marker == test.end()) continue;
+                    if (ancestor_test) {
+                        CheckCauseMarker(path, label, key, *marker);
+                        continue;
+                    }
+                    buckets_.warnings.push_back(LoadWarning{
+                        "binding.test.shape", "presentations", path,
+                        label + " test has '" + std::string(key)
+                            + "'; only caused_by uses one; it is ignored"});
+                }
+            }
+        }
+    }
+
+    /* INFO: the shape of one marker of a `caused_by` test: a boolean for
+     *       `uni:ancestor`, an integer hop count for `uni:depth`. */
+    void CheckCauseMarker(const std::string& path, const std::string& label,
+                          const std::string_view key,
+                          const nlohmann::json& value) {
+        namespace bkeys = binding_keys;
+        const bool depth = key == bkeys::kDepth;
+        const bool shaped =
+            depth
+                ? value.is_number_integer() && value.get<std::int64_t>() >= 1
+                      && value.get<std::int64_t>()
+                             <= static_cast<std::int64_t>(bkeys::kMaxCauseDepth)
+                : value.is_boolean();
+        if (shaped) return;
+        buckets_.presentations.push_back(Err(
+            "binding.test.shape", "presentations", path,
+            label + " test 'caused_by' needs '" + std::string(key) + "' as "
+                + (depth ? "an integer from 1 to "
+                               + std::to_string(bkeys::kMaxCauseDepth)
+                         : "a boolean")));
+    }
+
     void CheckBindingBeats(const std::string& path, const BindingDef& binding,
                            const BindingCaseDef& binding_case) {
         namespace keys = binding_keys;
@@ -2052,6 +2126,7 @@ class Checker {
                             + std::string(binding_keys::kSelect)
                             + "' that is not 'all' or 'first'"));
                 }
+                CheckBindingCauseMarkers(path, binding);
                 if (!CheckBindingEvent(path, *mod, binding)) continue;
                 for (const BindingCaseDef& binding_case : binding.cases) {
                     CheckBindingCase(path, *mod, binding, binding_case);

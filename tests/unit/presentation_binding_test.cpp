@@ -365,9 +365,14 @@ TEST_CASE("binding: the schema and the key table agree") {
     const json& test = definitions.at("test").at("properties");
     for (const std::string_view key :
          {keys::kParamStreak, keys::kParamKey, keys::kParamKeyField,
-          keys::kParamActor}) {
+          keys::kParamActor, keys::kAncestor, keys::kDepth}) {
         CHECK_MESSAGE(test.contains(std::string(key)), key);
     }
+    CHECK(test.at(std::string(keys::kAncestor)).at("type") == "boolean");
+    CHECK(test.at(std::string(keys::kDepth)).at("type") == "integer");
+    CHECK(test.at(std::string(keys::kDepth)).at("minimum") == 1);
+    CHECK(test.at(std::string(keys::kDepth)).at("maximum")
+          == json(keys::kMaxCauseDepth));
     CHECK(test.at("uni:test").at("enum")
           == json(std::vector<std::string_view>(keys::kBindingTests.begin(),
                                                 keys::kBindingTests.end())));
@@ -1488,6 +1493,74 @@ TEST_CASE("binding validation: caused_by has no other source") {
     CHECK(HasCheck(Validate(loaded), "binding.test.shape"));
     test.actor = false;
     CHECK(Validate(loaded).empty());
+}
+
+TEST_CASE("binding validation: an ancestor caused_by test walks the chain") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:ancestor": true, "uni:depth": 3 } ])");
+    REQUIRE(loaded.ok());
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+    CHECK(Warnings(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.tag = "my_mod:fruit";
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+}
+
+/* INFO: the schema pins the type and the range of the two markers, and the
+ *       validator repeats them for a file that reaches it, so a bad depth is
+ *       rejected by either layer. */
+TEST_CASE("binding validation: the ancestor depth must be an integer 1..8") {
+    for (const char* depth : {"0", "9", "\"3\"", "1.5", "-2"}) {
+        const std::string tests =
+            R"([ { "uni:test": "caused_by", "uni:value": "card_played",)"
+            R"( "uni:ancestor": true, "uni:depth": )" + std::string(depth)
+            + " } ]";
+        LoadResult loaded = LoadApple(tests);
+        REQUIRE(loaded.ok());
+        CAPTURE(depth);
+        CHECK_FALSE(Validate(loaded).empty());
+    }
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:depth": 1 },
+             { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:ancestor": true, "uni:depth": 8 } ])");
+    REQUIRE(loaded.ok());
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+}
+
+TEST_CASE("binding validation: the ancestor marker must be a boolean") {
+    for (const char* ancestor : {"\"yes\"", "1", "null"}) {
+        const std::string tests =
+            R"([ { "uni:test": "caused_by", "uni:value": "card_played",)"
+            R"( "uni:ancestor": )" + std::string(ancestor) + " } ]";
+        LoadResult loaded = LoadApple(tests);
+        REQUIRE(loaded.ok());
+        CAPTURE(ancestor);
+        CHECK_FALSE(Validate(loaded).empty());
+    }
+}
+
+TEST_CASE("binding validation: the ancestor markers belong to caused_by") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "equals", "uni:field": "count", "uni:value": 1,
+               "uni:ancestor": true, "uni:depth": 2 } ])");
+    REQUIRE(loaded.ok());
+    CHECK(Validate(loaded).empty());
+    CHECK(HasWarning(Warnings(loaded), "binding.test.shape"));
+}
+
+TEST_CASE("binding validation: an ancestor caused_by test feeds a cause param") {
+    LoadResult loaded = LoadApple(
+        R"([ { "uni:test": "caused_by", "uni:value": "card_played",
+               "uni:ancestor": true, "uni:depth": 2 } ])");
+    REQUIRE(loaded.ok());
+    auto& param = loaded.mods[0].bindings[0].cases[0].log->params["count"];
+    param.field = "card";
+    param.cause = true;
+    CHECK_MESSAGE(Validate(loaded).empty(), Describe(Validate(loaded)));
+    CHECK(Warnings(loaded).empty());
 }
 
 TEST_CASE("binding validation: a field test still needs its field") {

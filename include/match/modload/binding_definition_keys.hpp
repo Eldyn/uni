@@ -60,7 +60,9 @@
  *   the event. It needs a `caused_by` test in the same case, and the field
  *   must belong to the event of the first `caused_by` test. It combines with
  *   `uni:card_part`. When the cause is absent or lacks the field, the param
- *   is absent and `uni:default` can apply. Example: a case with the test
+ *   is absent and `uni:default` can apply. With an ancestor `caused_by` test
+ *   (see below) the client reads the field from the event the test matched.
+ *   Example: a case with the test
  *   `caused_by card_played` on a mod event `my_mod:cut` can log
  *   "Ann played Sword and cut Eldyn" with the params
  *   `{ "card": { "uni:field": "card", "uni:cause": true,
@@ -79,6 +81,13 @@
  *   cause of a MOD event is the previous mod event that the same entry
  *   point admitted. The first mod event of an entry point has the root
  *   `card_played` as its cause, like a core event.
+ * - A `caused_by` test can set `uni:ancestor: true`. It then walks the chain
+ *   of causes instead of reading the direct cause: the direct cause is hop 1,
+ *   and the test holds for the first remembered event of the chain whose id
+ *   is `uni:value`. `uni:depth` caps the walk at 1 to `kMaxCauseDepth` hops;
+ *   without it the walk reaches `kMaxCauseDepth` hops. A hop the client no
+ *   longer remembers ends the walk, like a missing cause. The two markers
+ *   belong to `caused_by` alone; any other test ignores them.
  * - `uni:tag` belongs to `has_tag` and `caused_by`. On any other test the
  *   validator ignores it and reports the warning `binding.test.shape`.
  * - `uni:glossary`: a keyword key for `[k=...]`.
@@ -157,6 +166,8 @@ inline constexpr std::string_view kGte = "gte";
 inline constexpr std::string_view kLt = "lt";
 inline constexpr std::string_view kLte = "lte";
 inline constexpr std::string_view kCausedBy = "caused_by";
+inline constexpr std::string_view kAncestor = "uni:ancestor";
+inline constexpr std::string_view kDepth = "uni:depth";
 
 /** @brief Test words of a binding: the matcher words plus numeric compares. */
 inline constexpr std::array<std::string_view, 10> kBindingTests = {
@@ -178,6 +189,7 @@ inline constexpr std::size_t kMaxStepsPerBeat = 16;
 inline constexpr std::size_t kMaxSounds = 4;
 inline constexpr std::size_t kMaxVariants = 8;
 inline constexpr std::size_t kMaxParams = 8;
+inline constexpr std::size_t kMaxCauseDepth = 8;
 
 /**
  * @brief The animation IR ops of the client (the renderer registry of

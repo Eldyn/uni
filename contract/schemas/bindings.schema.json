@@ -77,6 +77,8 @@
         "uni:value": {},
         "uni:values": { "type": "array" },
         "uni:tag": { "type": "string" },
+        "uni:ancestor": { "type": "boolean" },
+        "uni:depth": { "type": "integer", "minimum": 1, "maximum": 8 },
         "uni:role": { "type": "string", "enum": ["actor", "target"] },
         "uni:relation": { "type": "string", "enum": ["self", "other"] },
         "uni:negate": { "type": "boolean" }
