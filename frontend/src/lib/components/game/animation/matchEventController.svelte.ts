@@ -1337,11 +1337,15 @@ export function createMatchEventBeatController(deps: {
 		lastLanding = Promise.resolve();
 	}
 
+	const playLogBindings = deps.bindings ?? bindingRegistry;
+	/** The seat of the viewer, read when an event arrives or is replayed. */
+	const viewerOf = () => ({
+		seat: storeGame.isSpectator ? null : (storeGame.localPlayer?.username ?? null)
+	});
+
 	const bindingRunner = createBindingRunner({
-		registry: deps.bindings ?? bindingRegistry,
-		getViewer: () => ({
-			seat: storeGame.isSpectator ? null : (storeGame.localPlayer?.username ?? null)
-		}),
+		registry: playLogBindings,
+		getViewer: viewerOf,
 		enqueueBeats: (beats) => {
 			void deps.cardRegistry.enqueue(beats, resolveCardTarget);
 		},
@@ -1353,7 +1357,9 @@ export function createMatchEventBeatController(deps: {
 
 	/** Handles the core presentation of a beat, then the presentation bindings
 	 *  of its client event. A tail event never reaches this: the tail feeds the
-	 *  play log only, and the runner skips a replayed event as a second guard. */
+	 *  play log through `replayTailToLog`, which runs the bindings for the
+	 *  replayed history and posts their lines only; the runner skips a
+	 *  replayed event as a second guard. */
 	function handle(beat: MatchEventBeat): void {
 		handleBeat(beat);
 		const event = clientEventOfBeat(beat);
@@ -1612,13 +1618,16 @@ export function createMatchEventBeatController(deps: {
 	//       No line is dropped.
 	const unsubscribeAbandoned = deps.cardRegistry.onQueueAbandoned?.(() => playLog.releaseGates());
 	const unsubscribeTail = deps.subscribeTail?.((tail) =>
+		// INFO: the tail runs the same bindings as a live event, so a replayed
+		//       history keeps every mod line; only the log lines are posted.
 		replayTailToLog(
 			tail as TailEnvelope[],
 			(bits) => {
 				const card = resolveCardBits(bits);
 				return card && { kind: card.kind, color: card.color ?? "white" };
 			},
-			(line) => chatStore.appendLocalLog(line)
+			(line) => chatStore.appendLocalLog(line),
+			{ registry: playLogBindings, getViewer: viewerOf, resolveCard: resolveCardBits }
 		)
 	);
 	const dispose = () => {
