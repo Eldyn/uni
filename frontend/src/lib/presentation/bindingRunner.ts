@@ -3,6 +3,8 @@ import type { LogLine } from "$lib/chat/playLog/logEvent";
 import {
 	presentEvent,
 	type CardResolver,
+	type CauseEvent,
+	type CauseRecall,
 	type BindingRegistry,
 	type ClientEvent,
 	type SoundCue,
@@ -42,11 +44,14 @@ export function createBindingRunner(deps: BindingRunnerDeps) {
 		}
 	}
 
-	const recent = new Map<number, { id: string; payload: Record<string, unknown> }>();
+	const recent = new Map<number, CauseEvent>();
+
+	/** The remembered events as a cause chain: a hop that fell out ends a walk. */
+	const recall: CauseRecall = (sequence) => recent.get(sequence);
 
 	function remember(event: ClientEvent): void {
 		recent.delete(event.sequence);
-		recent.set(event.sequence, { id: event.id, payload: event.payload });
+		recent.set(event.sequence, { id: event.id, payload: event.payload, cause: event.cause });
 		if (recent.size > REMEMBERED_EVENTS) {
 			const oldest = recent.keys().next();
 			if (!oldest.done) recent.delete(oldest.value);
@@ -58,7 +63,7 @@ export function createBindingRunner(deps: BindingRunnerDeps) {
 		const cause = event.cause === undefined ? undefined : recent.get(event.cause);
 		if (cause !== undefined) event.causeEvent = cause;
 		remember(event);
-		const outputs = presentEvent(deps.registry, event, deps.getViewer(), deps.resolveCard);
+		const outputs = presentEvent(deps.registry, event, deps.getViewer(), deps.resolveCard, recall);
 		for (const output of outputs) {
 			if (output.beats.length > 0) {
 				isolate("the beats", () => deps.enqueueBeats(output.beats));

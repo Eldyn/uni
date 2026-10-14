@@ -283,4 +283,132 @@ describe("createBindingRunner", () => {
 			expect(postLine).not.toHaveBeenCalled();
 		});
 	});
+
+	describe("ancestor cause chain", () => {
+		const played: ClientEvent = {
+			id: "card_played",
+			sequence: 1,
+			payload: {},
+			replayed: false
+		};
+		/** A mod event whose cause is the event one sequence earlier. */
+		const hop = (sequence: number): ClientEvent => ({
+			id: "my_mod:apple_eaten",
+			sequence,
+			cause: sequence - 1,
+			payload: {},
+			replayed: false
+		});
+		const ancestorCases = [
+			{
+				"uni:tests": [
+					{ "uni:test": "caused_by", "uni:value": "card_played", "uni:ancestor": true },
+					// INFO: the chain shares one binding event id, so the marker
+					//       keeps only the subject posting a line; the walk under
+					//       test is the subject's, not every hop's.
+					{ "uni:test": "exists", "uni:field": "subject" }
+				],
+				"uni:present": { "uni:log": { "uni:variants": ["caused"] } }
+			}
+		];
+		const depthCases = (depth: number) => [
+			{
+				"uni:tests": [
+					{
+						"uni:test": "caused_by",
+						"uni:value": "card_played",
+						"uni:ancestor": true,
+						"uni:depth": depth
+					},
+					{ "uni:test": "exists", "uni:field": "subject" }
+				],
+				"uni:present": { "uni:log": { "uni:variants": ["caused"] } }
+			}
+		];
+
+		function chainSetup(cases: unknown[] = ancestorCases) {
+			const registry = new BindingRegistry();
+			registry.ingestDefs({
+				presentations: [
+					{
+						...binding,
+						"uni:binding": { "uni:event": "my_mod:apple_eaten", "uni:cases": cases }
+					}
+				]
+			});
+			const postLine = vi.fn();
+			const runner = createBindingRunner({
+				registry,
+				getViewer: () => ({ seat: "ann" }),
+				enqueueBeats: vi.fn(),
+				playSound: vi.fn(),
+				postLine
+			});
+			return { runner, postLine };
+		}
+
+		it("holds a case that names the core event two hops up", () => {
+			const { runner, postLine } = chainSetup();
+			runner.run(played);
+			runner.run(hop(2));
+			runner.run({ ...hop(3), payload: { subject: true } });
+			expect(postLine).toHaveBeenCalledTimes(1);
+		});
+
+		it("holds a case that names the core event eight hops up", () => {
+			const { runner, postLine } = chainSetup();
+			runner.run(played);
+			for (let sequence = 2; sequence <= 8; sequence += 1) runner.run(hop(sequence));
+			runner.run({ ...hop(9), payload: { subject: true } });
+			expect(postLine).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not hold a case that names a core event deeper than eight hops", () => {
+			const { runner, postLine } = chainSetup();
+			runner.run(played);
+			for (let sequence = 2; sequence <= 10; sequence += 1) runner.run(hop(sequence));
+			runner.run({ ...hop(11), payload: { subject: true } });
+			expect(postLine).not.toHaveBeenCalled();
+		});
+
+		it("stops the walk at the hop count of uni:depth", () => {
+			const shallow = chainSetup(depthCases(2));
+			shallow.runner.run(played);
+			shallow.runner.run(hop(2));
+			shallow.runner.run(hop(3));
+			shallow.runner.run({ ...hop(4), payload: { subject: true } });
+			expect(shallow.postLine).not.toHaveBeenCalled();
+
+			const deep = chainSetup(depthCases(3));
+			deep.runner.run(played);
+			deep.runner.run(hop(2));
+			deep.runner.run(hop(3));
+			deep.runner.run({ ...hop(4), payload: { subject: true } });
+			expect(deep.postLine).toHaveBeenCalledTimes(1);
+		});
+
+		it("stops the walk when a hop fell out of the remembered window", () => {
+			const { runner, postLine } = chainSetup();
+			runner.run(played);
+			runner.run(hop(2));
+			runner.run(hop(3));
+			// INFO: 62 later events push the core event out of the 64-entry
+			//       window, so the walk reaches a hop the runner forgot.
+			for (let sequence = 10; sequence < 10 + 62; sequence += 1) {
+				runner.run({ id: "my_mod:apple_eaten", sequence, payload: {}, replayed: false });
+			}
+			runner.run({ ...hop(4), payload: { subject: true } });
+			expect(postLine).not.toHaveBeenCalled();
+		});
+
+		it("does not walk for an event of the replayed tail", () => {
+			const { runner, postLine } = chainSetup();
+			runner.run(played);
+			runner.run(hop(2));
+			const subject = { ...hop(3), replayed: true };
+			runner.run(subject);
+			expect(subject.causeEvent).toBeUndefined();
+			expect(postLine).not.toHaveBeenCalled();
+		});
+	});
 });

@@ -25,6 +25,17 @@ const BINDING_KEY = "uni:binding";
 const PAYLOAD_TARGET_PREFIX = "$payload.";
 const LOG_TIER = 0;
 
+/** An event the runner still remembers: what a `caused_by` test reads of it. */
+export interface CauseEvent {
+	id: string;
+	payload: Record<string, unknown>;
+	/** The sequence of the event that caused it; absent when none is known. */
+	cause?: number;
+}
+
+/** Reads one remembered event by its sequence; absent when the runner forgot it. */
+export type CauseRecall = (sequence: number) => CauseEvent | undefined;
+
 export interface ClientEvent {
 	/** The wire type of a core event, or the full id of a mod event. */
 	id: string;
@@ -40,7 +51,7 @@ export interface ClientEvent {
 	/** The sequence of the event that caused this one; absent when none is known. */
 	cause?: number;
 	/** The cause event, set by the runner when it still remembers it. */
-	causeEvent?: { id: string; payload: Record<string, unknown> };
+	causeEvent?: CauseEvent;
 }
 
 export interface Viewer {
@@ -88,6 +99,13 @@ export interface BindingTest {
 	keyField: string;
 	/** When true, the test reads the envelope actor instead of a field or streak. */
 	actor: boolean;
+	/** When true, the test walks the chain of causes, not only the direct one. */
+	ancestor: boolean;
+	/**
+	 * How many chain hops an `ancestor` test may walk, the direct cause being
+	 * hop 1: the default 8 reaches the event up to eight causes away.
+	 */
+	depth: number;
 }
 
 type ParamSource =
@@ -100,6 +118,9 @@ type ParamSource =
 export type CardResolver = (bits: number) => { kind: string; color?: string } | undefined;
 
 const MAX_CARD_BITS = 0xffffffff;
+
+/** The chain steps an `ancestor` test walks when it names no depth. */
+const DEFAULT_CAUSE_DEPTH = 8;
 
 /** True for an unsigned 32-bit integer: the only shape a card int can have. */
 export function isCardBits(bits: number): boolean {
@@ -187,8 +208,17 @@ function parseTest(raw: unknown): BindingTest | null {
 		streak: stringOr(raw["uni:streak"]),
 		key: stringOr(raw["uni:key"]),
 		keyField: stringOr(raw["uni:key_field"]),
-		actor: raw["uni:actor"] === true
+		actor: raw["uni:actor"] === true,
+		ancestor: raw["uni:ancestor"] === true,
+		depth: causeDepthOf(raw["uni:depth"])
 	};
+}
+
+/** The step count of an `ancestor` test; anything but a positive integer gives the default. */
+function causeDepthOf(raw: unknown): number {
+	return typeof raw === "number" && Number.isInteger(raw) && raw > 0
+		? raw
+		: DEFAULT_CAUSE_DEPTH;
 }
 
 function parseStep(raw: unknown): AnimationStep | null {
@@ -392,7 +422,69 @@ function holdsRelation(test: BindingTest, event: ClientEvent, viewer: Viewer): b
 	return false;
 }
 
-function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boolean {
+/** True when the matched cause carries the wanted tag; an empty tag wants no tag. */
+function holdsCauseTag(tag: string, cause: CauseEvent): boolean {
+	if (tag === "") return true;
+	const tags = cause.payload.tags;
+	return Array.isArray(tags) && tags.includes(tag);
+}
+
+/**
+ * Walks the remembered cause chain of an event, starting at the direct cause
+ * (hop 1), and gives the first remembered event with the wanted id and tag,
+ * at most `depth` hops up. A hop the runner forgot stops the walk: the chain
+ * is remembered no further.
+ */
+function walkCauseChain(
+	test: BindingTest,
+	event: ClientEvent,
+	causeRecall?: CauseRecall
+): CauseEvent | undefined {
+	if (causeRecall === undefined) return undefined;
+	let sequence = event.cause;
+	for (let hop = 0; sequence !== undefined && hop < test.depth; hop += 1) {
+		const remembered = causeRecall(sequence);
+		if (remembered === undefined) return undefined;
+		if (remembered.id === test.value && holdsCauseTag(test.tag, remembered)) {
+			return remembered;
+		}
+		sequence = remembered.cause;
+	}
+	return undefined;
+}
+
+/** The cause one `caused_by` test matches: the direct cause, or a walked ancestor. */
+function causeOfTest(
+	test: BindingTest,
+	event: ClientEvent,
+	causeRecall?: CauseRecall
+): CauseEvent | undefined {
+	return test.ancestor ? walkCauseChain(test, event, causeRecall) : event.causeEvent;
+}
+
+/**
+ * The cause the params of a case read: the match of its first `caused_by` test
+ * that is not negated, so a negated one never feeds a param (the validator says
+ * the same). A case with no such test keeps the direct cause.
+ */
+function causeOfCase(
+	bindingCase: BindingCase,
+	event: ClientEvent,
+	causeRecall?: CauseRecall
+): CauseEvent | undefined {
+	for (const test of bindingCase.tests) {
+		if (test.test !== "caused_by" || test.negate) continue;
+		return causeOfTest(test, event, causeRecall);
+	}
+	return event.causeEvent;
+}
+
+function holdsTest(
+	test: BindingTest,
+	event: ClientEvent,
+	viewer: Viewer,
+	causeRecall?: CauseRecall
+): boolean {
 	const value = test.actor
 		? event.actor
 		: test.streak !== ""
@@ -412,11 +504,9 @@ function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boole
 		case "relation":
 			return holdsRelation(test, event, viewer);
 		case "caused_by": {
-			const cause = event.causeEvent;
+			const cause = causeOfTest(test, event, causeRecall);
 			if (cause === undefined || cause.id !== test.value) return false;
-			if (test.tag === "") return true;
-			const tags = cause.payload.tags;
-			return Array.isArray(tags) && tags.includes(test.tag);
+			return holdsCauseTag(test.tag, cause);
 		}
 		case "gt":
 			return typeof value === "number" && typeof test.value === "number" && value > test.value;
@@ -431,10 +521,15 @@ function holdsTest(test: BindingTest, event: ClientEvent, viewer: Viewer): boole
 	}
 }
 
-function caseApplies(binding: BindingCase, event: ClientEvent, viewer: Viewer): boolean {
+function caseApplies(
+	binding: BindingCase,
+	event: ClientEvent,
+	viewer: Viewer,
+	causeRecall?: CauseRecall
+): boolean {
 	return binding.tests.every((test) => {
 		if (test.test === "unknown") return false;
-		return holdsTest(test, event, viewer) !== test.negate;
+		return holdsTest(test, event, viewer, causeRecall) !== test.negate;
 	});
 }
 
@@ -459,6 +554,7 @@ function resolveBeats(beats: AnimationBeat[], event: ClientEvent): AnimationBeat
 function paramValue(
 	source: ParamSource,
 	event: ClientEvent,
+	cause: CauseEvent | undefined,
 	resolveCard?: CardResolver
 ): string | number | undefined {
 	if (source.kind === "value") return source.value;
@@ -471,7 +567,7 @@ function paramValue(
 		if (typeof streakValue === "string") return escapeLogText(streakValue);
 		return undefined;
 	}
-	const payload = source.fromCause ? event.causeEvent?.payload : event.payload;
+	const payload = source.fromCause ? cause?.payload : event.payload;
 	const value = payload?.[source.field];
 	if (source.cardPart !== undefined) {
 		if (typeof value !== "number" || !isCardBits(value)) return undefined;
@@ -496,12 +592,13 @@ function buildLine(
 	bindingId: string,
 	glossary: string | null,
 	event: ClientEvent,
+	cause: CauseEvent | undefined,
 	resolveCard?: CardResolver
 ): LogLine {
 	const key = log.variants[stableIndex(event.sequence, bindingId, log.variants.length)]!;
 	const params: Record<string, string | number> = {};
 	for (const [name, source] of Object.entries(log.params)) {
-		const value = paramValue(source, event, resolveCard) ?? fallbackValue(source);
+		const value = paramValue(source, event, cause, resolveCard) ?? fallbackValue(source);
 		if (value !== undefined) params[name] = value;
 	}
 	if (glossary !== null) params.glossary = glossary;
@@ -512,24 +609,28 @@ function buildLine(
  * Evaluates the bindings of one client event for one viewer. Every case whose
  * tests all hold gives one output, in file order. With `uni:select: "first"`
  * only the first matching case gives an output. An event with no binding
- * gives nothing.
+ * gives nothing. `causeRecall` is the runner memory: it lets a `caused_by`
+ * test with `uni:ancestor` walk the chain of causes, and `uni:cause` read
+ * the matched event instead of the direct cause.
  */
 export function presentEvent(
 	registry: BindingRegistry,
 	event: ClientEvent,
 	viewer: Viewer,
-	resolveCard?: CardResolver
+	resolveCard?: CardResolver,
+	causeRecall?: CauseRecall
 ): PresentationOutput[] {
 	const outputs: PresentationOutput[] = [];
 	for (const binding of registry.forEvent(event.id)) {
 		for (const bindingCase of binding.cases) {
-			if (!caseApplies(bindingCase, event, viewer)) continue;
+			if (!caseApplies(bindingCase, event, viewer, causeRecall)) continue;
+			const cause = causeOfCase(bindingCase, event, causeRecall);
 			outputs.push({
 				bindingId: binding.id,
 				beats: resolveBeats(bindingCase.beats, event),
 				sounds: bindingCase.sounds.map((cue) => ({ ...cue })),
 				line: bindingCase.log
-					? buildLine(bindingCase.log, binding.id, bindingCase.glossary, event, resolveCard)
+					? buildLine(bindingCase.log, binding.id, bindingCase.glossary, event, cause, resolveCard)
 					: null,
 				glossary: bindingCase.glossary
 			});
