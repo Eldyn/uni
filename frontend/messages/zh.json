@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "如果这不是你发起的，请忽略此邮件。",
 	"email_reset_button_label": "重置密码",
 	"deck_name_classic": "经典",
-	"deck_desc_classic": "标准的 108 张牌组：四种颜色的 0 到 9 数字牌，加上跳过、反转、+2、万能牌和万能 +4。"
+	"deck_desc_classic": "标准的 108 张牌组：四种颜色的 0 到 9 数字牌，加上跳过、反转、+2、万能牌和万能 +4。",
+	"game_debt_target_you": "你",
+	"game_debt_target": "{name}"
 }

@@ -4,6 +4,7 @@ import { tick } from "svelte";
 import { gsap } from "gsap";
 import DrawStackIndicator from "$components/game/DrawStackIndicator.svelte";
 import { storeGame } from "$stores/game.svelte";
+import { storeAuth } from "$stores/auth.svelte";
 import { storeAudio } from "$stores/audio.svelte";
 import { storeAnimation } from "$stores/animation.svelte";
 
@@ -105,4 +106,79 @@ describe("DrawStackIndicator", () => {
 		await tick();
 		expect(storeAudio.playSfx).toHaveBeenCalledWith("sfx.draw-stack.increase");
 	});
+
+	it("renders target pill with opponent username when debt is pending", async () => {
+		const { container } = render(DrawStackIndicator);
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			players: [
+				{ username: "alice", card_count: 5, is_bot: false },
+				{ username: "bob", card_count: 5, is_bot: false }
+			],
+			pending_draws: 4,
+			draw_pile_size: 20
+		};
+		await tick();
+
+		const pill = container.querySelector(".draw-stack-target-pill");
+		expect(pill).not.toBeNull();
+		expect(pill?.textContent).toContain("bob");
+		expect(pill?.classList.contains("is-local")).toBe(false);
+	});
+
+	it("renders target pill with YOU and is-local when local player is victim", async () => {
+		const { container } = render(DrawStackIndicator);
+		storeAuth.username = "alice";
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "alice",
+			play_direction: 1,
+			players: [
+				{
+					username: "alice",
+					card_count: 5,
+					is_bot: false,
+					statuses: [{ status_kind: "uni:draw_debt", magnitude: 4 }]
+				},
+				{ username: "bob", card_count: 5, is_bot: false }
+			],
+			pending_draws: 4,
+			draw_pile_size: 20
+		};
+		await tick();
+
+		const pill = container.querySelector(".draw-stack-target-pill");
+		expect(pill).not.toBeNull();
+		expect(pill?.textContent).toContain("YOU");
+		expect(pill?.classList.contains("is-local")).toBe(true);
+	});
+
+	it("marks badge and pill as urgent when active timer fraction <= 0.25", async () => {
+		const { container } = render(DrawStackIndicator);
+		storeGame.state = {
+			active_type: "red",
+			current_turn: "bob",
+			play_direction: 1,
+			players: [{ username: "bob", card_count: 5, is_bot: false }],
+			pending_draws: 2,
+			draw_pile_size: 20
+		};
+		storeGame.activeWindow = {
+			windowId: 1,
+			durationMs: 10000,
+			deadlineAt: Date.now() + 2000,
+			holdMs: 0,
+			kinds: ["draw_stacking"],
+			responders: ["bob"]
+		};
+		await tick();
+
+		const badge = container.querySelector(".draw-stack-badge");
+		expect(badge?.classList.contains("urgent")).toBe(true);
+		const pill = container.querySelector(".draw-stack-target-pill");
+		expect(pill?.classList.contains("urgent")).toBe(true);
+	});
 });
+

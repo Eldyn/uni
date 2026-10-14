@@ -23,7 +23,8 @@
 		placement,
 		avatarPx,
 		dimmed = false,
-		isTurn = false
+		isTurn = false,
+		isDebtTarget = false
 	}: {
 		player: GamePlayer;
 		color: string;
@@ -34,6 +35,8 @@
 		dimmed?: boolean;
 		/** Holds the faint steady rim while it is this player's turn. */
 		isTurn?: boolean;
+		/** Highlights the avatar and rim when targeted by draw debt. */
+		isDebtTarget?: boolean;
 	} = $props();
 
 	// Sits below cards (y >= 0) and above playmat/arrows (y <= -0.01)
@@ -91,8 +94,15 @@
 		}
 	});
 
+	const DANGER_COLOR = new Color("#ff4a3a");
 	let baseColor = $derived(isBot ? new Color("#ffffff") : new Color(color));
-	let effectiveColor = $derived(dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor);
+	let effectiveColor = $derived(
+		isDebtTarget
+			? DANGER_COLOR
+			: dimmed
+				? baseColor.clone().multiplyScalar(0.45)
+				: baseColor
+	);
 
 	// Skip mark: the local player can lose a turn too (any seat can be skipped).
 	let skipActive = $derived(storeTurnSkip.marks.includes(player.username));
@@ -102,7 +112,9 @@
 		LOCAL_AVATAR_WORLD * 0.7,
 		placement.localAvatarZ
 	]);
-	let steadyOpacity = $derived(isTurn ? TURN_STEADY_OPACITY : 0);
+	let steadyOpacity = $derived(
+		isDebtTarget ? 0.75 : isTurn ? TURN_STEADY_OPACITY : 0
+	);
 
 	$effect(() => {
 		const token = storeTurnCue.token;

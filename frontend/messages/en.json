@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "If you didn't request this, you can safely ignore this email.",
 	"email_reset_button_label": "Reset password",
 	"deck_name_classic": "Classic",
-	"deck_desc_classic": "The standard 108-card deck: numbers 0 to 9 in four colours, plus skip, reverse, +2, wild and wild +4."
+	"deck_desc_classic": "The standard 108-card deck: numbers 0 to 9 in four colours, plus skip, reverse, +2, wild and wild +4.",
+	"game_debt_target_you": "YOU",
+	"game_debt_target": "{name}"
 }

@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.",
 	"email_reset_button_label": "Passwort zurücksetzen",
 	"deck_name_classic": "Klassisch",
-	"deck_desc_classic": "Das Standarddeck mit 108 Karten: Zahlen von 0 bis 9 in vier Farben, dazu Aussetzen, Richtungswechsel, +2, Joker und Joker +4."
+	"deck_desc_classic": "Das Standarddeck mit 108 Karten: Zahlen von 0 bis 9 in vier Farben, dazu Aussetzen, Richtungswechsel, +2, Joker und Joker +4.",
+	"game_debt_target_you": "DU",
+	"game_debt_target": "{name}"
 }

@@ -19,6 +19,7 @@
 	import HeldDrawCard from "./HeldDrawCard.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { resetImpactEffects } from "./animation/impactReset";
+	import { storeDamageFx } from "$stores/damageFx.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { isPhoneLayout } from "./layout/seatLayout";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
@@ -543,7 +544,18 @@
 				onPointerHover={() => (keyboardFocusId = null)}
 			/>
 		</Canvas>
-		<div class="screen-vignette" aria-hidden="true"></div>
+		<div
+			class="screen-vignette"
+			class:debt-danger={storeGame.isDebtVictim}
+			aria-hidden="true"
+		></div>
+		{#if storeDamageFx.flashOpacity > 0}
+			<div
+				class="damage-overlay"
+				style:opacity={storeDamageFx.flashOpacity}
+				aria-hidden="true"
+			></div>
+		{/if}
 		{#if heldDrawCardId !== null && heldDrawScreen}
 			<HeldDrawCard
 				cardId={heldDrawCardId}
@@ -604,5 +616,44 @@
 			rgba(0, 0, 0, 0.55) 100%
 		);
 		z-index: 2;
+		transition: background 0.4s ease;
+	}
+
+	.screen-vignette.debt-danger {
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 0, 0, 0) 40%,
+			rgba(140, 10, 0, 0.35) 75%,
+			rgba(70, 0, 0, 0.75) 100%
+		);
+		animation: vignette-danger-pulse 2s ease-in-out infinite alternate;
+	}
+
+	.damage-overlay {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 0, 0, 0.1) 25%,
+			rgba(255, 20, 20, 0.55) 70%,
+			rgba(180, 0, 0, 0.9) 100%
+		);
+		z-index: 3;
+	}
+
+	@keyframes vignette-danger-pulse {
+		0% {
+			opacity: 0.75;
+		}
+		100% {
+			opacity: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.screen-vignette.debt-danger {
+			animation: none;
+		}
 	}
 </style>

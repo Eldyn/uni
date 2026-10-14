@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "心当たりがない場合は、このメールを無視してください。",
 	"email_reset_button_label": "パスワードをリセット",
 	"deck_name_classic": "クラシック",
-	"deck_desc_classic": "標準の108枚デックです。4色の0から9までの数字カードに、スキップ、リバース、+2、ワイルド、ワイルド+4が入っています。"
+	"deck_desc_classic": "標準の108枚デックです。4色の0から9までの数字カードに、スキップ、リバース、+2、ワイルド、ワイルド+4が入っています。",
+	"game_debt_target_you": "あなた",
+	"game_debt_target": "{name}"
 }

@@ -270,6 +270,7 @@
 				isTurn={presentedTurn === player.username}
 				isValidTarget={isChoosePlayerTarget(player.username)}
 				isArmed={armedSeat === player.username}
+				isDebtTarget={storeGame.debtVictimUsername === player.username}
 				color={colorFor(player.username)}
 				isViewable={storeGame.isSpectator}
 				onSelect={(pointerType) => selectOpponent(player.username, pointerType)}
@@ -295,6 +296,7 @@
 			avatarPx={localAvatarPx}
 			dimmed={localDimmed}
 			isTurn={isLocalTurn}
+			isDebtTarget={storeGame.debtVictimUsername === povPlayer.username}
 		/>
 	{/if}
 

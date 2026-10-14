@@ -23,6 +23,7 @@ import { storeTurnCue } from "$stores/turnCue.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
+import { storeDamageFx } from "$stores/damageFx.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAudio } from "$stores/audio.svelte";
@@ -533,6 +534,10 @@ export function createMatchEventBeatController(deps: {
 		if (!isLocalDraw) {
 			handleOpponentDraw(beat, state);
 			return;
+		}
+
+		if (beat.count > 1 || storeGame.isDebtVictim) {
+			storeDamageFx.triggerDamage(beat.count);
 		}
 
 		// INFO: the draw reaction reads only public data (actor, count and the

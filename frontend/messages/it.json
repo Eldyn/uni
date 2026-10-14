@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "Se non hai richiesto tu, puoi ignorare questa email.",
 	"email_reset_button_label": "Reimposta password",
 	"deck_name_classic": "Classico",
-	"deck_desc_classic": "Il mazzo standard da 108 carte: numeri da 0 a 9 in quattro colori, più salta, inverti, +2, jolly e jolly +4."
+	"deck_desc_classic": "Il mazzo standard da 108 carte: numeri da 0 a 9 in quattro colori, più salta, inverti, +2, jolly e jolly +4.",
+	"game_debt_target_you": "TU",
+	"game_debt_target": "{name}"
 }

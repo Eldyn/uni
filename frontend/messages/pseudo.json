@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "[Îf yöü dîdñ't réqüéšt thîš, yöü çåñ šåfély îgñöré thîš émåîl.!!] zz zz zz zz zz",
 	"email_reset_button_label": "[Réšét påššwörd!!] zz",
 	"deck_name_classic": "[Çlàssîç ~~~]",
-	"deck_desc_classic": "[Théé stàñdàrd 108-çàrd déçk: ñümbérs 0 tö 9 îñ föür çölörs, plüs skîp, révérsé, +2, wîld åñd wîld +4. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~]"
+	"deck_desc_classic": "[Théé stàñdàrd 108-çàrd déçk: ñümbérs 0 tö 9 îñ föür çölörs, plüs skîp, révérsé, +2, wîld åñd wîld +4. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~]",
+	"game_debt_target_you": "[ÝÖÛ]",
+	"game_debt_target": "{name}"
 }

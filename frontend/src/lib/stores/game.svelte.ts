@@ -481,6 +481,19 @@ class StoreGame implements SessionStore {
 	 *  pass (draw) inside a held window. */
 	isDebtVictim = $derived(holdsDrawDebt(this.localPlayer));
 
+	/** Username of the player currently targeted by draw debt, if any. */
+	debtVictimUsername = $derived.by((): string | null => {
+		const victim = this.state?.players?.find((p) => holdsDrawDebt(p));
+		if (victim) return victim.username;
+		if ((this.state?.pending_draws ?? 0) > 0) {
+			if (this.activeWindow?.responders && this.activeWindow.responders.length === 1) {
+				return this.activeWindow.responders[0];
+			}
+			return this.state?.current_turn ?? null;
+		}
+		return null;
+	});
+
 	/** The single countdown the fuse line drains: the open window group, else
 	 *  the open prompt, else the ready barrier, else the turn clock. */
 	activeTimer = $derived.by((): ActiveTimer | null => {

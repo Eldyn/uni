@@ -380,5 +380,7 @@
 	"email_reset_body_ignore": "요청하지 않으셨다면 이 이메일을 무시하셔도 됩니다.",
 	"email_reset_button_label": "비밀번호 재설정",
 	"deck_name_classic": "클래식",
-	"deck_desc_classic": "108장으로 이루어진 기본 덱입니다. 네 가지 색의 0부터 9까지 숫자 카드와 건너뛰기, 방향 전환, +2, 와일드, 와일드 +4가 들어 있습니다."
+	"deck_desc_classic": "108장으로 이루어진 기본 덱입니다. 네 가지 색의 0부터 9까지 숫자 카드와 건너뛰기, 방향 전환, +2, 와일드, 와일드 +4가 들어 있습니다.",
+	"game_debt_target_you": "당신",
+	"game_debt_target": "{name}"
 }
