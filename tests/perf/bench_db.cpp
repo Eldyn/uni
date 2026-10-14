@@ -35,6 +35,7 @@ Sample BenchDbTokenLookup() {
         auto t1 = std::chrono::steady_clock::now();
         ns.push_back(std::chrono::duration<double, std::nano>(t1 - t0).count());
     }
+    if (ns.empty()) return {"db_token_lookup", -1.0, -1.0, -1};
     return MakeSample("db_token_lookup", ns, 0);
 }
 
