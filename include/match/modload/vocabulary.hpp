@@ -660,6 +660,8 @@ inline const std::vector<ConditionSignature>& ConditionCatalog() {
         // draw_stacking.cpp: a window reply laying the same `tag`ged draw
         // value as the discard top.
         add_play("plays_stack_response", {Arg("tag", ArgType::kTagRef)});
+        // reverse_deflection: a window reply deflecting draw debt using a matching-color reverse.
+        add_play("plays_reverse_response");
 
         return out;
     }();

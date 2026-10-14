@@ -381,6 +381,11 @@ std::optional<ecs::Entity> Resolver::NextInTurnOrder(
     return SeatStep(anchor, DirectionStep());
 }
 
+std::optional<ecs::Entity> Resolver::PreviousInTurnOrder(
+    ecs::Entity anchor) const {
+    return SeatStep(anchor, -DirectionStep());
+}
+
 std::vector<ecs::Entity> Resolver::ResolveSelector(WalkState& state,
                                                    const std::string& token) {
     const SelectorContext& context = state.context;

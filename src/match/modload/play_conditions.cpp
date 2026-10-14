@@ -142,6 +142,7 @@ bool NeedsAttemptedFacts(const std::string& keyword) {
         || keyword == "plays_matches_top" || keyword == "plays_mismatch"
         || keyword == "plays_identical_to_top" || keyword == "plays_bluffing"
         || keyword == "plays_stack_response"
+        || keyword == "plays_reverse_response"
         || keyword == "plays_identical_out_of_turn";
 }
 
@@ -223,6 +224,13 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         PlayCardFacts top;
         if (!ResolveTop(*attempt, lookup, top)) return false;
         return HasTag(top.tags, *tag);
+    }
+    if (keyword == "plays_reverse_response") {
+        if (!attempt->responding) return false;
+        if (!HasTag(attempted.tags, "reverse") && !HasTag(attempted.tags, "uni:reverse")) {
+            return false;
+        }
+        return AttemptedMatchesActive(*attempt, attempted);
     }
     if (keyword == "plays_mismatch") {
         // standard.cpp:13-36: invalid iff not wild, not active-type match and

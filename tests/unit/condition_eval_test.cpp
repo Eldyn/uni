@@ -185,8 +185,8 @@ TEST_CASE("condition_eval: every catalog keyword is registered") {
         }
     }
     CHECK(store_conditions == 18);
-    CHECK(play_conditions == 15);
-    CHECK(ConditionCatalog().size() == 33);
+    CHECK(play_conditions == 16);
+    CHECK(ConditionCatalog().size() == 34);
     CHECK_FALSE(fixture.conditions.Has("no_such_condition"));
 }
 

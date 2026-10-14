@@ -1244,7 +1244,7 @@ void MatchInstance::AdoptPlayedColor(ecs::Entity card,
 }
 
 void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
-                                      bool stacks_penalty) {
+                                      bool stacks_penalty, bool deflects_penalty) {
     ecs::EntityStore& store = assembly_->store;
     if (!store.IsAlive(card)) return;
 
@@ -1280,6 +1280,9 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"card", EntityJson(card)},
               {"kind", kind},
               {"from_ordinal", ordinal.value_or(0)}});
+    const std::optional<ecs::Entity> previous_attacker =
+        last_play_.has_value() ? std::optional<ecs::Entity>(last_play_->player)
+                               : std::nullopt;
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
     // INFO: a wild response never drains its own prompt here (see below), so
@@ -1295,6 +1298,9 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
     if (stacks_penalty) {
         last_play_->penalty_recorded = true;
         RecordDrawPenalty(card, player);
+    } else if (deflects_penalty) {
+        last_play_->penalty_recorded = true;
+        RecordDeflectedDrawDebt(card, player, previous_attacker);
     }
     // INFO: the winning response's own behavior graph is not re-drained; the
     //       window's `on_response` route is the resolution continuation.
@@ -1334,6 +1340,7 @@ std::optional<std::size_t> MatchInstance::StackingMember(
 
 bool MatchInstance::WindowStacksPenalty(
     const resolver::WindowRequest& request, ecs::Entity card) const {
+    if (WindowDeflectsPenalty(request, card)) return false;
     const std::string kind = ops::CardKindId(assembly_->store, card);
     if (kind.empty() || !request.respond_with.is_object()) return false;
     const auto tags = request.respond_with.find("any_tag");
@@ -1346,6 +1353,39 @@ bool MatchInstance::WindowStacksPenalty(
         }
     }
     return false;
+}
+
+bool MatchInstance::WindowDeflectsPenalty(
+    const resolver::WindowRequest& request, ecs::Entity card) const {
+    const std::string kind = ops::CardKindId(assembly_->store, card);
+    if (kind.empty()) return false;
+    const bool is_reverse = ops::CardHasTag(&assembly_->registries, kind, "reverse")
+        || ops::CardHasTag(&assembly_->registries, kind, "uni:reverse");
+    if (!is_reverse) return false;
+    if (request.kind == "reverse_deflection") return true;
+    if (request.on_response.contains("plays_reverse_response")) return true;
+    return false;
+}
+
+bool MatchInstance::GroupDeflectsPenalty(const WindowPause& group,
+                                         ecs::Entity card) const {
+    for (std::size_t member = 0; member < group.MemberCount(); ++member) {
+        if (WindowDeflectsPenalty(group.Member(member).request, card)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::optional<std::size_t> MatchInstance::DeflectingMember(
+    const WindowPause& group, ecs::Entity card) const {
+    for (std::size_t member = 0; member < group.MemberCount(); ++member) {
+        if (WindowDeflectsPenalty(group.Member(member).request, card)
+            && WindowReopens(group.Member(member).request)) {
+            return member;
+        }
+    }
+    return std::nullopt;
 }
 
 int32_t MatchInstance::DrawPenaltyMagnitude(ecs::Entity card) const {
@@ -1426,6 +1466,41 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
     BridgeRunEvent(events_.back());
 }
 
+void MatchInstance::RecordDeflectedDrawDebt(ecs::Entity card, ecs::Entity player,
+                                            std::optional<ecs::Entity> attacker) {
+    ecs::EntityStore& store = assembly_->store;
+    if (!store.IsAlive(card) || assembly_->resolver == nullptr) return;
+
+    ecs::Entity target{};
+    if (attacker.has_value() && store.IsAlive(*attacker)) {
+        target = *attacker;
+    } else {
+        const std::optional<ecs::Entity> prev =
+            assembly_->resolver->PreviousInTurnOrder(player);
+        if (!prev.has_value()) return;
+        target = *prev;
+    }
+
+    const int32_t carried = RemoveDrawDebt(target);
+    if (carried <= 0) return;
+
+    status::ApplyRequest request;
+    request.status_id = std::string(ops::kDrawDebtStatusId);
+    request.magnitude = carried;
+    request.has_stack_policy = true;
+    request.stack_policy = ecs::StackPolicy::kAccumulate;
+    const status::ApplyResult applied =
+        status::Apply(store, target, request);
+    if (!applied.applied) return;
+
+    json payload = json{{"target", EntityJson(target)},
+                        {"status_kind", applied.status_id},
+                        {"magnitude", applied.magnitude},
+                        {"instance", applied.instance_id}};
+    PushEvent(ops::MakeEvent("status_applied", payload));
+    BridgeRunEvent(events_.back());
+}
+
 void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     if (!pending_window_.has_value() || assembly_ == nullptr) return;
     WindowPause group = std::move(*pending_window_);
@@ -1443,20 +1518,29 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     //       re-opens. Any other winner supersedes the play instead.
     std::size_t route_member = group.winner_member;
     bool stacks = false;
+    bool deflects = false;
     if (group.has_winner && store.IsAlive(group.winner_card)) {
         const bool debt_pending =
             last_play_.has_value() && last_play_->penalty_recorded;
         const std::optional<std::size_t> stacker =
             StackingMember(group, group.winner_card);
-        if (debt_pending && stacker.has_value()) route_member = *stacker;
+        const std::optional<std::size_t> deflector =
+            DeflectingMember(group, group.winner_card);
+        if (debt_pending && stacker.has_value()) {
+            route_member = *stacker;
+        } else if (debt_pending && deflector.has_value()) {
+            route_member = *deflector;
+        }
         stacks = WindowStacksPenalty(group.Member(route_member).request,
                                      group.winner_card);
-        // INFO: a non-stacking win supersedes the play, so the debt the group
+        deflects = WindowDeflectsPenalty(group.Member(route_member).request,
+                                         group.winner_card);
+        // INFO: a non-stacking, non-deflecting win supersedes the play, so the debt the group
         //       recorded for it is stale and must not linger. With the shipped
         //       mods no jump-in on a debt-carrying play reaches this: it
         //       stacks above.
-        if (!stacks && debt_pending) RemoveDrawDebt(std::nullopt);
-        CommitWinningPlay(group.winner, group.winner_card, stacks);
+        if (!stacks && !deflects && debt_pending) RemoveDrawDebt(std::nullopt);
+        CommitWinningPlay(group.winner, group.winner_card, stacks, deflects);
     }
 
     // INFO: a winning response supersedes the play: only its owning member
@@ -1466,6 +1550,11 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     const auto queue_member = [&](std::size_t index, const std::string& route) {
         QueuedRoute queued{group.Member(index), route};
         queued.member.followers.clear();
+        for (std::size_t i = 0; i < group.MemberCount(); ++i) {
+            if (i != index) {
+                queued.member.followers.push_back(group.Member(i));
+            }
+        }
         queued.member.settle_play = group.settle_play;
         queued.member.actor = group.actor;
         queued.member.has_winner = group.has_winner;
@@ -1514,6 +1603,7 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
 }
 
 void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
+    ecs::EntityStore& store = assembly_->store;
     while (!group_routes_.empty()) {
         QueuedRoute queued = std::move(group_routes_.front());
         group_routes_.erase(group_routes_.begin());
@@ -1569,6 +1659,14 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
                 reopen_context.self = pause.winner;
                 reopen_context.target = pause.winner;
                 reopen_context.in_window = true;
+
+                for (ecs::Entity holder : store.EntitiesWith<ecs::PlayerInfo>()) {
+                    if (status::Find(store, holder, ops::kDrawDebtStatusId) != nullptr) {
+                        reopen_context.target = holder;
+                        break;
+                    }
+                }
+
                 ops::ResolutionFrame reopen_frame;
                 const resolver::ResolveResult reopened =
                     assembly_->resolver->ResumeWindow(
@@ -1585,6 +1683,47 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
                     next.settle_play = pause.settle_play;
                     next.actor = pause.actor;
                     next.cause_event = pause.cause_event;
+
+                    if (reopen_context.target.has_value()
+                        && *reopen_context.target != pause.winner) {
+                        next.request.responders = {*reopen_context.target};
+                    }
+
+                    for (const WindowPause& follower : pause.followers) {
+                        if (WindowReopens(follower.request)
+                            && follower.system_index < assembly_->systems.size()) {
+                            const modload::BehaviorGraph& f_graph =
+                                assembly_->systems[follower.system_index].graph;
+                            ops::ResolutionFrame f_frame;
+                            resolver::SelectorContext f_ctx = reopen_context;
+                            f_ctx.responder = pause.winner;
+                            f_ctx.self = pause.winner;
+                            f_ctx.target = reopen_context.target;
+                            f_ctx.in_window = true;
+                            const resolver::ResolveResult f_reopened =
+                                assembly_->resolver->ResumeWindow(
+                                    f_graph, follower.mod_id, f_ctx, f_frame,
+                                    follower.pause, follower.request.node_id);
+                            if (f_reopened.status == resolver::ResolveStatus::kWindow
+                                && f_reopened.window.has_value()) {
+                                WindowPause f_next;
+                                f_next.request = *f_reopened.window;
+                                f_next.pause = f_reopened;
+                                f_next.context = f_ctx;
+                                f_next.system_index = follower.system_index;
+                                f_next.mod_id = follower.mod_id;
+                                f_next.settle_play = follower.settle_play;
+                                f_next.actor = follower.actor;
+                                f_next.cause_event = follower.cause_event;
+                                if (reopen_context.target.has_value()
+                                    && *reopen_context.target != pause.winner) {
+                                    f_next.request.responders = {*reopen_context.target};
+                                }
+                                next.followers.push_back(std::move(f_next));
+                            }
+                        }
+                    }
+
                     OpenWindow(std::move(next), /*fresh_situation=*/false);
                     return;
                 }

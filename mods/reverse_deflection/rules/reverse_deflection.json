@@ -1,0 +1,88 @@
+{
+  "id": "reverse_deflection",
+  "title": "Reverse Deflection",
+  "description": "Enables deflecting draw debt back to the attacker using a matching-color Reverse card.",
+  "hooks": [
+    {
+      "on": "after:match_start",
+      "nodes": [
+        {
+          "id": "a1",
+          "op": "add_restriction",
+          "args": {
+            "entry_def": {
+              "id": "reverse_deflection:reverse_response",
+              "phase": "allow",
+              "condition": {
+                "plays_reverse_response": {}
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "on": "after:play",
+      "where": {
+        "top_of_discard": {
+          "tag": "draw_penalty"
+        }
+      },
+      "nodes": [
+        {
+          "id": "n1",
+          "window": {
+            "responders": "@next_player",
+            "respond_with": {
+              "any_tag": [
+                "reverse"
+              ],
+              "condition": {
+                "plays_reverse_response": {}
+              }
+            },
+            "duration": "env",
+            "kind": "reverse_deflection"
+          },
+          "reopen": true,
+          "default": "n2",
+          "on_response": {
+            "plays_reverse_response": "n3"
+          }
+        },
+        {
+          "id": "n2",
+          "op": "draw_cards",
+          "args": {
+            "target": "@target",
+            "n_from_debt": true
+          },
+          "next": "n2b"
+        },
+        {
+          "id": "n2b",
+          "op": "remove_status",
+          "args": {
+            "target": "@target",
+            "status_kind": "uni:draw_debt"
+          },
+          "next": "n2c"
+        },
+        {
+          "id": "n2c",
+          "op": "skip_turn",
+          "args": {
+            "target": "@target"
+          }
+        },
+        {
+          "id": "n3",
+          "op": "redirect_turn",
+          "args": {
+            "target": "@responder"
+          }
+        }
+      ]
+    }
+  ]
+}

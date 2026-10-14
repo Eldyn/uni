@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name} went 'no you!'. {victim} is in trouble...",
+  "reverse_deflection:deflect_2": "{name} pulled the reverse! Back to [c=red]{victim}[/c] with {total} cards.",
+  "reverse_deflection:deflect_3": "Right back at ya. [c=red]{victim}[/c] now owes [fx=shake]{total}[/fx] cards.",
+  "reverse_deflection:deflect_heavy": "Uno reverse! [c=red]{victim}[/c] now owes [fx=shake]{total}[/fx] cards. Panic."
+}

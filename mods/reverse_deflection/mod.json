@@ -1,0 +1,8 @@
+{
+  "id": "reverse_deflection",
+  "name": "Reverse Deflection",
+  "version": "1.0.0",
+  "api": "1",
+  "description": "Rule-only mod: play a matching-color Reverse card during a draw-debt window to deflect the penalty back to the attacker.",
+  "author": "eldyn"
+}

@@ -313,6 +313,12 @@ public:
      */
     std::optional<ecs::Entity> NextInTurnOrder(ecs::Entity anchor) const;
 
+    /**
+     * @brief The seat before `anchor` in the current play direction, the same
+     *        step `@prev_player` takes from the current player.
+     */
+    std::optional<ecs::Entity> PreviousInTurnOrder(ecs::Entity anchor) const;
+
 private:
     enum class WalkCode {
         kContinue,  /**< continuations pushed; keep walking. */

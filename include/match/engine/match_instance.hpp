@@ -706,7 +706,7 @@ private:
      * `CloseWindowRoute`'s.
      */
     void CommitWinningPlay(ecs::Entity player, ecs::Entity card,
-                           bool stacks_penalty);
+                           bool stacks_penalty, bool deflects_penalty = false);
 
     /** @brief Sets the match's active type to the played card's colour. */
     void AdoptPlayedColor(ecs::Entity card, const std::string& kind_id);
@@ -729,6 +729,17 @@ private:
     bool WindowStacksPenalty(const resolver::WindowRequest& request,
                              ecs::Entity card) const;
 
+    /**
+     * @brief True when `card` is a reverse response deflecting draw debt.
+     */
+    bool WindowDeflectsPenalty(const resolver::WindowRequest& request,
+                              ecs::Entity card) const;
+
+    bool GroupDeflectsPenalty(const WindowPause& group, ecs::Entity card) const;
+
+    std::optional<std::size_t> DeflectingMember(const WindowPause& group,
+                                                ecs::Entity card) const;
+
     /** @brief The draw penalty N encoded by a card's face label, else 0. */
     int32_t DrawPenaltyMagnitude(ecs::Entity card) const;
 
@@ -743,6 +754,12 @@ private:
      * `status_removed` / `status_applied` events.
      */
     void RecordDrawPenalty(ecs::Entity card, ecs::Entity player);
+
+    /**
+     * @brief Deflect accumulated draw debt back to the attacker.
+     */
+    void RecordDeflectedDrawDebt(ecs::Entity card, ecs::Entity player,
+                                 std::optional<ecs::Entity> attacker = std::nullopt);
 
     /**
      * @brief Close the open window group, emit one `window_closed` and resume.

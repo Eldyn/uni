@@ -1,0 +1,47 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "reverse_deflection:play_log" },
+    "uni:event": "status_applied",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "equals", "uni:field": "status_kind", "uni:value": "uni:draw_debt" },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "reverse" },
+          { "uni:test": "gte", "uni:field": "magnitude", "uni:value": 8 }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["reverse_deflection:deflect_heavy"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "victim": { "uni:field": "target" },
+              "total": { "uni:field": "magnitude" }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "equals", "uni:field": "status_kind", "uni:value": "uni:draw_debt" },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "reverse" }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "reverse_deflection:deflect_1",
+              "reverse_deflection:deflect_2",
+              "reverse_deflection:deflect_3"
+            ],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "victim": { "uni:field": "target" },
+              "total": { "uni:field": "magnitude" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
