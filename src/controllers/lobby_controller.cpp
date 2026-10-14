@@ -19,6 +19,7 @@
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
 #include <services/auth_service.hpp>
+#include <services/stats_service.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>

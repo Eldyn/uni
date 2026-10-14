@@ -5,6 +5,15 @@
 StatsService::StatsService(Database& db) : db_(db) {}
 
 Result<UserStats> StatsService::GetUserStats(const std::string& username) {
+    {
+        std::lock_guard<std::mutex> lock(us_mu_);
+        auto it = us_cache_.find(username);
+        if (it != us_cache_.end() && std::chrono::steady_clock::now() < it->second.expires) {
+            return it->second.stats;
+        }
+        if (it != us_cache_.end()) us_cache_.erase(it);
+    }
+
     auto row_result = db_.QueryOne(R"(
         WITH RankedPlayers AS (
             SELECT ps.*,

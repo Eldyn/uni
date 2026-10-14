@@ -8,6 +8,7 @@
 #include <jwt-cpp/traits/nlohmann-json/defaults.h>
 #include <logger.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -63,6 +64,17 @@ const std::string& CachedEnvRequire(const char* key) {
                                  key + "' is not set");
     }
     return CachedEnv(key, "");
+}
+
+struct TokenVersionCache {
+    std::mutex mu;
+    std::unordered_map<std::string, int> versions;
+    std::uint64_t hits = 0;
+};
+
+TokenVersionCache& GetTokenVersionCache() {
+    static TokenVersionCache cache;
+    return cache;
 }
 
 }  // namespace
@@ -382,11 +394,33 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
             }
         }
 
-        // Runs on the DB worker thread; the loop thread blocks on the future.
-        auto row = Database::Get().QueryOneAsync(
-            "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()}).get();
-        if (!row) return std::unexpected(row.error());
-        if (row->has_value() && row->value().Get<int>("token_version") != claim_version) {
+        int stored_version = -1;
+        bool cache_hit = false;
+        {
+            auto& c = GetTokenVersionCache();
+            std::lock_guard<std::mutex> lock(c.mu);
+            auto it = c.versions.find(decoded.get_subject());
+            if (it != c.versions.end()) {
+                stored_version = it->second;
+                cache_hit = true;
+                c.hits++;
+            }
+        }
+
+        if (!cache_hit) {
+            // Runs on the DB worker thread; the loop thread blocks on the future.
+            auto row = Database::Get().QueryOneAsync(
+                "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()}).get();
+            if (!row) return std::unexpected(row.error());
+            if (row->has_value()) {
+                stored_version = row->value().Get<int>("token_version");
+                auto& c = GetTokenVersionCache();
+                std::lock_guard<std::mutex> lock(c.mu);
+                c.versions[decoded.get_subject()] = stored_version;
+            }
+        }
+
+        if (stored_version != -1 && stored_version != claim_version) {
             return std::unexpected(Error::Unauthorised("Session revoked"));
         }
 
@@ -406,7 +440,23 @@ VoidResult AuthService::RevokeAllSessions(const std::string& username) {
     auto res = Database::Get().Exec(
         "UPDATE users SET token_version = token_version + 1 WHERE username = ?;", {username});
     if (!res) return std::unexpected(res.error());
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    c.versions.erase(username);
     return {};
+}
+
+void AuthService::ClearTokenVersionCacheForTests() {
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    c.versions.clear();
+    c.hits = 0;
+}
+
+std::uint64_t AuthService::TokenVersionCacheHitsForTests() {
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    return c.hits;
 }
 
 bool AuthService::GetPrivacyMode(const std::string& username) {

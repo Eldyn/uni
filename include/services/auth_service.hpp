@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <result.hpp>
 #include <database.hpp>
@@ -157,6 +158,9 @@ public:
      * guests, who have no row.
      */
     static VoidResult SetPrivacyMode(const std::string& username, bool enabled);
+
+    static void ClearTokenVersionCacheForTests();
+    static std::uint64_t TokenVersionCacheHitsForTests();
 
 private:
     Database& db_;

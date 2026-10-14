@@ -36,64 +36,62 @@ void AccountReaper::Stop() {
 }
 
 int AccountReaper::SweepAt(std::int64_t now_unix) {
-    TransactionGuard tx(db_);
-    if (!tx.Ok()) {
-        Logger::Error("[Reaper] Failed to begin transaction");
-        return 0;
-    }
-
     std::int64_t grace_threshold = now_unix - grace_.count();
     std::int64_t log_threshold = now_unix - 86400;
 
-    // Must ensure pre-existing accounts (created_at = 0) are never deleted!
-    auto res_codes = db_.Exec(
-        "DELETE FROM email_verification_codes WHERE user_id IN (SELECT id FROM users "
-        "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
-        {static_cast<int>(grace_threshold)});
-    if (!res_codes) {
-        Logger::Error("[Reaper] Failed to delete codes: " + res_codes.error().message);
+    auto fut = db_.RunInTxn(
+        [grace_threshold, log_threshold](Database& db) -> Result<int> {
+            // Must ensure pre-existing accounts (created_at = 0) are never deleted!
+            auto res_codes = db.Exec(
+                "DELETE FROM email_verification_codes WHERE user_id IN (SELECT id FROM users "
+                "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
+                {static_cast<int>(grace_threshold)});
+            if (!res_codes) {
+                Logger::Error("[Reaper] Failed to delete codes: " + res_codes.error().message);
+                return std::unexpected(res_codes.error());
+            }
+
+            auto res_resets = db.Exec(
+                "DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users "
+                "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
+                {static_cast<int>(grace_threshold)});
+            if (!res_resets) {
+                Logger::Error("[Reaper] Failed to delete reset tokens: " + res_resets.error().message);
+                return std::unexpected(res_resets.error());
+            }
+
+            auto res_users = db.Exec(
+                "DELETE FROM users WHERE email_verified = 0 AND created_at > 0 AND created_at < ?;",
+                {static_cast<int>(grace_threshold)});
+            if (!res_users) {
+                Logger::Error("[Reaper] Failed to delete users: " + res_users.error().message);
+                return std::unexpected(res_users.error());
+            }
+
+            int deleted = 0;
+            auto changes_res = db.QueryOne("SELECT changes() AS c;");
+            if (changes_res && changes_res.value()) {
+                deleted = changes_res.value()->GetOr<int>("c", 0);
+            }
+
+            auto res_log = db.Exec("DELETE FROM email_send_log WHERE sent_at < ?;",
+                                    {static_cast<int>(log_threshold)});
+            if (!res_log) {
+                Logger::Error("[Reaper] Failed to delete send log: " + res_log.error().message);
+                return std::unexpected(res_log.error());
+            }
+
+            return deleted;
+        });
+    auto res = fut.get();
+    if (!res) {
+        Logger::Error("[Reaper] Failed to run sweep");
         return 0;
     }
-
-    auto res_resets = db_.Exec(
-        "DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users "
-        "WHERE email_verified = 0 AND created_at > 0 AND created_at < ?);",
-        {static_cast<int>(grace_threshold)});
-    if (!res_resets) {
-        Logger::Error("[Reaper] Failed to delete reset tokens: " + res_resets.error().message);
-        return 0;
-    }
-
-    auto res_users = db_.Exec(
-        "DELETE FROM users WHERE email_verified = 0 AND created_at > 0 AND created_at < ?;",
-        {static_cast<int>(grace_threshold)});
-    if (!res_users) {
-        Logger::Error("[Reaper] Failed to delete users: " + res_users.error().message);
-        return 0;
-    }
-
-    int deleted = 0;
-    auto changes_res = db_.QueryOne("SELECT changes() AS c;");
-    if (changes_res && changes_res.value()) {
-        deleted = changes_res.value()->GetOr<int>("c", 0);
-    }
-
-    auto res_log = db_.Exec("DELETE FROM email_send_log WHERE sent_at < ?;",
-                            {static_cast<int>(log_threshold)});
-    if (!res_log) {
-        Logger::Error("[Reaper] Failed to delete send log: " + res_log.error().message);
-        return 0;
-    }
-
-    if (auto cr = tx.Commit(); !cr) {
-        Logger::Error("[Reaper] Failed to commit transaction: " + cr.error().message);
-        return 0;
-    }
-
+    int deleted = *res;
     if (deleted > 0) {
         Logger::Log("[Reaper] purged ", deleted, " unverified account(s)");
     }
-
     return deleted;
 }
 

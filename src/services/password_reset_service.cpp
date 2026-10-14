@@ -70,27 +70,34 @@ Result<IssuedReset> PasswordResetService::IssueTokenForEmail(const std::string& 
     int         now        = NowSeconds();
     int         expires_at = now + TokenTtlSeconds();
 
-    TransactionGuard tx(db_);
-    if (!tx.Ok()) return std::unexpected(tx.GetError());
+    int user_id = row.Get<int>("id");
+    std::string email_addr = row.Get<std::string>("email");
+    std::string username = row.Get<std::string>("username");
+    std::string locale = row.Get<std::string>("locale");
+    std::string plaintext = *token;
 
-    // INFO: INSERT OR REPLACE on the user_id PK replaces any prior token, so
-    //       re-requesting atomically invalidates the old link.
-    auto insert = db_.Exec(
-        "INSERT OR REPLACE INTO password_reset_tokens "
-        "(user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?);",
-        {row.Get<int>("id"), hash, expires_at, now});
-    if (!insert) return std::unexpected(insert.error());
+    // INFO: Single-statement write, but routed through RunInTxn (backend-perf
+    //       follow-up Task 2) so the BEGIN…COMMIT pair runs in one worker
+    //       round-trip instead of three. INSERT OR REPLACE on the user_id PK
+    //       replaces any prior token, so re-requesting atomically invalidates
+    //       the old link.
+    return db_.RunInTxn(
+        [user_id, hash, expires_at, now, email_addr, username, locale,
+         plaintext](Database& db) -> Result<IssuedReset> {
+            auto insert = db.Exec(
+                "INSERT OR REPLACE INTO password_reset_tokens "
+                "(user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?);",
+                {user_id, hash, expires_at, now});
+            if (!insert) return std::unexpected(insert.error());
 
-    auto commit = tx.Commit();
-    if (!commit) return std::unexpected(commit.error());
-
-    return IssuedReset{
-        row.Get<int>("id"),
-        row.Get<std::string>("email"),
-        row.Get<std::string>("username"),
-        row.Get<std::string>("locale"),
-        *token,
-    };
+            return IssuedReset{
+                user_id,
+                email_addr,
+                username,
+                locale,
+                plaintext,
+            };
+        }).get();
 }
 
 Result<std::string> PasswordResetService::ConsumeToken(const std::string& token,
