@@ -4,6 +4,8 @@ import {
 	clientEventOf,
 	parseBinding,
 	presentEvent,
+	type CauseEvent,
+	type CauseRecall,
 	type CardResolver,
 	type ClientEvent,
 	type Viewer
@@ -712,6 +714,84 @@ describe("caused_by", () => {
 		expect(registry.watchesCause("turn_skipped")).toBe(false);
 		registry.clear();
 		expect(registry.watchesCause("card_played")).toBe(false);
+	});
+});
+
+describe("caused_by ancestor", () => {
+	const ancestorTest = (value: string, extra: Test = {}) => ({
+		"uni:test": "caused_by",
+		"uni:value": value,
+		"uni:ancestor": true,
+		...extra
+	});
+	/** The runner memory, keyed by sequence: card_played -> spark -> echo. */
+	const memoryOf = (...entries: Array<{ sequence: number } & CauseEvent>): CauseRecall => {
+		const remembered = new Map(entries.map((entry) => [entry.sequence, entry]));
+		return (sequence) => remembered.get(sequence);
+	};
+	const chain = () => [
+		{ sequence: 1, id: "card_played", payload: { player: "ann", tags: ["wild"] } },
+		{ sequence: 2, id: "my_mod:spark", cause: 1, payload: { player: "bob" } },
+		{ sequence: 3, id: "my_mod:echo", cause: 2, payload: { player: "cy" } }
+	];
+	const causeParams = { player: { "uni:field": "player", "uni:cause": true } };
+
+	function paramsOf(tests: Test[], subject: ClientEvent): Record<string, string | number> {
+		const registry = registryOf(
+			entry([{ "uni:tests": tests, "uni:present": logOnly(["k"], causeParams) }], subject.id)
+		);
+		const line = presentEvent(
+			registry,
+			subject,
+			viewerOf("ann"),
+			undefined,
+			memoryOf(...chain())
+		)[0]?.line;
+		return line?.params ?? {};
+	}
+
+	function holds(tests: Test[], subject: ClientEvent): boolean {
+		const registry = registryOf(entry([{ "uni:tests": tests, "uni:present": logOnly() }], subject.id));
+		return (
+			presentEvent(registry, subject, viewerOf("ann"), undefined, memoryOf(...chain())).length === 1
+		);
+	}
+
+	const subject = (): ClientEvent =>
+		event({ cause: 3, causeEvent: { id: "my_mod:echo", payload: { player: "cy" } }, payload: {} });
+
+	it("holds when an ancestor of the cause chain has the id", () => {
+		expect(holds([ancestorTest("card_played")], subject())).toBe(true);
+		expect(holds([ancestorTest("turn_skipped")], subject())).toBe(false);
+	});
+
+	it("needs the tag on the matched ancestor", () => {
+		const withTag = (tag: string) => holds([ancestorTest("card_played", { "uni:tag": tag })], subject());
+		expect(withTag("wild")).toBe(true);
+		expect(withTag("red")).toBe(false);
+	});
+
+	it("is false without a runner that remembers the chain", () => {
+		const registry = registryOf(
+			entry([{ "uni:tests": [ancestorTest("card_played")], "uni:present": logOnly() }], subject().id)
+		);
+		expect(presentEvent(registry, subject(), viewerOf("ann")).length).toBe(0);
+	});
+
+	it("reads a cause param from the matched ancestor, not from the direct cause", () => {
+		expect(paramsOf([ancestorTest("card_played")], subject())).toEqual({ player: "ann" });
+	});
+
+	it("lets the first caused_by test that is not negated supply the match", () => {
+		expect(
+			paramsOf(
+				[
+					{ "uni:test": "caused_by", "uni:value": "my_mod:spark", "uni:negate": true },
+					ancestorTest("card_played")
+				],
+				subject()
+			)
+		).toEqual({ player: "ann" });
 	});
 });
 
