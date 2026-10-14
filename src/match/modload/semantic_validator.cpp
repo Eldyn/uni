@@ -682,6 +682,10 @@ class Checker {
     }
 
     void CollectDeclarations() {
+        // INFO: `uni:own_log` is a reserved play-log convention tag (a card with it
+        //       writes its own log line); no shipped card carries it, but third-party
+        //       cards may, so bindings may test it.
+        tags_.insert("uni:own_log");
         for (const LoadedMod* mod : mods_) {
             const std::string& ns = mod->manifest.id;
             for (const auto& card : mod->cards) {

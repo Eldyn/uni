@@ -559,6 +559,24 @@ TEST_CASE("binding validation: has_tag reads a tag that a card carries") {
     CHECK(HasCheck(Validate(loaded), "binding.field.unknown"));
 }
 
+TEST_CASE("binding validation: uni:own_log is a reserved tag bindings may test") {
+    TempModsRoot root;
+    root.Write("uni/mod.json", ManifestFor("uni"));
+    root.Write("uni/assets/sfx/index.json", kSoundBundle);
+    root.Write("uni/presentations/shown.json",
+               BindingFile("uni:shown", "card_played", OneCase()));
+    LoadResult loaded = ScanModsDirectory(root.root.string());
+    REQUIRE(loaded.ok());
+    auto& binding = loaded.mods[0].bindings[0];
+    binding.cases[0].log->params.clear();
+    match::modload::StreakTestDef test;
+    test.test = "has_tag";
+    test.tag = "uni:own_log";
+    binding.cases[0].tests = {test};
+    CAPTURE(Describe(Validate(loaded)));
+    CHECK(Validate(loaded).empty());
+}
+
 // --- validation: relation --------------------------------------------------
 
 TEST_CASE("binding validation: relation is allowed in a binding") {

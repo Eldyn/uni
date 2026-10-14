@@ -1,0 +1,43 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:auto_play_log"
+    },
+    "uni:event": "auto_played",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "has_tag",
+            "uni:tag": "uni:wild",
+            "uni:negate": true
+          },
+          { "uni:test": "has_tag", "uni:tag": "uni:own_log", "uni:negate": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.auto_play_1",
+              "uni:log.auto_play_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "player"
+              },
+              "kind": {
+                "uni:field": "card",
+                "uni:card_part": "kind"
+              },
+              "color": {
+                "uni:field": "card",
+                "uni:card_part": "color"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

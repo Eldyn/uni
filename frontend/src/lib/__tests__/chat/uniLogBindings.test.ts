@@ -161,6 +161,171 @@ describe("shipped uni log bindings: the event-shaped rules", () => {
 	});
 });
 
+describe("shipped uni log bindings: the card rules", () => {
+	const CARD_TABLE: Record<number, { kind: string; color: string }> = {
+		42: { kind: "uni:number", color: "red" },
+		44: { kind: "uni:wild", color: "white" }
+	};
+	const resolvePlayCard = (bits: number) => CARD_TABLE[bits];
+
+	const wildCause = {
+		id: "card_played",
+		payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild"] }
+	};
+	const wildOwnCause = {
+		id: "card_played",
+		payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild", "uni:own_log"] }
+	};
+	const autoCause = {
+		id: "auto_played",
+		payload: { card: 44, player: "ann", tags: ["uni:wild"] }
+	};
+	const autoOwnCause = {
+		id: "auto_played",
+		payload: { card: 44, player: "ann", tags: ["uni:wild", "uni:own_log"] }
+	};
+
+	it("a normal play posts uni:log.play with name/kind/color params", () => {
+		const outputs = presentEvent(
+			shippedRegistry(),
+			{ sequence: 20, id: "card_played", actor: "ann", payload: { player: "ann", card: 42, tags: [] } },
+			VIEWER,
+			resolvePlayCard
+		);
+		const lines = outputs.map((output) => output.line).filter((line) => line !== null);
+		expect(lines).toHaveLength(1);
+		expect(lines[0]!.key).toBe("uni:log.play");
+		expect(lines[0]!.params).toMatchObject({ name: "ann", kind: "uni:number", color: "red" });
+	});
+
+	it("an own_log play posts nothing from play.json", () => {
+		const keys = lineKeys(shippedRegistry(), {
+			sequence: 20, id: "card_played", actor: "ann",
+			payload: { player: "ann", card: 42, tags: ["uni:own_log"] }
+		});
+		expect(keys).toEqual([]);
+	});
+
+	it("a wild play + colour change posts uni:log.play via play_wild with the chosen colour and the cause's name/kind", () => {
+		const chain = [
+			{ sequence: 20, id: "card_played", payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		const event = { ...chain[1]!, actor: "ann", causeEvent: wildCause };
+		expect(lineKeys(shippedRegistry(), event, recallOf(chain))).toContain("uni:log.play");
+		const outputs = presentEvent(shippedRegistry(), event, VIEWER, resolvePlayCard, recallOf(chain) as never);
+		const playLine = outputs.map((output) => output.line).find((line) => line?.key === "uni:log.play");
+		expect(playLine).toBeDefined();
+		expect(playLine!.params).toMatchObject({ name: "ann", kind: "uni:wild", color: "blue" });
+	});
+
+	it("an own_log wild play + colour change posts nothing", () => {
+		const chain = [
+			{ sequence: 20, id: "card_played", payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild", "uni:own_log"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		const keys = lineKeys(
+			shippedRegistry(),
+			{ ...chain[1]!, actor: "ann", causeEvent: wildOwnCause },
+			recallOf(chain)
+		);
+		expect(keys).toEqual([]);
+	});
+
+	it("an auto-played wild posts uni:log.auto_play_1 with the chosen colour", () => {
+		const chain = [
+			{ sequence: 20, id: "auto_played", payload: { card: 44, player: "ann", tags: ["uni:wild"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		const event = { ...chain[1]!, actor: "ann", causeEvent: autoCause };
+		expect(lineKeys(shippedRegistry(), event, recallOf(chain))).toContain("uni:log.auto_play_1");
+		const outputs = presentEvent(shippedRegistry(), event, VIEWER, resolvePlayCard, recallOf(chain) as never);
+		const autoLine = outputs.map((output) => output.line).find((line) => line?.key === "uni:log.auto_play_1");
+		expect(autoLine).toBeDefined();
+		expect(autoLine!.params).toMatchObject({ name: "ann", color: "blue" });
+	});
+
+	it("an own_log auto-played wild posts nothing", () => {
+		const chain = [
+			{ sequence: 20, id: "auto_played", payload: { card: 44, player: "ann", tags: ["uni:wild", "uni:own_log"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		const keys = lineKeys(
+			shippedRegistry(),
+			{ ...chain[1]!, actor: "ann", causeEvent: autoOwnCause },
+			recallOf(chain)
+		);
+		expect(keys).toEqual([]);
+	});
+
+	it("a wild colour change posts the uni:log.wild_reaction line for run 1, 2 and 3", () => {
+		for (const run of [1, 2, 3]) {
+			const chain = [
+				{ sequence: 20, id: "card_played", payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild"] } },
+				{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+			];
+			const keys = lineKeys(
+				shippedRegistry(),
+				{
+					...chain[1]!, actor: "ann", causeEvent: wildCause,
+					context: { "uni:wild_run": run, "uni:last_wild_color": { last: "blue", previous: "red" } }
+				},
+				recallOf(chain)
+			);
+			expect(keys.some((key) => key.startsWith("uni:log.wild_reaction"))).toBe(true);
+		}
+	});
+
+	it("an auto-played wild colour change posts the same reaction lines", () => {
+		for (const run of [1, 2, 3]) {
+			const chain = [
+				{ sequence: 20, id: "auto_played", payload: { card: 44, player: "ann", tags: ["uni:wild"] } },
+				{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+			];
+			const keys = lineKeys(
+				shippedRegistry(),
+				{
+					...chain[1]!, actor: "ann", causeEvent: autoCause,
+					context: { "uni:wild_run": run, "uni:last_wild_color": { last: "blue", previous: "red" } }
+				},
+				recallOf(chain)
+			);
+			expect(keys.some((key) => key.startsWith("uni:log.wild_reaction"))).toBe(true);
+		}
+	});
+
+	it("an own_log wild colour change posts nothing", () => {
+		const cardChain = [
+			{ sequence: 20, id: "card_played", payload: { card: 44, player: "ann", tags: ["wild", "action", "uni:wild", "uni:own_log"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		expect(
+			lineKeys(
+				shippedRegistry(),
+				{
+					...cardChain[1]!, actor: "ann", causeEvent: wildOwnCause,
+					context: { "uni:wild_run": 1, "uni:last_wild_color": { last: "blue", previous: "red" } }
+				},
+				recallOf(cardChain)
+			)
+		).toEqual([]);
+		const autoChain = [
+			{ sequence: 20, id: "auto_played", payload: { card: 44, player: "ann", tags: ["uni:wild", "uni:own_log"] } },
+			{ sequence: 21, id: "active_type_changed", payload: { color: "blue", previous_color: "white" }, cause: 20 }
+		];
+		expect(
+			lineKeys(
+				shippedRegistry(),
+				{
+					...autoChain[1]!, actor: "ann", causeEvent: autoOwnCause,
+					context: { "uni:wild_run": 1, "uni:last_wild_color": { last: "blue", previous: "red" } }
+				},
+				recallOf(autoChain)
+			)
+		).toEqual([]);
+	});
+});
+
 function readDirShipped(): string[] {
 	return shippedFiles()
 		.map((file) => (file as { "uni:binding"?: { "uni:description"?: { "uni:identifier"?: string } } })
