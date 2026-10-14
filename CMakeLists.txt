@@ -314,4 +314,14 @@ if(UNI_BUILD_TESTS)
     add_test(NAME unit COMMAND uni_tests)
 endif()
 
+# --- Perf benches (uni_bench) ---
+# Perf-checker-first: establishes M1 baselines in tests/perf/baselines/ before
+# any hot-path change. Links only src/database.cpp so the checker stays fast
+# and dependency-free (ws_parse/snapshot benches are self-contained mirrors of
+# the WebServer::OnSocketMessage / MatchSession::EmitEvents paths).
+add_executable(uni_bench tests/perf/bench_main.cpp tests/perf/bench_db.cpp tests/perf/bench_ws_parse.cpp tests/perf/bench_snapshot.cpp
+  src/database.cpp)
+target_include_directories(uni_bench PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
+target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json)
+
 message(STATUS "Configuration complete for system: ${CMAKE_SYSTEM_NAME}")
