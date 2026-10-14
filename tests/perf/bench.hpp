@@ -10,6 +10,7 @@ struct Sample {
     double median_ns;
     double p95_ns;
     long allocs;
+    long rss_kb = 0;
 };
 
 void RegisterBench(Sample (*)());
