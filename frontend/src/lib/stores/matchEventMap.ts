@@ -6,7 +6,7 @@
  * `storeGame`) and creating an import cycle.
  */
 
-import type { EventContext } from "$lib/chat/playLog/serverStreaks";
+import type { EventContext } from "$lib/chat/playLog/logEvent";
 import { clientEventOf, type ClientEvent } from "$lib/presentation/eventBindings";
 import {
 	MatchEventPayloadSchema,

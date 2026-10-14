@@ -3,11 +3,17 @@ import { replayTailToLog, type TailBindings, type TailEnvelope } from "../../cha
 import type { LogLine } from "../../chat/playLog/logEvent";
 import { BindingRegistry, type Viewer } from "$lib/presentation/eventBindings";
 
+const presentationFiles = import.meta.glob<Record<string, unknown>>(
+	"../../../../../mods/uni/presentations/*.json",
+	{ eager: true, import: "default" }
+);
+
 const RED_FIVE_BITS = 1000;
 const WILD_BITS = 2000;
 const RED_DRAW2_BITS = 3000;
 /** Decision D2: a card with this tag writes its own log line. */
 const OWN_LOG_TAG = "uni:own_log";
+const WILD_TAG = "uni:wild";
 
 const VIEWER: Viewer = { seat: "Ann" };
 
@@ -18,6 +24,23 @@ function resolveKind(bits: number): { kind: string; color: string } | undefined 
 	return undefined;
 }
 
+/**
+ * The shipped uni log bindings, parsed the way the match registry ingests them:
+ * each file with the `id` the server injects at defs-build time.
+ */
+function shippedFiles(): Record<string, unknown>[] {
+	return Object.entries(presentationFiles).map(([path, binding]) => ({
+		id: `uni:${path.slice(path.lastIndexOf("/") + 1).replace(/\.json$/, "")}`,
+		...(binding as Record<string, unknown>)
+	}));
+}
+
+function registryOf(presentations: Record<string, unknown>[]): BindingRegistry {
+	const registry = new BindingRegistry();
+	registry.ingestDefs({ presentations });
+	return registry;
+}
+
 function envelope(
 	sequence: number,
 	id: string,
@@ -26,19 +49,19 @@ function envelope(
 	context?: Record<string, unknown>,
 	cause?: number
 ): TailEnvelope {
-	return { sequence, seq: sequence, id, type: id, actor, replayed: true, payload, context, cause };
+	return { sequence, id, actor, replayed: true, payload, context, cause };
 }
 
-function replay(tail: TailEnvelope[], bindings?: TailBindings): LogLine[] {
+/** A replay posts the lines of the shipped bindings; nothing else posts. */
+const SHIPPED_BINDINGS: TailBindings = {
+	registry: registryOf(shippedFiles()),
+	getViewer: () => VIEWER
+};
+
+function replay(tail: TailEnvelope[], bindings: TailBindings = SHIPPED_BINDINGS): LogLine[] {
 	const lines: LogLine[] = [];
 	replayTailToLog(tail, resolveKind, (line) => lines.push(line), bindings);
 	return lines;
-}
-
-function registryOf(presentations: Record<string, unknown>[]): BindingRegistry {
-	const registry = new BindingRegistry();
-	registry.ingestDefs({ presentations });
-	return registry;
 }
 
 /** A wild that carries `uni:own_log` reads its player from the play it caused. */
@@ -138,8 +161,9 @@ const STACK_BINDING = {
 	}
 };
 
+/** A stacking mod beside the shipped bindings: both post their own line. */
 const STACK_BINDINGS: TailBindings = {
-	registry: registryOf([STACK_BINDING]),
+	registry: registryOf([...shippedFiles(), STACK_BINDING]),
 	getViewer: () => VIEWER
 };
 
@@ -154,21 +178,35 @@ describe("replayTailToLog", () => {
 			envelope(
 				0,
 				"card_played",
-				{ player: "Ann", card: RED_FIVE_BITS, from_zone_ordinal: 0 },
+				{ player: "Ann", card: RED_FIVE_BITS, from_zone_ordinal: 0, tags: [] },
 				"Ann"
 			)
 		]);
 		expect(lines.map((line) => line.key)).toEqual(["uni:log.play"]);
-		expect(lines[0].params).toMatchObject({ name: "Ann", kind: "uni:red_5", color: "red" });
+		expect(lines[0].params).toEqual({ name: "Ann", kind: "uni:red_5", color: "red" });
 	});
 
 	it("waits for the color of a wild and logs the play and the wild line", () => {
 		const lines = replay([
-			envelope(0, "card_played", { player: "Ann", card: WILD_BITS, from_zone_ordinal: 0 }, "Ann"),
-			envelope(1, "active_type_changed", { color: "blue", previous_color: "red" }, "Ann")
+			envelope(
+				0,
+				"card_played",
+				{
+					player: "Ann",
+					card: WILD_BITS,
+					from_zone_ordinal: 0,
+					tags: [WILD_TAG, "uni:action"]
+				},
+				"Ann"
+			),
+			envelope(1, "active_type_changed", { color: "blue", previous_color: "red" }, "Ann", undefined, 0)
 		]);
-		expect(lines[0].params).toMatchObject({ color: "blue" });
-		expect(lines.length).toBeGreaterThan(1);
+		const play = lines.find((line) => line.key === "uni:log.play");
+		expect(play?.params).toMatchObject({ color: "blue" });
+		expect(lines.map((line) => line.key)).toEqual([
+			"uni:log.play",
+			expect.stringMatching(/^uni:log\.wild_reaction/)
+		]);
 	});
 
 	it("logs a skip, a reverse, a keep and a win", () => {
@@ -181,18 +219,28 @@ describe("replayTailToLog", () => {
 		expect(lines.map((line) => line.key)).toEqual([
 			"uni:log.skip",
 			"uni:log.reverse",
-			expect.stringMatching(/^uni:log\.keep/),
+			"uni:log.keep_drawn",
 			expect.stringMatching(/^uni:log\.win/)
 		]);
 	});
 
-	it("ignores an id that has no log line and an unknown card", () => {
+	it("ignores an id that has no binding", () => {
 		const lines = replay([
 			envelope(0, "turn_advance", { from: "Ann", to: "Bob" }),
-			envelope(1, "some_mod:thing", {}),
-			envelope(2, "card_played", { player: "Ann", card: 7, from_zone_ordinal: 0 })
+			envelope(1, "some_mod:thing", {})
 		]);
 		expect(lines).toEqual([]);
+	});
+
+	it("keeps a play line whose card the viewer cannot resolve", () => {
+		// INFO: the core rules dropped the line when the card stayed unknown.
+		//       A binding posts anyway and drops only the params it cannot
+		//       read, so the name of the seat survives.
+		const lines = replay([
+			envelope(2, "card_played", { player: "Ann", card: 7, from_zone_ordinal: 0, tags: [] }, "Ann")
+		]);
+		expect(lines.map((line) => line.key)).toEqual(["uni:log.play"]);
+		expect(lines[0].params).toEqual({ name: "Ann" });
 	});
 
 	it("is deterministic: the same tail gives the same lines", () => {
@@ -203,15 +251,21 @@ describe("replayTailToLog", () => {
 		expect(replay(tail)).toEqual(replay(tail));
 	});
 
-	it("logs a debt draw as a generic draw with no stack line", () => {
-		const debt = replay([
-			envelope(0, "cards_drawn", { target: "Bob", count: 4, from_debt: true }, "Bob")
+	it("leaves the line of a debt draw to the stacking mod", () => {
+		const debt = replay(
+			[
+				envelope(
+					0,
+					"status_applied",
+					{ target: "Bob", status_kind: "uni:draw_debt", magnitude: 4 },
+					"Ann"
+				)
+			],
+			STACK_BINDINGS
+		);
+		expect(debt.map((line) => line.key)).toEqual([
+			expect.stringMatching(/^draw_stacking:stack_small_/)
 		]);
-		const plain = replay([envelope(0, "cards_drawn", { target: "Bob", count: 1 }, "Bob")]);
-		expect(debt.map((line) => line.key)).toHaveLength(1);
-		expect(debt[0].key).toMatch(/^uni:log\.draw_/);
-		expect(debt[0].key).not.toMatch(/stack/);
-		expect(plain[0].key).not.toMatch(/stack/);
 	});
 
 	it("logs the near-win line from the near_win_entered event, after the play", () => {
@@ -219,7 +273,7 @@ describe("replayTailToLog", () => {
 			envelope(
 				0,
 				"card_played",
-				{ player: "Ann", card: RED_FIVE_BITS, from_zone_ordinal: 0 },
+				{ player: "Ann", card: RED_FIVE_BITS, from_zone_ordinal: 0, tags: [] },
 				"Ann"
 			),
 			envelope(1, "near_win_entered", { target: "Ann" }, "Ann")
@@ -231,17 +285,34 @@ describe("replayTailToLog", () => {
 		expect(lines[1].params).toEqual({ name: "Ann" });
 	});
 
-	it("keeps the near-win line of a wild between its play line and its wild line", () => {
+	it("posts the lines in event order: the wild line and its play wait for the color", () => {
+		// INFO: a binding posts at its own event, unlike the core emitter that
+		//       held the lines back. Spec D10: the event order is the contract.
 		const lines = replay([
-			envelope(0, "card_played", { player: "Ann", card: WILD_BITS, from_zone_ordinal: 0 }, "Ann"),
+			envelope(
+				0,
+				"card_played",
+				{
+					player: "Ann",
+					card: WILD_BITS,
+					from_zone_ordinal: 0,
+					tags: [WILD_TAG, "uni:action"]
+				},
+				"Ann"
+			),
 			envelope(1, "near_win_entered", { target: "Ann" }, "Ann"),
-			envelope(2, "active_type_changed", { color: "blue", previous_color: "red" }, "Ann", {
-				"uni:wild_run": 1
-			})
+			envelope(
+				2,
+				"active_type_changed",
+				{ color: "blue", previous_color: "red" },
+				"Ann",
+				{ "uni:wild_run": 1 },
+				0
+			)
 		]);
 		expect(lines.map((line) => line.key)).toEqual([
-			"uni:log.play",
 			expect.stringMatching(/^uni:log\.near_win/),
+			"uni:log.play",
 			expect.stringMatching(/^uni:log\.wild_reaction/)
 		]);
 	});
@@ -272,11 +343,20 @@ describe("replayTailToLog", () => {
 				"Ann",
 				{ "uni:draw_run": { Ann: 4, Bob: 1 }, "uni:total_draws": 5 }
 			),
-			envelope(1, "card_played", { player: "Bob", card: WILD_BITS, from_zone_ordinal: 0 }, "Bob"),
-			envelope(2, "active_type_changed", { color: "green", previous_color: "red" }, "Bob", {
-				"uni:wild_run": 3,
-				"uni:last_wild_color": { last: "green", previous: "blue" }
-			})
+			envelope(
+				1,
+				"card_played",
+				{ player: "Bob", card: WILD_BITS, from_zone_ordinal: 0, tags: [WILD_TAG] },
+				"Bob"
+			),
+			envelope(
+				2,
+				"active_type_changed",
+				{ color: "green", previous_color: "red" },
+				"Bob",
+				{ "uni:wild_run": 3, "uni:last_wild_color": { last: "green", previous: "blue" } },
+				1
+			)
 		]);
 		expect(lines[0].key).toMatch(/^uni:log\.draw_many/);
 		const wild = lines.find((line) => line.key.startsWith("uni:log.wild_reaction"));
@@ -298,7 +378,7 @@ describe("replayTailToLog", () => {
 			envelope(
 				0,
 				"card_played",
-				{ player: "Ann", card: RED_DRAW2_BITS, from_zone_ordinal: 0 },
+				{ player: "Ann", card: RED_DRAW2_BITS, from_zone_ordinal: 0, tags: [] },
 				"Ann"
 			),
 			envelope(
@@ -311,7 +391,7 @@ describe("replayTailToLog", () => {
 			)
 		];
 
-		it("posts the stack line of a stacking response next to the core play line", () => {
+		it("posts the stack line of a stacking response next to the play line", () => {
 			const lines = replay(stackingTail(), STACK_BINDINGS);
 			expect(lines.map((line) => line.key)).toEqual([
 				"uni:log.play",
@@ -330,7 +410,7 @@ describe("replayTailToLog", () => {
 							player: "Ann",
 							card: WILD_BITS,
 							from_zone_ordinal: 0,
-							tags: ["uni:wild", "uni:action", OWN_LOG_TAG]
+							tags: [WILD_TAG, "uni:action", OWN_LOG_TAG]
 						},
 						"Ann"
 					),
@@ -402,8 +482,18 @@ describe("replayTailToLog", () => {
 
 		it("posts no second elimination line for a repeat placement", () => {
 			const lines = replay([
-				envelope(0, "placement_set", { target: "Bob", place: 2, is_elimination: true }, "Ann"),
-				envelope(1, "placement_set", { target: "Bob", place: 2, is_elimination: true }, "Ann")
+				envelope(
+					0,
+					"placement_set",
+					{ target: "Bob", place: 2, is_elimination: true, finished: false },
+					"Ann"
+				),
+				envelope(
+					1,
+					"placement_set",
+					{ target: "Bob", place: 2, is_elimination: true, finished: false },
+					"Ann"
+				)
 			]);
 			expect(lines.map((line) => line.key)).toEqual([
 				expect.stringMatching(/^uni:log\.left_behind/)

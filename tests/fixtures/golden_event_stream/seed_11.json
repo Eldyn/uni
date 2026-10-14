@@ -9,7 +9,7 @@
     "sequence"
    ],
    "id": "defs",
-   "payload_digest": "99baa1644cc74942",
+   "payload_digest": "c2e6e46f012723d3",
    "payload_keys": [
     "defs_digest",
     "entities",
@@ -29,7 +29,7 @@
     "sequence"
    ],
    "id": "match_start",
-   "payload_digest": "6f891c1a00059581",
+   "payload_digest": "b47df38117f69ddf",
    "payload_keys": [
     "deck_id",
     "deck_name",
@@ -2243,7 +2243,7 @@
     "sequence"
    ],
    "id": "defs",
-   "payload_digest": "99baa1644cc74942",
+   "payload_digest": "c2e6e46f012723d3",
    "payload_keys": [
     "defs_digest",
     "entities",
@@ -2263,7 +2263,7 @@
     "sequence"
    ],
    "id": "match_start",
-   "payload_digest": "6f891c1a00059581",
+   "payload_digest": "b47df38117f69ddf",
    "payload_keys": [
     "deck_id",
     "deck_name",
@@ -4475,7 +4475,7 @@
     "sequence"
    ],
    "id": "defs",
-   "payload_digest": "99baa1644cc74942",
+   "payload_digest": "c2e6e46f012723d3",
    "payload_keys": [
     "defs_digest",
     "entities",

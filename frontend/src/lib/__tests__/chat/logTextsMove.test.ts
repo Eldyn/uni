@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { REACTION_RULES } from "../../chat/playLog/logBuilder";
 import { SHIPPED_LOCALES } from "../glossary/coreTextsHarness";
+
+const presentationFiles = import.meta.glob<Record<string, unknown>>(
+	"../../../../../mods/uni/presentations/*.json",
+	{ eager: true, import: "default" }
+);
 
 const MOD_LOG_PREFIX = "uni:log.";
 const LEGACY_LOG_KEY = /^log_/;
@@ -21,6 +25,22 @@ function textsOf(locale: string): Record<string, string> {
 	return textsFiles[path];
 }
 
+/** The variant pool of every `uni:log` case the shipped bindings declare. */
+function variantPools(): string[][] {
+	return Object.values(presentationFiles).flatMap((presentation) => {
+		const binding = (presentation as Record<string, unknown>)["uni:binding"] as {
+			"uni:cases": { "uni:present": { "uni:log"?: { "uni:variants": string[] } } }[];
+		};
+		return binding["uni:cases"]
+			.map((logCase) => logCase["uni:present"]["uni:log"]?.["uni:variants"])
+			.filter((variants): variants is string[] => variants !== undefined);
+	});
+}
+
+/** Every log key a shipped binding can post, without the repeats a case that
+ *  shares its line with another binding makes. */
+const poolKeys = [...new Set(variantPools().flat())];
+
 describe("the interface catalogs hold no play log key", () => {
 	it("reads every catalog, pseudo included", () => {
 		expect(Object.keys(catalogFiles).length).toBe(SHIPPED_LOCALES.length + 1);
@@ -34,12 +54,10 @@ describe("the interface catalogs hold no play log key", () => {
 });
 
 describe("the variants of the play log are discoverable from the texts", () => {
-	const poolKeys = REACTION_RULES.flatMap((rule) =>
-		Object.values(rule.pools).flatMap((pool) => pool.map((variant) => variant.key))
-	);
-
-	it("lists no variant twice", () => {
-		expect(new Set(poolKeys).size).toBe(poolKeys.length);
+	it("lists no variant twice within one case", () => {
+		for (const variants of variantPools()) {
+			expect(new Set(variants).size).toBe(variants.length);
+		}
 	});
 
 	it("uses exactly the non-color log keys of the texts", () => {

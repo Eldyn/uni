@@ -26,6 +26,11 @@
                 "uni:field": "player",
                 "uni:cause": true
               },
+              "kind": {
+                "uni:field": "card",
+                "uni:cause": true,
+                "uni:card_part": "kind"
+              },
               "color": {
                 "uni:field": "color"
               }

@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { LogEvent } from "$lib/chat/playLog/logEvent";
 import {
 	BindingRegistry,
 	clientEventOf,
@@ -25,19 +24,15 @@ const CARD_TABLE: Record<number, { kind: string; color: string }> = {
 };
 const resolveCard: CardResolver = (bits) => CARD_TABLE[bits];
 
-type CoreInput = LogEvent extends infer Event
-	? Event extends LogEvent
-		? Omit<Event, keyof { seq: number }>
-		: never
-	: never;
+/**
+ * The frozen core expectation the wire was built from. The core rules are
+ * gone; this stays as the documentation of what each wire means, so nothing
+ * reads it.
+ */
+type CoreInput = { kind: string; [field: string]: unknown };
 
 interface ParityCase {
 	name: string;
-	/**
-	 * The frozen core expectation the wire was built from. Nothing reads it:
-	 * the parity comparison now runs the fixture bindings against the shipped
-	 * bindings. It stays as documentation of what each wire means.
-	 */
 	core: CoreInput | null;
 	wire: Omit<EventEnvelope, "sequence">;
 	/** The seat whose entry the per-seat draw count reads (likewise unread now). */

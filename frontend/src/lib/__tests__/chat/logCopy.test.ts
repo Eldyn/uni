@@ -1,15 +1,17 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { REACTION_RULES } from "../../chat/playLog/logBuilder";
-import { resolveLogText } from "../../chat/playLog/logText";
+import { resolveLogText } from "$lib/presentation/logText";
 import { getGlossaryEntry } from "$lib/glossary/glossary";
-import type { LogEvent, StreakValues } from "../../chat/playLog/logEvent";
-import type { ReactionContext } from "../../chat/playLog/reactionContext";
 import { prepareCoreTexts } from "../glossary/coreTextsHarness";
 import { PALETTE_COLORS, tagProblem as richTagProblem } from "./richTagProblems";
 
 beforeEach(async () => {
 	await prepareCoreTexts("en");
 });
+
+const presentationFiles = import.meta.glob<Record<string, unknown>>(
+	"../../../../../mods/uni/presentations/*.json",
+	{ eager: true, import: "default" }
+);
 
 const localeCatalogs = import.meta.glob<Record<string, string>>(
 	"../../../../../mods/uni/texts/*.json",
@@ -35,89 +37,43 @@ const PLACEHOLDER_SAMPLES: Record<string, string> = {
 	handSize: "5",
 	drawRun: "3",
 	victim: "Bob",
+	blocker: "Bob",
+	target: "Ann",
 	place: "1"
 };
 
-const EMPTY_STREAK: StreakValues = {
-	skipRun: 0,
-	reverseRun: 0,
-	drawRun: 0,
-	totalDraws: 0,
-	wildRun: 0,
-	lastWildColor: null,
-	prevWildColor: null
-};
+interface ShippedCase {
+	key: string;
+	params: Record<string, string>;
+}
 
-const SAMPLE_EVENTS: Record<string, LogEvent> = {
-	skip: { kind: "skip", seq: 1, player: "Ann" },
-	reverse: { kind: "reverse", seq: 2 },
-	draw: {
-		kind: "draw",
-		seq: 3,
-		player: "Ann",
-		count: 2,
-		penalty: false,
-		amount: 4,
-		total: 8,
-		handSize: 12,
-		victim: "Bob"
-	},
-	play: { kind: "play", seq: 1, player: "Ann", cardKind: "uni:red_5", color: "red" },
-	keep: { kind: "keep", seq: 10, player: "Ann" },
-	reshuffle: { kind: "reshuffle", seq: 4 },
-	wild: { kind: "wild", seq: 5, player: "Ann", color: "red" },
-	auto_play: {
-		kind: "auto_play",
-		seq: 6,
-		player: "Ann",
-		cardKind: "uni:red_5",
-		color: "red"
-	},
-	near_win: { kind: "near_win", seq: 7, player: "Ann" },
-	blocked: { kind: "blocked", seq: 8, player: "Ann", blocker: "Bob" },
-	penalty_draw: {
-		kind: "draw",
-		seq: 9,
-		player: "Bob",
-		count: 0,
-		penalty: true,
-		amount: 2,
-		total: 2,
-		handSize: 4,
-		victim: "Ann",
-		actor: "Carl"
-	},
-	win: { kind: "win", seq: 1, player: "Ann" },
-	elimination: { kind: "elimination", seq: 2, player: "Ann", place: 2 }
-};
+/** The log copy the shipped bindings can post: one case per variant key, with
+ *  a sample for every param the case declares. */
+function shippedCases(): ShippedCase[] {
+	const cases: ShippedCase[] = [];
+	for (const presentation of Object.values(presentationFiles)) {
+		const binding = (presentation as Record<string, unknown>)["uni:binding"] as {
+			"uni:cases": {
+				"uni:present": { "uni:log"?: { "uni:variants"?: string[]; "uni:params"?: object } };
+			}[];
+		};
+		for (const logCase of binding["uni:cases"]) {
+			const log = logCase["uni:present"]["uni:log"];
+			if (log === undefined || log["uni:variants"] === undefined) continue;
+			const params = Object.fromEntries(
+				Object.keys(log["uni:params"] ?? {}).map((name) => [
+					name,
+					PLACEHOLDER_SAMPLES[name] ?? "Bob"
+				])
+			);
+			for (const key of log["uni:variants"]) cases.push({ key, params });
+		}
+	}
+	return cases;
+}
 
-const SAMPLE_STREAKS: Record<string, Partial<StreakValues>> = {
-	wild: { wildRun: 2, prevWildColor: "green", lastWildColor: "blue" }
-};
-
-const ruleCases = Object.entries(SAMPLE_EVENTS).flatMap(([kind, event]) => {
-	const ctx: ReactionContext = {
-		seq: event.seq,
-		event,
-		...EMPTY_STREAK,
-		...SAMPLE_STREAKS[kind]
-	};
-	return REACTION_RULES.filter((rule) => rule.match(ctx)).flatMap((rule) =>
-		Object.values(rule.pools)
-			.flat()
-			.map((variant) => ({ key: variant.key, params: rule.params(ctx) }))
-	);
-});
-
-const reactionKeys = Array.from(
-	new Set(
-		REACTION_RULES.flatMap((rule) =>
-			Object.values(rule.pools)
-				.flat()
-				.map((variant) => variant.key)
-		)
-	)
-);
+const ruleCases = shippedCases();
+const reactionKeys = [...new Set(ruleCases.map((ruleCase) => ruleCase.key))];
 const colorNameKeys = PALETTE_COLORS.map((color) => `uni:log.color_${color}`);
 const copyKeys = [...reactionKeys, ...colorNameKeys];
 
@@ -147,7 +103,7 @@ describe("tagProblem fx param validation", () => {
 	});
 });
 
-describe("play log copy renders for every REACTION_RULES pool key", () => {
+describe("play log copy renders for every shipped variant key", () => {
 	it.each(ruleCases)("$key resolves to clean, balanced copy", ({ key, params }) => {
 		const text = resolveLogText(key, params);
 		expect(text, `${key} is missing from the catalog`).toBeTruthy();

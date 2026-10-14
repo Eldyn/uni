@@ -5,14 +5,13 @@
  * Every play log and reaction text lives in `mods/uni/texts/<locale>.json`.
  * The key of a text is `uni:log.<name>`. It replaces the interface key
  * `log_<name>` one to one: `log_reverse_back_2` became `uni:log.reverse_back_2`,
- * `log_color_red` became `uni:log.color_red`. The variants of one joke keep
- * their numbered names (`..._1`, `..._2`), and `logBuilder` lists them per rule
- * and group.
+ * `log_color_red` became `uni:log.color_red`. A presentation binding names the
+ * variants of the lines it posts.
  */
 
 import { cardInfoByKind } from "$lib/glossary/cardDescriptions";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
-import type { LogLine } from "./logEvent";
+import type { LogLine } from "$lib/chat/playLog/logEvent";
 
 /** The locale the caller renders in; the mod text layer follows the active locale. */
 export interface LogTextOptions {

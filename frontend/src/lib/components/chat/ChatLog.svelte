@@ -4,7 +4,7 @@
 	import { chatStore, type ChatChannel } from "$stores/chat.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { censorText } from "$utils/censor.svelte";
-	import { resolveLogText } from "$lib/chat/playLog/logText";
+	import { resolveLogText } from "$lib/presentation/logText";
 	import { storeI18n } from "$stores/i18n.svelte";
 
 	let { channel }: { channel: ChatChannel } = $props();
