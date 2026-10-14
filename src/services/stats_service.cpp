@@ -1,4 +1,6 @@
 #include <services/stats_service.hpp>
+#include <nlohmann/json.hpp>
+#include <algorithm>
 
 StatsService::StatsService(Database& db) : db_(db) {}
 
@@ -55,28 +57,49 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
 }
 
 Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
-    auto rows_result = db_.Query(R"(
+    // INFO: One TEXT row: SQLite builds the whole top-50 JSON array, so the
+    // loop parses a single cell instead of one DbRow map per entry.
+    auto row_result = db_.QueryOne(R"(
+        SELECT COALESCE(json_group_array(json_object('username',username,'total_wins',total_wins,'total_losses',total_losses,'rank',rank)), '[]') AS j FROM (
         SELECT ps.username, ps.total_wins, ps.total_losses,
                DENSE_RANK() OVER (
                    ORDER BY ps.total_wins DESC, ps.total_losses ASC) as rank
         FROM player_stats ps
         JOIN users u ON u.username = ps.username
         ORDER BY rank ASC
-        LIMIT 50;
+        LIMIT 50);
     )");
 
-    if (!rows_result) {
-        return std::unexpected(rows_result.error());
+    if (!row_result) {
+        return std::unexpected(row_result.error());
+    }
+    if (!row_result->has_value()) {
+        return std::vector<LeaderboardEntry>{};
     }
 
+    nlohmann::json arr;
+    try {
+        arr = nlohmann::json::parse(row_result->value().GetOr<std::string>("j", "[]"));
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
+    }
+
+    // The planner may flatten the ordered subquery, so re-establish rank
+    // order on the loop (stable: ties keep SQLite's return order, matching
+    // the old ORDER BY, which left ties unordered too).
+    std::stable_sort(arr.begin(), arr.end(),
+                     [](const nlohmann::json& a, const nlohmann::json& b) {
+                         return a.at("rank").get<int>() < b.at("rank").get<int>();
+                     });
+
     std::vector<LeaderboardEntry> entries;
-    entries.reserve(rows_result->size());
-    for (const auto& row : rows_result.value()) {
+    entries.reserve(arr.size());
+    for (const auto& e : arr) {
         entries.push_back({
-            row.Get<std::string>("username"),
-            row.Get<int>("total_wins"),
-            row.Get<int>("total_losses"),
-            row.Get<int>("rank"),
+            e.at("username").get<std::string>(),
+            e.at("total_wins").get<int>(),
+            e.at("total_losses").get<int>(),
+            e.at("rank").get<int>(),
         });
     }
 

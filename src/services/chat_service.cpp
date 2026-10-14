@@ -1,6 +1,7 @@
 #include <services/chat_service.hpp>
 #include <common/crypto.hpp>
 #include <common/env.hpp>
+#include <nlohmann/json.hpp>
 #include <algorithm>
 
 namespace {
@@ -199,35 +200,59 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
     // Client-facing entry point, never allow the unbounded (-1) mode here.
     if (limit < 0) limit = default_shard_size_;
 
+    // INFO: The page is built inside SQLite as one JSON array (single TEXT
+    // cell, no per-cell DbRow map). Decryption stays on the calling (loop)
+    // thread after the worker returns — one alloc for the whole page.
     std::string sql =
-        "SELECT id, sender, recipient, nonce, ciphertext, aad_version FROM chat_dms WHERE "
+        "SELECT COALESCE(json_group_array(json_object('id',id,'sender',sender,'recipient',recipient,"
+        "'nonce',nonce,'ciphertext',ciphertext,'aad_version',aad_version)), '[]') AS j "
+        "FROM (SELECT id,sender,recipient,nonce,ciphertext,aad_version FROM chat_dms WHERE "
         "((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?))";
     std::vector<DbValue> params = {user_a, user_b, user_b, user_a};
     if (before_id.has_value()) {
         sql += " AND id < ?";
         params.push_back(*before_id);
     }
-    sql += " ORDER BY id DESC LIMIT ?;";
+    sql += " ORDER BY id DESC LIMIT ?);";
     params.push_back(limit + 1);
 
-    auto rows = db_.Query(sql.c_str(), params);
-    if (!rows) {
-        return std::unexpected(rows.error());
+    auto row = db_.QueryOne(sql.c_str(), params);
+    if (!row) {
+        return std::unexpected(row.error());
+    }
+    // An aggregate without GROUP BY always yields exactly one row; the
+    // COALESCE above guarantees valid JSON even for an empty page.
+    std::string payload = "[]";
+    if (row->has_value()) {
+        payload = row->value().GetOr<std::string>("j", "[]");
+    }
+    nlohmann::json arr;
+    try {
+        arr = nlohmann::json::parse(payload);
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
     }
 
-    bool has_more = rows->size() > static_cast<std::size_t>(limit);
-    std::size_t take = has_more ? static_cast<std::size_t>(limit) : rows->size();
+    // json_group_array follows the subquery scan order in practice, but the
+    // planner is free to flatten the ordered subquery — sort by id (unique)
+    // on the loop so the window is always the newest `limit` rows.
+    std::sort(arr.begin(), arr.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+        return a.at("id").get<int>() > b.at("id").get<int>();
+    });
+
+    bool has_more = arr.size() > static_cast<std::size_t>(limit);
+    std::size_t take = has_more ? static_cast<std::size_t>(limit) : arr.size();
 
     std::vector<ChatMessageEntry> page;
     page.reserve(take);
     for (std::size_t i = 0; i < take; ++i) {
-        const auto& row = rows->at(i);
-        Crypto::EncryptedBlob blob{row.Get<std::string>("nonce"),
-                                  row.Get<std::string>("ciphertext")};
+        const auto& e = arr[i];
+        Crypto::EncryptedBlob blob{e.at("nonce").get<std::string>(),
+                                   e.at("ciphertext").get<std::string>()};
 
-        const std::string sender_col = row.Get<std::string>("sender");
-        const std::string recipient_col = row.Get<std::string>("recipient");
-        const int aad_version = row.Get<int>("aad_version");
+        const std::string sender_col = e.at("sender").get<std::string>();
+        const std::string recipient_col = e.at("recipient").get<std::string>();
+        const int aad_version = e.at("aad_version").get<int>();
 
         std::string aad;
         if (aad_version >= 1) aad = DmAad(sender_col, recipient_col);
@@ -236,7 +261,7 @@ Result<ChatHistoryPage> ChatService::GetDirectHistoryPage(const std::string& use
         if (!plaintext) {
             return std::unexpected(plaintext.error());
         }
-        page.push_back({row.Get<int>("id"), sender_col, *plaintext});
+        page.push_back({e.at("id").get<int>(), sender_col, *plaintext});
     }
     std::reverse(page.begin(), page.end());
     return ChatHistoryPage{page, has_more};
