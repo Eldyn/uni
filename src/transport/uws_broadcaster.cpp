@@ -26,15 +26,16 @@ unsigned UwsBroadcaster::SendSkipBytesFromEnv() {
 UwsBroadcaster::UwsBroadcaster(AppHttp& app)
     : app_(app), send_skip_bytes_(SendSkipBytesFromEnv()) {}
 
-void UwsBroadcaster::Send(AppWebSocket* socket, const std::string& msg,
+bool UwsBroadcaster::Send(AppWebSocket* socket, const std::string& msg,
                            uWS::OpCode op, bool compress) {
-    if (socket == nullptr) return;
+    if (socket == nullptr) return false;
     // INFO: backpressure guard — a socket already buffering past the
     //       threshold is not keeping up; dropping this (superseded-by-next)
     //       frame keeps the connection alive instead of tripping uWS's
-    //       closeOnBackpressureLimit disconnect. Critical one-shot frames
-    //       (match_over) share this path; the counter + periodic warn make a
-    //       burst visible so the threshold can be tuned, not silent.
+    //       closeOnBackpressureLimit disconnect. The false return lets
+    //       one-shot callers (match_over) retry instead of losing the frame;
+    //       the counter + periodic warn make a burst visible so the threshold
+    //       can be tuned, not silent.
     if (send_skip_bytes_ > 0 &&
         socket->getBufferedAmount() > send_skip_bytes_) {
         const unsigned long long drops = ++g_send_drops;
@@ -42,9 +43,10 @@ void UwsBroadcaster::Send(AppWebSocket* socket, const std::string& msg,
             Logger::Warn("[WS] send skipped: backpressure guard dropped " +
                          std::to_string(drops) + " frame(s)");
         }
-        return;
+        return false;
     }
     socket->send(msg, op, compress);
+    return true;
 }
 
 void UwsBroadcaster::Publish(const std::string& topic, const std::string& msg,

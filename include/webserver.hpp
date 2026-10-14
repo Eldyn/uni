@@ -213,11 +213,12 @@ private:
 
     /**
      * @brief Walks `frontend_path_` once at startup and loads every regular file's
-     * contents into `static_file_cache_`, so `ReadFile` becomes a hot-path lookup
-     * instead of a per-request disk read. ETags stay live (stat-based via
-     * `http::MakeETag`) so a file replaced on disk after startup still revalidates
-     * correctly even though its cached bytes are stale; only newly added files are
-     * not served until the process restarts and re-populates the cache.
+     * contents into `static_file_cache_` as `CachedAsset{bytes, etag}`, so a cache
+     * hit serves the frozen bytes with their frozen validator — no per-request
+     * disk read, `stat`, or copy. A file replaced on disk after startup keeps
+     * serving the startup bytes (and their ETag) until the process restarts;
+     * only files added after startup miss the cache and fall back to `ReadFile`
+     * + live `http::MakeETag`.
      */
     void LoadStaticFileCache();
 

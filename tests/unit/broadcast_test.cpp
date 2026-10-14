@@ -202,6 +202,82 @@ TEST_CASE("match_over serializes once for N recipients") {
     CHECK(fake.sent.size() == 4);
 }
 
+/** @brief Test double that drops the first Send (reports backpressure). */
+struct DropFirstBroadcaster : FakeBroadcaster {
+    bool drop_armed = true;
+
+    bool Send(AppWebSocket* socket, const std::string& msg,
+              uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true) override {
+        if (drop_armed) {
+            drop_armed = false;
+            return false;
+        }
+        FakeBroadcaster::Send(socket, msg, op, compress);
+        return true;
+    }
+};
+
+TEST_CASE("match_over dropped under backpressure is resent, not lost") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 4);
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player0, {wilds[0], wilds[1]});
+    ForceHand(*engine, player1, {wilds[2], wilds[3]});
+    const uint32_t wild0 = BitsOf(*engine, wilds[0]);
+    const uint32_t wild1 = BitsOf(*engine, wilds[1]);
+
+    AppWebSocket* s0 = TestSocket(0);
+    AppWebSocket* s1 = TestSocket(1);
+    AppWebSocket* v0 = TestSocket(2);
+    AppWebSocket* v1 = TestSocket(3);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    session.BindViewer("spec0", v0);
+    session.BindViewer("spec1", v1);
+    FakeBroadcaster play;
+
+    REQUIRE(session.PlayCard("player0", wild0));
+    REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
+    REQUIRE(session.DrawCard("player1"));
+    if (session.Engine().PendingPlayDrawnState().has_value()) {
+        REQUIRE(session.KeepDrawn("player1"));
+    }
+    REQUIRE(session.PlayCard("player0", wild1));
+    REQUIRE(session.SubmitInput("player0", "choose_color", json("blue")));
+    session.EmitEvents(play);
+    REQUIRE(session.Engine().IsMatchOver());
+
+    // First broadcast loses one recipient to backpressure: the one-shot
+    // must NOT latch as delivered.
+    DropFirstBroadcaster bus;
+    CHECK(!session.BroadcastMatchOver(bus));
+    CHECK(!session.MatchOverNotified());
+
+    // Retry delivers to everyone and latches; a further call is a no-op.
+    CHECK(session.BroadcastMatchOver(bus));
+    CHECK(session.MatchOverNotified());
+    for (AppWebSocket* sock : {s0, s1, v0, v1}) {
+        bool got_over = false;
+        for (const SentFrame& frame : bus.FramesFor(sock)) {
+            const json packet = json::parse(frame.payload);
+            if (packet.value("action", std::string()) == "match_over") {
+                got_over = true;
+                CHECK(packet.value("winner", std::string()) == "player0");
+            }
+        }
+        CHECK(got_over);
+    }
+    const std::size_t sent = bus.sent.size();
+    CHECK(session.BroadcastMatchOver(bus));
+    CHECK(bus.sent.size() == sent);
+}
+
 TEST_CASE("match_over WritePacket reuses scratch capacity") {
     match::view::MatchOverWire over{"match_over", "player0",
                                     {"player0", "player1"}};

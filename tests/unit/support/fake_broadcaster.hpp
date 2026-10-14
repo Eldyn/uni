@@ -29,9 +29,10 @@ public:
     std::vector<std::pair<std::string, std::string>>    published; // {topic, payload}
     std::set<std::pair<AppWebSocket*, std::string>>     subscriptions;
 
-    void Send(AppWebSocket* socket, const std::string& msg,
+    bool Send(AppWebSocket* socket, const std::string& msg,
               uWS::OpCode op = uWS::OpCode::TEXT, bool = true) override {
         sent.push_back({socket, msg, op});
+        return true;
     }
 
     void Publish(const std::string& topic, const std::string& msg,

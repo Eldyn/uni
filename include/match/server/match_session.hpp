@@ -320,12 +320,17 @@ public:
     /**
      * @brief Send the terminal `match_over` packet once, if finished.
      *
-     * Idempotent: later calls after the first send are no-ops. Called by
+     * Idempotent once delivered: later calls after every recipient accepted
+     * the frame are no-ops. A backpressure drop on any recipient leaves the
+     * sent-latch clear, so the next call (every `BroadcastSnapshot` ends
+     * here) retries the one-shot instead of losing it. Called by
      * `BroadcastSnapshot`, exposed for controllers that finish a match
      * without a snapshot.
      *
      * @param broadcaster Transport sink for `SendJson`.
-     * @return true when the match is over (packet sent at least once).
+     * @return true when the terminal frame has been accepted for all
+     * recipients; false when the match is still running or a drop left
+     * delivery pending.
      */
     bool BroadcastMatchOver(IBroadcaster& broadcaster);
 
@@ -406,7 +411,7 @@ public:
     const match::view::EventTail& Tail() const { return tail_; }
     /** @brief Index into `Engine().Events()` already emitted. */
     std::size_t EventCursor() const { return cursor_; }
-    /** @brief True once a `match_over` packet has been sent. */
+    /** @brief True once `match_over` has been accepted for all recipients. */
     bool MatchOverNotified() const { return over_sent_; }
     /** @brief Recipient socket map as supplied at construction. */
     const SocketMap& Sockets() const { return sockets_; }

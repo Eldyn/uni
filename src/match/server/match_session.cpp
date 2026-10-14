@@ -609,16 +609,23 @@ bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
     std::string shared;
     shared.reserve(512);
     if (!match::view::WritePacket(over, shared)) return true;
+    // INFO: every Send is checked: a backpressure drop on any recipient
+    //       leaves over_sent_ clear, so the next BroadcastSnapshot retries
+    //       the one-shot instead of losing it. Snapshots self-heal by
+    //       supersession; match_over has no next version, so it must not
+    //       latch a partially-dropped broadcast as delivered. (&= keeps
+    //       sending to the remaining recipients after a drop.)
+    bool all_accepted = true;
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
-        broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
+        all_accepted &= broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
-        broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
+        all_accepted &= broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
-    over_sent_ = true;
-    return true;
+    if (all_accepted) over_sent_ = true;
+    return over_sent_;
 }
 
 const nlohmann::json* MatchSession::FindPromptSchema(

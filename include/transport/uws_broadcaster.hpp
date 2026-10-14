@@ -14,13 +14,15 @@
  * `WS_SEND_SKIP_BYTES`, default 512 KiB) instead of queueing into
  * `closeOnBackpressureLimit`'s silent disconnect at 1 MiB. Snapshots are
  * lossy by design (the next broadcast supersedes a dropped one); the drop
- * is counted and logged so a sustained burst stays visible.
+ * is counted and logged so a sustained burst stays visible. `Send` returns
+ * false on a drop so one-shot callers (`match_over`) can withhold their
+ * sent-latch and retry on the next broadcast instead of losing the frame.
  */
 class UwsBroadcaster : public IBroadcaster {
 public:
     explicit UwsBroadcaster(AppHttp& app);
 
-    void Send(AppWebSocket* socket, const std::string& msg,
+    bool Send(AppWebSocket* socket, const std::string& msg,
               uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true) override;
 
     void Publish(const std::string& topic, const std::string& msg,

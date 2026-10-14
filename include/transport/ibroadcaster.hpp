@@ -21,8 +21,14 @@ class IBroadcaster {
 public:
     virtual ~IBroadcaster() = default;
 
-    /** @brief Send a raw string frame to a single socket. */
-    virtual void Send(AppWebSocket* socket, const std::string& msg,
+    /**
+     * @brief Send a raw string frame to a single socket.
+     * @return true when the transport accepted the frame; false when it was
+     * dropped (e.g. the production backpressure guard skipped a socket that
+     * is not keeping up). Callers sending lossy snapshots may ignore this;
+     * one-shot frames must retry on false.
+     */
+    virtual bool Send(AppWebSocket* socket, const std::string& msg,
                       uWS::OpCode op = uWS::OpCode::TEXT, bool compress = true) = 0;
 
     /** @brief Publish a raw string frame to all subscribers of a topic. */
