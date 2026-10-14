@@ -1,0 +1,72 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:elimination_log"
+    },
+    "uni:event": "placement_set",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:field": "place",
+            "uni:value": 2
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "finished",
+            "uni:value": true
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.finish_1",
+              "uni:log.finish_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "place": {
+                "uni:field": "place"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:field": "place",
+            "uni:value": 2
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "finished",
+            "uni:value": false
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.left_behind_1",
+              "uni:log.left_behind_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "place": {
+                "uni:field": "place"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

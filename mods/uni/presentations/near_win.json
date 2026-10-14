@@ -1,0 +1,32 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:near_win_log"
+    },
+    "uni:event": "near_win_entered",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.near_win_1",
+              "uni:log.near_win_2",
+              "uni:log.near_win_3"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

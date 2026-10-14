@@ -1,0 +1,24 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:reshuffle_log"
+    },
+    "uni:event": "reshuffle",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.reshuffle_1",
+              "uni:log.reshuffle_2",
+              "uni:log.reshuffle_3"
+            ],
+            "uni:params": {}
+          }
+        }
+      }
+    ]
+  }
+}
