@@ -122,28 +122,36 @@ VoidResult ChatService::SendDirectMessage(const std::string& sender,
         return std::unexpected(blob.error());
     }
 
-    auto insert = db_.Exec(
-        "INSERT INTO chat_dms (sender, recipient, nonce, ciphertext, aad_version) "
-        "VALUES (?, ?, ?, ?, 1);",
-        {sender, recipient, blob->nonce_b64, blob->ciphertext_b64});
-    if (!insert) {
-        return std::unexpected(insert.error());
-    }
+    // INFO: Insert + prune run as one closure wholly on the DB worker thread
+    // (single queue hop, single BEGIN…COMMIT): no other task can interleave
+    // between them, and the loop thread never touches sqlite3_*.
+    auto fut = db_.RunInTxn(
+        [sender, recipient, nonce = blob->nonce_b64, ciphertext = blob->ciphertext_b64,
+         limit = static_cast<int>(kDmHistoryLimit)](Database& db) -> VoidResult {
+            auto insert = db.Exec(
+                "INSERT INTO chat_dms (sender, recipient, nonce, ciphertext, aad_version) "
+                "VALUES (?, ?, ?, ?, 1);",
+                {sender, recipient, nonce, ciphertext});
+            if (!insert) {
+                return std::unexpected(insert.error());
+            }
 
-    auto prune = db_.Exec(
-        "DELETE FROM chat_dms WHERE "
-        "((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)) AND id NOT IN ("
-        "  SELECT id FROM chat_dms WHERE "
-        "  ((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)) "
-        "  ORDER BY id DESC LIMIT ?"
-        ");",
-        {sender, recipient, recipient, sender,
-         sender, recipient, recipient, sender,
-         static_cast<int>(kDmHistoryLimit)});
-    if (!prune) {
-        return std::unexpected(prune.error());
-    }
-    return {};
+            auto prune = db.Exec(
+                "DELETE FROM chat_dms WHERE "
+                "((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)) AND id NOT IN ("
+                "  SELECT id FROM chat_dms WHERE "
+                "  ((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)) "
+                "  ORDER BY id DESC LIMIT ?"
+                ");",
+                {sender, recipient, recipient, sender,
+                 sender, recipient, recipient, sender,
+                 limit});
+            if (!prune) {
+                return std::unexpected(prune.error());
+            }
+            return {};
+        });
+    return fut.get();
 }
 
 Result<std::vector<ChatMessageEntry>> ChatService::GetDirectHistory(const std::string& user_a,

@@ -200,9 +200,10 @@ Result<AccountStatus> AuthService::GetAccountStatus(const std::string& username)
 }
 
 bool AuthService::IsFullMember(const std::string& username) {
-    auto row_result = Database::Get().QueryOne(
+    // Runs on the DB worker thread; the loop thread blocks on the future.
+    auto row_result = Database::Get().QueryOneAsync(
         "SELECT email_verified FROM users WHERE username = ?;",
-        {username});
+        {username}).get();
 
     if (!row_result || !row_result->has_value()) {
         return false;
@@ -343,9 +344,10 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
     }
 
     // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
+    // Runs on the DB worker thread; the loop thread blocks on the future.
     int version = 0;
-    auto row = Database::Get().QueryOne(
-        "SELECT token_version FROM users WHERE username = ?;", {username});
+    auto row = Database::Get().QueryOneAsync(
+        "SELECT token_version FROM users WHERE username = ?;", {username}).get();
     if (!row) return std::unexpected(row.error());
     if (row->has_value()) version = row->value().Get<int>("token_version");
 
@@ -401,8 +403,9 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
             }
         }
 
-        auto row = Database::Get().QueryOne(
-            "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()});
+        // Runs on the DB worker thread; the loop thread blocks on the future.
+        auto row = Database::Get().QueryOneAsync(
+            "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()}).get();
         if (!row) return std::unexpected(row.error());
         if (row->has_value() && row->value().Get<int>("token_version") != claim_version) {
             return std::unexpected(Error::Unauthorised("Session revoked"));

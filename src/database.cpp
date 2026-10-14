@@ -176,12 +176,20 @@ static constexpr Migration MIGRATIONS[] = {
 
 // Database implementation
 
+Database::Database()  = default;
+Database::~Database() { Close(); }
+
+bool Database::OnWorkerThread() const {
+    return worker_.IsWorkerThread();
+}
+
 Database& Database::Get() {
     static Database instance;
     return instance;
 }
 
 VoidResult Database::Open(std::string_view path) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
     if (sqlite3_open(path.data(), &db_) != SQLITE_OK) {
         return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
     }
@@ -205,6 +213,7 @@ VoidResult Database::Open(std::string_view path) {
 }
 
 void Database::Close() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
     if (db_) {
         sqlite3_close(db_);
         db_ = nullptr;
@@ -212,10 +221,13 @@ void Database::Close() {
 }
 
 bool Database::IsOpen() const {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
     return db_ != nullptr;
 }
 
-VoidResult Database::ApplySchema(const char* sql) {
+VoidResult Database::ApplySchemaDirect(const char* sql) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     char* zErrMsg = nullptr;
     // INFO: sqlite3_exec runs everything in the string until the end
     int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &zErrMsg);
@@ -226,6 +238,14 @@ VoidResult Database::ApplySchema(const char* sql) {
         return std::unexpected(Error::DatabaseFail(err));
     }
     return {};
+}
+
+VoidResult Database::ApplySchema(const char* sql) {
+    if (OnWorkerThread()) return ApplySchemaDirect(sql);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned]() -> VoidResult {
+        return ApplySchemaDirect(owned.c_str());
+    }).get();
 }
 
 sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
@@ -279,7 +299,9 @@ DbRow Database::ReadRow(sqlite3_stmt* stmt) {
 }
 
 
-VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
+VoidResult Database::ExecDirect(const char* sql, const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
@@ -292,7 +314,33 @@ VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
     return {};
 }
 
-Result<std::vector<DbRow>> Database::Query(const char* sql, std::vector<DbValue> params) {
+VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return ExecDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable -> VoidResult {
+        return ExecDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<VoidResult> Database::ExecAsync(std::string sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        // Called from inside a worker task (e.g. nested in RunInTxn): run
+        // inline and return a ready future — enqueue + block here would
+        // deadlock on our own queue.
+        std::promise<VoidResult> p;
+        p.set_value(ExecDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable -> VoidResult {
+        return ExecDirect(sql.c_str(), params);
+    });
+}
+
+Result<std::vector<DbRow>> Database::QueryDirect(const char* sql,
+                                                const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
@@ -305,7 +353,33 @@ Result<std::vector<DbRow>> Database::Query(const char* sql, std::vector<DbValue>
     return rows;
 }
 
-Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbValue> params) {
+Result<std::vector<DbRow>> Database::Query(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return QueryDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable
+                           -> Result<std::vector<DbRow>> {
+        return QueryDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<Result<std::vector<DbRow>>> Database::QueryAsync(std::string sql,
+                                                             std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        std::promise<Result<std::vector<DbRow>>> p;
+        p.set_value(QueryDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable
+                           -> Result<std::vector<DbRow>> {
+        return QueryDirect(sql.c_str(), params);
+    });
+}
+
+Result<std::optional<DbRow>> Database::QueryOneDirect(const char* sql,
+                                                     const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
@@ -317,6 +391,29 @@ Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbV
 
     sqlite3_finalize(stmt);
     return std::nullopt;
+}
+
+Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return QueryOneDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable
+                           -> Result<std::optional<DbRow>> {
+        return QueryOneDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<Result<std::optional<DbRow>>> Database::QueryOneAsync(std::string sql,
+                                                                  std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        std::promise<Result<std::optional<DbRow>>> p;
+        p.set_value(QueryOneDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable
+                           -> Result<std::optional<DbRow>> {
+        return QueryOneDirect(sql.c_str(), params);
+    });
 }
 
 int Database::GetSchemaVersion() {

@@ -281,6 +281,7 @@ if(UNI_BUILD_TESTS)
         src/services/account_reaper.cpp
         src/common/email_sender.cpp
         src/common/email_queue.cpp
+        src/common/db_worker.cpp
         src/common/email_templates.cpp
         src/common/email_send_log.cpp
         src/common/crypto_hash.cpp
@@ -320,7 +321,7 @@ endif()
 # and dependency-free (ws_parse/snapshot benches are self-contained mirrors of
 # the WebServer::OnSocketMessage / MatchSession::EmitEvents paths).
 add_executable(uni_bench tests/perf/bench_main.cpp tests/perf/bench_db.cpp tests/perf/bench_ws_parse.cpp tests/perf/bench_snapshot.cpp
-  src/database.cpp)
+  src/database.cpp src/common/db_worker.cpp)
 target_include_directories(uni_bench PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
 target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json)
 

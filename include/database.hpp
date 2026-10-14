@@ -1,7 +1,12 @@
 #pragma once
 #include "logger.hpp"
+#include <common/db_worker.hpp>
 #include <sqlite3.h>
+#include <future>
+#include <mutex>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 #include <optional>
@@ -143,18 +148,65 @@ public:
                                                   std::vector<DbValue> params = {});
 
     /**
+     * @brief Async `Exec`: the statement runs on the DB worker thread.
+     * @param sql Owned copy — safe to pass temporaries; the caller must not
+     * rely on the pointed-to text outliving the call (unlike `Exec`).
+     */
+    std::future<VoidResult> ExecAsync(std::string sql,
+                                      std::vector<DbValue> params = {});
+
+    /**
+     * @brief Async `Query`: runs on the DB worker thread.
+     */
+    std::future<Result<std::vector<DbRow>>> QueryAsync(std::string sql,
+                                                       std::vector<DbValue> params = {});
+
+    /**
+     * @brief Async `QueryOne`: runs on the DB worker thread.
+     */
+    std::future<Result<std::optional<DbRow>>> QueryOneAsync(std::string sql,
+                                                            std::vector<DbValue> params = {});
+
+    /**
+     * @brief Runs `fn(db)` wholly on the DB worker thread inside a
+     * `TransactionGuard` (BEGIN … COMMIT/ROLLBACK all on the worker).
+     *
+     * `fn` must return `Result<T>`/`VoidResult`; a falsy return rolls the
+     * transaction back. Never block on the returned future from inside
+     * another worker task — nested calls from the worker thread run inline.
+     *
+     * @return Future holding `fn`'s value, or the BEGIN/COMMIT error.
+     */
+    template <typename Fn>
+    auto RunInTxn(Fn&& fn) -> std::future<std::invoke_result_t<Fn, Database&>>;
+
+    /** @brief True when called on the DB worker thread itself. */
+    bool OnWorkerThread() const;
+
+    /**
      * @brief Applies all pending schema migrations in version order.
      * @return VoidResult Error if any migration or version update fails.
      */
     VoidResult RunMigrations();
 
 private:
-    Database()  = default;
-    ~Database() { Close(); }
+    Database();
+    ~Database();
     Database(const Database&)            = delete;
     Database& operator=(const Database&) = delete;
 
+    // Direct (worker-thread-only) implementations. Every one holds db_mutex_
+    // for its whole body, so Close() can never interleave with an in-flight
+    // sqlite3_* call. Never call these from the loop thread.
+    VoidResult                   ExecDirect(const char* sql, const std::vector<DbValue>& params);
+    Result<std::vector<DbRow>>   QueryDirect(const char* sql, const std::vector<DbValue>& params);
+    Result<std::optional<DbRow>> QueryOneDirect(const char* sql, const std::vector<DbValue>& params);
+    VoidResult                   ApplySchemaDirect(const char* sql);
+
     sqlite3* db_ = nullptr;
+    // Recursive: Close() from inside a worker task must not self-deadlock.
+    mutable std::recursive_mutex db_mutex_;
+    DbWorker worker_;
 
     int        GetSchemaVersion();
     VoidResult SetSchemaVersion(int version);
@@ -235,3 +287,30 @@ private:
     bool committed_;
     std::optional<Error> error_;
 };
+
+/**
+ * @brief `Database::RunInTxn` implementation, defined here (after
+ * `TransactionGuard`) so the guard is complete at the template definition
+ * point — GCC checks non-dependent names eagerly (`-Wtemplate-body`).
+ */
+template <typename Fn>
+auto Database::RunInTxn(Fn&& fn) -> std::future<std::invoke_result_t<Fn, Database&>> {
+    using Out = std::invoke_result_t<Fn, Database&>;
+    auto run = [this, fn = std::forward<Fn>(fn)]() mutable -> Out {
+        TransactionGuard tx(*this);
+        if (!tx.Ok()) return Out{std::unexpected(tx.GetError())};
+        Out r = fn(*this);
+        if (!r) return r;
+        if (auto c = tx.Commit(); !c) return Out{std::unexpected(c.error())};
+        return r;
+    };
+    if (OnWorkerThread()) {
+        // Nested call from inside a worker task: run inline so the
+        // closure still executes wholly on the worker (enqueue + block
+        // here would deadlock on our own queue).
+        std::promise<Out> p;
+        p.set_value(run());
+        return p.get_future();
+    }
+    return worker_.Enqueue(std::move(run));
+}
