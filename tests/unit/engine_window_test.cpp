@@ -250,6 +250,31 @@ bool HasSignal(const MatchInstance& engine, const std::string& name) {
     return false;
 }
 
+/** @brief First `signal` event carrying `name`, or nullptr. */
+const json* FindSignalEvent(const MatchInstance& engine,
+                            const std::string& name) {
+    for (const json& event : engine.Events()) {
+        if (!event.is_object() || event.value("type", "") != "signal") {
+            continue;
+        }
+        const json payload =
+            event.contains("payload") ? event["payload"] : json::object();
+        if (payload.value("name", "") == name) return &event;
+    }
+    return nullptr;
+}
+
+/** @brief The `cause_event` stamped on `event`; nullopt when it carries none. */
+std::optional<int64_t> CauseOf(const json& event) {
+    const auto frame = event.find("causal_frame");
+    if (frame == event.end() || !frame->is_object()) return std::nullopt;
+    const auto cause = frame->find("cause_event");
+    if (cause == frame->end() || !cause->is_number_integer()) {
+        return std::nullopt;
+    }
+    return cause->get<int64_t>();
+}
+
 /** @brief Behaviour graph: window node `n1` with `emit_signal` routes. */
 BehaviorGraph WindowGraph(const json& respond_with,
                           const std::string& filter_digest,
@@ -277,17 +302,53 @@ BehaviorGraph WindowGraph(const json& respond_with,
 }
 
 /**
- * @brief Attach a synthetic `after:play` window system to the live bus.
+ * @brief Behaviour graph: window node `n1` whose default route parks a prompt.
+ *
+ * The prompt's answer continues into `n4`, so the resumed graph emits
+ * `signal` only after `SubmitInput` resolves the parked continuation.
+ */
+BehaviorGraph WindowPromptGraph(const std::string& prompt_kind,
+                                const std::string& signal) {
+    BehaviorGraph graph;
+    const json window = json{{"responders", "@others"},
+                             {"respond_with", json::object()},
+                             {"duration", json("env")} };
+    graph.nodes = json::array(
+        {json{{"id", "n1"},
+              {"window", window},
+              {"default", "n2"},
+              {"on_response", json{{"any", "n3"}}}},
+         json{{"id", "n2"},
+              {"op", "prompt"},
+              {"args", json{{"kind", prompt_kind},
+                            {"target", "@current_player"},
+                            {"payload",
+                             json{{"options", json::array({"red"})}}}}},
+              {"next", "n4"}},
+         json{{"id", "n3"},
+              {"op", "emit_signal"},
+              {"args", json{{"name", "window:responded"}}}},
+         json{{"id", "n4"},
+              {"op", "emit_signal"},
+              {"args", json{{"name", signal}}}}});
+    graph.raw = json{{"nodes", graph.nodes}};
+    return graph;
+}
+
+/**
+ * @brief Attach a synthetic window system to the live bus.
  *
  * Mirrors what the engine does for a mod system so the engine's open/collect
  * path runs it exactly as it runs shipped content.
  */
-std::size_t AttachWindowSystem(MatchInstance& engine, BehaviorGraph graph) {
+std::size_t AttachWindowSystem(
+    MatchInstance& engine, BehaviorGraph graph,
+    ecs::HookId hook = ecs::HookId{"play", ecs::HookPhase::kAfter}) {
     MatchAssembly& assembly = engine.Assembly();
     ModSystem system;
     system.mod_id = "test";
     system.registration_index = 0;
-    system.hook = ecs::HookId{"play", ecs::HookPhase::kAfter};
+    system.hook = hook;
     system.source_id = "test:window";
     system.graph = std::move(graph);
     const std::size_t index = assembly.systems.size();
@@ -626,4 +687,105 @@ TEST_CASE("engine window: env duration keeps the configured window") {
     const json* open = FindEvent(*engine, "window_opened");
     REQUIRE(open != nullptr);
     CHECK((*open)["payload"]["duration_ms"] == 7000);
+}
+
+// ---------------------------------------------------------------------------
+// Follow-up 18: a window resumes as part of the play that opened it, so the
+// route graph, the events it appends and any prompt it parks keep the
+// `card_played` cause of that play (`WindowPause.cause_event`).
+// ---------------------------------------------------------------------------
+TEST_CASE("engine window: a resumed route keeps the play cause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    AttachWindowSystem(*engine, WindowGraph(json::object(), "any"));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+    engine->TakeEvents();
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+    REQUIRE(engine->WindowOpen());
+    const json* played = FindEvent(*engine, "card_played");
+    REQUIRE(played != nullptr);
+    const int64_t played_id = (*played)["event_id"].get<int64_t>();
+
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+    CHECK_FALSE(engine->WindowOpen());
+
+    // INFO: the default route resumes inside the play that opened the window,
+    //       so its event names that play's `card_played`.
+    const json* signal = FindSignalEvent(*engine, "window:default");
+    REQUIRE(signal != nullptr);
+    const std::optional<int64_t> cause = CauseOf(*signal);
+    REQUIRE(cause.has_value());
+    CHECK(*cause == played_id);
+}
+
+TEST_CASE("engine window: a prompt parked by a resumed route keeps the play cause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    AttachWindowSystem(*engine,
+                       WindowPromptGraph("window_choice", "window:answered"));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+    engine->TakeEvents();
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+    REQUIRE(engine->WindowOpen());
+    const json* played = FindEvent(*engine, "card_played");
+    REQUIRE(played != nullptr);
+    const int64_t played_id = (*played)["event_id"].get<int64_t>();
+
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+    CHECK_FALSE(engine->WindowOpen());
+
+    // INFO: the default route parks a prompt, so `SubmitInput` resumes it; the
+    //       window hands the play cause to that continuation.
+    const std::optional<json> pending = engine->PendingInput();
+    REQUIRE(pending.has_value());
+    CHECK((*pending)["kind"] == "window_choice");
+    REQUIRE(engine->SubmitInput("player0", json{{"choice", 1}}));
+
+    const json* answered = FindSignalEvent(*engine, "window:answered");
+    REQUIRE(answered != nullptr);
+    const std::optional<int64_t> cause = CauseOf(*answered);
+    REQUIRE(cause.has_value());
+    CHECK(*cause == played_id);
+}
+
+TEST_CASE("engine window: a window opened outside a play stamps no cause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    // INFO: a window collected from the draw entry point, which never emits a
+    //       `card_played`, so there is no play cause to keep.
+    AttachWindowSystem(*engine, WindowGraph(json::object(), "any"),
+                       ecs::HookId{"draw", ecs::HookPhase::kAfter});
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    REQUIRE(engine->DrawCard("player0"));
+    REQUIRE(engine->WindowOpen());
+
+    REQUIRE(engine->PassWindow("player1"));
+    REQUIRE(engine->PassWindow("player2"));
+    CHECK_FALSE(engine->WindowOpen());
+
+    const json* signal = FindSignalEvent(*engine, "window:default");
+    REQUIRE(signal != nullptr);
+    CHECK_FALSE(CauseOf(*signal).has_value());
 }

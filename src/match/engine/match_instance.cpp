@@ -103,6 +103,13 @@ std::optional<ecs::Entity> EnvelopeEntity(const json& envelope,
     return EntityFromJson(*it);
 }
 
+/** @brief Read the optional `cause_event` field from a schedule envelope. */
+std::optional<int64_t> EnvelopeCause(const json& envelope) {
+    const auto it = envelope.find("cause_event");
+    if (it == envelope.end() || !it->is_number_integer()) return std::nullopt;
+    return it->get<int64_t>();
+}
+
 /**
  * @brief Set the match's causal frame for one entry point.
  *
@@ -125,6 +132,29 @@ public:
 private:
     ops::CausalFrame& slot_;
     ops::CausalFrame saved_;
+};
+
+/**
+ * @brief Set only the causal frame's `cause_event` for one resumed graph.
+ *
+ * A resume that starts from a pause a play chain parked (a window route, an
+ * armed schedule) must run inside that chain, so the graph's events and any
+ * prompt it parks name the play that started it. The previous value returns
+ * when the scope ends, so the enclosing entry point keeps its own cause.
+ */
+class ResumeCauseScope {
+public:
+    ResumeCauseScope(ops::CausalFrame& slot, std::optional<int64_t> cause)
+        : slot_(slot), saved_(slot.cause_event) {
+        slot_.cause_event = cause;
+    }
+    ResumeCauseScope(const ResumeCauseScope&) = delete;
+    ResumeCauseScope& operator=(const ResumeCauseScope&) = delete;
+    ~ResumeCauseScope() { slot_.cause_event = std::move(saved_); }
+
+private:
+    ops::CausalFrame& slot_;
+    std::optional<int64_t> saved_;
 };
 
 }  // namespace
@@ -1496,6 +1526,9 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
         resolver::SelectorContext context = pause.context;
         if (pause.has_winner) context.responder = pause.winner;
         context.in_window = true;
+        // INFO: the route graph runs inside the play that opened the window,
+        //       so its events and any prompt it parks keep that play's cause.
+        const ResumeCauseScope resume_cause(causal_frame_, pause.cause_event);
         ops::ResolutionFrame frame;
         const resolver::ResolveResult result =
             assembly_->resolver->ResumeWindow(graph, pause.mod_id, context,
@@ -1551,6 +1584,7 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
                     next.mod_id = pause.mod_id;
                     next.settle_play = pause.settle_play;
                     next.actor = pause.actor;
+                    next.cause_event = pause.cause_event;
                     OpenWindow(std::move(next), /*fresh_situation=*/false);
                     return;
                 }
@@ -1907,6 +1941,7 @@ void MatchInstance::CollectRuns() {
             window.context = run.context;
             window.system_index = run.system_index;
             window.mod_id = run.mod_id;
+            window.cause_event = causal_frame_.cause_event;
             if (!pending_window_.has_value()
                 && !pending_input_.has_value()) {
                 // INFO: windows resolved by the same dispatch merge into one
@@ -2177,6 +2212,7 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.mod_id = mod_id;
         next.settle_play = settle_play;
         next.actor = actor;
+        next.cause_event = frame.causal.cause_event;
         OpenWindow(std::move(next), /*fresh_situation=*/false);
         return;
     }
@@ -2244,7 +2280,7 @@ void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
 
     // INFO: the envelope is the JSON the Scheduler stores and returns on
     //       expiry; it carries everything a fresh Resolve chain needs.
-    const json envelope =
+    json envelope =
         json{{"system_index", system_index},
              {"mod_id", mod_id},
              {"resume_node", schedule.resume_node},
@@ -2255,6 +2291,12 @@ void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
              {"card", EntityOrNull(context.card)},
              {"in_window", context.in_window},
              {"in_card_context", context.in_card_context}};
+
+    // INFO: JSON holds no empty optional, so the cause is stamped only when the
+    //       arm ran inside a play chain; a missing key means "no cause".
+    if (causal_frame_.cause_event.has_value()) {
+        envelope["cause_event"] = *causal_frame_.cause_event;
+    }
 
     const std::optional<uint32_t> id = scheduler_.Arm(
         assembly_->store, assembly_->registries.match, envelope, *duration);
@@ -2326,6 +2368,9 @@ void MatchInstance::RunScheduledEnvelope(const nlohmann::json& envelope) {
 
     // INFO: a schedule resumes as a FRESH chain (ResumeToken doc), so no
     //       chain budget is reused; the result feeds the same pause path.
+    // INFO: the leg was armed inside a play chain, so the subgraph resumes as
+    //       part of that chain and its events keep the play's cause.
+    const ResumeCauseScope resume_cause(causal_frame_, EnvelopeCause(envelope));
     ops::ResolutionFrame frame;
     const resolver::ResolveResult result = assembly_->resolver->Resolve(
         system.graph, mod_id, context, frame, resume_node,

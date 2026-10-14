@@ -486,6 +486,8 @@ private:
         uint64_t next_arrival = 0;   /**< server arrival counter. */
         bool settle_play = false;  /**< settle the interrupted play on close. */
         ecs::Entity actor{};       /**< play actor to settle. */
+        /** The play event that started the chain, kept across the window. */
+        std::optional<int64_t> cause_event;
         /** Members merged into this group's window, in mod load order. */
         std::vector<WindowPause> followers;
         /** Member (0 = this pause) owning the winning response. */
