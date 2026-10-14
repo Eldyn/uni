@@ -24,6 +24,9 @@ class UniConan(ConanFile):
         "jwt-cpp/0.7.0",
         "nlohmann_json/3.11.3",
         "libcurl/8.22.0",
+        # Task 8: glaze for ECS->WS scratch serialize. 3.8.0 is not published
+        # in conancenter (3.6.2 is the newest 3.x there); keep the 3.x line.
+        "glaze/3.6.2",
     )
 
     tool_requires = "ninja/1.13.2"

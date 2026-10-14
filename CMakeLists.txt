@@ -127,6 +127,7 @@ find_package(SQLite3 REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(CURL REQUIRED)
+find_package(glaze REQUIRED)
 
 # --- Main Executable ---
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
@@ -154,6 +155,7 @@ target_link_libraries(uni_server PRIVATE
     jwt-cpp::jwt-cpp
     nlohmann_json::nlohmann_json
     CURL::libcurl
+    glaze::glaze
 )
 
 # --- Copy the runtime assets next to the executable ---
@@ -309,6 +311,7 @@ if(UNI_BUILD_TESTS)
         SQLite::SQLite3
         ZLIB::ZLIB
         jwt-cpp::jwt-cpp
+        glaze::glaze
     )
     add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
 
@@ -323,6 +326,6 @@ endif()
 add_executable(uni_bench tests/perf/bench_main.cpp tests/perf/bench_db.cpp tests/perf/bench_ws_parse.cpp tests/perf/bench_snapshot.cpp
   src/database.cpp src/common/db_worker.cpp)
 target_include_directories(uni_bench PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
-target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json)
+target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json glaze::glaze)
 
 message(STATUS "Configuration complete for system: ${CMAKE_SYSTEM_NAME}")

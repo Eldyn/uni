@@ -4,6 +4,7 @@
 #include <match/ecs/components.hpp>
 #include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
+#include <match/view/wire.hpp>
 
 #include <logger.hpp>
 #include <nlohmann/json.hpp>
@@ -327,15 +328,23 @@ void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     const json start = match::view::DefsBuilder::BuildMatchStart(
         engine_->Registries(), mods_, deck.deck_id, deck.name, deck.settings);
 
+    // INFO: `defs` is content-derived and identical for every recipient; the
+    //       digest doubles as the `match_start` correlation id. The payloads
+    //       below are shared, but each envelope still serializes per recipient
+    //       (it carries that sink's `seq`), into one reused frame buffer.
+    std::string scratch;
+    scratch.reserve(8192);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         match::view::EventSink& sink = sinks_.at(username);
         json defs_packet = sink.Wrap("defs", defs);
         defs_packet["action"] = "match_event";
-        broadcaster.SendJson(socket, defs_packet);
+        scratch = defs_packet.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         json start_packet = sink.Wrap("match_start", start);
         start_packet["action"] = "match_event";
-        broadcaster.SendJson(socket, start_packet);
+        scratch = start_packet.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
     }
     match_start_sent_ = true;
 }
@@ -440,6 +449,12 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
     }
     const std::vector<json>& events = engine_->Events();
+    // INFO: one scratch frame buffer for the whole drain: each per-recipient
+    //       packet still serializes on its own (the envelope carries that
+    //       recipient's `seq`), but the dump reuses this capacity instead of
+    //       allocating a fresh string per SendJson.
+    std::string scratch;
+    scratch.reserve(4096);
     for (; cursor_ < events.size(); ++cursor_) {
         tail_.Record(events[cursor_]);
         for (const auto& [username, socket] : sockets_) {
@@ -449,7 +464,8 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
                 sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
-            broadcaster.SendJson(socket, *packet);
+            scratch = packet->dump();
+            broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         }
         // INFO: Spectators get the same event stream through the spectator
         //       view on their own persistent sink. The viewer is built for
@@ -460,7 +476,8 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
                 events[cursor_], SpectatorViewer(), viewer_sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
-            broadcaster.SendJson(socket, *packet);
+            scratch = packet->dump();
+            broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         }
     }
     EmitPendingPrompt(broadcaster);
@@ -544,6 +561,11 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
 
 void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
                                      const match::view::SnapshotOptions& options) {
+    // INFO: same scratch-reuse contract as EmitEvents: snapshots are
+    //       per-recipient (own view + own `seq` watermark), so each still
+    //       serializes, but into one reused frame buffer.
+    std::string scratch;
+    scratch.reserve(4096);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         // INFO: a seat that was unreachable at start gets `defs` before its
@@ -551,7 +573,8 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
             match::view::Viewer::Player(username), sinks_.at(username), options);
-        broadcaster.SendJson(socket, snapshot);
+        scratch = snapshot.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
     }
     // INFO: Spectators keep receiving snapshots after their
     //       initial join snapshot (spectator view, own seq watermark).
@@ -560,7 +583,8 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
             SpectatorViewer(), viewer_sinks_.at(username), options);
-        broadcaster.SendJson(socket, snapshot);
+        scratch = snapshot.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
     }
     BroadcastMatchOver(broadcaster);
 }
@@ -569,16 +593,21 @@ bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
     if (!engine_->IsMatchOver()) return false;
     if (over_sent_) return true;
 
-    const json packet = {{"action", "match_over"},
-                         {"winner", engine_->GetWinner()},
-                         {"placements", engine_->GetPlacements()}};
+    // INFO: the terminal frame is identical for every recipient (no per-seat
+    //       view, no `seq`), so glaze serializes it once into `shared` and
+    //       every socket sends the same bytes: N recipients, 1 dump.
+    const match::view::MatchOverWire over{"match_over", engine_->GetWinner(),
+                                          engine_->GetPlacements()};
+    std::string shared;
+    shared.reserve(512);
+    if (!match::view::WritePacket(over, shared)) return true;
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
-        broadcaster.SendJson(socket, packet);
+        broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
-        broadcaster.SendJson(socket, packet);
+        broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
     over_sent_ = true;
     return true;
