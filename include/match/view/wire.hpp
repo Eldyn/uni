@@ -2,7 +2,6 @@
 
 #include <glaze/glaze.hpp>
 
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -19,13 +18,6 @@
  */
 
 namespace match::view {
-
-/** @brief Generic `match_event` envelope header: sequence + action + id. */
-struct WirePacket {
-    uint32_t sequence = 0;
-    std::string action = "match_event";
-    std::string id;
-};
 
 /**
  * @brief Shared terminal frame, identical for every recipient.
@@ -46,12 +38,6 @@ struct MatchOverWire {
  * Clears first (glaze appends), so a reserved scratch buffer stays flat
  * across loop iterations. Returns true on success.
  */
-inline bool WritePacket(const WirePacket& p, std::string& scratch) {
-    scratch.clear();
-    return !static_cast<bool>(glz::write_json(p, scratch));
-}
-
-/** @brief Serialize `p` into `scratch`, reusing its capacity. */
 inline bool WritePacket(const MatchOverWire& p, std::string& scratch) {
     scratch.clear();
     return !static_cast<bool>(glz::write_json(p, scratch));

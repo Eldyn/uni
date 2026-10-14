@@ -221,8 +221,26 @@ private:
      */
     void LoadStaticFileCache();
 
+    /**
+     * @brief One cached static asset: its bytes plus the ETag computed once
+     * at load time, so a cache hit serves the body and the validator with no
+     * disk read, no `stat` and no per-request copy.
+     */
+    struct CachedAsset {
+        std::string bytes;
+        std::string etag;
+    };
+
+    /**
+     * @brief Look up a startup-cached asset by canonical absolute path.
+     * @return Pointer into `static_file_cache_`, or nullptr on a miss
+     * (cache disabled, or a file added after startup — caller falls back
+     * to `ReadFile` + live `http::MakeETag`).
+     */
+    const CachedAsset* FindCachedAsset(std::string_view path) const;
+
     /** In-memory cache of static file contents, keyed by canonical absolute path. */
-    std::unordered_map<std::string, std::string> static_file_cache_;
+    std::unordered_map<std::string, CachedAsset> static_file_cache_;
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */

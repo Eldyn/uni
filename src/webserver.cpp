@@ -513,7 +513,11 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
                 contentEncoding = precompressed->encoding;
             }
 
-            std::string etag = http::MakeETag(bodyPath);
+            // The validator comes from the startup cache on a hit (no `stat`);
+            // a miss (cache disabled / file added after startup) stats live.
+            const CachedAsset* asset = FindCachedAsset(bodyPath.string());
+            const std::string etag =
+                asset != nullptr ? asset->etag : http::MakeETag(bodyPath);
 
             if (!etag.empty() && if_none_match == etag) {
                 res->writeStatus("304 Not Modified")
@@ -611,8 +615,11 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             }
 
             // The two encodings are distinct representations, so they must not
-            // share a validator, MakeETag stats whichever one is actually sent.
-            std::string etag = http::MakeETag(bodyPath);
+            // share a validator. On a startup-cache hit the validator is the
+            // frozen copy (no `stat`); on a miss MakeETag stats live.
+            const CachedAsset* asset = FindCachedAsset(bodyPath.string());
+            const std::string etag =
+                asset != nullptr ? asset->etag : http::MakeETag(bodyPath);
 
             // INFO: Conditional request: the client already holds this exact
             //       version, so skip resending the body. This is what makes
@@ -631,7 +638,16 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             //       compressed sidecar is a different representation, so it is
             //       always sent whole. If-Range only honours a matching
             //       validator, otherwise the whole current body is sent.
-            const std::string body = ReadFile(bodyPath.string());
+            //       A cache hit serves a view into the startup bytes (no copy,
+            //       no stringstream); a miss reads the file into `body_owned`.
+            std::string body_owned;
+            std::string_view body;
+            if (asset != nullptr) {
+                body = asset->bytes;
+            } else {
+                body_owned = ReadFile(bodyPath.string());
+                body = body_owned;
+            }
             const bool rangeEligible = contentEncoding.empty() && !range_header.empty() &&
                                        (if_range.empty() || if_range == etag);
             const http::ByteRange range =
@@ -667,8 +683,8 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             if (!etag.empty()) {
                 res->writeHeader("ETag", etag);
             }
-            res->end(partial ? std::string_view(body).substr(range.start, range.length)
-                             : std::string_view(body));
+            res->end(partial ? body.substr(range.start, range.length)
+                             : body);
         } else if (http::IsClientRoute(relativePath)) {
             // Not a real file, but shaped like a client-side route (no dot in its
             // final segment) rather than a missing asset — serve the app shell so
@@ -807,7 +823,14 @@ void WebServer::LoadStaticFileCache() {
 
         std::stringstream buf;
         buf << is.rdbuf();
-        static_file_cache_.emplace(entry.path().string(), buf.str());
+        CachedAsset asset;
+        asset.bytes = buf.str();
+        // INFO: the validator is frozen at load time with the bytes, so a
+        //       cache hit answers conditional requests without a per-hit
+        //       `stat` (backend-perf Task 9). Same size+mtime derivation as
+        //       the live `http::MakeETag` path used on a cache miss.
+        asset.etag = http::MakeETag(entry.path());
+        static_file_cache_.emplace(entry.path().string(), std::move(asset));
     }
 
     Logger::Info("Static file cache: loaded " + std::to_string(static_file_cache_.size()) +
@@ -819,7 +842,7 @@ std::string WebServer::ReadFile(std::string_view path) const {
     //       LoadStaticFileCache(), so a busy server serving the same asset
     //       repeatedly avoids the disk read + stringstream churn per request.
     if (auto it = static_file_cache_.find(std::string(path)); it != static_file_cache_.end()) {
-        return it->second;
+        return it->second.bytes;
     }
 
     // INFO: Fallback for a file that exists on disk but was not present in
@@ -835,6 +858,17 @@ std::string WebServer::ReadFile(std::string_view path) const {
     std::stringstream buf;
     buf << is.rdbuf();
     return buf.str();
+}
+
+const WebServer::CachedAsset* WebServer::FindCachedAsset(
+    std::string_view path) const {
+    if (static_cache_enabled_) {
+        if (auto it = static_file_cache_.find(std::string(path));
+            it != static_file_cache_.end()) {
+            return &it->second;
+        }
+    }
+    return nullptr;
 }
 
 void WebServer::OnConnectionOpen(ConnectionHandler handler) {

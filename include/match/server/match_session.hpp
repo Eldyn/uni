@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -479,6 +480,16 @@ private:
     /** @brief `{ready, total}` from the ready barrier. */
     nlohmann::json ReadyProgressPayload() const;
 
+    /**
+     * @brief The content-derived `defs` table, built once per session.
+     *
+     * `defs` depends only on the engine registries + mods fixed at
+     * construction, so every recipient (and every late joiner via
+     * `EnsureDefs`) shares one built copy instead of rebuilding the table
+     * per recipient. Same bytes as before; wire format unchanged.
+     */
+    const nlohmann::json& CachedDefs() const;
+
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
@@ -509,6 +520,8 @@ private:
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
     /** `defs` + `match_start` already emitted for the seated recipients. */
     bool match_start_sent_ = false;
+    /** Built-once `defs` table shared by `EmitMatchStart`/`EnsureDefs`. */
+    mutable std::optional<nlohmann::json> defs_cache_;
 };
 
 /**

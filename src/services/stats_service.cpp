@@ -57,6 +57,17 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
 }
 
 Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
+    // INFO: TTL cache (backend-perf Task 9): the leaderboard endpoint is
+    //       polled in bursts (k6 leaderboard_poll), so share one query
+    //       result per 15 s window instead of hitting SQLite per poll.
+    {
+        std::lock_guard<std::mutex> lock(lb_mu_);
+        if (lb_have_ &&
+            std::chrono::steady_clock::now() < lb_expires_) {
+            return lb_cache_;
+        }
+    }
+
     // INFO: One TEXT row: SQLite builds the whole top-50 JSON array, so the
     // loop parses a single cell instead of one DbRow map per entry.
     auto row_result = db_.QueryOne(R"(
@@ -103,5 +114,17 @@ Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
         });
     }
 
+    {
+        std::lock_guard<std::mutex> lock(lb_mu_);
+        lb_cache_ = entries;
+        lb_expires_ = std::chrono::steady_clock::now() + kLeaderboardTtl;
+        lb_have_ = true;
+    }
+
     return entries;
+}
+
+void StatsService::InvalidateLeaderboardCache() {
+    std::lock_guard<std::mutex> lock(lb_mu_);
+    lb_have_ = false;
 }

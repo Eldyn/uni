@@ -162,11 +162,14 @@ void ChatController::HandleChatSend(WsContext ctx, const json& message) {
         resp["channel"]  = "dm";
         resp["target"]   = recipient;
 
-        broadcaster_.SendJson(ctx.socket, resp);
+        // INFO: the DM frame is byte-identical for both recipients, so dump
+        //       it once and send the shared bytes twice (2 sends, 1 dump).
+        const std::string frame = resp.dump();
+        broadcaster_.Send(ctx.socket, frame);
 
         AppWebSocket* recipient_socket = presence_.GetSocket(recipient);
         if (recipient_socket != nullptr) {
-            broadcaster_.SendJson(recipient_socket, resp);
+            broadcaster_.Send(recipient_socket, frame);
         }
         return;
     }

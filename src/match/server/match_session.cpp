@@ -321,9 +321,10 @@ void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     if (match_start_sent_) return;
 
     // INFO: `defs` is content-derived and identical for every recipient; the
-    //       digest doubles as the `match_start` correlation id.
-    const json defs =
-        match::view::DefsBuilder::Build(engine_->Registries(), mods_);
+    //       digest doubles as the `match_start` correlation id. Built once
+    //       per session via CachedDefs (late joiners reuse the same copy
+    //       through EnsureDefs) instead of once per recipient.
+    const json& defs = CachedDefs();
     const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
     const json start = match::view::DefsBuilder::BuildMatchStart(
         engine_->Registries(), mods_, deck.deck_id, deck.name, deck.settings);
@@ -356,10 +357,17 @@ void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
     //       with; a non-zero sink already carries the `defs`/`match_start`
     //       prefix (or later events), so re-sending would renumber.
     if (sink.NextSeq() != 0) return;
-    json packet = sink.Wrap(
-        "defs", match::view::DefsBuilder::Build(engine_->Registries(), mods_));
+    json packet = sink.Wrap("defs", CachedDefs());
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
+}
+
+const nlohmann::json& MatchSession::CachedDefs() const {
+    if (!defs_cache_.has_value()) {
+        defs_cache_ = match::view::DefsBuilder::Build(engine_->Registries(),
+                                                      mods_);
+    }
+    return *defs_cache_;
 }
 
 void MatchSession::SendBarrierPacket(IBroadcaster& broadcaster,

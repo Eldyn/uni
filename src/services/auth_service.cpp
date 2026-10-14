@@ -11,6 +11,62 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
+#include <mutex>
+#include <stdexcept>
+#include <unordered_map>
+
+namespace {
+
+// INFO: Env-once cache (backend-perf Task 9): `Env::Get` costs a getenv +
+//       a heap allocation per call. Steady-state calls do one getenv and a
+//       compare with no allocation; the entry refreshes only when the live
+//       value actually changes, so secret rotation and tests that setenv
+//       keep working (a frozen `static const` would break rotation and
+//       `auth_service_test.cpp`'s re-sign case). One tiny mutex guards the
+//       map; the hot paths (login/upgrade) never allocate on a hit.
+struct CachedVar {
+    bool have = false;
+    bool set = false;
+    std::string value;
+};
+
+std::mutex& EnvCacheMutex() {
+    static std::mutex mu;
+    return mu;
+}
+
+std::unordered_map<std::string, CachedVar>& EnvCache() {
+    static std::unordered_map<std::string, CachedVar> cache;
+    return cache;
+}
+
+const std::string& CachedEnv(const char* key, const char* fallback) {
+    const char* live = std::getenv(key);  // outside the lock; no allocation
+    const bool live_set = live != nullptr;
+    std::lock_guard<std::mutex> lock(EnvCacheMutex());
+    CachedVar& slot = EnvCache()[key];
+    if (!slot.have || slot.set != live_set ||
+        (live_set && slot.value != live)) {
+        slot.have = true;
+        slot.set = live_set;
+        slot.value = live_set ? live : fallback;
+    }
+    return slot.value;
+}
+
+// INFO: `Env::Require` semantics (throw when unset) over the cached value.
+const std::string& CachedEnvRequire(const char* key) {
+    const char* live = std::getenv(key);
+    if (live == nullptr) {
+        // Match Env::Require's message so callers see the same error.
+        throw std::runtime_error(std::string("[Env] Required variable '") +
+                                 key + "' is not set");
+    }
+    return CachedEnv(key, "");
+}
+
+}  // namespace
 
 AuthService::AuthService(Database& db)
     : db_(db),
@@ -250,7 +306,8 @@ Result<std::string> AuthService::HashPassword(const std::string& password) {
 
     // INFO: 2. Read the pepper from the environment and append it to the
     //       password. std::string + std::string = concatenation; no UB here.
-    std::string pepper         = Env::Get("PASSWORD_PEPPER", "");
+    //       Env-once: cached (refresh-on-change), no per-hash allocation.
+    const std::string& pepper = CachedEnv("PASSWORD_PEPPER", "");
     std::string peppered_pass  = password + pepper;
 
     // INFO: 3. Derive the hash.
@@ -297,8 +354,7 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
         return false;  // truncated/oversized digest would over-read in CRYPTO_memcmp
     }
 
-    std::string pepper        = Env::Get("PASSWORD_PEPPER", "");
-    std::string peppered_pass = password + pepper;
+    std::string peppered_pass = password + CachedEnv("PASSWORD_PEPPER", "");
 
     std::vector<unsigned char> candidate(kHashBytes);
     if (PKCS5_PBKDF2_HMAC(
@@ -329,16 +385,18 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 //         - issued_at  : current UTC time (for audit / debugging)
 //         - expires_at : now + 24 hours (after which the token is rejected)
 
-//       The secret is fetched via Env::Require every call rather than cached
-//       so that secret rotation (SIGHUP + Env::Load) works without restart.
-//       In a hot path you'd cache it, but token issuance / verification
-//       happen only at login and upgrade, not per-message.
+//       The secret is fetched via a refresh-on-change cache over
+//       Env::Require (see CachedEnvRequire above) so that secret rotation
+//       (SIGHUP + Env::Load) works without restart. In a hot path you'd
+//       freeze it, but token issuance / verification happen only at login
+//       and upgrade, not per-message; the cache still avoids the per-call
+//       getenv + heap allocation on the steady state.
 Result<std::string> AuthService::IssueToken(const std::string& username) {
     using namespace std::chrono;
 
     std::string secret;
     try {
-        secret = Env::Require("JWT_SECRET");
+        secret = CachedEnvRequire("JWT_SECRET");
     } catch (const std::exception& e) {
         return std::unexpected(Error::Internal(e.what()));
     }
@@ -369,7 +427,7 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
 Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
     std::string secret;
     try {
-        secret = Env::Require("JWT_SECRET");
+        secret = CachedEnvRequire("JWT_SECRET");
     } catch (const std::exception& e) {
         return std::unexpected(Error::Internal(e.what()));
     }

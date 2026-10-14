@@ -83,6 +83,12 @@ public:
 
 private:
     std::string api_key_;
+    // INFO: Env-once (backend-perf Task 9): the sender identity is resolved
+    //       from the environment once at construction instead of per Send,
+    //       matching how `api_key_` is already held. A changed identity
+    //       takes effect on the next sender construction (process start).
+    std::string sender_name_;
+    std::string sender_email_;
 };
 
 /**

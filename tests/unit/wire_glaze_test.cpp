@@ -6,7 +6,8 @@
 using namespace match::view;
 
 TEST_CASE("glaze packet round-trips without nlohmann") {
-    WirePacket p{1, "match_event", "turn_changed"};
+    MatchOverWire p{"match_over", "player0", {"player0", "player1"}};
     std::string buf; WritePacket(p, buf);
-    CHECK(buf.find("turn_changed") != std::string::npos);
+    CHECK(buf.find("match_over") != std::string::npos);
+    CHECK(buf.find("player0") != std::string::npos);
 }

@@ -158,6 +158,36 @@ TEST_CASE("GetLeaderboard: excludes rows without a registered account (bots)") {
     }
 }
 
+TEST_CASE("GetLeaderboard: rows are cached within the TTL window") {
+    StatsFixture f;
+    StatsService svc;
+    InsertStatsRow("stats_test_ttl_a", 7, 1);
+
+    auto find = [](const std::vector<LeaderboardEntry>& entries,
+                   const std::string& username) -> const LeaderboardEntry* {
+        for (const auto& entry : entries) {
+            if (entry.username == username) return &entry;
+        }
+        return nullptr;
+    };
+
+    auto first = svc.GetLeaderboard();
+    REQUIRE(first.has_value());
+    REQUIRE(find(*first, "stats_test_ttl_a") != nullptr);
+
+    // A row inserted after the first read stays invisible until the cache
+    // is invalidated: poll bursts share one query result per TTL window.
+    InsertStatsRow("stats_test_ttl_b", 99, 0);
+    auto second = svc.GetLeaderboard();
+    REQUIRE(second.has_value());
+    CHECK(find(*second, "stats_test_ttl_b") == nullptr);
+
+    svc.InvalidateLeaderboardCache();
+    auto third = svc.GetLeaderboard();
+    REQUIRE(third.has_value());
+    CHECK(find(*third, "stats_test_ttl_b") != nullptr);
+}
+
 TEST_CASE("GetUserStats: per-color/value card-play counters round-trip") {
     StatsFixture f;
     StatsService svc;

@@ -1,4 +1,6 @@
 #pragma once
+#include <chrono>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -82,6 +84,24 @@ public:
      */
     Result<UserStats> GetUserStats(const std::string& username);
 
+    /**
+     * @brief Drop the cached leaderboard rows, forcing the next
+     * `GetLeaderboard` to query.
+     *
+     * The cache is per-instance with a 15 s TTL (backend-perf Task 9: the
+     * k6-polled endpoint must not hit SQLite on every poll). Writes to
+     * `player_stats` go through `LobbyController` directly, so a fresh
+     * result can lag the table by up to the TTL; tests use this hook for
+     * determinism.
+     */
+    void InvalidateLeaderboardCache();
+
 private:
     Database& db_;
+    /** Leaderboard TTL: poll bursts share one query result per window. */
+    static constexpr std::chrono::seconds kLeaderboardTtl{15};
+    std::mutex lb_mu_;
+    std::vector<LeaderboardEntry> lb_cache_;
+    std::chrono::steady_clock::time_point lb_expires_{};
+    bool lb_have_ = false;
 };
