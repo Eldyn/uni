@@ -287,6 +287,7 @@ if(UNI_BUILD_TESTS)
         src/common/email_templates.cpp
         src/common/email_send_log.cpp
         src/common/crypto_hash.cpp
+        src/common/crypto_pool.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
         src/services/chat_service.cpp

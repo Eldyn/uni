@@ -162,9 +162,4 @@ private:
     Database& db_;
     LoginThrottle login_throttle_;
     LoginThrottle::Clock::time_point last_evict_;
-
-    // PBKDF2 parameters (increasing kIterations raises the cost of brute-force attempts)
-    static constexpr int kSaltBytes  = 16;
-    static constexpr int kHashBytes  = 32;
-    static constexpr int kIterations = 200'000;
 };

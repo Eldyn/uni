@@ -1,9 +1,8 @@
 #include <services/auth_service.hpp>
-#include <common/base64.hpp>
+#include <common/crypto_pool.hpp>
 #include <common/env.hpp>
 #include <common/contract.hpp>
 #include <common/bot_names.hpp>
-#include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <jwt-cpp/jwt.h>
 #include <jwt-cpp/traits/nlohmann-json/defaults.h>
@@ -287,94 +286,16 @@ Result<std::string> AuthService::GenerateGuestName() {
 }
 
 // INFO: PBKDF2 is battle-tested and acceptable for this project scale. The
-//       main knob is kIterations: more iterations = more CPU per guess =
-//       slower brute force.
-
-//       The "pepper" is an application-level secret from the environment.
-//       Unlike a salt (stored in the DB, unique per user, public), a pepper
-//       is *not* stored anywhere, it lives only in memory, loaded from the
-//       env at startup. An attacker who steals the DB but not the server
-//       config cannot run offline dictionary attacks even with the salts in
-//       hand.
+//       hashing itself runs on the CryptoPool (see common/crypto_pool.hpp):
+//       these methods only enqueue and block on the future, so the loop
+//       thread never sits through the ~200k iterations. Request latency is
+//       unchanged; HTTP handlers still see a synchronous call.
 Result<std::string> AuthService::HashPassword(const std::string& password) {
-    // INFO: 1. Generate a cryptographically random salt. RAND_bytes fills the
-    //       buffer with random bytes from OpenSSL's CSPRNG.
-    std::vector<unsigned char> salt(kSaltBytes);
-    if (RAND_bytes(salt.data(), kSaltBytes) != 1) {
-        return std::unexpected(Error::Internal("[Auth] CSPRNG failure: RAND_bytes returned 0"));
-    }
-
-    // INFO: 2. Read the pepper from the environment and append it to the
-    //       password. std::string + std::string = concatenation; no UB here.
-    //       Env-once: cached (refresh-on-change), no per-hash allocation.
-    const std::string& pepper = CachedEnv("PASSWORD_PEPPER", "");
-    std::string peppered_pass  = password + pepper;
-
-    // INFO: 3. Derive the hash.
-    //          PKCS5_PBKDF2_HMAC(password, passlen,
-    //                            salt, saltlen,
-    //                            iterations,
-    //                            digest,        ← EVP_sha256() here
-    //                            keylen,
-    //                            output_buffer)
-    //          Returns 1 on success, 0 on failure.
-    std::vector<unsigned char> hash(kHashBytes);
-    if (PKCS5_PBKDF2_HMAC(
-            peppered_pass.c_str(),
-            static_cast<int>(peppered_pass.size()),
-            salt.data(),
-            kSaltBytes,
-            kIterations,
-            EVP_sha256(),
-            kHashBytes,
-            hash.data()) != 1) {
-        return std::unexpected(Error::Internal("[Auth] PBKDF2 failed"));
-    }
-
-    // INFO: 4. Encode both salt and hash to base64 and return as
-    //       "<salt>:<hash>". Storing them together makes retrieval a single
-    //       DB read.
-    return Base64::Encode(salt) + ":" + Base64::Encode(hash);
+    return CryptoPool::Get().HashPasswordAsync(password).get();
 }
 
 bool AuthService::VerifyPassword(const std::string& password, const std::string& stored) {
-    auto colon = stored.find(':');
-    if (colon == std::string::npos) return false;
-
-    std::vector<unsigned char> salt;
-    std::vector<unsigned char> ref_hash;
-    try {
-        salt     = Base64::Decode(stored.substr(0, colon));
-        ref_hash = Base64::Decode(stored.substr(colon + 1));
-    } catch (const std::exception&) {
-        return false;  // malformed base64 in the row: never a match
-    }
-    if (salt.size() != static_cast<std::size_t>(kSaltBytes) ||
-        ref_hash.size() != static_cast<std::size_t>(kHashBytes)) {
-        return false;  // truncated/oversized digest would over-read in CRYPTO_memcmp
-    }
-
-    std::string peppered_pass = password + CachedEnv("PASSWORD_PEPPER", "");
-
-    std::vector<unsigned char> candidate(kHashBytes);
-    if (PKCS5_PBKDF2_HMAC(
-            peppered_pass.c_str(),
-            static_cast<int>(peppered_pass.size()),
-            salt.data(),
-            static_cast<int>(salt.size()),
-            kIterations,
-            EVP_sha256(),
-            kHashBytes,
-            candidate.data()) != 1) {
-        return false;
-    }
-
-    // INFO: CRYPTO_memcmp performs a constant-time comparison. A regular `==`
-    //       on std::vector short-circuits on the first mismatch, which leaks
-    //       timing information, a timing-side-channel attack can use that to
-    //       infer how many bytes of the hash match. Returns 0 if equal (same
-    //       convention as memcmp).
-    return (CRYPTO_memcmp(candidate.data(), ref_hash.data(), kHashBytes) == 0);
+    return CryptoPool::Get().VerifyPasswordAsync(password, stored).get();
 }
 
 // JWT, issue + verify
