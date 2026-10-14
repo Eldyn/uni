@@ -1,18 +1,19 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildLogLines, REACTION_RULES } from "$lib/chat/playLog/logBuilder";
 import type { LogEvent } from "$lib/chat/playLog/logEvent";
-import { readStreaks } from "$lib/chat/playLog/serverStreaks";
 import {
 	BindingRegistry,
 	clientEventOf,
 	presentEvent,
 	type CardResolver,
+	type CauseRecall,
+	type ClientEvent,
 	type EventEnvelope
 } from "$lib/presentation/eventBindings";
 
 const FIXTURE_DIR = resolve(import.meta.dirname, "../../../../../tests/fixtures/play_log_parity");
+const SHIPPED_DIR = resolve(import.meta.dirname, "../../../../../mods/uni/presentations");
 const SEQUENCES = Array.from({ length: 80 }, (_, index) => index + 1);
 const VIEWER = { seat: "ann" };
 const WILD_TAG = "uni:wild";
@@ -32,10 +33,14 @@ type CoreInput = LogEvent extends infer Event
 
 interface ParityCase {
 	name: string;
-	/** The core event; null when the core rules post no line for this wire event. */
+	/**
+	 * The frozen core expectation the wire was built from. Nothing reads it:
+	 * the parity comparison now runs the fixture bindings against the shipped
+	 * bindings. It stays as documentation of what each wire means.
+	 */
 	core: CoreInput | null;
 	wire: Omit<EventEnvelope, "sequence">;
-	/** The seat whose entry the per-seat draw count reads. */
+	/** The seat whose entry the per-seat draw count reads (likewise unread now). */
 	seat?: string;
 	/** The event that caused the wire event, as the runner remembers it. */
 	causeEvent?: { id: string; payload: Record<string, unknown> };
@@ -48,6 +53,7 @@ interface Outcome {
 }
 
 const registries = new Map<string, BindingRegistry>();
+const shippedRegistries = new Map<string, BindingRegistry>();
 
 /** One fixture file holds one binding. A row can use more than one file. */
 const ROW_FIXTURES: Record<string, string[]> = {
@@ -74,6 +80,44 @@ function registryOf(row: string): BindingRegistry {
 	return registry;
 }
 
+/**
+ * The shipped bindings of a row: the same file names read from the mod, with
+ * the `id` the server injects at defs-build time (`uni:<stem>`). Each side
+ * keeps its own ids: the variant pick salts on the binding id, so sharing
+ * ids would couple the two rotations.
+ */
+function shippedRegistryOfFiles(files: string[]): BindingRegistry {
+	const registry = new BindingRegistry();
+	const presentations = files.map((file) => ({
+		id: `uni:${file}`,
+		...JSON.parse(readFileSync(resolve(SHIPPED_DIR, `${file}.json`), "utf8"))
+	}));
+	registry.ingestDefs({ presentations });
+	return registry;
+}
+
+function shippedRegistryOf(row: string): BindingRegistry {
+	let registry = shippedRegistries.get(row);
+	if (registry === undefined) {
+		registry = shippedRegistryOfFiles(ROW_FIXTURES[row] ?? [row]);
+		shippedRegistries.set(row, registry);
+	}
+	return registry;
+}
+
+/**
+ * A cause memory like bindingRunner's: remembers each event of the chain by
+ * sequence, so an `ancestor` own_log negation can walk it.
+ */
+function recallOf(
+	chain: { sequence: number; id: string; payload: Record<string, unknown>; cause?: number }[]
+): CauseRecall {
+	const recent = new Map(
+		chain.map((event) => [event.sequence, { id: event.id, payload: event.payload, cause: event.cause }])
+	);
+	return (sequence: number) => recent.get(sequence);
+}
+
 function sortedParams(params: Record<string, string | number>): string {
 	return JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)));
 }
@@ -92,21 +136,12 @@ function summarize(lines: { key: string; params: Record<string, string | number>
 	return { keys: [...keys].sort(), params: [...params].sort(), lineCount };
 }
 
-function coreOutcome(testCase: ParityCase): Outcome {
-	if (testCase.core === null) return { keys: [], params: [], lineCount: 0 };
-	const streak = readStreaks(testCase.wire.context, testCase.seat);
-	return summarize(
-		SEQUENCES.map((seq) => buildLogLines({ ...testCase.core, seq } as LogEvent, streak))
-	);
-}
-
 /** The binding lines of a sequence of wire events; only the last carries the cause. */
-function bindingOutcomeOf(
-	row: string,
+function outcomeOf(
+	registry: BindingRegistry,
 	steps: ParityCase["wire"][],
 	causeEvent?: ParityCase["causeEvent"]
 ): Outcome {
-	const registry = registryOf(row);
 	return summarize(
 		SEQUENCES.map((sequence) =>
 			steps.flatMap((wire, index) =>
@@ -126,15 +161,43 @@ function bindingOutcomeOf(
 	);
 }
 
-function bindingOutcome(row: string, testCase: ParityCase): Outcome {
-	return bindingOutcomeOf(row, [testCase.wire], testCase.causeEvent);
+function fixtureOutcomeOf(
+	row: string,
+	steps: ParityCase["wire"][],
+	causeEvent?: ParityCase["causeEvent"]
+): Outcome {
+	return outcomeOf(registryOf(row), steps, causeEvent);
+}
+
+function shippedOutcomeOf(
+	row: string,
+	steps: ParityCase["wire"][],
+	causeEvent?: ParityCase["causeEvent"]
+): Outcome {
+	return outcomeOf(shippedRegistryOf(row), steps, causeEvent);
+}
+
+function fixtureOutcome(row: string, testCase: ParityCase): Outcome {
+	return fixtureOutcomeOf(row, [testCase.wire], testCase.causeEvent);
+}
+
+function shippedOutcome(row: string, testCase: ParityCase): Outcome {
+	return shippedOutcomeOf(row, [testCase.wire], testCase.causeEvent);
 }
 
 function expectParity(row: string, testCase: ParityCase): void {
-	const core = coreOutcome(testCase);
-	const binding = bindingOutcome(row, testCase);
-	expect(binding.keys).toEqual(core.keys);
-	expect(binding.params).toEqual(core.params);
+	const fixture = fixtureOutcome(row, testCase);
+	const shipped = shippedOutcome(row, testCase);
+	expect(shipped.keys).toEqual(fixture.keys);
+	expect(shipped.params).toEqual(fixture.params);
+}
+
+/** The shipped line keys of one event, for the single-event own_log checks. */
+function shippedKeys(row: string, event: ClientEvent, recall?: CauseRecall): string[] {
+	return presentEvent(shippedRegistryOf(row), event, VIEWER, resolveCard, recall)
+		.map((output) => output.line)
+		.filter((line): line is NonNullable<typeof line> => line !== null)
+		.map((line) => line.key);
 }
 
 interface Row {
@@ -354,7 +417,7 @@ const ROWS: Row[] = [
 	}
 ];
 
-describe("play log parity: core rules against fixture bindings", () => {
+describe("play log parity: the shipped bindings against the frozen fixtures", () => {
 	for (const { row, cases } of ROWS) {
 		describe(row, () => {
 			for (const testCase of cases) {
@@ -426,24 +489,25 @@ const paramsOfOutcome = (outcome: Outcome): Record<string, unknown>[] =>
 
 describe("play log parity: the wild play line through the cause event", () => {
 	it("play: a wild with a known color posts the same line, with the chosen color", () => {
-		const core = coreOutcome({
-			name: "wild play",
-			core: { kind: "play", player: "ann", cardKind: "uni:wild", color: "blue" },
-			wire: wildPlayWire()
-		});
-		const binding = bindingOutcomeOf(
+		const fixture = fixtureOutcomeOf(
 			"play",
 			[wildPlayWire(), wildColorWire("blue")],
 			wildPlayCause()
 		);
-		expect(binding.keys).toEqual(core.keys);
-		expect(binding.params).toEqual(core.params);
-		expect(binding.lineCount).toBe(core.lineCount);
-		expect(paramsOfOutcome(binding).map((entry) => entry.color)).toEqual(["blue"]);
+		const shipped = shippedOutcomeOf(
+			"play",
+			[wildPlayWire(), wildColorWire("blue")],
+			wildPlayCause()
+		);
+		expect(shipped.keys).toEqual(fixture.keys);
+		expect(shipped.params).toEqual(fixture.params);
+		expect(shipped.lineCount).toBe(fixture.lineCount);
+		expect(paramsOfOutcome(shipped).map((entry) => entry.color)).toEqual(["blue"]);
 	});
 
 	it("play: the card_played of a wild posts no line", () => {
-		expect(bindingOutcomeOf("play", [wildPlayWire()]).lineCount).toBe(0);
+		expect(fixtureOutcomeOf("play", [wildPlayWire()]).lineCount).toBe(0);
+		expect(shippedOutcomeOf("play", [wildPlayWire()]).lineCount).toBe(0);
 	});
 
 	it("play: a color change with no wild cause posts no play line", () => {
@@ -452,13 +516,15 @@ describe("play log parity: the wild play line through the cause event", () => {
 			wildPlayCause(["action"]),
 			{ id: "auto_played", payload: { card: 44, player: "ann", tags: [WILD_TAG] } }
 		]) {
-			expect(bindingOutcomeOf("play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+			expect(fixtureOutcomeOf("play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+			expect(shippedOutcomeOf("play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
 		}
 	});
 
 	it("play: a wild reset to white or to an empty color posts no play line", () => {
 		for (const color of ["white", ""]) {
-			expect(bindingOutcomeOf("play", [wildColorWire(color)], wildPlayCause()).lineCount).toBe(0);
+			expect(fixtureOutcomeOf("play", [wildColorWire(color)], wildPlayCause()).lineCount).toBe(0);
+			expect(shippedOutcomeOf("play", [wildColorWire(color)], wildPlayCause()).lineCount).toBe(0);
 		}
 	});
 
@@ -498,7 +564,7 @@ describe("play log parity: an auto-played wild posts through the colour change (
 	// colour change is caused by the auto_played event, whose tags name the
 	// wild. The `auto_play` binding skips a wild (negated `has_tag`), and the
 	// `auto_play_wild` fixture posts the play line with the chosen colour.
-	const registry = registryOf("auto_play");
+	const shipped = shippedRegistryOf("auto_play");
 
 	it("auto_play: an auto-played wild posts one line with the chosen colour", () => {
 		const steps = [
@@ -507,7 +573,7 @@ describe("play log parity: an auto-played wild posts through the colour change (
 		];
 		const lines = steps.flatMap(({ wire, causeEvent }) =>
 			presentEvent(
-				registry,
+				shipped,
 				{ ...clientEventOf({ ...wire, sequence: 1 }), causeEvent },
 				VIEWER,
 				resolveCard
@@ -517,12 +583,22 @@ describe("play log parity: an auto-played wild posts through the colour change (
 		expect(lines[0]?.line?.key).toBe("uni:log.auto_play_1");
 		expect(lines[0]?.line?.params.name).toBe("ann");
 		expect(lines[0]?.line?.params.color).toBe("blue");
-		const core = coreOutcome({
-			name: "auto wild",
-			core: { kind: "auto_play", player: "ann", cardKind: "uni:wild", color: "blue" },
-			wire: autoPlayedWire()
-		});
-		expect(paramsOfOutcome(core).map((entry) => entry.color)).toEqual(["blue"]);
+		// The core rule posts the same line with the same colour (the rule
+		// semantics the fixture froze): the shipped pool holds only
+		// `auto_play_1`, so the variant is fixed whatever the id salt is.
+		const fixture = fixtureOutcomeOf(
+			"auto_play",
+			[autoPlayedWire(), wildColorWire("blue")],
+			autoPlayedCause()
+		);
+		const shippedSummary = shippedOutcomeOf(
+			"auto_play",
+			[autoPlayedWire(), wildColorWire("blue")],
+			autoPlayedCause()
+		);
+		expect(shippedSummary.keys).toEqual(fixture.keys);
+		expect(shippedSummary.params).toEqual(fixture.params);
+		expect(paramsOfOutcome(shippedSummary).map((entry) => entry.color)).toEqual(["blue"]);
 	});
 
 	it("auto_play: a colour change an untagged event caused posts no play line", () => {
@@ -531,8 +607,166 @@ describe("play log parity: an auto-played wild posts through the colour change (
 			{ id: "card_played", payload: { tags: [WILD_TAG] } },
 			{ id: "auto_played", payload: { tags: ["action"] } }
 		]) {
-			expect(bindingOutcomeOf("auto_play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+			expect(fixtureOutcomeOf("auto_play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
+			expect(shippedOutcomeOf("auto_play", [wildColorWire("green")], causeEvent).lineCount).toBe(0);
 		}
+	});
+});
+
+describe("shipped bindings: core behaviours the fixtures do not cover", () => {
+	// The core wild rule groups reactions by run: the first wild of a match,
+	// the second, and the third and later — each with its own variant pool.
+	const reactionPool: Record<number, string[]> = {
+		1: ["uni:log.wild_reaction_1", "uni:log.wild_reaction_first_2"],
+		2: ["uni:log.wild_reaction_second_1", "uni:log.wild_reaction_second_2"],
+		3: ["uni:log.wild_reaction_third_1", "uni:log.wild_reaction_third_2"]
+	};
+
+	for (const run of [1, 2, 3]) {
+		it(`auto-played wild reaction: run ${run} posts one wild_reaction line with name, color and prevColor`, () => {
+			const event = {
+				...clientEventOf({
+					...wildColorWire("blue"),
+					sequence: 7,
+					context: {
+						"uni:wild_run": run,
+						"uni:last_wild_color":
+							run === 1 ? { last: "blue" } : { last: "blue", previous: "red" }
+					}
+				}),
+				causeEvent: autoPlayedCause()
+			};
+			const lines = presentEvent(shippedRegistryOf("wild"), event, VIEWER, resolveCard)
+				.map((output) => output.line)
+				.filter((line): line is NonNullable<typeof line> => line !== null);
+			expect(lines).toHaveLength(1);
+			expect(lines[0]!.key).toMatch(/^uni:log\.wild_reaction/);
+			expect(reactionPool[run]).toContain(lines[0]!.key);
+			expect(lines[0]!.params).toEqual({
+				name: "ann",
+				color: "blue",
+				prevColor: run === 1 ? "" : "red"
+			});
+		});
+	}
+
+	const ownLogPlay = (sequence: number, cause?: number) => ({
+		sequence,
+		id: "card_played",
+		payload: { player: "ann", card: 42, tags: ["uni:own_log"] },
+		cause
+	});
+	const plainPlay = (sequence: number, cause?: number) => ({
+		sequence,
+		id: "card_played",
+		payload: { player: "ann", card: 42, tags: [] as string[] },
+		cause
+	});
+
+	it("own_log: a card_played with the own_log tag posts no play line", () => {
+		const ownEvent = clientEventOf({
+			id: "card_played",
+			actor: "ann",
+			sequence: 10,
+			payload: { player: "ann", card: 42, tags: ["uni:own_log"] }
+		});
+		expect(shippedKeys("play", ownEvent, recallOf([ownLogPlay(10)]))).toEqual([]);
+		const plainEvent = clientEventOf({
+			id: "card_played",
+			actor: "ann",
+			sequence: 10,
+			payload: { player: "ann", card: 42, tags: [] as string[] }
+		});
+		expect(shippedKeys("play", plainEvent, recallOf([plainPlay(10)]))).toEqual(["uni:log.play"]);
+	});
+
+	it("own_log: a turn_skipped that an own_log play caused posts no line", () => {
+		const skipAt = (cause: number) =>
+			({
+				...clientEventOf({
+					id: "turn_skipped",
+					actor: "ann",
+					sequence: 11,
+					payload: { target: "bob" },
+					context: { "uni:skip_run": 1 }
+				}),
+				cause
+			}) satisfies ClientEvent;
+		const ownChain = [
+			ownLogPlay(10),
+			{ sequence: 11, id: "turn_skipped", payload: { target: "bob" }, cause: 10 }
+		];
+		expect(shippedKeys("skip", skipAt(10), recallOf(ownChain))).toEqual([]);
+		const plainChain = [
+			plainPlay(10),
+			{ sequence: 11, id: "turn_skipped", payload: { target: "bob" }, cause: 10 }
+		];
+		expect(shippedKeys("skip", skipAt(10), recallOf(plainChain))).toEqual(["uni:log.skip"]);
+	});
+
+	it("own_log: a near_win_entered that an own_log play caused posts no line", () => {
+		const enterAt = (cause: number) =>
+			({
+				...clientEventOf({
+					id: "near_win_entered",
+					actor: "ann",
+					sequence: 13,
+					payload: { target: "ann" }
+				}),
+				cause
+			}) satisfies ClientEvent;
+		const ownChain = [
+			ownLogPlay(10),
+			{ sequence: 13, id: "near_win_entered", payload: { target: "ann" }, cause: 10 }
+		];
+		expect(shippedKeys("near_win", enterAt(10), recallOf(ownChain))).toEqual([]);
+		const plainChain = [
+			plainPlay(10),
+			{ sequence: 13, id: "near_win_entered", payload: { target: "ann" }, cause: 10 }
+		];
+		// The variant pick salts on the binding id, so the shipped pool can
+		// name any of its three lines; the parity table above pins the set.
+		const keys = shippedKeys("near_win", enterAt(10), recallOf(plainChain));
+		expect(keys).toHaveLength(1);
+		expect(keys[0]).toMatch(/^uni:log\.near_win_/);
+	});
+
+	it("own_log: a cards_drawn with an own_log play as ancestor cause posts no line", () => {
+		const drawAt = (cause: number) =>
+			({
+				...clientEventOf({
+					id: "cards_drawn",
+					actor: "ann",
+					sequence: 12,
+					payload: { target: "ann", count: 2, hand_size_after: 7 },
+					context: { "uni:total_draws": 2, "uni:draw_run": { ann: 1 } }
+				}),
+				cause
+			}) satisfies ClientEvent;
+		const ownChain = [
+			ownLogPlay(10),
+			{ sequence: 11, id: "mod:curse", payload: {}, cause: 10 },
+			{
+				sequence: 12,
+				id: "cards_drawn",
+				payload: { target: "ann", count: 2, hand_size_after: 7 },
+				cause: 11
+			}
+		];
+		expect(shippedKeys("draw", drawAt(11), recallOf(ownChain))).toEqual([]);
+		const plainChain = [
+			plainPlay(10),
+			{ sequence: 11, id: "mod:curse", payload: {}, cause: 10 },
+			{
+				sequence: 12,
+				id: "cards_drawn",
+				payload: { target: "ann", count: 2, hand_size_after: 7 },
+				cause: 11
+			}
+		];
+		const keys = shippedKeys("draw", drawAt(11), recallOf(plainChain));
+		expect(keys).toHaveLength(1);
+		expect(keys[0]).toMatch(/^uni:log\.draw_/);
 	});
 });
 
@@ -544,17 +778,11 @@ describe("play log parity: accepted differences (see parity-gaps.md)", () => {
 	});
 });
 
-describe("play log parity: row table guard", () => {
-	it("the fixture rows are the rule ids of the core, in the same set", () => {
-		const fixtureRows = new Set(ROWS.map(({ row }) => row));
-		const coreRows = new Set(REACTION_RULES.map((rule) => rule.id));
-		expect([...fixtureRows].sort()).toEqual([...coreRows].sort());
-	});
-
-	it("every row has a fixture file with a binding", () => {
+describe("play log parity: shipped registry guard", () => {
+	it("every row's shipped registry has a binding for every wire event the row uses", () => {
 		for (const { row, cases } of ROWS) {
 			for (const { wire } of cases) {
-				expect(registryOf(row).forEvent(wire.id).length).toBeGreaterThan(0);
+				expect(shippedRegistryOf(row).forEvent(wire.id).length).toBeGreaterThan(0);
 			}
 		}
 	});
