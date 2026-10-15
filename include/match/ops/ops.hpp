@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <cstddef>
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -581,6 +581,16 @@ public:
             StampCausalFrame(store, ctx.frame.causal, event);
         }
         return result;
+    }
+
+    /**
+     * @brief True when `name` is on the Creative director whitelist.
+     */
+    bool IsDirectorOp(const std::string& name) const {
+        static const std::vector<std::string> allowed = {
+            "materialize_card", "move_card", "transfer_card",
+            "remove_card", "replace_card", "swap_hands"};
+        return std::find(allowed.begin(), allowed.end(), name) != allowed.end();
     }
 
 private:
