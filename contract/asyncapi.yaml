@@ -47,6 +47,8 @@ channels:
       message:
         oneOf:
           - $ref: "#/components/messages/MatchPlayCard"
+          - $ref: "#/components/messages/DirectorCommand"
+
           - $ref: "#/components/messages/MatchDrawCard"
           - $ref: "#/components/messages/MatchKeepDrawn"
           - $ref: "#/components/messages/MatchSubmitInput"
@@ -529,6 +531,12 @@ components:
       payload:
         $ref: "#/components/schemas/GamePlayCardPayload"
 
+    DirectorCommand:
+      name: director_command
+      title: Director Control
+      payload:
+        $ref: "#/components/schemas/GameDirectorCommandPayload"
+
     MatchDrawCard:
       name: match_draw_card
       title: Draw a Card
@@ -953,6 +961,22 @@ components:
           description: >
             CompactCardV2.bits of the card to play (uint32 identity:
             mod/kind/instance), not a 16-bit legacy id.
+
+    GameDirectorCommandPayload:
+      type: object
+      required:
+        - op
+      properties:
+        op:
+          type: string
+          description: >
+            Whitelisted director operation name, e.g. materialize_card.
+        args:
+          type: object
+          additionalProperties: true
+          description: Operation arguments passed to OpRuntime Invoke.
+        request_id:
+          type: string
 
     GameSubmitInputPayload:
       type: object
