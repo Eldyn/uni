@@ -226,6 +226,16 @@ void MatchSession::SetSeatPrivacy(const std::string& username, bool enabled) {
     }
 }
 
+void MatchSession::SetDirector(const std::string& username, bool enabled) {
+    const auto pos = std::ranges::find(directors_, username);
+    if (enabled && pos == directors_.end()) directors_.push_back(username);
+    else if (!enabled && pos != directors_.end()) directors_.erase(pos);
+}
+
+bool MatchSession::IsDirector(const std::string& username) const {
+    return std::ranges::find(directors_, username) != directors_.end();
+}
+
 match::view::Viewer MatchSession::SpectatorViewer() const {
     return match::view::Viewer::Spectator(private_seats_);
 }
@@ -258,7 +268,7 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
             EnsureDefs(broadcaster, socket, it->second);
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
-                            match::view::Viewer::Player(username), it->second,
+                            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), it->second,
                             warm_up));
             SendBarrierPacket(
                 broadcaster, socket, it->second,
@@ -308,7 +318,7 @@ bool MatchSession::HandleSnapshotRequest(
     match::view::EventSink& sink =
         is_seat ? sinks_.at(username) : viewer_sinks_.at(username);
     const match::view::Viewer viewer =
-        is_seat ? match::view::Viewer::Player(username)
+        is_seat ? (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username))
                 : SpectatorViewer();
     match::view::SnapshotOptions warm_up = options;
     warm_up.tail = &tail_;
@@ -445,7 +455,7 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
         for (const auto& [username, socket] : sockets_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(
-                events[cursor_], match::view::Viewer::Player(username),
+                events[cursor_], (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)),
                 sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
@@ -491,7 +501,7 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         //       the play and the answer cannot re-send the same prompt_opened.
         if (last == signature) continue;
         std::optional<json> packet = builder_.BuildPendingPrompt(
-            match::view::Viewer::Player(username), sinks_.at(username));
+            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), sinks_.at(username));
         if (!packet.has_value()) continue;
         // INFO: The engine op leaves `response_schema` to the session layer;
         //       attach the resolved kind schema so `prompt_opened` satisfies
@@ -550,7 +560,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         //       first snapshot after reconnecting.
         EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            match::view::Viewer::Player(username), sinks_.at(username), options);
+            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), sinks_.at(username), options);
         broadcaster.SendJson(socket, snapshot);
     }
     // INFO: Spectators keep receiving snapshots after their

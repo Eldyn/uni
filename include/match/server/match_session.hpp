@@ -223,6 +223,12 @@ public:
      */
     void SetSeatPrivacy(const std::string& username, bool enabled);
 
+    /** @brief Mark or clear a host Creative director for VIP x-ray. */
+    void SetDirector(const std::string& username, bool enabled);
+
+    /** @brief True when username has Creative x-ray. */
+    bool IsDirector(const std::string& username) const;
+
     /** @brief The spectator viewer with the current private seats. */
     match::view::Viewer SpectatorViewer() const;
 
@@ -488,6 +494,7 @@ private:
     SocketMap viewers_;
     /** Owners with Streamer/Privacy Mode on, without duplicate. */
     std::vector<std::string> private_seats_;
+    std::vector<std::string> directors_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
     std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;
