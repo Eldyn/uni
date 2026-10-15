@@ -429,6 +429,9 @@ public:
     const ecs::EntityStore& Store() const { return assembly_->store; }
     /** @brief Frozen per-match registries. */
     const MatchRegistries& Registries() const { return assembly_->registries; }
+    /** @brief Register a director-created card, returning its wire bits. */
+    std::optional<uint32_t> RegisterStackedCard(ecs::Entity card,
+                                                const std::string& kind_id);
     /** @brief The streak values of this match. */
     const match::streak::StreakEngine& Streaks() const { return streaks_; }
     /** @brief The derived event windows of this match. */

@@ -286,6 +286,52 @@ const json* HeuristicBotPolicy::SchemaFor(const std::string& kind) const {
     return it == schemas_.end() ? nullptr : &it->second;
 }
 
+ScriptedBotPolicy::ScriptedBotPolicy(
+    std::shared_ptr<ScriptQueues> queues, uint64_t seed,
+    std::map<std::string, nlohmann::json> extra_schemas)
+    : queues_(std::move(queues)), fallback_(seed, std::move(extra_schemas)) {}
+
+std::optional<uint32_t> ScriptedBotPolicy::ChoosePlay(const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "play") {
+            const uint32_t bits = it->second.front().bits;
+            it->second.pop_front();
+            return bits;
+        }
+    }
+    return fallback_.ChoosePlay(view);
+}
+
+json ScriptedBotPolicy::ChoosePrompt(const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "answer" &&
+            it->second.front().prompt_kind == view.prompt_kind) {
+            const json value = it->second.front().value;
+            it->second.pop_front();
+            return value;
+        }
+    }
+    return fallback_.ChoosePrompt(view);
+}
+
+std::vector<uint32_t> ScriptedBotPolicy::ChooseWindowResponses(
+    const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "play") {
+            const uint32_t bits = it->second.front().bits;
+            it->second.pop_front();
+            return {bits};
+        }
+    }
+    return fallback_.ChooseWindowResponses(view);
+}
+
 std::optional<uint32_t> HeuristicBotPolicy::ChoosePlay(const BotView& view) {
     // INFO: prefer a non-wild legal card so the turn resolves without a colour
     //       prompt; fall back to any legal card (a wild is always playable).

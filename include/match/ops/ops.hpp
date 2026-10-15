@@ -590,7 +590,7 @@ public:
         static const std::vector<std::string> allowed = {
             "materialize_card", "move_card", "transfer_card",
             "remove_card", "replace_card", "swap_hands",
-            "pause", "step", "force_turn"};
+            "pause", "step", "force_turn", "script", "stack"};
         return std::find(allowed.begin(), allowed.end(), name) != allowed.end();
     }
 

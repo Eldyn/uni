@@ -724,3 +724,53 @@ TEST_CASE("bot policy: the held draw is exposed only to its owner") {
     CHECK_FALSE(BotStep(session, policy, "bot1"));
     CHECK(engine.PendingPlayDrawnState().has_value());
 }
+
+TEST_CASE("scripted: queued play intent wins over heuristic") {
+    using match::server::BotIntent;
+    using match::server::ScriptedBotPolicy;
+    auto queues = std::make_shared<match::server::ScriptQueues>();
+    (*queues)["bot0"].push_back(BotIntent::Play(0xC10u));
+
+    ScriptedBotPolicy policy(queues, 7u);
+    BotView view;
+    view.username = "bot0";
+    view.current_player = "bot0";
+
+    const auto play = policy.ChoosePlay(view);
+    REQUIRE(play.has_value());
+    CHECK_EQ(*play, 0xC10u);
+    CHECK((*queues)["bot0"].empty());
+}
+
+TEST_CASE("scripted: empty queue falls back to heuristic") {
+    using match::server::ScriptedBotPolicy;
+    auto queues = std::make_shared<match::server::ScriptQueues>();
+
+    ScriptedBotPolicy policy(queues, 7u);
+    BotView view;
+    view.username = "bot0";
+    view.current_player = "bot0";
+
+    const auto play = policy.ChoosePlay(view);
+    CHECK_FALSE(play.has_value());
+}
+
+TEST_CASE("scripted: matching answer intent is consumed") {
+    using match::server::BotIntent;
+    using match::server::ScriptedBotPolicy;
+    auto queues = std::make_shared<match::server::ScriptQueues>();
+    BotIntent intent;
+    intent.type = "answer";
+    intent.prompt_kind = "choose_color";
+    intent.value = "red";
+    (*queues)["bot0"].push_back(intent);
+
+    ScriptedBotPolicy policy(queues, 7u);
+    BotView view;
+    view.username = "bot0";
+    view.prompt_pending = true;
+    view.prompt_kind = "choose_color";
+
+    CHECK_EQ(policy.ChoosePrompt(view), json("red"));
+    CHECK((*queues)["bot0"].empty());
+}

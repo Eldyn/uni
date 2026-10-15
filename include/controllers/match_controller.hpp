@@ -1,12 +1,14 @@
 #pragma once
 
 #include <controllers/ilobby_store.hpp>
+#include <match/server/bot_policy.hpp>
 #include <match/view/view_builder.hpp>
 #include <transport/iaction_router.hpp>
 #include <transport/ibroadcaster.hpp>
 #include <transport/itimer_service.hpp>
 #include <nlohmann/json.hpp>
 #include <cstdint>
+#include <memory>
 #include <random>
 
 /**
@@ -207,4 +209,6 @@ private:
                             const std::string& username);
     bool paused_creative_ = false;
     void ClearCreativeTimers(uint32_t lobby_id);
+    std::shared_ptr<match::server::ScriptQueues> script_queues_ =
+        std::make_shared<match::server::ScriptQueues>();
 };

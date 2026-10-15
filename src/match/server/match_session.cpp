@@ -2,6 +2,7 @@
 
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
 
@@ -234,6 +235,33 @@ void MatchSession::SetDirector(const std::string& username, bool enabled) {
 
 bool MatchSession::IsDirector(const std::string& username) const {
     return std::ranges::find(directors_, username) != directors_.end();
+}
+
+bool MatchSession::StackDrawPile(const std::vector<std::string>& kinds) {
+    if (kinds.empty()) return false;
+    ecs::EntityStore& store = engine_->Store();
+    const auto& registries = engine_->Registries();
+    for (auto it = kinds.rbegin(); it != kinds.rend(); ++it) {
+        const auto pos = registries.kind_index.find(*it);
+        if (pos == registries.kind_index.end()) return false;
+        const ecs::Entity card = store.Create();
+        ecs::CardIdentity identity;
+        identity.mod_index = pos->second.mod_index;
+        identity.kind_index = pos->second.kind_index;
+        identity.kind_id = *it;
+        store.Add(card, identity);
+        store.Add(card, ecs::InZone{ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}}, 0});
+        store.Add(card, ecs::FaceSpec{});
+        if (match::ops::MoveCardToZone(
+                store, card,
+                ecs::ZoneRef{ecs::ZoneKind::kDrawPile, ecs::Entity{}}) &&
+            engine_->RegisterStackedCard(card, *it).has_value()) {
+            continue;
+        }
+        store.Destroy(card);
+        return false;
+    }
+    return true;
 }
 
 match::view::Viewer MatchSession::SpectatorViewer() const {

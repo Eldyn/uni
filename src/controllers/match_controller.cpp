@@ -384,6 +384,55 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
         OnTurnStarted(active_lobby);
         return;
     }
+    if (op == "script") {
+        const json args = message.value("args", json::object());
+        const std::string seat = args.value("seat", std::string());
+        const LobbyMember* member = active_lobby->FindMember(seat);
+        if (member == nullptr || !member->is_bot) {
+            Logger::Warn("director command dropped: scripts run on bot seats only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "scripts run on bot seats only");
+            return;
+        }
+        if (!args.contains("intents") || !args["intents"].is_array()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "script needs an intents array");
+            return;
+        }
+        for (const json& item : args["intents"]) {
+            match::server::BotIntent intent;
+            intent.type = item.value("type", std::string("pass"));
+            intent.bits = item.value("bits", 0u);
+            intent.prompt_kind = item.value("prompt_kind", std::string());
+            if (item.contains("value")) intent.value = item["value"];
+            intent.kind = item.value("kind", std::string());
+            (*script_queues_)[seat].push_back(std::move(intent));
+        }
+        Logger::Info("[Director] script queued for seat: ", seat);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "stack") {
+        const json args = message.value("args", json::object());
+        std::vector<std::string> kinds;
+        if (args.contains("kinds") && args["kinds"].is_array()) {
+            for (const json& kind : args["kinds"]) {
+                if (kind.is_string()) kinds.push_back(kind.get<std::string>());
+            }
+        }
+        if (!active_lobby->session->StackDrawPile(kinds)) {
+            Logger::Warn("director command dropped: unknown stack kind");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown stack kind");
+            return;
+        }
+        Logger::Info("[Director] draw pile stacked");
+        BroadcastMatchState(active_lobby);
+        return;
+    }
     // INFO: P1 whitelist allows only the declared op names. Full op
     //       execution through OpRuntime requires a session-level store
     //       context and lands in a later pass. For now the command is
@@ -840,8 +889,8 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
             // INFO: a window responder that cannot act yet (a non-victim, or
             //       the victim inside the hold) must not starve the others.
             for (const std::string& actor : auto_actors) {
-                match::server::HeuristicBotPolicy policy(
-                    BotSeed(lobby_id, actor));
+                match::server::ScriptedBotPolicy policy(
+                    script_queues_, BotSeed(lobby_id, actor));
                 if (match::server::BotStep(*verified_lobby->session, policy,
                                            actor)) {
                     break;
@@ -880,8 +929,8 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         //       the play/keep promise and risk an unintended win).
         if (!ResolveAfkHeldDraw(*verified_lobby->session, human_actor)) {
             Logger::Info("[MATCH] Bot playing for AFK player: ", human_actor);
-            match::server::HeuristicBotPolicy policy(
-                BotSeed(lobby_id, human_actor));
+            match::server::ScriptedBotPolicy policy(
+                script_queues_, BotSeed(lobby_id, human_actor));
             match::server::BotStep(*verified_lobby->session, policy,
                                    human_actor);
         }

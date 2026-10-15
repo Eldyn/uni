@@ -229,6 +229,9 @@ public:
     /** @brief True when username has Creative x-ray. */
     bool IsDirector(const std::string& username) const;
 
+    /** @brief Stack exact kinds on top of the draw pile, first kind drawn first. */
+    bool StackDrawPile(const std::vector<std::string>& kinds);
+
     /** @brief The spectator viewer with the current private seats. */
     match::view::Viewer SpectatorViewer() const;
 

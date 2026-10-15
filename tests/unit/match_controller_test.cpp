@@ -24,6 +24,7 @@
 #include "support/fake_timer_service.hpp"
 
 using json = nlohmann::json;
+namespace ecs = match::ecs;
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -479,6 +480,57 @@ TEST_CASE("director: pause in a non-creative lobby is denied") {
     CHECK_EQ(err["action"], "error");
     CHECK_EQ(err["code"], "invalid_payload");
     CHECK(f.timers.Has("turn_1"));
+}
+
+TEST_CASE("director: script for a human seat is denied") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "script"},
+        {"args", json{{"seat", "Alice"}, {"intents", json::array()}}}});
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err["action"], "error");
+    CHECK_EQ(err["code"], "invalid_payload");
+}
+
+TEST_CASE("director: stack rigs the draw pile top in order") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+
+    auto* session = f.store.lobby.session.get();
+    REQUIRE(session != nullptr);
+    REQUIRE(session->StackDrawPile({"uni:blue_skip", "uni:blue_reverse"}));
+    REQUIRE_FALSE(session->StackDrawPile({"uni:no_such_kind_xyz"}));
+
+    const match::engine::MatchInstance& engine = session->Engine();
+    const ecs::Entity pile = engine.Registries().draw_pile;
+    const ecs::PileContents* contents =
+        engine.Store().Get<ecs::PileContents>(pile);
+    REQUIRE(contents != nullptr);
+    REQUIRE(contents->cards.size() >= 2);
+    const ecs::Entity top =
+        contents->cards[contents->cards.size() - 1];
+    const ecs::Entity second =
+        contents->cards[contents->cards.size() - 2];
+    const ecs::CardIdentity* top_id =
+        engine.Store().Get<ecs::CardIdentity>(top);
+    const ecs::CardIdentity* second_id =
+        engine.Store().Get<ecs::CardIdentity>(second);
+    REQUIRE(top_id != nullptr);
+    REQUIRE(second_id != nullptr);
+    CHECK_EQ(top_id->kind_id, "uni:blue_skip");
+    CHECK_EQ(second_id->kind_id, "uni:blue_reverse");
+    CHECK(engine.Registries().CardId(top).has_value());
 }
 
 // INFO: The controller must publish `defs` + `match_start` on the
