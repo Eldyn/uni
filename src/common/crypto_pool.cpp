@@ -25,6 +25,11 @@ constexpr int kIterations = 200'000;
 //       env at startup. An attacker who steals the DB but not the server
 //       config cannot run offline dictionary attacks even with the salts in
 //       hand.
+const std::string& PepperCache() {
+    static const std::string pepper = Env::Get("PASSWORD_PEPPER", "");
+    return pepper;
+}
+
 Result<std::string> HashPasswordOnWorker(const std::string& password) {
     // INFO: 1. Generate a cryptographically random salt. RAND_bytes fills the
     //       buffer with random bytes from OpenSSL's CSPRNG.
@@ -33,10 +38,9 @@ Result<std::string> HashPasswordOnWorker(const std::string& password) {
         return std::unexpected(Error::Internal("[Auth] CSPRNG failure: RAND_bytes returned 0"));
     }
 
-    // INFO: 2. Read the pepper from the environment and append it to the
-    //       password. std::string + std::string = concatenation; no UB here.
-    //       Read on the worker so the loop thread pays only enqueue.
-    std::string peppered_pass = password + Env::Get("PASSWORD_PEPPER", "");
+    // INFO: 2. Pepper cached process-wide (one env read) and reused.
+    const std::string& pepper = PepperCache();
+    std::string peppered_pass = password + pepper;
 
     // INFO: 3. Derive the hash.
     //          PKCS5_PBKDF2_HMAC(password, passlen,
@@ -82,7 +86,8 @@ bool VerifyPasswordOnWorker(const std::string& password, const std::string& stor
         return false;  // truncated/oversized digest would over-read in CRYPTO_memcmp
     }
 
-    std::string peppered_pass = password + Env::Get("PASSWORD_PEPPER", "");
+    const std::string& pepper = PepperCache();
+    std::string peppered_pass = password + pepper;
 
     std::vector<unsigned char> candidate(kHashBytes);
     if (PKCS5_PBKDF2_HMAC(

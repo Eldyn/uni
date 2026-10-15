@@ -116,6 +116,14 @@ public:
     static Result<std::string> IssueToken(const std::string& username);
 
     /**
+     * @brief Signs a JWT with an already-known token version (no DB hop).
+     * Login fetches `token_version` in its initial user lookup, so it signs
+     * directly instead of paying IssueToken's second SELECT.
+     */
+    static Result<std::string> IssueTokenWithVersion(const std::string& username,
+                                                      int version);
+
+    /**
      * @brief Verifies a JWT token and extracts its payload. Called by
      * `WebServer` at the beginning of every WebSocket upgrade attempt.
      * @param token The raw JWT string.

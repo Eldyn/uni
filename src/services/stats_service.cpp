@@ -3,8 +3,15 @@
 // Process-wide user-stats cache (shared across all instances).
 std::mutex StatsService::us_mu_;
 std::unordered_map<std::string, StatsService::UserStatsCacheEntry> StatsService::us_cache_;
+// Process-wide leaderboard cache (see header): one shared entry + SWR flag.
+std::mutex StatsService::lb_mu_;
+std::vector<LeaderboardEntry> StatsService::lb_cache_;
+std::chrono::steady_clock::time_point StatsService::lb_expires_{};
+bool StatsService::lb_have_ = false;
+std::atomic<bool> StatsService::lb_refreshing_{false};
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <thread>
 
 StatsService::StatsService(Database& db) : db_(db) {}
 
@@ -75,20 +82,56 @@ Result<UserStats> StatsService::GetUserStats(const std::string& username) {
 }
 
 Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
-    // INFO: TTL cache (backend-perf Task 9): the leaderboard endpoint is
-    //       polled in bursts (k6 leaderboard_poll), so share one query
-    //       result per 15 s window instead of hitting SQLite per poll.
+    // INFO: TTL cache + stale-while-revalidate. Warm hits return without
+    // touching SQLite. After expiry the first caller serves the stale rows
+    // and kicks one detached background refresh; latecomers keep getting
+    // stale rows until it lands. The loop never blocks on the DENSE_RANK
+    // window query under match-write contention. Cold start (no rows yet)
+    // blocks exactly once.
     {
         std::lock_guard<std::mutex> lock(lb_mu_);
-        if (lb_have_ &&
-            std::chrono::steady_clock::now() < lb_expires_) {
+        const auto now = std::chrono::steady_clock::now();
+        if (lb_have_ && now < lb_expires_) {
+            return lb_cache_;
+        }
+        if (lb_have_ && !lb_refreshing_.exchange(true)) {
+            std::vector<LeaderboardEntry> stale = lb_cache_;
+            std::thread([] {
+                Database& db = Database::Get();
+                auto fresh = StatsService::FetchLeaderboardRows(db);
+                {
+                    std::lock_guard<std::mutex> lock(lb_mu_);
+                    if (fresh) {
+                        lb_cache_ = std::move(*fresh);
+                        lb_expires_ = std::chrono::steady_clock::now() + kLeaderboardTtl;
+                    }
+                    lb_refreshing_ = false;
+                }
+            }).detach();
+            return stale;
+        }
+        if (lb_have_) {
             return lb_cache_;
         }
     }
 
+    auto fresh = FetchLeaderboardRows(db_);
+    if (!fresh) return std::unexpected(fresh.error());
+
+    {
+        std::lock_guard<std::mutex> lock(lb_mu_);
+        lb_cache_ = *fresh;
+        lb_expires_ = std::chrono::steady_clock::now() + kLeaderboardTtl;
+        lb_have_ = true;
+    }
+
+    return *fresh;
+}
+
+Result<std::vector<LeaderboardEntry>> StatsService::FetchLeaderboardRows(Database& db) {
     // INFO: One TEXT row: SQLite builds the whole top-50 JSON array, so the
     // loop parses a single cell instead of one DbRow map per entry.
-    auto row_result = db_.QueryOne(R"(
+    auto row_result = db.QueryOne(R"(
         SELECT COALESCE(json_group_array(json_object('username',username,'total_wins',total_wins,'total_losses',total_losses,'rank',rank)), '[]') AS j FROM (
         SELECT ps.username, ps.total_wins, ps.total_losses,
                DENSE_RANK() OVER (
@@ -130,13 +173,6 @@ Result<std::vector<LeaderboardEntry>> StatsService::GetLeaderboard() {
             e.at("total_losses").get<int>(),
             e.at("rank").get<int>(),
         });
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(lb_mu_);
-        lb_cache_ = entries;
-        lb_expires_ = std::chrono::steady_clock::now() + kLeaderboardTtl;
-        lb_have_ = true;
     }
 
     return entries;

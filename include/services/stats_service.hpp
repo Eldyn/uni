@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <optional>
@@ -104,10 +105,20 @@ private:
     Database& db_;
     /** Leaderboard TTL: poll bursts share one query result per window. */
     static constexpr std::chrono::seconds kLeaderboardTtl{15};
-    std::mutex lb_mu_;
-    std::vector<LeaderboardEntry> lb_cache_;
-    std::chrono::steady_clock::time_point lb_expires_{};
-    bool lb_have_ = false;
+    // Process-wide (static): poll bursts hit one shared entry and a
+    // temporary StatsService (e.g. in LobbyController) invalidates the same
+    // rows read by the long-lived StatsController instance. Stale-while-
+    // revalidate: after expiry one background refresh runs while callers
+    // keep getting the stale rows, so the loop never blocks on the window
+    // query under match-write load.
+    static std::mutex lb_mu_;
+    static std::vector<LeaderboardEntry> lb_cache_;
+    static std::chrono::steady_clock::time_point lb_expires_;
+    static bool lb_have_;
+    static std::atomic<bool> lb_refreshing_;
+
+    /** Runs the top-50 window query without touching the cache. */
+    static Result<std::vector<LeaderboardEntry>> FetchLeaderboardRows(Database& db);
 
     /** GetUserStats TTL: poll bursts share one query result per window. */
     static constexpr std::chrono::seconds kUserStatsTtl{15};

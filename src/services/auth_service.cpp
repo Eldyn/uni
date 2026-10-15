@@ -190,7 +190,7 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
     }
 
     auto row_result = db_.QueryOne(
-        "SELECT username, pass_hash, salt FROM users WHERE email = ?;",
+        "SELECT username, pass_hash, salt, token_version FROM users WHERE email = ?;",
         {email});
 
     if (!row_result) {
@@ -214,6 +214,7 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
     std::string  username  = row.Get<std::string>("username");
     std::string  hash_b64  = row.Get<std::string>("pass_hash");
     std::string  salt_b64  = row.Get<std::string>("salt");
+    const int    token_version = row.GetOr<int>("token_version", 0);
 
     // INFO: Reconstruct the "<salt>:<hash>" format that VerifyPassword expects.
     std::string stored = salt_b64 + ":" + hash_b64;
@@ -225,7 +226,9 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
 
     login_throttle_.Reset(throttle_key);
 
-    auto token = IssueToken(username);
+    // INFO: token_version rode along in the initial SELECT, so sign directly
+    // (saves IssueToken's second DB hop on every login).
+    auto token = IssueTokenWithVersion(username, token_version);
     if (!token) return std::unexpected(token.error());
 
     Logger::Info("[Auth] Login successful: " + username);
@@ -325,6 +328,18 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 //       and upgrade, not per-message; the cache still avoids the per-call
 //       getenv + heap allocation on the steady state.
 Result<std::string> AuthService::IssueToken(const std::string& username) {
+    // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
+    // Runs on the DB worker thread; the loop thread blocks on the future.
+    int version = 0;
+    auto row = Database::Get().QueryOneAsync(
+        "SELECT token_version FROM users WHERE username = ?;", {username}).get();
+    if (!row) return std::unexpected(row.error());
+    if (row->has_value()) version = row->value().Get<int>("token_version");
+    return IssueTokenWithVersion(username, version);
+}
+
+Result<std::string> AuthService::IssueTokenWithVersion(const std::string& username,
+                                                        int version) {
     using namespace std::chrono;
 
     std::string secret;
@@ -333,14 +348,6 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
     } catch (const std::exception& e) {
         return std::unexpected(Error::Internal(e.what()));
     }
-
-    // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
-    // Runs on the DB worker thread; the loop thread blocks on the future.
-    int version = 0;
-    auto row = Database::Get().QueryOneAsync(
-        "SELECT token_version FROM users WHERE username = ?;", {username}).get();
-    if (!row) return std::unexpected(row.error());
-    if (row->has_value()) version = row->value().Get<int>("token_version");
 
     auto now    = system_clock::now();
     auto expiry = now + hours(24);

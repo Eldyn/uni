@@ -18,6 +18,7 @@
 #include <transport/itimer_service.hpp>
 #include <transport/presence_registry.hpp>
 #include <websocket_context.hpp>
+#include <nlohmann/json.hpp>
 
 /**
  * @file lobby_controller.hpp
@@ -475,7 +476,9 @@ private:
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */
 
     std::atomic<uint32_t> next_id_{1};          /**< Thread-safe counter for the lobby IDs. */
-    /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
+    /** Cached `lobby_list` response body (2s TTL collapses browse bursts). */
+    json lobby_list_cache_ = json::array();
+    std::chrono::steady_clock::time_point lobby_list_expires_{};    /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
     int reconnect_grace_ms_ = 1'000 * 30;
     /**< Absolute upper bound on LobbySettings::max_players across all lobbies
      * (env: ABSOLUTE_MAX_LOBBY_MEMBERS), clamped to contract::kMaxLobbyMembers. */

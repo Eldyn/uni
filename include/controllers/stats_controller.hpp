@@ -1,8 +1,11 @@
 #pragma once
 #include <http_router.hpp>
 #include <services/stats_service.hpp>
+#include <chrono>
 #include <cstddef>
 #include <functional>
+#include <mutex>
+#include <string>
 
 /**
  * @file stats_controller.hpp
@@ -64,4 +67,9 @@ private:
 
     StatsService stats_service_;
     std::function<std::size_t()> online_count_provider_;
+    // Serialized leaderboard body cache: warm hits skip the per-entry json
+    // build + dump on the loop thread. Aligned with the service TTL.
+    std::mutex lb_body_mu_;
+    std::string lb_body_;
+    std::chrono::steady_clock::time_point lb_body_expires_{};
 };

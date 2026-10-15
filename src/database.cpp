@@ -170,6 +170,12 @@ static constexpr Migration MIGRATIONS[] = {
     // keep the setting for the socket session only.
     { 11, "ALTER TABLE users "
           "ADD COLUMN privacy_mode INTEGER NOT NULL DEFAULT 0;" },
+    // Migration v12: leaderboard read path. The top-50 DENSE_RANK query
+    // sorts the whole player_stats table on every miss; this covering index
+    // keeps the sort cheap as accounts grow. IF NOT EXISTS: safe on fresh
+    // DBs (v1 CREATE TABLE has no index) and on upgrades.
+    { 12, "CREATE INDEX IF NOT EXISTS idx_player_stats_rank "
+          "ON player_stats(total_wins DESC, total_losses ASC);" },
 };
 
 }  // namespace

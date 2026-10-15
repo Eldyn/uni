@@ -35,8 +35,14 @@ struct StatsFixture {
     StatsFixture() {
         REQUIRE(Database::Get().RunMigrations().has_value());
         CleanupTestRows();
+        // Leaderboard cache is process-wide: drop rows AND entries so each
+        // case starts cold regardless of execution order.
+        StatsService().InvalidateLeaderboardCache();
     }
-    ~StatsFixture() { CleanupTestRows(); }
+    ~StatsFixture() {
+        CleanupTestRows();
+        StatsService().InvalidateLeaderboardCache();
+    }
 };
 
 }  // namespace

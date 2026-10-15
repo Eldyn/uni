@@ -501,6 +501,8 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
         // Choice (c): the user-stats cache is process-wide/static on
         // StatsService, so this temporary instance invalidates the same
         // entries read by the long-lived StatsController instance.
+        // The leaderboard cache is process-wide too: drop it so the next
+        // poll re-queries instead of serving up to 15s of stale ranks.
         {
             StatsService stats_svc;
             for (const auto& player : state.value("players", json::array())) {
@@ -508,6 +510,7 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
                 if (username.empty() || player.value("is_bot", false)) continue;
                 stats_svc.InvalidateUserStatsCache(username);
             }
+            stats_svc.InvalidateLeaderboardCache();
         }
         Logger::Info("[Lobby] Persisted match result for ", lobby.match_id);
     } catch (const std::exception& e) {
@@ -1069,16 +1072,31 @@ void LobbyController::HandleLeave(WsContext ctx, const json& message) {
  * @param message JSON message block from the client requesting room states.
  */
 void LobbyController::HandleList(WsContext ctx, const json& message) {
-    json list = json::array();
     std::string request_id = ws::GetOr<std::string>(message, "request_id", "");
+
+    // Fast path: 2s TTL collapses browse bursts (each client polls every 8s;
+    // with many browsers the requests spread ~uniformly, so one rebuild
+    // serves ~all of them). request_id still echoes per-request.
+    const auto now = std::chrono::steady_clock::now();
+    if (now < lobby_list_expires_) {
+        auto resp = MakeResponse(ws::ServerAction::kLobbyList, request_id);
+        resp["lobbies"] = lobby_list_cache_;
+        broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
+        return;
+    }
+
+    json list = json::array();
 
     for (const auto& [id, lobby] : lobbies_) {
         if (!lobby.settings.is_public) continue;
-        bool any_connected = std::ranges::any_of(lobby.members, &LobbyMember::is_connected);
-
-        int humans = std::ranges::count_if(lobby.members, [](const auto& member) {
-            return !member.is_bot;
-        });
+        // Single pass: count humans + detect any connected seat together
+        // (was any_of + count_if: two scans per lobby per poll).
+        int humans = 0;
+        bool any_connected = false;
+        for (const auto& member : lobby.members) {
+            if (!member.is_bot) ++humans;
+            if (member.is_connected) any_connected = true;
+        }
 
         if (!any_connected) continue;
 
@@ -1100,6 +1118,8 @@ void LobbyController::HandleList(WsContext ctx, const json& message) {
 
     auto resp = MakeResponse(ws::ServerAction::kLobbyList, request_id);
     resp["lobbies"] = list;
+    lobby_list_cache_ = list;
+    lobby_list_expires_ = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     broadcaster_.Send(ctx.socket, resp.dump(), ctx.op_code);
 }
 
