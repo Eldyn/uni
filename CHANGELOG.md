@@ -14,6 +14,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - Creative P3: Director pause, step, and force turn with all turn timers cancelled together.
 - Creative P4: Scripted bot intents with heuristic fallback, draw pile stacking with registered wire identities.
 - Creative P5: Dev-only scenes applied at match start, in-session scene loading, checkpoint save and restore of visible state.
+- Creative fixes: host x-ray snapshot carries all hands, malformed director args rejected with specific errors, full clean view hides panel and chat, director console with transport/script/stack/seat/checkpoint/scene controls, seat rename/skin/flip, lobby Creative mode picker entry.
 
 ### Added
 
