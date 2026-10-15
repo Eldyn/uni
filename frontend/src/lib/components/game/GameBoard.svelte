@@ -20,6 +20,7 @@
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { resetImpactEffects } from "./animation/impactReset";
 	import { storeDamageFx } from "$stores/damageFx.svelte";
+	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { isPhoneLayout } from "./layout/seatLayout";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
@@ -66,6 +67,42 @@
 	});
 	$effect(() => disposeAffliction);
 	const layout = useGameLayoutContext() ?? createGameLayoutContext();
+
+	// Creeping tension vignette: while local victim sits in response window waiting on
+	// draw debt, the red vignette creeps darker, thicker, and pulses faster as the deadline nears.
+	let debtTimer = $derived(storeGame.isDebtVictim ? storeGame.activeTimer : null);
+	let debtNow = $state(Date.now());
+
+	$effect(() => {
+		if (debtTimer === null) return;
+		debtNow = Date.now();
+		const interval = storeWebglCapability.reducedMotion ? 250 : 50;
+		const id = setInterval(() => (debtNow = Date.now()), interval);
+		return () => clearInterval(id);
+	});
+
+	let tensionProgress = $derived.by(() => {
+		if (!debtTimer || debtTimer.durationMs <= 0) return 0;
+		const raw = Math.min(1, Math.max(0, 1 - (debtTimer.deadlineAt - debtNow) / debtTimer.durationMs));
+		return storeWebglCapability.reducedMotion ? Math.floor(raw * 5) / 5 : raw;
+	});
+
+	let vignetteStyle = $derived.by(() => {
+		if (!storeGame.isDebtVictim) return undefined;
+		const inner = 45 - tensionProgress * 30; // 45% -> 15%
+		const mid = 75 - tensionProgress * 30; // 75% -> 45%
+		const midAlpha = 0.35 + tensionProgress * 0.4; // 0.35 -> 0.75
+		const edgeAlpha = 0.75 + tensionProgress * 0.2; // 0.75 -> 0.95
+		const pulseSpeed = 2 - tensionProgress * 1.3; // 2s -> 0.7s
+
+		return [
+			`--vignette-inner: ${inner.toFixed(1)}%`,
+			`--vignette-mid: ${mid.toFixed(1)}%`,
+			`--vignette-mid-alpha: ${midAlpha.toFixed(2)}`,
+			`--vignette-edge-alpha: ${edgeAlpha.toFixed(2)}`,
+			`--vignette-pulse-duration: ${pulseSpeed.toFixed(2)}s`
+		].join("; ");
+	});
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
 	// the discard pile to commit it; on keyboard, Enter does the same two steps.
@@ -547,6 +584,7 @@
 		<div
 			class="screen-vignette"
 			class:debt-danger={storeGame.isDebtVictim}
+			style={vignetteStyle}
 			aria-hidden="true"
 		></div>
 		{#if storeDamageFx.flashOpacity > 0}
@@ -622,11 +660,11 @@
 	.screen-vignette.debt-danger {
 		background: radial-gradient(
 			ellipse at center,
-			rgba(255, 0, 0, 0) 40%,
-			rgba(140, 10, 0, 0.35) 75%,
-			rgba(70, 0, 0, 0.75) 100%
+			rgba(255, 0, 0, 0) var(--vignette-inner, 40%),
+			rgba(140, 10, 0, var(--vignette-mid-alpha, 0.35)) var(--vignette-mid, 75%),
+			rgba(70, 0, 0, var(--vignette-edge-alpha, 0.75)) 100%
 		);
-		animation: vignette-danger-pulse 2s ease-in-out infinite alternate;
+		animation: vignette-danger-pulse var(--vignette-pulse-duration, 2s) ease-in-out infinite alternate;
 	}
 
 	.damage-overlay {

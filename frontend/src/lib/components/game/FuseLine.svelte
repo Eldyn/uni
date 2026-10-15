@@ -93,7 +93,12 @@
 			</div>
 		{/if}
 
-		<div class="fuse-track" data-testid="fuse-track" aria-hidden="true">
+		<div
+			class="fuse-track"
+			data-testid="fuse-track"
+			data-visible={remainingFraction <= URGENT_FRACTION}
+			aria-hidden="true"
+		>
 			<div
 				class="fuse-fill"
 				data-testid="fuse-fill"
@@ -126,13 +131,23 @@
 		position: relative;
 		height: var(--fuse-height);
 		background: var(--surface-2);
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	.fuse-line[data-urgent="true"] .fuse-track {
+		opacity: 1;
+	}
+
+	.fuse-line[data-motion="reduced"] .fuse-track {
+		transition: none;
 	}
 
 	.fuse-fill {
 		position: absolute;
 		inset: 0;
 		background: var(--accent);
-		transform-origin: left center;
+		transform-origin: center center;
 	}
 
 	.fuse-line[data-urgent="true"] .fuse-fill {

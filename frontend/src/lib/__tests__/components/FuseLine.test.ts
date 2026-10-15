@@ -348,4 +348,18 @@ describe("FuseLine", () => {
 			expect(container.querySelector('[role="status"]')?.textContent?.trim()).toBe("Turn timer");
 		});
 	});
+
+	describe("urgency and visibility", () => {
+		it("marks the track not visible when plenty of time remains, and visible when urgent", () => {
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
+			const { container } = render(FuseLine);
+
+			const track = container.querySelector<HTMLElement>('[data-testid="fuse-track"]')!;
+			expect(track.getAttribute("data-visible")).toBe("false");
+
+			// Advance until <= 25% remaining (HELD_WINDOW is 7000ms, 25% is 1750ms -> 5250ms elapsed)
+			advance(5250);
+			expect(track.getAttribute("data-visible")).toBe("true");
+		});
+	});
 });
