@@ -24,6 +24,7 @@
 	import { T, useTask } from "@threlte/core";
 	import { CanvasTexture, Color, NearestFilter, SRGBColorSpace, type Texture } from "three";
 	import type { GamePlayer } from "$stores/game.svelte";
+	import { resolveSeatIsBot } from "$stores/director.svelte";
 	import type { SeatPosition3D } from "../layout/seatLayout3D";
 	import type { CameraRig } from "../layout/cameraRig";
 	import type { ViewportInfo } from "../layout/seatLayout";
@@ -147,7 +148,7 @@
 	// the permission — faces are never inferred from card_count.
 	let handCards = $derived(player.hand ?? []);
 	let visibleFaceCount = $derived(handCards.length > 0 ? Math.min(cardCount, handCards.length) : 0);
-	let isBot = $derived(player.is_bot || player.username?.toLowerCase().includes("bot"));
+	let isBot = $derived(resolveSeatIsBot(player));
 
 	// handRing.ts's slots are unit directions authored at its own fixed
 	// RING_RADIUS_EM; ringRadialScale repoints them at the world radius the

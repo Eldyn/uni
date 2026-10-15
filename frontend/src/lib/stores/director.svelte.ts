@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { ClientAction, ws } from './ws.svelte';
 
 interface DirectorState {
   cleanView: boolean;
@@ -48,4 +49,32 @@ export function togglePlayerHidden(username: string) {
 
 export function setXRay(value: boolean) {
   director.update((s) => ({ ...s, xRay: value }));
+}
+
+/**
+ * Sends a host-only Creative director command over the existing
+ * director_command path. No-arg ops (pause | step | force_turn) send
+ * `{ op }` with no args key; every other op carries its args verbatim.
+ */
+export function sendDirectorCommand(op: string, args?: Record<string, unknown>) {
+  if (args === undefined) {
+    ws.emit(ClientAction.DirectorCommand, { op });
+  } else {
+    ws.emit(ClientAction.DirectorCommand, { op, args });
+  }
+}
+
+/**
+ * Resolves which avatar strip a seat renders: the snapshot `skin`
+ * override wins ("bot" forces the bot strip, "player" forces the player
+ * strip), otherwise the existing is_bot / bot-in-username logic applies.
+ */
+export function resolveSeatIsBot(player: {
+  is_bot: boolean;
+  username?: string | null;
+  skin?: string | null;
+}): boolean {
+  if (player.skin === "bot") return true;
+  if (player.skin === "player") return false;
+  return player.is_bot || (player.username?.toLowerCase().includes("bot") ?? false);
 }
