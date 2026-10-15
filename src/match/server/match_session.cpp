@@ -264,6 +264,176 @@ bool MatchSession::StackDrawPile(const std::vector<std::string>& kinds) {
     return true;
 }
 
+bool MatchSession::ApplyScene(const nlohmann::json& scene,
+                              std::map<std::string, nlohmann::json>* out_intents) {
+    if (!scene.is_object() || !scene.contains("seats") ||
+        !scene["seats"].is_array()) {
+        return false;
+    }
+    ecs::EntityStore& store = engine_->Store();
+    const match::engine::MatchRegistries& registries = engine_->Registries();
+
+    struct SeatSetup {
+        ecs::Entity player;
+        std::string username;
+        std::vector<std::string> hand;
+        nlohmann::json intents = nlohmann::json::array();
+    };
+    std::vector<SeatSetup> setups;
+    for (const nlohmann::json& seat : scene["seats"]) {
+        if (!seat.is_object()) return false;
+        const std::string username = seat.value("username", std::string());
+        const std::optional<ecs::Entity> player = engine_->FindPlayer(username);
+        if (!player.has_value()) return false;
+        SeatSetup setup{*player, username, {}, nlohmann::json::array()};
+        if (seat.contains("hand")) {
+            if (!seat["hand"].is_array()) return false;
+            for (const nlohmann::json& kind : seat["hand"]) {
+                if (!kind.is_string()) return false;
+                if (!registries.FindKind(kind.get<std::string>()).has_value()) {
+                    return false;
+                }
+                setup.hand.push_back(kind.get<std::string>());
+            }
+        }
+        if (seat.contains("intents")) {
+            if (!seat["intents"].is_array()) return false;
+            setup.intents = seat["intents"];
+        }
+        setups.push_back(std::move(setup));
+    }
+
+    std::vector<std::string> pile_top;
+    if (scene.contains("pile_top")) {
+        if (!scene["pile_top"].is_array()) return false;
+        for (const nlohmann::json& kind : scene["pile_top"]) {
+            if (!kind.is_string()) return false;
+            if (!registries.FindKind(kind.get<std::string>()).has_value()) {
+                return false;
+            }
+            pile_top.push_back(kind.get<std::string>());
+        }
+    }
+    const std::string discard_top = scene.value("discard_top", std::string());
+    if (!discard_top.empty() &&
+        !registries.FindKind(discard_top).has_value()) {
+        return false;
+    }
+
+    // INFO: validation above rejects unknown seats and kinds, so the
+    //       application below cannot leave a half-built scene behind.
+    const ecs::ZoneRef draw_ref{ecs::ZoneKind::kDrawPile, ecs::Entity{}};
+    for (const SeatSetup& setup : setups) {
+        for (ecs::Entity card : match::ops::HandOf(store, setup.player)) {
+            match::ops::MoveCardToZone(store, card, draw_ref);
+        }
+    }
+    for (const SeatSetup& setup : setups) {
+        for (const std::string& kind : setup.hand) {
+            if (!StackDrawPile({kind})) return false;
+            const std::optional<ecs::Entity> top =
+                match::ops::DrawTop(store, registries.draw_pile);
+            if (!top.has_value()) return false;
+            match::ops::MoveCardToZone(
+                store, *top,
+                ecs::ZoneRef{ecs::ZoneKind::kHand, setup.player});
+        }
+        if (out_intents != nullptr && setup.intents.is_array() &&
+            !setup.intents.empty()) {
+            (*out_intents)[setup.username] = setup.intents;
+        }
+    }
+    if (!pile_top.empty() && !StackDrawPile(pile_top)) return false;
+    if (!discard_top.empty()) {
+        if (!StackDrawPile({discard_top})) return false;
+        const std::optional<ecs::Entity> top =
+            match::ops::DrawTop(store, registries.draw_pile);
+        if (!top.has_value()) return false;
+        const std::optional<ecs::Entity> pile =
+            match::ops::FindPile(store, ecs::PileKind::kDiscard);
+        if (!pile.has_value()) return false;
+        match::ops::MoveCardToZone(
+            store, *top,
+            ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+    }
+    return true;
+}
+
+nlohmann::json MatchSession::SaveCheckpoint() {
+    ecs::EntityStore& store = engine_->Store();
+    nlohmann::json seats = nlohmann::json::array();
+    for (ecs::Entity player : match::ops::ActivePlayersBySeat(store)) {
+        const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(player);
+        if (info == nullptr) continue;
+        nlohmann::json hand = nlohmann::json::array();
+        for (ecs::Entity card : match::ops::HandOf(store, player)) {
+            const ecs::CardIdentity* identity =
+                store.Get<ecs::CardIdentity>(card);
+            if (identity != nullptr) hand.push_back(identity->kind_id);
+        }
+        seats.push_back({{"username", info->username}, {"hand", hand}});
+    }
+    nlohmann::json pile_top = nlohmann::json::array();
+    const std::optional<ecs::Entity> draw =
+        match::ops::FindPile(store, ecs::PileKind::kDraw);
+    if (draw.has_value()) {
+        const ecs::PileContents* contents =
+            store.Get<ecs::PileContents>(*draw);
+        if (contents != nullptr) {
+            for (auto it = contents->cards.rbegin();
+                 it != contents->cards.rend(); ++it) {
+                const ecs::CardIdentity* identity =
+                    store.Get<ecs::CardIdentity>(*it);
+                if (identity != nullptr) pile_top.push_back(identity->kind_id);
+            }
+        }
+    }
+    std::string discard_top;
+    const std::optional<ecs::Entity> discard =
+        match::ops::FindPile(store, ecs::PileKind::kDiscard);
+    if (discard.has_value()) {
+        const ecs::PileContents* contents =
+            store.Get<ecs::PileContents>(*discard);
+        if (contents != nullptr && !contents->cards.empty()) {
+            const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(
+                contents->cards.back());
+            if (identity != nullptr) discard_top = identity->kind_id;
+        }
+    }
+    return {{"seats", seats},
+            {"pile_top", pile_top},
+            {"discard_top", discard_top}};
+}
+
+bool MatchSession::RestoreCheckpoint(
+    const nlohmann::json& checkpoint,
+    std::map<std::string, nlohmann::json>* out_intents) {
+    return ApplyScene(checkpoint, out_intents);
+}
+
+void MatchSession::StoreCheckpoint(nlohmann::json checkpoint) {
+    checkpoint_ = std::move(checkpoint);
+}
+
+bool MatchSession::HasCheckpoint() const {
+    return !checkpoint_.is_null();
+}
+
+const nlohmann::json& MatchSession::Checkpoint() const {
+    return checkpoint_;
+}
+
+void MatchSession::SetSceneIntents(
+    std::map<std::string, nlohmann::json> intents) {
+    scene_intents_ = std::move(intents);
+}
+
+std::map<std::string, nlohmann::json> MatchSession::TakeSceneIntents() {
+    std::map<std::string, nlohmann::json> intents;
+    intents.swap(scene_intents_);
+    return intents;
+}
+
 match::view::Viewer MatchSession::SpectatorViewer() const {
     return match::view::Viewer::Spectator(private_seats_);
 }

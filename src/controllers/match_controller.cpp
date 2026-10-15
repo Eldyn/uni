@@ -12,7 +12,9 @@
 #include "common/payloads.hpp"
 #include "common/env.hpp"
 #include "logger.hpp"
+#include <match/modload/mod_loader.hpp>
 #include <algorithm>
+#include <fstream>
 #include <optional>
 #include <random>
 #include <string>
@@ -401,14 +403,9 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
                                    "script needs an intents array");
             return;
         }
-        for (const json& item : args["intents"]) {
-            match::server::BotIntent intent;
-            intent.type = item.value("type", std::string("pass"));
-            intent.bits = item.value("bits", 0u);
-            intent.prompt_kind = item.value("prompt_kind", std::string());
-            if (item.contains("value")) intent.value = item["value"];
-            intent.kind = item.value("kind", std::string());
-            (*script_queues_)[seat].push_back(std::move(intent));
+        for (const match::server::BotIntent& intent :
+             match::server::ParseBotIntents(args.value("intents", json::array()))) {
+            (*script_queues_)[seat].push_back(intent);
         }
         Logger::Info("[Director] script queued for seat: ", seat);
         BroadcastMatchState(active_lobby);
@@ -431,6 +428,76 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
         }
         Logger::Info("[Director] draw pile stacked");
         BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "checkpoint") {
+        const json args = message.value("args", json::object());
+        const std::string mode = args.value("mode", std::string());
+        if (mode == "save") {
+            active_lobby->session->StoreCheckpoint(
+                active_lobby->session->SaveCheckpoint());
+            Logger::Info("[Director] checkpoint saved");
+            BroadcastMatchState(active_lobby);
+            return;
+        }
+        if (mode == "load") {
+            if (!active_lobby->session->HasCheckpoint()) {
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "no checkpoint stored");
+                return;
+            }
+            std::map<std::string, nlohmann::json> intents;
+            if (!active_lobby->session->RestoreCheckpoint(
+                    active_lobby->session->Checkpoint(), &intents)) {
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "checkpoint restore failed");
+                return;
+            }
+            Logger::Info("[Director] checkpoint restored");
+            ClearCreativeTimers(active_lobby->id);
+            OnTurnStarted(active_lobby);
+            return;
+        }
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "checkpoint needs mode save or load");
+        return;
+    }
+    if (op == "load_scene") {
+        if (!match::modload::IsDevContentAllowed()) {
+            Logger::Warn("director command dropped: scenes are dev-only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "scenes are dev-only");
+            return;
+        }
+        const json args = message.value("args", json::object());
+        const std::string name = args.value("name", std::string());
+        const std::string scenes_dir = Env::Get("UNI_SCENES_DIR", "scenes");
+        std::ifstream scene_file(scenes_dir + "/" + name + ".json");
+        nlohmann::json scene = nlohmann::json::object();
+        bool scene_ok = scene_file.good();
+        if (scene_ok) {
+            try {
+                scene_file >> scene;
+            } catch (const nlohmann::json::exception&) {
+                scene_ok = false;
+            }
+        }
+        std::map<std::string, nlohmann::json> intents;
+        if (!scene_ok ||
+            !active_lobby->session->ApplyScene(scene, &intents)) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown scene");
+            return;
+        }
+        active_lobby->session->SetSceneIntents(std::move(intents));
+        Logger::Info("[Director] scene loaded: ", name);
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
         return;
     }
     // INFO: P1 whitelist allows only the declared op names. Full op
@@ -837,6 +904,17 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         //       no bot scheduling, no timer arming while paused.
         BroadcastMatchState(active_lobby);
         return;
+    }
+    for (const auto& [seat, intents] : session.TakeSceneIntents()) {
+        const LobbyMember* member = active_lobby->FindMember(seat);
+        if (member == nullptr || !member->is_bot) {
+            Logger::Warn("scene intent dropped: scripts run on bot seats only");
+            continue;
+        }
+        for (const match::server::BotIntent& intent :
+             match::server::ParseBotIntents(intents)) {
+            (*script_queues_)[seat].push_back(intent);
+        }
     }
 
     // INFO: the loading barrier gates the first turn clock; opening it calls

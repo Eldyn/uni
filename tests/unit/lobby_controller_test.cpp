@@ -4,6 +4,7 @@
 #include <controllers/match_controller.hpp>
 #include <common/payloads.hpp>
 #include <common/ws.hpp>
+#include <common/env.hpp>
 #include <database.hpp>
 #include <services/auth_service.hpp>
 #include <match/ecs/compact_card.hpp>
@@ -16,7 +17,9 @@
 #include <nlohmann/json.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -1149,6 +1152,52 @@ TEST_CASE("lobby: update refuses creative flip after session exists") {
     CHECK(resp.value("action", "") == "error");
     CHECK(resp.value("code", "") == "match_already_started");
     CHECK_FALSE(lp->settings.creative);
+}
+
+TEST_CASE("start: creative scene file sets exact hands at match start") {
+    namespace fs = std::filesystem;
+    const fs::path dir =
+        fs::temp_directory_path() / "uni_scene_test";
+    fs::create_directories(dir);
+    {
+        std::ofstream out(dir / "opening.json");
+        REQUIRE(out.good());
+        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}]})";
+    }
+    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
+    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
+
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-scene"},
+                                     {"creative", true},
+                                     {"scene", "opening"}});
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+
+    const auto player =
+        lp->session->Engine().FindPlayer("alice");
+    REQUIRE(player.has_value());
+    std::vector<std::string> kinds;
+    for (match::ecs::Entity card : match::ops::HandOf(
+             lp->session->Engine().Store(), *player)) {
+        const match::ecs::CardIdentity* id =
+            lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
+        REQUIRE(id != nullptr);
+        kinds.push_back(id->kind_id);
+    }
+    CHECK(kinds == std::vector<std::string>{"uni:blue_skip"});
+
+    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
+    fs::remove_all(dir);
 }
 
 } // TEST_SUITE

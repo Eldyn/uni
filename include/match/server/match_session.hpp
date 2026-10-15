@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -231,6 +232,32 @@ public:
 
     /** @brief Stack exact kinds on top of the draw pile, first kind drawn first. */
     bool StackDrawPile(const std::vector<std::string>& kinds);
+
+    /** @brief Apply a Creative scene: exact hands, pile top, discard top. */
+    bool ApplyScene(const nlohmann::json& scene,
+                    std::map<std::string, nlohmann::json>* out_intents);
+
+    /** @brief Capture visible match state as a scene-equivalent checkpoint. */
+    nlohmann::json SaveCheckpoint();
+
+    /** @brief Restore a checkpoint captured by SaveCheckpoint. */
+    bool RestoreCheckpoint(const nlohmann::json& checkpoint,
+                           std::map<std::string, nlohmann::json>* out_intents);
+
+    /** @brief Store a checkpoint in the session slot. */
+    void StoreCheckpoint(nlohmann::json checkpoint);
+
+    /** @brief True when the session holds a stored checkpoint. */
+    bool HasCheckpoint() const;
+
+    /** @brief The stored checkpoint. */
+    const nlohmann::json& Checkpoint() const;
+
+    /** @brief Stage scene intents for the turn driver to queue. */
+    void SetSceneIntents(std::map<std::string, nlohmann::json> intents);
+
+    /** @brief Take and clear staged scene intents. */
+    std::map<std::string, nlohmann::json> TakeSceneIntents();
 
     /** @brief The spectator viewer with the current private seats. */
     match::view::Viewer SpectatorViewer() const;
@@ -498,6 +525,8 @@ private:
     /** Owners with Streamer/Privacy Mode on, without duplicate. */
     std::vector<std::string> private_seats_;
     std::vector<std::string> directors_;
+    nlohmann::json checkpoint_ = nullptr;
+    std::map<std::string, nlohmann::json> scene_intents_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
     std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;

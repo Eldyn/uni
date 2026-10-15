@@ -192,6 +192,9 @@ struct BotIntent {
 using ScriptQueues =
     std::map<std::string, std::deque<BotIntent>>;
 
+/** @brief Parse a director intents array into BotIntents. */
+std::vector<BotIntent> ParseBotIntents(const nlohmann::json& array);
+
 /**
  * @class ScriptedBotPolicy
  * @brief IBotPolicy that consumes per-seat intent queues first.

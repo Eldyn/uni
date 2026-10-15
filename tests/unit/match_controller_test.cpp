@@ -482,8 +482,7 @@ TEST_CASE("director: pause in a non-creative lobby is denied") {
     CHECK(f.timers.Has("turn_1"));
 }
 
-TEST_CASE("director: script for a human seat is denied") {
-    MatchFixture f;
+TEST_CASE("director: script for a human seat is denied") {    MatchFixture f;
     LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
     settings.creative = true;
     settings.ranked = false;
@@ -531,6 +530,112 @@ TEST_CASE("director: stack rigs the draw pile top in order") {
     CHECK_EQ(top_id->kind_id, "uni:blue_skip");
     CHECK_EQ(second_id->kind_id, "uni:blue_reverse");
     CHECK(engine.Registries().CardId(top).has_value());
+}
+
+TEST_CASE("director: scene sets exact hands and pile top") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+
+    auto* session = f.store.lobby.session.get();
+    REQUIRE(session != nullptr);
+    const json scene = {
+        {"seats", json::array({
+            {{"username", "Alice"}, {"hand", json::array({"uni:blue_skip"})}},
+            {{"username", "BotBob"}, {"hand", json::array({"uni:blue_reverse"})}},
+        })},
+        {"pile_top", json::array({"uni:wild"})},
+        {"discard_top", "uni:blue_0"},
+    };
+    std::map<std::string, json> intents;
+    REQUIRE(session->ApplyScene(scene, &intents));
+
+    const match::engine::MatchInstance& engine = session->Engine();
+    auto hand_kinds = [&](const std::string& username) {
+        std::vector<std::string> kinds;
+        const auto player = engine.FindPlayer(username);
+        REQUIRE(player.has_value());
+        for (ecs::Entity card :
+             match::ops::HandOf(engine.Store(), *player)) {
+            const ecs::CardIdentity* id =
+                engine.Store().Get<ecs::CardIdentity>(card);
+            REQUIRE(id != nullptr);
+            kinds.push_back(id->kind_id);
+        }
+        return kinds;
+    };
+    CHECK(hand_kinds("Alice") == std::vector<std::string>{"uni:blue_skip"});
+    CHECK(hand_kinds("BotBob") == std::vector<std::string>{"uni:blue_reverse"});
+}
+
+TEST_CASE("director: scene rejects unknown seats and kinds") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+
+    auto* session = f.store.lobby.session.get();
+    REQUIRE(session != nullptr);
+    std::map<std::string, json> intents;
+    CHECK_FALSE(session->ApplyScene(
+        json{{"seats", json::array({{ {"username", "Ghost"} }})}}, &intents));
+    CHECK_FALSE(session->ApplyScene(
+        json{{"seats", json::array({
+            json{{"username", "Alice"},
+                 {"hand", json::array({"uni:nope"})}},
+        })}}, &intents));
+}
+
+TEST_CASE("director: checkpoint saves and restores visible state") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.OpenBarrierNow();
+
+    auto* session = f.store.lobby.session.get();
+    REQUIRE(session != nullptr);
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "checkpoint"},
+        {"args", json{{"mode", "save"}}}});
+    REQUIRE(session->HasCheckpoint());
+
+    auto hand_kinds_of = [&](const std::string& username) {
+        std::vector<std::string> kinds;
+        const match::engine::MatchInstance& eng = session->Engine();
+        const auto player = eng.FindPlayer(username);
+        REQUIRE(player.has_value());
+        for (ecs::Entity card :
+             match::ops::HandOf(eng.Store(), *player)) {
+            const ecs::CardIdentity* id =
+                eng.Store().Get<ecs::CardIdentity>(card);
+            REQUIRE(id != nullptr);
+            kinds.push_back(id->kind_id);
+        }
+        return kinds;
+    };
+    const std::vector<std::string> saved_hand = hand_kinds_of("Alice");
+
+    const json scene = {
+        {"seats", json::array({
+            {{"username", "Alice"}, {"hand", json::array({"uni:wild"})}},
+        })},
+    };
+    std::map<std::string, json> intents;
+    REQUIRE(session->ApplyScene(scene, &intents));
+    CHECK(hand_kinds_of("Alice") == std::vector<std::string>{"uni:wild"});
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "checkpoint"},
+        {"args", json{{"mode", "load"}}}});
+    CHECK(hand_kinds_of("Alice") == saved_hand);
 }
 
 // INFO: The controller must publish `defs` + `match_start` on the

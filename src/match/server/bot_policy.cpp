@@ -291,6 +291,22 @@ ScriptedBotPolicy::ScriptedBotPolicy(
     std::map<std::string, nlohmann::json> extra_schemas)
     : queues_(std::move(queues)), fallback_(seed, std::move(extra_schemas)) {}
 
+std::vector<BotIntent> ParseBotIntents(const nlohmann::json& array) {
+    std::vector<BotIntent> intents;
+    if (!array.is_array()) return intents;
+    for (const json& item : array) {
+        if (!item.is_object()) continue;
+        BotIntent intent;
+        intent.type = item.value("type", std::string("pass"));
+        intent.bits = item.value("bits", 0u);
+        intent.prompt_kind = item.value("prompt_kind", std::string());
+        if (item.contains("value")) intent.value = item["value"];
+        intent.kind = item.value("kind", std::string());
+        intents.push_back(std::move(intent));
+    }
+    return intents;
+}
+
 std::optional<uint32_t> ScriptedBotPolicy::ChoosePlay(const BotView& view) {
     if (queues_ != nullptr) {
         auto it = queues_->find(view.username);
