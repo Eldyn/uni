@@ -157,6 +157,8 @@
   "uni:log.draw_big_hand_1": "[c=red]{name}[/c] is up to {handSize} cards. Give them a breather.",
   "uni:log.draw_big_hand_2": "{handSize} cards, [c=red]{name}[/c]. Maybe leave some for the rest.",
   "uni:log.draw_large_1": "{name} draws {count}. Ouch.",
+  "uni:log.stack_taken_1": "{name} takes the stack: {count} cards.",
+  "uni:log.stack_taken_2": "The stack lands on {name}. {count} cards, no escape.",
   "uni:log.skip_streak_2": "[c=red]{name}[/c] again. [fx=shake]LET {name} PLAY!![/fx]",
   "uni:log.reverse_spin_2": "Another reverse. [fx=shake]Back the other way.[/fx]",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} actually did![/fx]",

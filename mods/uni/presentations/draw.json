@@ -10,6 +10,48 @@
       {
         "uni:tests": [
           {
+            "uni:test": "equals",
+            "uni:field": "from_debt",
+            "uni:value": true
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.stack_taken_1",
+              "uni:log.stack_taken_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
             "uni:test": "gte",
             "uni:field": "hand_size_after",
             "uni:value": 10
