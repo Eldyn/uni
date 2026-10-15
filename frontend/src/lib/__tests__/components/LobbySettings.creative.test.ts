@@ -46,13 +46,14 @@ describe("LobbySettings creative bindings", () => {
 		vi.clearAllMocks();
 		settings.creative = false;
 		settings.scene = "";
+		settings.mode = "standard";
 	});
 
-	it("commits the creative toggle", async () => {
+	it("offers Creative in the game mode picker and commits the pair", async () => {
 		render(LobbySettings);
-		const toggle = screen.getByRole("checkbox", { name: "Creative director mode" });
-		await fireEvent.click(toggle);
-		expect(updateSettings).toHaveBeenCalledWith({ creative: true });
+		await fireEvent.click(screen.getByRole("button", { name: /Game Mode/ }));
+		await fireEvent.click(screen.getByRole("option", { name: "Creative director mode" }));
+		expect(updateSettings).toHaveBeenCalledWith({ mode: "standard", creative: true });
 	});
 
 	it("shows the scene input only in creative mode and commits it", async () => {

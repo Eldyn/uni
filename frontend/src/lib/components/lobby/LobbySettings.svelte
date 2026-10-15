@@ -144,19 +144,12 @@
 				disabled={!isHost}
 				oncommit={(v) => commit("quit_deletes_match", v)}
 			/>
-			<Toggle
-				label="Creative director mode"
-				description="Host controls cards and flow for clips. Forces unranked, no stats."
-				checked={settings.creative ?? false}
-				disabled={!isHost}
-				oncommit={(v) => commit("creative", v)}
-			/>
 			{#if settings.creative}
 				<label class="scene-row">
 					<span>Scene file (dev only)</span>
 					<input
 						type="text"
-						value={settings.scene}
+						value={settings.scene ?? ""}
 						disabled={!isHost}
 						placeholder="sample_opening"
 						onchange={(e) => commit("scene", e.currentTarget.value)}
@@ -187,7 +180,7 @@
 			<EnumSelector
 				label={m.lobby_settings_game_mode({}, { locale: storeI18n.locale })}
 				description={m.lobby_settings_game_mode_desc({}, { locale: storeI18n.locale })}
-				value={settings.mode ?? "standard"}
+				value={settings.creative ? "creative" : (settings.mode ?? "standard")}
 				disabled={!isHost}
 				options={[
 					{
@@ -199,9 +192,22 @@
 						value: "race",
 						label: m.lobby_mode_race({}, { locale: storeI18n.locale }),
 						description: m.lobby_mode_race_desc({}, { locale: storeI18n.locale })
+					},
+					{
+						value: "creative",
+						label: "Creative director mode",
+						description:
+							"Standard rules with host controls for clips. Forces unranked, no stats."
 					}
 				]}
-				oncommit={(v) => commit("mode", v as "standard" | "race")}
+				oncommit={(v) => {
+					if (!isHost) return;
+					if (v === "creative") {
+						storeLobby.updateSettings({ mode: "standard", creative: true });
+					} else {
+						storeLobby.updateSettings({ mode: v, creative: false });
+					}
+				}}
 			/>
 			{#if settings.mode === "race"}
 				<Slider
