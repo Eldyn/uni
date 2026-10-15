@@ -972,7 +972,7 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     CHECK(payload["deadline_ms"] == kGroupWindowMs);
 }
 
-TEST_CASE("view window: a jump_in response keeps its kind in a mixed group") {
+TEST_CASE("view window: a stacking answer reports the stacking member kind") {
     Content content;
     REQUIRE(LoadContent(content));
     FakeClock clock;
@@ -989,7 +989,10 @@ TEST_CASE("view window: a jump_in response keeps its kind in a mixed group") {
     const json responded = PacketOfType(
         builder, Viewer::Spectator(), "window_responded");
     REQUIRE_FALSE(responded.is_null());
-    CHECK(responded["payload"]["window_kind"] == "jump_in");
+    // INFO: the twin +2 stacks, so the wire names the stacking member
+    //       (draw_stacking declares no window kind: generic), not the
+    //       owning jump_in member.
+    CHECK(responded["payload"]["window_kind"] == "generic");
     CHECK(responded["payload"]["outcome"] == "winning");
 }
 

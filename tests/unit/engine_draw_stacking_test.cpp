@@ -1116,6 +1116,38 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     CHECK(CountNoJumpSignals(engine) == 0);
 }
 
+TEST_CASE("engine merge: a stack answer reports the stacking member kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    MergedTable table = SetUpMergedTable(
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
+    MatchInstance& engine = *table.engine;
+
+    // INFO: the victim answers the red +2 with their own identical red +2.
+    //       Jump_in owns the card (first eligible member), but the card
+    //       stacks, so the wire must name the stacking member, not jump_in
+    //       (otherwise both the jump-in line and the stack line post).
+    ForceHand(engine, table.player1, {table.identical2, table.filler1});
+    REQUIRE(engine.PlayCard("player0", table.draw2));
+    REQUIRE(engine.WindowOpen());
+    REQUIRE(engine.RespondWindow("player1", table.identical2));
+
+    const json* answered = nullptr;
+    for (const json& event : engine.Events()) {
+        if (event.is_object()
+            && event.value("type", "") == "window_responded"
+            && event["payload"].value("outcome", "") == "winning") {
+            answered = &event;
+            break;
+        }
+    }
+    REQUIRE(answered != nullptr);
+    // INFO: draw_stacking declares no window kind, so the stacking member
+    //       kind is the generic default.
+    CHECK((*answered)["payload"]["window_kind"] == "generic");
+}
+
 TEST_CASE("engine merge: no responder runs every default once in order") {
     Content content;
     REQUIRE(LoadContent(content));

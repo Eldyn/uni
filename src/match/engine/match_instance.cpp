@@ -1701,7 +1701,16 @@ bool MatchInstance::RespondWindow(const std::string& username,
 
     // INFO: `window_kind` is public; a lost response must not reveal the
     //       member kind of its hidden card, so it shows the group leader.
+    //       A winning stack answers as the stacking member (the route half
+    //       reroutes to it), so the wire reports its kind; any other win
+    //       reports the owning member kind.
     const std::string& window_kind_for_loser = window->kind;
+    std::optional<std::size_t> stacker;
+    if (winning) stacker = StackingMember(*pending_window_, card);
+    const std::string& window_kind_for_winner =
+        stacker.has_value()
+            ? pending_window_->Member(*stacker).request.kind
+            : pending_window_->Member(*owner).request.kind;
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
     Emit("window_responded",
          json{{"window", window->window_id},
@@ -1709,9 +1718,8 @@ bool MatchInstance::RespondWindow(const std::string& username,
               {"card", EntityJson(card)},
               {"kind", identity == nullptr ? std::string()
                                            : identity->kind_id},
-              {"window_kind", winning
-                                  ? pending_window_->Member(*owner).request.kind
-                                  : window_kind_for_loser},
+              {"window_kind", winning ? window_kind_for_winner
+                                   : window_kind_for_loser},
               {"pass", false},
               {"outcome", winning ? "winning" : "lost"}});
 
