@@ -1333,6 +1333,19 @@ class Checker {
                 + "', which no loaded mod defines as a streak"));
     }
 
+    /* INFO: true when a streak id a binding reads names a streak, or when
+     *       that cannot be decided yet: as in `CheckContextName`, a
+     *       reference to a mod outside the set stays deferred while one mod
+     *       is validated alone, and is unknown once the match set is
+     *       complete. */
+    bool StreakRefResolves(const std::string& streak_id) const {
+        if (streak_ids_.count(streak_id) != 0) return true;
+        const std::size_t colon = streak_id.find(':');
+        const bool owner_known =
+            colon != std::string::npos && ModInSet(streak_id.substr(0, colon));
+        return !owner_known && !match_set_;
+    }
+
     /* INFO: the result of looking up one payload field of a bound event, as
      *       the viewer receives it. */
     enum class BoundField { kDeferred, kNoEvent, kNoField, kNone, kPartial,
@@ -1545,7 +1558,15 @@ class Checker {
             CheckBoundField(path, binding, test.key_field,
                             "streak key field");
         }
-        if (from_streak) return;
+        if (from_streak) {
+            if (!StreakRefResolves(test.streak)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.streak.unknown", "presentations", path,
+                    label + " test '" + test.test + "' reads the streak '"
+                        + test.streak + "', which no loaded mod defines"));
+            }
+            return;
+        }
         if (test.field.empty() || !test.state.empty()) {
             buckets_.presentations.push_back(Err(
                 "binding.test.shape", "presentations", path,
@@ -1825,6 +1846,13 @@ class Checker {
                     label + " log parameter '" + name
                         + "' has a streak id outside [A-Za-z0-9_.:-] "
                           "(1-64)"));
+                continue;
+            }
+            if (!param.streak.empty() && !StreakRefResolves(param.streak)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.streak.unknown", "presentations", path,
+                    label + " log parameter '" + name + "' reads the streak '"
+                        + param.streak + "', which no loaded mod defines"));
                 continue;
             }
             if (!param.key_field.empty()) {
