@@ -532,6 +532,63 @@ TEST_CASE("director: stack rigs the draw pile top in order") {
     CHECK(engine.Registries().CardId(top).has_value());
 }
 
+TEST_CASE("director: host snapshot carries all hands, others see backs") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.OpenBarrierNow();
+
+    auto hands_of = [&](const std::string& username) {
+        std::map<std::string, bool> has_hand;
+        for (const SentFrame& frame : f.bus.sent) {
+            json packet;
+            try {
+                packet = json::parse(frame.payload);
+            } catch (const json::exception&) {
+                continue;
+            }
+            if (packet.value("action", std::string()) != "match_state_updated") {
+                continue;
+            }
+            if (!packet.contains("match_state") || !packet["match_state"].is_object()) {
+                continue;
+            }
+            const json& state = packet["match_state"];
+            if (!state.contains("players") || !state["players"].is_array()) {
+                continue;
+            }
+            // INFO: FakeBroadcaster stores but never dereferences the socket
+            //       key, so attribute frames by seat socket identity.
+            const std::uintptr_t to =
+                reinterpret_cast<std::uintptr_t>(frame.to);
+            std::uintptr_t seat = 0;
+            for (const LobbyMember& member : f.store.lobby.members) {
+                if (member.username == username) {
+                    seat = reinterpret_cast<std::uintptr_t>(member.socket);
+                }
+            }
+            if (to != seat) continue;
+            for (const json& player : state["players"]) {
+                has_hand[player.value("username", std::string())] =
+                    player.contains("hand");
+            }
+        }
+        return has_hand;
+    };
+
+    f.store.lobby.session->SetDirector("Alice", true);
+    f.bus.Clear();
+    f.store.lobby.session->BroadcastSnapshot(f.bus);
+    CHECK(hands_of("Alice")["BotBob"]);
+
+    f.store.lobby.session->SetDirector("Alice", false);
+    f.bus.Clear();
+    f.store.lobby.session->BroadcastSnapshot(f.bus);
+    CHECK_FALSE(hands_of("Alice")["BotBob"]);
+}
+
 TEST_CASE("director: scene sets exact hands and pile top") {
     MatchFixture f;
     LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
