@@ -86,6 +86,12 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **Color change keeps the play cause** — a wild color change after the color prompt now carries `cause`, the sequence of the wild play. Before this, the cause was lost over the prompt. Bindings need it for the `caused_by` test.
 - **Held stack close keeps the responder** — the engine now closes a held group with the recorded winner as actor, so the stack line `status_applied` from a merged `jump_in` and `draw_stacking` group names the player who responded.
 
+### Fixed
+
+- **Play log test harnesses use the production binding ids** (test) — the shipped-registry harnesses in `uniLogBindings.test.ts` and `playLogParity.test.ts` injected `uni:<stem>` as each binding's id, but the server keys a binding by its `uni:binding.uni:description.uni:identifier` (`ParseBindingEntry` sets `binding_id` from it; the registry and the `defs` packet are keyed the same way), so the ids the tests used were never sent. `stableIndex` salts the variant pick on that id, so no multi-variant pick a test observed matched what a live client renders. Both harnesses now inject each file's own identifier and assert it exists, and the Task 3 near-win assertion is pinned to its exact variant again instead of a prefix match.
+
+- **The degraded unresolvable-card play line is named as such** (test) — a `card_played` whose card bits the viewer cannot resolve still posts `uni:log.play` with raw `{kind}`, `{color}` and `{cardName}` placeholders, because a binding has no way to require a resolvable card-part param. The core path dropped the line instead. The case that pins this is renamed to mark it an accepted degradation, the trigger is documented as narrow (the live path resolves bits for every viewer through the shared `defs` registry, so only a defs-lagging late joiner reaches it), and follow-up item 36 records the missing feature: a `resolves` test word or a required-param drop.
+
 ### Removed
 
 - **The orphaned selection golden fixture** (test) — `tests/fixtures/golden_log_texts/selection.json` held a frozen snapshot of the core log line selection. The play log became bindings only, so nothing reads it any more: the text golden reads its files by locale name and the no-fallback test reads per-locale names. The nine locale goldens and `rewritten.json` stay.

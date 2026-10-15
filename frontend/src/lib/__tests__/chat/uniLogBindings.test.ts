@@ -9,16 +9,22 @@ const VIEWER = { seat: "ann" };
 const resolveCard: CardResolver = () => undefined;
 
 /**
- * The shipped uni log bindings as the wire carries them: each parsed file
- * with the `id` the server injects at defs-build time (`uni:<stem>`), the
- * way the parity registry does. The on-disk schema forbids the key.
+ * The shipped uni log bindings as the wire carries them: each parsed file with
+ * the `id` the server uses, which is the binding's own
+ * `uni:binding.uni:description.uni:identifier` (`ParseBindingEntry` sets
+ * `binding_id` from it, and both the registry and the `defs` packet are keyed by
+ * it), so `uni:play_log`, not `uni:play`. The on-disk schema forbids the key.
  */
 function shippedFiles(): Record<string, unknown>[] {
 	return readdirSync(SHIPPED_DIR)
 		.filter((file) => /^(skip|reverse|draw|blocked|reshuffle|keep|near_win|elimination|win|play|play_wild|auto_play|auto_play_wild|wild)\.json$/.test(file))
 		.map((file) => {
-			const stem = file.slice(0, -".json".length);
-			return { id: `uni:${stem}`, ...JSON.parse(readFileSync(resolve(SHIPPED_DIR, file), "utf8")) };
+			const binding = JSON.parse(readFileSync(resolve(SHIPPED_DIR, file), "utf8")) as {
+				"uni:binding": { "uni:description": { "uni:identifier": string } };
+			};
+			const id = binding["uni:binding"]["uni:description"]["uni:identifier"];
+			expect(id, `${file} declares no uni:identifier`).toBeTruthy();
+			return { id, ...binding };
 		});
 }
 

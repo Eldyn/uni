@@ -76,17 +76,24 @@ function registryOf(row: string): BindingRegistry {
 }
 
 /**
- * The shipped bindings of a row: the same file names read from the mod, with
- * the `id` the server injects at defs-build time (`uni:<stem>`). Each side
- * keeps its own ids: the variant pick salts on the binding id, so sharing
- * ids would couple the two rotations.
+ * The shipped bindings of a row: the same file names read from the mod, each
+ * with the `id` the server uses, which is the binding's own
+ * `uni:binding.uni:description.uni:identifier` (`ParseBindingEntry` sets
+ * `binding_id` from it, and both the registry and the `defs` packet are keyed
+ * by it), so `uni:play_log`, not `uni:play`. Each side keeps its own ids: the
+ * variant pick salts on the binding id, so sharing ids would couple the two
+ * rotations.
  */
 function shippedRegistryOfFiles(files: string[]): BindingRegistry {
 	const registry = new BindingRegistry();
-	const presentations = files.map((file) => ({
-		id: `uni:${file}`,
-		...JSON.parse(readFileSync(resolve(SHIPPED_DIR, `${file}.json`), "utf8"))
-	}));
+	const presentations = files.map((file) => {
+		const binding = JSON.parse(readFileSync(resolve(SHIPPED_DIR, `${file}.json`), "utf8")) as {
+			"uni:binding": { "uni:description": { "uni:identifier": string } };
+		};
+		const id = binding["uni:binding"]["uni:description"]["uni:identifier"];
+		expect(id, `${file}.json declares no uni:identifier`).toBeTruthy();
+		return { id, ...binding };
+	});
 	registry.ingestDefs({ presentations });
 	return registry;
 }
@@ -719,11 +726,12 @@ describe("shipped bindings: core behaviours the fixtures do not cover", () => {
 			plainPlay(10),
 			{ sequence: 13, id: "near_win_entered", payload: { target: "ann" }, cause: 10 }
 		];
-		// The variant pick salts on the binding id, so the shipped pool can
-		// name any of its three lines; the parity table above pins the set.
+		// The variant pick salts on the binding id, and the harness now uses
+		// the production id `uni:near_win_log`, so the pick for this sequence
+		// is pinned exactly rather than by prefix.
 		const keys = shippedKeys("near_win", enterAt(10), recallOf(plainChain));
 		expect(keys).toHaveLength(1);
-		expect(keys[0]).toMatch(/^uni:log\.near_win_/);
+		expect(keys[0]).toBe("uni:log.near_win_3");
 	});
 
 	it("own_log: a cards_drawn with an own_log play as ancestor cause posts no line", () => {

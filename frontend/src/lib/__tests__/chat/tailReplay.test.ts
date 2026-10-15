@@ -232,10 +232,17 @@ describe("replayTailToLog", () => {
 		expect(lines).toEqual([]);
 	});
 
-	it("keeps a play line whose card the viewer cannot resolve", () => {
-		// INFO: the core rules dropped the line when the card stayed unknown.
-		//       A binding posts anyway and drops only the params it cannot
-		//       read, so the name of the seat survives.
+	it("posts a degraded play line when the card cannot be resolved (accepted: narrow defs-lag trigger)", () => {
+		// INFO: ACCEPTED DEGRADATION (follow-up item 36). The core path dropped
+		//       the line when the card stayed unknown; a binding cannot express
+		//       "required", so it posts anyway and only the params it cannot
+		//       read (kind, color) are missing. `withCardName` skips `cardName`
+		//       without a string `kind`, so the chat shows raw `{kind}` /
+		//       `{cardName}` / `{color}` placeholders. The trigger is narrow —
+		//       the live path resolves bits for every viewer through the shared
+		//       defs registry, so only a late joiner whose defs lag, or an
+		//       unknown kind index, can reach this. See
+		//       docs/superpowers/tickets/mod-play-log/follow-ups.md#36.
 		const lines = replay([
 			envelope(2, "card_played", { player: "Ann", card: 7, from_zone_ordinal: 0, tags: [] }, "Ann")
 		]);
