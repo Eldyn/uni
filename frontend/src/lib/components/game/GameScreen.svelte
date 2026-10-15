@@ -8,6 +8,8 @@
 	import RaceOutcomeBanner from "./popup/RaceOutcomeBanner.svelte";
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
+	import DirectorPanel from "./DirectorPanel.svelte";
+	import { director } from "$stores/director.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -27,24 +29,31 @@
 <div class="game-screen">
 	<div class="ui-layer">
 		<GameEndPopup />
+		<DirectorPanel />
 
 		<div class="top-overlay">
 			<div class="game-controls">
-				<GameHud />
+				{#if !$director.cleanView}
+					<GameHud />
+				{/if}
 				<PromptRenderer />
 			</div>
 
-			<SpectatorBanner
-				eliminated={storeGame.state?.mode === "race" && storeGame.raceOutcome === "lose"}
-				finished={storeGame.state?.mode === "race" && storeGame.raceOutcome === "win"}
-			/>
+			{#if !$director.cleanView}
+				<SpectatorBanner
+					eliminated={storeGame.state?.mode === "race" && storeGame.raceOutcome === "lose"}
+					finished={storeGame.state?.mode === "race" && storeGame.raceOutcome === "win"}
+				/>
+			{/if}
 		</div>
 
-		<RaceOutcomeBanner />
+		{#if !$director.cleanView}
+			<RaceOutcomeBanner />
 
-		<RaceStandings />
+			<RaceStandings />
 
-		<CardDetailPopover />
+			<CardDetailPopover />
+		{/if}
 
 		<div class="game-board-container">
 			<GameBoard />
