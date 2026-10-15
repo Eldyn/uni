@@ -296,12 +296,27 @@ std::vector<BotIntent> ParseBotIntents(const nlohmann::json& array) {
     if (!array.is_array()) return intents;
     for (const json& item : array) {
         if (!item.is_object()) continue;
+        // INFO: intents arrive over the wire: a present-but-mistyped scalar
+        //       makes value() throw (type_error.302), so every field is
+        //       type-checked and mistyped entries fall back to defaults.
         BotIntent intent;
-        intent.type = item.value("type", std::string("pass"));
-        intent.bits = item.value("bits", 0u);
-        intent.prompt_kind = item.value("prompt_kind", std::string());
+        if (const auto it = item.find("type");
+            it != item.end() && it->is_string()) {
+            intent.type = it->get<std::string>();
+        }
+        if (const auto it = item.find("bits");
+            it != item.end() && it->is_number_unsigned()) {
+            intent.bits = it->get<uint32_t>();
+        }
+        if (const auto it = item.find("prompt_kind");
+            it != item.end() && it->is_string()) {
+            intent.prompt_kind = it->get<std::string>();
+        }
         if (item.contains("value")) intent.value = item["value"];
-        intent.kind = item.value("kind", std::string());
+        if (const auto it = item.find("kind");
+            it != item.end() && it->is_string()) {
+            intent.kind = it->get<std::string>();
+        }
         intents.push_back(std::move(intent));
     }
     return intents;

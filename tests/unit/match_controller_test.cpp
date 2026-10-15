@@ -627,6 +627,56 @@ TEST_CASE("director: scene sets exact hands and pile top") {
     CHECK(hand_kinds("BotBob") == std::vector<std::string>{"uni:blue_reverse"});
 }
 
+TEST_CASE("director: non-object args are rejected with a specific error") {
+    // BUG (task F2): `args.value(...)` on a non-object `args` threw
+    //       type_error.306 out of the handler, so the client saw the generic
+    //       "Malformed request" toast from the router catch. Every op now
+    //       validates `args` first; hostile shapes get a specific error and
+    //       the match is untouched.
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.OpenBarrierNow();
+    f.bus.Clear();
+
+    for (const std::string& op : {"script", "stack", "checkpoint", "load_scene"}) {
+        for (const json& bad_args : {json(123), json("x"), json::array(), json(nullptr)}) {
+            f.router.Dispatch(f.ContextFor("Alice"), json{
+                {"action", ws::ClientAction::kDirectorCommand},
+                {"op", op},
+                {"args", bad_args},
+                {"request_id", "req-" + op}});
+            REQUIRE_FALSE(f.bus.sent.empty());
+            auto err = json::parse(f.bus.sent.back().payload);
+            CHECK_EQ(err.value("action", std::string()), "error");
+            CHECK_EQ(err.value("code", std::string()), "invalid_payload");
+            CHECK_NE(err.value("detail", std::string()), "Malformed request");
+            f.bus.Clear();
+        }
+    }
+    CHECK(f.store.lobby.session != nullptr);
+
+    // INFO: mistyped intent scalars fall back to defaults instead of
+    //       throwing (type_error.302); non-object entries are skipped.
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "script"},
+        {"args", json{{"seat", "BotBob"},
+                      {"intents", json::array({
+                          json{{"type", 123}, {"bits", "x"}},
+                          json(42), json("s")})}}},
+        {"request_id", "req-script-hostile"}});
+    for (const SentFrame& frame : f.bus.sent) {
+        auto packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "error") {
+            CHECK_NE(packet.value("detail", std::string()), "Malformed request");
+        }
+    }
+    CHECK(f.store.lobby.session != nullptr);
+}
+
 TEST_CASE("director: scene rejects unknown seats and kinds") {
     MatchFixture f;
     LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);

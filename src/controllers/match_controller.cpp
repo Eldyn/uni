@@ -388,7 +388,17 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
     }
     if (op == "script") {
         const json args = message.value("args", json::object());
-        const std::string seat = args.value("seat", std::string());
+        // INFO: `args` is untrusted wire input: value() on a non-object
+        //       throws (type_error.306) and would surface as a generic
+        //       "Malformed request" through the router catch. Reject it here
+        //       with a specific error instead.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string seat = ws::GetOr<std::string>(args, "seat", "");
         const LobbyMember* member = active_lobby->FindMember(seat);
         if (member == nullptr || !member->is_bot) {
             Logger::Warn("director command dropped: scripts run on bot seats only");
@@ -413,6 +423,13 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
     }
     if (op == "stack") {
         const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
         std::vector<std::string> kinds;
         if (args.contains("kinds") && args["kinds"].is_array()) {
             for (const json& kind : args["kinds"]) {
@@ -432,7 +449,14 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
     }
     if (op == "checkpoint") {
         const json args = message.value("args", json::object());
-        const std::string mode = args.value("mode", std::string());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string mode = ws::GetOr<std::string>(args, "mode", "");
         if (mode == "save") {
             active_lobby->session->StoreCheckpoint(
                 active_lobby->session->SaveCheckpoint());
@@ -474,7 +498,14 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
             return;
         }
         const json args = message.value("args", json::object());
-        const std::string name = args.value("name", std::string());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string name = ws::GetOr<std::string>(args, "name", "");
         const std::string scenes_dir = Env::Get("UNI_SCENES_DIR", "scenes");
         std::ifstream scene_file(scenes_dir + "/" + name + ".json");
         nlohmann::json scene = nlohmann::json::object();

@@ -1200,6 +1200,146 @@ TEST_CASE("start: creative scene file sets exact hands at match start") {
     fs::remove_all(dir);
 }
 
+TEST_CASE("creative: whole flow from lobby to start sends no error frames") {
+    // BUG hunt (task F2): the user flow "set Creative, start match" shows a
+    //       client "Malformed request" toast while the match still starts.
+    //       That string is only sent by ActionRouter's generic handler catch,
+    //       so some handler in this flow throws. This walks the whole flow
+    //       and pins zero error frames at every step. The real
+    //       MatchController is wired in so the OnGameStarted hook
+    //       (EmitMatchStart + ready barrier) runs exactly like production;
+    //       without it the start path under test would skip that hook. The
+    //       scene file covers both seats, and a second update after start
+    //       pins the clean creative-lock denial (still no Malformed).
+    //       Every fixture user is unauthenticated, so a separate guest-host
+    //       variant adds nothing over this harness.
+    namespace fs = std::filesystem;
+    const fs::path dir =
+        fs::temp_directory_path() / "uni_scene_flow_test";
+    fs::create_directories(dir);
+    {
+        std::ofstream out(dir / "opening.json");
+        REQUIRE(out.good());
+        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}, {"username": "bob", "hand": ["uni:blue_reverse"]}]})";
+    }
+    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
+    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
+
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match_ctrl(f.router, f.bus, f.timers, f.lobby);
+    auto error_frames = [&]() {
+        std::vector<json> out;
+        for (const SentFrame& frame : f.bus.sent) {
+            json packet;
+            try {
+                packet = json::parse(frame.payload);
+            } catch (const json::exception&) {
+                continue;
+            }
+            if (packet.value("action", std::string()) == "error") {
+                out.push_back(packet);
+            }
+        }
+        return out;
+    };
+    auto malformed_frames = [&]() {
+        std::vector<json> out;
+        for (const json& err : error_frames()) {
+            if (err.value("detail", std::string()) == "Malformed request") {
+                out.push_back(err);
+            }
+        }
+        return out;
+    };
+
+    std::string code = f.alice_creates();
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.bob_joins(code);
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    // INFO: production lobbies carry a deck snapshot (ApplyFirstDeck runs
+    //       when dev content is off), so select the shipped classic deck to
+    //       take the snapshot assembly path rather than freestyle.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-deck"},
+                                     {"deck_id", "uni:classic"}});
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative"},
+                                     {"mode", "standard"},
+                                     {"creative", true},
+                                     {"scene", "opening"},
+                                     {"bot_count", 1}});
+    CHECK(error_frames().empty());
+    Lobby* pre = f.lobby.GetLobbyByCode(code);
+    REQUIRE(pre);
+    CHECK(pre->settings.creative);
+    CHECK(pre->settings.scene == "opening");
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+    auto malformed = malformed_frames();
+    for (const auto& err : malformed) MESSAGE("malformed frame: " << err.dump());
+    CHECK(malformed.empty());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->session->IsDirector("alice"));
+    f.bus.Clear();
+
+    // INFO: the client reports loaded right after start (Scene3D emits
+    //       match_client_ready after preload); both reports open the barrier,
+    //       arming the turn driver and flushing snapshots with options.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kMatchClientReady}});
+    f.router.Dispatch(f.bctx(), json{{"action", ws::ClientAction::kMatchClientReady}});
+    auto ready_malformed = malformed_frames();
+    for (const auto& err : ready_malformed) MESSAGE("malformed frame: " << err.dump());
+    CHECK(ready_malformed.empty());
+    CHECK(lp->session->ReadyBarrierOpen());
+    f.bus.Clear();
+    auto hand_kinds = [&](const std::string& username) {
+        std::vector<std::string> kinds;
+        const auto player = lp->session->Engine().FindPlayer(username);
+        REQUIRE(player.has_value());
+        for (match::ecs::Entity card : match::ops::HandOf(
+                 lp->session->Engine().Store(), *player)) {
+            const match::ecs::CardIdentity* id =
+                lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
+            REQUIRE(id != nullptr);
+            kinds.push_back(id->kind_id);
+        }
+        return kinds;
+    };
+    CHECK(hand_kinds("alice") == std::vector<std::string>{"uni:blue_skip"});
+    CHECK(hand_kinds("bob") == std::vector<std::string>{"uni:blue_reverse"});
+    f.bus.Clear();
+
+    // INFO: a creative flip after start is denied by the lock; the denial is
+    //       a proper error frame, never the generic Malformed one.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative-relock"},
+                                     {"creative", false}});
+    auto post_errors = error_frames();
+    REQUIRE(post_errors.size() == 1);
+    CHECK(post_errors.front().value("code", "") == "match_already_started");
+    CHECK(malformed_frames().empty());
+    CHECK(lp->settings.creative);
+
+    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
+    fs::remove_all(dir);
+}
+
 } // TEST_SUITE
 
 // ---------------------------------------------------------------------------
