@@ -591,7 +591,7 @@ public:
             "materialize_card", "move_card", "transfer_card",
             "remove_card", "replace_card", "swap_hands",
             "pause", "step", "force_turn", "script", "stack",
-            "checkpoint", "load_scene"};
+            "checkpoint", "load_scene", "rename", "skin", "flip"};
         return std::find(allowed.begin(), allowed.end(), name) != allowed.end();
     }
 

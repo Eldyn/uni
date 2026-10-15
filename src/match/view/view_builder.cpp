@@ -521,6 +521,10 @@ json BuildPlayer(const ViewBuilder& builder,
     entry["username"] = username;
     entry["seat"] = info == nullptr ? 0u : info->seat;
     entry["is_bot"] = info != nullptr && info->is_bot;
+    // INFO: display-only avatar-strip override (Creative skin op); turn
+    //       logic keeps reading `is_bot`, never this.
+    const auto skin = options.skin_overrides.find(username);
+    if (skin != options.skin_overrides.end()) entry["skin"] = skin->second;
     entry["is_current"] = turn != nullptr && turn->is_current;
     entry["card_count"] = hand == nullptr ? 0 : hand->cards.size();
     // INFO: how many connected spectators watch THIS player's POV. Lobby-owned

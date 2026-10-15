@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -1905,4 +1906,262 @@ TEST_CASE("AFK timeout on a held draw keeps it instead of playing it") {
     CHECK(f.CountMatchEvents("turn_advance") >= 1);
 }
 }  // TEST_SUITE("MatchController::KeepDrawn")
+
+// ---------------------------------------------------------------------------
+// Director seat ops (task F4): rename, skin, flip.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// INFO: the latest snapshot row broadcast for `username`, or null json when
+//       no snapshot carried that seat (copies: frames outlive the call).
+json SnapshotRowFor(const FakeBroadcaster& bus, const std::string& username) {
+    json found = json(nullptr);
+    for (const SentFrame& frame : bus.sent) {
+        json packet;
+        try {
+            packet = json::parse(frame.payload);
+        } catch (const json::exception&) {
+            continue;
+        }
+        if (packet.value("action", std::string()) != "match_state_updated") {
+            continue;
+        }
+        if (!packet.contains("match_state")
+            || !packet["match_state"].contains("players")) {
+            continue;
+        }
+        for (const json& row : packet["match_state"]["players"]) {
+            if (row.value("username", std::string()) == username) found = row;
+        }
+    }
+    return found;
+}
+
+LobbySettings CreativeSettings() {
+    LobbySettings settings =
+        settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    return settings;
+}
+
+void DispatchDirector(MatchFixture& f, const std::string& from,
+                      const std::string& op, const json& args,
+                      const std::string& request_id = "req-seat-op") {
+    f.router.Dispatch(f.ContextFor(from), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", op},
+        {"args", args},
+        {"request_id", request_id}});
+}
+
+json LastError(const FakeBroadcaster& bus) {
+    REQUIRE_FALSE(bus.sent.empty());
+    return json::parse(bus.sent.back().payload);
+}
+
+}  // namespace
+
+TEST_SUITE("MatchController::DirectorSeats") {
+TEST_CASE("director: seat ops are whitelisted") {
+    const match::ops::OpRuntime runtime = match::ops::MakeDefaultRuntime();
+    CHECK(runtime.IsDirectorOp("rename"));
+    CHECK(runtime.IsDirectorOp("skin"));
+    CHECK(runtime.IsDirectorOp("flip"));
+}
+
+TEST_CASE("director: rename swaps the seat and syncs the roster") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+    f.bus.Clear();
+
+    DispatchDirector(f, "Alice", "rename",
+                     json{{"seat", "BotBob"}, {"to", "BotZed"}}, "req-rename");
+    CHECK(f.CountErrorFrames("invalid_payload") == 0);
+    CHECK(f.CountErrorFrames("not_host") == 0);
+
+    // INFO: engine seat moved, bot flag preserved.
+    CHECK_FALSE(f.Engine().FindPlayer("BotBob").has_value());
+    const std::optional<match::ecs::Entity> zed =
+        f.Engine().FindPlayer("BotZed");
+    REQUIRE(zed.has_value());
+    const match::ecs::PlayerInfo* info =
+        f.Engine().Store().Get<match::ecs::PlayerInfo>(*zed);
+    REQUIRE(info != nullptr);
+    CHECK(info->is_bot);
+
+    // INFO: lobby roster synced (username key + bot flag).
+    CHECK(f.store.lobby.FindMember("BotBob") == nullptr);
+    const LobbyMember* member = f.store.lobby.FindMember("BotZed");
+    REQUIRE(member != nullptr);
+    CHECK(member->is_bot);
+
+    // INFO: the re-broadcast carries the new seat.
+    CHECK_FALSE(SnapshotRowFor(f.bus, "BotZed").is_null());
+    CHECK(SnapshotRowFor(f.bus, "BotBob").is_null());
+}
+
+TEST_CASE("director: rename rejects empty/duplicate/overlong/unknown seats") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+
+    auto denies = [&](const json& args) {
+        f.bus.Clear();
+        DispatchDirector(f, "Alice", "rename", args);
+        const json err = LastError(f.bus);
+        CHECK_EQ(err.value("action", std::string()), "error");
+        CHECK_EQ(err.value("code", std::string()), "invalid_payload");
+    };
+    denies(json{{"seat", "BotBob"}, {"to", ""}});
+    denies(json{{"seat", "BotBob"}, {"to", "Alice"}});
+    denies(json{{"seat", "BotBob"}, {"to", std::string(33, 'x')}});
+    denies(json{{"seat", "Ghost"}, {"to", "BotZed"}});
+    denies(json{{"seat", ""}, {"to", "BotZed"}});
+
+    // INFO: every denial leaves the seats untouched.
+    CHECK(f.Engine().FindPlayer("BotBob").has_value());
+    CHECK(f.Engine().FindPlayer("Alice").has_value());
+    CHECK(f.store.lobby.FindMember("BotBob") != nullptr);
+}
+
+TEST_CASE("director: rename and skin are dev-only") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+
+    // INFO: production env flips IsDevContentAllowed off for these two ops.
+    const char* old_env = std::getenv("UNI_ENV");
+    const bool had_env = old_env != nullptr;
+    const std::string saved = had_env ? old_env : std::string();
+    ::setenv("UNI_ENV", "production", 1);
+    DispatchDirector(f, "Alice", "rename",
+                     json{{"seat", "BotBob"}, {"to", "BotZed"}}, "req-rename");
+    const json rename_err = LastError(f.bus);
+    f.bus.Clear();
+    DispatchDirector(f, "Alice", "skin",
+                     json{{"seat", "BotBob"}, {"skin", "player"}}, "req-skin");
+    const json skin_err = LastError(f.bus);
+    // INFO: restore before asserting so a red test cannot poison later cases.
+    if (had_env) {
+        ::setenv("UNI_ENV", saved.c_str(), 1);
+    } else {
+        ::unsetenv("UNI_ENV");
+    }
+
+    for (const json* err : {&rename_err, &skin_err}) {
+        CHECK_EQ(err->value("action", std::string()), "error");
+        CHECK_EQ(err->value("code", std::string()), "invalid_payload");
+        CHECK(err->value("detail", std::string()).find("dev-only")
+              != std::string::npos);
+    }
+    CHECK(f.Engine().FindPlayer("BotBob").has_value());
+    CHECK(f.Engine().FindPlayer("Alice").has_value());
+}
+
+TEST_CASE("director: skin overrides the strip without flipping is_bot") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+    f.bus.Clear();
+
+    DispatchDirector(f, "Alice", "skin",
+                     json{{"seat", "BotBob"}, {"skin", "player"}}, "req-skin");
+    CHECK(f.CountErrorFrames("invalid_payload") == 0);
+
+    // INFO: the snapshot row carries the override while the flags stay bot.
+    const json row = SnapshotRowFor(f.bus, "BotBob");
+    REQUIRE_FALSE(row.is_null());
+    CHECK(row.value("skin", std::string()) == "player");
+    CHECK(row.value("is_bot", false) == true);
+    const std::optional<match::ecs::Entity> seat =
+        f.Engine().FindPlayer("BotBob");
+    REQUIRE(seat.has_value());
+    const match::ecs::PlayerInfo* info =
+        f.Engine().Store().Get<match::ecs::PlayerInfo>(*seat);
+    REQUIRE(info != nullptr);
+    CHECK(info->is_bot);
+}
+
+TEST_CASE("director: skin rejects bad values and unknown seats") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+
+    auto denies = [&](const json& args) {
+        f.bus.Clear();
+        DispatchDirector(f, "Alice", "skin", args);
+        const json err = LastError(f.bus);
+        CHECK_EQ(err.value("action", std::string()), "error");
+        CHECK_EQ(err.value("code", std::string()), "invalid_payload");
+    };
+    denies(json{{"seat", "BotBob"}, {"skin", "alien"}});
+    denies(json{{"seat", "BotBob"}, {"skin", ""}});
+    denies(json{{"seat", "Ghost"}, {"skin", "bot"}});
+    // INFO: a rejected skin never lands in the snapshot.
+    f.bus.Clear();
+    f.store.lobby.session->BroadcastSnapshot(f.bus);
+    CHECK(SnapshotRowFor(f.bus, "BotBob").value("skin", std::string()).empty());
+}
+
+TEST_CASE("director: flip moves a seat between bot and human in prod") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), CreativeSettings());
+    f.OpenBarrierNow();
+
+    // INFO: no UNI_ENV override here: flip works outside dev too.
+    f.bus.Clear();
+    DispatchDirector(f, "Alice", "flip",
+                     json{{"seat", "BotBob"}, {"to", "human"}}, "req-flip");
+    CHECK(f.CountErrorFrames("invalid_payload") == 0);
+    const std::optional<match::ecs::Entity> seat =
+        f.Engine().FindPlayer("BotBob");
+    REQUIRE(seat.has_value());
+    const match::ecs::PlayerInfo* human_info =
+        f.Engine().Store().Get<match::ecs::PlayerInfo>(*seat);
+    REQUIRE(human_info != nullptr);
+    CHECK_FALSE(human_info->is_bot);
+    CHECK(human_info->connected);
+    const LobbyMember* member = f.store.lobby.FindMember("BotBob");
+    REQUIRE(member != nullptr);
+    CHECK_FALSE(member->is_bot);
+
+    // INFO: back to bot re-flags the same seat (name preserved).
+    f.bus.Clear();
+    DispatchDirector(f, "Alice", "flip",
+                     json{{"seat", "BotBob"}, {"to", "bot"}}, "req-flip-back");
+    CHECK(f.CountErrorFrames("invalid_payload") == 0);
+    REQUIRE(f.Engine().FindPlayer("BotBob").has_value());
+    const match::ecs::PlayerInfo* bot_info =
+        f.Engine().Store().Get<match::ecs::PlayerInfo>(*seat);
+    REQUIRE(bot_info != nullptr);
+    CHECK(bot_info->is_bot);
+    member = f.store.lobby.FindMember("BotBob");
+    REQUIRE(member != nullptr);
+    CHECK(member->is_bot);
+
+    // INFO: the "player" alias flips human-side as well.
+    f.bus.Clear();
+    DispatchDirector(f, "Alice", "flip",
+                     json{{"seat", "BotBob"}, {"to", "player"}},
+                     "req-flip-alias");
+    CHECK(f.CountErrorFrames("invalid_payload") == 0);
+    CHECK_FALSE(f.store.lobby.FindMember("BotBob")->is_bot);
+
+    // INFO: bad targets and unknown seats are denied, state untouched.
+    auto denies = [&](const json& args) {
+        f.bus.Clear();
+        DispatchDirector(f, "Alice", "flip", args);
+        const json err = LastError(f.bus);
+        CHECK_EQ(err.value("action", std::string()), "error");
+        CHECK_EQ(err.value("code", std::string()), "invalid_payload");
+    };
+    denies(json{{"seat", "BotBob"}, {"to", "alien"}});
+    denies(json{{"seat", "BotBob"}, {"to", ""}});
+    denies(json{{"seat", "Ghost"}, {"to", "bot"}});
+    CHECK(f.Engine().FindPlayer("BotBob").has_value());
+}
+}  // TEST_SUITE("MatchController::DirectorSeats")
 

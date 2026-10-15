@@ -1,5 +1,6 @@
 #include <match/server/match_session.hpp>
 
+#include <common/contract.hpp>
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
 #include <match/ops/op_helpers.hpp>
@@ -137,8 +138,7 @@ bool MatchSession::ArmTurnTimer(int64_t duration_ms) {
 bool MatchSession::RebindPlayer(const std::string& old_username,
                                 const std::string& new_username,
                                 AppWebSocket* socket) {
-    if (old_username.empty() || new_username.empty() ||
-        old_username == new_username) {
+    if (old_username.empty() || new_username.empty()) {
         return false;
     }
 
@@ -148,6 +148,25 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     match::ecs::PlayerInfo* info =
         engine_->Store().Get<match::ecs::PlayerInfo>(*player);
     if (info == nullptr) return false;
+    if (old_username == new_username) {
+        // INFO: same-seat Creative flip back to human: no keys move (the
+        //       seat keeps its stream and prompt state); only the flags, and
+        //       the socket when the caller binds one, change.
+        info->is_bot = false;
+        info->connected = true;
+        if (socket != nullptr) sockets_[old_username] = socket;
+        sinks_.try_emplace(old_username);
+        prompt_signature_.try_emplace(old_username);
+        prompt_outcome_.try_emplace(old_username, "cancelled");
+        ready_barrier_.MarkReady(old_username);
+        return true;
+    }
+    if (engine_->FindPlayer(new_username).has_value()
+        || sockets_.contains(new_username)) {
+        // INFO: the target key is taken; refusing beats merging two seats'
+        //       sockets and streams into one map entry.
+        return false;
+    }
     ready_barrier_.Rename(old_username, new_username);
     info->username = new_username;
     info->is_bot = false;
@@ -161,25 +180,28 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     if (socket_it != sockets_.end()) sockets_.erase(socket_it);
     sockets_[new_username] = bound;
 
-    // INFO: move the per-recipient stream/prompt state to the new key so the
-    //       hijacker inherits the seat's `seq` watermark and prompt dedupe.
-    auto move_node = [&](auto& map) {
-        auto node = map.extract(old_username);
-        if (node.empty()) {
-            map.try_emplace(new_username);
-            return;
-        }
-        node.key() = new_username;
-        map.insert(std::move(node));
-    };
-    move_node(sinks_);
-    move_node(prompt_signature_);
-    move_node(prompt_outcome_);
+    MoveSeatKeys(old_username, new_username);
     return true;
 }
 
 bool MatchSession::HandSeatToBot(const std::string& old_username,
                                  const std::string& bot_name) {
+    if (old_username.empty() || bot_name.empty()) return false;
+    if (old_username == bot_name) {
+        // INFO: same-seat Creative flip to bot: the seat keeps its name,
+        //       hand and turn state; it just stops receiving the stream and
+        //       counts as ready like any bot seat.
+        const std::optional<match::ecs::Entity> same =
+            engine_->FindPlayer(old_username);
+        if (!same.has_value()) return false;
+        match::ecs::PlayerInfo* same_info =
+            engine_->Store().Get<match::ecs::PlayerInfo>(*same);
+        if (same_info == nullptr) return false;
+        same_info->is_bot = true;
+        sockets_[old_username] = nullptr;
+        ready_barrier_.MarkReady(old_username);
+        return true;
+    }
     if (!RebindPlayer(old_username, bot_name, nullptr)) return false;
 
     const std::optional<match::ecs::Entity> player =
@@ -192,6 +214,61 @@ bool MatchSession::HandSeatToBot(const std::string& old_username,
     sockets_[bot_name] = nullptr;
     ready_barrier_.MarkReady(bot_name);
     return true;
+}
+
+bool MatchSession::RenameSeat(const std::string& old_username,
+                              const std::string& new_username) {
+    if (old_username.empty() || new_username.empty()
+        || old_username == new_username) {
+        return false;
+    }
+    if (new_username.size() > contract::kUsernameMax) return false;
+    const std::optional<match::ecs::Entity> player =
+        engine_->FindPlayer(old_username);
+    if (!player.has_value()) return false;
+    if (engine_->FindPlayer(new_username).has_value()
+        || sockets_.contains(new_username)) {
+        return false;
+    }
+    match::ecs::PlayerInfo* info =
+        engine_->Store().Get<match::ecs::PlayerInfo>(*player);
+    if (info == nullptr) return false;
+    // INFO: a rename is display identity only: is_bot/connected stay as the
+    //       seat had them (a hijack that humanizes is RebindPlayer's job).
+    info->username = new_username;
+    ready_barrier_.Rename(old_username, new_username);
+    // INFO: socket, stream, prompt and display keying follow (MoveSeatKeys).
+
+    auto socket_it = sockets_.find(old_username);
+    AppWebSocket* bound =
+        socket_it != sockets_.end() ? socket_it->second : nullptr;
+    if (socket_it != sockets_.end()) sockets_.erase(socket_it);
+    sockets_[new_username] = bound;
+
+    MoveSeatKeys(old_username, new_username);
+    return true;
+}
+
+bool MatchSession::SetSeatSkin(const std::string& username,
+                               const std::string& skin) {
+    if (!IsValidSkinValue(skin)) return false;
+    if (!engine_->FindPlayer(username).has_value()) return false;
+    skin_overrides_[username] = skin;
+    return true;
+}
+
+std::string MatchSession::SeatSkin(const std::string& username) const {
+    const auto it = skin_overrides_.find(username);
+    return it == skin_overrides_.end() ? std::string() : it->second;
+}
+
+std::unordered_map<std::string, std::string> MatchSession::SkinOverrides()
+    const {
+    return skin_overrides_;
+}
+
+bool MatchSession::IsValidSkinValue(const std::string& skin) {
+    return skin == "bot" || skin == "player";
 }
 
 bool MatchSession::BindSocket(const std::string& username,
@@ -456,7 +533,7 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 bool is_spectator) {
     if (socket == nullptr) return;
 
-    match::view::SnapshotOptions warm_up;
+    match::view::SnapshotOptions warm_up = SnapshotOptionsWithSkins({});
     warm_up.tail = &tail_;
     if (!is_spectator) {
         const auto it = sinks_.find(username);
@@ -518,7 +595,7 @@ bool MatchSession::HandleSnapshotRequest(
     const match::view::Viewer viewer =
         is_seat ? (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username))
                 : SpectatorViewer();
-    match::view::SnapshotOptions warm_up = options;
+    match::view::SnapshotOptions warm_up = SnapshotOptionsWithSkins(options);
     warm_up.tail = &tail_;
     broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, warm_up));
     return true;
@@ -752,13 +829,15 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
 
 void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
                                      const match::view::SnapshotOptions& options) {
+    const match::view::SnapshotOptions merged =
+        SnapshotOptionsWithSkins(options);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         // INFO: a seat that was unreachable at start gets `defs` before its
         //       first snapshot after reconnecting.
         EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), sinks_.at(username), options);
+            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), sinks_.at(username), merged);
         broadcaster.SendJson(socket, snapshot);
     }
     // INFO: Spectators keep receiving snapshots after their
@@ -767,7 +846,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         if (socket == nullptr) continue;
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            SpectatorViewer(), viewer_sinks_.at(username), options);
+            SpectatorViewer(), viewer_sinks_.at(username), merged);
         broadcaster.SendJson(socket, snapshot);
     }
     BroadcastMatchOver(broadcaster);
@@ -797,6 +876,43 @@ const nlohmann::json* MatchSession::FindPromptSchema(
     const auto it = prompt_schemas_.find(kind);
     if (it == prompt_schemas_.end()) return nullptr;
     return &it->second;
+}
+
+void MatchSession::MoveSeatKeys(const std::string& old_username,
+                                const std::string& new_username) {
+    // INFO: move the per-recipient stream/prompt state to the new key so the
+    //       renamed seat keeps its `seq` watermark and prompt dedupe.
+    auto move_node = [&](auto& map) {
+        auto node = map.extract(old_username);
+        if (node.empty()) {
+            map.try_emplace(new_username);
+            return;
+        }
+        node.key() = new_username;
+        map.insert(std::move(node));
+    };
+    move_node(sinks_);
+    move_node(prompt_signature_);
+    move_node(prompt_outcome_);
+    // INFO: seat-scoped display state follows the seat too, on every rename
+    //       path (hijack, bot handoff and director rename alike).
+    for (auto* list : {&directors_, &private_seats_}) {
+        const auto pos = std::ranges::find(*list, old_username);
+        if (pos != list->end()) *pos = new_username;
+    }
+    if (auto skin = skin_overrides_.extract(old_username); !skin.empty()) {
+        skin.key() = new_username;
+        skin_overrides_.insert(std::move(skin));
+    }
+}
+
+match::view::SnapshotOptions MatchSession::SnapshotOptionsWithSkins(
+    const match::view::SnapshotOptions& options) const {
+    match::view::SnapshotOptions merged = options;
+    for (const auto& [seat, skin] : skin_overrides_) {
+        merged.skin_overrides[seat] = skin;
+    }
+    return merged;
 }
 
 bool MatchSession::MatchesSchema(const nlohmann::json& value,
