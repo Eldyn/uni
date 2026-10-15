@@ -9,6 +9,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+- Creative P1: Creative flag forces ranked off. Host director command gives cards and edits hands with clear deny logs.
+
 ### Added
 
 - **Event contract acceptance sweep** — every acceptance item of the event contract spec now has named tests, listed in `acceptance-matrix.md`. New tests: one combined no-leak scan (three seeds, two mod sets, three bot seats with one private, a spectator, a late seat, a late spectator, snapshot requests for every recipient, a mod event on every play, tail included), a full-system smoke match with the shipped mods and the real validator (no gap in any sequence, `match_ended` once per recipient, no error log from the budgets or the validator), a seat rejoin test (a disconnected human gets the own seat back, and nobody takes a seat that a bot holds), and a client test that a replayed `window_opened` or `turn_advance` does not arm or restart a timer. The six open items of the spec are answered, and the deferred work is listed in `follow-ups.md`. Ticket 25 of the event contract.
