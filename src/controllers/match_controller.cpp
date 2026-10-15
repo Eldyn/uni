@@ -363,6 +363,27 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
         return;
     }
 
+    if (op == "pause") {
+        paused_creative_ = !paused_creative_;
+        Logger::Info("[Director] pause toggled: ", paused_creative_ ? "on" : "off");
+        ClearCreativeTimers(active_lobby->id);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "step") {
+        const bool was_paused = paused_creative_;
+        paused_creative_ = false;
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
+        paused_creative_ = was_paused;
+        return;
+    }
+    if (op == "force_turn") {
+        paused_creative_ = false;
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
+        return;
+    }
     // INFO: P1 whitelist allows only the declared op names. Full op
     //       execution through OpRuntime requires a session-level store
     //       context and lands in a later pass. For now the command is
@@ -372,6 +393,12 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
     BroadcastMatchState(active_lobby);
+}
+
+void MatchController::ClearCreativeTimers(uint32_t lobby_id) {
+    timer_service_.Cancel("turn_" + std::to_string(lobby_id));
+    timer_service_.Cancel("window_" + std::to_string(lobby_id));
+    timer_service_.Cancel("ready_" + std::to_string(lobby_id));
 }
 
 /**
@@ -753,6 +780,12 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
     //       rejected with `kMatchAlreadyStarted`); BroadcastMatchState is
     //       idempotent and owns the terminal `match_over` send.
     if (session.Engine().IsMatchOver()) {
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (paused_creative_) {
+        // INFO: director pause freezes the turn driver; no clock sync,
+        //       no bot scheduling, no timer arming while paused.
         BroadcastMatchState(active_lobby);
         return;
     }

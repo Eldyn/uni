@@ -424,6 +424,63 @@ TEST_CASE("OnTurnStarted: arms a turn timer as soon as a match starts") {
     CHECK(f.timers.Has("turn_1"));
 }
 
+TEST_CASE("director: pause freezes the turn driver and step resumes it") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.OpenBarrierNow();
+    REQUIRE(f.timers.Has("turn_1"));
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "pause"}});
+    CHECK_FALSE(f.timers.Has("turn_1"));
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "step"}});
+    CHECK(f.timers.Has("turn_1"));
+}
+
+TEST_CASE("director: non-host pause is denied with not_host") {
+    MatchFixture f;
+    LobbySettings settings = settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd);
+    settings.creative = true;
+    settings.ranked = false;
+    f.SetupMatch(human_vs_bot(), settings);
+    f.OpenBarrierNow();
+    REQUIRE(f.timers.Has("turn_1"));
+    f.bus.Clear();
+
+    f.router.Dispatch(f.ContextFor("BotBob"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "pause"}});
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err["action"], "error");
+    CHECK_EQ(err["code"], "not_host");
+    CHECK(f.timers.Has("turn_1"));
+}
+
+TEST_CASE("director: pause in a non-creative lobby is denied") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), settings_with_mode(BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
+    REQUIRE(f.timers.Has("turn_1"));
+    f.bus.Clear();
+
+    f.router.Dispatch(f.ContextFor("Alice"), json{
+        {"action", ws::ClientAction::kDirectorCommand},
+        {"op", "pause"}});
+    REQUIRE_FALSE(f.bus.sent.empty());
+    auto err = json::parse(f.bus.sent.back().payload);
+    CHECK_EQ(err["action"], "error");
+    CHECK_EQ(err["code"], "invalid_payload");
+    CHECK(f.timers.Has("turn_1"));
+}
+
 // INFO: The controller must publish `defs` + `match_start` on the
 //       OnGameStarted hook, before its first engine-event / snapshot flush.
 TEST_CASE("OnGameStarted publishes defs and match_start before the first snapshot") {

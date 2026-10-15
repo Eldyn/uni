@@ -205,4 +205,6 @@ private:
      */
     bool ResolveAfkHeldDraw(match::server::MatchSession& session,
                             const std::string& username);
+    bool paused_creative_ = false;
+    void ClearCreativeTimers(uint32_t lobby_id);
 };
