@@ -1511,7 +1511,6 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     }
 
     LobbySettings new_settings = lobby.settings;
-
     // INFO: A `deck_id` selects a whole snapshot at once (mods + cards +
     //       settings). Resolve it against the mods folder before the generic
     //       merge; an empty string clears the selection (freestyle, dev only).
@@ -1575,6 +1574,13 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
         return;
     }
     new_settings.Sanitize(absolute_max_lobby_members_);
+
+    if (lobby.session != nullptr && lobby.settings.creative != new_settings.creative) {
+        // WARN: creative lock drops late flips after session starts.
+        broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kMatchAlreadyStarted,
+                               request_id, "creative is locked after start");
+        return;
+    }
 
     lobby.settings = std::move(new_settings);
     if (new_name) lobby.name = std::move(*new_name);
