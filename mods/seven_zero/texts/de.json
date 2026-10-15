@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} tauscht die Hand mit {target}.",
+  "seven_zero:swap_2": "{source} und {target} tauschen die Hände.",
+  "seven_zero:pass_forward": "Jede Hand rückt einen Platz vor.",
+  "seven_zero:pass_backward": "Jede Hand rückt einen Platz zurück.",
+  "seven_zero:redistributed": "Die Hände werden zwischen allen neu gemischt."
+}

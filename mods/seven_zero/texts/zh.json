@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} 和 {target} 交换了手牌。",
+  "seven_zero:swap_2": "{source} 和 {target} 互换手牌。",
+  "seven_zero:pass_forward": "所有手牌向前移动一个座位。",
+  "seven_zero:pass_backward": "所有手牌向后移动一个座位。",
+  "seven_zero:redistributed": "手牌在所有玩家之间重新洗乱。"
+}

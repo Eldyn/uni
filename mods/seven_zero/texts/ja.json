@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source}は{target}と手札を交換。",
+  "seven_zero:swap_2": "{source}と{target}が手札を交換。",
+  "seven_zero:pass_forward": "すべての手札が1席ぶん前に回る。",
+  "seven_zero:pass_backward": "すべての手札が1席ぶん後ろに回る。",
+  "seven_zero:redistributed": "手札が全員の間でシャッフルされる。"
+}

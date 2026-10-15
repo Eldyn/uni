@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name} legt auf den Stapel. {victim} schuldet jetzt {total}.",
+  "draw_stacking:stack_small_2": "{name} stapelt noch mal. {victim} schuldet jetzt {total}.",
+  "draw_stacking:stack_heavy_1": "{name} legt noch eine drauf. [c=red]{victim}[/c] schuldet jetzt [fx=shake]{total}[/fx].",
+  "draw_stacking:answered_1": "{name} kontert den Stapel.",
+  "draw_stacking:answered_2": "{name} legt direkt zurück."
+}

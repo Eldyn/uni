@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} si scambia le carte con {target}.",
+  "seven_zero:swap_2": "{source} e {target} si scambiano le mani.",
+  "seven_zero:pass_forward": "Ogni mano avanza di un posto.",
+  "seven_zero:pass_backward": "Ogni mano indietreggia di un posto.",
+  "seven_zero:redistributed": "Le mani vengono rimescolate tra tutti i posti."
+}

@@ -1,97 +1,32 @@
 {
-  "log_skip": {
-    "template": "{name} 님이 스킵당했습니다.",
-    "resolved": "Ann 님이 스킵당했습니다.",
+  "log_auto_play_1": {
+    "template": "{name} 님이 어쩔 수 없이 [k={kind}]{cardName}[/k] 카드를 냈습니다.",
+    "resolved": "Ann 님이 어쩔 수 없이 [k=uni:red_draw2]드로우 2 (+2)[/k] 카드를 냈습니다.",
     "fallbackToEnglish": false
   },
-  "log_skip_again": {
-    "template": "{name} 님이 또 스킵당했습니다.",
-    "resolved": "Ann 님이 또 스킵당했습니다.",
+  "log_auto_play_2": {
+    "template": "{name} 님은 선택지가 없습니다. [k={kind}]{cardName}[/k] 카드가 테이블에 올라갑니다.",
+    "resolved": "Ann 님은 선택지가 없습니다. [k=uni:red_draw2]드로우 2 (+2)[/k] 카드가 테이블에 올라갑니다.",
     "fallbackToEnglish": false
   },
-  "log_skip_again_2": {
-    "template": "{name} 님이 또 스킵. 놓친 턴을 모으는 중입니다.",
-    "resolved": "Ann 님이 또 스킵. 놓친 턴을 모으는 중입니다.",
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} 님이 진짜 해냈습니다![/fx]",
+    "resolved": "[fx=shake:3,2]Bob 님이 진짜 해냈습니다![/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_third": {
-    "template": "[c=red]{name}[/c] 님이 세 번째로 스킵당했습니다. 무슨 원한이라도 있나 봐요.",
-    "resolved": "[c=red]Ann[/c] 님이 세 번째로 스킵당했습니다. 무슨 원한이라도 있나 봐요.",
+  "log_blocked_2": {
+    "template": "내가 그랬잖아요. [fx=shake:3,2]{blocker} 님이 막았습니다.[/fx]",
+    "resolved": "내가 그랬잖아요. [fx=shake:3,2]Bob 님이 막았습니다.[/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_streak": {
-    "template": "[c=red]{name}[/c] 님이 또 스킵당했습니다. [fx=shake]이쯤 되면 관전 모드입니다.[/fx]",
-    "resolved": "[c=red]Ann[/c] 님이 또 스킵당했습니다. [fx=shake]이쯤 되면 관전 모드입니다.[/fx]",
+  "log_stack_taken_1": {
+    "template": "{name} 님이 스택을 떠안습니다: {count}장.",
+    "resolved": "Ann 님이 스택을 떠안습니다: 2장.",
     "fallbackToEnglish": false
   },
-  "log_skip_streak_2": {
-    "template": "또 [c=red]{name}[/c] 님입니다. [fx=shake]{name} 님도 좀 하게 해 주세요!![/fx]",
-    "resolved": "또 [c=red]Ann[/c] 님입니다. [fx=shake]Ann 님도 좀 하게 해 주세요!![/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse": {
-    "template": "리버스.",
-    "resolved": "리버스.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back": {
-    "template": "다시 리버스.",
-    "resolved": "다시 리버스.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back_2": {
-    "template": "다시 리버스. 맴도는 것도 전략입니다.",
-    "resolved": "다시 리버스. 맴도는 것도 전략입니다.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_again": {
-    "template": "또 리버스. 이제 누구 차례인지 아무도 모릅니다.",
-    "resolved": "또 리버스. 이제 누구 차례인지 아무도 모릅니다.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin": {
-    "template": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
-    "resolved": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin_2": {
-    "template": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
-    "resolved": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_1": {
-    "template": "{name} 님이 이번 판 첫 드로우입니다. RIP.",
-    "resolved": "Ann 님이 이번 판 첫 드로우입니다. RIP.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_2": {
-    "template": "더미의 첫 번째 피는 {name} 님에게 돌아갑니다.",
-    "resolved": "더미의 첫 번째 피는 Ann 님에게 돌아갑니다.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_1": {
-    "template": "{name} 님이 카드를 뽑습니다.",
-    "resolved": "Ann 님이 카드를 뽑습니다.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_2": {
-    "template": "{name} 님이 더미에서 한 장 가져갑니다.",
-    "resolved": "Ann 님이 더미에서 한 장 가져갑니다.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_3": {
-    "template": "{name} 님이 카드를 뽑습니다. 더미는 주는 대로 주죠.",
-    "resolved": "Ann 님이 카드를 뽑습니다. 더미는 주는 대로 주죠.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_1": {
-    "template": "{name} 님이 카드를 뽑는 게 벌써 {drawRun}번째입니다. 세상에.",
-    "resolved": "Ann 님이 카드를 뽑는 게 벌써 3번째입니다. 세상에.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_2": {
-    "template": "또 {name} 님입니다. 더미가 이름을 외웠겠어요.",
-    "resolved": "또 Ann 님입니다. 더미가 이름을 외웠겠어요.",
+  "log_stack_taken_2": {
+    "template": "스택이 {name} 님에게 떨어집니다. {count}장, 도망칠 수 없죠.",
+    "resolved": "스택이 Ann 님에게 떨어집니다. 2장, 도망칠 수 없죠.",
     "fallbackToEnglish": false
   },
   "log_draw_big_hand_1": {
@@ -109,104 +44,39 @@
     "resolved": "Ann 님이 2장을 뽑습니다. 아야.",
     "fallbackToEnglish": false
   },
-  "log_blocked_1": {
-    "template": "[fx=shake:3,2]{blocker} 님이 진짜 해냈습니다![/fx]",
-    "resolved": "[fx=shake:3,2]Bob 님이 진짜 해냈습니다![/fx]",
+  "log_draw_first_1": {
+    "template": "{name} 님이 이번 판 첫 드로우입니다. RIP.",
+    "resolved": "Ann 님이 이번 판 첫 드로우입니다. RIP.",
     "fallbackToEnglish": false
   },
-  "log_blocked_2": {
-    "template": "내가 그랬잖아요. [fx=shake:3,2]{blocker} 님이 막았습니다.[/fx]",
-    "resolved": "내가 그랬잖아요. [fx=shake:3,2]Bob 님이 막았습니다.[/fx]",
+  "log_draw_first_2": {
+    "template": "더미의 첫 번째 피는 {name} 님에게 돌아갑니다.",
+    "resolved": "더미의 첫 번째 피는 Ann 님에게 돌아갑니다.",
     "fallbackToEnglish": false
   },
-  "log_play": {
-    "template": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",
-    "resolved": "Ann 님이 [k=uni:red_draw2][c=red]드로우 2 (+2)[/c][/k]을 냈습니다.",
+  "log_draw_many_1": {
+    "template": "{name} 님이 카드를 뽑는 게 벌써 {drawRun}번째입니다. 세상에.",
+    "resolved": "Ann 님이 카드를 뽑는 게 벌써 3번째입니다. 세상에.",
     "fallbackToEnglish": false
   },
-  "log_keep_drawn": {
-    "template": "{name} 님이 뽑은 카드를 킵했습니다.",
-    "resolved": "Ann 님이 뽑은 카드를 킵했습니다.",
+  "log_draw_many_2": {
+    "template": "또 {name} 님입니다. 더미가 이름을 외웠겠어요.",
+    "resolved": "또 Ann 님입니다. 더미가 이름을 외웠겠어요.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_1": {
-    "template": "버린 카드가 다시 섞입니다. 새 카드, 같은 고통.",
-    "resolved": "버린 카드가 다시 섞입니다. 새 카드, 같은 고통.",
+  "log_draw_generic_1": {
+    "template": "{name} 님이 카드를 뽑습니다.",
+    "resolved": "Ann 님이 카드를 뽑습니다.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_2": {
-    "template": "더미가 바닥나서 버린 카드가 돌아옵니다. 셔플.",
-    "resolved": "더미가 바닥나서 버린 카드가 돌아옵니다. 셔플.",
+  "log_draw_generic_2": {
+    "template": "{name} 님이 더미에서 한 장 가져갑니다.",
+    "resolved": "Ann 님이 더미에서 한 장 가져갑니다.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_3": {
-    "template": "더미 바닥, 버린 카드 복귀. 같은 카드, 두 번째 기회.",
-    "resolved": "더미 바닥, 버린 카드 복귀. 같은 카드, 두 번째 기회.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_1": {
-    "template": "그럼 [c={color}]{colorName}[/c]으로.",
-    "resolved": "그럼 [c=red]빨강[/c]으로.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_first_2": {
-    "template": "[c={color}]{colorName}[/c]으로 갑니다.",
-    "resolved": "[c=red]빨강[/c]으로 갑니다.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_1": {
-    "template": "{name}은 다른 생각이었나 보네요. 그럼 [c={color}]{colorName}[/c]으로.",
-    "resolved": "Ann은 다른 생각이었나 보네요. 그럼 [c=red]빨강[/c]으로.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_2": {
-    "template": "[c={prevColor}]{prevColorName}[/c] 다음에 {name}이 [c={color}]{colorName}[/c]으로 바꿉니다.",
-    "resolved": "[c=blue]파랑[/c] 다음에 Ann이 [c=red]빨강[/c]으로 바꿉니다.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_1": {
-    "template": "색을 못 정하네요. 이번엔 [c={color}]{colorName}[/c]! [fx=shake:3,2]정하세요.[/fx]",
-    "resolved": "색을 못 정하네요. 이번엔 [c=red]빨강[/c]! [fx=shake:3,2]정하세요.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_2": {
-    "template": "[c={prevColor}]{prevColorName}[/c], 또 [c={color}]{colorName}[/c]? [fx=shake:3,2]정신 차리세요.[/fx]",
-    "resolved": "[c=blue]파랑[/c], 또 [c=red]빨강[/c]? [fx=shake:3,2]정신 차리세요.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_1": {
-    "template": "{name} 님이 어쩔 수 없이 [k={kind}]{cardName}[/k] 카드를 냈습니다.",
-    "resolved": "Ann 님이 어쩔 수 없이 [k=uni:red_draw2]드로우 2 (+2)[/k] 카드를 냈습니다.",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_2": {
-    "template": "{name} 님은 선택지가 없습니다. [k={kind}]{cardName}[/k] 카드가 테이블에 올라갑니다.",
-    "resolved": "Ann 님은 선택지가 없습니다. [k=uni:red_draw2]드로우 2 (+2)[/k] 카드가 테이블에 올라갑니다.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_1": {
-    "template": "[c=red]{name}[/c] 님의 패가 한 장 남았습니다. 대비하세요.",
-    "resolved": "[c=red]Ann[/c] 님의 패가 한 장 남았습니다. 대비하세요.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_2": {
-    "template": "{name} 님이 한 장 남았습니다. 누가 좀 막아 주세요.",
-    "resolved": "Ann 님이 한 장 남았습니다. 누가 좀 막아 주세요.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_3": {
-    "template": "{name} 님이 한 장 남았습니다. 모두 조용히 패닉입니다.",
-    "resolved": "Ann 님이 한 장 남았습니다. 모두 조용히 패닉입니다.",
-    "fallbackToEnglish": false
-  },
-  "log_win_1": {
-    "template": "{name} 님이 라운드에서 승리했습니다!",
-    "resolved": "Ann 님이 라운드에서 승리했습니다!",
-    "fallbackToEnglish": false
-  },
-  "log_win_2": {
-    "template": "게임 끝. {name} 님이 가져갑니다.",
-    "resolved": "게임 끝. Ann 님이 가져갑니다.",
+  "log_draw_generic_3": {
+    "template": "{name} 님이 카드를 뽑습니다. 더미는 주는 대로 주죠.",
+    "resolved": "Ann 님이 카드를 뽑습니다. 더미는 주는 대로 주죠.",
     "fallbackToEnglish": false
   },
   "log_finish_1": {
@@ -227,6 +97,146 @@
   "log_left_behind_2": {
     "template": "{name}님이 끝내지 못했습니다. {place}위.",
     "resolved": "Ann님이 끝내지 못했습니다. 1위.",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} 님이 뽑은 카드를 킵했습니다.",
+    "resolved": "Ann 님이 뽑은 카드를 킵했습니다.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c] 님의 패가 한 장 남았습니다. 대비하세요.",
+    "resolved": "[c=red]Ann[/c] 님의 패가 한 장 남았습니다. 대비하세요.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "{name} 님이 한 장 남았습니다. 누가 좀 막아 주세요.",
+    "resolved": "Ann 님이 한 장 남았습니다. 누가 좀 막아 주세요.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} 님이 한 장 남았습니다. 모두 조용히 패닉입니다.",
+    "resolved": "Ann 님이 한 장 남았습니다. 모두 조용히 패닉입니다.",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} 님이 [k={kind}][c={color}]{cardName}[/c][/k]을 냈습니다.",
+    "resolved": "Ann 님이 [k=uni:red_draw2][c=red]드로우 2 (+2)[/c][/k]을 냈습니다.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "버린 카드가 다시 섞입니다. 새 카드, 같은 고통.",
+    "resolved": "버린 카드가 다시 섞입니다. 새 카드, 같은 고통.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "더미가 바닥나서 버린 카드가 돌아옵니다. 셔플.",
+    "resolved": "더미가 바닥나서 버린 카드가 돌아옵니다. 셔플.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "더미 바닥, 버린 카드 복귀. 같은 카드, 두 번째 기회.",
+    "resolved": "더미 바닥, 버린 카드 복귀. 같은 카드, 두 번째 기회.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
+    "resolved": "리버스 또 리버스. [fx=shake]회전목마 타는 줄.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
+    "resolved": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "또 리버스. 이제 누구 차례인지 아무도 모릅니다.",
+    "resolved": "또 리버스. 이제 누구 차례인지 아무도 모릅니다.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "다시 리버스.",
+    "resolved": "다시 리버스.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "다시 리버스. 맴도는 것도 전략입니다.",
+    "resolved": "다시 리버스. 맴도는 것도 전략입니다.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "리버스.",
+    "resolved": "리버스.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] 님이 또 스킵당했습니다. [fx=shake]이쯤 되면 관전 모드입니다.[/fx]",
+    "resolved": "[c=red]Ann[/c] 님이 또 스킵당했습니다. [fx=shake]이쯤 되면 관전 모드입니다.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "또 [c=red]{name}[/c] 님입니다. [fx=shake]{name} 님도 좀 하게 해 주세요!![/fx]",
+    "resolved": "또 [c=red]Ann[/c] 님입니다. [fx=shake]Ann 님도 좀 하게 해 주세요!![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] 님이 세 번째로 스킵당했습니다. 무슨 원한이라도 있나 봐요.",
+    "resolved": "[c=red]Ann[/c] 님이 세 번째로 스킵당했습니다. 무슨 원한이라도 있나 봐요.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} 님이 또 스킵당했습니다.",
+    "resolved": "Ann 님이 또 스킵당했습니다.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "{name} 님이 또 스킵. 놓친 턴을 모으는 중입니다.",
+    "resolved": "Ann 님이 또 스킵. 놓친 턴을 모으는 중입니다.",
+    "fallbackToEnglish": false
+  },
+  "log_skip": {
+    "template": "{name} 님이 스킵당했습니다.",
+    "resolved": "Ann 님이 스킵당했습니다.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "색을 못 정하네요. 이번엔 [c={color}]{colorName}[/c]! [fx=shake:3,2]정하세요.[/fx]",
+    "resolved": "색을 못 정하네요. 이번엔 [c=red]빨강[/c]! [fx=shake:3,2]정하세요.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c], 또 [c={color}]{colorName}[/c]? [fx=shake:3,2]정신 차리세요.[/fx]",
+    "resolved": "[c=blue]파랑[/c], 또 [c=red]빨강[/c]? [fx=shake:3,2]정신 차리세요.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name}은 다른 생각이었나 보네요. 그럼 [c={color}]{colorName}[/c]으로.",
+    "resolved": "Ann은 다른 생각이었나 보네요. 그럼 [c=red]빨강[/c]으로.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c] 다음에 {name}이 [c={color}]{colorName}[/c]으로 바꿉니다.",
+    "resolved": "[c=blue]파랑[/c] 다음에 Ann이 [c=red]빨강[/c]으로 바꿉니다.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "그럼 [c={color}]{colorName}[/c]으로.",
+    "resolved": "그럼 [c=red]빨강[/c]으로.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "[c={color}]{colorName}[/c]으로 갑니다.",
+    "resolved": "[c=red]빨강[/c]으로 갑니다.",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} 님이 라운드에서 승리했습니다!",
+    "resolved": "Ann 님이 라운드에서 승리했습니다!",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "게임 끝. {name} 님이 가져갑니다.",
+    "resolved": "게임 끝. Ann 님이 가져갑니다.",
     "fallbackToEnglish": false
   },
   "log_color_red": {

@@ -157,6 +157,8 @@
   "uni:log.draw_big_hand_1": "[c=red]{name}[/c] 님의 패가 {handSize}장입니다. 숨 좀 돌리게 해 주세요.",
   "uni:log.draw_big_hand_2": "{handSize}장이에요, [c=red]{name}[/c] 님. 다른 사람 몫도 좀 남겨 두세요.",
   "uni:log.draw_large_1": "{name} 님이 {count}장을 뽑습니다. 아야.",
+  "uni:log.stack_taken_1": "{name} 님이 스택을 떠안습니다: {count}장.",
+  "uni:log.stack_taken_2": "스택이 {name} 님에게 떨어집니다. {count}장, 도망칠 수 없죠.",
   "uni:log.skip_streak_2": "또 [c=red]{name}[/c] 님입니다. [fx=shake]{name} 님도 좀 하게 해 주세요!![/fx]",
   "uni:log.reverse_spin_2": "리버스가 또 나왔습니다. [fx=shake]다시 반대 방향입니다.[/fx]",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} 님이 진짜 해냈습니다![/fx]",

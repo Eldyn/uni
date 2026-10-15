@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} меняется руками с {target}.",
+  "seven_zero:swap_2": "{source} и {target} меняются руками.",
+  "seven_zero:pass_forward": "Все руки сдвигаются на одно место вперёд.",
+  "seven_zero:pass_backward": "Все руки сдвигаются на одно место назад.",
+  "seven_zero:redistributed": "Карты перетасовываются между всеми местами."
+}
