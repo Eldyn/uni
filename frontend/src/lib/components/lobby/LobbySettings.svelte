@@ -44,6 +44,8 @@
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
 		ranked: storeLobby.current?.settings.ranked ?? true,
+		creative: storeLobby.current?.settings.creative ?? false,
+		scene: storeLobby.current?.settings.scene ?? "",
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
 
 		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
@@ -95,7 +97,7 @@
 		)
 	);
 
-	function commit(key: SettingsKey, value: boolean | number) {
+	function commit(key: SettingsKey, value: boolean | number | string) {
 		if (!isHost) return;
 		storeLobby.updateSettings({ [key]: value });
 	}
@@ -142,6 +144,25 @@
 				disabled={!isHost}
 				oncommit={(v) => commit("quit_deletes_match", v)}
 			/>
+			<Toggle
+				label="Creative director mode"
+				description="Host controls cards and flow for clips. Forces unranked, no stats."
+				checked={settings.creative ?? false}
+				disabled={!isHost}
+				oncommit={(v) => commit("creative", v)}
+			/>
+			{#if settings.creative}
+				<label class="scene-row">
+					<span>Scene file (dev only)</span>
+					<input
+						type="text"
+						value={settings.scene}
+						disabled={!isHost}
+						placeholder="sample_opening"
+						onchange={(e) => commit("scene", e.currentTarget.value)}
+					/>
+				</label>
+			{/if}
 		</div>
 	</section>
 
@@ -303,6 +324,13 @@
 		font-family: var(--tiny);
 		font-size: 13px;
 		color: var(--text);
+	}
+
+	.scene-row {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 13px;
 	}
 
 	.lobby-settings-panel {
