@@ -68,6 +68,10 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
         sanitized_mods.push_back(mod);
     }
     active_mods = std::move(sanitized_mods);
+
+    if (creative) {
+        ranked = false;
+    }
 }
 
 std::string Lobby::PickBotName(std::mt19937& rng) const {

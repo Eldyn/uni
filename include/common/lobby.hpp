@@ -44,6 +44,7 @@ struct LobbySettings {
     bool is_public = false;
     /**< When false, match is excluded from leaderboard stats. */
     bool ranked = true;
+    bool creative = false;
     int turn_time_limit_ms = 15'000;        /**< Time limit for a turn (in milliseconds). */
     std::vector<std::string> active_mods;   /**< Optional mods or rules active for the match. */
     /**< If true, a player quitting destroys the saved match. */
@@ -117,7 +118,7 @@ struct LobbySettings {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(LobbySettings,
     turn_time_limit_ms, active_mods, bot_count, bot_mode, starting_cards,
     allow_bot_takeover, allow_bot_replacement, quit_deletes_match, is_public,
-    max_players, ranked, mode, race_percent, deck
+    max_players, ranked, creative, mode, race_percent, deck
 )
 
 /**

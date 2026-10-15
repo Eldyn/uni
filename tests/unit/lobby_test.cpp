@@ -801,6 +801,14 @@ TEST_CASE("lobby: LobbySettings ranked defaults to true and roundtrips through j
     CHECK(unranked.ranked == false);
 }
 
+TEST_CASE("lobby: creative forces ranked off on sanitize") {
+    LobbySettings settings;
+    settings.creative = true;
+    settings.ranked = true;
+    settings.Sanitize();
+    CHECK_FALSE(settings.ranked);
+}
+
 TEST_CASE("lobby: 120s grace period is respected") {
     Lobby lobby;
     lobby.id = 1;
