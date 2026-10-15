@@ -1775,6 +1775,9 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     for (const LobbyMember* member : seated) {
         lobby.session->SetSeatPrivacy(member->username, member->privacy_mode);
     }
+    if (lobby.settings.creative) {
+        lobby.session->SetDirector(lobby.host, true);
+    }
 
     for (auto& cb : on_game_started_) cb(&lobby);
 

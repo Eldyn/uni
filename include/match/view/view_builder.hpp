@@ -69,12 +69,21 @@ struct Viewer {
     std::vector<std::string> private_seats;
     /** True for the public projection: no seat owner shows hidden cards. */
     bool hides_every_seat = false;
+    /** True when host has Creative x-ray in prod and dev. */
+    bool director = false;
 
     /** @brief A seated player viewer. */
     static Viewer Player(std::string username) {
         Viewer viewer;
         viewer.username = std::move(username);
         viewer.is_spectator = false;
+        return viewer;
+    }
+
+    /** @brief A Creative host viewer with x-ray and seat privacy bypass. */
+    static Viewer PlayerDirector(std::string username) {
+        Viewer viewer = Player(std::move(username));
+        viewer.director = true;
         return viewer;
     }
 
@@ -99,6 +108,7 @@ struct Viewer {
 
     /** @brief True when this spectator sees card backs for `owner`. */
     bool SeesCardBacksOf(const std::string& owner) const {
+        if (director) return false;
         if (hides_every_seat) return true;
         for (const std::string& private_owner : private_seats) {
             if (private_owner == owner) return true;
