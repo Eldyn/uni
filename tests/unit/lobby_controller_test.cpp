@@ -1124,6 +1124,33 @@ TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
     CHECK(lp->settings.deck.value("id", "") == "classic");
 }
 
+TEST_CASE("lobby: update refuses creative flip after session exists") {
+    // INFO: lock-guard intent only: host flips creative after start, the
+    //       denial keeps settings.creative untouched. Full auth matrix is Task 5.
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(lp->settings.creative);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative-lock"},
+                                     {"creative", true}});
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "match_already_started");
+    CHECK_FALSE(lp->settings.creative);
+}
+
 } // TEST_SUITE
 
 // ---------------------------------------------------------------------------
