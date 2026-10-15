@@ -147,6 +147,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kDirectorCommand,
+                      [this](WsContext context, const json& message) {
+        HandleDirectorCommand(context, message);
+        return true;
+    });
+
     action_router_.On(ws::ClientAction::kMatchDrawCard,
                       [this](WsContext context, const json& message) {
         HandleDrawCard(context, message);
@@ -304,6 +310,72 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
+
+/**
+ * @brief Handles a host-only Creative control command after authorization.
+ */
+void MatchController::HandleDirectorCommand(WsContext context, const json& message) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (!active_lobby) {
+        return;
+    }
+
+    std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
+    if (!active_lobby->session) {
+        return;
+    }
+
+    if (context.socket_data->username != active_lobby->host) {
+        Logger::Warn("director command dropped: sender is not host");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kNotHost, request_identifier);
+        return;
+    }
+    if (!active_lobby->settings.creative) {
+        Logger::Warn("director command dropped: lobby is not Creative");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "lobby is not Creative");
+        return;
+    }
+    if (active_lobby->settings.ranked) {
+        Logger::Warn("director command dropped: ranked lobbies reject director control");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "ranked lobbies reject director control");
+        return;
+    }
+
+    std::string op = ws::GetOr<std::string>(message, "op", "");
+    if (!match::ops::MakeDefaultRuntime().IsDirectorOp(op)) {
+        Logger::Warn("director command dropped: operation is not whitelisted");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "operation is not whitelisted");
+        return;
+    }
+
+    // INFO: P1 whitelist allows only the declared op names. Full op
+    //       execution through OpRuntime requires a session-level store
+    //       context and lands in a later pass. For now the command is
+    //       authorized, logged and state is re-broadcast to all clients.
+    Logger::Info("[Director] command accepted: ", op);
+    active_lobby->session->EmitEvents(broadcaster_);
+    ClearTurnTimer(active_lobby->id);
+    OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
+}
+
+/**
+ * @brief Signals the running match instance engine to allocate a fresh card to the requesting user.
 
 /**
  * @brief Signals the running match instance engine to allocate a fresh card to the requesting user.

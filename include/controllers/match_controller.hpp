@@ -59,6 +59,7 @@ private:
      * @param message JSON payload containing the `card_id` field.
      */
     void HandlePlayCard(WsContext context, const nlohmann::json& message);
+    void HandleDirectorCommand(WsContext context, const nlohmann::json& message);
 
     /**
      * @brief Handles the request to draw a card from the deck.

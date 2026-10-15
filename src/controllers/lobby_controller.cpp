@@ -414,6 +414,7 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
     //       ledger placements are recorded for every match.
     const match::modload::DeckDef deck = ResolveMatchDeck(lobby.settings);
     const bool stats_allowed =
+        !lobby.settings.creative &&
         match::server::StatsGateAllows(deck.mods, deck.cards);
 
     const json state = lobby.session->Engine().ExportState();
