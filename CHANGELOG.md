@@ -10,6 +10,10 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 ## [Unreleased]
 
 - Creative P1: Creative flag forces ranked off. Host director command gives cards and edits hands with clear deny logs.
+- Creative P2: Director x-ray for the host, director panel with clean view and hide players, lobby creative toggle with scene picker.
+- Creative P3: Director pause, step, and force turn with all turn timers cancelled together.
+- Creative P4: Scripted bot intents with heuristic fallback, draw pile stacking with registered wire identities.
+- Creative P5: Dev-only scenes applied at match start, in-session scene loading, checkpoint save and restore of visible state.
 
 ### Added
 
