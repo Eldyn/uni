@@ -4,7 +4,8 @@ import {
 	director,
 	setCleanView,
 	togglePlayerHidden,
-	setXRay
+	setXRay,
+	CLEAN_VIEW_BODY_CLASS
 } from "$lib/stores/director.svelte";
 
 describe("director store", () => {
@@ -20,6 +21,13 @@ describe("director store", () => {
 		expect(get(director).cleanView).toBe(true);
 		setCleanView(false);
 		expect(get(director).cleanView).toBe(false);
+	});
+
+	it("mirrors clean view onto a global body class for chrome hiding", () => {
+		setCleanView(true);
+		expect(document.body.classList.contains(CLEAN_VIEW_BODY_CLASS)).toBe(true);
+		setCleanView(false);
+		expect(document.body.classList.contains(CLEAN_VIEW_BODY_CLASS)).toBe(false);
 	});
 
 	it("hides and unhides players", () => {

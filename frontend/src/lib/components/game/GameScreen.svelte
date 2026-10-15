@@ -9,13 +9,21 @@
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
 	import DirectorPanel from "./DirectorPanel.svelte";
-	import { director } from "$stores/director.svelte";
+	import { director, setCleanView } from "$stores/director.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
+	import { onDestroy } from "svelte";
 
 	createGameLayoutContext();
 
 	let matchEnded = $state(false);
+
+	// Clean view is a per-match capture mode: leaving the game screen must
+	// never leave the global chat dock hidden behind the body class with no
+	// panel left to toggle it back.
+	onDestroy(() => {
+		setCleanView(false);
+	});
 
 	$effect(() => {
 		if (storeGame.state?.is_over && !matchEnded) {

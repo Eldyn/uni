@@ -10,7 +10,7 @@
 	const players = $derived(storeGame.state?.players ?? []);
 </script>
 
-{#if isCreative}
+{#if isCreative && !$director.cleanView}
 	<aside class="director-panel" aria-label="Director controls">
 		<span class="director-badge">DIRECTOR</span>
 		<label>
