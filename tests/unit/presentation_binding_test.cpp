@@ -1722,6 +1722,63 @@ TEST_CASE("binding validation: a streak param id must be well formed") {
     CHECK(HasCheck(Validate(loaded), "binding.log.param"));
 }
 
+/* INFO: a streak a mod of its own namespace declares, so a binding may read
+ *       it: the same files as `LoadMod`, plus one run streak. */
+void WriteStreakMod(TempModsRoot& root) {
+    root.Write("my_mod/mod.json", ManifestFor("my_mod"));
+    root.Write("my_mod/events/apple_eaten.json", kAppleEvent);
+    root.Write("my_mod/assets/sfx/index.json", kSoundBundle);
+    root.Write("my_mod/cards/fruit.json",
+               R"({"id":"fruit","title":"F","face":{"kind":"blank"},)"
+               R"("tags":["my_mod:fruit"]})");
+    root.Write("my_mod/streaks/run.json", R"({
+  "uni:format_version": "1.0.0",
+  "uni:streak": {
+    "uni:description": { "uni:identifier": "my_mod:run" },
+    "uni:type": "run",
+    "uni:matcher": { "uni:event": "turn_skipped" } } })");
+}
+
+TEST_CASE("binding validation: a streak test reads a streak that exists") {
+    TempModsRoot root;
+    WriteStreakMod(root);
+    root.Write("my_mod/presentations/shown.json",
+               BindingFile("my_mod:shown", "my_mod:apple_eaten",
+                           OneCase(R"([ { "uni:test": "gte",
+                                          "uni:streak": "my_mod:run",
+                                          "uni:value": 2 } ])")));
+    LoadResult loaded = ScanModsDirectory(root.root.string());
+    REQUIRE(loaded.ok());
+    CAPTURE(Describe(Validate(loaded)));
+    CHECK(Validate(loaded).empty());
+    auto& test = loaded.mods[0].bindings[0].cases[0].tests[0];
+    test.streak = "my_mod:no_such_run";
+    CHECK(HasCheck(Validate(loaded), "binding.streak.unknown"));
+    /* INFO: a streak of a mod that is not in the set stays deferred: one mod
+     *       validated alone cannot know the streaks of another. */
+    test.streak = "other_mod:run";
+    CHECK(Validate(loaded).empty());
+}
+
+TEST_CASE("binding validation: a streak param reads a streak that exists") {
+    TempModsRoot root;
+    WriteStreakMod(root);
+    root.Write("my_mod/presentations/shown.json",
+               BindingFile("my_mod:shown", "my_mod:apple_eaten",
+                           OneCase("[]", R"({
+      "uni:log": { "uni:variants": [ "log_a" ],
+                   "uni:params": { "run": { "uni:streak": "my_mod:run" } } } })")));
+    LoadResult loaded = ScanModsDirectory(root.root.string());
+    REQUIRE(loaded.ok());
+    CAPTURE(Describe(Validate(loaded)));
+    CHECK(Validate(loaded).empty());
+    auto& params = loaded.mods[0].bindings[0].cases[0].log->params;
+    params.at("run").streak = "my_mod:no_such_run";
+    CHECK(HasCheck(Validate(loaded), "binding.streak.unknown"));
+    params.at("run").streak = "other_mod:run";
+    CHECK(Validate(loaded).empty());
+}
+
 TEST_CASE("binding fixtures: the parity fixtures pass the file schema") {
     const fs::path fixture_dir =
         ProjectRoot() / "tests" / "fixtures" / "play_log_parity";

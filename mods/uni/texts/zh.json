@@ -157,6 +157,8 @@
   "uni:log.draw_big_hand_1": "[c=red]{name}[/c] 的手牌已经 {handSize} 张了。让 TA 喘口气吧。",
   "uni:log.draw_big_hand_2": "{handSize} 张了，[c=red]{name}[/c]。给其他人留几张吧。",
   "uni:log.draw_large_1": "{name} 摸了 {count} 张。疼。",
+  "uni:log.stack_taken_1": "{name} 接下了这堆牌：{count} 张。",
+  "uni:log.stack_taken_2": "这堆牌砸到了 {name}。{count} 张，跑不掉。",
   "uni:log.skip_streak_2": "又是 [c=red]{name}[/c]。[fx=shake]让 {name} 出牌啊！！[/fx]",
   "uni:log.reverse_spin_2": "又一次反转。[fx=shake]转回另一边了。[/fx]",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} 真的做到了！[/fx]",

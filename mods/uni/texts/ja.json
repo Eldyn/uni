@@ -157,6 +157,8 @@
   "uni:log.draw_big_hand_1": "[c=red]{name}[/c]の手札は{handSize}枚。ひと息つかせてあげて。",
   "uni:log.draw_big_hand_2": "{handSize}枚だよ、[c=red]{name}[/c]。他の人にも残してあげて。",
   "uni:log.draw_large_1": "{name}が{count}枚ドロー。痛い。",
+  "uni:log.stack_taken_1": "{name}がスタックを引き受ける：{count}枚。",
+  "uni:log.stack_taken_2": "スタックは{name}に降りかかる。{count}枚、逃げられない。",
   "uni:log.skip_streak_2": "また[c=red]{name}[/c]。[fx=shake]{name}にも出させて！！[/fx]",
   "uni:log.reverse_spin_2": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker}は本当にやった！[/fx]",

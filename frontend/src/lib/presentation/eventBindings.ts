@@ -112,7 +112,9 @@ type ParamSource =
 	| { kind: "field"; field: string; cardPart?: "kind" | "color"; fromCause?: true }
 	| { kind: "value"; value: string | number }
 	| { kind: "actor" }
-	| { kind: "streak"; streak: string; key: string; keyField: string };
+	| { kind: "streak"; streak: string; key: string; keyField: string }
+	/** A source the schema rejects (a card part outside kind and color): it yields nothing. */
+	| { kind: "unusable" };
 
 /** Reads the kind id and the face color of a compact card integer. */
 export type CardResolver = (bits: number) => { kind: string; color?: string } | undefined;
@@ -269,9 +271,10 @@ function parseParam(raw: unknown): ParamSpec | null {
 
 function parseParamSource(raw: unknown): ParamSource | null {
 	if (!isRecord(raw)) return null;
+	const part = raw["uni:card_part"];
+	const cardPart = part === "kind" || part === "color" ? part : undefined;
+	if (part !== undefined && cardPart === undefined) return { kind: "unusable" };
 	if (typeof raw["uni:field"] === "string") {
-		const part = raw["uni:card_part"];
-		const cardPart = part === "kind" || part === "color" ? part : undefined;
 		return {
 			kind: "field",
 			field: raw["uni:field"],
@@ -561,6 +564,7 @@ function paramValue(
 	if (source.kind === "actor") {
 		return event.actor === undefined ? undefined : escapeLogText(event.actor);
 	}
+	if (source.kind === "unusable") return undefined;
 	if (source.kind === "streak") {
 		const streakValue = streakValueOf(event, source.streak, source.key, source.keyField);
 		if (typeof streakValue === "number") return streakValue;

@@ -115,7 +115,10 @@ function propToZod(prop) {
 	const t = resolved.type ?? "string";
 
 	let chain = "";
-	if (t === "string") {
+	if (resolved.enum) {
+		const values = resolved.enum.map((value) => JSON.stringify(value)).join(", ");
+		chain = `z.enum([${values}])`;
+	} else if (t === "string") {
 		chain = "z.string()";
 		if (resolved.minLength !== undefined) chain += `.min(${resolved.minLength})`;
 		if (resolved.maxLength !== undefined) chain += `.max(${resolved.maxLength})`;

@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name} 加了牌。{victim} 现在欠 {total}。",
+  "draw_stacking:stack_small_2": "{name} 又加了一张。{victim} 现在欠 {total}。",
+  "draw_stacking:stack_heavy_1": "{name} 再压一张。[c=red]{victim}[/c] 现在欠 [fx=shake]{total}[/fx]。",
+  "draw_stacking:answered_1": "{name} 接了这招。",
+  "draw_stacking:answered_2": "{name} 立刻又压了一张。"
+}

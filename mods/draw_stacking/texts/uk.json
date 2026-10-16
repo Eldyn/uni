@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name} додає до стеку. {victim} тепер бере {total}.",
+  "draw_stacking:stack_small_2": "{name} знову додає. {victim} тепер бере {total}.",
+  "draw_stacking:stack_heavy_1": "{name} додає ще. [c=red]{victim}[/c] тепер бере [fx=shake]{total}[/fx].",
+  "draw_stacking:answered_1": "{name} відповідає на стек.",
+  "draw_stacking:answered_2": "{name} одразу кладе назад."
+}

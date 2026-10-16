@@ -1,97 +1,32 @@
 {
-  "log_skip": {
-    "template": "{name} wird übersprungen.",
-    "resolved": "Ann wird übersprungen.",
+  "log_auto_play_1": {
+    "template": "{name} musste [k={kind}]{cardName}[/k] spielen.",
+    "resolved": "Ann musste [k=uni:red_draw2]Zieh 2 (+2)[/k] spielen.",
     "fallbackToEnglish": false
   },
-  "log_skip_again": {
-    "template": "{name} wird schon wieder übersprungen.",
-    "resolved": "Ann wird schon wieder übersprungen.",
+  "log_auto_play_2": {
+    "template": "Keine Wahl für {name}: [k={kind}]{cardName}[/k] landet auf dem Tisch.",
+    "resolved": "Keine Wahl für Ann: [k=uni:red_draw2]Zieh 2 (+2)[/k] landet auf dem Tisch.",
     "fallbackToEnglish": false
   },
-  "log_skip_again_2": {
-    "template": "Schon wieder übersprungen. {name} sammelt verpasste Züge.",
-    "resolved": "Schon wieder übersprungen. Ann sammelt verpasste Züge.",
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} hat's echt getan![/fx]",
+    "resolved": "[fx=shake:3,2]Bob hat's echt getan![/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_third": {
-    "template": "[c=red]{name}[/c] wird zum dritten Mal übersprungen. Da hat wohl jemand eine Rechnung offen.",
-    "resolved": "[c=red]Ann[/c] wird zum dritten Mal übersprungen. Da hat wohl jemand eine Rechnung offen.",
+  "log_blocked_2": {
+    "template": "Sag ich doch. [fx=shake:3,2]{blocker} hat sie gestoppt.[/fx]",
+    "resolved": "Sag ich doch. [fx=shake:3,2]Bob hat sie gestoppt.[/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_streak": {
-    "template": "[c=red]{name}[/c] wird wieder übersprungen. [fx=shake]Darf jetzt nur noch zugucken.[/fx]",
-    "resolved": "[c=red]Ann[/c] wird wieder übersprungen. [fx=shake]Darf jetzt nur noch zugucken.[/fx]",
+  "log_stack_taken_1": {
+    "template": "{name} übernimmt den Stapel: {count} Karten.",
+    "resolved": "Ann übernimmt den Stapel: 2 Karten.",
     "fallbackToEnglish": false
   },
-  "log_skip_streak_2": {
-    "template": "Schon wieder [c=red]{name}[/c]. [fx=shake]LASST {name} SPIELEN!![/fx]",
-    "resolved": "Schon wieder [c=red]Ann[/c]. [fx=shake]LASST Ann SPIELEN!![/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse": {
-    "template": "Richtungswechsel.",
-    "resolved": "Richtungswechsel.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back": {
-    "template": "Und wieder zurück.",
-    "resolved": "Und wieder zurück.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back_2": {
-    "template": "Und wieder zurück. Im Kreis drehen ist jetzt eine Strategie.",
-    "resolved": "Und wieder zurück. Im Kreis drehen ist jetzt eine Strategie.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_again": {
-    "template": "Noch ein Richtungswechsel. Keiner weiß mehr, wer dran ist.",
-    "resolved": "Noch ein Richtungswechsel. Keiner weiß mehr, wer dran ist.",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin": {
-    "template": "Schon wieder umgedreht. [fx=shake]Hier dreht sich alles im Kreis.[/fx]",
-    "resolved": "Schon wieder umgedreht. [fx=shake]Hier dreht sich alles im Kreis.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin_2": {
-    "template": "Noch ein Richtungswechsel. [fx=shake]Wieder zurück.[/fx]",
-    "resolved": "Noch ein Richtungswechsel. [fx=shake]Wieder zurück.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_1": {
-    "template": "{name} zieht als Erstes in dieser Partie. RIP.",
-    "resolved": "Ann zieht als Erstes in dieser Partie. RIP.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_2": {
-    "template": "Der erste Blutstropfen am Nachziehstapel geht an {name}.",
-    "resolved": "Der erste Blutstropfen am Nachziehstapel geht an Ann.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_1": {
-    "template": "{name} zieht.",
-    "resolved": "Ann zieht.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_2": {
-    "template": "{name} nimmt eine vom Stapel.",
-    "resolved": "Ann nimmt eine vom Stapel.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_3": {
-    "template": "{name} zieht. Der Nachziehstapel gibt, was er gibt.",
-    "resolved": "Ann zieht. Der Nachziehstapel gibt, was er gibt.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_1": {
-    "template": "{name} zieht zum {drawRun}. Mal, Himmel noch mal.",
-    "resolved": "Ann zieht zum 3. Mal, Himmel noch mal.",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_2": {
-    "template": "Schon wieder {name}. Der Stapel kennt den Namen auswendig.",
-    "resolved": "Schon wieder Ann. Der Stapel kennt den Namen auswendig.",
+  "log_stack_taken_2": {
+    "template": "Der Stapel landet bei {name}. {count} Karten, kein Entkommen.",
+    "resolved": "Der Stapel landet bei Ann. 2 Karten, kein Entkommen.",
     "fallbackToEnglish": false
   },
   "log_draw_big_hand_1": {
@@ -109,104 +44,39 @@
     "resolved": "Ann zieht 2. Autsch.",
     "fallbackToEnglish": false
   },
-  "log_blocked_1": {
-    "template": "[fx=shake:3,2]{blocker} hat's echt getan![/fx]",
-    "resolved": "[fx=shake:3,2]Bob hat's echt getan![/fx]",
+  "log_draw_first_1": {
+    "template": "{name} zieht als Erstes in dieser Partie. RIP.",
+    "resolved": "Ann zieht als Erstes in dieser Partie. RIP.",
     "fallbackToEnglish": false
   },
-  "log_blocked_2": {
-    "template": "Sag ich doch. [fx=shake:3,2]{blocker} hat sie gestoppt.[/fx]",
-    "resolved": "Sag ich doch. [fx=shake:3,2]Bob hat sie gestoppt.[/fx]",
+  "log_draw_first_2": {
+    "template": "Der erste Blutstropfen am Nachziehstapel geht an {name}.",
+    "resolved": "Der erste Blutstropfen am Nachziehstapel geht an Ann.",
     "fallbackToEnglish": false
   },
-  "log_play": {
-    "template": "{name} spielt [k={kind}][c={color}]{cardName}[/c][/k].",
-    "resolved": "Ann spielt [k=uni:red_draw2][c=red]Zieh 2 (+2)[/c][/k].",
+  "log_draw_many_1": {
+    "template": "{name} zieht zum {drawRun}. Mal, Himmel noch mal.",
+    "resolved": "Ann zieht zum 3. Mal, Himmel noch mal.",
     "fallbackToEnglish": false
   },
-  "log_keep_drawn": {
-    "template": "{name} behält die gezogene Karte.",
-    "resolved": "Ann behält die gezogene Karte.",
+  "log_draw_many_2": {
+    "template": "Schon wieder {name}. Der Stapel kennt den Namen auswendig.",
+    "resolved": "Schon wieder Ann. Der Stapel kennt den Namen auswendig.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_1": {
-    "template": "Der Ablagestapel wird neu gemischt. Frische Karten, gleicher Schmerz.",
-    "resolved": "Der Ablagestapel wird neu gemischt. Frische Karten, gleicher Schmerz.",
+  "log_draw_generic_1": {
+    "template": "{name} zieht.",
+    "resolved": "Ann zieht.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_2": {
-    "template": "Der Stapel ist leer, also kommt der Ablagestapel zurück. Mischen.",
-    "resolved": "Der Stapel ist leer, also kommt der Ablagestapel zurück. Mischen.",
+  "log_draw_generic_2": {
+    "template": "{name} nimmt eine vom Stapel.",
+    "resolved": "Ann nimmt eine vom Stapel.",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_3": {
-    "template": "Nachziehstapel leer, Ablagestapel zurück. Gleiche Karten, zweite Chance.",
-    "resolved": "Nachziehstapel leer, Ablagestapel zurück. Gleiche Karten, zweite Chance.",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_1": {
-    "template": "Dann eben [c={color}]{colorName}[/c].",
-    "resolved": "Dann eben [c=red]Rot[/c].",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_first_2": {
-    "template": "Wir nehmen [c={color}]{colorName}[/c].",
-    "resolved": "Wir nehmen [c=red]Rot[/c].",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_1": {
-    "template": "{name} hatte anderes vor. Dann eben [c={color}]{colorName}[/c].",
-    "resolved": "Ann hatte anderes vor. Dann eben [c=red]Rot[/c].",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_2": {
-    "template": "Erst [c={prevColor}]{prevColorName}[/c], dann wechselt {name} auf [c={color}]{colorName}[/c].",
-    "resolved": "Erst [c=blue]Blau[/c], dann wechselt Ann auf [c=red]Rot[/c].",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_1": {
-    "template": "Ihr könnt euch nicht entscheiden. Jetzt ist es [c={color}]{colorName}[/c]! [fx=shake:3,2]Entscheidet euch.[/fx]",
-    "resolved": "Ihr könnt euch nicht entscheiden. Jetzt ist es [c=red]Rot[/c]! [fx=shake:3,2]Entscheidet euch.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_2": {
-    "template": "[c={prevColor}]{prevColorName}[/c], dann schon wieder [c={color}]{colorName}[/c]? [fx=shake:3,2]Entscheidet euch mal.[/fx]",
-    "resolved": "[c=blue]Blau[/c], dann schon wieder [c=red]Rot[/c]? [fx=shake:3,2]Entscheidet euch mal.[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_1": {
-    "template": "{name} musste [k={kind}]{cardName}[/k] spielen.",
-    "resolved": "Ann musste [k=uni:red_draw2]Zieh 2 (+2)[/k] spielen.",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_2": {
-    "template": "Keine Wahl für {name}: [k={kind}]{cardName}[/k] landet auf dem Tisch.",
-    "resolved": "Keine Wahl für Ann: [k=uni:red_draw2]Zieh 2 (+2)[/k] landet auf dem Tisch.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_1": {
-    "template": "[c=red]{name}[/c] hat nur noch eine Karte. Festhalten.",
-    "resolved": "[c=red]Ann[/c] hat nur noch eine Karte. Festhalten.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_2": {
-    "template": "Noch eine Karte für {name}. Irgendwer muss das stoppen.",
-    "resolved": "Noch eine Karte für Ann. Irgendwer muss das stoppen.",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_3": {
-    "template": "{name} ist eine Karte vom Sieg entfernt. Alle mal leise in Panik.",
-    "resolved": "Ann ist eine Karte vom Sieg entfernt. Alle mal leise in Panik.",
-    "fallbackToEnglish": false
-  },
-  "log_win_1": {
-    "template": "{name} gewinnt die Runde!",
-    "resolved": "Ann gewinnt die Runde!",
-    "fallbackToEnglish": false
-  },
-  "log_win_2": {
-    "template": "Das war's. {name} holt sich das Spiel.",
-    "resolved": "Das war's. Ann holt sich das Spiel.",
+  "log_draw_generic_3": {
+    "template": "{name} zieht. Der Nachziehstapel gibt, was er gibt.",
+    "resolved": "Ann zieht. Der Nachziehstapel gibt, was er gibt.",
     "fallbackToEnglish": false
   },
   "log_finish_1": {
@@ -227,6 +97,146 @@
   "log_left_behind_2": {
     "template": "{name} schafft es nicht. Platz {place}.",
     "resolved": "Ann schafft es nicht. Platz 1.",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} behält die gezogene Karte.",
+    "resolved": "Ann behält die gezogene Karte.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c] hat nur noch eine Karte. Festhalten.",
+    "resolved": "[c=red]Ann[/c] hat nur noch eine Karte. Festhalten.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "Noch eine Karte für {name}. Irgendwer muss das stoppen.",
+    "resolved": "Noch eine Karte für Ann. Irgendwer muss das stoppen.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} ist eine Karte vom Sieg entfernt. Alle mal leise in Panik.",
+    "resolved": "Ann ist eine Karte vom Sieg entfernt. Alle mal leise in Panik.",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} spielt [k={kind}][c={color}]{cardName}[/c][/k].",
+    "resolved": "Ann spielt [k=uni:red_draw2][c=red]Zieh 2 (+2)[/c][/k].",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "Der Ablagestapel wird neu gemischt. Frische Karten, gleicher Schmerz.",
+    "resolved": "Der Ablagestapel wird neu gemischt. Frische Karten, gleicher Schmerz.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "Der Stapel ist leer, also kommt der Ablagestapel zurück. Mischen.",
+    "resolved": "Der Stapel ist leer, also kommt der Ablagestapel zurück. Mischen.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "Nachziehstapel leer, Ablagestapel zurück. Gleiche Karten, zweite Chance.",
+    "resolved": "Nachziehstapel leer, Ablagestapel zurück. Gleiche Karten, zweite Chance.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "Schon wieder umgedreht. [fx=shake]Hier dreht sich alles im Kreis.[/fx]",
+    "resolved": "Schon wieder umgedreht. [fx=shake]Hier dreht sich alles im Kreis.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "Noch ein Richtungswechsel. [fx=shake]Wieder zurück.[/fx]",
+    "resolved": "Noch ein Richtungswechsel. [fx=shake]Wieder zurück.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "Noch ein Richtungswechsel. Keiner weiß mehr, wer dran ist.",
+    "resolved": "Noch ein Richtungswechsel. Keiner weiß mehr, wer dran ist.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "Und wieder zurück.",
+    "resolved": "Und wieder zurück.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "Und wieder zurück. Im Kreis drehen ist jetzt eine Strategie.",
+    "resolved": "Und wieder zurück. Im Kreis drehen ist jetzt eine Strategie.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "Richtungswechsel.",
+    "resolved": "Richtungswechsel.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] wird wieder übersprungen. [fx=shake]Darf jetzt nur noch zugucken.[/fx]",
+    "resolved": "[c=red]Ann[/c] wird wieder übersprungen. [fx=shake]Darf jetzt nur noch zugucken.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "Schon wieder [c=red]{name}[/c]. [fx=shake]LASST {name} SPIELEN!![/fx]",
+    "resolved": "Schon wieder [c=red]Ann[/c]. [fx=shake]LASST Ann SPIELEN!![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] wird zum dritten Mal übersprungen. Da hat wohl jemand eine Rechnung offen.",
+    "resolved": "[c=red]Ann[/c] wird zum dritten Mal übersprungen. Da hat wohl jemand eine Rechnung offen.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} wird schon wieder übersprungen.",
+    "resolved": "Ann wird schon wieder übersprungen.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "Schon wieder übersprungen. {name} sammelt verpasste Züge.",
+    "resolved": "Schon wieder übersprungen. Ann sammelt verpasste Züge.",
+    "fallbackToEnglish": false
+  },
+  "log_skip": {
+    "template": "{name} wird übersprungen.",
+    "resolved": "Ann wird übersprungen.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "Ihr könnt euch nicht entscheiden. Jetzt ist es [c={color}]{colorName}[/c]! [fx=shake:3,2]Entscheidet euch.[/fx]",
+    "resolved": "Ihr könnt euch nicht entscheiden. Jetzt ist es [c=red]Rot[/c]! [fx=shake:3,2]Entscheidet euch.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c], dann schon wieder [c={color}]{colorName}[/c]? [fx=shake:3,2]Entscheidet euch mal.[/fx]",
+    "resolved": "[c=blue]Blau[/c], dann schon wieder [c=red]Rot[/c]? [fx=shake:3,2]Entscheidet euch mal.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name} hatte anderes vor. Dann eben [c={color}]{colorName}[/c].",
+    "resolved": "Ann hatte anderes vor. Dann eben [c=red]Rot[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "Erst [c={prevColor}]{prevColorName}[/c], dann wechselt {name} auf [c={color}]{colorName}[/c].",
+    "resolved": "Erst [c=blue]Blau[/c], dann wechselt Ann auf [c=red]Rot[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "Dann eben [c={color}]{colorName}[/c].",
+    "resolved": "Dann eben [c=red]Rot[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "Wir nehmen [c={color}]{colorName}[/c].",
+    "resolved": "Wir nehmen [c=red]Rot[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} gewinnt die Runde!",
+    "resolved": "Ann gewinnt die Runde!",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "Das war's. {name} holt sich das Spiel.",
+    "resolved": "Das war's. Ann holt sich das Spiel.",
     "fallbackToEnglish": false
   },
   "log_color_red": {

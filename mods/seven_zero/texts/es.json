@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} cambia la mano con {target}.",
+  "seven_zero:swap_2": "{source} y {target} intercambian manos.",
+  "seven_zero:pass_forward": "Todas las manos avanzan un asiento.",
+  "seven_zero:pass_backward": "Todas las manos retroceden un asiento.",
+  "seven_zero:redistributed": "Las manos se reparten entre todos los asientos."
+}

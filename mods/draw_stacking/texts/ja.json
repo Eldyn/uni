@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name}が積み上げる。{victim}の借りは{total}。",
+  "draw_stacking:stack_small_2": "{name}がもう一度重ねる。{victim}の借りは{total}。",
+  "draw_stacking:stack_heavy_1": "{name}がさらに積む。[c=red]{victim}[/c]の借りは[fx=shake]{total}[/fx]。",
+  "draw_stacking:answered_1": "{name}が積み上げに応える。",
+  "draw_stacking:answered_2": "{name}がすぐに重ね返す。"
+}

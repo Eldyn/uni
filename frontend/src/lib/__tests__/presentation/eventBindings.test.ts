@@ -1084,6 +1084,11 @@ describe("card part params", () => {
 		const param = { "uni:field": "card", "uni:card_part": "color", "uni:default": "none" };
 		expect(paramsOf(param, withCard(5), () => undefined)?.p).toBe("none");
 	});
+
+	it("gives the default when the card part is neither kind nor color", () => {
+		const param = { "uni:field": "card", "uni:card_part": "size", "uni:default": "none" };
+		expect(paramsOf(param, withCard(5), zap)?.p).toBe("none");
+	});
 });
 
 describe("cause params", () => {

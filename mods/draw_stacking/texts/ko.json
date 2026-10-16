@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name} 님이 스택에 쌓습니다. {victim} 님이 이제 {total}장을 갚아야 해요.",
+  "draw_stacking:stack_small_2": "{name} 님이 또 쌓습니다. {victim} 님이 이제 {total}장을 갚아야 해요.",
+  "draw_stacking:stack_heavy_1": "{name} 님이 한 장 더 얹습니다. [c=red]{victim}[/c] 님이 이제 [fx=shake]{total}[/fx]장을 갚아야 해요.",
+  "draw_stacking:answered_1": "{name} 님이 스택에 응합니다.",
+  "draw_stacking:answered_2": "{name} 님이 곧바로 다시 쌓습니다."
+}

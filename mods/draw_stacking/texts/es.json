@@ -1,0 +1,7 @@
+{
+  "draw_stacking:stack_small_1": "{name} suma a la pila. {victim} ahora debe {total}.",
+  "draw_stacking:stack_small_2": "{name} vuelve a sumar. {victim} ahora debe {total}.",
+  "draw_stacking:stack_heavy_1": "{name} suma sin parar. [c=red]{victim}[/c] ahora debe [fx=shake]{total}[/fx].",
+  "draw_stacking:answered_1": "{name} responde a la pila.",
+  "draw_stacking:answered_2": "{name} responde con otra pila."
+}

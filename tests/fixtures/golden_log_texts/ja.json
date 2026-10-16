@@ -1,97 +1,32 @@
 {
-  "log_skip": {
-    "template": "{name}はスキップされた。",
-    "resolved": "Annはスキップされた。",
+  "log_auto_play_1": {
+    "template": "{name}は[k={kind}]{cardName}[/k]を出させられた。",
+    "resolved": "Annは[k=uni:red_draw2]ドロー2 (+2)[/k]を出させられた。",
     "fallbackToEnglish": false
   },
-  "log_skip_again": {
-    "template": "{name}、またスキップ。",
-    "resolved": "Ann、またスキップ。",
+  "log_auto_play_2": {
+    "template": "{name}に選択肢なし。[k={kind}]{cardName}[/k]が場に出る。",
+    "resolved": "Annに選択肢なし。[k=uni:red_draw2]ドロー2 (+2)[/k]が場に出る。",
     "fallbackToEnglish": false
   },
-  "log_skip_again_2": {
-    "template": "またスキップ。{name}はスキップを集めてる。",
-    "resolved": "またスキップ。Annはスキップを集めてる。",
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker}は本当にやった！[/fx]",
+    "resolved": "[fx=shake:3,2]Bobは本当にやった！[/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_third": {
-    "template": "[c=red]{name}[/c]、3回目のスキップ。何か恨みでもあるのか。",
-    "resolved": "[c=red]Ann[/c]、3回目のスキップ。何か恨みでもあるのか。",
+  "log_blocked_2": {
+    "template": "言っただろ。[fx=shake:3,2]{blocker}が止めた。[/fx]",
+    "resolved": "言っただろ。[fx=shake:3,2]Bobが止めた。[/fx]",
     "fallbackToEnglish": false
   },
-  "log_skip_streak": {
-    "template": "[c=red]{name}[/c]、またスキップ。[fx=shake]もはや観客席の人。[/fx]",
-    "resolved": "[c=red]Ann[/c]、またスキップ。[fx=shake]もはや観客席の人。[/fx]",
+  "log_stack_taken_1": {
+    "template": "{name}がスタックを引き受ける：{count}枚。",
+    "resolved": "Annがスタックを引き受ける：2枚。",
     "fallbackToEnglish": false
   },
-  "log_skip_streak_2": {
-    "template": "また[c=red]{name}[/c]。[fx=shake]{name}にも出させて！！[/fx]",
-    "resolved": "また[c=red]Ann[/c]。[fx=shake]Annにも出させて！！[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse": {
-    "template": "リバース。",
-    "resolved": "リバース。",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back": {
-    "template": "リバース返し。",
-    "resolved": "リバース返し。",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_back_2": {
-    "template": "リバース返し。堂々巡りも戦略のうち。",
-    "resolved": "リバース返し。堂々巡りも戦略のうち。",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_again": {
-    "template": "またリバース。誰の番か、もう誰にも分からない。",
-    "resolved": "またリバース。誰の番か、もう誰にも分からない。",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin": {
-    "template": "またまたリバース。[fx=shake]目が回ってきた。[/fx]",
-    "resolved": "またまたリバース。[fx=shake]目が回ってきた。[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_reverse_spin_2": {
-    "template": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
-    "resolved": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_1": {
-    "template": "{name}がこの試合で最初に引いた。合掌。",
-    "resolved": "Annがこの試合で最初に引いた。合掌。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_first_2": {
-    "template": "山札の最初の血を流したのは{name}。",
-    "resolved": "山札の最初の血を流したのはAnn。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_1": {
-    "template": "{name}がドロー。",
-    "resolved": "Annがドロー。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_2": {
-    "template": "{name}が山札から1枚引いた。",
-    "resolved": "Annが山札から1枚引いた。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_generic_3": {
-    "template": "{name}が引く。山札は出たとこ勝負。",
-    "resolved": "Annが引く。山札は出たとこ勝負。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_1": {
-    "template": "{name}がドローするのはこれで{drawRun}回目。勘弁してくれ。",
-    "resolved": "Annがドローするのはこれで3回目。勘弁してくれ。",
-    "fallbackToEnglish": false
-  },
-  "log_draw_many_2": {
-    "template": "また{name}。山札に名前を覚えられてる。",
-    "resolved": "またAnn。山札に名前を覚えられてる。",
+  "log_stack_taken_2": {
+    "template": "スタックは{name}に降りかかる。{count}枚、逃げられない。",
+    "resolved": "スタックはAnnに降りかかる。2枚、逃げられない。",
     "fallbackToEnglish": false
   },
   "log_draw_big_hand_1": {
@@ -109,104 +44,39 @@
     "resolved": "Annが2枚ドロー。痛い。",
     "fallbackToEnglish": false
   },
-  "log_blocked_1": {
-    "template": "[fx=shake:3,2]{blocker}は本当にやった！[/fx]",
-    "resolved": "[fx=shake:3,2]Bobは本当にやった！[/fx]",
+  "log_draw_first_1": {
+    "template": "{name}がこの試合で最初に引いた。合掌。",
+    "resolved": "Annがこの試合で最初に引いた。合掌。",
     "fallbackToEnglish": false
   },
-  "log_blocked_2": {
-    "template": "言っただろ。[fx=shake:3,2]{blocker}が止めた。[/fx]",
-    "resolved": "言っただろ。[fx=shake:3,2]Bobが止めた。[/fx]",
+  "log_draw_first_2": {
+    "template": "山札の最初の血を流したのは{name}。",
+    "resolved": "山札の最初の血を流したのはAnn。",
     "fallbackToEnglish": false
   },
-  "log_play": {
-    "template": "{name}は[k={kind}][c={color}]{cardName}[/c][/k]を出した。",
-    "resolved": "Annは[k=uni:red_draw2][c=red]ドロー2 (+2)[/c][/k]を出した。",
+  "log_draw_many_1": {
+    "template": "{name}がドローするのはこれで{drawRun}回目。勘弁してくれ。",
+    "resolved": "Annがドローするのはこれで3回目。勘弁してくれ。",
     "fallbackToEnglish": false
   },
-  "log_keep_drawn": {
-    "template": "{name}は引いたカードをキープ。",
-    "resolved": "Annは引いたカードをキープ。",
+  "log_draw_many_2": {
+    "template": "また{name}。山札に名前を覚えられてる。",
+    "resolved": "またAnn。山札に名前を覚えられてる。",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_1": {
-    "template": "捨て札が山札に戻った。新しいカード、同じ苦しみ。",
-    "resolved": "捨て札が山札に戻った。新しいカード、同じ苦しみ。",
+  "log_draw_generic_1": {
+    "template": "{name}がドロー。",
+    "resolved": "Annがドロー。",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_2": {
-    "template": "山札が尽きたので捨て札が戻ってくる。シャッフル。",
-    "resolved": "山札が尽きたので捨て札が戻ってくる。シャッフル。",
+  "log_draw_generic_2": {
+    "template": "{name}が山札から1枚引いた。",
+    "resolved": "Annが山札から1枚引いた。",
     "fallbackToEnglish": false
   },
-  "log_reshuffle_3": {
-    "template": "山札切れ、捨て札が復活。同じカード、二度目のチャンス。",
-    "resolved": "山札切れ、捨て札が復活。同じカード、二度目のチャンス。",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_1": {
-    "template": "じゃあ[c={color}]{colorName}[/c]で。",
-    "resolved": "じゃあ[c=red]赤[/c]で。",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_first_2": {
-    "template": "[c={color}]{colorName}[/c]にしよう。",
-    "resolved": "[c=red]赤[/c]にしよう。",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_1": {
-    "template": "{name}には別の考えが。じゃあ[c={color}]{colorName}[/c]で。",
-    "resolved": "Annには別の考えが。じゃあ[c=red]赤[/c]で。",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_second_2": {
-    "template": "[c={prevColor}]{prevColorName}[/c]から、{name}は[c={color}]{colorName}[/c]へ変更。",
-    "resolved": "[c=blue]青[/c]から、Annは[c=red]赤[/c]へ変更。",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_1": {
-    "template": "色が決まらないね。今度は[c={color}]{colorName}[/c]！[fx=shake:3,2]決めて。[/fx]",
-    "resolved": "色が決まらないね。今度は[c=red]赤[/c]！[fx=shake:3,2]決めて。[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_wild_reaction_third_2": {
-    "template": "[c={prevColor}]{prevColorName}[/c]、また[c={color}]{colorName}[/c]？[fx=shake:3,2]いい加減に決めて。[/fx]",
-    "resolved": "[c=blue]青[/c]、また[c=red]赤[/c]？[fx=shake:3,2]いい加減に決めて。[/fx]",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_1": {
-    "template": "{name}は[k={kind}]{cardName}[/k]を出させられた。",
-    "resolved": "Annは[k=uni:red_draw2]ドロー2 (+2)[/k]を出させられた。",
-    "fallbackToEnglish": false
-  },
-  "log_auto_play_2": {
-    "template": "{name}に選択肢なし。[k={kind}]{cardName}[/k]が場に出る。",
-    "resolved": "Annに選択肢なし。[k=uni:red_draw2]ドロー2 (+2)[/k]が場に出る。",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_1": {
-    "template": "[c=red]{name}[/c]の手札は残り1枚。備えて。",
-    "resolved": "[c=red]Ann[/c]の手札は残り1枚。備えて。",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_2": {
-    "template": "{name}の手札は残り1枚。誰か止めて。",
-    "resolved": "Annの手札は残り1枚。誰か止めて。",
-    "fallbackToEnglish": false
-  },
-  "log_near_win_3": {
-    "template": "{name}はあと1枚。全員、静かにパニック。",
-    "resolved": "Annはあと1枚。全員、静かにパニック。",
-    "fallbackToEnglish": false
-  },
-  "log_win_1": {
-    "template": "{name}がラウンドを制した！",
-    "resolved": "Annがラウンドを制した！",
-    "fallbackToEnglish": false
-  },
-  "log_win_2": {
-    "template": "ゲーム終了。勝者は{name}。",
-    "resolved": "ゲーム終了。勝者はAnn。",
+  "log_draw_generic_3": {
+    "template": "{name}が引く。山札は出たとこ勝負。",
+    "resolved": "Annが引く。山札は出たとこ勝負。",
     "fallbackToEnglish": false
   },
   "log_finish_1": {
@@ -227,6 +97,146 @@
   "log_left_behind_2": {
     "template": "{name}は間に合いませんでした。{place}位。",
     "resolved": "Annは間に合いませんでした。1位。",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name}は引いたカードをキープ。",
+    "resolved": "Annは引いたカードをキープ。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c]の手札は残り1枚。備えて。",
+    "resolved": "[c=red]Ann[/c]の手札は残り1枚。備えて。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "{name}の手札は残り1枚。誰か止めて。",
+    "resolved": "Annの手札は残り1枚。誰か止めて。",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name}はあと1枚。全員、静かにパニック。",
+    "resolved": "Annはあと1枚。全員、静かにパニック。",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name}は[k={kind}][c={color}]{cardName}[/c][/k]を出した。",
+    "resolved": "Annは[k=uni:red_draw2][c=red]ドロー2 (+2)[/c][/k]を出した。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "捨て札が山札に戻った。新しいカード、同じ苦しみ。",
+    "resolved": "捨て札が山札に戻った。新しいカード、同じ苦しみ。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "山札が尽きたので捨て札が戻ってくる。シャッフル。",
+    "resolved": "山札が尽きたので捨て札が戻ってくる。シャッフル。",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "山札切れ、捨て札が復活。同じカード、二度目のチャンス。",
+    "resolved": "山札切れ、捨て札が復活。同じカード、二度目のチャンス。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "またまたリバース。[fx=shake]目が回ってきた。[/fx]",
+    "resolved": "またまたリバース。[fx=shake]目が回ってきた。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
+    "resolved": "またリバース。[fx=shake]逆回りに戻る。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "またリバース。誰の番か、もう誰にも分からない。",
+    "resolved": "またリバース。誰の番か、もう誰にも分からない。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "リバース返し。",
+    "resolved": "リバース返し。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "リバース返し。堂々巡りも戦略のうち。",
+    "resolved": "リバース返し。堂々巡りも戦略のうち。",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "リバース。",
+    "resolved": "リバース。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c]、またスキップ。[fx=shake]もはや観客席の人。[/fx]",
+    "resolved": "[c=red]Ann[/c]、またスキップ。[fx=shake]もはや観客席の人。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "また[c=red]{name}[/c]。[fx=shake]{name}にも出させて！！[/fx]",
+    "resolved": "また[c=red]Ann[/c]。[fx=shake]Annにも出させて！！[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c]、3回目のスキップ。何か恨みでもあるのか。",
+    "resolved": "[c=red]Ann[/c]、3回目のスキップ。何か恨みでもあるのか。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name}、またスキップ。",
+    "resolved": "Ann、またスキップ。",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "またスキップ。{name}はスキップを集めてる。",
+    "resolved": "またスキップ。Annはスキップを集めてる。",
+    "fallbackToEnglish": false
+  },
+  "log_skip": {
+    "template": "{name}はスキップされた。",
+    "resolved": "Annはスキップされた。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "色が決まらないね。今度は[c={color}]{colorName}[/c]！[fx=shake:3,2]決めて。[/fx]",
+    "resolved": "色が決まらないね。今度は[c=red]赤[/c]！[fx=shake:3,2]決めて。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c]、また[c={color}]{colorName}[/c]？[fx=shake:3,2]いい加減に決めて。[/fx]",
+    "resolved": "[c=blue]青[/c]、また[c=red]赤[/c]？[fx=shake:3,2]いい加減に決めて。[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name}には別の考えが。じゃあ[c={color}]{colorName}[/c]で。",
+    "resolved": "Annには別の考えが。じゃあ[c=red]赤[/c]で。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c]から、{name}は[c={color}]{colorName}[/c]へ変更。",
+    "resolved": "[c=blue]青[/c]から、Annは[c=red]赤[/c]へ変更。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "じゃあ[c={color}]{colorName}[/c]で。",
+    "resolved": "じゃあ[c=red]赤[/c]で。",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "[c={color}]{colorName}[/c]にしよう。",
+    "resolved": "[c=red]赤[/c]にしよう。",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name}がラウンドを制した！",
+    "resolved": "Annがラウンドを制した！",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "ゲーム終了。勝者は{name}。",
+    "resolved": "ゲーム終了。勝者はAnn。",
     "fallbackToEnglish": false
   },
   "log_color_red": {

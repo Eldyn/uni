@@ -1,0 +1,32 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "draw_stacking:answered_log" },
+    "uni:event": "window_responded",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:field": "window_kind",
+            "uni:value": "generic"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "outcome",
+            "uni:value": "winning"
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["draw_stacking:answered_1", "draw_stacking:answered_2"],
+            "uni:params": {
+              "name": { "uni:field": "target" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

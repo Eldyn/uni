@@ -157,6 +157,8 @@
   "uni:log.draw_big_hand_1": "У [c=red]{name}[/c] уже {handSize} карт. Дайте передохнуть.",
   "uni:log.draw_big_hand_2": "{handSize} карт, [c=red]{name}[/c]. Оставь что-нибудь остальным.",
   "uni:log.draw_large_1": "{name} берёт {count}. Ой.",
+  "uni:log.stack_taken_1": "{name} забирает стек: {count} карт.",
+  "uni:log.stack_taken_2": "Стек падает на {name}. {count} карт, спасения нет.",
   "uni:log.skip_streak_2": "Опять [c=red]{name}[/c]. [fx=shake]ДАЙТЕ {name} ПОИГРАТЬ!![/fx]",
   "uni:log.reverse_spin_2": "Ещё один реверс. [fx=shake]Снова в другую сторону.[/fx]",
   "uni:log.blocked_1": "[fx=shake:3,2]{blocker} и правда остановил![/fx]",

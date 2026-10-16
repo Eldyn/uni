@@ -115,6 +115,45 @@ describe("draw_stacking play log line", () => {
 	});
 });
 
+describe("draw_stacking stack answered line", () => {
+	const registry = registryOfMod(
+		"draw_stacking",
+		"presentations/stack_answered.json",
+		"draw_stacking:answered_log"
+	);
+	const texts = readModJson("draw_stacking", "texts/en.json");
+	const windowResponded = (payload: Record<string, unknown>) =>
+		eventOf("window_responded", payload, "system");
+
+	it("logs a winning stack answer with the responding seat", () => {
+		const outputs = presentEvent(
+			registry,
+			windowResponded({ window_kind: "generic", outcome: "winning", target: "ann" }),
+			viewerOf("bob")
+		);
+
+		expect(outputs).toHaveLength(1);
+		const line = outputs[0]!.line!;
+		expect(["draw_stacking:answered_1", "draw_stacking:answered_2"]).toContain(line.key);
+		expect(line.params).toEqual({ name: "ann" });
+	});
+
+	it.each([
+		["a lost outcome", { window_kind: "generic", outcome: "lost", target: "ann" }],
+		["a pass outcome", { window_kind: "generic", outcome: "pass", target: "ann" }],
+		["a jump_in window", { window_kind: "jump_in", outcome: "winning", target: "ann" }]
+	])("logs nothing for %s", (_label, payload) => {
+		expect(presentEvent(registry, windowResponded(payload), viewerOf("bob"))).toEqual([]);
+	});
+
+	it("names every variant key in the English texts", () => {
+		const keys = bindingVariantKeys("draw_stacking", "presentations/stack_answered.json");
+
+		expect(keys).toEqual(["draw_stacking:answered_1", "draw_stacking:answered_2"]);
+		for (const key of keys) expect(typeof texts[key]).toBe("string");
+	});
+});
+
 function bindingVariantKeys(modId: string, bindingFile: string): string[] {
 	const binding = readModJson(modId, bindingFile)["uni:binding"] as {
 		"uni:cases": { "uni:present": { "uni:log": { "uni:variants": string[] } } }[];

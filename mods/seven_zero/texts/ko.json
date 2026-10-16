@@ -1,0 +1,7 @@
+{
+  "seven_zero:swap_1": "{source} 님이 {target} 님과 패를 바꿉니다.",
+  "seven_zero:swap_2": "{source} 님과 {target} 님이 패를 맞바꿉니다.",
+  "seven_zero:pass_forward": "모든 패가 한 자리 앞으로 넘어갑니다.",
+  "seven_zero:pass_backward": "모든 패가 한 자리 뒤로 넘어갑니다.",
+  "seven_zero:redistributed": "모든 패가 참가자 전원에게 섞여 나뉩니다."
+}
